@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, Circle, Plus, UtensilsCrossed } from "lucide-react";
+import { BedDouble, CheckCircle2, Circle, Plus, Sparkles, UtensilsCrossed } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { DeskPill, DeskSection, type DeskTone } from "@/components/ui/desk";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -37,6 +39,8 @@ import { minorUnits } from "@/lib/locale/package";
 const API = "/api/campus-packages";
 const PACKAGE: Record<string, string> = { CANTEEN: "Canteen", BOARDING: "Boarding operations", SPECIALIST: "Specialist programme" };
 const STATUS: Record<string, string> = { OFF: "Off", SETUP: "Setting up", ENABLED: "Enabled", DISABLED: "Disabled · history kept", ARCHIVED: "Archived" };
+const PACKAGE_ICON: Record<string, typeof UtensilsCrossed> = { CANTEEN: UtensilsCrossed, BOARDING: BedDouble, SPECIALIST: Sparkles };
+const STATUS_TONE: Record<string, DeskTone> = { OFF: "neutral", SETUP: "info", ENABLED: "success", DISABLED: "warning", ARCHIVED: "neutral" };
 const ROLE: Record<string, string> = { MANAGER: "Canteen manager", DIETARY_LEAD: "Dietary lead", WARDEN: "Warden", LEAVE_APPROVER: "Leave approver", LEAD: "Package lead" };
 const CHECK: Record<string, string> = { food_safety_procedure: "Food safety procedure validated", allergen_procedure_validated: "Allergen procedure validated locally", refund_policy: "Refund policy agreed", menu_publishing_owner: "Menu publishing owner named", missing_student_procedure: "Missing-student procedure in place", leave_policy_validated: "Leave policy validated", roll_call_times: "Roll call times set", night_supervision_rota: "Night supervision rota set", local_requirements_validated: "Local requirements validated", template_reviewed: "Template reviewed with the team" };
 const ORDER: Record<string, string> = { PLACED: "Placed", HOLD: "Waiting for a staff check", CANCELLED: "Cancelled", SERVED: "Served" };
@@ -137,8 +141,14 @@ export function CampusPackagesPanel() {
         }}
       />
       {data.packages.map((p) => (
-        <div key={p.key} className="sk-panel space-y-2 p-3 text-sm">
-          <h3 className="font-semibold">{ui(PACKAGE[p.key])} · {ui(STATUS[p.status] ?? p.status)}</h3>
+        <DeskSection key={p.key} title={ui(PACKAGE[p.key])} icon={PACKAGE_ICON[p.key] ?? Sparkles} tone={p.status === "ENABLED" ? "success" : "brand"} className="text-sm" data-package={p.key} data-package-status={p.status}
+          action={<DeskPill tone={STATUS_TONE[p.status] ?? "neutral"}>{ui(STATUS[p.status] ?? p.status)}</DeskPill>}>
+          {p.checklist.length ? (
+            <div className="flex items-center gap-3" data-package-progress>
+              <Progress className="flex-1" size="sm" tone={p.checklist.every((item) => p.done[item]) ? "success" : "brand"} value={Math.round((p.checklist.filter((item) => p.done[item]).length / p.checklist.length) * 100)} label={ui(PACKAGE[p.key])} />
+              <bdi dir="ltr" className="shrink-0 text-xs font-bold tabular-nums text-ink-muted">{p.checklist.filter((item) => p.done[item]).length}/{p.checklist.length}</bdi>
+            </div>
+          ) : null}
           {p.key === "SPECIALIST" ? <p className="text-xs text-ink-subtle">{ui("A template to adapt, not a universal workflow. Local requirements must be validated.")}</p> : null}
           <div className="grid gap-2 md:grid-cols-2">
             {p.roles.map((role) => (
@@ -154,8 +164,8 @@ export function CampusPackagesPanel() {
               <Button type="submit" size="sm" variant="secondary" disabled={busy}>{ui("Save")}</Button>
             </form>
           ) : null}
-          <ul className="space-y-1">{p.checklist.map((item) => (
-            <li key={item} className="flex flex-wrap items-end gap-2">
+          <ul className="space-y-1.5">{p.checklist.map((item) => (
+            <li key={item} className={"flex flex-wrap items-end gap-2 rounded-xl px-2.5 py-2 " + (p.done[item] ? "bg-status-success-surface/60" : "bg-surface-subtle")}>
               <span className="flex min-w-56 items-center gap-2">{p.done[item] ? <CheckCircle2 aria-hidden="true" className="size-4 shrink-0 text-status-success-text" /> : <Circle aria-hidden="true" className="size-4 shrink-0 text-ink-subtle" />}<span className="sr-only">{ui(p.done[item] ? "Done" : "To do")}: </span>{ui(CHECK[item] ?? item)}{p.done[item] ? <span className="text-xs text-ink-subtle"> · <bdi>{p.done[item].note}</bdi></span> : null}</span>
               {!p.done[item] ? <form className="flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); void post({ action: "setup", data: { package: p.key, check: { item, note: val(`${p.key}-${item}`) } } }, "Checklist item recorded."); }}>
                 <FormField name={`${p.key}-${item}`} label={ui("How this was validated")} className="w-64"><Input value={val(`${p.key}-${item}`)} onChange={bind(`${p.key}-${item}`)} /></FormField>
@@ -163,8 +173,8 @@ export function CampusPackagesPanel() {
               </form> : null}
             </li>
           ))}</ul>
-          {p.gaps.length && p.status !== "ARCHIVED" ? <ul className="text-xs text-status-error-text">{p.gaps.map((g, i) => <li key={i}>{g}</li>)}</ul> : null}
-          {p.obligations.length ? <ul className="text-xs text-status-error-text" aria-label={ui("Open obligations")}>{p.obligations.map((o, i) => <li key={i}>{o}</li>)}</ul> : null}
+          {p.gaps.length && p.status !== "ARCHIVED" ? <Alert tone="warning" compact live="off"><ul className="list-disc space-y-0.5 ps-4 text-xs">{p.gaps.map((g, i) => <li key={i}>{g}</li>)}</ul></Alert> : null}
+          {p.obligations.length ? <Alert tone="danger" compact live="off"><ul className="list-disc space-y-0.5 ps-4 text-xs" aria-label={ui("Open obligations")}>{p.obligations.map((o, i) => <li key={i}>{o}</li>)}</ul></Alert> : null}
           <div className="flex flex-wrap items-end gap-2">
             {["OFF", "SETUP", "DISABLED"].includes(p.status) ? <Button type="button" size="sm" disabled={busy || p.gaps.length > 0} onClick={() => void post({ action: "enable", data: { package: p.key } }, "Package enabled for this campus with the approved staff roles.")}>{ui("Enable package")}</Button> : null}
             {["ENABLED", "DISABLED"].includes(p.status) ? <>
@@ -173,7 +183,7 @@ export function CampusPackagesPanel() {
               <Button type="button" size="sm" variant="secondary" disabled={busy || p.obligations.length > 0 || val(`${p.key}-reason`).trim().length < 5} onClick={() => setConfirming({ key: p.key, archive: true })}>{ui("Archive")}</Button>
             </> : null}
           </div>
-        </div>
+        </DeskSection>
       ))}
     </section>
   );

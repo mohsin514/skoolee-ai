@@ -1,6 +1,5 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { InputGroup } from "@/components/ui/input-group";
 
 
 import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
@@ -17,9 +16,10 @@ import {
   Loader2,
   Pencil,
   Plus,
-  Search,
   Trash2,
   Users,
+  GraduationCap,
+  Ruler,
 } from "lucide-react";
 import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { checkedListJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
@@ -36,6 +36,7 @@ import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { Textarea } from "@/components/ui/textarea";
 import { BULK_ROOM_LIMIT, parseBulkRooms, type BulkRoomError } from "@/lib/academic/room-setup";
+import { DeskFilterStatus, DeskQuickFilter, DeskStats, StatTile } from "@/components/ui/desk";
 
 /**
  * Rooms, with the two facts a seating plan needs (§79).
@@ -115,6 +116,8 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  // A pressed counter narrows the room list (exam halls, or rooms still missing their bench layout).
+  const [focus, setFocus] = useState<"halls" | "unmeasured" | null>(null);
   const [editing, setEditing] = useState<Room | "new" | null>(null);
   const [deleting, setDeleting] = useState<Room | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -175,13 +178,14 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
    *  thinks about them. */
   const grouped = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const focused = focus === "halls" ? active.filter((r) => r.isExamHall) : focus === "unmeasured" ? active.filter((r) => r.unmeasured) : active;
     const visible = q
-      ? active.filter((r) =>
+      ? focused.filter((r) =>
           `${r.roomNumber} ${r.building ?? ""} ${r.wing ?? ""} ${r.note ?? ""}`
             .toLowerCase()
             .includes(q),
         )
-      : active;
+      : focused;
 
     const map = new Map<string, Room[]>();
     visible.forEach((r) => {
@@ -196,7 +200,8 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
           (a, b) => a.floor - b.floor || a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true }),
         ),
       }));
-  }, [active, query, ui]);
+  }, [active, query, focus, ui]);
+  const shownCount = grouped.reduce((n, g) => n + g.rooms.length, 0);
 
 
   return (
@@ -255,18 +260,24 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
         ) : null}
       </div>
 
+      {/* ── Capacity at a glance: the counters also filter the list ─────── */}
+      {!loading && !loadFailed && active.length > 0 ? (
+        <DeskStats data-rooms-stats>
+          <StatTile index={0} icon={DoorOpen} tone="brand" value={totals.rooms} label={ui("Rooms")} />
+          <StatTile index={1} icon={Users} tone="info" value={totals.teaching} label={ui("Teaching capacity")} />
+          <StatTile index={2} icon={GraduationCap} tone="success" value={totals.exam} label={ui("Exam capacity")} hint={totals.halls ? ui("Exam halls: {0}", [totals.halls]) : undefined}
+            onSelect={totals.halls ? () => setFocus(focus === "halls" ? null : "halls") : undefined} selected={focus === "halls"} data-rooms-focus="halls" />
+          <StatTile index={3} icon={Ruler} tone={totals.unmeasured ? "warning" : "neutral"} value={totals.unmeasured} label={ui("Layout not recorded")}
+            onSelect={totals.unmeasured ? () => setFocus(focus === "unmeasured" ? null : "unmeasured") : undefined} selected={focus === "unmeasured"} data-rooms-focus="unmeasured" />
+        </DeskStats>
+      ) : null}
+
       {/* ── Search ──────────────────────────────────────────────────────── */}
       {active.length > 6 ? (
-        <InputGroup className="relative max-w-sm">
-          <Search aria-hidden="true" data-field-affix="start" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
-          <SystemInput
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label={ui("Find a room")}
-            placeholder={ui("Find a room, block or wing…")}
-            className={cn(inputClass, "ps-9")}
-          />
-        </InputGroup>
+        <DeskQuickFilter value={query} onChange={setQuery} label={ui("Find a room, block or wing…")} className="max-w-md" />
+      ) : null}
+      {!loading && !loadFailed && active.length > 0 ? (
+        <DeskFilterStatus shown={shownCount} total={active.length} onClear={() => { setFocus(null); setQuery(""); }} />
       ) : null}
 
       {loading ? (
@@ -292,7 +303,7 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
         />
       ) : grouped.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-edge/35 p-10 text-center text-xs font-bold text-ink-muted">
-          {ui("No room matches “{0}”.", [query])}
+          {query ? ui("No room matches “{0}”.", [query]) : ui("No rooms match these filters.")}
         </p>
       ) : (
         grouped.map(({ building, rooms: list }) => (

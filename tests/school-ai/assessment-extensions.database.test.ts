@@ -19,7 +19,7 @@ import { proposeScriptResponses } from "../../src/lib/school-ai/script-response-
 import { resolveAssistantFocus } from "../../src/lib/school-ai/assistant-focus";
 import { decideResultCorrection, proposeResultCorrection } from "../../src/lib/school-ai/exam-moderation-service";
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL55438.");
 const raw = new PrismaClient(), schoolId = `ai-advanced-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), subjectId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid` });
 const admin = actor("CAMPUS_ADMIN"), secondLead = actor("CAMPUS_ADMIN"), student = actor("STUDENT"), second = actor("STUDENT"), otherAdmin = { ...actor("CAMPUS_ADMIN"), campusId: randomUUID() };

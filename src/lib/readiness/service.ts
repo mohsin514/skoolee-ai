@@ -9,6 +9,7 @@ import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { getLocalePackage } from "@/lib/locale/store";
 import { parseSetupDraft, unresolvedOptionalWork, type AdoptionMode as SetupAdoptionMode, type InstitutionType, type OptionalWorkKey } from "@/lib/onboarding/setup-state";
 import { SETUP_AREAS, SETUP_AREA_TITLES, setupAreaHref, setupAreaTaskKey } from "@/lib/onboarding/setup-areas";
+import { buildSetupProgress } from "./progress";
 import { evaluateReadiness, isUnknownClassError, REHEARSAL_STEPS, type AdoptionMode, type ImportFacts, type ReadinessFacts, type RehearsalStep } from "./checks";
 
 type ImportRowJson = { state?: string; errors?: string[] };
@@ -26,6 +27,9 @@ export async function isReadinessLead(tx: TxClient, user: AuthUser): Promise<boo
   return setup?.delegateUserId === user.userId;
 }
 
+/** Import batches read for readiness; reaching the cap means the import totals are partial (SKAI-160). */
+const IMPORT_BATCH_CAP = 50;
+
 async function gatherFacts(tx: TxClient, schoolId: string, rehearsal: ReadinessFacts["rehearsal"]): Promise<ReadinessFacts> {
   const school = { schoolId };
   const [setup, campusRows, localePolicy, activeCycles, classes, classesWithTeacher, teachers, students, withGuardian, reviewRequired, feeStructures, openingBalances, batches] = await Promise.all([
@@ -42,7 +46,7 @@ async function gatherFacts(tx: TxClient, schoolId: string, rehearsal: ReadinessF
     tx.guardianRelationship.count({ where: { ...school, status: "REVIEW_REQUIRED" } }),
     tx.feeStructure.count({ where: school }),
     tx.feeCarryForward.count({ where: school }),
-    tx.importBatch.findMany({ where: { ...school, state: { not: "EXPIRED" } }, select: { id: true, kind: true, state: true, sourceName: true, data: true }, orderBy: { createdAt: "desc" }, take: 50 }),
+    tx.importBatch.findMany({ where: { ...school, state: { not: "EXPIRED" } }, select: { id: true, kind: true, state: true, sourceName: true, data: true }, orderBy: { createdAt: "desc" }, take: IMPORT_BATCH_CAP }),
   ]);
   const imports: ImportFacts = { pendingBatches: 0, rejectedRows: 0, unresolvedRows: 0, unknownClassRows: 0, batches: [] };
   for (const batch of batches) {
@@ -96,7 +100,9 @@ export async function readinessView(user: AuthUser, now = new Date()) {
       if (!tasks.length) throw new ApiError("School readiness is managed by the implementation lead.", 403);
       const audit = await taskAudit(tx, user.schoolId, tasks.map(task => task.id));
       const people = await tx.user.findMany({ where: { schoolId: user.schoolId, id: { in: [...new Set(audit.map(row => row.userId))] } }, select: { id: true, fullName: true } });
-      return { lead: false as const, tasks: withHistory(tasks, audit, new Map(people.map(person => [person.id, person.fullName]))), staff: [] as Array<{ id: string; fullName: string; role: string }> };
+      return { lead: false as const, tasks: withHistory(tasks, audit, new Map(people.map(person => [person.id, person.fullName]))), staff: [] as Array<{ id: string; fullName: string; role: string }>,
+        // Progress over only the follow-ups this person owns: the records they are allowed to open (SKAI-160).
+        progress: buildSetupProgress({ tasks, viewer: { role: user.role }, generatedAt: now }) };
     }
     await seedOptionalTasks(tx, user);
     const row = await readinessRow(tx, user);
@@ -107,14 +113,19 @@ export async function readinessView(user: AuthUser, now = new Date()) {
       getLocalePackage(user.schoolId, null, now, undefined, tx),
       taskAudit(tx, user.schoolId),
     ]);
-    return { lead: true as const, readiness: { status: row.status, version: row.version, approvedById: row.approvedById, approvedAt: row.approvedAt, evidence: row.evidence, rehearsal: row.rehearsal },
-      facts, ...evaluateReadiness(facts, { role: user.role, institutionKind: user.institutionKind, isInstitutionOwner: user.isInstitutionOwner }), tasks: withHistory(tasks, audit, new Map(staff.map(person => [person.id, person.fullName]))), staff, locale: { country: locale.country, timezone: locale.timezone, currency: locale.currency },
+    const viewer = { role: user.role, institutionKind: user.institutionKind, isInstitutionOwner: user.isInstitutionOwner };
+    const evaluation = evaluateReadiness(facts, viewer);
+    const areas = SETUP_AREAS.map(id => ({ id, ...setupAreaHref(id, viewer) }));
+    const progress = buildSetupProgress({ tasks, areas, checks: evaluation.checks, campuses: evaluation.campuses, school: { classes: facts.classes, students: facts.students }, viewer, generatedAt: now,
+      partial: facts.imports.batches.length >= IMPORT_BATCH_CAP ? ["imports"] : [] });
+    return { lead: true as const, progress, readiness: { status: row.status, version: row.version, approvedById: row.approvedById, approvedAt: row.approvedAt, evidence: row.evidence, rehearsal: row.rehearsal },
+      facts, ...evaluation, tasks: withHistory(tasks, audit, new Map(staff.map(person => [person.id, person.fullName]))), staff, locale: { country: locale.country, timezone: locale.timezone, currency: locale.currency },
       // The setup questionnaire lives in AI Workflows (/ai?setup=1).
       aiSetup: canConfigureCampus(user.role),
       // Only the institution authority chooses the adoption mode, and only before go-live (SKAI-912).
       canSwitchMode: isInstitutionAuthority(user) && row.status !== "READY" && Boolean(await tx.institutionSetup.findUnique({ where: { schoolId: user.schoolId }, select: { id: true } })),
       // The setup areas in wizard order, each with where this viewer sets it up (status comes from its task).
-      areas: SETUP_AREAS.map(id => ({ id, ...setupAreaHref(id, { role: user.role, institutionKind: user.institutionKind, isInstitutionOwner: user.isInstitutionOwner }) })) };
+      areas };
   });
 }
 

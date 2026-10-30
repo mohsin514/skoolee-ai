@@ -13,7 +13,7 @@ import { prisma as appPrisma } from "../../src/lib/db/prisma";
 // longer manages them); a guardian orders the last meal and a second guardian finds it sold out; the boarding
 // warden's roll call (Hostel, campus console) shows a missing boarder and an overdue return.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.PACKAGES_TEST_APP || "http://localhost:3108";
 const evidence = process.env.PACKAGES_EVIDENCE_DIR || "/tmp/sko456-evidence";
 const db = new PrismaClient(), password = "SyntheticPackages456!";

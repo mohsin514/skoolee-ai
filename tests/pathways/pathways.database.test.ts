@@ -11,7 +11,7 @@ import { addAction, addNote, decideMentoring, designateCounsellor, exportPlan, o
 // never exported; opportunities show source freshness; alumni consent is explicit and revocable;
 // mentoring is school-mediated with safeguarding and guardian consent for minors.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `pathway-${randomUUID()}`, campusId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid` });
 const principal = actor("PRINCIPAL"), counsellor = actor("TEACHER"), teacher = actor("TEACHER"), minor = actor("STUDENT"), adult = actor("STUDENT"), parent = actor("PARENT");

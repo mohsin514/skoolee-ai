@@ -1,6 +1,9 @@
 "use client";
 import Link from "next/link";
-import { CheckCircle2, Circle, Clock3, Info } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, Circle, CircleDot, Clock3, Info, ListTodo } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { DeskFilterStatus, DeskStats, StatTile, type DeskTone } from "@/components/ui/desk";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ForwardArrow } from "@/components/onboarding/ForwardArrow";
 import { setupAreaTaskKey, type SetupAreaId } from "@/lib/onboarding/setup-areas";
@@ -32,15 +35,35 @@ export function SetupAreasGuide({ language, areas, tasks, staff, busy, onAction 
   const rows = areaRows(areas, tasks);
   const done = rows.filter(row => row.status === "DONE").length;
   const nextId = rows.find(row => row.status === "OPEN" || row.status === "IN_PROGRESS")?.id;
+  // Each status counter is a filter; the list keeps every area's original step number.
+  const [focus, setFocus] = useState<Status | null>(null);
+  const count = (status: Status) => rows.filter(row => row.status === status).length;
+  const shown = rows.map((row, index) => ({ row, index })).filter(({ row }) => !focus || row.status === focus);
+  const tiles: Array<{ status: Status; icon: typeof Circle; tone: DeskTone }> = [
+    { status: "OPEN", icon: ListTodo, tone: "info" },
+    { status: "IN_PROGRESS", icon: CircleDot, tone: "brand" },
+    { status: "DEFERRED", icon: Clock3, tone: count("DEFERRED") ? "warning" : "neutral" },
+    { status: "DONE", icon: CheckCircle2, tone: "success" },
+  ];
   return (
     <section id="setup-areas" aria-labelledby="setup-areas-heading" className="sk-panel space-y-3 p-4 sm:p-6" data-testid="setup-areas">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="setup-areas-heading" className="text-lg font-bold text-ink-strong">{c.title}</h2>
         <p className="text-sm font-semibold text-ink-muted" aria-live="polite"><bdi dir="ltr">{done}</bdi> / <bdi dir="ltr">{rows.length}</bdi> {c.doneSuffix}</p>
       </div>
+      <Progress value={rows.length ? Math.round((done / rows.length) * 100) : 0} tone={done === rows.length ? "success" : "brand"} label={`${done} / ${rows.length} ${c.doneSuffix}`} data-setup-progress />
       <p className="text-sm text-ink-muted">{c.intro}</p>
+      {rows.length > 3 ? (
+        <DeskStats data-setup-area-stats>
+          {tiles.map(({ status, icon, tone }, index) => (
+            <StatTile key={status} index={index} icon={icon} tone={tone} value={count(status)} label={c.statuses[status]}
+              onSelect={count(status) ? () => setFocus(focus === status ? null : status) : undefined} selected={focus === status} data-setup-focus={status} />
+          ))}
+        </DeskStats>
+      ) : null}
+      <DeskFilterStatus shown={shown.length} total={rows.length} onClear={() => setFocus(null)} />
       <ol className="space-y-2">
-        {rows.map((row, index) => {
+        {shown.map(({ row, index }) => {
           const Icon = row.status === "DONE" ? CheckCircle2 : row.status === "DEFERRED" ? Clock3 : Circle;
           const isNext = row.id === nextId;
           return (

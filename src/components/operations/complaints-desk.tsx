@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Lock, MessageSquare, Plus } from "lucide-react";
+import { AlarmClock, CheckCircle2, FileText, Inbox, Lock, MessageSquare, Plus, UserX } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,8 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskSection, DeskStats, RelativeTime, StatTile, deskRow, deskTimeline, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { PanelTitle } from "@/components/shared-admin";
@@ -34,6 +35,9 @@ type Owner = { id: string; fullName: string; role?: string };
 const OWNER_ROLES = new Set(["CAMPUS_ADMIN", "ADMIN", "RECEPTIONIST"]);
 const STATUS_LABEL: Record<Status, string> = { OPEN: "Open", IN_PROGRESS: "In progress", RESOLVED: "Resolved" };
 const EVENT_LABEL: Record<string, string> = { CREATED: "Received", ASSIGNED: "Owner and due date set", NOTE: "Internal note", STATUS: "Work started", RESOLVED: "Resolved", REOPENED: "Reopened" };
+const EVENT_TONE: Record<string, DeskTone> = { CREATED: "info", ASSIGNED: "brand", NOTE: "neutral", STATUS: "brand", RESOLVED: "success", REOPENED: "warning" };
+const rowTone = (row: Row): DeskTone | "muted" | undefined => row.overdue ? "danger" : row.status === "RESOLVED" ? "success" : !row.owner ? "warning" : undefined;
+const rowRank = (row: Row) => row.overdue ? 0 : row.status !== "RESOLVED" && !row.owner ? 1 : row.status === "OPEN" ? 2 : row.status === "IN_PROGRESS" ? 3 : 4;
 const todayText = () => new Date().toISOString().slice(0, 10);
 const EMPTY = { complainantName: "", anonymous: false, type: "", description: "", date: todayText(), phone: "", confidential: false, ownerId: "", dueDate: "" };
 
@@ -56,6 +60,10 @@ export function ComplaintsDesk({ hideHeader = false, command }: { hideHeader?: b
   const [status, setStatus] = useState("active"), [owner, setOwner] = useState(""), [q, setQ] = useState("");
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState("");
   const [intakeOpen, setIntakeOpen] = useState(false), [openId, setOpenId] = useState<string | null>(null);
+  // A pressed counter narrows the loaded queue to its cases; pressing it again shows everything.
+  const [focus, setFocus] = useState<"unassigned" | "overdue" | null>(null);
+  const toggle = (next: "unassigned" | "overdue") => setFocus(current => current === next ? null : next);
+  const shown = urgencyFirst(rows.filter(row => focus === "unassigned" ? !row.owner && row.status !== "RESOLVED" : focus === "overdue" ? row.overdue : true), rowRank);
 
   const load = useCallback(async () => {
     setLoading(true); setLoadError("");
@@ -92,11 +100,11 @@ export function ComplaintsDesk({ hideHeader = false, command }: { hideHeader?: b
       <PanelTitle icon={MessageSquare} title={ui("Complaints")} />
       <Button onClick={() => setIntakeOpen(true)}><Plus className="size-4" aria-hidden="true" />{ui("Record complaint")}</Button>
     </div>}
-    <p className="flex flex-wrap gap-3 text-sm font-bold" aria-live="polite" data-complaint-counts>
-      <span>{ui("Active: {0}", [counts.active])}</span>
-      <span className={counts.unassigned ? "text-status-warning-text" : ""} data-unassigned={counts.unassigned}>{ui("Unassigned: {0}", [counts.unassigned])}</span>
-      <span className={counts.overdue ? "text-status-error-text" : ""} data-overdue={counts.overdue}>{ui("Past response date: {0}", [counts.overdue])}</span>
-    </p>
+    <DeskStats aria-live="polite" data-complaint-counts>
+      <StatTile index={0} icon={Inbox} tone="brand" value={counts.active} label={<><span aria-hidden="true">{ui("Open and in progress")}</span><span className="sr-only">{ui("Active: {0}", [counts.active])}</span></>} />
+      <StatTile index={1} icon={UserX} tone={counts.unassigned ? "warning" : "neutral"} value={counts.unassigned} valueProps={{ "data-unassigned": counts.unassigned }} onSelect={counts.unassigned || focus === "unassigned" ? () => toggle("unassigned") : undefined} selected={focus === "unassigned"} label={<><span aria-hidden="true">{ui("Unassigned")}</span><span className="sr-only">{ui("Unassigned: {0}", [counts.unassigned])}</span></>} />
+      <StatTile index={2} icon={AlarmClock} tone={counts.overdue ? "danger" : "success"} value={counts.overdue} valueProps={{ "data-overdue": counts.overdue }} onSelect={counts.overdue || focus === "overdue" ? () => toggle("overdue") : undefined} selected={focus === "overdue"} label={<><span aria-hidden="true">{ui("Past response date")}</span><span className="sr-only">{ui("Past response date: {0}", [counts.overdue])}</span></>} />
+    </DeskStats>
     <div className="grid gap-3 sm:grid-cols-3">
       <FormField name="complaint-filter-status" label={ui("Status")}><Select value={status} onChange={event => setStatus(event.target.value)}><option value="active">{ui("Open and in progress")}</option><option value="OPEN">{ui("Open")}</option><option value="IN_PROGRESS">{ui("In progress")}</option><option value="RESOLVED">{ui("Resolved")}</option><option value="all">{ui("All complaints")}</option></Select></FormField>
       <FormField name="complaint-filter-owner" label={ui("Owner")}><Select value={owner} onChange={event => setOwner(event.target.value)}><option value="">{ui("Anyone")}</option><option value="me">{ui("Assigned to me")}</option><option value="unassigned">{ui("Unassigned")}</option><option value="overdue">{ui("Past response date")}</option></Select></FormField>
@@ -105,16 +113,18 @@ export function ComplaintsDesk({ hideHeader = false, command }: { hideHeader?: b
 
     {loading && !rows.length ? <SkeletonList rows={3} label={ui("Loading complaints…")} />
       : loadError ? <ErrorState description={loadError} onRetry={() => void load()} retryLabel={ui("Retry")} />
-      : !rows.length ? <p className="rounded-2xl bg-muted p-4 text-sm">{status !== "active" || owner || q ? ui("No complaints match these filters.") : ui("No open complaints. Record a complaint when one is received.")}</p>
-      : <ul className="space-y-2" aria-label={ui("Complaints")}>{rows.map(row => <li key={row.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3 text-sm ${row.overdue ? "border-status-error-border bg-status-error-surface" : "border-border"}`} data-complaint={row.referenceCode} data-complaint-status={row.status} data-confidential={row.confidential}>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold text-ink-strong"><bdi>{row.referenceCode}</bdi> · <bdi>{row.type}</bdi>{row.confidential ? <Badge size="sm" variant="info" className="ms-2"><Lock className="size-3" aria-hidden="true" />{ui("Confidential")}</Badge> : null}</p>
+      : !rows.length ? <EmptyState size="sm" icon={MessageSquare} title={status !== "active" || owner || q ? ui("No complaints match these filters.") : ui("No open complaints. Record a complaint when one is received.")} action={status !== "active" || owner || q ? undefined : <Button size="sm" onClick={() => setIntakeOpen(true)}><Plus className="size-4" aria-hidden="true" />{ui("Record complaint")}</Button>} />
+      : <div className="space-y-2.5"><DeskFilterStatus shown={shown.length} total={rows.length} onClear={() => setFocus(null)} /><ul className="space-y-2.5" aria-label={ui("Complaints")}>{shown.map(row => <li key={row.id} data-tone={rowTone(row)} className={`${deskRow} flex flex-wrap items-center gap-3 text-sm`} data-complaint={row.referenceCode} data-complaint-status={row.status} data-confidential={row.confidential}>
+        <DeskRowIcon icon={row.confidential ? Lock : row.status === "RESOLVED" ? CheckCircle2 : MessageSquare} />
+        <div className="min-w-0 flex-1 basis-48 space-y-0.5">
+          <p className="font-semibold text-ink-strong"><bdi className="font-mono text-xs font-semibold text-primary">{row.referenceCode}</bdi> <span className="text-ink-faint">·</span> <bdi>{row.type}</bdi>{row.confidential ? <DeskPill tone="info" className="ms-2"><Lock className="size-3" aria-hidden="true" />{ui("Confidential")}</DeskPill> : null}</p>
           <p className="text-xs text-ink-muted"><bdi>{row.complainantName}</bdi> · {ui("Received {0}", [formatDate(row.date)])}{row.reopenedCount ? ` · ${ui("Reopened {0} time(s)", [row.reopenedCount])}` : ""}</p>
           <p className="text-xs text-ink-muted">{row.owner ? ui("Owner: {0}", [row.owner.fullName]) : <span className="font-bold text-status-warning-text">{ui("Unassigned")}</span>}{row.dueDate ? ` · ${ui("Response due {0}", [formatDate(row.dueDate)])}` : ""}</p>
         </div>
-        <Badge size="sm" dot variant={row.overdue ? "danger" : row.status === "RESOLVED" ? "success" : "neutral"}>{row.overdue ? ui("Past response date") : ui(STATUS_LABEL[row.status])}</Badge>
+        <DeskPill tone={row.overdue ? "danger" : row.status === "RESOLVED" ? "success" : row.status === "IN_PROGRESS" ? "brand" : "info"}>{row.overdue ? ui("Past response date") : ui(STATUS_LABEL[row.status])}</DeskPill>
+        {row.dueDate && row.status !== "RESOLVED" ? <span className={`text-xs font-semibold tabular-nums ${row.overdue ? "text-status-error-text" : "text-ink-muted"}`}><RelativeTime iso={row.dueDate} full={formatDate(row.dueDate)} /></span> : null}
         <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)} aria-label={ui("Open complaint {0}", [row.referenceCode])}>{ui("Open")}</Button>
-      </li>)}</ul>}
+      </li>)}</ul></div>}
 
     {intakeOpen ? <IntakeDialog owners={owners} leader={leader} onClose={() => setIntakeOpen(false)} onDone={() => { setIntakeOpen(false); void load(); }} /> : null}
     {openId ? <CaseDialog id={openId} owners={owners} leader={leader} onClose={() => setOpenId(null)} onChanged={() => void load()} /> : null}
@@ -145,7 +155,7 @@ function IntakeDialog({ owners, leader, onClose, onDone }: { owners: Owner[]; le
   if (receipt) return <Modal title={ui("Complaint recorded")} eyebrow={ui("Complaints")} onClose={onDone}>
     <div className="space-y-3" data-complaint-receipt={receipt}>
       <p className="text-sm">{ui("Give the complainant this reference: {0}", [receipt])}</p>
-      {form.confidential ? <p className="rounded-xl bg-status-info-surface p-3 text-xs text-status-info-text">{ui("This confidential concern has gone to your campus admin. It will not appear in the reception queue.")}</p> : null}
+      {form.confidential ? <Alert tone="info" compact live="off">{ui("This confidential concern has gone to your campus admin. It will not appear in the reception queue.")}</Alert> : null}
       <div className="flex justify-end"><Button onClick={onDone}>{ui("Done")}</Button></div>
     </div>
   </Modal>;
@@ -202,12 +212,11 @@ function CaseDialog({ id, owners, leader, onClose, onChanged }: { id: string; ow
   return <Modal title={detail ? ui("Complaint {0}", [detail.referenceCode]) : ui("Complaint")} eyebrow={ui("Complaints")} size="lg" onClose={onClose} dirty={Boolean(note || resolution || reason)}>
     {loadError ? <ErrorState description={loadError} onRetry={() => { setLoadError(""); void load(); }} retryLabel={ui("Retry")} /> : !detail ? <SkeletonList rows={3} label={ui("Loading complaints…")} /> : <div className="space-y-4" data-complaint-case={detail.referenceCode}>
       {error ? <Alert tone="danger" compact data-case-error>{error}</Alert> : null}
-      <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Original report")}>
-        <p className="text-xs font-semibold uppercase text-ink-subtle">{ui("Original report")} · {ui("Received {0}", [formatDate(detail.date)])}</p>
+      <DeskSection title={ui("Original report")} icon={FileText} tone={detail.confidential ? "info" : "brand"} className="text-sm" aria-label={ui("Original report")} action={<span className="text-xs text-ink-muted">{ui("Received {0}", [formatDate(detail.date)])}</span>}>
         <p className="font-semibold text-ink-strong"><bdi>{detail.type}</bdi> · <bdi>{detail.complainantName}</bdi>{detail.phone ? <> · <bdi>{detail.phone}</bdi></> : null}</p>
         <p className="whitespace-pre-wrap"><bdi>{detail.description}</bdi></p>
-      </section>
-      <p className="text-sm font-semibold text-ink-strong" data-case-status={detail.status}>{ui(STATUS_LABEL[detail.status])}{detail.owner ? ` · ${ui("Owner: {0}", [detail.owner.fullName])}` : ` · ${ui("Unassigned")}`}{detail.dueDate ? ` · ${ui("Response due {0}", [formatDate(detail.dueDate)])}` : ""}{detail.overdue ? ` · ${ui("Past response date")}` : ""}</p>
+      </DeskSection>
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-ink-strong" data-case-status={detail.status}><DeskPill tone={detail.overdue ? "danger" : detail.status === "RESOLVED" ? "success" : detail.status === "IN_PROGRESS" ? "brand" : "info"}>{ui(STATUS_LABEL[detail.status])}</DeskPill>{detail.owner ? ` · ${ui("Owner: {0}", [detail.owner.fullName])}` : ` · ${ui("Unassigned")}`}{detail.dueDate ? ` · ${ui("Response due {0}", [formatDate(detail.dueDate)])}` : ""}{detail.overdue ? ` · ${ui("Past response date")}` : ""}</p>
       {detail.status !== "RESOLVED" && canAssign ? <div className="grid items-end gap-3 sm:grid-cols-3">
         <FormField name="case-owner" label={ui("Owner")}><Select value={ownerId} onChange={event => setOwnerId(event.target.value)}><option value="">{ui("Unassigned")}</option>{owners.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></FormField>
         <FormField name="case-due" label={ui("Response due")}><Input type="date" value={dueDate} onChange={event => setDueDate(event.target.value)} /></FormField>
@@ -223,13 +232,13 @@ function CaseDialog({ id, owners, leader, onClose, onChanged }: { id: string; ow
         <FormField name="case-resolution" label={ui("Resolution (required to resolve)")}><Textarea value={resolution} rows={2} maxLength={2000} onChange={event => setResolution(event.target.value)} /></FormField>
         <Button disabled={busy} onClick={() => { if (resolution.trim().length < 5) { setError(ui("Describe the resolution (at least 5 characters).")); return; } void run({ action: "resolve", resolution, publicResponse }, "Complaint resolved."); }}>{ui("Resolve")}</Button>
       </div> : <div className="space-y-2">
-        <p className="rounded-xl bg-status-success-surface p-3 text-sm" data-case-resolution><bdi>{detail.resolution}</bdi></p>
+        <Alert tone="success" compact live="off" data-case-resolution><bdi>{detail.resolution}</bdi></Alert>
         <FormField name="case-reopen" label={ui("Reason for reopening")}><Input value={reason} maxLength={2000} onChange={event => setReason(event.target.value)} /></FormField>
         <Button variant="secondary" disabled={busy} onClick={() => { if (reason.trim().length < 5) { setError(ui("Explain why the complaint is reopened (at least 5 characters).")); return; } void run({ action: "reopen", reason }, "Complaint reopened."); }}>{ui("Reopen")}</Button>
       </div>}
       <section aria-label={ui("History")}>
-        <p className="mb-2 text-xs font-semibold uppercase text-ink-subtle">{ui("History")}</p>
-        <ol className="space-y-1.5 text-xs" data-case-history>{detail.events.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2" data-event={event.kind}>
+        <p className="sk-eyebrow mb-3">{ui("History")}</p>
+        <ol className={`${deskTimeline} text-xs`} data-case-history>{detail.events.map(event => <li key={event.id} data-tone={EVENT_TONE[event.kind] ?? "brand"} className={event.kind === "NOTE" ? "rounded-xl bg-surface-subtle p-2.5" : undefined} data-event={event.kind}>
           <p className="font-semibold text-ink-strong">{ui(EVENT_LABEL[event.kind] ?? event.kind)} · {dateTime(event.createdAt)}{event.actorName ? ` · ${event.actorName}` : ""}</p>
           {event.kind === "ASSIGNED" ? <p>{event.ownerName ? ui("Owner: {0}", [event.ownerName]) : ui("Unassigned")}{event.dueDate ? ` · ${ui("Response due {0}", [formatDate(event.dueDate)])}` : ""}</p> : null}
           {event.note ? <p className="whitespace-pre-wrap"><bdi>{event.note}</bdi></p> : null}

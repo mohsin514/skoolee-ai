@@ -13,7 +13,11 @@ import {
   Plus,
   BookOpen,
   PartyPopper,
+  BookOpenCheck,
+  CalendarRange,
+  Clock,
 } from "lucide-react";
+import { DeskPill, DeskStats, StatTile } from "@/components/ui/desk";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
@@ -409,12 +413,22 @@ export function AcademicCalendar({
         </div>
       </div>
 
-      {/* Layer toggles */}
-      <div className="flex flex-wrap items-center gap-[8px] px-[12px] py-[12px] sm:px-5 border-b border-edge/10">
-        <LayerChip label={tr("Exams")} color="#8127cf" active={layers.exams} onClick={() => setLayers((l) => ({ ...l, exams: !l.exams }))} />
-        <LayerChip label={tr("Holidays")} color="#0d9488" active={layers.holidays} onClick={() => setLayers((l) => ({ ...l, holidays: !l.holidays }))} />
-        <LayerChip label={tr("Terms")} color="#d97706" active={layers.terms} onClick={() => setLayers((l) => ({ ...l, terms: !l.terms }))} />
-        <LayerChip label={tr("Deadlines")} color="#f43f5e" active={layers.deadlines} onClick={() => setLayers((l) => ({ ...l, deadlines: !l.deadlines }))} />
+      {/* The year at a glance. Each counter is also its layer's on/off filter for the grid and the agenda. */}
+      <div className="space-y-3 border-b border-edge/10 px-[12px] py-[12px] sm:px-5" data-calendar-layers>
+        <DeskStats>
+          <StatTile index={0} icon={BookOpenCheck} tone="brand" value={feed?.exams.length ?? 0} label={tr("Exams")} selected={layers.exams} onSelect={() => setLayers((l) => ({ ...l, exams: !l.exams }))} />
+          <StatTile index={1} icon={PartyPopper} tone="success" value={feed?.holidays.length ?? 0} label={tr("Holidays")} selected={layers.holidays} onSelect={() => setLayers((l) => ({ ...l, holidays: !l.holidays }))} />
+          <StatTile index={2} icon={CalendarRange} tone="warning" value={feed?.terms.length ?? 0} label={tr("Terms")} selected={layers.terms} onSelect={() => setLayers((l) => ({ ...l, terms: !l.terms }))} />
+          <StatTile index={3} icon={Clock} tone="danger" value={feed?.exams.filter((e) => DEADLINE_STATUSES.has(e.status)).length ?? 0} label={tr("Deadlines")} selected={layers.deadlines} onSelect={() => setLayers((l) => ({ ...l, deadlines: !l.deadlines }))} />
+        </DeskStats>
+        {feed?.weekends.length ? (
+          <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-ink-muted" data-calendar-weekend>
+            <span>{tr("Weekend")}:</span>
+            {[...feed.weekends].sort((a, b) => a - b).map((d) => (
+              <DeskPill key={d} tone="neutral">{new Intl.DateTimeFormat(localeTag(locale), { weekday: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, d)))}</DeskPill>
+            ))}
+          </p>
+        ) : null}
       </div>
 
       {loadFailed && !loading ? (
@@ -507,25 +521,6 @@ export function AcademicCalendar({
           />
         )}
     </div>
-  );
-}
-
-function LayerChip({ label, color, active, onClick }: { label: string; color: string; active: boolean; onClick: () => void }) {
-  return (
-    <Button variant="choice"
-      type="button"
-      onClick={onClick}
-      // These are filters, not a legend. On/off is conveyed only by a colour
-      // shift, so the state has to be exposed for assistive tech too.
-      aria-pressed={active}
-      className={"justify-start " + (cn(
-        "flex min-h-[44px] items-center gap-[6px] px-[10px] py-[6px]",
-        ""
-      ))}
-    >
-      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: active ? color : "var(--color-ink-faint)" }} />
-      {label}
-    </Button>
   );
 }
 

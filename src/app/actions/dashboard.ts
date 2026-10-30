@@ -19,6 +19,7 @@ import { attendanceForYear, summarizeAttendance } from "@/lib/attendance";
 import { attendanceRuleFor } from "@/lib/attendance/rule";
 import { getActiveAcademicYear } from "@/lib/academic/cycle";
 import { announcementHistoryRestriction } from "@/lib/school-ai/announcement-history";
+import { rosterSummarySelect } from "@/lib/students/roster-summary";
 
 /**
  * Production strips server-action error messages ("userMessage suppressed internal error" on the client), so a
@@ -575,39 +576,9 @@ async function loadCampusDashboardData() {
     L.widget("campus", () => prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId } }), null),
     L.widget("students", () => prisma.student.findMany({
       where: { campusId, campus: { schoolId: session.schoolId } },
+      // The directory summary (SKAI-163); the profile reads the sensitive fields from /api/students/<id>.
       select: {
-        id: true,
-        fullName: true,
-        nameUr: true,
-        rollNo: true,
-        dateOfBirth: true,
-        gender: true,
-        bloodType: true,
-        nationality: true,
-        phone: true,
-        guardianName: true,
-        guardianNameUr: true,
-        guardianPhone: true,
-        guardianWhatsapp: true,
-        guardianEmail: true,
-        guardianRelationship: true,
-        guardianOccupation: true,
-        city: true,
-        province: true,
-        postalCode: true,
-        address: true,
-        medicalNotes: true,
-        specialNeeds: true,
-        allergies: true,
-        medications: true,
-        previousSchool: true,
-        enrollmentDate: true,
-        status: true,
-        profileImageUrl: true,
-        studentUser: { select: { email: true, isActive: true } },
-        class: { select: { id: true, name: true, section: true, academicYear: true } },
-        category: { select: { id: true, name: true } },
-        group: { select: { id: true, name: true } },
+        ...rosterSummarySelect,
         attendance: {
           select: { id: true, status: true, date: true },
           orderBy: { date: "desc" },

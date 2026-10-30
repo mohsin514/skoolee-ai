@@ -16,7 +16,7 @@ import { familyLearningActions } from "../../src/lib/learning/actions";
 // rescheduled; ownership moves explicitly; the review separates participation from outcome, needs a
 // reason, refuses a closure without follow-up evidence and never claims causation.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.ACTIONS_TEST_APP || "http://localhost:3108";
 const evidence = process.env.ACTIONS_EVIDENCE_DIR || "/tmp/sko425-evidence";
 const db = new PrismaClient(), password = "SyntheticActions425!";

@@ -13,6 +13,7 @@ import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/Local
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { InputGroup } from "@/components/ui/input-group";
+import { checkStudentDocumentFile, cleanStudentDocumentName, studentDocumentContentType, STUDENT_DOCUMENT_ACCEPT, STUDENT_DOCUMENT_KINDS } from "@/lib/students/document-policy";
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -2356,6 +2357,9 @@ export function StudentAdmissionsPanel({
   const [noteDraft, setNoteDraft] = useState("");
   const [noteBusy, setNoteBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // SKAI-165: a failed or denied list load is its own state, never "no documents yet".
+  const [documentsError, setDocumentsError] = useState<"denied" | "failed" | null>(null);
+  const [uploadProblem, setUploadProblem] = useState<string | null>(null);
   const [uploadKind, setUploadKind] = useState("BIRTH_CERTIFICATE");
   const fileInput = useRef<HTMLInputElement>(null);
   const [linkSearch, setLinkSearch] = useState("");
@@ -2370,7 +2374,9 @@ export function StudentAdmissionsPanel({
         ? fetch(`/api/students/siblings?studentId=${encodeURIComponent(student.id)}`).then((r) => r.json())
         : Promise.resolve({ success: true, data: [] }),
       tab === "documents"
-        ? fetch(`/api/students/documents?studentId=${encodeURIComponent(student.id)}`).then((r) => r.json())
+        ? fetch(`/api/students/documents?studentId=${encodeURIComponent(student.id)}`)
+            .then(async (r) => ({ ...(await r.json().catch(() => ({}))), status: r.status }))
+            .catch(() => ({ success: false, status: 0 }))
         : Promise.resolve({ success: true, data: [] }),
       tab === "timeline"
         ? fetch(`/api/students/timeline?studentId=${encodeURIComponent(student.id)}`).then((r) => r.json())
@@ -2380,6 +2386,7 @@ export function StudentAdmissionsPanel({
         if (!active) return;
         if (sib.success) setSiblings(sib.data || []);
         if (doc.success) setDocuments(doc.data || []);
+        setDocumentsError(doc.success ? null : [401, 403, 404].includes(doc.status) ? "denied" : "failed");
         if (tl.success) setTimeline(tl.data || []);
       })
       .catch(() => {})
@@ -2398,7 +2405,18 @@ export function StudentAdmissionsPanel({
       PHOTO: "Photo",
       OTHER: "Other",
     };
-    const safeName = file.name.replace(/[^\w.\- ]/g, "_");
+    const problem = checkStudentDocumentFile(file);
+    if (problem) {
+      // Rejected before any bytes are sent; the chosen type stays selected so the user can pick another file.
+      setUploadProblem(problem === "too_large" ? ui("{0} is larger than 10 MB. Choose a smaller file.", [file.name])
+        : problem === "empty" ? ui("{0} is empty. Choose another file.", [file.name])
+        : ui("{0} is not a supported file. Use PDF, JPG, PNG, WebP or Word.", [file.name]));
+      if (fileInput.current) fileInput.current.value = "";
+      return;
+    }
+    setUploadProblem(null);
+    const safeName = cleanStudentDocumentName(file.name);
+    const contentType = studentDocumentContentType(file)!;
     setUploading(true);
     try {
       const presignRes = await fetch("/api/uploads/presign", {
@@ -2407,7 +2425,7 @@ export function StudentAdmissionsPanel({
         body: JSON.stringify({
           studentId: student.id,
           fileName: safeName,
-          contentType: file.type || "application/octet-stream",
+          contentType,
           sizeBytes: file.size,
         }),
       });
@@ -2416,10 +2434,10 @@ export function StudentAdmissionsPanel({
 
       const putRes = await fetch(presign.data.uploadUrl, {
         method: "PUT",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
+        headers: { "Content-Type": contentType },
         body: file,
       });
-      if (!putRes.ok) throw new Error("Upload to storage failed");
+      if (!putRes.ok) throw new Error(ui("The file could not be stored. Your choice is kept; try again."));
 
       const recRes = await fetch("/api/students/documents", {
         method: "POST",
@@ -2437,7 +2455,9 @@ export function StudentAdmissionsPanel({
       toast.success(ui("{0} uploaded", [ui(kindsLabel[uploadKind] ?? "Document")]));
       onVersionBump();
     } catch (error) {
-      toast.error(friendlyErrorMessage(error, ui("Could not upload the document. Please try again.")));
+      const message = friendlyErrorMessage(error, ui("Could not upload the document. Please try again."));
+      setUploadProblem(message);
+      toast.error(message);
     } finally {
       setUploading(false);
       if (fileInput.current) fileInput.current.value = "";
@@ -2589,7 +2609,7 @@ export function StudentAdmissionsPanel({
           <div className="mt-4 flex flex-wrap items-end gap-3">
             <div className="w-48">
               <FormSelect label={ui("Document type")} value={uploadKind} onChange={setUploadKind}>
-                {["BIRTH_CERTIFICATE", "TRANSFER_CERTIFICATE", "PHOTO", "OTHER"].map((k) => (
+                {STUDENT_DOCUMENT_KINDS.map((k) => (
                   <option key={k} value={k}>{kindLabel(k)}</option>
                 ))}
               </FormSelect>
@@ -2597,7 +2617,8 @@ export function StudentAdmissionsPanel({
             <input
               ref={fileInput}
               type="file"
-              accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+              accept={STUDENT_DOCUMENT_ACCEPT}
+              aria-label={ui("Choose a document to upload")}
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -2614,9 +2635,17 @@ export function StudentAdmissionsPanel({
               {uploading ? ui("Uploading…") : ui("Upload (max 10 MB)")}
             </BrandButton>
           </div>
+          <p className="mt-2 text-xs text-ink-muted">{ui("PDF, JPG, PNG, WebP or Word, up to 10 MB. Files are private to this school.")}</p>
+          {uploadProblem ? <Alert tone="danger" className="mt-3" role="alert">{uploadProblem}</Alert> : null}
         </div>
 
-        {documents.length === 0 ? (
+        {documentsError ? (
+          <Alert tone={documentsError === "denied" ? "warning" : "danger"} title={documentsError === "denied" ? ui("You don't have access to these documents.") : ui("Could not load the documents.")}>
+            {documentsError === "failed" ? (
+              <SystemButton type="button" variant="secondary" size="sm" className="mt-2" onClick={onVersionBump}>{ui("Try again")}</SystemButton>
+            ) : ui("Ask a school administrator for student access.")}
+          </Alert>
+        ) : documents.length === 0 ? (
           <EmptyInline text={ui("No documents uploaded yet.")} />
         ) : (
           <div className="space-y-2">

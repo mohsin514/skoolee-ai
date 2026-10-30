@@ -11,7 +11,7 @@ import { overview as taxOverview } from "../../src/lib/tax/service";
 // SKAI-1028 / SKAI-1030: purchasing and tax load when bound with runAsUser, each school and campus sees only its own
 // rows, an unbound call is refused by the guard, and denied roles get a 403.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient();
 const schools = [`tb-a-${randomUUID()}`, `tb-b-${randomUUID()}`];
 const campuses = { [schools[0]]: [randomUUID(), randomUUID()], [schools[1]]: [randomUUID()] };

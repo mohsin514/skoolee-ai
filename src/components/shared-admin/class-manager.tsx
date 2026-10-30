@@ -3,6 +3,8 @@
 import { IconButton } from "@/components/ui/icon-button";
 import { InfoTip } from "@/components/ui/tooltip";
 import { Alert } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { DeskFilterStatus, DeskStats, StatTile, deskRow } from "@/components/ui/desk";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button as SystemButton } from "@/components/ui/button";
@@ -1137,7 +1139,9 @@ function SectionDetailView({
               return (
                 <div
                   key={subject.id}
-                  className="sk-panel group/card p-4 transition-all duration-200 hover:border-s-primary hover:shadow-md"
+                  // A subject nobody teaches carries the warning rail, so gaps show without opening each card.
+                  data-tone={teachingMode !== "SINGLE" && !subject.teacher?.id ? "warning" : undefined}
+                  className={cn(deskRow, "group/card p-4")}
                 >
                   {isEditing ? (
                     <div className="space-y-3">
@@ -1757,6 +1761,8 @@ export function ClassManager({
     onChangeSubjectTeacher(classId, subjectId, teacherId, assignmentDate === today ? undefined : assignmentDate);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
   const [addingSection, setAddingSection] = useState(false);
+  // The readiness tile filters the rail to the sections that still need a class teacher or subjects.
+  const [onlyGaps, setOnlyGaps] = useState(false);
 
   const { availability, refresh: refreshAvailability } =
     useTeacherAvailability();
@@ -1804,6 +1810,7 @@ export function ClassManager({
   }, [sortedSections]);
 
   const totalStudents = allStudents.length;
+  const gapsOnly = onlyGaps && readySections < sortedSections.length;
   const className = cls.name || ui("Class");
   const academicYear = cls.academicYear || new Date().getFullYear();
 
@@ -1884,81 +1891,24 @@ export function ClassManager({
                 ready to run — a class can show "3 sections, 12 subjects" and
                 still have two sections nobody teaches. The readiness pill puts
                 that on the same line as everything else. */}
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <DeskStats className="mt-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,8.5rem),1fr))]" data-class-stats>
               {sortedSections.length > 0 ? (
-                <div
-                  className={cn(
-                    "flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-sm",
-                    readySections === sortedSections.length
-                      ? "border-status-success-border bg-status-success-surface"
-                      : "border-status-warning-border bg-status-warning-surface",
-                  )}
-                >
-                  {readySections === sortedSections.length ? (
-                    <CheckCircle2 className="h-3 w-3 text-status-success-text" />
-                  ) : (
-                    <AlertCircle className="h-3 w-3 text-status-warning-text" />
-                  )}
-                  <span
-                    className={cn(
-                      "text-2xs font-bold",
-                      readySections === sortedSections.length ? "text-status-success-text" : "text-status-warning-text",
-                    )}
-                  >
-                    {readySections === sortedSections.length
-                      ? ui("All sections ready")
-                      : ui("{0}/{1} ready", [readySections, sortedSections.length])}
-                  </span>
-                  <span
-                    className="h-1.5 w-12 overflow-hidden rounded-full bg-card/70"
-                    aria-hidden
-                  >
-                    <span
-                      className={cn(
-                        "block h-full rounded-full transition-all duration-500",
-                        readySections === sortedSections.length ? "bg-success" : "bg-warning",
-                      )}
-                      style={{ width: `${(readySections / sortedSections.length) * 100}%` }}
-                    />
-                  </span>
-                  <InfoTip
-                    content={
-                      readySections === sortedSections.length
-                        ? ui("Every section has a class teacher and at least one subject")
-                        : ui("A section is ready once it has a class teacher and at least one subject")
-                    }
-                  />
-                </div>
+                <StatTile
+                  index={0}
+                  className="py-3"
+                  icon={readySections === sortedSections.length ? CheckCircle2 : AlertCircle}
+                  tone={readySections === sortedSections.length ? "success" : "warning"}
+                  value={readySections}
+                  label={readySections === sortedSections.length ? ui("All sections ready") : ui("{0}/{1} ready", [readySections, sortedSections.length])}
+                  hint={<span className="flex items-center gap-1.5"><Progress size="sm" className="flex-1" tone={readySections === sortedSections.length ? "success" : "warning"} value={Math.round((readySections / sortedSections.length) * 100)} label={ui("A section is ready once it has a class teacher and at least one subject")} />{/* The tile is a button while it can filter, so the tip (itself a button) only shows once every section is ready. */}{readySections === sortedSections.length ? <InfoTip content={ui("Every section has a class teacher and at least one subject")} /> : null}</span>}
+                  onSelect={readySections === sortedSections.length ? undefined : () => setOnlyGaps(!onlyGaps)}
+                  selected={gapsOnly}
+                />
               ) : null}
-
-              <div className="flex items-center gap-1.5 rounded-xl border border-primary/10 bg-card px-3 py-1.5 shadow-sm">
-                <Layers className="h-3 w-3 text-primary" />
-                <span className="text-2xs font-bold text-primary">
-                  {sortedSections.length}
-                </span>
-                <span className="text-2xs font-bold text-ink-subtle">
-                  {ui(sortedSections.length !== 1 ? "sections" : "section")}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 rounded-xl border border-status-info-text/10 bg-card px-3 py-1.5 shadow-sm">
-                <BookOpen className="h-3 w-3 text-status-info-text" />
-                <span className="text-2xs font-bold text-status-info-text">
-                  {totalSubjects}
-                </span>
-                <span className="text-2xs font-bold text-ink-subtle">
-                  {ui(totalSubjects !== 1 ? "subjects" : "subject")}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 rounded-xl border border-status-error-text/10 bg-card px-3 py-1.5 shadow-sm">
-                <GraduationCap className="h-3 w-3 text-status-error-text" />
-                <span className="text-2xs font-bold text-status-error-text">
-                  {totalStudents}
-                </span>
-                <span className="text-2xs font-bold text-ink-subtle">
-                  {ui(totalStudents !== 1 ? "students" : "student")}
-                </span>
-              </div>
-            </div>
+              <StatTile index={1} className="py-3" icon={Layers} tone="brand" value={sortedSections.length} label={ui(sortedSections.length !== 1 ? "sections" : "section")} />
+              <StatTile index={2} className="py-3" icon={BookOpen} tone="info" value={totalSubjects} label={ui(totalSubjects !== 1 ? "subjects" : "subject")} />
+              <StatTile index={3} className="py-3" icon={GraduationCap} tone="neutral" value={totalStudents} label={ui(totalStudents !== 1 ? "students" : "student")} />
+            </DeskStats>
           </div>
         </div>
 
@@ -2048,8 +1998,9 @@ export function ClassManager({
               <div className="my-3 h-px bg-edge/15" />
 
               {/* Section pills */}
+              {gapsOnly ? <div className="mb-2 px-1"><DeskFilterStatus shown={sortedSections.filter((sec) => sectionSetupStatus(sec) !== "ready").length} total={sortedSections.length} onClear={() => setOnlyGaps(false)} /></div> : null}
               <div className="space-y-1.5">
-                {sortedSections.map((sec) => {
+                {(gapsOnly ? sortedSections.filter((sec) => sectionSetupStatus(sec) !== "ready") : sortedSections).map((sec) => {
                   const active = selectedSectionId === sec.id;
                   const status = sectionSetupStatus(sec);
                   const studentCount = sectionStudentCount(

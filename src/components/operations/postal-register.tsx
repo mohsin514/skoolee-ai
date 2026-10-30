@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mail, Plus } from "lucide-react";
+import { History, Inbox, Mail, PackageCheck, PackageOpen, PencilLine, Plus, Send, Truck, UserX } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskSection, DeskStats, StatTile, deskRow, deskTimeline, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -37,6 +37,12 @@ const CLOSED: Status[] = ["COLLECTED", "DELIVERED"];
 const statusLabel = (ui: Ui, status: Status) => ({ RECEIVED: ui("Awaiting an owner"), ASSIGNED: ui("Awaiting collection"), COLLECTED: ui("Collected"), PREPARED: ui("To dispatch"), DISPATCHED: ui("In transit"), DELIVERED: ui("Delivered") })[status];
 const eventLabel = (ui: Ui, kind: string) => ({ CREATED: ui("Recorded"), ASSIGNED: ui("Owner changed"), DISPATCHED: ui("Dispatched"), COLLECTED: ui("Collected"), DELIVERED: ui("Delivered"), CORRECTED: ui("Corrected") } as Record<string, string>)[kind] ?? kind;
 const fieldLabel = (ui: Ui, field: string) => ({ fromName: ui("Sender"), toName: ui("Recipient"), courier: ui("Courier"), referenceNo: ui("Tracking or reference number"), note: ui("Note"), handedTo: ui("Handed to") } as Record<string, string>)[field] ?? field;
+const statusTone = (status: Status): DeskTone => ({ RECEIVED: "warning", ASSIGNED: "brand", COLLECTED: "success", PREPARED: "info", DISPATCHED: "info", DELIVERED: "success" } as Record<Status, DeskTone>)[status];
+const eventTone = (kind: string): DeskTone => ({ CREATED: "info", ASSIGNED: "brand", DISPATCHED: "info", COLLECTED: "success", DELIVERED: "success", CORRECTED: "warning" } as Record<string, DeskTone>)[kind] ?? "brand";
+const rowTone = (row: Item): DeskTone | "muted" | undefined => CLOSED.includes(row.status) ? "muted" : !row.ownerId ? "warning" : undefined;
+const rowRank = (row: Item) => CLOSED.includes(row.status) ? 5 : !row.ownerId ? 0 : ({ RECEIVED: 1, ASSIGNED: 2, PREPARED: 3, DISPATCHED: 4 } as Record<string, number>)[row.status] ?? 4;
+type Focus = "collect" | "dispatch" | "transit" | "unassigned" | null;
+const inFocus = (row: Item, focus: Focus) => focus === "collect" ? row.direction === "RECEIVE" && !CLOSED.includes(row.status) : focus === "dispatch" ? row.status === "PREPARED" : focus === "transit" ? row.status === "DISPATCHED" : focus === "unassigned" ? !row.ownerId && !CLOSED.includes(row.status) : true;
 const todayText = () => new Date().toISOString().slice(0, 10);
 
 async function send(method: string, body: Record<string, unknown>) {
@@ -58,6 +64,10 @@ export function PostalRegister({ hideHeader = false, command }: { hideHeader?: b
   const [view, setView] = useState("active"), [direction, setDirection] = useState(""), [q, setQ] = useState("");
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState("");
   const [intakeOpen, setIntakeOpen] = useState(false), [openItem, setOpenItem] = useState<Item | null>(null);
+  // A pressed counter narrows the loaded list to its items; pressing it again shows everything.
+  const [focus, setFocus] = useState<Focus>(null);
+  const toggle = (next: Exclude<Focus, null>) => setFocus(current => current === next ? null : next);
+  const shown = urgencyFirst(rows.filter(row => inFocus(row, focus)), rowRank);
 
   const load = useCallback(async () => {
     setLoading(true); setLoadError("");
@@ -92,12 +102,12 @@ export function PostalRegister({ hideHeader = false, command }: { hideHeader?: b
       <PanelTitle icon={Mail} title={ui("Post and couriers")} />
       <Button onClick={() => setIntakeOpen(true)}><Plus className="size-4" aria-hidden="true" />{ui("Record item")}</Button>
     </div>}
-    <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold tabular-nums text-ink-strong" aria-live="polite" data-postal-counts>
-      <span>{ui("Awaiting collection: {0}", [counts.awaitingCollection])}</span>
-      <span>{ui("To dispatch: {0}", [counts.toDispatch])}</span>
-      <span>{ui("In transit: {0}", [counts.inTransit])}</span>
-      <span className={counts.unassigned ? "text-status-warning-text" : ""} data-unassigned={counts.unassigned}>{ui("Without an owner: {0}", [counts.unassigned])}</span>
-    </p>
+    <DeskStats aria-live="polite" data-postal-counts>
+      <StatTile index={0} icon={Inbox} tone="brand" value={counts.awaitingCollection} onSelect={counts.awaitingCollection || focus === "collect" ? () => toggle("collect") : undefined} selected={focus === "collect"} label={<><span aria-hidden="true">{ui("Awaiting collection")}</span><span className="sr-only">{ui("Awaiting collection: {0}", [counts.awaitingCollection])}</span></>} />
+      <StatTile index={1} icon={PackageOpen} tone="info" value={counts.toDispatch} onSelect={counts.toDispatch || focus === "dispatch" ? () => toggle("dispatch") : undefined} selected={focus === "dispatch"} label={<><span aria-hidden="true">{ui("To dispatch")}</span><span className="sr-only">{ui("To dispatch: {0}", [counts.toDispatch])}</span></>} />
+      <StatTile index={2} icon={Truck} tone="info" value={counts.inTransit} onSelect={counts.inTransit || focus === "transit" ? () => toggle("transit") : undefined} selected={focus === "transit"} label={<><span aria-hidden="true">{ui("In transit")}</span><span className="sr-only">{ui("In transit: {0}", [counts.inTransit])}</span></>} />
+      <StatTile index={3} icon={UserX} tone={counts.unassigned ? "warning" : "success"} value={counts.unassigned} valueProps={{ "data-unassigned": counts.unassigned }} onSelect={counts.unassigned || focus === "unassigned" ? () => toggle("unassigned") : undefined} selected={focus === "unassigned"} label={<><span aria-hidden="true">{ui("No owner yet")}</span><span className="sr-only">{ui("Without an owner: {0}", [counts.unassigned])}</span></>} />
+    </DeskStats>
     <div className="grid gap-3 sm:grid-cols-3">
       <FormField name="postal-filter-view" label={ui("Show")}><Select value={view} onChange={event => setView(event.target.value)}><option value="active">{ui("Awaiting handoff")}</option><option value="mine">{ui("My items")}</option><option value="closed">{ui("Handed over")}</option><option value="all">{ui("All items")}</option></Select></FormField>
       <FormField name="postal-filter-direction" label={ui("Direction")}><Select value={direction} onChange={event => setDirection(event.target.value)}><option value="">{ui("Incoming and outgoing")}</option><option value="RECEIVE">{ui("Incoming")}</option><option value="DISPATCH">{ui("Outgoing")}</option></Select></FormField>
@@ -107,16 +117,17 @@ export function PostalRegister({ hideHeader = false, command }: { hideHeader?: b
     {loading && !rows.length ? <SkeletonList rows={4} label={ui("Loading postal items…")} />
       : loadError ? <ErrorState title={ui("Postal items could not be loaded.")} description={loadError} onRetry={() => void load()} retryLabel={ui("Retry")} />
       : !rows.length ? <div data-postal-empty>{view !== "active" || direction || q ? <EmptyState size="sm" icon={Mail} title={ui("No items match these filters.")} /> : <EmptyState size="sm" icon={Mail} title={ui("Nothing is waiting to be handed over. Record an item when post arrives or leaves.")} action={<Button size="sm" onClick={() => setIntakeOpen(true)}><Plus className="size-4" aria-hidden="true" />{ui("Record item")}</Button>} />}</div>
-      : <ul className="space-y-2" aria-label={ui("Post and couriers")}>{rows.map(row => <li key={row.id} className="sk-row-interactive flex flex-wrap items-center gap-3 rounded-2xl border border-border p-3 text-sm" data-postal={row.itemCode} data-postal-status={row.status}>
-        <div className="min-w-0 flex-1 space-y-0.5">
-          <p className="font-semibold text-ink-strong"><bdi>{row.itemCode}</bdi> · {row.direction === "RECEIVE" ? ui("Incoming") : ui("Outgoing")} · <bdi>{row.toName}</bdi></p>
+      : <div className="space-y-2.5"><DeskFilterStatus shown={shown.length} total={rows.length} onClear={() => setFocus(null)} /><ul className="space-y-2.5" aria-label={ui("Post and couriers")}>{shown.map(row => <li key={row.id} data-tone={rowTone(row)} className={`${deskRow} flex flex-wrap items-center gap-3 text-sm`} data-postal={row.itemCode} data-postal-status={row.status}>
+        <DeskRowIcon icon={CLOSED.includes(row.status) ? PackageCheck : row.direction === "RECEIVE" ? Inbox : Send} />
+        <div className="min-w-0 flex-1 basis-48 space-y-0.5">
+          <p className="font-semibold text-ink-strong"><bdi className="font-mono text-xs font-semibold text-primary">{row.itemCode}</bdi> <span className="text-ink-faint">·</span> {row.direction === "RECEIVE" ? ui("Incoming") : ui("Outgoing")} · <bdi>{row.toName}</bdi></p>
           <p className="text-xs text-ink-muted">{formatDate(row.date)}{row.fromName ? <> · {ui("From")} <bdi>{row.fromName}</bdi></> : null}{row.courier ? <> · <bdi>{row.courier}</bdi></> : null}</p>
           {row.referenceNo ? <p className="break-all text-xs" data-postal-reference><bdi dir="ltr">{row.referenceNo}</bdi></p> : <p className="text-xs text-ink-muted">{ui("No tracking reference")}</p>}
           <p className="text-xs text-ink-muted">{row.owner ? ui("Owner: {0}", [row.owner.fullName]) : CLOSED.includes(row.status) ? null : <span className="font-semibold text-status-warning-text">{ui("No owner yet")}</span>}{row.handedTo ? <> · {ui("Handed to")} <bdi>{row.handedTo}</bdi></> : null}</p>
         </div>
-        <Badge size="sm" dot variant={CLOSED.includes(row.status) ? "success" : "neutral"}>{statusLabel(ui, row.status)}</Badge>
+        <DeskPill tone={statusTone(row.status)}>{statusLabel(ui, row.status)}</DeskPill>
         <Button size="sm" variant="secondary" onClick={() => setOpenItem(row)} aria-label={ui("Open postal item {0}", [row.itemCode])}>{ui("Open")}</Button>
-      </li>)}</ul>}
+      </li>)}</ul></div>}
 
     {intakeOpen ? <IntakeDialog owners={owners} onClose={() => setIntakeOpen(false)} onDone={() => { setIntakeOpen(false); void load(); }} /> : null}
     {openItem ? <ItemDialog item={openItem} owners={owners} onClose={() => setOpenItem(null)} onChanged={() => { setOpenItem(null); void load(); }} /> : null}
@@ -207,47 +218,43 @@ function ItemDialog({ item, owners, onClose, onChanged }: { item: Item; owners: 
   return <Modal title={ui("Postal item {0}", [item.itemCode])} eyebrow={ui("Post and couriers")} size="lg" onClose={onClose} dirty={Boolean(note || handedTo || reason)}>
     <div className="space-y-4" data-postal-item={item.itemCode}>
       {error ? <Alert tone="danger" compact data-postal-item-error>{error}</Alert> : null}
-      <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Item details")}>
-        <p className="sk-eyebrow">{item.direction === "RECEIVE" ? ui("Incoming") : ui("Outgoing")} · {formatDate(item.date)} · {statusLabel(ui, item.status)}</p>
+      <DeskSection title={<>{item.direction === "RECEIVE" ? ui("Incoming") : ui("Outgoing")} · <bdi>{formatDate(item.date)}</bdi></>} icon={item.direction === "RECEIVE" ? Inbox : Send} tone={statusTone(item.status)} className="text-sm" aria-label={ui("Item details")} action={<DeskPill tone={statusTone(item.status)}>{statusLabel(ui, item.status)}</DeskPill>}>
         <p className="font-semibold text-ink-strong"><bdi>{item.toName}</bdi>{item.fromName ? <> · {ui("From")} <bdi>{item.fromName}</bdi></> : null}{item.courier ? <> · <bdi>{item.courier}</bdi></> : null}</p>
         {item.referenceNo ? <p className="break-all text-xs"><bdi dir="ltr">{item.referenceNo}</bdi></p> : null}
         {item.handedTo ? <p className="text-xs">{ui("Handed to")} <bdi>{item.handedTo}</bdi>{item.closedAt ? <> · <bdi>{dateTime(item.closedAt)}</bdi></> : null}</p> : null}
-      </section>
+      </DeskSection>
       {!closed ? <>
         <div className="grid items-end gap-3 sm:grid-cols-[1fr_auto]">
           <FormField name="postal-item-owner" label={ui("Owner responsible for the handoff")}><Select value={ownerId} onChange={event => setOwnerId(event.target.value)}><option value="">{ui("No owner yet")}</option>{owners.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></FormField>
           <Button variant="secondary" disabled={busy || ownerId === (item.ownerId ?? "")} onClick={() => void run({ action: "assign", ownerId: ownerId || null }, ui("Owner saved."))}>{ui("Save owner")}</Button>
         </div>
-        {item.direction === "DISPATCH" && item.status === "PREPARED" ? <fieldset className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-2">
-          <legend className="px-1 text-xs font-bold">{ui("Dispatch")}</legend>
+        {item.direction === "DISPATCH" && item.status === "PREPARED" ? <DeskSection title={ui("Dispatch")} icon={Truck} tone="info" className="sm:grid-cols-2 sm:[&>div:first-child]:col-span-2">
           <FormField name="postal-dispatch-courier" label={ui("Courier")}><Input value={courier} maxLength={60} onChange={event => setCourier(event.target.value)} /></FormField>
           <FormField name="postal-dispatch-reference" label={ui("Tracking or reference number (optional)")}><Input value={referenceNo} maxLength={80} dir="ltr" onChange={event => setReferenceNo(event.target.value)} /></FormField>
-          <Button disabled={busy} onClick={() => { if (courier.trim().length < 2) { setError(ui("Enter the courier before dispatching.")); return; } void run({ action: "dispatch", courier, referenceNo: referenceNo || undefined }, ui("Marked dispatched. It stays open until delivery is confirmed.")); }}>{ui("Mark dispatched")}</Button>
-        </fieldset> : null}
-        {item.direction === "RECEIVE" || item.status === "DISPATCHED" ? <fieldset className="space-y-2 rounded-xl border border-border p-3">
-          <legend className="px-1 text-xs font-bold">{item.direction === "RECEIVE" ? ui("Hand over") : ui("Confirm delivery")}</legend>
+          <Button className="w-full sm:w-fit" disabled={busy} onClick={() => { if (courier.trim().length < 2) { setError(ui("Enter the courier before dispatching.")); return; } void run({ action: "dispatch", courier, referenceNo: referenceNo || undefined }, ui("Marked dispatched. It stays open until delivery is confirmed.")); }}>{ui("Mark dispatched")}</Button>
+        </DeskSection> : null}
+        {item.direction === "RECEIVE" || item.status === "DISPATCHED" ? <DeskSection title={item.direction === "RECEIVE" ? ui("Hand over") : ui("Confirm delivery")} icon={PackageCheck} tone="success">
           <FormField name="postal-handed-to" label={item.direction === "RECEIVE" ? ui("Collected by (name)") : ui("Received by (name)")}><Input value={handedTo} maxLength={120} onChange={event => setHandedTo(event.target.value)} /></FormField>
           <FormField name="postal-handoff-note" label={item.direction === "RECEIVE" ? ui("Acknowledgement note (optional)") : ui("How delivery was confirmed (required)")}><Input value={note} maxLength={500} onChange={event => setNote(event.target.value)} /></FormField>
-          <Button disabled={busy} onClick={() => {
+          <Button className="w-full sm:w-fit" disabled={busy} onClick={() => {
             if (handedTo.trim().length < 2) { setError(ui("Enter the name of the person the item was handed to.")); return; }
             if (item.direction === "DISPATCH" && note.trim().length < 5) { setError(ui("Say how delivery was confirmed (for example a signature or the courier's proof of delivery). A tracking number alone is not delivery.")); return; }
             void run({ action: item.direction === "RECEIVE" ? "collect" : "deliver", handedTo, note: note || undefined }, item.direction === "RECEIVE" ? ui("Handed over.") : ui("Delivery confirmed."));
           }}>{item.direction === "RECEIVE" ? ui("Record collection") : ui("Confirm delivery")}</Button>
-        </fieldset> : null}
+        </DeskSection> : null}
       </> : null}
-      {correcting ? <fieldset className="space-y-2 rounded-xl border border-status-warning-border bg-status-warning-surface p-3" data-postal-correction>
-        <legend className="px-1 text-xs font-bold">{ui("Correct this item")}</legend>
+      {correcting ? <DeskSection title={ui("Correct this item")} icon={PencilLine} tone="warning" data-postal-correction>
         <div className="grid gap-3 sm:grid-cols-2">
           {(["toName", "fromName", "courier", "referenceNo", ...(closed ? ["handedTo"] : [])] as (keyof typeof fields)[]).map(field => <FormField key={field} name={`postal-correct-${field}`} label={fieldLabel(ui, field)}><Input value={fields[field]} dir={field === "referenceNo" ? "ltr" : undefined} onChange={event => setFields(current => ({ ...current, [field]: event.target.value }))} /></FormField>)}
         </div>
         <FormField name="postal-correct-note" label={fieldLabel(ui, "note")}><Textarea value={fields.note} rows={2} onChange={event => setFields(current => ({ ...current, note: event.target.value }))} /></FormField>
         <FormField name="postal-correct-reason" label={ui("Reason for the correction")}><Input value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField>
         <div className="flex gap-2"><Button disabled={busy} onClick={correction}>{ui("Save correction")}</Button><Button variant="ghost" onClick={() => setCorrecting(false)}>{ui("Cancel")}</Button></div>
-      </fieldset> : <Button variant="ghost" onClick={() => setCorrecting(true)}>{ui("Correct a mistake")}</Button>}
+      </DeskSection> : <Button variant="ghost" className="w-fit" onClick={() => setCorrecting(true)}><PencilLine className="size-4" aria-hidden="true" />{ui("Correct a mistake")}</Button>}
       <section aria-label={ui("History")}>
-        <p className="sk-eyebrow mb-2">{ui("History")}</p>
+        <p className="sk-eyebrow mb-3 inline-flex items-center gap-1.5"><History className="size-3.5" aria-hidden="true" />{ui("History")}</p>
         {historyError ? <Alert tone="danger" compact>{historyError}</Alert> : !history ? <p role="status" className="text-xs">{ui("Loading history…")}</p>
-          : <ol className="space-y-1.5 text-xs" data-postal-history>{history.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2" data-event={event.kind}>
+          : <ol className={`${deskTimeline} text-xs`} data-postal-history>{history.map(event => <li key={event.id} data-tone={eventTone(event.kind)} data-event={event.kind}>
             <p className="font-semibold text-ink-strong">{eventLabel(ui, event.kind)} · <bdi>{dateTime(event.createdAt)}</bdi>{event.actorName ? <> · <bdi>{event.actorName}</bdi></> : null}</p>
             {event.kind === "ASSIGNED" ? <p>{event.ownerName ? ui("Owner: {0}", [event.ownerName]) : ui("No owner yet")}</p> : null}
             {event.kind === "CORRECTED" && event.changes ? <ul className="mt-1 space-y-0.5">{Object.entries(event.changes as Record<string, { from: string | null; to: string | null }>).map(([field, change]) => <li key={field} className="break-all" data-correction-field={field}>{fieldLabel(ui, field)}: <s><bdi dir="auto">{change.from ?? "—"}</bdi></s> → <bdi dir="auto">{change.to ?? "—"}</bdi></li>)}</ul> : null}

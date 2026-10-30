@@ -20,7 +20,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // reviews them, and campus operators have no identity screen, R-I13). `/identity` redirects the group admin to
 // Settings › Identity (§6.3) and sends everyone else home.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.IDENTITY_TEST_APP || "http://localhost:3107";
 const evidence = process.env.IDENTITY_EVIDENCE_DIR || "/tmp/sko446-evidence";
 const IDP = "http://127.0.0.1:55465";

@@ -17,7 +17,7 @@ import { assessmentFixture } from "./assessment-fixture";
 // reviewer's own scripts, hide originals in blind mode and flag differences above the threshold for a
 // lead (never the second marker) to decide.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `moderation-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), subjectId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid` });
 const marker = actor("CAMPUS_ADMIN"), lead = actor("PRINCIPAL"), moderator = actor("CAMPUS_ADMIN");
