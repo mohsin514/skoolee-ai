@@ -209,6 +209,8 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   // SKAI-1274 whole-app UI pass
   ["Leave the pilot ledger?", "مغادرة سجل التجربة؟", "پائلٹ لیجر چھوڑیں؟"],
   ["Everything the ledger kept for this school is deleted. You can join again later.", "يُحذف كل ما احتفظ به السجل لهذه المدرسة. يمكنك الانضمام مجددًا لاحقًا.", "اس اسکول کے لیے لیجر میں محفوظ سب کچھ حذف ہو جائے گا۔ آپ بعد میں دوبارہ شامل ہو سکتے ہیں۔"],
+  // SKAI-1276 whole-app UI pass
+  ["Open slots", "مواعيد متاحة", "دستیاب اوقات"],
   // SKAI-1279 whole-app UI pass
   ["Occupied today", "مشغولة اليوم", "آج زیرِ استعمال"],
   ["{0} of {1} done", "اكتمل {0} من {1}", "{1} میں سے {0} مکمل"],

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarRange } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { DeskPill, deskRow } from "@/components/ui/desk";
 import { Alert } from "@/components/ui/alert";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ErrorState } from "@/components/ui/error-state";
@@ -22,9 +22,9 @@ const STATE_LABEL: Record<InstallmentState, string> = { PAID: "Paid", PART_PAID:
 export function InstallmentSchedule({ installments, currency }: { installments: Plan["installments"]; currency: string }) {
   const ui = useUiText();
   const { money, date } = useLocaleFormat();
-  return <ol className="space-y-1 text-xs" data-installment-schedule>{installments.map((item, index) => <li key={item.dueDate} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/50 px-3 py-2" data-installment-state={item.state}>
+  return <ol className="space-y-1 text-xs" data-installment-schedule>{installments.map((item, index) => <li key={item.dueDate} data-tone={STATE_TONE[item.state]} className={`${deskRow} flex flex-wrap items-center justify-between gap-2 px-3 py-2`} data-installment-state={item.state}>
     <span className="min-w-0 tabular-nums">{index + 1}. {date(item.dueDate)} · <bdi>{money(item.amount, currency)}</bdi>{item.paid > 0 && item.remaining > 0 ? <> · {ui("{0} remaining", [money(item.remaining, currency)])}</> : null}</span>
-    <Badge size="sm" dot variant={STATE_TONE[item.state]}>{ui(STATE_LABEL[item.state])}</Badge>
+    <DeskPill tone={STATE_TONE[item.state]}>{ui(STATE_LABEL[item.state])}</DeskPill>
   </li>)}</ol>;
 }
 

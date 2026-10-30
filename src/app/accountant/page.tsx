@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BarChart3, BookOpenCheck, CalendarCheck, Calculator, Download, FileText, Landmark, Layers, Plus, Receipt, Upload, Wallet } from "lucide-react";
+import { Banknote, BarChart3, CalendarDays, Download, FileText, Landmark, LayoutDashboard, Layers, Plus, Receipt, Upload, Wallet } from "lucide-react";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { getOperationsStaffDashboardData } from "@/app/actions/dashboard";
 import { RoleShell } from "@/components/role-dashboard";
@@ -184,7 +184,7 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
         <ConsolePage
           consoleId="accountant"
           view="accounts"
-          icon={BookOpenCheck}
+          icon={Landmark}
           description={DESCRIPTIONS.accounts}
           primaryAction={create ? { id: "create", label: create, icon: Plus, onClick: () => run("create") } : undefined}
           secondaryActions={[{ id: "export-ledger", label: "Export ledger", icon: Download, onClick: () => (filteredExport ? run("export") : window.location.assign(ledgerUrl)) }]}
@@ -212,7 +212,7 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
         <ConsolePage
           consoleId="accountant"
           view="payroll"
-          icon={Landmark}
+          icon={Banknote}
           primaryAction={{ id: "prepare-run", label: "Prepare run", icon: Plus, disabled: !payrollReady, disabledReason: "Prepare run is unavailable until a payroll policy is saved.", onClick: () => run("prepare-run") }}
           secondaryActions={[{ id: "export", label: "Export", icon: Download, onClick: () => run("export") }]}
         >
@@ -239,7 +239,7 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
     }
     case "my-leave":
       return (
-        <ConsolePage consoleId="accountant" view="my-leave" icon={CalendarCheck}>
+        <ConsolePage consoleId="accountant" view="my-leave" icon={CalendarDays}>
           <MyLeavePanel />
         </ConsolePage>
       );
@@ -253,7 +253,7 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
         <ConsolePage
           consoleId="accountant"
           view="dashboard"
-          icon={Calculator}
+          icon={LayoutDashboard}
           notice={retiredNotice}
           primaryAction={{ id: "record-payment", label: "Record payment", icon: Plus, onClick: () => run("record-payment", "payments") }}
           secondaryActions={[{ id: "generate-invoices", label: "Generate invoices", icon: FileText, onClick: () => run("generate-invoices", "invoices") }]}
