@@ -19,7 +19,7 @@ import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
-import { AlarmClock, CheckCircle2, ClipboardCheck, FileDown, Layers, Plus, SearchX, Target } from "lucide-react";
+import { AlarmClock, CheckCircle2, ClipboardCheck, FileDown, KeyRound, Layers, Plus, SearchX, Target } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskStats, RelativeTime, StatTile, deskRow, deskTimeline, urgencyFirst } from "@/components/ui/desk";
 import { cn } from "@/lib/utils";
@@ -273,10 +273,10 @@ export function ImprovementWorkspace() {
 
     {modal?.kind === "framework" ? <Modal title={ui("New framework version")} icon={Layers} size="lg" onClose={() => setModal(null)}><FrameworkForm data={data} onDone={close} /></Modal> : null}
     {modal?.kind === "evidence" && view ? <Modal title={ui("Add evidence")} icon={Plus} size="lg" onClose={() => setModal(null)}><EvidenceForm view={view} preset={modal.criterionId ?? null} onDone={close} /></Modal> : null}
-    {modal?.kind === "action" && view ? <Modal title={ui("Create an improvement action")} size="lg" onClose={() => setModal(null)}><ActionForm view={view} people={people} onDone={close} /></Modal> : null}
-    {modal?.kind === "grant" && view ? <Modal title={ui("Grant reviewer access")} size="lg" onClose={() => setModal(null)}><GrantForm view={view} people={people} onDone={close} /></Modal> : null}
+    {modal?.kind === "action" && view ? <Modal title={ui("Create an improvement action")} icon={Target} size="lg" onClose={() => setModal(null)}><ActionForm view={view} people={people} onDone={close} /></Modal> : null}
+    {modal?.kind === "grant" && view ? <Modal title={ui("Grant reviewer access")} icon={KeyRound} tone="amber" size="lg" onClose={() => setModal(null)}><GrantForm view={view} people={people} onDone={close} /></Modal> : null}
     {modal?.kind === "export" && view ? <Modal title={ui("Export a versioned pack")} icon={FileDown} size="lg" onClose={() => setModal(null)}><ExportForm view={view} onDone={close} /></Modal> : null}
-    {modal?.kind === "interpret" && view ? <Modal title={ui("Approve interpretation")} size="lg" onClose={() => setModal(null)}><InterpretForm criterion={view.criteria.find(c => c.id === modal.criterionId)!} onDone={close} /></Modal> : null}
+    {modal?.kind === "interpret" && view ? <Modal title={ui("Approve interpretation")} icon={ClipboardCheck} tone="sky" size="lg" onClose={() => setModal(null)}><InterpretForm criterion={view.criteria.find(c => c.id === modal.criterionId)!} onDone={close} /></Modal> : null}
     <ConfirmAction
       open={Boolean(revoking)}
       tone="danger"

@@ -138,7 +138,8 @@ async function generateReportCardsInTransaction(examId: string, db: TxClient) {
     include: {
       class: {
         include: {
-          students: { orderBy: [{ rollNo: "asc" }, { fullName: "asc" }] },
+          // SKAI-1299: archived learners leave the exam roster, so they never block locking.
+          students: { where: { archivedAt: null }, orderBy: [{ rollNo: "asc" }, { fullName: "asc" }] },
           subjects: { orderBy: { name: "asc" } },
         },
       },
@@ -194,8 +195,14 @@ async function generateReportCardsInTransaction(examId: string, db: TxClient) {
 
   const results = students.map((student) => {
     const studentMarks = marksByStudent.get(student.id) ?? new Map<string, (typeof marks)[number]>();
-    const totalMarks = subjects.reduce((sum, subject) => sum + subject.totalMarks, 0);
-    const obtainedMarks = subjects.reduce((sum, subject) => {
+    // SKAI-1298: absent and exempt papers leave both numerator and denominator,
+    // matching the marks analytics policy, so the report and analytics agree.
+    const scoredSubjects = subjects.filter((subject) => {
+      const mark = studentMarks.get(subject.id);
+      return !(mark?.isAbsent || mark?.isExempt);
+    });
+    const totalMarks = scoredSubjects.reduce((sum, subject) => sum + subject.totalMarks, 0);
+    const obtainedMarks = scoredSubjects.reduce((sum, subject) => {
       return sum + (studentMarks.get(subject.id)?.marksObtained || 0);
     }, 0);
     const percentage = totalMarks > 0 ? round1((obtainedMarks / totalMarks) * 100) : 0;

@@ -4,7 +4,7 @@ import { Alert } from "@/components/ui/alert";
 import { ErrorState } from "@/components/ui/error-state";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowIcon, DeskSection, DeskStats, RelativeTime, StatTile, deskRow, deskTimeline, urgencyFirst, type DeskTone } from "@/components/ui/desk";
-import { CheckCircle2, Clock3, MoreHorizontal, ScanLine, ShieldAlert, ShieldCheck, ShieldQuestion, ShieldX, UserCheck, UserRoundSearch } from "lucide-react";
+import { CheckCircle2, Clock3, MoreHorizontal, QrCode, ScanLine, ShieldAlert, ShieldCheck, ShieldQuestion, ShieldX, UserCheck, UserRoundSearch } from "lucide-react";
 import { IconButton } from "@/components/ui/icon-button";
 import { Menu } from "@/components/ui/menu";
 import { toast } from "@/components/ui/toast";
@@ -85,17 +85,18 @@ export function FamilyPickups({ studentId, addRequest, hideAdd = false }: { stud
       onConfirm={async () => { const item = withdrawing; if (item && await run(() => call("/api/pickup", "POST", { action: "revoke", id: item.id }), "Withdrawn. This code can no longer be used.")) setWithdrawing(null); }}
       onCancel={() => setWithdrawing(null)}
     />
-    {open ? <Modal title={ui("Authorize a pickup")} onClose={() => setOpen(false)}>
+    {open ? <Modal icon={UserCheck} tone="violet" title={ui("Authorize a pickup")} onClose={() => setOpen(false)}
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>{ui("Back")}</Button><Button disabled={busy || form.recipientName.trim().length < 3 || !form.recipientRelation.trim()} onClick={() => void run(async () => { const r = await call("/api/pickup", "POST", { action: "issue", studentId, ...form, idLast4: form.idLast4 || undefined }); setCode(r); setOpen(false); }, "Pickup authorized. Share the code only with the person collecting.")} data-pickup-issue>{ui("Create pickup code")}</Button></div>}>
       <div className="space-y-3" data-pickup-form>
         <FormField name="pu-name" label={ui("Who will collect?")}><Input value={form.recipientName} onChange={e => setForm({ ...form, recipientName: e.target.value })} maxLength={120} /></FormField>
         <FormField name="pu-rel" label={ui("Relationship to the child")}><Input value={form.recipientRelation} onChange={e => setForm({ ...form, recipientRelation: e.target.value })} maxLength={60} /></FormField>
         <FormField name="pu-method" label={ui("How will the school check their identity?")}><Select value={form.idMethod} onChange={e => setForm({ ...form, idMethod: e.target.value })}>{METHODS.map(m => <option key={m} value={m}>{methodLabel(ui, m)}</option>)}</Select></FormField>
         {form.idMethod === "PHOTO_ID" ? <FormField name="pu-last4" label={ui("Last four characters of their ID (optional)")} hint={ui("Never the full number.")}><Input value={form.idLast4} onChange={e => setForm({ ...form, idLast4: e.target.value })} maxLength={4} dir="ltr" /></FormField> : null}
         <div className="grid gap-2 sm:grid-cols-3"><FormField name="pu-date" label={ui("Day")}><Input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></FormField><FormField name="pu-from" label={ui("From")}><Input type="time" value={form.from} onChange={e => setForm({ ...form, from: e.target.value })} dir="ltr" /></FormField><FormField name="pu-until" label={ui("Until")}><Input type="time" value={form.until} onChange={e => setForm({ ...form, until: e.target.value })} dir="ltr" /></FormField></div>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>{ui("Back")}</Button><Button disabled={busy || form.recipientName.trim().length < 3 || !form.recipientRelation.trim()} onClick={() => void run(async () => { const r = await call("/api/pickup", "POST", { action: "issue", studentId, ...form, idLast4: form.idLast4 || undefined }); setCode(r); setOpen(false); }, "Pickup authorized. Share the code only with the person collecting.")} data-pickup-issue>{ui("Create pickup code")}</Button></div>
       </div>
     </Modal> : null}
-    {code ? <Modal title={ui("Pickup code")} onClose={() => setCode(null)}>
+    {code ? <Modal icon={QrCode} tone="emerald" title={ui("Pickup code")} onClose={() => setCode(null)}
+      footer={<div className="flex justify-end"><Button onClick={() => setCode(null)}>{ui("Done")}</Button></div>}>
       <div className="space-y-2 text-center" data-pickup-code>
         <img src={code.qr} alt={ui("Pickup code")} width={220} height={220} className="mx-auto rounded-(--radius-control) border border-border-subtle bg-white p-2 shadow-(--shadow-panel)" />
         <p className="break-all font-mono text-xs" dir="ltr" data-pickup-code-text>{code.code}</p>

@@ -225,6 +225,8 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   ["Filter pupils", "تصفية التلاميذ", "طلبہ فلٹر کریں"],
   // SKAI-1294 whole-app UI pass
   ["Search ranks", "البحث في الرتب", "رینک تلاش کریں"],
+  // SKAI-1321 whole-app UI pass
+  ["Families see the cost, timing and refund terms before they ask for a place.", "ترى الأسر التكلفة والموعد وشروط الاسترداد قبل أن تطلب مقعدًا.", "خاندان جگہ مانگنے سے پہلے لاگت، وقت اور رقم کی واپسی کی شرائط دیکھتے ہیں۔"],
   // SKAI-1322 whole-app UI pass
   ["The request could not be completed.", "تعذّر إكمال الطلب.", "درخواست مکمل نہیں ہو سکی۔"],
   ["Request failed.", "فشل الطلب.", "درخواست ناکام ہو گئی۔"],

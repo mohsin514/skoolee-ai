@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlarmClock, CheckCircle2, FileText, Inbox, Lock, MessageSquare, Plus, UserX } from "lucide-react";
+import { AlarmClock, CheckCircle2, FileText, Inbox, Lock, MessageSquare, MessageSquareWarning, Plus, UserX } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,14 +152,15 @@ function IntakeDialog({ owners, leader, onClose, onDone }: { owners: Owner[]; le
       setError(failure instanceof TypeError ? ui("The connection failed before the server answered. Your details are kept; retrying will not record the complaint twice.") : ui(failure instanceof Error ? failure.message : "The change was not saved."));
     } finally { setBusy(false); }
   };
-  if (receipt) return <Modal title={ui("Complaint recorded")} eyebrow={ui("Complaints")} onClose={onDone}>
+  if (receipt) return <Modal icon={CheckCircle2} tone="emerald" title={ui("Complaint recorded")} eyebrow={ui("Complaints")} onClose={onDone}
+    footer={<div className="flex justify-end"><Button onClick={onDone}>{ui("Done")}</Button></div>}>
     <div className="space-y-3" data-complaint-receipt={receipt}>
       <p className="text-sm">{ui("Give the complainant this reference: {0}", [receipt])}</p>
       {form.confidential ? <Alert tone="info" compact live="off">{ui("This confidential concern has gone to your campus admin. It will not appear in the reception queue.")}</Alert> : null}
-      <div className="flex justify-end"><Button onClick={onDone}>{ui("Done")}</Button></div>
     </div>
   </Modal>;
-  return <Modal title={ui("Record complaint")} eyebrow={ui("Complaints")} subtitle={ui("Write down what was reported. The original report cannot be edited later; follow-up is added as notes.")} onClose={onClose} dirty={Boolean(form.description || form.complainantName)}>
+  return <Modal icon={form.confidential ? Lock : MessageSquareWarning} tone={form.confidential ? "amber" : "violet"} title={ui("Record complaint")} eyebrow={ui("Complaints")} subtitle={ui("Write down what was reported. The original report cannot be edited later; follow-up is added as notes.")} onClose={onClose} dirty={Boolean(form.description || form.complainantName)}
+    footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy} disabled={busy}>{ui("Record complaint")}</Button></div>}>
     <div className="space-y-3" data-complaint-intake>
       <DraftRecovery recordLabel={ui("Complaint")} draft={draft} saving={busy} excluded={ui("Confidential complaints are excluded from browser drafts.")} />
       {error ? <Alert tone="danger" compact data-complaint-error>{error}</Alert> : null}
@@ -183,7 +184,6 @@ function IntakeDialog({ owners, leader, onClose, onDone }: { owners: Owner[]; le
         <FormField name="complaint-owner" label={ui("Owner (optional)")}><Select value={form.ownerId} onChange={set("ownerId")}><option value="">{ui("Unassigned")}</option>{owners.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></FormField>
         <FormField name="complaint-due" label={ui("Response due (optional)")}><Input type="date" value={form.dueDate} min={form.date} onChange={set("dueDate")} /></FormField>
       </div> : null}
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy} disabled={busy}>{ui("Record complaint")}</Button></div>
     </div>
   </Modal>;
 }
@@ -209,7 +209,10 @@ function CaseDialog({ id, owners, leader, onClose, onChanged }: { id: string; ow
     finally { setBusy(false); }
   };
   const canAssign = detail && (!detail.confidential || leader);
-  return <Modal title={detail ? ui("Complaint {0}", [detail.referenceCode]) : ui("Complaint")} eyebrow={ui("Complaints")} size="lg" onClose={onClose} dirty={Boolean(note || resolution || reason)}>
+  return <Modal icon={detail?.confidential ? Lock : MessageSquareWarning} tone={!detail ? "violet" : detail.status === "RESOLVED" ? "emerald" : detail.overdue ? "rose" : detail.confidential ? "amber" : "violet"} title={detail ? ui("Complaint {0}", [detail.referenceCode]) : ui("Complaint")} eyebrow={ui("Complaints")} size="lg" onClose={onClose} dirty={Boolean(note || resolution || reason)}
+    footer={detail ? <div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Close")}</Button>{detail.status !== "RESOLVED"
+      ? <Button disabled={busy} onClick={() => { if (resolution.trim().length < 5) { setError(ui("Describe the resolution (at least 5 characters).")); return; } void run({ action: "resolve", resolution, publicResponse }, "Complaint resolved."); }}>{ui("Resolve")}</Button>
+      : <Button variant="secondary" disabled={busy} onClick={() => { if (reason.trim().length < 5) { setError(ui("Explain why the complaint is reopened (at least 5 characters).")); return; } void run({ action: "reopen", reason }, "Complaint reopened."); }}>{ui("Reopen")}</Button>}</div> : undefined}>
     {loadError ? <ErrorState description={loadError} onRetry={() => { setLoadError(""); void load(); }} retryLabel={ui("Retry")} /> : !detail ? <SkeletonList rows={3} label={ui("Loading complaints…")} /> : <div className="space-y-4" data-complaint-case={detail.referenceCode}>
       {error ? <Alert tone="danger" compact data-case-error>{error}</Alert> : null}
       <DeskSection title={ui("Original report")} icon={FileText} tone={detail.confidential ? "info" : "brand"} className="text-sm" aria-label={ui("Original report")} action={<span className="text-xs text-ink-muted">{ui("Received {0}", [formatDate(detail.date)])}</span>}>
@@ -230,11 +233,9 @@ function CaseDialog({ id, owners, leader, onClose, onChanged }: { id: string; ow
           {detail.status === "OPEN" ? <Button variant="secondary" disabled={busy} onClick={() => void run({ action: "start" }, "Marked in progress.")}>{ui("Mark in progress")}</Button> : null}
         </div>
         <FormField name="case-resolution" label={ui("Resolution (required to resolve)")}><Textarea value={resolution} rows={2} maxLength={2000} onChange={event => setResolution(event.target.value)} /></FormField>
-        <Button disabled={busy} onClick={() => { if (resolution.trim().length < 5) { setError(ui("Describe the resolution (at least 5 characters).")); return; } void run({ action: "resolve", resolution, publicResponse }, "Complaint resolved."); }}>{ui("Resolve")}</Button>
       </div> : <div className="space-y-2">
         <Alert tone="success" compact live="off" data-case-resolution><bdi>{detail.resolution}</bdi></Alert>
         <FormField name="case-reopen" label={ui("Reason for reopening")}><Input value={reason} maxLength={2000} onChange={event => setReason(event.target.value)} /></FormField>
-        <Button variant="secondary" disabled={busy} onClick={() => { if (reason.trim().length < 5) { setError(ui("Explain why the complaint is reopened (at least 5 characters).")); return; } void run({ action: "reopen", reason }, "Complaint reopened."); }}>{ui("Reopen")}</Button>
       </div>}
       <section aria-label={ui("History")}>
         <p className="sk-eyebrow mb-3">{ui("History")}</p>

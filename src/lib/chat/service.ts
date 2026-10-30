@@ -944,6 +944,22 @@ export async function deleteMessage(user: AuthUser, messageId: string): Promise<
     include: messageInclude,
   });
 
+  // SKAI-1302: when the withdrawn message was the latest, the conversation preview
+  // and timestamp must move to the latest visible message, not keep its content.
+  const latestVisible = await prisma.chatMessage.findFirst({
+    where: { conversationId: row.id, deletedAt: null },
+    orderBy: { createdAt: "desc" },
+    select: { body: true, kind: true, createdAt: true, senderId: true },
+  });
+  await prisma.conversation.updateMany({
+    where: { id: row.id, lastMessageAt: updated.createdAt },
+    data: {
+      lastMessagePreview: latestVisible ? preview(latestVisible.body, latestVisible.kind) : null,
+      lastMessageAt: latestVisible?.createdAt ?? null,
+      lastMessageSenderId: latestVisible?.senderId ?? null,
+    },
+  });
+
   const view = await serialiseMessage(updated);
   await publishToUsers(recipientIds(row), {
     type: "message-updated",
