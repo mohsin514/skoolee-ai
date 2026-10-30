@@ -3,6 +3,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageCampusOps } from "@/lib/api/scope";
 import { isFamily, publishedReportsWhere, studentScope } from "@/lib/auth/policy";
 import type { AuthUser } from "@/lib/auth";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
 
 export function dateOnly(value: unknown): Date {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new ApiError("Use an unambiguous YYYY-MM-DD effective date", 400);
@@ -13,6 +14,29 @@ export function dateOnly(value: unknown): Date {
 export async function assertRegistrar(user: AuthUser) {
   if (!canManageCampusOps(user)) throw new ApiError("Only authorized registrars manage enrollments", 403);
   await assertPermission(user, "students", "edit");
+}
+/** SKAI-170: active pupils in a class against its optional capacity (null = no limit set). */
+export async function classSeats(tx: TxClient, cls: { id: string; capacity: number | null }) {
+  const occupied = await tx.student.count({ where: { classId: cls.id, archivedAt: null, status: "active" } });
+  return { occupied, capacity: cls.capacity, free: cls.capacity == null ? null : Math.max(cls.capacity - occupied, 0) };
+}
+/** Only the institution authority (or super admin) may place a pupil in another campus's class. */
+export function canPlaceAcrossCampuses(user: AuthUser) {
+  return user.role === "SUPER_ADMIN" || isInstitutionAuthority(user);
+}
+/**
+ * SKAI-170: the rules a registrar's single-pupil placement must meet before preview, proposal and
+ * confirmation: a different class, inside the registrar's campus, with a free seat for `incoming`.
+ */
+export async function assertPlacementTarget(tx: TxClient, user: AuthUser, current: { classId: string; campusId: string }, target: { id: string; campusId: string; capacity: number | null }, incoming = 1) {
+  if (target.id === current.classId) throw new ApiError("The pupil is already in this class. Choose a different class.", 409);
+  if (target.campusId !== current.campusId && !canPlaceAcrossCampuses(user)) throw new ApiError("That class is in another campus. Ask the school administrator to transfer the pupil.", 403);
+  if (target.campusId !== user.campusId && !canPlaceAcrossCampuses(user)) throw new ApiError("That class is outside your campus.", 403);
+  const seats = await classSeats(tx, target);
+  if (seats.capacity != null && seats.occupied + incoming > seats.capacity) {
+    throw new ApiError(`The target class is full (${seats.occupied} of ${seats.capacity} seats). Raise its capacity or choose another class.`, 409);
+  }
+  return seats;
 }
 /** Counts and rows must share the same field-specific authority and publication rule. */
 export function enrollmentHistoryWhere(user: AuthUser) {
@@ -58,7 +82,7 @@ export async function enrollmentImpact(tx: TxClient, studentId: string, fromId: 
   if (downstream.some(Boolean)) throw new ApiError("Reports or invoices already exist after this date. Choose a later boundary.", 409);
   return { pupil, from, target, preserved: { attendance, reports, invoices }, targetOccupancy: target._count.students,
     guardianAccess: "Existing explicit guardian links remain unchanged. The pupil login follows a campus transfer and must sign in again; no guardian is linked by name.",
-    capacity: "Capacity must be checked separately before confirmation.", policy: "ONE_ENROLLMENT_PER_PUPIL; end date is exclusive" };
+    capacity: "Capacity is checked against the target class limit when the change is previewed, saved and confirmed.", policy: "ONE_ENROLLMENT_PER_PUPIL; end date is exclusive" };
 }
 export async function applyEnrollment(tx: TxClient, input: { studentId: string; fromId: string; targetClassId: string; effectiveDate: Date; rollNo: string; actorId: string; reason: string }) {
   const impact = await enrollmentImpact(tx, input.studentId, input.fromId, input.targetClassId, input.effectiveDate);

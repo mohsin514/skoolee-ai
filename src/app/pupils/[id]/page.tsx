@@ -16,9 +16,9 @@ import { LearningTransferPanel } from "@/components/learning/learning-transfer";
 import { PageHeader } from "@/components/ui/page-header";
 import { StudentTimeline } from "@/components/students/student-timeline";
 
-type Period = { id: string; className: string; campusName: string; curriculum: string; academicYear: number; rollNo: string; startDate: string; endDate: string | null; status: string; origin: string; _count: { attendance: number; invoices: number; reports: number } };
-type Data = { pupil: { id: string; fullName: string; admissionNo: string | null; consolidatedIntoId: string | null; enrollments: Period[] }; classes: { id: string; name: string; section: string | null; academicYear: number; campus: { name: string } }[]; proposals: { id: string; effectiveDate: string; rollNo: string; targetClassId: string; reason: string; status: string }[]; documents: { id: string; fileName: string; uploadedAt: string }[]; canManage: boolean; canConsolidate: boolean };
-type Impact = { preserved: { attendance: number; reports: number; invoices: number }; targetOccupancy: number };
+type Period = { id: string; classId?: string; className: string; campusName: string; curriculum: string; academicYear: number; rollNo: string; startDate: string; endDate: string | null; status: string; origin: string; _count: { attendance: number; invoices: number; reports: number } };
+type Data = { pupil: { id: string; fullName: string; admissionNo: string | null; consolidatedIntoId: string | null; enrollments: Period[] }; classes: { id: string; name: string; section: string | null; academicYear: number; capacity: number | null; campus: { name: string }; _count?: { students: number } }[]; proposals: { id: string; effectiveDate: string; rollNo: string; targetClassId: string; reason: string; status: string }[]; documents: { id: string; fileName: string; uploadedAt: string }[]; canManage: boolean; canConsolidate: boolean };
+type Impact = { preserved: { attendance: number; reports: number; invoices: number }; targetOccupancy: number; targetCapacity?: number | null };
 type Duplicate = { token: string; blockers: string[]; counts: Record<string,number>; source: { fullName: string; id: string }; target: { fullName: string; id: string } };
 async function request(url: string, body?: unknown) {
  const response = await fetch(url, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined);
@@ -73,7 +73,7 @@ function Pupil({ id }: { id: string }) {
    <Alert tone="info" live="off"><p>{t.notice}</p><p className="mt-1 text-xs text-ink-muted">{t.policy}</p></Alert>
    <form onSubmit={e => { e.preventDefault(); void run(async () => { setImpact(await request("/api/students/enrollments",{...payload,action:"preview"})); }, "preview"); }} className="space-y-4">
     <fieldset disabled={busy || !!impact} className="grid gap-4 sm:grid-cols-2">
-     <label className={fieldLabel}>{t.target}<Select aria-label={t.target} required className="block w-full" value={targetClassId} onChange={e=>setTarget(e.target.value)}><option value="">{t.choose}</option>{data.classes.map(c=><option key={c.id} value={c.id}>{c.campus.name} · {c.name} {c.section} · {c.academicYear}</option>)}</Select></label>
+     <label className={fieldLabel}>{t.target}<Select aria-label={t.target} required className="block w-full" value={targetClassId} onChange={e=>setTarget(e.target.value)}><option value="">{t.choose}</option>{data.classes.map(c=>{const used=c._count?.students??0,full=c.capacity!=null&&used>=c.capacity;return <option key={c.id} value={c.id} disabled={full||c.id===current?.classId}>{c.campus.name} · {c.name} {c.section} · {c.academicYear}{c.capacity!=null?` · ${used}/${c.capacity}${full?` · ${t.full}`:""}`:""}</option>;})}</Select></label>
      <label className={fieldLabel}>{t.date}<Input aria-invalid={/date|overlap|Attendance|boundary/i.test(error)} aria-describedby={error ? "enrollment-error" : undefined} required className="w-full" type="date" value={effectiveDate} onChange={e=>setDate(e.target.value)} /></label>
      <label className={fieldLabel}>{t.roll}<Input required className="block w-full" value={rollNo} onChange={e=>setRoll(e.target.value)} /></label>
      <label className={fieldLabel}>{t.reason}<Input required maxLength={1000} className="block w-full" value={reason} onChange={e=>setReason(e.target.value)} /></label>
@@ -86,7 +86,7 @@ function Pupil({ id }: { id: string }) {
     <DeskStats>
      {[{ label: t.attendance, value: impact.preserved.attendance, icon: CalendarCheck }, { label: t.reports, value: impact.preserved.reports, icon: FileText }, { label: t.invoices, value: impact.preserved.invoices, icon: ReceiptText }].map((item, index) => <StatTile key={item.label} index={index} icon={item.icon} tone="success" label={item.label} value={item.value} />)}
     </DeskStats>
-    <p className="text-sm text-ink">{t.occupancy}: <span className="font-semibold tabular-nums text-ink-strong">{impact.targetOccupancy}</span></p>
+    <p className="text-sm text-ink">{t.occupancy}: <span className="font-semibold tabular-nums text-ink-strong">{impact.targetCapacity!=null?`${impact.targetOccupancy} / ${impact.targetCapacity}`:impact.targetOccupancy}</span></p>
     <Alert tone="warning" live="off">{t.capacity}</Alert>
     <p className="break-all text-xs text-ink-subtle"><bdi>{effectiveDate}</bdi> · <bdi>{id}</bdi></p>
     {proposalId ? <label className="flex items-start gap-3 text-sm font-medium leading-relaxed text-ink"><Checkbox checked={reviewed} onChange={e=>setReviewed(e.target.checked)} className="mt-0.5" />{t.reviewed}</label> : null}
