@@ -16,6 +16,7 @@
     "test:campus-setup": "node --import ./tests/support/server-only.mjs --import tsx --test tests/campus-setup/campus-setup.test.ts",
     "test:year-dates": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/year-dates.test.ts",
     "test:subject-setup": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/subject-setup.test.ts",
+    "test:teacher-allocation": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/teacher-allocation.test.ts",
     "test:class-setup": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/class-setup.test.ts",
     "test:audit-trail": "node --import ./tests/support/server-only.mjs --import tsx --test tests/audit/audit-trail.test.ts",
     "test:educator-eval": "node --import ./tests/support/server-only.mjs --import tsx --test tests/ai-evaluation/*.test.ts",

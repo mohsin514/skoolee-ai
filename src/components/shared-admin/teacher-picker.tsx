@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 
 import { checkedListJson, readRequest } from "@/lib/http/request-state";
+import { specialtyMatches } from "@/lib/academic/teacher-load";
 
 export interface PickerTeacher {
   id: string;
@@ -35,6 +36,8 @@ export interface TeacherAvailability {
   classCount: number;
   busySlots: string[];
   conflicts: { day: number; period: number; label: string; classes: string[] }[];
+  weeklyPeriods?: number;
+  weeklyCapacity?: number | null;
 }
 
 /**
@@ -71,12 +74,12 @@ function teacherAvatar(teacher: { fullName?: string | null; email?: string | nul
   return teacher.profileImageUrl;
 }
 
-/** Case-insensitive check that a teacher is qualified for a given subject. */
-function matchesSpecialty(a: TeacherAvailability | undefined, subjectName?: string) {
-  if (!a || !subjectName) return true;
-  if (a.teachesAllSubjects) return true;
-  if (a.subjectSpecialties.length === 0) return true; // unknown, don't nag
-  return a.subjectSpecialties.some((s) => s.trim().toLowerCase() === subjectName.trim().toLowerCase());
+/** Case-insensitive check that a teacher is qualified for a given subject (shared with the server, SKAI-150). */
+const matchesSpecialty = specialtyMatches;
+
+/** SKAI-150: a teacher whose booked periods already fill the campus week. */
+function atLoadLimit(a: TeacherAvailability | undefined) {
+  return !!a && a.weeklyCapacity != null && (a.weeklyPeriods ?? 0) >= a.weeklyCapacity;
 }
 
 export function TeacherPicker({
@@ -92,6 +95,7 @@ export function TeacherPicker({
   assignmentMode = "subject",
   currentClassId,
   subjectName,
+  initialOpen = false,
 }: {
   label?: string;
   value: string;
@@ -103,9 +107,11 @@ export function TeacherPicker({
   assignmentMode?: "homeroom" | "subject";
   currentClassId?: string;
   subjectName?: string;
+  /** Start with the search list open (used where the picker is already behind its own toggle). */
+  initialOpen?: boolean;
 }) {
   const ui = useUiText();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [query, setQuery] = useState("");
   const selected = teachers.find((t) => t.id === value);
 
@@ -250,7 +256,14 @@ export function TeacherPicker({
                     </div>
                     <p className="mt-0.5 truncate text-2xs font-medium tabular-nums text-ink-muted">
                       {ui(subjectLoad(t) === 1 ? "{0} subject" : "{0} subjects", [subjectLoad(t)])} · {ui(classLoad(t) === 1 ? "{0} class" : "{0} classes", [classLoad(t)])}
+                      {a?.weeklyCapacity != null ? ` · ${ui("{0}/{1} periods", [a.weeklyPeriods ?? 0, a.weeklyCapacity])}` : ""}
                     </p>
+                    {!blocked && atLoadLimit(a) ? (
+                      <p className="mt-1 flex items-start gap-1 text-xs font-medium leading-relaxed text-status-warning-text">
+                        <AlertTriangle aria-hidden="true" className="mt-px h-2.5 w-2.5 shrink-0" />
+                        {ui("Weekly periods are full")}
+                      </p>
+                    ) : null}
 
                     {blocked ? (
                       <p className="mt-1 flex items-start gap-1 text-xs font-medium leading-relaxed text-status-error-text">

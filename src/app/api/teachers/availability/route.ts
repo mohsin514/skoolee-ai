@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { assertStaffRole, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 import { failFrom, ok } from "@/lib/api/envelope";
+import { weeklyPeriodCapacity } from "@/lib/academic/teacher-allocation";
+import { getLocalePackage } from "@/lib/locale/store";
 
 const DAY_LABELS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -21,6 +23,9 @@ export interface TeacherAvailability {
   busySlots: string[];
   /** Genuine double-bookings: same day + period, two different classes. */
   conflicts: { day: number; period: number; label: string; classes: string[] }[];
+  /** SKAI-150: weekly class periods booked, against the campus's weekly teaching periods (null until periods are set up). */
+  weeklyPeriods: number;
+  weeklyCapacity: number | null;
 }
 
 /**
@@ -74,6 +79,11 @@ export async function GET(req: NextRequest) {
       orderBy: { fullName: "asc" },
     });
 
+    const [classPeriods, locale] = campusId
+      ? await Promise.all([prisma.periodDefinition.count({ where: { schoolId: user.schoolId, campusId, timeType: "CLASS" } }), getLocalePackage(user.schoolId, campusId)])
+      : [0, null];
+    const weeklyCapacity = locale ? weeklyPeriodCapacity(classPeriods, locale.weekend.length) : null;
+
     const data: TeacherAvailability[] = teachers.map((t) => {
       // Group slots by day+period so repeats surface as genuine clashes.
       const byKey = new Map<string, string[]>();
@@ -121,6 +131,8 @@ export async function GET(req: NextRequest) {
         classCount: t._count.ledClasses,
         busySlots: [...byKey.keys()],
         conflicts,
+        weeklyPeriods: t.timetableSlots.length,
+        weeklyCapacity,
       };
     });
 

@@ -11,6 +11,8 @@ import { syncTimetableSlotsForSubjects, type TimetableClash } from "./timetable-
 import { assertSubjectCodeFree, normalizeSubjectCode } from "@/lib/academic/subject-catalogue";
 import { effectiveDate, findDuplicateClass, findDuplicateSubject, recordTeachingAssignment } from "@/lib/academic/structure";
 import { assertCapacityFitsEnrolled, parseClassCapacity } from "@/lib/academic/class-setup";
+import { allocationWarnings, assertTeacherCurrent, type AllocationRequest, weeklyPeriodCapacity } from "@/lib/academic/teacher-allocation";
+import { getLocalePackage } from "@/lib/locale/store";
 
 type AssignmentInput = Record<string, unknown>;
 function recordId(value: unknown) {
@@ -129,9 +131,9 @@ export async function updateSubjectWithTeacherAssignment(user: AuthUser, body: A
 }
 
 /** Caller holds the campus scheduling fence and a SERIALIZABLE transaction. */
-export async function updateSubjectWithTeacherAssignmentTx(tx: TxClient, user: AuthUser, body: AssignmentInput, campusId: string) {
+export async function updateSubjectWithTeacherAssignmentTx(tx: TxClient, user: AuthUser, body: AssignmentInput, campusId: string, authorized?: Awaited<ReturnType<typeof authorizeAssignment>>) {
   const id = recordId(body.id), scope = campusScope(user, campusId);
-  const grants = await authorizeAssignment(tx, user, "exams");
+  const grants = authorized ?? await authorizeAssignment(tx, user, "exams");
   const existing = await tx.subject.findFirst({ where: { id, ...scope, campusId: campusId }, select: { id: true, campusId: true, name: true, code: true, classId: true, teacherId: true, archivedAt: true, class: { select: { archivedAt: true } } } });
   if (!existing) throw new ApiError("Subject not found", 404);
   if (existing.class.archivedAt) throw new ApiError("Restore this subject's class before editing it.", 409);
@@ -154,6 +156,8 @@ export async function updateSubjectWithTeacherAssignmentTx(tx: TxClient, user: A
   if (data.code !== undefined || data.name !== undefined) await assertSubjectCodeFree(tx, user.schoolId, (data.code as string | null | undefined) === undefined ? existing.code : data.code as string | null, (data.name as string | undefined) ?? existing.name, id);
   if (data.code && await tx.subject.findFirst({ where: { schoolId: user.schoolId, classId: existing.classId, code: data.code as string, id: { not: id } }, select: { id: true } })) throw new ApiError(`Code ${data.code} is already used in this class.`, 409);
   const teacherProvided = body.teacherId !== undefined;
+  // SKAI-150: a stale page cannot overwrite a newer allocation.
+  if (teacherProvided) assertTeacherCurrent(body.expectedTeacherId as string | null | undefined, existing.teacherId);
   if (teacherProvided) data.teacherId = await teacherInCampus(tx, body.teacherId, user.schoolId, existing.campusId);
   if (body.classId !== undefined) {
     const cls = await tx.class.findFirst({ where: { id: recordId(body.classId), schoolId: user.schoolId, campusId: existing.campusId, archivedAt: null }, select: { id: true } });
@@ -195,5 +199,43 @@ export async function deleteSubjectWithTimetableSync(user: AuthUser, id: string)
     await tx.subject.delete({ where: { id } });
     if (timetables.length) await tx.timetable.updateMany({ where: { id: { in: timetables.map(slot => slot.timetableId) }, schoolId: user.schoolId, campusId: subject.campusId }, data: { updatedAt: new Date() } });
     await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "subject", recordId: id, oldValue: { name: subject.name, deleted: true }, userId: user.userId } });
+  });
+}
+
+/**
+ * SKAI-150: allocate teachers to many subjects of one campus at once. Preview returns load and specialty warnings and
+ * writes nothing; commit applies every row in one SERIALIZABLE transaction, so a clash, stale row or denied teacher
+ * leaves no allocation half-applied.
+ */
+export async function planTeacherAllocations(user: AuthUser, campusId: string, rows: AllocationRequest[], options: { effectiveFrom?: unknown; preview: boolean }) {
+  return schoolAiTransaction(user, async tx => {
+    await lockTimetableCampus(tx, user.schoolId, campusId);
+    const grants = await authorizeAssignment(tx, user, "exams");
+    const subjects = await tx.subject.findMany({ where: { id: { in: rows.map(r => r.subjectId) }, schoolId: user.schoolId, campusId }, select: { id: true, name: true, teacherId: true, archivedAt: true, _count: { select: { timetableSlots: true } } } });
+    if (subjects.length !== rows.length) throw new ApiError("A subject is outside this school or campus", 404);
+    const byId = new Map(subjects.map(s => [s.id, s]));
+    for (const row of rows) assertTeacherCurrent(row.expectedTeacherId, byId.get(row.subjectId)!.teacherId);
+    const changes = rows.filter(r => byId.get(r.subjectId)!.teacherId !== r.teacherId);
+    const inUse = changes.filter(r => byId.get(r.subjectId)!._count.timetableSlots > 0).length;
+    if (!options.preview) {
+      // Each row re-checks its teacher, clash and timetable rights; the actor's grants were read once above.
+      const results = [];
+      for (const row of changes) results.push((await updateSubjectWithTeacherAssignmentTx(tx, user, { id: row.subjectId, teacherId: row.teacherId, ...(options.effectiveFrom ? { effectiveFrom: options.effectiveFrom } : {}) }, campusId, grants)).subject);
+      return { preview: false, changes: changes.length, unchanged: rows.length - changes.length, scheduledSubjects: inUse, capacity: null, warnings: [], results };
+    }
+    const teacherIds = [...new Set(rows.map(r => r.teacherId).filter((id): id is string => !!id))];
+    const [teachers, periods, locale] = await Promise.all([
+      tx.user.findMany({ where: { id: { in: teacherIds }, schoolId: user.schoolId, campusId, role: "TEACHER", isActive: true }, select: { id: true, fullName: true, subjectSpecialties: true, teachesAllSubjects: true, _count: { select: { timetableSlots: { where: { slotType: "CLASS" } } } } } }),
+      tx.periodDefinition.count({ where: { schoolId: user.schoolId, campusId, timeType: "CLASS" } }),
+      getLocalePackage(user.schoolId, campusId, new Date(), null, tx),
+    ]);
+    if (teachers.length !== teacherIds.length) throw new ApiError("Teacher is not active in this campus", 400);
+    const capacity = weeklyPeriodCapacity(periods, locale.weekend.length);
+    const warnings = allocationWarnings(
+      rows.map(r => { const s = byId.get(r.subjectId)!; return { subjectId: s.id, subjectName: s.name, teacherId: r.teacherId, currentTeacherId: s.teacherId, scheduledPeriods: s._count.timetableSlots }; }),
+      new Map(teachers.map(t => [t.id, { fullName: t.fullName, subjectSpecialties: t.subjectSpecialties, teachesAllSubjects: t.teachesAllSubjects, weeklyPeriods: t._count.timetableSlots }])),
+      capacity,
+    );
+    return { preview: true, changes: changes.length, unchanged: rows.length - changes.length, scheduledSubjects: inUse, capacity, warnings, results: [] };
   });
 }
