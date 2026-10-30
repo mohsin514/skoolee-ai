@@ -7,7 +7,8 @@ import { FormField } from "@/components/ui/form-field";
 import { useLocaleFormat, useUiText, useLocale } from "@/components/locale/LocaleProvider";
 import { OnlinePayAction, PaymentReturnStatus } from "./online-payment";
 import { InstallmentSchedule } from "./installment-plan-panel";
-import { Badge } from "@/components/ui/badge";
+import { DeskPill, DeskRowIcon, DeskStats, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
@@ -26,6 +27,8 @@ type Statement = {
     adjustments?: { id: string; kind: "REFUND" | "CREDIT_NOTE" | "WAIVER"; status: string; amount: number; publicExplanation: string }[] }[];
 };
 const STATE_TONE: Record<DueState, "success" | "neutral" | "danger" | "warning" | "info"> = { PAID: "success", CANCELLED: "neutral", OVERDUE: "danger", DUE_TODAY: "warning", NOT_YET_DUE: "info" };
+// Overdue invoices lead, then today's, then upcoming; settled ones sink to the end.
+const STATE_RANK: Record<DueState, number> = { OVERDUE: 0, DUE_TODAY: 1, NOT_YET_DUE: 2, PAID: 3, CANCELLED: 4 };
 const STATE_LABEL: Record<DueState, string> = { PAID: "Paid", CANCELLED: "Cancelled", OVERDUE: "Overdue", DUE_TODAY: "Due today", NOT_YET_DUE: "Not yet due" };
 
 /** The most recent payment on the statement, so a page header can offer "Download receipt" (§4.4 parent · Fees). */
@@ -89,22 +92,17 @@ export function FamilyFeeStatement({ studentId, onSummary, canPay = true }: { st
     {paymentRef && <PaymentReturnStatus key={paymentRef} orderRef={paymentRef} onSettled={settled} />}
     {statement.invoices.length === 0 ? <div className="sk-panel"><EmptyState icon={Receipt} title={ui("No fee obligations are available for this child.")} description={ui("New invoices from the school will appear here.")} /></div> : <>
       {statement.currencies.length > 1 && <FormField name="statementCurrency" label={ui("Currency")} hint={ui("Shows the invoices billed in this currency.")} className="w-full max-w-xs"><Select className="w-full" value={code} onChange={event => setCurrency(event.target.value)}>{statement.currencies.map(option => <option key={option} value={option}>{option}</option>)}</Select></FormField>}
-      <div className="sk-stagger grid grid-cols-2 gap-3 md:grid-cols-4" data-statement-summary>
-        <Figure icon={Banknote} label={ui("Outstanding")} value={fmt(s.outstanding)} tone="rose" />
-        <Figure icon={CalendarClock} label={ui("Overdue")} value={fmt(s.overdue)} tone={s.overdue ? "rose" : "muted"} />
-        <Figure icon={CalendarClock} label={ui("Due today")} value={fmt(s.dueToday)} tone={s.dueToday ? "amber" : "muted"} />
-        <Figure icon={CheckCircle2} label={ui("Not yet due")} value={fmt(s.notYetDue)} tone="sky" />
-      </div>
+      <DeskStats data-statement-summary>
+        <StatTile index={0} icon={Banknote} label={ui("Outstanding")} value={<bdi className="tabular-nums">{fmt(s.outstanding)}</bdi>} tone={s.outstanding ? "danger" : "success"} />
+        <StatTile index={1} icon={CalendarClock} label={ui("Overdue")} value={<bdi className="tabular-nums">{fmt(s.overdue)}</bdi>} tone={s.overdue ? "danger" : "neutral"} />
+        <StatTile index={2} icon={CalendarClock} label={ui("Due today")} value={<bdi className="tabular-nums">{fmt(s.dueToday)}</bdi>} tone={s.dueToday ? "warning" : "neutral"} />
+        <StatTile index={3} icon={CheckCircle2} label={ui("Not yet due")} value={<bdi className="tabular-nums">{fmt(s.notYetDue)}</bdi>} tone="info" />
+      </DeskStats>
       <p className="text-xs leading-relaxed text-ink-muted tabular-nums" data-statement-reconciliation={s.reconciles ? "ok" : "mismatch"}><bdi>{ui("Charges {0} − payments {1} = {2} owed", [fmt(s.charges), fmt(s.payments), fmt(s.closing)])}</bdi>{" · "}{ui("Dates as of {0} (school calendar)", [date(statement.today)])}{s.reconciles ? "" : ` · ${ui("These figures do not reconcile; please contact the school office.")}`}</p>
       {!canPay && s.outstanding > 0 ? <p className="text-xs leading-relaxed text-ink-muted" data-pay-note>{ui("Your parent or guardian pays fees from their family account.")}</p> : null}
-      <div className="space-y-3">{statement.invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} focused={invoice.id === focusInvoice} fmt={fmt} onPending={setPaymentRef} canPay={canPay} />)}</div>
+      <div className="space-y-3">{urgencyFirst(statement.invoices, invoice => STATE_RANK[invoice.dueState] ?? 5).map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} focused={invoice.id === focusInvoice} fmt={fmt} onPending={setPaymentRef} canPay={canPay} />)}</div>
     </>}
   </div>;
-}
-
-function Figure({ icon: Icon, label, value, tone }: { icon: typeof Banknote; label: string; value: string; tone: "rose" | "amber" | "sky" | "muted" }) {
-  const color = { rose: "text-status-error-text", amber: "text-status-warning-text", sky: "text-status-info-text", muted: "text-ink-muted" }[tone];
-  return <div className="sk-panel min-w-0 p-4"><Icon className={`mb-1 size-4 ${color}`} aria-hidden="true" /><p className={`truncate text-lg font-bold tabular-nums ${color}`}><bdi>{value}</bdi></p><p className="sk-eyebrow text-ink-subtle">{label}</p></div>;
 }
 
 function InvoiceCard({ invoice, focused, fmt, onPending, canPay }: { invoice: Statement["invoices"][number]; focused: boolean; fmt: (amount: number) => string; onPending: (ref: string) => void; canPay: boolean }) {
@@ -112,10 +110,10 @@ function InvoiceCard({ invoice, focused, fmt, onPending, canPay }: { invoice: St
   const { date } = useLocaleFormat();
   const card = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focused) card.current?.scrollIntoView({ block: "center" }); }, [focused]);
-  return <div ref={card} id={`invoice-${invoice.id}`} data-focused-invoice={focused || undefined} data-due-state={invoice.dueState} className={`sk-panel p-4 ${focused ? "ring-2 ring-primary" : ""}`}>
+  return <div ref={card} id={`invoice-${invoice.id}`} data-focused-invoice={focused || undefined} data-due-state={invoice.dueState} data-tone={STATE_TONE[invoice.dueState] as DeskTone} className={cn(deskRow, focused && "ring-2 ring-primary")}>
     <div className="flex flex-wrap items-start justify-between gap-2">
-      <div className="min-w-0"><p className="text-sm font-bold text-ink-strong"><bdi>{invoice.invoiceNumber || ui("Invoice")}</bdi></p><p className="text-xs text-ink-muted">{invoice.installments ? ui("Paid in instalments") : invoice.dueState === "NOT_YET_DUE" ? ui("Due on {0}; it is not overdue.", [date(invoice.dueDate)]) : ui("Due {0}", [date(invoice.dueDate)])}</p></div>
-      <Badge dot variant={STATE_TONE[invoice.dueState]}>{ui(STATE_LABEL[invoice.dueState])}</Badge>
+      <DeskRowIcon icon={Receipt} /><div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink-strong"><bdi>{invoice.invoiceNumber || ui("Invoice")}</bdi></p><p className="text-xs text-ink-muted">{invoice.installments ? ui("Paid in instalments") : invoice.dueState === "NOT_YET_DUE" ? ui("Due on {0}; it is not overdue.", [date(invoice.dueDate)]) : ui("Due {0}", [date(invoice.dueDate)])}</p></div>
+      <DeskPill tone={STATE_TONE[invoice.dueState]}>{ui(STATE_LABEL[invoice.dueState])}</DeskPill>
     </div>
     <dl className="mt-3 grid grid-cols-1 gap-3 text-sm min-[400px]:grid-cols-3">
       <div><dt className="sk-eyebrow text-ink-subtle">{ui("Total")}</dt><dd className="font-bold tabular-nums"><bdi>{fmt(invoice.totalAmount)}</bdi></dd></div>
