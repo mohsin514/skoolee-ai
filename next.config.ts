@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
   // server was initialized with (localhost), which prevents hydration and leaves
   // client-rendered forms inert. Allow the loopback IP explicitly (dev-only).
   allowedDevOrigins: ["127.0.0.1"],
+  // `next build` type-checks the whole repo by default, which needs ~12 GB of heap and
+  // gets the Vercel build worker OOM-killed (SKAI-1295). Types are still enforced:
+  // the required `typecheck` job in .github/workflows/pr-checks.yml runs `tsc --noEmit`.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   // Enable Turbopack for faster dev builds
   // (enabled via `next dev --turbopack`)
   turbopack: {

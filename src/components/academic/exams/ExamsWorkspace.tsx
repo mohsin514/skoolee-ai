@@ -1054,5 +1054,5 @@ function ResultsStep({
 function ExamDutyControl({ sessionId }: { sessionId: string }) {
   const { language } = useLocale(), t = examSessionPlanCopy(language);
   const [open, setOpen] = useState(false), [dirty, setDirty] = useState(false);
-  return <><Button variant="outline" onClick={() => setOpen(true)}><Users aria-hidden="true" />{t.duties}</Button>{open && <Modal title={t.duties} onClose={() => setOpen(false)} dirty={dirty} wide><ExamInvigilationPanel language={language} sessionId={sessionId} canEdit onDraftChange={setDirty} /></Modal>}</>;
+  return <><Button variant="outline" onClick={() => setOpen(true)}><Users aria-hidden="true" />{t.duties}</Button>{open && <Modal title={t.duties} icon={Users} onClose={() => setOpen(false)} dirty={dirty} wide><ExamInvigilationPanel language={language} sessionId={sessionId} canEdit onDraftChange={setDirty} /></Modal>}</>;
 }

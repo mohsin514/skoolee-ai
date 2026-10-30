@@ -147,7 +147,7 @@ export function PapersStep({ sessionId, onChanged }: { sessionId: string; onChan
 
     {editing ? <EditSlot t={t} slot={editing} staff={data.staff} busy={busy === "edit"} onClose={() => setEditing(null)} onSave={async body => { if (await send("edit", `/api/academic/paper-slots/${editing.id}`, "PATCH", { version: editing.version, ...body }, () => t.saved)) setEditing(null); }} /> : null}
     {sealing ? <SealSheet t={t} slot={sealing} busy={busy === "seal"} onClose={() => setSealing(null)} onSeal={async (paperVersion, reason) => { if (await send("seal", `/api/academic/paper-slots/${sealing.id}/seal`, "POST", { paperVersion, ...(reason ? { reason } : {}) }, () => fillStudioCopy(t.sealedOn, [sealing.subjectName]))) setSealing(null); }} /> : null}
-    {sitting ? <Modal title={`${t.sittingTitle} · ${sitting.subjectName} · ${sitting.gradeName}`} size="lg" onClose={() => { setSitting(null); void load(); }}><PaperSittingPanel slotId={sitting.id} /></Modal> : null}
+    {sitting ? <Modal icon={ClipboardList} title={`${t.sittingTitle} · ${sitting.subjectName} · ${sitting.gradeName}`} size="lg" onClose={() => { setSitting(null); void load(); }}><PaperSittingPanel slotId={sitting.id} /></Modal> : null}
     {correcting ? <CorrigendumSlot t={t} busy={busy === "corrigendum"} onClose={() => setCorrecting(null)} onSave={async text => { if (await send("corrigendum", `/api/academic/paper-slots/${correcting.id}/corrigendum`, "POST", { text }, () => t.corrigendumSaved)) setCorrecting(null); }} /> : null}
     {compromising ? <CompromiseSlot t={t} busy={busy === "compromise"} onClose={() => setCompromising(null)} onSave={async reason => { if (await send("compromise", `/api/academic/paper-slots/${compromising.id}/compromise`, "POST", { reason }, () => t.compromised)) setCompromising(null); }} /> : null}
     {withdrawing ? <WithdrawSlot t={t} busy={busy === "withdraw"} onClose={() => setWithdrawing(null)} onSave={async reason => { if (await send("withdraw", `/api/academic/paper-slots/${withdrawing.id}`, "PATCH", { version: withdrawing.version, cancel: { reason } }, () => t.saved)) setWithdrawing(null); }} /> : null}
@@ -160,7 +160,7 @@ function EditSlot({ t, slot, staff, busy, onClose, onSave }: { t: StudioSlotsCop
   const [moderator, setModerator] = useState(slot.moderatorUserId ?? "");
   const clash = Boolean(author) && author === moderator;
   const body = { ...(dueOn !== slot.dueOn ? { dueOn } : {}), ...(author !== (slot.authorUserId ?? "") ? { authorUserId: author || null } : {}), ...(moderator !== (slot.moderatorUserId ?? "") ? { moderatorUserId: moderator || null } : {}) };
-  return <Modal title={`${slot.subjectName} · ${slot.gradeName}`} onClose={onClose} footer={<ModalActions busy={busy} actionLabel={t.save} cancelLabel={t.cancel} onCancel={onClose} onAction={() => onSave(body)} blockedReason={clash ? t.authorIsModerator : null} />}>
+  return <Modal icon={PencilLine} title={`${slot.subjectName} · ${slot.gradeName}`} onClose={onClose} footer={<ModalActions busy={busy} actionLabel={t.save} cancelLabel={t.cancel} onCancel={onClose} onAction={() => onSave(body)} blockedReason={clash ? t.authorIsModerator : null} />}>
     <div className="space-y-3">
       <FormField name="slotDue" label={t.columnDue}><Input type="date" value={dueOn} onChange={event => setDueOn(event.currentTarget.value)} /></FormField>
       <FormField name="slotAuthor" label={t.authorLabel}><Select value={author} onChange={event => setAuthor(event.currentTarget.value)}><option value="">{t.noAuthor}</option>{staff.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</Select></FormField>
@@ -171,7 +171,7 @@ function EditSlot({ t, slot, staff, busy, onClose, onSave }: { t: StudioSlotsCop
 
 function WithdrawSlot({ t, busy, onClose, onSave }: { t: StudioSlotsCopy; busy: boolean; onClose: () => void; onSave: (reason: string) => void }) {
   const [reason, setReason] = useState("");
-  return <Modal title={t.cancelRequest} subtitle={t.cancelHint} onClose={onClose} footer={<ModalActions busy={busy} tone="rose" actionLabel={t.cancelRequest} cancelLabel={t.close} onCancel={onClose} onAction={() => onSave(reason.trim())} blockedReason={reason.trim().length < 3 ? t.cancelReason : null} />}>
+  return <Modal icon={XCircle} tone="rose" title={t.cancelRequest} subtitle={t.cancelHint} onClose={onClose} footer={<ModalActions busy={busy} tone="rose" actionLabel={t.cancelRequest} cancelLabel={t.close} onCancel={onClose} onAction={() => onSave(reason.trim())} blockedReason={reason.trim().length < 3 ? t.cancelReason : null} />}>
     <FormField name="withdrawReason" label={t.cancelReason}><Input value={reason} maxLength={500} onChange={event => setReason(event.currentTarget.value)} /></FormField>
   </Modal>;
 }
@@ -185,7 +185,7 @@ function SealSheet({ t, slot, busy, onClose, onSeal }: { t: StudioSlotsCopy; slo
       if (payload?.data) setFacts({ paperVersion: payload.data.paperVersion, prefix: payload.data.contentHashPrefix, moderator: slot.moderatorName });
     }).catch(() => undefined);
   }, [slot.id, slot.moderatorName]);
-  return <Modal title={fillStudioCopy(t.sealTitle, [`${slot.subjectName} · ${slot.gradeName}`])} subtitle={t.sealIntro} onClose={onClose} footer={<ModalActions busy={busy} actionLabel={t.sealConfirm} cancelLabel={t.cancel} onCancel={onClose} onAction={() => facts && onSeal(facts.paperVersion, reason.trim())} blockedReason={facts ? null : t.sealConfirm} />}>
+  return <Modal icon={Stamp} tone="emerald" title={fillStudioCopy(t.sealTitle, [`${slot.subjectName} · ${slot.gradeName}`])} subtitle={t.sealIntro} onClose={onClose} footer={<ModalActions busy={busy} actionLabel={t.sealConfirm} cancelLabel={t.cancel} onCancel={onClose} onAction={() => facts && onSeal(facts.paperVersion, reason.trim())} blockedReason={facts ? null : t.sealConfirm} />}>
     <dl className="grid gap-2 text-sm" data-seal-sheet>
       {facts ? <>
         <div><dt className="sr-only">{t.sealVersion}</dt><dd>{fillStudioCopy(t.sealVersion, [String(facts.paperVersion)])}</dd></div>
@@ -201,14 +201,14 @@ function SealSheet({ t, slot, busy, onClose, onSeal }: { t: StudioSlotsCopy; slo
 
 function CompromiseSlot({ t, busy, onClose, onSave }: { t: StudioSlotsCopy; busy: boolean; onClose: () => void; onSave: (reason: string) => void }) {
   const [reason, setReason] = useState("");
-  return <Modal title={t.reportCompromise} subtitle={t.compromiseHint} onClose={onClose} footer={<ModalActions busy={busy} tone="rose" actionLabel={t.reportCompromise} cancelLabel={t.close} onCancel={onClose} onAction={() => onSave(reason.trim())} blockedReason={reason.trim().length < 5 ? t.compromiseReason : null} />}>
+  return <Modal icon={ShieldAlert} tone="rose" title={t.reportCompromise} subtitle={t.compromiseHint} onClose={onClose} footer={<ModalActions busy={busy} tone="rose" actionLabel={t.reportCompromise} cancelLabel={t.close} onCancel={onClose} onAction={() => onSave(reason.trim())} blockedReason={reason.trim().length < 5 ? t.compromiseReason : null} />}>
     <FormField name="compromiseReason" label={t.compromiseReason}><Input value={reason} maxLength={1000} onChange={event => setReason(event.currentTarget.value)} /></FormField>
   </Modal>;
 }
 
 function CorrigendumSlot({ t, busy, onClose, onSave }: { t: StudioSlotsCopy; busy: boolean; onClose: () => void; onSave: (text: string) => void }) {
   const [text, setText] = useState("");
-  return <Modal title={t.corrigendumAdd} subtitle={t.corrigendumHint} onClose={onClose} footer={<ModalActions busy={busy} actionLabel={t.corrigendumAdd} cancelLabel={t.close} onCancel={onClose} onAction={() => onSave(text.trim())} blockedReason={text.trim().length < 5 ? t.corrigendumText : null} />}>
+  return <Modal icon={FileText} tone="amber" title={t.corrigendumAdd} subtitle={t.corrigendumHint} onClose={onClose} footer={<ModalActions busy={busy} actionLabel={t.corrigendumAdd} cancelLabel={t.close} onCancel={onClose} onAction={() => onSave(text.trim())} blockedReason={text.trim().length < 5 ? t.corrigendumText : null} />}>
     <FormField name="corrigendumText" label={t.corrigendumText}><Input dir="auto" value={text} maxLength={1000} onChange={event => setText(event.currentTarget.value)} /></FormField>
   </Modal>;
 }
