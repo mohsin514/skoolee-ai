@@ -2146,8 +2146,8 @@ export function StudentDetailModal({
               {/* A real date picker — this used to be a free-text box that
                   silently dropped anything not typed as YYYY-MM-DD. */}
               <FormInput label={ui("Date of Birth")} type="date" value={ed("dateOfBirth")} placeholder={ui("YYYY-MM-DD")} onChange={(v) => setEd("dateOfBirth", v)} />
+              {/* SKAI-164: gender is required on the record, so there is no blank option the server could not save. */}
               <FormSelect label={ui("Gender")} value={ed("gender")} onChange={(v) => setEd("gender", v)}>
-                <option value="">{ui("Not specified")}</option>
                 <option value="MALE">{ui("Male")}</option>
                 <option value="FEMALE">{ui("Female")}</option>
                 <option value="OTHER">{ui("Other")}</option>
@@ -3077,8 +3077,8 @@ export function TeacherDetailModal({
               {/* A real date picker — this used to be a free-text box that
                   silently dropped anything not typed as YYYY-MM-DD. */}
               <FormInput label={ui("Date of Birth")} type="date" value={ed("dateOfBirth")} placeholder={ui("YYYY-MM-DD")} onChange={(v) => setEd("dateOfBirth", v)} />
+              {/* SKAI-164: gender is required on the record, so there is no blank option the server could not save. */}
               <FormSelect label={ui("Gender")} value={ed("gender")} onChange={(v) => setEd("gender", v)}>
-                <option value="">{ui("Not specified")}</option>
                 <option value="MALE">{ui("Male")}</option>
                 <option value="FEMALE">{ui("Female")}</option>
                 <option value="OTHER">{ui("Other")}</option>

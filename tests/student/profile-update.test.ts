@@ -30,3 +30,31 @@ test("the existing unspecified gender option preserves other profile edits", () 
 test("unrelated form metadata never becomes a writable pupil field", () => {
   assert.deepEqual(studentProfileUpdateSchema.parse({ id: "pupil", fullName: "Pupil One", schoolId: "other-school", archivedAt: "2026-01-01" }), { id: "pupil", fullName: "Pupil One" });
 });
+
+test("SKAI-164: blood type is a known type or blank, never silently dropped", () => {
+  for (const bloodType of ["O+", "AB-", "", null]) {
+    assert.equal(studentProfileUpdateSchema.safeParse({ id: "pupil", bloodType }).success, true);
+  }
+  for (const bloodType of ["Z+", "o+", "A positive"]) {
+    assert.equal(studentProfileUpdateSchema.safeParse({ id: "pupil", bloodType }).success, false);
+  }
+});
+
+test("SKAI-164: guardian email is a real address or blank", () => {
+  for (const guardianEmail of ["guardian@qa-01.test", "", null]) {
+    assert.equal(studentProfileUpdateSchema.safeParse({ id: "pupil", guardianEmail }).success, true);
+  }
+  for (const guardianEmail of ["guardian", "guardian@", "@qa-01.test"]) {
+    assert.equal(studentProfileUpdateSchema.safeParse({ id: "pupil", guardianEmail }).success, false);
+  }
+});
+
+test("SKAI-164: date of birth is a real date that is not in the future", () => {
+  for (const dateOfBirth of ["2015-03-12", "", null]) {
+    assert.equal(studentProfileUpdateSchema.safeParse({ id: "pupil", dateOfBirth }).success, true);
+  }
+  const tomorrow = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
+  for (const dateOfBirth of [tomorrow, "not a date", "2015-13-45"]) {
+    assert.equal(studentProfileUpdateSchema.safeParse({ id: "pupil", dateOfBirth }).success, false);
+  }
+});

@@ -27,7 +27,7 @@
     "test:educator-eval": "node --import ./tests/support/server-only.mjs --import tsx --test tests/ai-evaluation/*.test.ts",
     "eval:educator": "node --import ./tests/support/server-only.mjs --import tsx scripts/eval-educator.ts",
     "test:guardian-consent": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/family/guardian-consent.test.ts",
-    "test:students": "node --import ./tests/support/server-only.mjs --import tsx --test tests/students/*.test.ts",
+    "test:students": "node --import ./tests/support/server-only.mjs --import tsx --test tests/students/*.test.ts tests/student/profile-update.test.ts",
     "test:period-setup": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/timetable/period-setup.test.ts",
     "test:realtime": "node --import tsx --test tests/realtime/*.test.ts",
     "test:email": "node --import ./tests/support/server-only.mjs --import tsx --test tests/email/*.test.ts",
