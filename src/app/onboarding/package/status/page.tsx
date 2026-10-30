@@ -8,6 +8,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { getPackageCopy } from "../copy";
+import { formatPackageAmount, packageStatus, type SchoolLifecycle } from "@/lib/billing/package-status";
 
 type Intent = {
   id: string;
@@ -50,6 +51,8 @@ function CheckoutStatus() {
   const [intent, setIntent] = useState<Intent | null>(null);
   const [language, setLanguage] = useState("en");
   const [bank, setBank] = useState<{ bankName: string; accountTitle: string; accountNumber: string; iban: string | null } | null>(null);
+  const [lifecycle, setLifecycle] = useState<SchoolLifecycle | null>(null);
+  const [checkedAt, setCheckedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -62,6 +65,8 @@ function CheckoutStatus() {
     setIntent(data.intent as Intent);
     setLanguage(typeof data.language === "string" ? data.language.slice(0, 2).toLowerCase() : "en");
     setBank(data.bank ?? null);
+    setLifecycle(data.lifecycle ?? null);
+    setCheckedAt(typeof data.checkedAt === "string" ? data.checkedAt : new Date().toISOString());
     setError("");
   }, [intentId, copy.paymentFailure]);
 
@@ -129,6 +134,14 @@ function CheckoutStatus() {
   const resumeStep = intent?.returnStep || "package";
   const stateTone: AlertTone = isSettled ? "success" : isPending ? "info" : intent?.status === "FAILED" ? "danger" : intent?.status === "CANCELLED" ? "warning" : "neutral";
 
+  // SKAI-161: the shared reading also covers grace, expiry and bank transfers, as the setup wizard shows them.
+  const shared = intent ? packageStatus(intent, lifecycle) : null;
+  const lapsed = shared?.key === "grace" || shared?.key === "expired";
+  const stateName = !intent ? "" : shared?.key === "grace" ? copy.statusGrace : shared?.key === "expired" ? copy.statusExpired
+    : isReserved ? copy.statusReserved : shared?.key === "bank" ? copy.statusBank : copy.stateNames[intent.status] ?? intent.status;
+  const locale = language === "ar" ? "ar" : language === "ur" ? "ur-PK" : "en";
+  const checkedLabel = checkedAt ? copy.lastChecked.replace("{0}", new Intl.DateTimeFormat(locale, { timeStyle: "short" }).format(new Date(checkedAt))) : "";
+
   const isRtl = language === "ar" || language === "ur";
   return (
     <main lang={language} dir={isRtl ? "rtl" : "ltr"} className="min-h-screen px-4 py-8 text-ink-strong sm:px-8 sm:py-12">
@@ -156,17 +169,18 @@ function CheckoutStatus() {
         {!intent && !error && <StatusSkeleton label={copy.loadingOrder.replace(/…$/, "")} />}
         {intent && (
           <div className="mt-6 space-y-5">
-            <Alert tone={stateTone} live="polite" title={isReserved ? copy.statusReserved : copy.stateNames[intent.status] ?? intent.status}>
+            <Alert tone={shared?.key === "expired" ? "danger" : shared?.key === "grace" ? "warning" : stateTone} live="polite" title={stateName}>
               <p className="text-sm leading-relaxed text-ink-muted">
-                {isReserved ? copy.savedReserved : isSettled ? copy.savedActive : isPending ? copy.savedPending : intent.status === "FAILED" ? intent.failureReason || copy.savedFailed : intent.status === "CANCELLED" ? copy.savedCancelled : copy.savedSelection}
+                {lapsed ? (shared?.key === "grace" ? copy.savedGrace : copy.savedExpired) : isReserved ? copy.savedReserved : isSettled ? copy.savedActive : isPending ? copy.savedPending : intent.status === "FAILED" ? intent.failureReason || copy.savedFailed : intent.status === "CANCELLED" ? copy.savedCancelled : copy.savedSelection}
               </p>
             </Alert>
             <dl className="grid gap-4 rounded-2xl border border-border-subtle bg-surface-subtle p-4 text-sm sm:grid-cols-2">
               <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.orderReference}</dt><dd dir="ltr" className="mt-0.5 break-all font-mono font-semibold text-ink-strong"><bdi>{intent.id}</bdi></dd></div>
               <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.package}</dt><dd className="mt-0.5 font-semibold text-ink-strong">{copy.planNames[intent.plan as keyof typeof copy.planNames] ?? intent.plan}</dd></div>
-              <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.paymentState}</dt><dd className="mt-0.5 font-semibold text-ink-strong">{isReserved ? copy.statusReserved : copy.stateNames[intent.status] ?? intent.status}</dd></div>
-              {intent.amount != null && <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.savedAmount}</dt><dd dir="ltr" className="mt-0.5 font-semibold tabular-nums text-ink-strong"><bdi>{intent.currency} {intent.amount.toLocaleString()}</bdi></dd></div>}
+              <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.paymentState}</dt><dd className="mt-0.5 font-semibold text-ink-strong">{stateName}</dd></div>
+              {intent.amount != null && <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.savedAmount}</dt><dd dir="ltr" className="mt-0.5 font-semibold tabular-nums text-ink-strong"><bdi>{formatPackageAmount(intent.amount, intent.currency, language)}</bdi></dd></div>}
             </dl>
+            {checkedLabel && <p className="text-xs text-ink-subtle" aria-live="polite">{checkedLabel}</p>}
             {bank && intent.status === "PENDING_SETTLEMENT" && <dl className="grid gap-4 rounded-2xl border border-border-subtle bg-white p-4 text-sm sm:grid-cols-2">
               <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.bank}</dt><dd className="mt-0.5 font-semibold text-ink-strong">{bank.bankName}</dd></div>
               <div className="min-w-0"><dt className="text-xs font-medium text-ink-subtle">{copy.accountTitle}</dt><dd className="mt-0.5 font-semibold text-ink-strong">{bank.accountTitle}</dd></div>
