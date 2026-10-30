@@ -286,7 +286,7 @@ async function duplicatesFor(db: TxClient, application: AdmissionApplication & {
   if (definition.identityKeys.includes("nameAndDob") && identity.dateOfBirth) studentWhere.push({ dateOfBirth: new Date(`${identity.dateOfBirth}T00:00:00Z`) });
   const phone = identity.guardianPhone?.replace(/\D/g, "").slice(-9);
   if (definition.identityKeys.includes("guardianPhoneAndName") && phone && phone.length >= 6) studentWhere.push({ guardianPhone: { contains: phone } });
-  const candidates = studentWhere.length ? await db.student.findMany({ where: { schoolId: application.schoolId, consolidatedIntoId: null, OR: studentWhere }, select: { id: true, fullName: true, rollNo: true, admissionNo: true, dateOfBirth: true, guardianPhone: true, archivedAt: true, campusId: true, class: { select: { name: true, section: true } } }, take: 50 }) : [];
+  const candidates = studentWhere.length ? await db.student.findMany({ where: { schoolId: application.schoolId, campusId: application.campusId, consolidatedIntoId: null, OR: studentWhere }, select: { id: true, fullName: true, rollNo: true, admissionNo: true, dateOfBirth: true, guardianPhone: true, archivedAt: true, campusId: true, class: { select: { name: true, section: true } } }, take: 50 }) : [];
   const name = identity.childName ? foldName(identity.childName) : "";
   const students = candidates.filter(student => foldName(student.fullName) === name).map(student => ({ id: student.id, fullName: student.fullName, rollNo: student.rollNo, admissionNo: student.admissionNo, className: [student.class.name, student.class.section].filter(Boolean).join(" "), archived: Boolean(student.archivedAt), dateOfBirth: student.dateOfBirth?.toISOString().slice(0, 10) ?? null }));
   return { applications, students };
