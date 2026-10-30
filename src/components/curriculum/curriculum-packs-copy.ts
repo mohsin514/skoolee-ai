@@ -62,6 +62,11 @@ const en = {
   language: "Language",
   usage: "Campus use",
   usageNone: "Not requested",
+  catalogueEmpty: "No pack version is published yet, so there is nothing to request. Ask the platform team to publish your board's pack.",
+  roleSUPER_ADMIN: "Group owner",
+  roleCAMPUS_ADMIN: "Campus administrator",
+  roleADMIN: "Campus administrator",
+  rolePRINCIPAL: "Principal",
 };
 type Copy = typeof en;
 const ar: Copy = {
@@ -125,6 +130,11 @@ const ar: Copy = {
   language: "اللغة",
   usage: "استخدام الفروع",
   usageNone: "لم تُطلب",
+  catalogueEmpty: "لم تُنشر أي نسخة حزمة بعد، لذلك لا يوجد ما يمكن طلبه. اطلب من فريق المنصة نشر حزمة جهتك.",
+  roleSUPER_ADMIN: "مالك المجموعة",
+  roleCAMPUS_ADMIN: "مدير الفرع",
+  roleADMIN: "مدير الفرع",
+  rolePRINCIPAL: "مدير المدرسة",
 };
 const ur: Copy = {
   title: "نصابی پیکجز",
@@ -187,7 +197,14 @@ const ur: Copy = {
   language: "زبان",
   usage: "کیمپس میں استعمال",
   usageNone: "درخواست نہیں دی گئی",
+  catalogueEmpty: "ابھی کوئی پیکج ورژن شائع نہیں ہوا، اس لیے درخواست کے لیے کچھ نہیں۔ پلیٹ فارم ٹیم سے اپنے بورڈ کا پیکج شائع کرنے کو کہیں۔",
+  roleSUPER_ADMIN: "گروپ مالک",
+  roleCAMPUS_ADMIN: "کیمپس منتظم",
+  roleADMIN: "کیمپس منتظم",
+  rolePRINCIPAL: "پرنسپل",
 };
 export type CurriculumPacksCopy = Copy;
 export const curriculumPacksCopy = (language: Language | string): Copy => (language === "ar" ? ar : language === "ur" ? ur : en);
 export const fill = (template: string, values: (string | number)[]) => values.reduce<string>((text, value, index) => text.replaceAll(`{${index}}`, String(value)), template);
+/** Event actor role in the reader's language; an unknown role falls back to its code. */
+export const actorRoleLabel = (t: Copy, role: string) => (t as Record<string, string>)[`role${role}`] ?? role;
