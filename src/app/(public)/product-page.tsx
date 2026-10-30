@@ -53,7 +53,7 @@ function demoMailto(context: string) {
 export function ProductPage({ copy }: { copy: ProductPageCopy }) {
   return (
     <main className="min-h-screen text-ink-strong">
-      <header className="border-b border-border-subtle bg-white/95">
+      <header className="sticky top-0 z-30 border-b border-border-subtle bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/75">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <Link href="/" className="flex shrink-0 items-center gap-2 font-bold tracking-normal">
             <SkooleeLogo size="1.15rem" />
@@ -141,9 +141,9 @@ export function ProductPage({ copy }: { copy: ProductPageCopy }) {
       <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-14">
         <div className="sk-stagger grid gap-5 md:grid-cols-3">
           {copy.sections.map((section) => (
-            <article key={section.title} className="sk-panel min-w-0 p-5 sm:p-6">
-              <span aria-hidden="true" className="grid h-11 w-11 place-items-center rounded-xl bg-brand-50 text-primary ring-1 ring-brand-100">
-                <section.icon className="h-5 w-5" />
+            <article key={section.title} className="sk-panel sk-hover-lift min-w-0 p-5 sm:p-6">
+              <span aria-hidden="true" className="sk-page-icon">
+                <section.icon className="size-5" />
               </span>
               <h2 className="mt-4 text-lg font-bold tracking-tight text-ink-strong">{section.title}</h2>
               <p className="mt-2 text-sm leading-relaxed text-ink-muted">{section.body}</p>

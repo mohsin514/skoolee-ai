@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { AlertTriangle, CalendarX2, CheckCircle2, Clock, FileUp, Info, Loader2, MessageSquare, type LucideIcon } from "lucide-react";
+import { AlertTriangle, CalendarX2, CheckCircle2, Clock, FileUp, Info, NotebookPen, Loader2, MessageSquare, type LucideIcon } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { ConfirmAction } from "@/components/ui/confirm-action";
@@ -152,10 +152,13 @@ export default function ApplyPage() {
 
   return <main className="mx-auto min-h-screen w-full max-w-2xl space-y-6 px-4 py-6 sm:py-10" data-apply-page>
     <header className="sk-enter flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+      <div className="flex min-w-0 items-start gap-3">
+      <span aria-hidden="true" className="sk-page-icon"><NotebookPen className="size-5" /></span>
       <div className="min-w-0">
         <p className="sk-eyebrow">{ui("Admission application")}</p>
         {form ? <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink-strong text-balance sm:text-3xl"><bdi>{form.schoolName}</bdi></h1> : !loadError ? <SkeletonBar className="mt-2 h-8 w-56 max-w-full" /> : null}
         {form?.campusName ? <p className="mt-1 text-sm text-ink-muted"><bdi>{form.campusName}</bdi></p> : null}
+      </div>
       </div>
       <FormField name="apply-language" label={ui("Language")} className="w-full sm:w-44"><Select value={language} onChange={event => setLanguage(event.target.value as Language)}><option value="en">English</option><option value="ar">العربية</option><option value="ur">اردو</option></Select></FormField>
     </header>

@@ -30,7 +30,7 @@ import {
   GraduationCap, Layers, Zap,
   type LucideIcon,
 } from "lucide-react";
-import { Modal } from "@/components/ui/modal";
+import { Modal, type ModalTone } from "@/components/ui/modal";
 import { PLANS, PLAN_ORDER, getPlanLimits } from "@/config/plans";
 import type { PlanType } from "@/types";
 import { Input as SystemInput } from "@/components/ui/input";
@@ -74,10 +74,12 @@ function makePassword(len = 14) {
  * another dialog unlocked the page underneath both of them.
  */
 function Shell({
-  title, subtitle, icon: Icon, onClose, children, wide, footer,
+  title, subtitle, icon: Icon, onClose, children, wide, footer, tone,
 }: {
   title: string; subtitle: string; icon: LucideIcon; onClose: () => void;
   children: React.ReactNode; wide?: boolean; footer?: React.ReactNode;
+  /** `emerald` for the completion step (credentials handed over); the default plum for the form. */
+  tone?: ModalTone;
 }) {
   const t = useUiText();
   return (
@@ -85,6 +87,7 @@ function Shell({
       title={t(title)}
       subtitle={t(subtitle)}
       icon={Icon}
+      tone={tone}
       eyebrow={t("Provisioning")}
       size={wide ? "md" : "sm"}
       onClose={onClose}
@@ -298,7 +301,7 @@ export function ProvisionSchoolModal({ onClose, onCreated, prefill, workflowHand
 
   if (done) {
     return (
-      <Shell title="School provisioned" subtitle="Hand these credentials to the school owner." icon={Building2} onClose={onClose}>
+      <Shell title="School provisioned" subtitle="Hand these credentials to the school owner." icon={Building2} tone="emerald" onClose={onClose}>
         <CredentialHandoff data={done} onDone={onClose} />
       </Shell>
     );
@@ -550,7 +553,7 @@ export function AddUserModal({
 
   if (done) {
     return (
-      <Shell title="User created" subtitle="Hand these credentials over securely." icon={UserPlus} onClose={onClose}>
+      <Shell title="User created" subtitle="Hand these credentials over securely." icon={UserPlus} tone="emerald" onClose={onClose}>
         <CredentialHandoff data={done} onDone={onClose} />
       </Shell>
     );
