@@ -163,14 +163,15 @@ function IntakeDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: (
       setError(failure instanceof TypeError ? ui("The connection failed before the server answered. Your details are kept; retrying will not record the item twice.") : ui(failure instanceof Error ? failure.message : "The change was not saved."));
     } finally { setBusy(false); }
   };
-  if (receipt) return <Modal title={ui("Item recorded")} eyebrow={ui("Post and couriers")} onClose={onDone}>
+  if (receipt) return <Modal icon={PackageCheck} tone="emerald" title={ui("Item recorded")} eyebrow={ui("Post and couriers")} onClose={onDone}
+    footer={<div className="flex justify-end"><Button onClick={onDone}>{ui("Done")}</Button></div>}>
     <div className="space-y-3" data-postal-receipt={receipt}>
       <p className="text-sm">{ui("Write this code on the item: {0}", [receipt])}</p>
       <p className="text-xs text-ink-muted">{form.direction === "RECEIVE" ? ui("It stays in the queue until someone collects it.") : ui("It stays in the queue until it is dispatched and delivery is confirmed.")}</p>
-      <div className="flex justify-end"><Button onClick={onDone}>{ui("Done")}</Button></div>
     </div>
   </Modal>;
-  return <Modal title={ui("Record item")} eyebrow={ui("Post and couriers")} subtitle={ui("Record only what is needed to hand the item over.")} onClose={onClose} dirty={Boolean(form.toName || form.referenceNo || form.note)}>
+  return <Modal icon={form.direction === "RECEIVE" ? Inbox : Send} tone="violet" title={ui("Record item")} eyebrow={ui("Post and couriers")} subtitle={ui("Record only what is needed to hand the item over.")} onClose={onClose} dirty={Boolean(form.toName || form.referenceNo || form.note)}
+    footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy}>{ui("Record item")}</Button></div>}>
     <div className="space-y-3" data-postal-intake>
       <DraftRecovery recordLabel={ui("Postal item")} draft={draft} saving={busy} excluded={ui("Only the handoff fields are stored in this signed-in browser draft.")} />
       {error ? <Alert tone="danger" compact data-postal-error>{error}</Alert> : null}
@@ -184,7 +185,6 @@ function IntakeDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: (
       </div>
       <FormField name="postal-note" label={ui("Note (optional)")}><Textarea value={form.note} rows={2} maxLength={500} onChange={set("note")} /></FormField>
       <FormField name="postal-owner" label={ui("Owner responsible for the handoff (optional)")}><Select value={form.ownerId} onChange={set("ownerId")}><option value="">{ui("No owner yet")}</option>{owners.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></FormField>
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy}>{ui("Record item")}</Button></div>
     </div>
   </Modal>;
 }
@@ -215,7 +215,17 @@ function ItemDialog({ item, owners, onClose, onChanged }: { item: Item; owners: 
     if (reason.trim().length < 5) { setError(ui("Give a reason for the correction (at least 5 characters).")); return; }
     void run({ action: "correct", fields: changed, reason }, ui("Correction saved. The original values stay in the history."));
   };
-  return <Modal title={ui("Postal item {0}", [item.itemCode])} eyebrow={ui("Post and couriers")} size="lg" onClose={onClose} dirty={Boolean(note || handedTo || reason)}>
+  const primary = closed ? null : item.direction === "DISPATCH" && item.status === "PREPARED"
+    ? <Button disabled={busy} onClick={() => { if (courier.trim().length < 2) { setError(ui("Enter the courier before dispatching.")); return; } void run({ action: "dispatch", courier, referenceNo: referenceNo || undefined }, ui("Marked dispatched. It stays open until delivery is confirmed.")); }}>{ui("Mark dispatched")}</Button>
+    : item.direction === "RECEIVE" || item.status === "DISPATCHED"
+      ? <Button disabled={busy} onClick={() => {
+        if (handedTo.trim().length < 2) { setError(ui("Enter the name of the person the item was handed to.")); return; }
+        if (item.direction === "DISPATCH" && note.trim().length < 5) { setError(ui("Say how delivery was confirmed (for example a signature or the courier's proof of delivery). A tracking number alone is not delivery.")); return; }
+        void run({ action: item.direction === "RECEIVE" ? "collect" : "deliver", handedTo, note: note || undefined }, item.direction === "RECEIVE" ? ui("Handed over.") : ui("Delivery confirmed."));
+      }}>{item.direction === "RECEIVE" ? ui("Record collection") : ui("Confirm delivery")}</Button>
+      : null;
+  return <Modal icon={item.direction === "RECEIVE" ? Inbox : Send} tone={closed ? "emerald" : item.status === "DISPATCHED" ? "sky" : "violet"} title={ui("Postal item {0}", [item.itemCode])} eyebrow={ui("Post and couriers")} size="lg" onClose={onClose} dirty={Boolean(note || handedTo || reason)}
+    footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Close")}</Button>{primary}</div>}>
     <div className="space-y-4" data-postal-item={item.itemCode}>
       {error ? <Alert tone="danger" compact data-postal-item-error>{error}</Alert> : null}
       <DeskSection title={<>{item.direction === "RECEIVE" ? ui("Incoming") : ui("Outgoing")} · <bdi>{formatDate(item.date)}</bdi></>} icon={item.direction === "RECEIVE" ? Inbox : Send} tone={statusTone(item.status)} className="text-sm" aria-label={ui("Item details")} action={<DeskPill tone={statusTone(item.status)}>{statusLabel(ui, item.status)}</DeskPill>}>
@@ -231,16 +241,10 @@ function ItemDialog({ item, owners, onClose, onChanged }: { item: Item; owners: 
         {item.direction === "DISPATCH" && item.status === "PREPARED" ? <DeskSection title={ui("Dispatch")} icon={Truck} tone="info" className="sm:grid-cols-2 sm:[&>div:first-child]:col-span-2">
           <FormField name="postal-dispatch-courier" label={ui("Courier")}><Input value={courier} maxLength={60} onChange={event => setCourier(event.target.value)} /></FormField>
           <FormField name="postal-dispatch-reference" label={ui("Tracking or reference number (optional)")}><Input value={referenceNo} maxLength={80} dir="ltr" onChange={event => setReferenceNo(event.target.value)} /></FormField>
-          <Button className="w-full sm:w-fit" disabled={busy} onClick={() => { if (courier.trim().length < 2) { setError(ui("Enter the courier before dispatching.")); return; } void run({ action: "dispatch", courier, referenceNo: referenceNo || undefined }, ui("Marked dispatched. It stays open until delivery is confirmed.")); }}>{ui("Mark dispatched")}</Button>
         </DeskSection> : null}
         {item.direction === "RECEIVE" || item.status === "DISPATCHED" ? <DeskSection title={item.direction === "RECEIVE" ? ui("Hand over") : ui("Confirm delivery")} icon={PackageCheck} tone="success">
           <FormField name="postal-handed-to" label={item.direction === "RECEIVE" ? ui("Collected by (name)") : ui("Received by (name)")}><Input value={handedTo} maxLength={120} onChange={event => setHandedTo(event.target.value)} /></FormField>
           <FormField name="postal-handoff-note" label={item.direction === "RECEIVE" ? ui("Acknowledgement note (optional)") : ui("How delivery was confirmed (required)")}><Input value={note} maxLength={500} onChange={event => setNote(event.target.value)} /></FormField>
-          <Button className="w-full sm:w-fit" disabled={busy} onClick={() => {
-            if (handedTo.trim().length < 2) { setError(ui("Enter the name of the person the item was handed to.")); return; }
-            if (item.direction === "DISPATCH" && note.trim().length < 5) { setError(ui("Say how delivery was confirmed (for example a signature or the courier's proof of delivery). A tracking number alone is not delivery.")); return; }
-            void run({ action: item.direction === "RECEIVE" ? "collect" : "deliver", handedTo, note: note || undefined }, item.direction === "RECEIVE" ? ui("Handed over.") : ui("Delivery confirmed."));
-          }}>{item.direction === "RECEIVE" ? ui("Record collection") : ui("Confirm delivery")}</Button>
         </DeskSection> : null}
       </> : null}
       {correcting ? <DeskSection title={ui("Correct this item")} icon={PencilLine} tone="warning" data-postal-correction>

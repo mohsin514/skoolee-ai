@@ -184,7 +184,8 @@ function LogCallDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: 
       setError(failure instanceof TypeError ? ui("The connection failed before the server answered. Your details are kept; retrying will not log the call twice.") : ui(failure instanceof Error ? failure.message : "The change was not saved."));
     } finally { setBusy(false); }
   };
-  return <Modal title={ui("Log call")} eyebrow={ui("Phone calls")} subtitle={ui("Keep it short: who called, why, and whether someone owes them a callback.")} onClose={onClose} dirty={Boolean(form.name || form.phone || form.note || form.purpose)}>
+  return <Modal icon={form.direction === "OUT" ? PhoneOutgoing : PhoneIncoming} tone={form.sensitive ? "amber" : "violet"} title={ui("Log call")} eyebrow={ui("Phone calls")} subtitle={ui("Keep it short: who called, why, and whether someone owes them a callback.")} onClose={onClose} dirty={Boolean(form.name || form.phone || form.note || form.purpose)}
+    footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy}>{ui("Log call")}</Button></div>}>
     <div className="space-y-3" data-call-form>
       <DraftRecovery recordLabel={ui("Phone call")} draft={draft} saving={busy} excluded={ui("Sensitive call notes are never stored in this signed-in browser draft.")} />
       {error ? <Alert tone="danger" compact data-call-error>{error}</Alert> : null}
@@ -202,7 +203,6 @@ function LogCallDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: 
         <FormField name="call-callback-due" label={ui("Call back by (school time)")}><Input ref={dueField} type="datetime-local" value={form.callbackDue} min={form.date} onChange={set("callbackDue")} data-call-callback-due /></FormField>
         <FormField name="call-callback-owner" label={ui("Owner")}><Select ref={ownerField} value={form.callbackOwnerId} onChange={set("callbackOwnerId")} data-call-callback-owner><option value="">{ui("Unassigned")}</option>{owners.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></FormField>
       </fieldset>
-      <div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy}>{ui("Log call")}</Button></div>
     </div>
   </Modal>;
 }
@@ -226,7 +226,8 @@ function CallbackDialog({ call: phoneCall, callback, owners, onClose, onChanged 
     finally { setBusy(false); }
   };
   const open = callback.status === "OPEN";
-  return <Modal title={ui("Callback for {0}", [phoneCall.name])} eyebrow={ui("Phone calls")} size="lg" onClose={onClose} dirty={Boolean(note || outcome)}>
+  return <Modal icon={PhoneCall} tone={!open ? "emerald" : callback.overdue ? "rose" : "sky"} title={ui("Callback for {0}", [phoneCall.name])} eyebrow={ui("Phone calls")} size="lg" onClose={onClose} dirty={Boolean(note || outcome)}
+    footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Close")}</Button>{open ? <Button disabled={busy} onClick={() => { if (outcome.trim().length < 5) { setError(ui("Record the outcome (at least 5 characters) before completing.")); return; } void run({ action: "complete", outcome, nextDue: nextDue || undefined, nextOwnerId: nextOwnerId || undefined }, nextDue ? ui("Callback completed; the next callback is scheduled.") : ui("Callback completed.")); }}>{ui("Complete callback")}</Button> : null}</div>}>
     <div className="space-y-4" data-callback-dialog={callback.id}>
       {error ? <Alert tone="danger" compact data-callback-error>{error}</Alert> : null}
       <DeskSection title={ui("Original call")} icon={phoneCall.direction === "IN" ? PhoneIncoming : PhoneOutgoing} tone="info" className="text-sm" aria-label={ui("Original call")} action={<span className="text-xs text-ink-muted"><bdi>{dateTime(phoneCall.date)}</bdi></span>}>
@@ -255,7 +256,6 @@ function CallbackDialog({ call: phoneCall, callback, owners, onClose, onChanged 
             <FormField name="callback-next-due" label={ui("Another callback by (optional)")}><Input type="datetime-local" value={nextDue} onChange={event => setNextDue(event.target.value)} /></FormField>
             <FormField name="callback-next-owner" label={ui("Owner of the next callback")}><Select value={nextOwnerId} onChange={event => setNextOwnerId(event.target.value)}><option value="">{ui("Unassigned")}</option>{owners.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></FormField>
           </div>
-          <Button className="w-full sm:w-fit" disabled={busy} onClick={() => { if (outcome.trim().length < 5) { setError(ui("Record the outcome (at least 5 characters) before completing.")); return; } void run({ action: "complete", outcome, nextDue: nextDue || undefined, nextOwnerId: nextOwnerId || undefined }, nextDue ? ui("Callback completed; the next callback is scheduled.") : ui("Callback completed.")); }}>{ui("Complete callback")}</Button>
         </DeskSection>
       </> : null}
       <section aria-label={ui("History")}>
