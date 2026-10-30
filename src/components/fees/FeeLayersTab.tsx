@@ -7,15 +7,15 @@ import { getFinancialLocale } from "@/app/actions/locale";
 import { CurrencySelect } from "@/components/locale/CurrencySelect";
 
 import { useCallback, useEffect, useState, useRef } from "react";
-import { BookOpen, Check, Layers, MoreHorizontal, Pencil, Percent, Plus, Tag, Timer, Trash2, Users, Wallet } from "lucide-react";
+import { BookOpen, Check, Forward, Layers, MoreHorizontal, Pencil, Percent, Plus, Tag, Timer, Trash2, Users, Wallet } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { EmptyState as SharedEmptyState } from "@/components/ui/empty-state";
 import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState as SharedErrorState } from "@/components/ui/error-state";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ReviewedDelete, ReviewedDeleteDialog } from "@/components/ui/reviewed-delete";
-import { ModalActions, FormInput, FormSelect } from "@/components/shared-admin";
-import { Modal } from "@/components/ui/modal";
+import { FormInput, FormSelect } from "@/components/shared-admin";
+import { Modal, ModalActions as DialogActions } from "@/components/ui/modal";
 import { Menu, type MenuItem } from "@/components/ui/menu";
 import type {
   PanelCommand,
@@ -165,12 +165,11 @@ function TypesPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
       )}
 
       {showModal && (
-        <Modal title={editing ? tr("Edit fee type") : tr("New fee type")} eyebrow={tr("Fee setup · Fee types")} onClose={() => setShowModal(false)}>
+        <Modal icon={Tag} title={editing ? tr("Edit fee type") : tr("New fee type")} eyebrow={tr("Fee setup · Fee types")} onClose={() => setShowModal(false)} footer={<DialogActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Create fee type")} onCancel={() => setShowModal(false)} onAction={handleSave} />}>
           <div className="space-y-4">
             <FormInput label={tr("Name")} value={name} placeholder={tr("e.g. Monthly Tuition")} onChange={setName} />
             <FormInput label={tr("Code")} value={code} placeholder={tr("e.g. MONTHLY_TUITION")} onChange={setCode} />
             <FormInput label={tr("Description (optional)")} value={description} placeholder={tr("e.g. Standard monthly tuition")} onChange={setDescription} />
-            <ModalActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Create fee type")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </Modal>
       )}
@@ -307,11 +306,10 @@ function GroupsPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
       )}
 
       {showModal && (
-        <Modal title={editing ? tr("Edit fee group") : tr("New fee group")} eyebrow={tr("Fee setup · Fee groups")} onClose={() => setShowModal(false)}>
+        <Modal icon={Layers} title={editing ? tr("Edit fee group") : tr("New fee group")} eyebrow={tr("Fee setup · Fee groups")} onClose={() => setShowModal(false)} footer={<DialogActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Create fee group")} onCancel={() => setShowModal(false)} onAction={handleSave} />}>
           <div className="space-y-4">
             <FormInput label={tr("Name")} value={name} placeholder={tr("e.g. Day Scholar Package")} onChange={setName} />
             <FormInput label={tr("Description (optional)")} value={description} placeholder={tr("e.g. Tuition + books + lab")} onChange={setDescription} />
-            <ModalActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Create fee group")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </Modal>
       )}
@@ -470,7 +468,7 @@ function MasterPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
       )}
 
       {showModal && selectedGroup && (
-        <Modal title={editing ? tr("Edit amount") : tr("Add an amount")} eyebrow={`${tr("Fee setup")} · ${selectedGroup.name}`} onClose={() => setShowModal(false)}>
+        <Modal icon={Wallet} title={editing ? tr("Edit amount") : tr("Add an amount")} eyebrow={`${tr("Fee setup")} · ${selectedGroup.name}`} onClose={() => setShowModal(false)} footer={<DialogActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Add amount")} onCancel={() => setShowModal(false)} onAction={handleSave} />}>
           <div className="space-y-4">
             <FormSelect label={tr("Fee type")} value={feeTypeId} onChange={setFeeTypeId}>
               <option value=""><UiText>{"Select fee type..."}</UiText></option>
@@ -480,7 +478,6 @@ function MasterPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
             </FormSelect>
             <FormInput label={`${tr("Amount")} (${selectedGroup.currency})`} type="number" value={amount} placeholder={tr("e.g. 5000")} onChange={setAmount} />
             <FormInput label={tr("Due date (optional)")} type="date" value={dueDate} placeholder="" onChange={setDueDate} />
-            <ModalActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Add amount")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </Modal>
       )}
@@ -610,7 +607,7 @@ function AssignPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
       )}
 
       {showModal && (
-        <Modal title={tr("Assign a fee group")} eyebrow={tr("Fee setup · Class groups")} onClose={() => setShowModal(false)}>
+        <Modal icon={Users} title={tr("Assign a fee group")} eyebrow={tr("Fee setup · Class groups")} onClose={() => setShowModal(false)} footer={<DialogActions busy={saving} busyLabel={tr("Saving…")} actionLabel={tr("Assign")} onCancel={() => setShowModal(false)} onAction={handleSave} />}>
           <div className="space-y-4">
             <FormSelect label={tr("Fee group")} value={feeGroupId} onChange={setFeeGroupId}>
               <option value=""><UiText>{"Select group..."}</UiText></option>
@@ -625,7 +622,6 @@ function AssignPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
               ))}
             </FormSelect>
             <FormInput label={tr("Academic year")} type="number" value={academicYear} placeholder="2026" onChange={setAcademicYear} />
-            <ModalActions busy={saving} busyLabel={tr("Saving…")} actionLabel={tr("Assign")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </Modal>
       )}
@@ -835,7 +831,7 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
       )}
 
       {showModal && (
-        <Modal title={editing ? tr("Edit discount") : tr("New discount")} eyebrow={tr("Fee setup · Discounts")} onClose={() => setShowModal(false)}>
+        <Modal icon={Percent} title={editing ? tr("Edit discount") : tr("New discount")} eyebrow={tr("Fee setup · Discounts")} onClose={() => setShowModal(false)} footer={<DialogActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Create discount")} onCancel={() => setShowModal(false)} onAction={handleSave} />}>
           <div className="space-y-4">
             <FormInput label={tr("Name")} value={name} placeholder={tr("e.g. Sibling Discount")} onChange={setName} />
             <FormInput label={tr("Code")} value={code} placeholder={tr("e.g. SIBLING_10")} onChange={setCode} />
@@ -859,13 +855,12 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </FormSelect>
-            <ModalActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Create discount")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </Modal>
       )}
 
       {assigning && (
-        <Modal title={tr("Assign: {0}", [assigning.name])} eyebrow={tr("Fee setup · Discounts")} onClose={() => setAssigning(null)} wide>
+        <Modal icon={Users} title={tr("Assign: {0}", [assigning.name])} eyebrow={tr("Fee setup · Discounts")} onClose={() => setAssigning(null)} wide>
           {assignFailed ? (
             <SharedErrorState title={tr("Students for this discount could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void openAssign(assigning)} />
           ) : (
@@ -1065,7 +1060,7 @@ function CarryPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
       )}
 
       {showModal && (
-        <Modal title={tr("New carry-forward")} eyebrow={tr("Fee setup · Carry forward")} onClose={() => setShowModal(false)}>
+        <Modal icon={Forward} title={tr("New carry-forward")} eyebrow={tr("Fee setup · Carry forward")} onClose={() => setShowModal(false)} footer={<DialogActions busy={saving} busyLabel={tr("Saving…")} actionLabel={tr("Create carry-forward")} onCancel={() => setShowModal(false)} onAction={handleSave} />}>
           <div className="space-y-4">
             <CurrencySelect value={currency} onChange={setCurrency} /><FormSelect label={tr("Student")} value={studentId} onChange={setStudentId}>
               <option value=""><UiText>{"Select student..."}</UiText></option>
@@ -1080,7 +1075,6 @@ function CarryPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
             <FormInput label={`${tr("Balance")} (${currency})`} type="number" value={balance} placeholder={tr("e.g. 2500 or -500")} onChange={setBalance} />
             <p className="-mt-2 text-xs text-ink-subtle">{tr("A positive balance is owed by the student; a negative balance is a credit carried forward.")}</p>
             <FormInput label={tr("Note (optional)")} value={note} placeholder={tr("e.g. outstanding May dues")} onChange={setNote} />
-            <ModalActions busy={saving} busyLabel={tr("Saving…")} actionLabel={tr("Create carry-forward")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </Modal>
       )}
@@ -1271,7 +1265,7 @@ export function FineRulesPanel({ campusId, command, hideCreate = false }: FeeSet
       )}
 
       {showModal && (
-        <Modal title={editing ? tr("Edit fine rule") : tr("New fine rule")} eyebrow={tr("Fee setup · Fine rules")} onClose={() => setShowModal(false)}>
+        <Modal icon={Timer} title={editing ? tr("Edit fine rule") : tr("New fine rule")} eyebrow={tr("Fee setup · Fine rules")} onClose={() => setShowModal(false)} footer={<DialogActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Create fine rule")} onCancel={() => setShowModal(false)} onAction={handleSave} />}>
           <div className="space-y-4">
             <FormInput label={tr("Rule name")} value={name} placeholder={tr("e.g. Monthly late fine")} onChange={setName} />
             <div className="grid grid-cols-2 gap-3">
@@ -1293,7 +1287,6 @@ export function FineRulesPanel({ campusId, command, hideCreate = false }: FeeSet
               <SystemInput type="number" min="0" value={graceDays} onChange={(e) => setGraceDays(e.target.value)} placeholder="0" className="w-full" />
             </label>
             <FormInput label={tr("Description (optional)")} value={description} placeholder={tr("Shown in reports")} onChange={setDescription} />
-            <ModalActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Create fine rule")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </Modal>
       )}

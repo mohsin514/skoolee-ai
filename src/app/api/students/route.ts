@@ -328,7 +328,7 @@ export async function PATCH(req: NextRequest) {
         id,
         ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? updates.campusId : user.campusId),
       },
-      select: { id: true, campusId: true, classId: true, status: true, emiratesId: true, nationality: true, regulatorId: true },
+      select: { id: true, campusId: true, classId: true, status: true, emiratesId: true, nationality: true, regulatorId: true, categoryId: true },
     });
     if (!existing) throw new ApiError("Student not found", 404);
 
@@ -427,9 +427,11 @@ export async function PATCH(req: NextRequest) {
       if (categoryId) {
         const category = await prisma.studentCategory.findFirst({
           where: { id: categoryId, campusId: existing.campusId, campus: { schoolId: user.schoolId } },
-          select: { id: true },
+          select: { id: true, isActive: true },
         });
         if (!category) throw new ApiError("Category not found in this campus", 404);
+        // SKAI-168: keeping an inactive category is fine; moving a student onto one is not.
+        if (!category.isActive && categoryId !== existing.categoryId) throw new ApiError("This category is inactive. Choose an active category.", 409);
       }
       data.categoryId = categoryId;
     }

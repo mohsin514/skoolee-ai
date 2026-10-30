@@ -4415,8 +4415,15 @@ export function StudentSetupPanel({
   const saveTag = async (kind: StudentTagKind, payload: { name: string; description?: string; isActive?: boolean }) => {
     setBusy(true);
     try {
+      // SKAI-168: a category edit carries the values it was opened with, so a stale save is refused (409).
       const body = editing
-        ? { id: editing.item.id, ...payload }
+        ? {
+            id: editing.item.id,
+            ...payload,
+            ...(kind === "category"
+              ? { expected: { name: editing.item.name, description: editing.item.description ?? null, isActive: editing.item.isActive !== false } }
+              : {}),
+          }
         : payload;
       const res = await fetch(STUDENT_TAG_API[kind], {
         method: editing ? "PATCH" : "POST",
@@ -4424,6 +4431,13 @@ export function StudentSetupPanel({
         body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => ({}));
+      if (res.status === 409 && editing && /changed by someone else/.test(readApiError(json, ""))) {
+        // Keep the editor closed on the fresh list rather than overwrite another admin's change.
+        toast.error(ui("This category was changed by someone else. The latest version is now shown."));
+        setEditing(null);
+        await load();
+        return;
+      }
       if (!res.ok) throw new Error(readApiError(json, ui("The change could not be saved. Please try again.")));
       toast.success(ui(editing ? (kind === "category" ? "Category updated" : "Group updated") : (kind === "category" ? "Category created" : "Group created")));
       setEditing(null);
@@ -4661,6 +4675,10 @@ function TagFormModal({
   const [isActive, setIsActive] = useState(item?.isActive !== false);
   const [error, setError] = useState("");
   const category = kind === "category";
+  // SKAI-168: deactivating a used category is broad-impact; say how many students and discounts it touches.
+  const deactivating = category && item && item.isActive !== false && !isActive;
+  const usedBy = item?._count?.students ?? 0;
+  const discounts = item?._count?.feeDiscounts ?? 0;
 
   const submit = () => {
     if (!name.trim()) {
@@ -4681,7 +4699,7 @@ function TagFormModal({
       icon={category ? Tag : Layers}
       tone={category ? "emerald" : "sky"}
       size="sm"
-      dirty={name !== (item?.name || "") || description !== (item?.description || "")}
+      dirty={name !== (item?.name || "") || description !== (item?.description || "") || isActive !== (item?.isActive !== false)}
       onClose={onClose}
       footer={
         <SharedModalActions
@@ -4697,6 +4715,7 @@ function TagFormModal({
         <FormField name="tag-name" label={ui("Name")} required error={error || undefined}>
           <SystemInput
             value={name}
+            maxLength={60}
             placeholder={ui(category ? "e.g. Scholarship" : "e.g. Transport users")}
             onChange={(e) => {
               setName(e.target.value);
@@ -4708,6 +4727,7 @@ function TagFormModal({
           <SystemTextarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            maxLength={240}
             placeholder={ui(category ? "e.g. 50% fee concession for staff children" : "e.g. Students using the morning van route")}
             rows={3}
           />
@@ -4722,6 +4742,11 @@ function TagFormModal({
               </span>
             </span>
           </label>
+        ) : null}
+        {deactivating && (usedBy > 0 || discounts > 0) ? (
+          <Alert tone="warning" role="status" title={ui("Deactivating this category")}>
+            {ui("{0} students keep it and {1} fee discounts still apply to them. It can't be chosen for new admissions or moves.", [usedBy, discounts])}
+          </Alert>
         ) : null}
       </div>
     </Modal>

@@ -63,6 +63,9 @@ Empty databases provision from the verified versioned baseline using `prisma mig
 deploy`. Existing schema-push databases must complete the reviewed adoption process
 in [the recovery runbook](recovery/RUNBOOK.md) first. The archived legacy baseline
 was not executable SQL; do not attempt to replay it or reset an existing environment.
+`tests/deployment/migration-sql.test.mjs` (SKAI-1283) fails the build if any committed
+migration is CLI output rather than SQL. Never edit an applied migration to fix one: its
+`_prisma_migrations` checksum would stop matching. Add a corrected migration instead.
 
 ## Environment variables
 

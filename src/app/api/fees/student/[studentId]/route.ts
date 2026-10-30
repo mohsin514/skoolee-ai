@@ -2,6 +2,7 @@ import { studentScope, AccessDenied } from "@/lib/auth/policy";
 import { assertSharedModuleRead } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { nextDueInvoice } from "@/lib/fees/next-due";
 import {
   ApiError,
   errorResponse,
@@ -41,9 +42,7 @@ export async function GET(
     const totalPaid = scopedInvoices.reduce((sum, inv) => sum + inv.totalAmountPaid, 0);
     const balance = totalDue - totalPaid;
 
-    const nextUnpaid = student.invoices.find(
-      (inv) => inv.status === "PENDING" || inv.status === "OVERDUE"
-    );
+    const nextUnpaid = nextDueInvoice(scopedInvoices);
     const lateFeesAccrued = scopedInvoices.reduce((sum, inv) => sum + inv.lateFeeAmount, 0);
 
     const paymentStatus = balance <= 0 ? "good" : student.invoices.some((inv) => inv.status === "OVERDUE") ? "critical" : "due";

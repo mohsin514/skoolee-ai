@@ -3,6 +3,10 @@
 import { Alert } from "@/components/ui/alert";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { DeskPill, DeskRowIcon, deskRow, type DeskTone } from "@/components/ui/desk";
+import { Award, Briefcase, CheckCircle2, Circle, Compass, GraduationCap, Sparkles, Target } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +32,8 @@ type View = StudentView | GuardianView | StaffView;
 
 const OWNER: Record<string, string> = { STUDENT: "Student", COUNSELLOR: "Counsellor", GUARDIAN: "Guardian" };
 const STATE: Record<string, string> = { CURRENT: "Checked recently", NEEDS_VERIFICATION: "Needs re-checking", DEADLINE_PASSED: "Deadline passed", WITHDRAWN: "Withdrawn" };
+const STATE_TONE: Record<string, DeskTone> = { CURRENT: "success", NEEDS_VERIFICATION: "warning", DEADLINE_PASSED: "neutral", WITHDRAWN: "neutral" };
+const KIND_ICON: Record<string, LucideIcon> = { UNIVERSITY: GraduationCap, SCHOLARSHIP: Award, INTERNSHIP: Briefcase, COURSE: Sparkles };
 const KIND: Record<string, string> = { UNIVERSITY: "University", SCHOLARSHIP: "Scholarship", INTERNSHIP: "Internship", COURSE: "Course", OTHER: "Other" };
 const APPT: Record<string, string> = { REQUESTED: "Requested", CONFIRMED: "Confirmed", HELD: "Held", CANCELLED: "Cancelled" };
 const REQUEST: Record<string, string> = { REQUESTED: "Waiting for school review", CLARIFY: "School asked for more detail", APPROVED: "School-arranged introduction approved", DECLINED: "Not approved", CANCELLED: "Cancelled" };
@@ -77,17 +83,22 @@ export function PathwayPanel({ hideWhenEmpty = false }: { hideWhenEmpty?: boolea
   const actionList = (goal: Goal, canComplete: boolean) => (
     <ul className="space-y-1 text-sm">{goal.actions.map((a) => (
       <li key={a.id} className="flex flex-wrap items-center gap-2">
+        {a.status === "DONE" ? <CheckCircle2 className="size-4 shrink-0 text-status-success-text" aria-hidden="true" /> : <Circle className="size-4 shrink-0 text-ink-subtle" aria-hidden="true" />}
         <span className={a.status === "DONE" ? "line-through" : ""}><bdi>{a.title}</bdi></span>
-        <span className="text-xs text-ink-subtle">· {ui("Owner")}: {ui(OWNER[a.owner] ?? a.owner)} · {ui("Due {0}", [date(a.dueOn)])} · {a.status === "DONE" ? ui("Done") : ui("Open")}</span>
+        <span className="text-xs text-ink-subtle">· {ui("Owner")}: {ui(OWNER[a.owner] ?? a.owner)} · {ui("Due {0}", [date(a.dueOn)])}</span>
+        <DeskPill tone={a.status === "DONE" ? "success" : "info"}>{a.status === "DONE" ? ui("Done") : ui("Open")}</DeskPill>
         {canComplete && a.status !== "DONE" ? <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void post({ action: "complete", id: a.id }, "Action marked done.")}>{ui("Mark done")}</Button> : null}
       </li>
     ))}</ul>
   );
   const opportunityRow = (o: Opportunity) => (
-    <div key={o.id} className="rounded-lg border border-border p-2 text-sm">
-      <p className="font-semibold"><bdi>{o.title}</bdi> · <bdi>{o.provider}</bdi> · {ui(KIND[o.kind] ?? o.kind)}</p>
+    <div key={o.id} data-tone={STATE_TONE[o.state] ?? "neutral"} className={`${deskRow} flex items-start gap-3 text-sm`}>
+      <DeskRowIcon icon={KIND_ICON[o.kind] ?? Compass} />
+      <div className="min-w-0 flex-1 space-y-1">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold"><span className="min-w-0"><bdi>{o.title}</bdi> · <bdi>{o.provider}</bdi> · {ui(KIND[o.kind] ?? o.kind)}</span><DeskPill tone={STATE_TONE[o.state] ?? "neutral"}>{ui(STATE[o.state] ?? o.state)}</DeskPill></p>
       <p className="text-xs"><bdi>{o.eligibility}</bdi>{o.deadline ? <> · {ui("Deadline {0}", [date(o.deadline)])}</> : null}</p>
-      <p className="text-xs text-ink-subtle">{ui("Source")}: <a className="underline" href={o.sourceUrl} target="_blank" rel="noopener noreferrer" dir="ltr">{o.sourceUrl}</a> · {ui("Checked {0}", [date(o.lastVerifiedAt)])} · <strong>{ui(STATE[o.state] ?? o.state)}</strong></p>
+      <p className="text-xs text-ink-subtle">{ui("Source")}: <a className="break-all underline" href={o.sourceUrl} target="_blank" rel="noopener noreferrer" dir="ltr">{o.sourceUrl}</a> · {ui("Checked {0}", [date(o.lastVerifiedAt)])}</p>
+      </div>
     </div>
   );
   const exportLink = (studentId: string) => (
@@ -97,7 +108,7 @@ export function PathwayPanel({ hideWhenEmpty = false }: { hideWhenEmpty?: boolea
   return (
     <section aria-labelledby="pathways" className="sk-panel space-y-4 p-4">
       <div>
-        <h2 id="pathways" className="text-lg font-bold">{ui("Careers and pathways")}</h2>
+        <h2 id="pathways" className="flex items-center gap-2 text-lg font-bold"><Compass className="size-5 shrink-0 text-primary" aria-hidden="true" />{ui("Careers and pathways")}</h2>
         <p className="text-sm text-ink-subtle">{ui("Suggestions are options, not predictions. Private counselling notes are never part of a plan or an export.")}</p>
       </div>
       <div className="space-y-2">
@@ -119,8 +130,8 @@ export function PathwayPanel({ hideWhenEmpty = false }: { hideWhenEmpty?: boolea
             <Button type="submit" disabled={busy}>{ui("Save goal")}</Button>
           </form>
           {view.plan.map((g) => (
-            <div key={g.id} className="space-y-2 rounded-xl border border-border p-3">
-              <h3 className="font-semibold"><bdi>{g.title}</bdi></h3>
+            <div key={g.id} data-tone="brand" className={`${deskRow} space-y-2`}>
+              <h3 className="flex items-center gap-3 font-semibold"><DeskRowIcon icon={Target} /><bdi className="min-w-0">{g.title}</bdi></h3>
               <p className="text-xs text-ink-subtle">{ui("Who can see this goal?")} {ui(AUDIENCE[g.audience.join(",")] ?? "")}{g.nextReviewOn ? <> · {ui("Next review {0}", [date(g.nextReviewOn)])}</> : null}</p>
               {actionList(g, true)}
               <form className="flex flex-wrap items-end gap-2" onSubmit={async (e) => { e.preventDefault(); const r = await post({ action: "action", data: { goalId: g.id, title: f(`a-${g.id}`), owner: f(`o-${g.id}`) || "STUDENT", dueOn: f(`d-${g.id}`), ...(f(`op-${g.id}`) ? { opportunityId: f(`op-${g.id}`) } : {}) } }, "Next action saved."); if (r) setForm((m) => ({ ...m, [`a-${g.id}`]: "" })); }}>
@@ -133,7 +144,7 @@ export function PathwayPanel({ hideWhenEmpty = false }: { hideWhenEmpty?: boolea
             </div>
           ))}
           {view.plan.length ? exportLink(view.studentId) : null}
-          <div className="space-y-2"><h3 className="font-semibold">{ui("Opportunities")}</h3>{view.opportunities.length ? <ul className="space-y-2">{view.opportunities.map((o) => <li key={o.id}>{opportunityRow(o)}</li>)}</ul> : <p className="text-sm text-ink-subtle">{ui("No verified opportunities yet.")}</p>}</div>
+          <div className="space-y-2"><h3 className="font-semibold">{ui("Opportunities")}</h3>{view.opportunities.length ? <ul className="space-y-2">{view.opportunities.map((o) => <li key={o.id}>{opportunityRow(o)}</li>)}</ul> : <EmptyState size="sm" icon={Compass} title={ui("No verified opportunities yet.")} />}</div>
           <form className="flex flex-wrap items-end gap-2 rounded-xl border border-border p-3" onSubmit={(e) => { e.preventDefault(); void post({ action: "appointment", data: { counsellorId: f("c"), startsAt: f("when") ? new Date(f("when")).toISOString() : "", minutes: 30 } }, "Meeting requested."); }}>
             <h3 className="w-full font-semibold">{ui("Book a meeting")}</h3>
             <FormField name="pw-c" label={ui("Counsellor")}><Select value={f("c")} onChange={setF("c")}><option value="">{ui("Choose a counsellor")}</option>{view.counsellors.map((c) => <option key={c.id} value={c.id}>{c.fullName}</option>)}</Select></FormField>

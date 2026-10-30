@@ -86,11 +86,11 @@ import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { PlatformOverview } from "@/components/insights";
 import { AddUserModal, ProvisionSchoolModal, type SchoolProvisionPrefill } from "@/components/owner/provisioning-modals";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
+import { DeskPill, DeskRowIcon, DeskSection, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { formatPlanLimit, getPlanLimits } from "@/config/plans";
 import {
   EmptyState,
   RoleShell,
-  StatCard,
   useShellSession,
 } from "@/components/role-dashboard";
 import { Modal } from "@/components/ui/modal";
@@ -374,15 +374,19 @@ const FILTER_SELECT = "sm:w-48";
  * at most one primary action, secondaries that collapse into "More actions". Kept as a thin wrapper so every
  * owner view reads the same.
  */
-function ViewHeader({ title, description, primaryAction, secondaryActions, status }: {
+function ViewHeader({ title, description, icon, primaryAction, secondaryActions, status }: {
   title: string;
   description?: string;
+  icon?: LucideIcon;
   primaryAction?: PageAction;
   secondaryActions?: PageAction[];
   status?: ReactNode;
 }) {
-  return <PageHeader title={title} description={description} primaryAction={primaryAction} secondaryActions={secondaryActions} status={status} />;
+  return <PageHeader title={title} description={description} icon={icon} primaryAction={primaryAction} secondaryActions={secondaryActions} status={status} />;
 }
+
+/** A school's status as a row tone: a paused school needs attention first, a trial is still choosing a plan. */
+const STATUS_TONES: Record<string, DeskTone> = { ACTIVE: "success", TRIAL: "info", SUSPENDED: "danger" };
 
 /** A section heading inside a panel, with its icon tile and one line of purpose. */
 function PanelHeading({ icon: Icon, title, description, id }: { icon: LucideIcon; title: string; description?: ReactNode; id?: string }) {
@@ -491,15 +495,8 @@ type SupportGrantRow = {
   school: { id: string; name: string }; incident: { id: string; reference: string; purpose: string; impact: string; status: string; updatedAt: string; ownerActorId: string; closureEvidence: string | null };
 };
 
-const GRANT_BADGES: Record<string, BadgeVariant> = {
-  pending: "warning",
-  approved: "info",
-  active: "success",
-  rejected: "danger",
-  revoked: "neutral",
-  expired: "neutral",
-  closed: "neutral",
-};
+/** The same states as row tones: a request waiting on the school and a live grant come first in the eye. */
+const GRANT_TONES: Record<string, DeskTone> = { pending: "warning", approved: "info", active: "success", rejected: "danger" };
 
 const SUPPORT_ACTION_BADGES: Record<string, BadgeVariant> = {
   queued: "warning",
@@ -724,6 +721,7 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
     <div className="space-y-6">
       <ViewHeader
         title="Support access"
+        icon={ShieldCheck}
         description="Ask a school's admin for temporary access. Everything you view or change is logged."
         secondaryActions={supportSession ? undefined : [{ id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => void load(), loading }]}
       />
@@ -885,17 +883,17 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
             />
           ) : (
             <div className="mt-4 space-y-3">
-              {grants.map((grant) => (
-                <article key={grant.id} className="rounded-2xl border border-border-subtle bg-card p-4 shadow-xs transition-shadow hover:shadow-sm sm:p-5">
+              {urgencyFirst(grants, (grant) => ({ active: 0, pending: 1, approved: 2 } as Record<string, number>)[grant.status] ?? 3).map((grant) => (
+                <article key={grant.id} data-tone={GRANT_TONES[grant.status] ?? "neutral"} className={cn(deskRow, "sm:p-5 sm:ps-6")}>
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-bold text-ink-strong">{grant.school.name} · <bdi dir="ltr">{grant.incident.reference}</bdi></p>
-                        <Badge variant={GRANT_BADGES[grant.status] ?? "neutral"} size="sm" dot>{t(grant.status)}</Badge>
+                        <DeskPill tone={GRANT_TONES[grant.status] ?? "neutral"}>{t(grant.status)}</DeskPill>
                       </div>
                       <p className="mt-1 text-sm leading-relaxed text-ink-muted">{grant.purpose}</p>
                       <p className="mt-2 text-xs text-ink-subtle">{t("Incident owner")}: <bdi dir="ltr">{grant.incident.ownerActorId}</bdi> · {t("Incident status")}: {t(grant.incident.status)}</p>
-                      <p className="mt-1 text-xs text-ink-subtle">{t("Expires")}: <bdi className="tabular-nums">{dates.instant(grant.expiresAt)}</bdi></p>
+                      <p className="mt-1 text-xs text-ink-subtle">{t("Expires")}: <bdi className="tabular-nums">{dates.instant(grant.expiresAt)}</bdi>{grant.status === "active" || grant.status === "approved" ? <> · <RelativeTime iso={grant.expiresAt} full={dates.instant(grant.expiresAt)} className="font-semibold text-ink-muted" /></> : null}</p>
                       <p className="mt-1 text-xs text-ink-subtle">{t("Domains")}: {grant.scope.map((item) => t(domainLabels[item] || item)).join(", ")} · {t("Actions")}: {grant.actions.map((item) => t(item[0].toUpperCase() + item.slice(1))).join(", ")}</p>
                       {grant.incident.closureEvidence && (
                         <Alert tone="success" live="off" compact className="mt-3" title={t("Closure evidence")}>{grant.incident.closureEvidence}</Alert>
@@ -1078,6 +1076,7 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
     <div className={VIEW_BODY}>
       <ViewHeader
         title="Schools"
+        icon={School}
         description="Every school on the platform, with its plan, status and size."
         primaryAction={{ id: "provision", label: "Provision a school", icon: Building2, onClick: () => { setPreparedSchool(null); setShowProvisionSchool(true); } }}
         secondaryActions={[...(pendingRequests > 0 ? [{ id: "review-requests", label: t("Review requests ({0})", [dates.number(pendingRequests)]), icon: CreditCard, onClick: onOpenRequests }] : []), { id: "export", label: "Export", icon: Download, onClick: () => void exportSchools(), loading: exporting, disabled: loading || pagination.total === 0 }]}
@@ -1104,6 +1103,16 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
             <p className="text-xs tabular-nums text-ink-subtle">{t(pagination.total === 1 ? "{0} school" : "{0} schools", [dates.number(pagination.total)])}</p>
           ) : null}
         </div>
+        {/* Counters are filters: each status tile narrows the list below and pressing it again shows everything. */}
+        {stats?.schoolsByStatus ? (
+          <DeskStats className="mb-4" data-owner-status-tiles>
+            {([["ACTIVE", Activity, "Active"], ["TRIAL", Clock, "Trial"], ["SUSPENDED", Pause, "Suspended"]] as const).map(([status, Icon, label], index) => (
+              <StatTile key={status} index={index} icon={Icon} label={t(label)} value={dates.number(stats.schoolsByStatus[status] || 0)}
+                tone={status === "SUSPENDED" && !stats.schoolsByStatus[status] ? "neutral" : STATUS_TONES[status]}
+                selected={statusFilter === status} onSelect={() => setStatusFilter(statusFilter === status ? "" : status)} />
+            ))}
+          </DeskStats>
+        ) : null}
         <div className={TOOLBAR}>
           <InputGroup surfaceClassName="bg-muted" className={SEARCH_GROUP}>
             <Search data-field-affix="start" aria-hidden="true" className="size-4 text-ink-subtle" />
@@ -1167,7 +1176,8 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
                 return (
                   <div
                     key={school.id}
-                    className="group sk-panel overflow-hidden"
+                    data-tone={school.status === "ACTIVE" ? undefined : STATUS_TONES[school.status] ?? "neutral"}
+                    className={cn(deskRow, "group overflow-hidden p-0 ps-0")}
                   >
                     <Button variant="ghost"
                       type="button"
@@ -1185,7 +1195,7 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="min-w-0 truncate text-base font-bold text-ink-strong"><bdi>{school.name}</bdi></h3>
+                            <h3 className="min-w-0 max-w-full break-words text-base font-bold text-ink-strong"><bdi>{school.name}</bdi></h3>
                             <PlanBadge plan={school.plan} />
                             {school.status !== "ACTIVE" ? <StatusPill status={school.status} /> : null}
                             {school.aiWorkflowsLiveAt ? <Badge variant="warning" size="sm"><Zap aria-hidden="true" className="size-3" />{t("AI live")}</Badge> : null}
@@ -1412,6 +1422,7 @@ function UsersView() {
     <div className={VIEW_BODY}>
       <ViewHeader
         title="Tenant users"
+        icon={Users}
         description={t("{0} accounts across every school. Changing a school's people is the school's own job; use these tools only for support.", [dates.number(pagination.total)])}
         secondaryActions={[
           { id: "export", label: "Export", icon: Download, onClick: () => void exportUsers(), loading: exporting, disabled: loading || pagination.total === 0 },
@@ -1493,9 +1504,10 @@ function UsersView() {
         ) : (
           <>
               <div className="grid gap-3 sm:grid-cols-2 xl:hidden" data-owner-user-cards>
-                {users.map((u) => <article key={u.id} className="rounded-2xl border border-border-subtle bg-card p-4">
+                {users.map((u) => <article key={u.id} data-tone={u.isActive ? undefined : "muted"} className={deskRow}>
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    <DeskRowIcon icon={User} />
+                    <div className="min-w-0 flex-1">
                       <p className="break-words font-semibold text-ink-strong"><bdi>{u.fullName}</bdi></p>
                       <p className="mt-1 break-all text-xs text-ink-muted"><bdi dir="ltr">{u.email}</bdi></p>
                     </div>
@@ -1503,11 +1515,11 @@ function UsersView() {
                       trigger={<IconButton label={t("More actions for {0}", [u.fullName])} variant="outline"><MoreHorizontal aria-hidden="true" /></IconButton>}
                       items={[{ id: "reset-password", label: t("Reset password"), icon: KeyRound, onSelect: () => { setSelectedUser(u); setShowPasswordModal(true); } }]} />
                   </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2"><RoleBadge role={u.role} /><Badge size="sm" variant={u.isActive ? "success" : "neutral"} dot>{t(u.isActive ? "Active" : "Inactive")}</Badge></div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2"><RoleBadge role={u.role} /><DeskPill tone={u.isActive ? "success" : "neutral"}>{t(u.isActive ? "Active" : "Inactive")}</DeskPill></div>
                   <dl className="mt-3 space-y-2 text-xs">
                     <div><dt className="text-ink-subtle">{t("School")}</dt><dd className="mt-0.5 break-words text-ink"><bdi>{u.school?.name || "—"}</bdi></dd></div>
                     <div><dt className="text-ink-subtle">{t("Campus")}</dt><dd className="mt-0.5 break-words text-ink"><bdi>{u.campus?.name || "—"}</bdi></dd></div>
-                    <div><dt className="text-ink-subtle">{t("Last sign-in")}</dt><dd className="mt-0.5 text-ink"><bdi>{dates.when(u.lastLogin)}</bdi></dd></div>
+                    <div><dt className="text-ink-subtle">{t("Last sign-in")}</dt><dd className="mt-0.5 text-ink">{u.lastLogin ? <RelativeTime iso={u.lastLogin} full={dates.when(u.lastLogin)} /> : <bdi>{dates.when(u.lastLogin)}</bdi>}</dd></div>
                   </dl>
                 </article>)}
               </div>
@@ -1652,6 +1664,7 @@ function AuditLogView() {
     <div className={VIEW_BODY}>
       <ViewHeader
         title="Audit log"
+        icon={FileText}
         description={t("{0} platform actions recorded in the selected period: who did what, and when.", [dates.number(total)])}
         secondaryActions={[
           { id: "export", label: "Export", icon: Download, onClick: () => void exportLogs(), loading: exporting, disabled: loading || total === 0 },
@@ -1712,7 +1725,8 @@ function AuditLogView() {
                   type="button"
                   aria-expanded={isExpanded}
                   onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                  className="group block w-full rounded-2xl border border-border-subtle bg-card p-4 text-start font-normal shadow-xs actionable-hover:border-border-subtle-hover actionable-hover:bg-surface-hover actionable-hover:text-ink sm:p-5"
+                  data-tone={log.status === "failed" ? "danger" : undefined}
+                  className={cn(deskRow, "group block h-auto w-full p-4 ps-5 text-start font-normal actionable-hover:text-ink sm:p-5 sm:ps-6")}
                 >
                   <div className="flex items-start gap-3 sm:items-center sm:gap-4">
                     <div aria-hidden="true" className={cn("sk-icon-tile flex size-10 shrink-0 items-center justify-center rounded-xl", meta.tone)}>
@@ -1722,9 +1736,7 @@ function AuditLogView() {
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-bold text-ink-strong">{t(meta.label)}</p>
                         {log.status === "failed" && (
-                          <Badge variant="danger" size="sm">
-                            <AlertCircle aria-hidden="true" /> {t("Failed")}
-                          </Badge>
+                          <DeskPill tone="danger">{t("Failed")}</DeskPill>
                         )}
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-subtle">
@@ -1746,7 +1758,7 @@ function AuditLogView() {
                     </div>
                     <div className="shrink-0 text-end">
                       <p className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-ink-subtle">
-                        <Clock aria-hidden="true" className="size-3" /> <bdi>{dates.ago(log.createdAt)}</bdi>
+                        <Clock aria-hidden="true" className="size-3" /> <RelativeTime iso={log.createdAt} full={dates.when(log.createdAt)} />
                       </p>
                       {log.userAgent && (
                         <p className="mt-0.5 text-xs text-ink-subtle"><bdi dir="ltr">{parseBrowser(log.userAgent)}</bdi></p>
@@ -1867,6 +1879,7 @@ function SessionsView() {
     <div className={VIEW_BODY}>
       <ViewHeader
         title="Sessions"
+        icon={Monitor}
         description={t("{0} sign-in sessions across every school. End one when a device is lost or shared.", [dates.number(pagination.total)])}
         secondaryActions={[{ id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => void loadSessions(1), loading }]}
       />
@@ -1919,27 +1932,18 @@ function SessionsView() {
               return (
                 <div
                   key={session.id}
-                  className={cn(
-                    "rounded-2xl border p-4 transition-shadow",
-                    isLive
-                      ? "border-status-success-border bg-status-success-surface shadow-xs hover:shadow-sm"
-                      : "border-border-subtle bg-surface-subtle",
-                  )}
+                  data-tone={isLive ? "success" : "muted"}
+                  className={deskRow}
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                     <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center sm:gap-4">
-                      <div aria-hidden="true" className={cn(
-                        "flex size-10 shrink-0 items-center justify-center rounded-xl",
-                        isLive ? "bg-card text-status-success-text" : "bg-card text-ink-subtle",
-                      )}>
-                        <DeviceIcon className="size-4" />
-                      </div>
+                      <DeskRowIcon icon={DeviceIcon} />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-sm font-bold text-ink-strong"><bdi>{session.user.fullName}</bdi></p>
-                          <Badge variant={isLive ? "success" : "neutral"} size="sm" dot>
+                          <DeskPill tone={isLive ? "success" : "neutral"}>
                             {isLive ? t("Active") : t("Ended")}
-                          </Badge>
+                          </DeskPill>
                           <RoleBadge role={session.user.role} />
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-subtle">
@@ -1958,7 +1962,7 @@ function SessionsView() {
                     </div>
                     <div className="flex shrink-0 items-center justify-between gap-2 sm:flex-col sm:items-end">
                       <p className="inline-flex items-center gap-1 whitespace-nowrap text-xs tabular-nums text-ink-subtle">
-                        <Clock aria-hidden="true" className="size-3" /> <bdi>{dates.when(session.loginAt)}</bdi>
+                        <Clock aria-hidden="true" className="size-3" /> <RelativeTime iso={session.loginAt} full={dates.when(session.loginAt)} />
                       </p>
                       {isLive && (
                         <Button variant="outline" size="sm"
@@ -2068,18 +2072,19 @@ function BillingView({ stats, loading, onRetry }: { stats: Stats | null; loading
     <div className={VIEW_BODY}>
       <ViewHeader
         title="Plans & revenue"
+        icon={PieChart}
         description="Which plan each school is on and where every subscription stands. Family fees belong to each school and are not shown here."
         secondaryActions={[{ id: "export", label: "Export", icon: Download, onClick: exportPlans, disabled: !stats }]}
       />
 
       {stats ? (
         <>
-          <div className="sk-stagger grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard icon={School} label={t("Schools")} value={dates.number(stats.schoolCount)} sub={t("{0} campuses", [dates.number(stats.campusCount)])} />
-            <StatCard icon={CreditCard} label={t("On a paid plan")} value={dates.number(paid)} sub={t("Out of {0} schools", [dates.number(stats.schoolCount)])} tone="green" />
-            <StatCard icon={Clock} label={t("In trial")} value={dates.number(stats.schoolsByStatus?.TRIAL || 0)} sub={t("Choosing a plan")} />
-            <StatCard icon={Pause} label={t("Paused")} value={dates.number(stats.schoolsByStatus?.SUSPENDED || 0)} sub={t("Waiting for renewal")} tone="rose" />
-          </div>
+          <DeskStats>
+            <StatTile index={0} icon={School} tone="brand" label={t("Schools")} value={dates.number(stats.schoolCount)} hint={t("{0} campuses", [dates.number(stats.campusCount)])} />
+            <StatTile index={1} icon={CreditCard} tone="success" label={t("On a paid plan")} value={dates.number(paid)} hint={t("Out of {0} schools", [dates.number(stats.schoolCount)])} />
+            <StatTile index={2} icon={Clock} tone="info" label={t("In trial")} value={dates.number(stats.schoolsByStatus?.TRIAL || 0)} hint={t("Choosing a plan")} />
+            <StatTile index={3} icon={Pause} tone={stats.schoolsByStatus?.SUSPENDED ? "danger" : "neutral"} label={t("Paused")} value={dates.number(stats.schoolsByStatus?.SUSPENDED || 0)} hint={t("Waiting for renewal")} />
+          </DeskStats>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <DistributionPanel
@@ -2273,6 +2278,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
     <div className={VIEW_BODY}>
       <ViewHeader
         title="Pricing"
+        icon={DollarSign}
         description={t("Default monthly catalogue prices for every school, and per-school overrides. Prices are in {0}.", [COMMERCIAL_CONTRACT.currency])}
         primaryAction={{ id: "save-prices", label: "Save prices", icon: Save, onClick: () => void saveDefaultPricing(), loading: savingDefaults, disabled: loadingDefaults || defaultsFailed || !savedDefaults }}
       />
@@ -2482,6 +2488,7 @@ function PaymentSettingsView() {
   const header = (
     <ViewHeader
       title="Payment gateways"
+      icon={WalletCards}
       description="How schools pay for their SkooleeAI subscription: Stripe, and a bank account for manual transfers."
       primaryAction={settings && !onboarded ? { id: "connect-stripe", label: connected ? "Continue Stripe onboarding" : "Connect Stripe", icon: ExternalLink, onClick: () => void startConnectOnboarding(), loading: connectLoading } : undefined}
       status={connectOutcome ? <Alert tone={connectOutcome.tone} compact live="off" onDismiss={() => setConnectOutcome(null)}>{t(connectOutcome.message)}</Alert> : undefined}
@@ -2649,11 +2656,9 @@ function AiWorkflowsLivePanel({ school, onChange }: { school: SchoolRow; onChang
 
   const MarkIcon = live ? Zap : ShieldCheck;
   return (
-    <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-5" data-ai-live-state={live ? "live" : "practice"}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="sk-eyebrow text-primary">{t("AI Workflows")}</p>
-        {live ? <Badge variant="warning" size="sm"><Zap aria-hidden="true" />{t("Live · saves real records")}</Badge> : <Badge variant="neutral" size="sm"><ShieldCheck aria-hidden="true" />{t("Practice mode")}</Badge>}
-      </div>
+    // Live mode is the risky state, so the whole block turns amber while it is on.
+    <DeskSection data-ai-live-state={live ? "live" : "practice"} icon={Zap} tone={live ? "warning" : "brand"} title={t("AI Workflows")}
+      action={live ? <DeskPill tone="warning">{t("Live · saves real records")}</DeskPill> : <DeskPill tone="neutral">{t("Practice mode")}</DeskPill>}>
       <label className="flex min-h-11 cursor-pointer items-center gap-4" aria-busy={saving || undefined}>
         <span
           aria-hidden="true"
@@ -2705,7 +2710,7 @@ function AiWorkflowsLivePanel({ school, onChange }: { school: SchoolRow; onChang
         onCancel={() => setConfirming(false)}
         onConfirm={() => save(true)}
       />
-    </div>
+    </DeskSection>
   );
 }
 
@@ -2812,13 +2817,9 @@ function SchoolDetailModal({
                 <MiniStat label={t("Staff")} value={school.totalStaff} />
                 <MiniStat label={t("Classes")} value={school.totalClasses} />
               </div>
-              <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-5">
-                <div className="mb-3 flex items-center gap-1">
-                  <p className="sk-eyebrow text-primary">{t("AI credits")}</p>
-                  <InfoTip content={t(AI_CREDITS_HELP)} label={t("About AI credits")} />
-                </div>
+              {/* Nearly spent credits turn the block amber, so the operator sees the overage risk before opening it. */}
+              <DeskSection icon={Zap} tone={school.aiCreditsLimit > 0 && creditRatio > 0.8 ? "warning" : "brand"} title={t("AI credits")} action={<InfoTip content={t(AI_CREDITS_HELP)} label={t("About AI credits")} />}>
                 <div className="flex items-center gap-4">
-                  <Zap aria-hidden="true" className="size-8 shrink-0 text-status-warning-text" />
                   <div className="min-w-0 flex-1">
                     <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                       <span className="text-sm font-bold tabular-nums text-ink-strong"><bdi>{dates.number(school.aiCreditsUsed)} / {school.aiCreditsLimit < 0 ? t("Unlimited") : dates.number(school.aiCreditsLimit)}</bdi></span>
@@ -2831,7 +2832,7 @@ function SchoolDetailModal({
                     )}
                   </div>
                 </div>
-              </div>
+              </DeskSection>
               <AiWorkflowsLivePanel school={school} onChange={onAiWorkflowsLiveChange} />
               <DataRegionPanel schoolId={school.id} value={school.dataRegion} onChange={onDataRegionChange} />
               <AttendanceRegulatorPanel schoolId={school.id} value={school.attendanceRegulator} onChange={onAttendanceRegulatorChange} />

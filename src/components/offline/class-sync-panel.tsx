@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CloudOff, RefreshCw } from "lucide-react";
+import { CloudOff, GitCompare, Pencil, RefreshCw, School } from "lucide-react";
+import { DeskRowIcon, deskRow, type DeskTone } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +28,7 @@ const badge = (ui: Ui, s: OpState | undefined) => !s ? null
   : s === "ACCEPTED" || s === "RESOLVED_LOCAL" ? <Badge variant="success" data-class-sync-state="synced">{ui("Synced")}</Badge>
   : s === "RESOLVED_SERVER" ? <Badge variant="neutral" data-class-sync-state="kept">{ui("Kept the server value")}</Badge>
   : <Badge variant="danger" data-class-sync-state="refused">{ui("Not synced")}</Badge>;
+const rowTone = (s: OpState | undefined): DeskTone | undefined => !s ? undefined : s === "CONFLICT" ? "warning" : s === "LOCAL" || s === "SYNCING" ? "info" : s === "ACCEPTED" || s === "RESOLVED_LOCAL" ? "success" : s === "RESOLVED_SERVER" ? "neutral" : "danger";
 const label = (r: { name?: string; section?: string | null }) => `${r.name ?? ""}${r.section ? ` · ${r.section}` : ""}`;
 
 export function ClassSyncPanel({ onSynced }: { onSynced?: () => void }) {
@@ -120,33 +123,30 @@ export function ClassSyncPanel({ onSynced }: { onSynced?: () => void }) {
   const pendingCount = (bucket.classOps ?? []).filter(o => o.state === "LOCAL" || o.state === "SYNCING").length;
   return <section className="sk-panel sk-rise min-w-0 space-y-4 p-4 sm:p-6" data-class-sync aria-live="polite">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0"><h2 className="text-lg font-bold text-ink-strong">{ui("Class edits on this device")}</h2><p className="text-sm text-ink-muted">{ui("Rename a class, change its section or seats even without a connection. Edits sync when you reconnect.")}</p></div>
+      <div className="min-w-0"><h2 className="flex items-center gap-2 text-lg font-bold text-ink-strong"><School className="size-5 shrink-0 text-primary" aria-hidden="true" />{ui("Class edits on this device")}</h2><p className="text-sm text-ink-muted">{ui("Rename a class, change its section or seats even without a connection. Edits sync when you reconnect.")}</p></div>
       <div className="flex flex-wrap items-center gap-2">
         {online ? <Badge variant="success" data-class-sync-online>{ui("Connected")}</Badge> : <Badge variant="warning" data-class-sync-online="offline"><CloudOff aria-hidden="true" />{ui("Offline")}</Badge>}
         <Badge variant="neutral" data-class-sync-pending={pendingCount}>{ui("Pending: {0}", [String(pendingCount)])}</Badge>
-        <Button size="sm" variant="outline" disabled={busy || !online} onClick={() => void sync()} data-class-sync-now><RefreshCw className="size-4" aria-hidden="true" />{ui("Sync now")}</Button>
+        <Button size="sm" variant="outline" loading={busy} disabled={busy || !online} onClick={() => void sync()} data-class-sync-now><RefreshCw className="size-4" aria-hidden="true" />{ui("Sync now")}</Button>
       </div>
     </div>
     {error ? <Alert tone="warning" compact>{error}</Alert> : null}
     {rows.length === 0 ? <EmptyState size="sm" icon={CloudOff} title={ui("No classes on this device yet.")} description={ui("Connect once to keep a copy of your campus classes here.")} />
-      : <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{rows.map(c => { const op = latest.get(c.id), open = op && OPEN.includes(op.state); return <li key={c.id} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-edge p-3" data-class-sync-row={c.id}>
-          <div className="min-w-0"><p className="break-words text-sm font-semibold text-ink-strong"><bdi>{label(open ? { ...c, ...op!.payload } : c)}</bdi></p><div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-ink-subtle">{badge(ui, op?.state)}{op?.message && op.state !== "ACCEPTED" ? <span>{ui(op.message)}</span> : null}</div></div>
+      : <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{rows.map(c => { const op = latest.get(c.id), open = op && OPEN.includes(op.state); return <li key={c.id} data-tone={rowTone(op?.state)} className={cn(deskRow, "flex min-w-0 items-center justify-between gap-2")} data-class-sync-row={c.id}>
+          <DeskRowIcon icon={School} /><div className="min-w-0 flex-1"><p className="break-words text-sm font-semibold text-ink-strong"><bdi>{label(open ? { ...c, ...op!.payload } : c)}</bdi></p><div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-ink-subtle">{badge(ui, op?.state)}{op?.message && op.state !== "ACCEPTED" ? <span>{ui(op.message)}</span> : null}</div></div>
           {op?.state === "CONFLICT" ? <Button size="sm" onClick={() => setResolving(op)} data-class-sync-review>{ui("Review")}</Button>
             : <Button size="sm" variant="outline" disabled={op?.state === "SYNCING"} onClick={() => { setError(""); const shown = open ? { ...c, ...op!.payload } : c; setForm({ name: shown.name, section: shown.section ?? "", capacity: shown.capacity == null ? "" : String(shown.capacity) }); setEditing(c); }} data-class-sync-edit>{ui("Edit")}</Button>}
         </li>; })}</ul>}
-    {editing ? <ModalFrame title={ui("Edit {0}", [label(editing)])} onClose={() => setEditing(null)}><div className="space-y-3" data-class-sync-form>
+    {editing ? <ModalFrame title={ui("Edit {0}", [label(editing)])} icon={Pencil} onClose={() => setEditing(null)} footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setEditing(null)}>{ui("Back")}</Button><Button onClick={queue} data-class-sync-save>{online ? ui("Save") : ui("Save on this device")}</Button></div>}><div className="space-y-3" data-class-sync-form>
       <FormField name="cs-name" label={ui("Class name")}><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} data-class-sync-name /></FormField>
       <FormField name="cs-section" label={ui("Section")}><Input value={form.section} onChange={e => setForm({ ...form, section: e.target.value })} data-class-sync-section /></FormField>
       <FormField name="cs-capacity" label={ui("Capacity (seats per class)")}><Input inputMode="numeric" dir="ltr" value={form.capacity} onChange={e => setForm({ ...form, capacity: e.target.value })} /></FormField>
-      <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setEditing(null)}>{ui("Back")}</Button><Button onClick={queue} data-class-sync-save>{online ? ui("Save") : ui("Save on this device")}</Button></div>
     </div></ModalFrame> : null}
-    {resolving ? <ModalFrame title={ui("Sync conflict review")} onClose={() => setResolving(null)}><div className="space-y-3" data-class-sync-resolve>
+    {resolving ? <ModalFrame title={ui("Sync conflict review")} icon={GitCompare} tone="amber" subtitle={ui("Both observations remain in the history. Nothing is overwritten without your decision.")} onClose={() => setResolving(null)} footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="outline" disabled={busy || !online} onClick={() => void decide("APPLY_LOCAL")} data-class-sync-apply>{ui("Apply mine")}</Button><Button disabled={busy || !online} onClick={() => void decide("KEEP_SERVER")} data-class-sync-keep>{ui("Keep the server value")}</Button></div>}><div className="space-y-3" data-class-sync-resolve>
       <div className="grid gap-2 sm:grid-cols-2">
-        <div className="rounded-xl border border-edge p-3 text-sm"><p className="font-semibold text-ink-strong">{ui("Yours (this device)")}</p><p><bdi>{label({ ...(bucket.classes?.[resolving.classId] ?? {}), ...resolving.payload })}</bdi></p>{resolving.payload.capacity !== undefined ? <p className="text-xs">{ui("Capacity (seats per class)")}: <bdi dir="ltr">{resolving.payload.capacity ?? "—"}</bdi></p> : null}<p className="text-xs text-ink-muted">{ui("Captured {0}", [dateTime(resolving.capturedAt)])}</p></div>
+        <div className="rounded-xl border border-status-info-border bg-status-info-surface p-3 text-sm"><p className="font-semibold text-ink-strong">{ui("Yours (this device)")}</p><p><bdi>{label({ ...(bucket.classes?.[resolving.classId] ?? {}), ...resolving.payload })}</bdi></p>{resolving.payload.capacity !== undefined ? <p className="text-xs">{ui("Capacity (seats per class)")}: <bdi dir="ltr">{resolving.payload.capacity ?? "—"}</bdi></p> : null}<p className="text-xs text-ink-muted">{ui("Captured {0}", [dateTime(resolving.capturedAt)])}</p></div>
         <div className="rounded-xl border border-edge p-3 text-sm"><p className="font-semibold text-ink-strong">{ui("On the server")}</p><p><bdi>{resolving.server ? label(resolving.server) : "—"}</bdi></p><p className="text-xs">{ui("Capacity (seats per class)")}: <bdi dir="ltr">{resolving.server?.capacity ?? "—"}</bdi></p>{resolving.server ? <p className="text-xs text-ink-muted">{ui("Changed {0}", [dateTime(resolving.server.updatedAt)])}</p> : null}</div>
       </div>
-      <p className="text-xs text-ink-muted">{ui("Both observations remain in the history. Nothing is overwritten without your decision.")}</p>
-      <div className="flex flex-wrap justify-end gap-2"><Button variant="outline" disabled={busy || !online} onClick={() => void decide("APPLY_LOCAL")} data-class-sync-apply>{ui("Apply mine")}</Button><Button disabled={busy || !online} onClick={() => void decide("KEEP_SERVER")} data-class-sync-keep>{ui("Keep the server value")}</Button></div>
     </div></ModalFrame> : null}
   </section>;
 }
