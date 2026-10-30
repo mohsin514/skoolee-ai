@@ -12,7 +12,7 @@ import { assignAsset, budgetPosition, closeService, createBudget, decideRequest,
 // the order; returns reopen the remainder; invoices are matched; assets get tags, custodians and
 // service history.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `purchasing-${randomUUID()}`, campusId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid` });
 const teacher = actor("TEACHER"), campusAdmin = actor("CAMPUS_ADMIN"), principal = actor("PRINCIPAL"), accountant = actor("ACCOUNTANT");

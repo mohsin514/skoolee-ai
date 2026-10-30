@@ -16,7 +16,7 @@ import { documentVersionLabel } from "../../src/lib/academic/datesheet-publicati
 // affected people and tells them once; documents print the version they show; a family can never take
 // another class's sheet; formal sessions stay under office control.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.DATESHEET_TEST_APP || "http://localhost:3108";
 const evidence = process.env.DATESHEET_EVIDENCE_DIR || "/tmp/sko413-evidence";
 const db = new PrismaClient(), password = "SyntheticDatesheet413!";

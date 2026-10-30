@@ -10,7 +10,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // archive APIs preview and preserve it, restore resolves a reused roll number with a new current
 // identifier without touching history, and invoice cancellation refuses money already recorded.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.DELETION_TEST_APP || "http://localhost:3107";
 const db = new PrismaClient(), password = "SyntheticDeletion389!";
 const schoolId = `del389-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), otherClassId = randomUUID();

@@ -9,7 +9,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 
 // SKO-387 browser acceptance against the isolated School AI database and app.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.ONBOARDING_TEST_APP || "http://localhost:3107";
 const evidence = process.env.ONBOARDING_EVIDENCE_DIR || "/tmp/sko387-evidence";
 const raw = new PrismaClient(), password = "SyntheticOnboarding387!";

@@ -11,7 +11,7 @@ import { addEvalCase, approvePolicy, askPolicy, escalatePolicyQuestion, myPolicy
 // version; staff-only policy never reaches families; planted instructions are quoted at most, never
 // obeyed; conflicts and gaps are not papered over; escalation needs a reviewed recipient.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `policy-${randomUUID()}`, campusId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid` });
 const lead = actor("CAMPUS_ADMIN"), parent = actor("PARENT"), teacher = actor("TEACHER");

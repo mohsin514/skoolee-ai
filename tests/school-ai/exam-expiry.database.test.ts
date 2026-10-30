@@ -7,7 +7,7 @@ import { expireSchoolAiAttempts } from "../../src/lib/school-ai/exam-expiry";
 import { assessmentFixture } from "./assessment-fixture";
 
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only the isolated school AI fixture database on 127.0.0.1:55438/postgres.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only the isolated school AI fixture database on 127.0.0.1:55438/postgres.");
 const db = new PrismaClient();
 after(() => db.$disconnect());
 const paper = assessmentFixture().paper;

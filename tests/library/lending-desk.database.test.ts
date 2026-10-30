@@ -12,7 +12,7 @@ import { dueDate, finePreview } from "../../src/lib/library/rules";
 // return scan changes nothing; fines skip closures, honour grace and cap, and use the loan's own
 // rule version; only leaders waive; a returned copy is held for the first waiting reader.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `library-${randomUUID()}`, campusId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid` });
 const librarian = actor("LIBRARIAN"), lead = actor("CAMPUS_ADMIN"), readerUsers = [actor("STUDENT"), actor("STUDENT"), actor("STUDENT")];

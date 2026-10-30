@@ -1,0 +1,22 @@
+$ scripts/qa/isolated-env.sh up 55441   # reserved fake-S3 port
+port 55441 is reserved for a fake provider; pick another QA_DB_PORT
+exit=2
+$ scripts/qa/isolated-env.sh up 55454   # port held by another cluster
+port 55454 is already in use by postgres pid 3399 (not this cluster); stop it or pick another QA_DB_PORT
+exit=3
+$ export QA_DB_PORT=55436; scripts/qa/isolated-env.sh up "" postgres --schema   # port from QA_DB_PORT
+      
+All migrations have been successfully applied.
+postgresql://angular_dev_15@127.0.0.1:55436/postgres
+
+$ QA_DB_PORT=55436 DATABASE_URL=postgresql://angular_dev_15@127.0.0.1:55436/postgres DIRECT_URL=postgresql://angular_dev_15@127.0.0.1:55436/postgres node --import ./tests/support/server-only.mjs --import tsx --test tests/demo/reset-demo-tenant.database.test.ts
+✔ two resets give the same labelled state and leave other tenants alone
+✔ a school at the demo id without the synthetic label is never reset
+ℹ tests 2  pass 2  fail 0
+
+$ (no QA_DB_PORT) same command  # default 55438 guard rejects 55436
+Error: Use only isolated PostgreSQL 55438.
+
+$ fake-S3 port preflight while 55436 is held by Postgres
+Port 55436 (fake S3) is already in use by postgres pid 3303. Stop it or pick a free port with QA_FAKE_S3_PORT=<port>.
+exit=1

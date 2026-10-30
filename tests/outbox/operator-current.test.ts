@@ -9,7 +9,7 @@ import { appendEvent } from "../../src/lib/queue/outbox";
 // Synthetic local-only integration: never load repository environment files.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
 const app = new URL(process.env.AUTHZ_TEST_APP_URL || "http://localhost:3107");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres" || process.env.DIRECT_URL !== process.env.DATABASE_URL) throw new Error("Isolated PG55438 required");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres" || process.env.DIRECT_URL !== process.env.DATABASE_URL) throw new Error("Isolated PG55438 required");
 if (!['localhost','127.0.0.1'].includes(app.hostname) || app.port !== '3107' || !process.env.AUTH_SECRET) throw new Error("Isolated app3107 and explicit test secret required");
 const db = new PrismaClient();
 const schools = [randomUUID(), randomUUID()];
