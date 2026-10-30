@@ -561,6 +561,24 @@
   "source": "appendix-a"
  },
  {
+  "key": "academic.subject.allocate_teachers_bulk",
+  "cluster": "C1 Academic structure",
+  "method": "POST",
+  "route": "/api/subjects/allocations",
+  "roles": [
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "academic.subject.assign_teacher",
   "cluster": "C1 Academic structure",
   "method": "PATCH",

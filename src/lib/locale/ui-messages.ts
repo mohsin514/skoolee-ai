@@ -9,6 +9,7 @@ import { arabicSubjectSetupUi, urduSubjectSetupUi } from "./subject-setup-ui-mes
 import { arabicGradingModelUi, urduGradingModelUi } from "./grading-model-ui-messages";
 import { arabicCampusSetupUi, urduCampusSetupUi } from "./campus-setup-ui-messages";
 import { arabicClassSetupUi, urduClassSetupUi } from "./class-setup-ui-messages";
+import { arabicTeacherAllocationUi, urduTeacherAllocationUi } from "./teacher-allocation-ui-messages";
 /**
  * The reviewed Arabic catalog (everything translated before the role re-architecture). It keeps precedence: a
  * role-ux package entry for the same key never changes a reviewed meaning (P9-01; tests/locale/catalog-conflicts.test.ts).
@@ -874,7 +875,7 @@ export function reviewedTranslation(source: string, language: "en" | "ar" | "ur"
   const catalog = language === "ar" ? arabicReviewedUi : urduReviewedUi;
   const workflow = language === "ar" ? arabicWorkflowUi : urduWorkflowUi;
   const navigation = language === "ar" ? arabicNavigationUi : urduNavigationUi;
-  return navigation[source] ?? catalog[source] ?? workflow[source] ?? academicModelUi[language][source] ?? academicModelUiExtra[language][source] ?? (language === "ar" ? arabicWhatsappUi : urduWhatsappUi)[source] ?? (language === "ar" ? arabicConsentUi : urduConsentUi)[source] ?? (language === "ar" ? arabicImportRehearsalUi : urduImportRehearsalUi)[source] ?? (language === "ar" ? arabicSubjectSetupUi : urduSubjectSetupUi)[source] ?? (language === "ar" ? arabicClassSetupUi : urduClassSetupUi)[source] ?? (language === "ar" ? arabicGradingModelUi : urduGradingModelUi)[source];
+  return navigation[source] ?? catalog[source] ?? workflow[source] ?? academicModelUi[language][source] ?? academicModelUiExtra[language][source] ?? (language === "ar" ? arabicWhatsappUi : urduWhatsappUi)[source] ?? (language === "ar" ? arabicConsentUi : urduConsentUi)[source] ?? (language === "ar" ? arabicImportRehearsalUi : urduImportRehearsalUi)[source] ?? (language === "ar" ? arabicSubjectSetupUi : urduSubjectSetupUi)[source] ?? (language === "ar" ? arabicClassSetupUi : urduClassSetupUi)[source] ?? (language === "ar" ? arabicGradingModelUi : urduGradingModelUi)[source] ?? (language === "ar" ? arabicTeacherAllocationUi : urduTeacherAllocationUi)[source];
 }
 
 const reportedMissing = new Set<string>();
