@@ -9,7 +9,7 @@ type SearchParams = Promise<{ lang?: string | string[] }>;
 export function legalDocMetadata(id: TrustPackId, path: string): Metadata {
   const doc = trustPackDoc(id, "en");
   return {
-    title: `${doc.title} (draft) | SkooleeAI`,
+    title: `${doc.title} (draft)`,
     description: doc.description,
     alternates: { canonical: `https://app.skooleeai.com${path}` },
     // Drafts stay out of search results until counsel signs them off.
