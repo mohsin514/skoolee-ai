@@ -15,8 +15,9 @@ import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/Local
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Badge } from "@/components/ui/badge";
-import { Bus, CalendarCheck } from "lucide-react";
+import { Bus, CalendarCheck, CalendarOff, CheckCircle2, MessageCircleQuestion, PenLine, XCircle } from "lucide-react";
+import { DeskPill, DeskRowIcon, RelativeTime, deskRow } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { readApiError } from "@/lib/api/envelope-client";
@@ -50,16 +51,19 @@ export function LearnerLeaveQueue() {
   if (failure) return <ErrorState error={failure} onRetry={load} />;
   if (!rows) return null;
   return <div className="sk-panel space-y-3 p-5" data-leave-queue>
-    <h3 className="text-base font-bold text-ink-strong">{ui("Learner leave requests ({0})", [String(rows.length)])}</h3>
+    <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><CalendarOff aria-hidden="true" className="size-4 text-primary" />{ui("Learner leave requests ({0})", [String(rows.length)])}</h3>
     <p className="text-xs text-ink-muted">{ui("A decision does not mark the register; mark the days when they come.")}</p>
-    {rows.length ? <ul className="divide-y divide-edge/20">{rows.map(row => <li key={row.id} className="space-y-1 py-2" data-leave-row={row.id}>
-      <p className="text-sm"><bdi>{row.studentName}</bdi> · <bdi>{row.className}</bdi> · <bdi>{date(row.fromDate)}</bdi>{row.toDate !== row.fromDate ? <> – <bdi>{date(row.toDate)}</bdi></> : null}</p>
+    {rows.length ? <ul className="space-y-2">{rows.map(row => <li key={row.id} data-tone="info" className={cn(deskRow, "flex items-start gap-3")} data-leave-row={row.id}>
+      <DeskRowIcon icon={CalendarOff} />
+      <div className="min-w-0 flex-1 space-y-1.5">
+      <p className="text-sm [overflow-wrap:anywhere]"><span className="font-semibold text-ink-strong"><bdi>{row.studentName}</bdi></span> · <bdi>{row.className}</bdi> · <bdi>{date(row.fromDate)}</bdi>{row.toDate !== row.fromDate ? <> – <bdi>{date(row.toDate)}</bdi></> : null}</p>
       <p className="whitespace-pre-line text-xs text-ink-muted" dir="auto">{row.reason}</p>
       <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => setDeciding({ row, action: "approve" })} data-leave-approve>{ui("Approve")}</Button><Button size="sm" variant="outline" onClick={() => setDeciding({ row, action: "clarify" })} data-leave-clarify>{ui("Ask for more detail")}</Button><Button size="sm" variant="outline" onClick={() => setDeciding({ row, action: "decline" })} data-leave-decline>{ui("Decline")}</Button></div>
+      </div>
     </li>)}</ul> : <EmptyState size="sm" icon={CalendarCheck} title={ui("Nothing waiting.")} />}
-    {deciding ? <Modal size="sm" title={deciding.action === "approve" ? ui("Approve leave") : deciding.action === "decline" ? ui("Decline leave") : ui("Ask for more detail")} eyebrow={ui("Attendance")} subtitle={deciding.row.studentName} onClose={() => setDeciding(null)}>
-      <div className="space-y-3"><DraftRecovery recordLabel={ui("Leave decision message")} draft={decisionDraft} saving={busy} excluded={ui("Only the decision message is stored in this signed-in browser draft.")} /><FormField name="leave-note" label={deciding.action === "approve" ? ui("Note (optional)") : ui("Message to the family")}><Textarea value={note} maxLength={500} onChange={e => setNote(e.target.value)} /></FormField>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setDeciding(null)}>{ui("Cancel")}</Button><Button disabled={busy || deciding.action !== "approve" && note.trim().length < 2} onClick={async () => { setBusy(true); try { await send("/api/attendance/leave", "POST", { id: deciding.row.id, action: deciding.action, note: note.trim() || undefined, knownVersion: deciding.row.version }); decisionDraft.markSaved(); toast.success(ui("Decision recorded")); setDeciding(null); setNote(""); void load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } }} loading={busy} data-leave-confirm>{ui("Confirm")}</Button></div></div>
+    {deciding ? <Modal size="sm" icon={deciding.action === "approve" ? CheckCircle2 : deciding.action === "decline" ? XCircle : MessageCircleQuestion} tone={deciding.action === "approve" ? "emerald" : deciding.action === "decline" ? "rose" : "amber"} title={deciding.action === "approve" ? ui("Approve leave") : deciding.action === "decline" ? ui("Decline leave") : ui("Ask for more detail")} eyebrow={ui("Attendance")} subtitle={deciding.row.studentName} onClose={() => setDeciding(null)}
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setDeciding(null)}>{ui("Cancel")}</Button><Button disabled={busy || deciding.action !== "approve" && note.trim().length < 2} onClick={async () => { setBusy(true); try { await send("/api/attendance/leave", "POST", { id: deciding.row.id, action: deciding.action, note: note.trim() || undefined, knownVersion: deciding.row.version }); decisionDraft.markSaved(); toast.success(ui("Decision recorded")); setDeciding(null); setNote(""); void load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } }} loading={busy} data-leave-confirm>{ui("Confirm")}</Button></div>}>
+      <div className="space-y-3"><DraftRecovery recordLabel={ui("Leave decision message")} draft={decisionDraft} saving={busy} excluded={ui("Only the decision message is stored in this signed-in browser draft.")} /><FormField name="leave-note" label={deciding.action === "approve" ? ui("Note (optional)") : ui("Message to the family")}><Textarea value={note} maxLength={500} onChange={e => setNote(e.target.value)} /></FormField></div>
     </Modal> : null}
   </div>;
 }
@@ -95,19 +99,22 @@ export function TripsDesk() {
   if (failure || classList.failure) return <ErrorState error={failure ?? classList.failure} onRetry={() => Promise.all([load(), classList.refetch()])} />;
   if (!trips) return null;
   return <div className="sk-panel space-y-3 p-5" data-trips-desk>
-    <div className="flex items-center justify-between gap-2"><h3 className="text-base font-bold text-ink-strong">{ui("Trips and permission")}</h3><Button size="sm" variant="outline" onClick={() => { setForm(blankTerms); setEditing({ mode: "create" }); }} data-new-trip>{ui("New trip notice")}</Button></div>
-    {trips.length ? <ul className="divide-y divide-edge/20">{trips.map(trip => <li key={trip.id} className="flex flex-wrap items-center gap-2 py-2" data-trip-row={trip.id}>
-      <span className="min-w-0 flex-1 text-sm font-semibold text-ink-strong" dir="auto">{trip.title} <span className="text-xs font-normal text-ink-muted">· {ui("Version {0}", [String(trip.currentVersion)])} · <bdi>{dateTime(trip.departAt)}</bdi></span></span>
+    <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><Bus aria-hidden="true" className="size-4 text-primary" />{ui("Trips and permission")}</h3><Button size="sm" variant="outline" onClick={() => { setForm(blankTerms); setEditing({ mode: "create" }); }} data-new-trip>{ui("New trip notice")}</Button></div>
+    {trips.length ? <ul className="space-y-2">{trips.map(trip => <li key={trip.id} data-tone={trip.status === "OPEN" ? "info" : "neutral"} className={cn(deskRow, "flex flex-wrap items-start gap-3 sm:items-center")} data-trip-row={trip.id}>
+      <DeskRowIcon icon={Bus} />
+      <span className="min-w-0 flex-1 text-sm font-semibold text-ink-strong [overflow-wrap:anywhere]" dir="auto">{trip.title} <span className="text-xs font-normal text-ink-muted">· {ui("Version {0}", [String(trip.currentVersion)])} · <bdi>{dateTime(trip.departAt)}</bdi></span>
+        {trip.status === "OPEN" ? <span className="mt-1 flex flex-wrap items-center gap-2 text-xs font-normal text-ink-muted"><DeskPill tone="warning">{ui("Answer by")}</DeskPill><RelativeTime iso={trip.respondBy} full={dateTime(trip.respondBy)} /></span> : null}</span>
       <Button size="sm" variant="outline" onClick={() => void openRoster(trip.id)} data-trip-roster>{ui("Answers")}</Button>
     </li>)}</ul> : <EmptyState size="sm" icon={Bus} title={ui("No trips yet.")} description={ui("Publish a trip notice to ask families for permission.")} action={<Button size="sm" onClick={() => { setForm(blankTerms); setEditing({ mode: "create" }); }}>{ui("New trip notice")}</Button>} />}
-    {roster ? <Modal size="lg" title={String((roster.versions.at(-1) as { title?: string })?.title ?? "")} eyebrow={ui("Trip permission")} subtitle={ui("Version {0} · answers count from version {1}", [String(roster.trip.currentVersion), String(roster.trip.baseline)])} onClose={() => setRoster(null)}>
+    {roster ? <Modal size="lg" icon={Bus} tone="sky" title={String((roster.versions.at(-1) as { title?: string })?.title ?? "")} eyebrow={ui("Trip permission")} subtitle={ui("Version {0} · answers count from version {1}", [String(roster.trip.currentVersion), String(roster.trip.baseline)])} onClose={() => setRoster(null)}>
       <div className="space-y-3" data-trip-roster-dialog>
-        <div className="flex flex-wrap gap-2">{["GRANTED", "PARTIAL", "PENDING", "DECLINED"].map(k => <Badge key={k} variant={standingTone(k)} dot><span>{standing(ui, k)}: <span className="tabular-nums">{roster.counts[k] ?? 0}</span></span></Badge>)}</div>
-        <ul className="divide-y divide-edge/20">{roster.rows.map(row => <li key={row.studentId} className="py-2 text-sm" data-roster-row={row.studentId} data-roster-status={row.status}><span className="font-semibold text-ink-strong"><bdi>{row.name}</bdi></span> <Badge size="sm" dot variant={standingTone(row.status)}>{standing(ui, row.status)}</Badge>{row.history.length ? <span className="block text-xs text-ink-muted">{row.history.map((h, i) => <span key={i}>{i ? " · " : ""}<bdi>{h.guardian ?? ""}</bdi> · {ui("Version {0}", [String(h.version)])} · {({ GRANTED: ui("Permission given"), DECLINED: ui("Permission refused"), WITHDRAWN: ui("Permission withdrawn") } as Record<string, string>)[h.choice] ?? h.choice}</span>)}</span> : null}</li>)}</ul>
+        <div className="flex flex-wrap gap-2">{["GRANTED", "PARTIAL", "PENDING", "DECLINED"].map(k => <DeskPill key={k} tone={standingTone(k)}><span>{standing(ui, k)}: <span className="tabular-nums">{roster.counts[k] ?? 0}</span></span></DeskPill>)}</div>
+        <ul className="divide-y divide-edge/20">{roster.rows.map(row => <li key={row.studentId} className="py-2 text-sm" data-roster-row={row.studentId} data-roster-status={row.status}><span className="font-semibold text-ink-strong"><bdi>{row.name}</bdi></span> <DeskPill tone={standingTone(row.status)}>{standing(ui, row.status)}</DeskPill>{row.history.length ? <span className="block text-xs text-ink-muted">{row.history.map((h, i) => <span key={i}>{i ? " · " : ""}<bdi>{h.guardian ?? ""}</bdi> · {ui("Version {0}", [String(h.version)])} · {({ GRANTED: ui("Permission given"), DECLINED: ui("Permission refused"), WITHDRAWN: ui("Permission withdrawn") } as Record<string, string>)[h.choice] ?? h.choice}</span>)}</span> : null}</li>)}</ul>
         {roster.trip.status === "OPEN" ? <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => { const v = roster.versions.at(-1) as Record<string, string | number>; const local = (iso: string | number) => new Date(String(iso)).toISOString().slice(0, 16); setForm({ title: String(v.title), destination: String(v.destination), departAt: local(v.departAt), returnAt: local(v.returnAt), respondBy: local(v.respondBy), costAmount: String(v.costAmount), costCurrency: String(v.costCurrency), contact: String(v.contact), instructions: String(v.instructions), consentKind: String(v.consentKind), signatoryRule: String(v.signatoryRule) }); setMaterial(true); setChangeNote(""); setEditing({ mode: "revise", tripId: roster.trip.id, knownVersion: roster.trip.currentVersion }); setRoster(null); }} data-revise-trip>{ui("Change the terms")}</Button></div> : null}
       </div>
     </Modal> : null}
-    {editing ? <Modal size="lg" title={editing.mode === "create" ? ui("New trip notice") : ui("Change the trip terms")} eyebrow={ui("Trip permission")} onClose={() => setEditing(null)}>
+    {editing ? <Modal size="lg" icon={editing.mode === "create" ? Bus : PenLine} tone={editing.mode === "create" ? "violet" : "amber"} title={editing.mode === "create" ? ui("New trip notice") : ui("Change the trip terms")} eyebrow={ui("Trip permission")} subtitle={ui("Publish a trip notice to ask families for permission.")} onClose={() => setEditing(null)}
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setEditing(null)}>{ui("Cancel")}</Button><Button disabled={busy} onClick={() => void save()} loading={busy} data-publish-trip>{ui("Publish")}</Button></div>}>
       <div className="space-y-3" data-trip-form>
         {error ? <Alert tone="danger" compact>{error}</Alert> : null}
         <div className="grid gap-3 sm:grid-cols-2">
@@ -126,7 +133,6 @@ export function TripsDesk() {
           <label className="flex items-center gap-2 text-sm"><Checkbox checked={material} onChange={e => setMaterial(e.target.checked)} data-trip-material /> {ui("This is a material change — families must answer again")}</label>
           <FormField name="trip-change" label={ui("What changed")}><Textarea value={changeNote} maxLength={500} onChange={e => setChangeNote(e.target.value)} /></FormField>
         </>}
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setEditing(null)}>{ui("Cancel")}</Button><Button disabled={busy} onClick={() => void save()} loading={busy} data-publish-trip>{ui("Publish")}</Button></div>
       </div>
     </Modal> : null}
   </div>;
