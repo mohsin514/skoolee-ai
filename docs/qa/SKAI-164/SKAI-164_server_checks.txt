@@ -1,0 +1,15 @@
+roster 200 first=qa-skai1157-stu-1
+admin GET own → 200
+teacher GET → 403
+qa-beta admin GET alpha pupil → 404
+qa-beta admin PATCH alpha pupil → 404
+bad bloodType → {"status":400,"json":{"error":"Please check the submitted values.","details":{"bloodType":["Invalid input"]}}}
+bad email → {"status":400,"json":{"error":"Please check the submitted values.","details":{"guardianEmail":["Enter a valid guardian email address"]}}}
+stale expectedValues → {"status":409,"json":{"error":"This pupil record changed. Review your draft against the current record."}}
+blood type set 200, clear 200, stored after clear=null (was null)
+SKAI-164_01_success_EN: dir=rtl lang=ur
+ERROR locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for getByRole('button', { name: /Edit details/i })
+
+    at /Users/angular_dev_15/Downloads/skoolee-ai/.claude/worktrees/skai-164-student-profiles-77e061/scripts/qa/.skai164-capture.mjs:65:61
