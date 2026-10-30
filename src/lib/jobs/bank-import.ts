@@ -118,9 +118,10 @@ export async function processBankImport(
 
     const transactions = lines
       .slice(1)
-      .map((line) => {
+      .map((line, index) => {
         const cols = parseCSVLine(line);
         return {
+          rowNumber: index + 2,
           date: cols[dateIdx] ?? "",
           amount: parseMoney(
             (cols[amountIdx] || "0").replace(/,/g, ""),
@@ -144,7 +145,10 @@ export async function processBankImport(
       },
     });
 
+    // SKAI-1282: rows are stored in the shape the posting route reads (rowNumber, amountMinor).
     const matched: Array<{
+      rowNumber: number;
+      amountMinor: number;
       amount: number;
       currency: string;
       date: string;
@@ -155,6 +159,8 @@ export async function processBankImport(
     }> = [];
 
     const unmatched: Array<{
+      rowNumber: number;
+      amountMinor: number;
       amount: number;
       currency: string;
       date: string;
@@ -207,6 +213,8 @@ export async function processBankImport(
 
       if (bestMatch && bestScore >= 50) {
         matched.push({
+          rowNumber: tx.rowNumber,
+          amountMinor: tx.amount,
           amount: tx.amount,
           currency,
           date: tx.date,
@@ -217,6 +225,8 @@ export async function processBankImport(
         });
       } else {
         unmatched.push({
+          rowNumber: tx.rowNumber,
+          amountMinor: tx.amount,
           amount: tx.amount,
           currency,
           date: tx.date,

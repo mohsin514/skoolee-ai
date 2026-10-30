@@ -65,6 +65,24 @@ test("the same data under another name and column order is recognized as already
   assert.match(again.rows[0].matchLabel, /already imported/);
 });
 
+// SKAI-1282: a statement staged by the job importer (rows carry `amount`, no row number or key) used to
+// 500 on post: both rows got the same truncated reference. It now posts once, replays nothing, and balances.
+test("a job-imported statement posts once without a 500; replays post nothing and money is conserved", async () => {
+  const invC = randomUUID(), invD = randomUUID();
+  for (const [id, number, amount] of [[invC, "INV-REC-C1", 30000], [invD, "INV-REC-D1", 20000]] as const) await db.invoice.create({ data: { id, schoolId, campusId, studentId: pupilA, invoiceDate: new Date("2026-09-01Z"), dueDate: new Date("2026-10-30Z"), currency: "PKR", invoiceNumber: number, monthlyFee: amount, subtotal: amount, totalAmount: amount, balanceDue: amount } });
+  const legacy = await db.bankReconciliation.create({ data: { schoolId, campusId, importDate: new Date(), bankAccount: "Synthetic Job Account", statementPeriodFrom: new Date("2026-10-01Z"), statementPeriodTo: new Date("2026-10-31Z"), totalTransactions: 3, matchedCount: 2, unmatchedCount: 1, status: "pending",
+    reconciliationDetailsJson: [{ amount: 30000, currency: "PKR", date: "2026-10-09", description: "Fee one", matchedInvoiceId: invC }, { amount: 20000, currency: "PKR", date: "2026-10-09", description: "Fee two", matchedInvoiceId: invD }],
+    unmatchedJson: [{ amount: 5000, currency: "PKR", date: "2026-10-09", description: "Unknown", matchedInvoiceId: null }] } });
+  const before = await db.payment.count({ where: { campusId } });
+  const post = () => ctx.request.post(`${base}/api/fees/reconciliations`, { data: { id: legacy.id, action: "post" } });
+  assert.equal((await post()).status(), 200);
+  assert.deepEqual((await Promise.all([post(), post(), post()])).map(r => r.status()), [200, 200, 200]);
+  assert.equal(await db.payment.count({ where: { campusId } }) - before, 2, "one payment per matched row, replays add none");
+  assert.deepEqual([(await db.invoice.findUniqueOrThrow({ where: { id: invC } })).balanceDue, (await db.invoice.findUniqueOrThrow({ where: { id: invD } })).balanceDue], [0, 0]);
+  const report = (await (await ctx.request.get(`${base}/api/fees/reconciliations?campusId=${campusId}`)).json()).data.find((r: { id: string }) => r.id === legacy.id).report;
+  assert.deepEqual([report.received, report.allocated, report.unallocated, report.balanced], [55000, 50000, 5000, true]);
+});
+
 test("the bursar posts from the workbench; replays post nothing twice and money stays conserved", async () => {
   const page = await ctx.newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
