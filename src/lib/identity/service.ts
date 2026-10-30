@@ -435,6 +435,8 @@ async function applyStaff(tx: Tx, schoolId: string, campusId: string, connection
   } else if (ch.action === "WITHDRAW") {
     // Revoke access now: deactivate and bump the access version so existing sessions stop; records remain.
     await tx.user.update({ where: { id: id! }, data: { isActive: false, accessVersion: { increment: 1 } } });
+    // SKAI-1290: close the server-side session rows too, so revocation never rests on the version check alone.
+    await tx.loginSession.updateMany({ where: { userId: id!, isActive: true }, data: { isActive: false, logoutAt: new Date() } });
   } else {
     const name = ch.changes.find(c => c.field === "fullName" && c.applied);
     if (name) await tx.user.update({ where: { id: id! }, data: { fullName: String(name.to) } });
