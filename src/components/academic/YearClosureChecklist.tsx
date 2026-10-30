@@ -132,7 +132,6 @@ export function YearClosureChecklist({
   useEffect(() => {
     onState?.({ hasOpenYear: Boolean(data?.openCycle), ready, canForce: canForceClose && Boolean(data?.openCycle) && !ready, label: data?.openCycle?.label ?? null, loading });
     // stateKey captures every input; the callback identity may change on each host render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stateKey]);
   const handled = useRef<number | null>(command?.nonce ?? null); // seeded: a remount never replays the last command
   useEffect(() => {
@@ -148,7 +147,6 @@ export function YearClosureChecklist({
     if (command.id === "close" && data.canClose) setConfirm("close");
     if (command.id === "force" && !data.canClose && canForceClose) setConfirm("force");
     // Only a new nonce runs a command.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [command?.nonce]);
 
   const closeYear = async (force: boolean, reason?: string) => {

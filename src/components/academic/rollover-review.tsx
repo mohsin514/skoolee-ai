@@ -143,7 +143,6 @@ export function RolloverReview({ campusId, mode = "operate", hideApprove = false
   useEffect(() => {
     onApprovalState?.({ approver: viewerApproves, canApprove: Boolean(earlyPlan?.canApprove), version: earlyPlan?.version ?? null, reason: approvalReason, hasPlan: Boolean(earlyPlan), preparing });
     // approvalKey captures every input; the callback identity may change on each host render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [approvalKey]);
   const seen = useRef({ approve: approveRequest, preview: previewRequest, prepare: prepareRequest });
   useEffect(() => {
@@ -162,7 +161,6 @@ export function RolloverReview({ campusId, mode = "operate", hideApprove = false
     seen.current.prepare = prepareRequest;
     if (operate && view && !busy) void post("prepare", { action: "prepare", sourceYear: view.sourceYear, effectiveDate }, earlyPlan ? ui("Plan refreshed.") : ui("Plan draft created."));
     // post/effectiveDate are read at the moment of the request; only a new number re-runs it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prepareRequest]);
 
   if (error) return <section id="year-end-rollover" tabIndex={-1} className="sk-panel p-5" data-rollover><ErrorState title={ui("Could not load the year-end plan")} description={error} onRetry={() => void load()} retryLabel={ui("Retry")} /></section>;

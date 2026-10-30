@@ -162,7 +162,6 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
     const query = params.toString();
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
     // Runs once per mount: the parameters are gone after this.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const number = useMemo(() => new Intl.NumberFormat(localeTag(locale)), [locale]);
