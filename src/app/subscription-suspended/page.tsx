@@ -1,6 +1,5 @@
 import { Alert } from "@/components/ui/alert";
 import { PageCard } from "@/components/ui/page-card";
-import { PageHeader } from "@/components/ui/page-header";
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { requirePageSession } from "@/lib/auth/require-page-session";
 import { kindFor } from "@/lib/auth/institution";
@@ -9,6 +8,7 @@ import { billingHubPath } from "@/lib/billing/hub";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { translateUi } from "@/lib/locale/ui-messages";
 import { SignOutLink } from "@/app/403/sign-out-link";
+import { SuspendedHeader } from "./suspended-header";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +42,7 @@ export default async function SubscriptionSuspendedPage() {
     <LocaleProvider initialLocale={locale}>
       <main lang={language} dir={language === "en" ? "ltr" : "rtl"} className="sk-app-canvas flex min-h-dvh items-center justify-center px-4 py-10 text-ink-strong sm:px-6 sm:py-12">
         <PageCard className="sk-enter-scale flex w-full max-w-2xl flex-col gap-6">
-          <PageHeader
+          <SuspendedHeader
             title="Your school's plan is paused"
             description={family ? undefined : "Your records stay in place, and your workspace opens again as soon as the plan is renewed."}
             primaryAction={payer ? { id: "open-billing", label: "Open Billing & plan", href: "/billing" } : undefined}

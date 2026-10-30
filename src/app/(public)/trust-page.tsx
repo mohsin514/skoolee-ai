@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { Alert } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import {
-  ArrowLeft, ArrowRight, Sparkles, ShieldCheck, Lock, Eye, Database, CheckCircle2,
+  ArrowLeft, ArrowRight, Sparkles, ShieldCheck, Lock, Eye, Database, CheckCircle2, Languages,
 } from "lucide-react";
 
 export interface TrustPageCopy {
@@ -110,15 +111,18 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
       {/* ─── SECTIONS ─────────────────────────────────── */}
       <section className="mx-auto max-w-4xl px-4 pb-16 sm:px-6">
         {copy.legal && (
-          <div role="note" className="sk-panel mt-12 flex flex-wrap items-center justify-between gap-3 border-warning p-4">
-            <p className="text-sm font-semibold text-ink-strong">
-              {copy.legal.draft}
-              <span className="ms-2 font-normal text-ink-muted">{copy.legal.version}</span>
-            </p>
-            <Link href={copy.legal.switchHref} className={buttonVariants({ variant: "outline", size: "sm" })}>
-              {copy.legal.switchLabel}
-            </Link>
-          </div>
+          <Alert
+            tone="warning"
+            live="off"
+            role="note"
+            className="mt-12 shadow-sm"
+            title={copy.legal.draft}
+            actions={<Link href={copy.legal.switchHref} className={buttonVariants({ variant: "outline", size: "sm", className: "bg-card" })}>
+              <Languages aria-hidden="true" />{copy.legal.switchLabel}
+            </Link>}
+          >
+            <span className="text-ink-muted">{copy.legal.version}</span>
+          </Alert>
         )}
         <div className="sk-stagger grid gap-4 pt-12">
           {copy.sections.map((section, i) => {

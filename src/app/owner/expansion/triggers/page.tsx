@@ -6,7 +6,9 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Flag } from "lucide-react";
+import { CircleCheck, CircleDashed, Flag } from "lucide-react";
+import { DeskPill, DeskStats, StatTile, deskRow, urgencyFirst } from "@/components/ui/desk";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { PageCard } from "@/components/ui/page-card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
@@ -41,25 +43,29 @@ export default function ExpansionTriggersPage() {
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <PageHeader icon={Flag} title={t.title} description={data ? `${t.description} ${t.asOf} ${data.asOf}.` : t.description} />
-      {failed ? <ErrorState title={t.loadFailed} onRetry={load} /> : (data?.triggers ?? []).map((trigger) => (
-        <PageCard key={trigger.market}>
+      {data?.triggers.length ? <DeskStats>
+        <StatTile index={0} icon={CircleCheck} tone="success" label={t.met} value={data.triggers.filter((trigger) => trigger.met).length} />
+        <StatTile index={1} icon={CircleDashed} tone="warning" label={t.notMet} value={data.triggers.filter((trigger) => !trigger.met).length} />
+      </DeskStats> : null}
+      {failed ? <ErrorState title={t.loadFailed} onRetry={load} /> : !data ? <SkeletonList rows={3} label={t.title} /> : data.triggers.map((trigger) => (
+        <PageCard key={trigger.market} data-trigger-met={trigger.met}>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold" dir="ltr">{trigger.market}</h2>
             <div className="flex items-center gap-2">
               <Badge size="sm" variant="neutral">{trigger.anyOf ? t.anyOf : t.allOf}</Badge>
-              <Badge size="sm" variant={trigger.met ? "success" : "warning"}>{trigger.met ? t.met : t.notMet}</Badge>
+              <DeskPill tone={trigger.met ? "success" : "warning"}>{trigger.met ? t.met : t.notMet}</DeskPill>
             </div>
           </div>
           {/* SKAI-1172: on a phone each condition stacks as a card, so nothing scrolls sideways at 360px. */}
           <ul className="flex flex-col gap-3 sm:hidden">
-            {trigger.conditions.map((c) => (
-              <li key={c.id} className="rounded-(--radius-table) border border-border-subtle bg-white p-4" data-testid="trigger-condition-card">
+            {urgencyFirst(trigger.conditions, (c) => (c.met ? 1 : 0)).map((c) => (
+              <li key={c.id} data-tone={c.met ? "success" : "warning"} className={deskRow} data-testid="trigger-condition-card">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="break-words font-semibold" dir="ltr">{c.metric}</div>
                     <div className="break-words text-xs text-ink-muted"><bdi dir="ltr">{c.source}</bdi></div>
                   </div>
-                  <span className="shrink-0 whitespace-nowrap"><Badge size="sm" variant={c.met ? "success" : "neutral"}>{c.met ? t.met : t.notMet}</Badge></span>
+                  <span className="shrink-0 whitespace-nowrap"><DeskPill tone={c.met ? "success" : "warning"}>{c.met ? t.met : t.notMet}</DeskPill></span>
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
                   <div><dt className="text-xs text-ink-muted">{t.threshold}</dt><dd>{c.threshold === true ? t.yes : <bdi dir="ltr">≥ {c.threshold}</bdi>}</dd></div>
