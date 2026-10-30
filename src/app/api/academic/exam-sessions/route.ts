@@ -55,6 +55,11 @@ export async function POST(req: NextRequest) {
 
     const body = await parseBody(req, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
+    // SKAI-1304: an invalid term must fail, not silently become Term 1. Only a
+    // missing term falls back to the default.
+    const rawTerm = String(body.term ?? "").trim();
+    const term = rawTerm ? normaliseExamTerm(rawTerm) : "Term 1";
+    if (!term) throw new ApiError("Choose Term 1, Term 2, Term 3 or Annual.", 400);
     const created = await withExamSchedulingWrite(user, campusId, "add", async (prisma) => {
 
     const result = await createExamSession({
@@ -62,7 +67,7 @@ export async function POST(req: NextRequest) {
       campusId,
       userId: user.userId,
       title: String(body.title ?? ""),
-      term: normaliseExamTerm(String(body.term ?? "")) ?? "Term 1",
+      term,
       academicYear: Number(body.academicYear) || new Date().getFullYear(),
       examType: String(body.examType ?? ""),
       classIds: Array.isArray(body.classIds) ? body.classIds.map(String) : [],
@@ -110,6 +115,15 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (body.status !== undefined && !["PLANNING", "SCHEDULED", "SEATED", "RUNNING", "COMPLETED"].includes(String(body.status))) throw new ApiError("Invalid exam session status", 400);
+    // SKAI-1306: the lifecycle moves one step forward at a time and COMPLETED is terminal.
+    if (body.status !== undefined && String(body.status) !== existing.status) {
+      const order = ["PLANNING", "SCHEDULED", "SEATED", "RUNNING", "COMPLETED"];
+      const from = order.indexOf(existing.status);
+      const to = order.indexOf(String(body.status));
+      if (from === order.length - 1 || to !== from + 1) {
+        throw new ApiError(`An exam session moves from ${existing.status} to ${order[from + 1] ?? "nothing further"} only, one step at a time.`, 409);
+      }
+    }
     if (body.title !== undefined && (!String(body.title).trim() || String(body.title).trim().length > 160)) throw new ApiError("A session title of up to 160 characters is required", 400);
     const schedules = await prisma.examSchedule.findMany({ where: { campusId, exam: { sessionId: id } }, select: { date: true } });
     if (schedules.some(item => finalStart && item.date.toISOString().slice(0, 10) < finalStart || finalEnd && item.date.toISOString().slice(0, 10) > finalEnd)) throw new ApiError("The session dates must include all scheduled papers.", 409);
