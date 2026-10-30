@@ -1087,6 +1087,8 @@ function AddCampusModal({ onClose, onCreated }: { onClose: () => void; onCreated
     const found = validate(t);
     setErrors(found);
     if (Object.keys(found).length) return;
+    // SKAI-113: the same campus ID shape the server enforces.
+    if (!form.autoId && form.regId.trim() && !/^[A-Z0-9][A-Z0-9-]{2,19}$/.test(form.regId.trim())) { setSaveError(t("Use 3 to 20 letters, digits or dashes for the campus ID, like BR-NORTH.")); return; }
     setBusy(true);
     setSaveError(null);
     try {

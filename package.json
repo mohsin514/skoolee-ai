@@ -13,6 +13,7 @@
     "test:teaching-mode": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/teaching-mode.test.ts",
     "test:weekend": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/weekend-rules.test.ts",
     "test:grade-weights": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/grade-weights.test.ts",
+    "test:campus-setup": "node --import ./tests/support/server-only.mjs --import tsx --test tests/campus-setup/campus-setup.test.ts",
     "test:subject-setup": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/subject-setup.test.ts",
     "test:audit-trail": "node --import ./tests/support/server-only.mjs --import tsx --test tests/audit/audit-trail.test.ts",
     "test:educator-eval": "node --import ./tests/support/server-only.mjs --import tsx --test tests/ai-evaluation/*.test.ts",

@@ -638,6 +638,9 @@ model Campus {
   id            String   @id @default(uuid())
   archivedAt    DateTime? @map("archived_at")
   archiveReason String?   @map("archive_reason")
+  /// SKAI-113: a paused campus stays listed but takes no new staff invitations until resumed.
+  pausedAt      DateTime? @map("paused_at")
+  pauseReason   String?   @map("pause_reason")
   schoolId      String   @default("") @map("school_id")
   school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   name          String

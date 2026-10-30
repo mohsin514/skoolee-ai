@@ -114,7 +114,8 @@ async function currentUsage(client: DbClient, schoolId: string, metric: LimitMet
     return activeTeachers + pendingTeacherInvites;
   }
 
-  return client.campus.count({ where: { schoolId } });
+  // SKAI-113: an archived campus no longer uses a package slot; restoring it takes one again.
+  return client.campus.count({ where: { schoolId, archivedAt: null } });
 }
 
 export function isSchoolOperational(status: string | null | undefined) {
