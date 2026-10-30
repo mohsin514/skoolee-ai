@@ -54,7 +54,8 @@ test("profile includes led classes and taught subjects scoped to school and camp
   const select = f.args().select;
   assert.deepEqual(select.ledClasses.where, { schoolId: "school-a", campusId: "campus-a", archivedAt: null });
   assert.deepEqual(select.taughtSubjects.where, { schoolId: "school-a", campusId: "campus-a" });
-  assert.deepEqual(f.args().where, { id: "t-1", schoolId: "school-a", campusId: "campus-a" });
+  // SKAI-1383: staff-only lookups exclude student and parent accounts.
+  assert.deepEqual(f.args().where, { id: "t-1", role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] }, schoolId: "school-a", campusId: "campus-a" });
 });
 
 test("denied role is blocked", async () => {

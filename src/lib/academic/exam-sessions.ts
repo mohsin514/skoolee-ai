@@ -111,6 +111,8 @@ export async function createExamSession(opts: {
     );
   }
   if (!opts.title.trim()) throw new ApiError("Give the exam session a title", 400);
+  // SKAI-1301: same 160-character contract as PATCH, so create cannot persist a title edit rejects.
+  if (opts.title.trim().length > 160) throw new ApiError("A session title of up to 160 characters is required", 400);
   if (!classIds.length) throw new ApiError("Pick at least one class", 400);
   if (opts.startDate && opts.endDate && opts.endDate < opts.startDate) {
     throw new ApiError("The end date is before the start date", 400);

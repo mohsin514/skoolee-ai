@@ -158,6 +158,7 @@ export async function seedCampusCalendar(schoolId: string, campusId: string) {
     const year = template?.academicYear ?? new Date().getFullYear();
     await prisma.academicCycle.create({
       data: {
+        schoolId,
         campusId,
         label: template?.label ?? `${year}-${String((year + 1) % 100).padStart(2, "0")}`,
         academicYear: year,
@@ -177,7 +178,7 @@ export async function seedCampusCalendar(schoolId: string, campusId: string) {
     // Sunday is the sane default when there is no sibling to copy.
     const days = siblingWeekends.length > 0 ? siblingWeekends.map((w) => w.dayOfWeek) : [7];
     await prisma.weekend.createMany({
-      data: days.map((dayOfWeek) => ({ campusId, dayOfWeek })),
+      data: days.map((dayOfWeek) => ({ schoolId, campusId, dayOfWeek })),
       skipDuplicates: true,
     });
   } catch (error) {

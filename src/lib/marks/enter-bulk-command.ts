@@ -39,8 +39,9 @@ export async function enterBulkMarks(user: AuthUser, input: EnterBulkMarksInput)
   const { examId } = input;
   const entries = [...new Map(input.entries.map((entry) => [`${entry.studentId}:${entry.subjectId}`, entry])).values()];
 
-  const exam = await prisma.exam.findUnique({
-    where: { id: examId },
+  const exam = await prisma.exam.findFirst({
+    // SKAI-1384: school-scoped lookup; campus-null academic roles must not reach other schools.
+    where: { id: examId, schoolId: user.schoolId },
     select: {
       id: true,
       campusId: true,

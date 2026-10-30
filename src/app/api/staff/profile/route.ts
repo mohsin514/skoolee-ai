@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     if (!userId) throw new ApiError("userId required", 400);
 
     const staff = await prisma.user.findFirst({
-      where: { id: userId, ...campusScope(user) },
+      where: { id: userId, role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] }, ...campusScope(user) },
       select: {
         id: true,
         fullName: true,
@@ -89,7 +89,7 @@ export async function PATCH(req: NextRequest) {
     if (!userId) throw new ApiError("userId is required", 400);
 
     const staff = await prisma.user.findFirst({
-      where: { id: userId, ...campusScope(user) },
+      where: { id: userId, role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] }, ...campusScope(user) },
       select: { id: true, fullName: true, staffProfile: true },
     });
     if (!staff) throw new ApiError("Staff member not found", 404);
