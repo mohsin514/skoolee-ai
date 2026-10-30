@@ -8,6 +8,23 @@ import { ApiError } from "@/lib/api/scope";
 
 type CycleDb = Pick<TxClient, "academicCycle">;
 
+/**
+ * SKAI-1285: a structure bills a month when it started by the month's last day and has not ended before the
+ * month's first day. An open-ended structure (activeTo null) and a fixed-term one are both eligible — never
+ * require activeTo to be null *and* in range.
+ */
+export function feeStructureActiveWhere(monthStart: Date, monthEnd: Date) {
+  return {
+    activeFrom: { lte: monthEnd },
+    OR: [{ activeTo: null }, { activeTo: { gte: monthStart } }],
+  };
+}
+
+/** SKAI-1285: a run that billed nobody but reported errors is a failure, not a 201 with `generated: 0`. */
+export function invoiceBatchStatus(generated: number, errors: number) {
+  return generated === 0 && errors > 0 ? 422 : 201;
+}
+
 /** The requested year (must belong to this school + campus), else the campus's active year, else null. */
 export async function resolveFeeStructureYearId(db: CycleDb, schoolId: string, campusId: string, requested?: unknown): Promise<string | null> {
   if (typeof requested === "string" && requested) {
