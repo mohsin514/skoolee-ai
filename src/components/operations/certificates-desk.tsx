@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FileText, Plus } from "lucide-react";
+import { Award, Ban, CheckCircle2, Eye, FileText, Hourglass, IdCard, Plus, Replace } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskSection, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -36,6 +36,10 @@ type Student = { id: string; fullName: string; rollNo: string; admissionNo: stri
 type Preview = { title: string; body: string; missing: string[]; language: string; kind: string; templateVersion: number; requiresApproval: boolean; hasPhoto: boolean; schoolName: string };
 const VARIABLES = ["studentName", "studentNameUr", "rollNo", "admissionNo", "className", "section", "dateOfBirth", "guardianName", "nationality", "schoolName", "campusName", "issueDate", "serial", "photo"];
 const statusLabel = (ui: Ui, status: Status) => ({ PENDING_APPROVAL: ui("Waiting for approval"), ISSUED: ui("Issued"), REJECTED: ui("Rejected"), REVOKED: ui("Revoked"), SUPERSEDED: ui("Replaced") })[status];
+const statusTone = (status: Status): DeskTone => ({ PENDING_APPROVAL: "warning", ISSUED: "success", REJECTED: "danger", REVOKED: "danger", SUPERSEDED: "neutral" } as Record<Status, DeskTone>)[status];
+const rowTone = (status: Status): DeskTone | "muted" | undefined => status === "SUPERSEDED" || status === "REJECTED" ? "muted" : status === "ISSUED" ? undefined : statusTone(status);
+const statusIcon = (status: Status) => ({ PENDING_APPROVAL: Hourglass, ISSUED: CheckCircle2, REJECTED: Ban, REVOKED: Ban, SUPERSEDED: Replace } as const)[status];
+const statusRank = (status: Status) => ({ PENDING_APPROVAL: 0, ISSUED: 1, REVOKED: 2, REJECTED: 3, SUPERSEDED: 4 } as Record<Status, number>)[status];
 const kindLabel = (ui: Ui, kind: string) => kind === "ID_CARD" ? ui("ID card") : ui("Certificate");
 const languageLabel = (ui: Ui, language: string) => ({ en: ui("English"), ar: ui("Arabic"), ur: ui("Urdu") } as Record<string, string>)[language] ?? language;
 const fieldLabel = (ui: Ui, field: string) => ({ studentName: ui("Student name"), studentNameUr: ui("Student name (Urdu)"), rollNo: ui("Roll number"), admissionNo: ui("Admission number"), className: ui("Class"), section: ui("Section"), dateOfBirth: ui("Date of birth"), guardianName: ui("Guardian name"), nationality: ui("Nationality"), photo: ui("Photo") } as Record<string, string>)[field] ?? field;
@@ -90,6 +94,9 @@ function DocumentsTab({ templates, canApprove, command, commandReady = true, sho
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState("");
   const [issueOpen, setIssueOpen] = useState<{ reissue?: Issue } | null>(null), [deciding, setDeciding] = useState<{ issue: Issue; action: "approve" | "reject" | "revoke" } | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
+  // Counters over the loaded documents; pressing one narrows the list to that state (again to show all).
+  const [focus, setFocus] = useState<Status | null>(null);
+  const toggle = (next: Status) => setFocus(current => current === next ? null : next);
   const load = useCallback(async () => {
     setLoading(true); setLoadError("");
     try {
@@ -119,6 +126,8 @@ function DocumentsTab({ templates, canApprove, command, commandReady = true, sho
     finally { setDownloading(null); }
   };
   const approved = templates.filter(template => template.currentVersion > 0);
+  const tally = (state: Status) => rows.filter(row => row.status === state).length;
+  const shown = urgencyFirst(rows.filter(row => !focus || row.status === focus), row => statusRank(row.status));
   usePanelCommand(command, { "issue-certificate": () => { if (approved.length) setIssueOpen({}); else toast.info(ui(showTemplates ? "No template is approved yet." : "No template is approved yet. Your campus admin approves certificate templates before documents can be issued.")); } }, commandReady);
   usePanelCommand(command, {
     export: () => {
@@ -140,16 +149,22 @@ function DocumentsTab({ templates, canApprove, command, commandReady = true, sho
       {command !== undefined ? null : approved.length ? <Button onClick={() => setIssueOpen({})}><Plus className="size-4" aria-hidden="true" />{ui("Issue certificate")}</Button> : <Tooltip content={ui("Approve a template first.")}><span tabIndex={0} className="inline-flex"><Button disabled><Plus className="size-4" aria-hidden="true" />{ui("Issue certificate")}</Button></span></Tooltip>}
     </div>
     {!approved.length ? <Alert tone="warning" live="off" data-no-approved-template>{ui(showTemplates ? "No template is approved yet. Create one under Templates and approve it before documents can be issued." : "No template is approved yet. Your campus admin approves certificate templates before documents can be issued.")}</Alert> : null}
+    {rows.length && !status ? <DeskStats data-certificate-counts>
+      <StatTile index={0} icon={Hourglass} tone={tally("PENDING_APPROVAL") ? "warning" : "neutral"} value={tally("PENDING_APPROVAL")} label={ui("Waiting for approval")} onSelect={tally("PENDING_APPROVAL") || focus === "PENDING_APPROVAL" ? () => toggle("PENDING_APPROVAL") : undefined} selected={focus === "PENDING_APPROVAL"} />
+      <StatTile index={1} icon={Award} tone="success" value={tally("ISSUED")} label={ui("Issued")} onSelect={tally("ISSUED") || focus === "ISSUED" ? () => toggle("ISSUED") : undefined} selected={focus === "ISSUED"} />
+      <StatTile index={2} icon={Ban} tone={tally("REVOKED") ? "danger" : "neutral"} value={tally("REVOKED")} label={ui("Revoked")} onSelect={tally("REVOKED") || focus === "REVOKED" ? () => toggle("REVOKED") : undefined} selected={focus === "REVOKED"} />
+    </DeskStats> : null}
     {loading && !rows.length ? <SkeletonList rows={3} label={ui("Loading documents…")} />
       : loadError ? <ErrorState description={loadError} onRetry={() => void load()} retryLabel={ui("Retry")} />
       : !rows.length ? <EmptyState size="sm" icon={FileText} title={status || q ? ui("No documents match these filters.") : ui("No documents issued yet.")} action={!status && !q && approved.length ? <Button onClick={() => setIssueOpen({})}><Plus className="size-4" aria-hidden="true" />{ui("Issue certificate")}</Button> : undefined} />
-      : <ul className="space-y-2" aria-label={ui("Documents")}>{rows.map(row => <li key={row.id} className="space-y-2 rounded-2xl border border-border p-3 text-sm" data-issue={row.serial} data-issue-status={row.status}>
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="min-w-0 flex-1 font-semibold text-ink-strong"><bdi dir="ltr">{row.serial}</bdi> · <bdi>{row.title}</bdi></p>
-          <Badge size="sm" dot variant={row.status === "ISSUED" ? "success" : row.status === "PENDING_APPROVAL" ? "warning" : "neutral"}>{statusLabel(ui, row.status)}</Badge>
+      : <div className="space-y-2.5"><DeskFilterStatus shown={shown.length} total={rows.length} onClear={() => setFocus(null)} /><ul className="space-y-2.5" aria-label={ui("Documents")}>{shown.map(row => <li key={row.id} data-tone={rowTone(row.status)} className={`${deskRow} space-y-2 text-sm`} data-issue={row.serial} data-issue-status={row.status}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <DeskRowIcon icon={row.templateVersion.kind === "ID_CARD" ? IdCard : statusIcon(row.status)} />
+          <p className="min-w-0 flex-1 basis-40 font-semibold text-ink-strong"><bdi dir="ltr" className="font-mono text-xs font-semibold text-primary">{row.serial}</bdi> <span className="text-ink-faint">·</span> <bdi>{row.title}</bdi></p>
+          <DeskPill tone={statusTone(row.status)}>{statusLabel(ui, row.status)}</DeskPill>
         </div>
         <p className="text-xs text-ink-muted"><bdi>{row.student.fullName}</bdi> · <bdi dir="ltr">{row.student.rollNo}</bdi> · {kindLabel(ui, row.templateVersion.kind)} · {ui("Template version {0}", [row.templateVersion.version])} · {languageLabel(ui, row.language)}</p>
-        <p className="text-xs text-ink-muted">{row.requestedBy ? <>{ui("Requested by")} <bdi>{row.requestedBy}</bdi></> : null}{row.approvedBy && row.status !== "REJECTED" ? <> · {ui("Approved by")} <bdi>{row.approvedBy}</bdi></> : null}{row.issuedAt ? <> · <bdi>{dateTime(row.issuedAt)}</bdi></> : null}</p>
+        <p className="text-xs text-ink-muted">{row.requestedBy ? <>{ui("Requested by")} <bdi>{row.requestedBy}</bdi></> : null}{row.approvedBy && row.status !== "REJECTED" ? <> · {ui("Approved by")} <bdi>{row.approvedBy}</bdi></> : null}{row.issuedAt ? <> · <RelativeTime iso={row.issuedAt} full={dateTime(row.issuedAt)} /></> : null}</p>
         {row.reissueReason ? <p className="text-xs">{ui("Reissue reason")}: <bdi>{row.reissueReason}</bdi></p> : null}
         {row.decisionNote ? <p className="text-xs">{row.status === "REVOKED" ? ui("Revoked because") : row.status === "REJECTED" ? ui("Rejected because") : ui("Note")}: <bdi>{row.decisionNote}</bdi></p> : null}
         {row.successors.length ? <p className="text-xs">{ui("Replaced by")} <bdi dir="ltr">{row.successors.map(s => s.serial).join(", ")}</bdi></p> : null}
@@ -159,7 +174,7 @@ function DocumentsTab({ templates, canApprove, command, commandReady = true, sho
           {["ISSUED", "REVOKED"].includes(row.status) && !row.successors.some(s => ["ISSUED", "PENDING_APPROVAL"].includes(s.status)) ? <Button size="sm" variant="secondary" onClick={() => setIssueOpen({ reissue: row })}>{ui("Reissue")}</Button> : null}
           {canApprove && row.status === "ISSUED" ? <Button size="sm" variant="outline" className="text-destructive" onClick={() => setDeciding({ issue: row, action: "revoke" })}>{ui("Revoke")}</Button> : null}
         </div>
-      </li>)}</ul>}
+      </li>)}</ul></div>}
     {issueOpen ? <IssueDialog templates={approved} reissue={issueOpen.reissue} onClose={() => setIssueOpen(null)} onDone={() => { setIssueOpen(null); void load(); }} /> : null}
     {deciding ? <DecisionDialog issue={deciding.issue} action={deciding.action} onClose={() => setDeciding(null)} onDone={() => { setDeciding(null); void load(); }} /> : null}
   </div>;
@@ -218,16 +233,16 @@ function IssueDialog({ templates, reissue, onClose, onDone }: { templates: Templ
         {!student && query.trim().length >= 2 && !matches.length ? <p className="text-xs text-ink-muted">{ui("No pupil in this campus matches.")}</p> : null}
         {student ? <p className="text-sm" data-chosen-student>{ui("Pupil")}: <bdi className="font-semibold text-ink-strong">{student.fullName}</bdi> · <bdi dir="ltr">{student.rollNo}</bdi>{student.className ? <> · <bdi>{student.className}</bdi></> : null}</p> : null}
       </>}
-      {preview ? <section className="space-y-2 rounded-xl border border-border p-3" aria-label={ui("Preview")} data-issue-preview>
-        <p className="sk-eyebrow">{ui("Preview")} · {kindLabel(ui, preview.kind)} · {languageLabel(ui, preview.language)} · {ui("Template version {0}", [preview.templateVersion])}</p>
-        <div dir={preview.language === "en" ? "ltr" : "rtl"} lang={preview.language} className="space-y-1 rounded-lg border border-edge bg-card p-3 text-sm text-ink">
+      {preview ? <DeskSection title={ui("Preview")} icon={Eye} tone={preview.missing.length ? "danger" : "brand"} aria-label={ui("Preview")} data-issue-preview action={<DeskPill tone="brand">{ui("Template version {0}", [preview.templateVersion])}</DeskPill>}>
+        <p className="text-xs text-ink-muted">{kindLabel(ui, preview.kind)} · {languageLabel(ui, preview.language)}</p>
+        <div dir={preview.language === "en" ? "ltr" : "rtl"} lang={preview.language} className="space-y-2 rounded-xl border-4 border-double border-brand-200 bg-card px-5 py-6 text-center text-sm text-ink shadow-(--shadow-panel)">
           <p className="font-semibold text-ink-strong">{preview.schoolName}</p>
           <p className="text-base font-bold text-ink-strong">{preview.title}</p>
           <p className="whitespace-pre-wrap leading-relaxed">{preview.body}</p>
         </div>
         {preview.missing.length ? <Alert tone="danger" compact data-preview-missing>{ui("Missing from the pupil's record: {0}", [preview.missing.map(field => fieldLabel(ui, field)).join(", ")])}</Alert> : null}
         <p className="text-xs text-ink-muted">{preview.requiresApproval ? ui("Sent to your campus admin for approval before it can be downloaded.") : ui("This document is issued as soon as you confirm.")}</p>
-      </section> : null}
+      </DeskSection> : null}
       {reissue ? <FormField name="issue-reason" label={ui("Reason for reissue")}><Input value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField> : null}
       <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void issue()} loading={busy} disabled={busy || !preview || preview.missing.length > 0}>{preview?.requiresApproval ? ui("Request approval") : ui("Issue")}</Button></div>
     </div>
@@ -281,10 +296,13 @@ function TemplatesTab({ templates, canApprove, onChanged }: { templates: Templat
       onCancel={() => setDeleting(null)}
     />
     {!templates.length ? <EmptyState size="sm" icon={FileText} title={ui("No templates yet. Create one, then approve it before documents can be issued.")} />
-      : <ul className="space-y-2" aria-label={ui("Templates")}>{templates.map(template => {
+      : <ul className="space-y-2.5" aria-label={ui("Templates")}>{templates.map(template => {
         const changed = !template.approved || template.approved.title !== template.draft.title || template.approved.body !== template.draft.body;
-        return <li key={template.id} className="space-y-1 rounded-2xl border border-border p-3 text-sm" data-template={template.name} data-template-version={template.currentVersion}>
-          <p className="font-semibold text-ink-strong"><bdi>{template.name}</bdi> · {kindLabel(ui, template.kind)} · {languageLabel(ui, template.language)}</p>
+        return <li key={template.id} data-tone={!template.approved ? "neutral" : changed ? "warning" : "success"} className={`${deskRow} space-y-2 text-sm`} data-template={template.name} data-template-version={template.currentVersion}>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <DeskRowIcon icon={template.kind === "ID_CARD" ? IdCard : Award} />
+            <p className="min-w-0 flex-1 basis-40 font-semibold text-ink-strong"><bdi>{template.name}</bdi> · {kindLabel(ui, template.kind)} · {languageLabel(ui, template.language)}</p>
+          </div>
           <p className="text-xs text-ink-muted">{template.approved ? ui("Approved version {0} · {1}", [template.approved.version, dateTime(template.approved.approvedAt)]) : ui("Draft — not approved")}{changed && template.approved ? ` · ${ui("Draft has unapproved changes")}` : ""}{template.requiresApproval ? ` · ${ui("Each document needs your campus admin's approval")}` : ""}</p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" onClick={() => setEditing(template)}>{ui("Edit draft")}</Button>

@@ -12,11 +12,12 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmAction } from "@/components/ui/confirm-action";
-import { CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, X } from "lucide-react";
+import { AlertOctagon, CheckCircle2, CircleHelp, Download, FileSpreadsheet, Loader2, MinusCircle, PlusCircle, Rows3, Upload, UserCheck, X } from "lucide-react";
+import { DeskFilterStatus, urgencyFirst } from "@/components/ui/desk";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { downloadCSV } from "@/lib/csv";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
-import { reconciliationSheet, rehearsalGroups, rosterTemplateCsv } from "@/lib/imports/rehearsal";
+import { reconciliationSheet, rehearsalGroups, rosterTemplateCsv, rowOutcome } from "@/lib/imports/rehearsal";
 
 interface ClassRecord { id: string; name: string; section?: string | null; academicYear: number }
 interface Props { open: boolean; onOpenChange: (open: boolean) => void; classes: ClassRecord[]; defaultClassId: string; onSuccess: () => void }
@@ -25,6 +26,9 @@ interface Batch { id: string; campusId: string; kind: string; state: string; sou
 interface ReversalAnalysis { eligible: boolean; dependencies: Array<{ studentName: string; rollNo: string; references: string[] }>; missing: string[]; action: string }
 
 
+type Outcome = ReturnType<typeof rowOutcome>;
+/** Rows that need a decision come first in the review table: errors, then unresolved matches, then the rest. */
+const OUTCOME_RANK: Record<Outcome, number> = { error: 0, unresolved: 1, addition: 2, "existing-unchanged": 3, excluded: 4 };
 const rowStateVariant = (state: string) => (state === "ACCEPTED" ? "success" : state === "SKIPPED" ? "neutral" : "danger");
 
 export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, onSuccess }: Props) {
@@ -32,6 +36,7 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
   const { dateTime } = useLocaleFormat();
   const input = useRef<HTMLInputElement | null>(null);
   const [fileName, setFileName] = useState("");
+  const [show, setShow] = useState<Outcome | null>(null);
   const [batch, setBatch] = useState<Batch | null>(null);
   const [busy, setBusy] = useState(false);
   const [committing, setCommitting] = useState(false);
@@ -63,7 +68,7 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
     } catch (error) { toast.error(friendlyErrorMessage(error, t("Could not reopen this rehearsal"))); }
     finally { setBusy(false); }
   };
-  const reset = () => { setFileName(""); setBatch(null); setAnalysis(null); setConfirmReverse(false); if (input.current) input.current.value = ""; };
+  const reset = () => { setFileName(""); setShow(null); setBatch(null); setAnalysis(null); setConfirmReverse(false); if (input.current) input.current.value = ""; };
   const changeFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = "";
     if (!file) return;
@@ -156,6 +161,8 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
   };
   const downloadSheet = () => batch && downloadCSV("student_import_" + batch.id + "_reconciliation.csv", reconciliationSheet(rows as Parameters<typeof reconciliationSheet>[0]));
   const groups = rehearsalGroups(rows as Parameters<typeof rehearsalGroups>[0]);
+  const outcomeOf = (row: ImportRow) => rowOutcome(row as Parameters<typeof rowOutcome>[0]);
+  const reviewRows = urgencyFirst(rows.filter((row) => !show || outcomeOf(row) === show), (row) => OUTCOME_RANK[outcomeOf(row)]);
   const close = () => { if (committed) onSuccess(); reset(); onOpenChange(false); };
 
   const nothingSelected = !!batch && batch.summary.accepted === 0;
@@ -215,13 +222,17 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
         {busy && !committing && <p role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-ink-muted"><Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin text-primary" />{batch ? t("Saving your review. Live records are unchanged.") : t("Validating rows. Live records are unchanged.")}</p>}
         {batch && <section className="space-y-3" aria-live="polite">
           {batch.state === "STAGED" && <Alert tone="info" live="off" title={t("Rehearsal only")}><p>{t("Nothing has been saved. Pupil, guardian and enrollment records stay unchanged until you commit this reviewed batch.")}</p></Alert>}
-          <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3" data-numeric>
-            {([["Additions", groups.additions, "success"], ["Existing, unchanged", groups.existingUnchanged, "neutral"], ["Excluded", groups.excluded, "neutral"], ["Errors", groups.errors, "danger"], ["Unresolved", groups.unresolved, "warning"], ["Total rows", groups.total, "neutral"]] as const).map(([label, value, tone]) => <div key={label} className="rounded-xl border border-edge/20 bg-surface-subtle px-3 py-2"><dt className="text-xs text-ink-muted">{t(label)}</dt><dd><Badge variant={tone} dot>{value}</Badge></dd></div>)}
+          <dl className="sk-desk-stats" data-numeric>
+            {([["Additions", groups.additions, "success", PlusCircle], ["Existing, unchanged", groups.existingUnchanged, "neutral", UserCheck], ["Excluded", groups.excluded, "neutral", MinusCircle], ["Errors", groups.errors, groups.errors ? "danger" : "neutral", AlertOctagon], ["Unresolved", groups.unresolved, groups.unresolved ? "warning" : "neutral", CircleHelp], ["Total rows", groups.total, "brand", Rows3]] as const).map(([label, value, tone, Icon], index) => <div key={label} className="sk-stat-tile" data-tone={tone} style={{ ["--sk-i" as string]: index }}><dt className="sk-stat-tile-label order-2"><span aria-hidden="true" className="sk-stat-tile-icon"><Icon /></span>{t(label)}</dt><dd className="sk-stat-tile-value order-1">{value}</dd></div>)}
           </dl>
+          {groups.errors + groups.unresolved > 0 ? <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("Filter this list")} data-rehearsal-filter>
+            {([["error", "Errors", groups.errors], ["unresolved", "Unresolved", groups.unresolved], ["addition", "Additions", groups.additions]] as const).filter(([, , count]) => count > 0).map(([id, label, count]) => <Button key={id} type="button" size="sm" variant="choice" aria-pressed={show === id} onClick={() => setShow(show === id ? null : id)}>{t(label)} <bdi dir="ltr" className="tabular-nums">{count}</bdi></Button>)}
+          </div> : null}
+          <DeskFilterStatus shown={reviewRows.length} total={rows.length} onClear={() => setShow(null)} />
           <p className="text-xs leading-relaxed text-ink-muted">{t("Match key: campus + class + roll number. Existing pupils are never overwritten. Staging expires {0}.", [dateTime(batch.expiresAt)])}</p>
           {rows.length > 0 && <Button size="sm" variant="outline" onClick={downloadSheet}><Download aria-hidden="true" className="h-4 w-4" />{t("Download reconciliation sheet")}</Button>}
           <Table containerClassName="max-h-80 overflow-auto" className="w-full text-sm"><TableHeader><TableRow><TableHead>{t("Include")}</TableHead><TableHead dir="ltr">{t("Row")}</TableHead><TableHead>{t("Name")}</TableHead><TableHead>{t("Roll No")}</TableHead><TableHead>{t("Match key")}</TableHead><TableHead>{t("Status")}</TableHead></TableRow></TableHeader><TableBody>
-            {rows.map((row) => <TableRow key={row.rowNumber} className="border-t"><TableCell>{row.state === "ACCEPTED" && <Checkbox aria-label={t("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void selectRow(row, event.target.checked)} />}</TableCell><TableCell dir="ltr" data-numeric>{row.rowNumber}</TableCell><TableCell className="font-medium text-ink-strong">{String(row.proposal?.fullName || "—")}</TableCell><TableCell dir="ltr">{row.proposal && (row.state === "UNRESOLVED" || row.state === "REJECTED") ? <Input key={String(row.proposal.rollNo)} aria-label={t("Roll number for row {0}", [row.rowNumber])} defaultValue={String(row.proposal.rollNo || "")} className={"w-24"} onBlur={(event) => { if (event.currentTarget.value !== String(row.proposal?.rollNo || "")) void updateProposal(row, { rollNo: event.currentTarget.value }); }} /> : String(row.proposal?.rollNo || "—")}</TableCell><TableCell dir="ltr">{row.matchKey || "—"}{row.matchLabel && <span className="block text-xs text-ink-muted" dir="auto">{row.matchLabel}</span>}{row.proposal && (row.state === "UNRESOLVED" || row.state === "REJECTED") && <div className="mt-1 flex flex-wrap gap-1"><Select aria-label={t("Class for row {0}", [row.rowNumber])} className={"max-w-32"} value={String(row.proposal.classId || "")} onChange={(event) => void updateProposal(row, { classId: event.target.value })}>{classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}{cls.section ? " · " + cls.section : ""}</option>)}</Select><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void skipRow(row)}>{t("Skip row")}</Button></div>}</TableCell><TableCell><Badge size="sm" dot variant={rowStateVariant(row.state)}>{t(row.state)}</Badge>{row.errors.length > 0 && <span className="mt-1 block max-w-56 text-xs leading-relaxed text-status-error-text" role="note" dir="auto">{row.errors.map((error) => t(error)).join("; ")}</span>}{row.notes?.length ? <span className="mt-1 block max-w-56 text-xs leading-relaxed text-status-warning-text" role="note" dir="auto">{row.notes.map((note) => t(note)).join(" ")}</span> : null}</TableCell></TableRow>)}
+            {reviewRows.map((row) => <TableRow key={row.rowNumber} className="border-t" data-outcome={outcomeOf(row)}><TableCell>{row.state === "ACCEPTED" && <Checkbox aria-label={t("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void selectRow(row, event.target.checked)} />}</TableCell><TableCell dir="ltr" data-numeric>{row.rowNumber}</TableCell><TableCell className="font-medium text-ink-strong">{String(row.proposal?.fullName || "—")}</TableCell><TableCell dir="ltr">{row.proposal && (row.state === "UNRESOLVED" || row.state === "REJECTED") ? <Input key={String(row.proposal.rollNo)} aria-label={t("Roll number for row {0}", [row.rowNumber])} defaultValue={String(row.proposal.rollNo || "")} className={"w-24"} onBlur={(event) => { if (event.currentTarget.value !== String(row.proposal?.rollNo || "")) void updateProposal(row, { rollNo: event.currentTarget.value }); }} /> : String(row.proposal?.rollNo || "—")}</TableCell><TableCell dir="ltr">{row.matchKey || "—"}{row.matchLabel && <span className="block text-xs text-ink-muted" dir="auto">{row.matchLabel}</span>}{row.proposal && (row.state === "UNRESOLVED" || row.state === "REJECTED") && <div className="mt-1 flex flex-wrap gap-1"><Select aria-label={t("Class for row {0}", [row.rowNumber])} className={"max-w-32"} value={String(row.proposal.classId || "")} onChange={(event) => void updateProposal(row, { classId: event.target.value })}>{classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}{cls.section ? " · " + cls.section : ""}</option>)}</Select><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void skipRow(row)}>{t("Skip row")}</Button></div>}</TableCell><TableCell><Badge size="sm" dot variant={rowStateVariant(row.state)}>{t(row.state)}</Badge>{row.errors.length > 0 && <span className="mt-1 block max-w-56 text-xs leading-relaxed text-status-error-text" role="note" dir="auto">{row.errors.map((error) => t(error)).join("; ")}</span>}{row.notes?.length ? <span className="mt-1 block max-w-56 text-xs leading-relaxed text-status-warning-text" role="note" dir="auto">{row.notes.map((note) => t(note)).join(" ")}</span> : null}</TableCell></TableRow>)}
           </TableBody></Table>
         </section>}
       </>}

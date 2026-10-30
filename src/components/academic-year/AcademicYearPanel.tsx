@@ -5,6 +5,8 @@ import {
   AlertTriangle, ArrowRight, Calendar, CheckCircle2, ChevronDown, ChevronRight,
   GraduationCap, History, Lock, RefreshCw, Users, X,
 } from "lucide-react";
+import { BookOpenCheck, Layers3, LibraryBig, UsersRound } from "lucide-react";
+import { DeskStats, StatTile, deskRow } from "@/components/ui/desk";
 import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
@@ -330,6 +332,21 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
         </BrandButton>
       </div>
 
+      {/* The most recent year at a glance, before the per-year breakdown. */}
+      {yearGroups.length > 0 ? (() => {
+        const latest = yearGroups.reduce((a, b) => (b.year > a.year ? b : a));
+        const sum = (key: keyof ClassSummary["_count"]) => latest.classes.reduce((n, c) => n + c._count[key], 0);
+        const hint = ui("Academic year {0}", [latest.year]);
+        return (
+          <DeskStats data-year-stats={latest.year}>
+            <StatTile index={0} icon={UsersRound} tone="brand" value={sum("students")} label={ui("Students")} hint={hint} />
+            <StatTile index={1} icon={Layers3} tone="info" value={latest.classes.length} label={ui("Classes")} hint={hint} />
+            <StatTile index={2} icon={LibraryBig} tone="success" value={sum("subjects")} label={ui("Subjects")} hint={hint} />
+            <StatTile index={3} icon={BookOpenCheck} tone="warning" value={sum("exams")} label={ui("Exams")} hint={hint} />
+          </DeskStats>
+        );
+      })() : null}
+
       {yearGroups.length === 0 ? (
         <EmptyState icon={Calendar} title={ui("No academic years")} description={ui("Create classes with an academic year to get started.")} />
       ) : (
@@ -377,12 +394,12 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 <div className="border-t border-edge/10 p-5 bg-brand-50/10">
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                     {yg.classes.map((cls) => (
-                      <div key={cls.id} className="sk-panel p-4 transition-all">
+                      <div key={cls.id} data-tone={cls.status === "COMPLETED" ? "success" : undefined} className={cn(deskRow, "p-4")}>
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <h4 className="text-sm font-bold text-ink-strong">{cls.name}{cls.section ? ` - ${cls.section}` : ""}</h4>
                             <p className="text-2xs font-medium text-ink-subtle mt-0.5">
-                              {cls.classTeacher?.fullName || "No class teacher"}
+                              {cls.classTeacher?.fullName ? <bdi>{cls.classTeacher.fullName}</bdi> : ui("No class teacher")}
                             </p>
                           </div>
                           <Badge size="sm" dot variant={cls.status === "COMPLETED" ? "success" : "info"}>

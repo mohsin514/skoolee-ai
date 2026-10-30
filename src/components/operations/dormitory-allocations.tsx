@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BedDouble, History, MoveRight, Settings2, UserPlus } from "lucide-react";
+import { BedDouble, BedSingle, Building2, History, MoveRight, Settings2, UserPlus, Wrench } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskStats, StatTile, deskRow, urgencyFirst } from "@/components/ui/desk";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +10,6 @@ import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ConfirmAction } from "@/components/ui/confirm-action";
@@ -47,6 +48,7 @@ export function DormitoryAllocations({ canManage = true, hideAllocate = false, c
   const [data, setData] = useState<{ date: string; today: string; rooms: Room[]; stays: Stay[] } | null>(null);
   const [loading, setLoading] = useState(true), [error, setError] = useState("");
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [show, setShow] = useState<"all" | "free" | "full" | "out">("all"), [find, setFind] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -72,6 +74,12 @@ export function DormitoryAllocations({ canManage = true, hideAllocate = false, c
   }, !loading);
   const totals = rooms.reduce((sum, room) => ({ capacity: sum.capacity + (room.status === "AVAILABLE" ? room.capacity : 0), occupied: sum.occupied + room.occupied, out: sum.out + (room.status === "AVAILABLE" ? 0 : 1) }), { capacity: 0, occupied: 0, out: 0 });
 
+  const roomState = (room: Room) => room.status !== "AVAILABLE" ? "out" : room.available === 0 ? "full" : "free";
+  const needle = find.trim().toLowerCase();
+  const visible = urgencyFirst(rooms, room => ({ free: 0, full: 1, out: 2 })[roomState(room)]).filter(room => (show === "all" || roomState(room) === show) && (!needle || room.number.toLowerCase().includes(needle)
+    || (data?.stays ?? []).some(stay => stay.roomId === room.id && (stay.state === "CURRENT" || stay.state === "UPCOMING") && `${stay.student.fullName} ${stay.student.rollNo}`.toLowerCase().includes(needle))));
+  const toggle = (next: typeof show) => setShow(current => current === next ? "all" : next);
+
   return <div className="space-y-4" data-dorm-allocations>
     <div className="flex flex-wrap items-end justify-between gap-3">
       <FormField name="dorm-occupancy-date" label={ui("Occupancy on")}><Input type="date" value={date} onChange={event => setDate(event.target.value)} /></FormField>
@@ -79,24 +87,38 @@ export function DormitoryAllocations({ canManage = true, hideAllocate = false, c
       {canManage && !hideAllocate ? <Button onClick={() => setDialog({ kind: "allocate" })} disabled={!rooms.length}><UserPlus className="size-4" aria-hidden="true" />{ui("Allocate student")}</Button> : null}
     </div>
 
+    {data && rooms.length ? <>
+      <Progress value={totals.occupied} max={totals.capacity || 1} tone={totals.capacity && totals.occupied >= totals.capacity ? "warning" : "brand"} label={ui("Occupancy on")} />
+      <DeskStats data-dorm-pulse>
+        <StatTile index={0} icon={Building2} tone="brand" value={rooms.length} label={ui("Rooms")} onSelect={() => setShow("all")} selected={show === "all"} />
+        <StatTile index={1} icon={BedSingle} tone="success" value={rooms.filter(room => roomState(room) === "free").length} label={ui("Vacant")} onSelect={() => toggle("free")} selected={show === "free"} />
+        <StatTile index={2} icon={BedDouble} tone={rooms.some(room => roomState(room) === "full") ? "info" : "neutral"} value={rooms.filter(room => roomState(room) === "full").length} label={ui("Full")} onSelect={() => toggle("full")} selected={show === "full"} />
+        <StatTile index={3} icon={Wrench} tone={totals.out ? "warning" : "neutral"} value={totals.out} label={ui("Out of service")} onSelect={() => toggle("out")} selected={show === "out"} />
+      </DeskStats>
+      <DeskQuickFilter value={find} onChange={setFind} label={ui("Filter this list")} />
+      <DeskFilterStatus shown={visible.length} total={rooms.length} onClear={() => { setShow("all"); setFind(""); }} />
+    </> : null}
+
     {loading && !data ? <SkeletonList rows={3} label={ui("Loading allocations…")} />
       : error ? <ErrorState description={error} onRetry={() => void load()} retryLabel={ui("Retry")} />
       : !rooms.length ? <EmptyState size="sm" icon={BedDouble} title={ui("No rooms yet. Add room types and rooms first, then allocate students.")} />
+      : !visible.length ? <EmptyState size="sm" icon={BedDouble} title={ui("{0} of {1} shown", [visible.length, rooms.length])} primaryAction={{ id: "dorm-show-all", label: "Show all", onClick: () => { setShow("all"); setFind(""); } }} />
       : <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label={ui("Rooms")}>
-        {rooms.map(room => {
+        {visible.map(room => {
           const residents = (data?.stays ?? []).filter(stay => stay.roomId === room.id && (stay.state === "CURRENT" || stay.state === "UPCOMING"));
-          return <li key={room.id} className="space-y-2 rounded-2xl border border-border p-4" data-dorm-room={room.number} data-room-status={room.status} data-room-occupied={room.occupied}>
+          return <li key={room.id} data-tone={room.status !== "AVAILABLE" ? "warning" : undefined} className={`${deskRow} space-y-3`} data-dorm-room={room.number} data-room-status={room.status} data-room-occupied={room.occupied}>
             <div className="flex items-start justify-between gap-2">
-              <div><p className="flex items-center gap-1.5 text-sm font-semibold text-ink-strong"><BedDouble className="size-4 text-primary" aria-hidden="true" /><bdi>{room.number}</bdi></p><p className="text-xs text-ink-muted"><bdi>{room.roomType}</bdi></p></div>
-              <Badge size="sm" dot variant={room.status !== "AVAILABLE" ? "warning" : room.available === 0 ? "danger" : "success"}>
+              <div className="flex min-w-0 items-center gap-2.5"><span aria-hidden="true" className="sk-desk-row-icon"><BedDouble /></span><div className="min-w-0"><p className="text-base font-bold text-ink-strong"><bdi>{room.number}</bdi></p><p className="text-xs text-ink-muted"><bdi>{room.roomType}</bdi></p></div></div>
+              <DeskPill tone={room.status !== "AVAILABLE" ? "warning" : room.available === 0 ? "info" : "success"}>
                 {room.status !== "AVAILABLE" ? ui("Out of service") : room.available === 0 ? ui("Full") : ui("{0} free", [room.available])}
-              </Badge>
+              </DeskPill>
             </div>
-            <p className="text-xs font-semibold text-ink-strong">{ui("{0} of {1} places taken", [room.occupied, room.capacity])}{room.upcoming ? ` · ${ui("{0} upcoming", [room.upcoming])}` : ""}</p>
+            <Progress size="sm" value={room.occupied} max={room.capacity || 1} tone={room.status !== "AVAILABLE" ? "neutral" : room.available === 0 ? "warning" : "brand"} showValue label={ui("{0} of {1} places taken", [room.occupied, room.capacity])} valueText={room.upcoming ? ui("{0} upcoming", [room.upcoming]) : `${room.occupied}/${room.capacity}`} />
+            <div aria-hidden="true" className="flex flex-wrap gap-1">{Array.from({ length: Math.min(room.capacity, 12) }, (_, i) => <span key={i} className={i < room.occupied ? "grid size-6 place-items-center rounded-md bg-brand-100 text-primary" : i < room.occupied + room.upcoming ? "grid size-6 place-items-center rounded-md border border-dashed border-brand-300 text-brand-400" : "grid size-6 place-items-center rounded-md bg-surface-subtle text-ink-faint"}><BedSingle className="size-3.5" /></span>)}</div>
             {room.statusReason ? <p className="text-xs text-status-warning-text"><bdi>{room.statusReason}</bdi></p> : null}
-            {residents.length ? <ul className="space-y-1.5">{residents.map(stay => <li key={stay.id} className="rounded-xl bg-muted/60 px-3 py-2 text-xs" data-dorm-stay={stay.id} data-stay-state={stay.state}>
+            {residents.length ? <ul className="space-y-1.5">{residents.map(stay => <li key={stay.id} className={`rounded-xl border px-3 py-2 text-xs ${stay.state === "UPCOMING" ? "border-dashed border-brand-200 bg-brand-50/40" : "border-border-subtle bg-surface-subtle"}`} data-dorm-stay={stay.id} data-stay-state={stay.state}>
               <p className="font-semibold text-ink-strong"><bdi>{stay.student.fullName}</bdi> · <bdi>{stay.student.rollNo}</bdi>{stay.student.className ? <> · <bdi>{stay.student.className}</bdi></> : null}</p>
-              <p className="text-ink-muted">{ui(STATE_LABEL[stay.state])} · {formatDate(stay.startDate)} – {stay.endDate ? formatDate(stay.endDate) : ui("no end date")}</p>
+              <p className="text-ink-muted"><DeskPill tone={stay.state === "UPCOMING" ? "info" : "success"} className="me-1">{ui(STATE_LABEL[stay.state])}</DeskPill>{formatDate(stay.startDate)} – {stay.endDate ? formatDate(stay.endDate) : ui("no end date")}</p>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {canManage && stay.state === "CURRENT" ? <Button size="sm" variant="secondary" onClick={() => setDialog({ kind: "move", stay })} aria-label={ui("Move {0}", [stay.student.fullName])}><MoveRight className="size-3.5" aria-hidden="true" />{ui("Move")}</Button> : null}
                 {canManage && stay.state === "CURRENT" ? <Button size="sm" variant="ghost" onClick={() => setDialog({ kind: "end", stay })}>{ui("End stay")}</Button> : null}
@@ -288,7 +310,7 @@ function HistoryDialog({ student, onClose }: { student: Stay["student"]; onClose
   const [stays, setStays] = useState<Stay[] | null>(null);
   useEffect(() => { void fetch(`/api/dormitory/allocations?studentId=${encodeURIComponent(student.id)}`, { cache: "no-store" }).then(r => r.json()).then(json => setStays(json.success ? json.data.stays : [])).catch(() => setStays([])); }, [student.id]);
   return <Modal title={ui("Room history for {0}", [student.fullName])} eyebrow={ui("Hostel")} onClose={onClose}>
-    {!stays ? <SkeletonList rows={3} label={ui("Loading allocations…")} /> : <ol className="space-y-2" data-dorm-history>{stays.map(stay => <li key={stay.id} className="rounded-xl border border-border p-3 text-xs" data-history-state={stay.state}>
+    {!stays ? <SkeletonList rows={3} label={ui("Loading allocations…")} /> : <ol className="sk-desk-timeline" data-dorm-history>{stays.map(stay => <li key={stay.id} data-tone={stay.state === "CURRENT" ? "success" : stay.state === "UPCOMING" ? "info" : "neutral"} className="text-xs" data-history-state={stay.state}>
       <p className="font-semibold text-ink-strong">{ui("Room {0}", [stay.roomNumber])} · {ui(STATE_LABEL[stay.state])}</p>
       <p>{formatDate(stay.startDate)} – {stay.endDate ? formatDate(stay.endDate) : ui("no end date")}</p>
       <p className="text-ink-muted"><bdi>{stay.reason}</bdi>{stay.endReason ? <> · <bdi>{stay.endReason}</bdi></> : null}</p>

@@ -11,7 +11,10 @@ import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/Local
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Wallet } from "lucide-react";
+import { AlertTriangle, Banknote, Check, FileCog, MinusCircle, RotateCcw, Send, Wallet } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskSection, DeskStats, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 import { getFinancialLocale } from "@/app/actions/locale";
 import { exportCSV, paisaToRupees, usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
@@ -31,6 +34,10 @@ type Overview = { policy: Policy | null; providers: { id: string; code: string; 
 export type PayrollMode = "prepare" | "approve" | "both";
 
 const STATUS: Record<string, string> = { DRAFT: "Draft — review and approve", APPROVED: "Approved — ready to export", STALE: "Inputs changed after approval", EXPORTED: "Exported — provider confirmation pending", SUPERSEDED: "Superseded", SUBMITTED: "Submitted", PARTIAL: "Partly accepted", ACKNOWLEDGED: "Accepted by provider", REJECTED: "Rejected by provider", PENDING: "Waiting for provider", ACCEPTED: "Accepted" };
+const STATUS_TONE: Record<string, DeskTone> = { DRAFT: "brand", APPROVED: "info", STALE: "warning", EXPORTED: "info", SUPERSEDED: "neutral", SUBMITTED: "info", PARTIAL: "warning", ACKNOWLEDGED: "success", REJECTED: "danger", PENDING: "neutral", ACCEPTED: "success" };
+/** Where a run sits on draft → approved → submitted → accepted; a stale or rejected run stops where it is. */
+const LIFECYCLE = ["Draft", "Approved", "Submitted", "Accepted"] as const;
+const stageOf = (status: string, submitted: boolean) => status === "ACKNOWLEDGED" ? 3 : submitted || status === "EXPORTED" ? 2 : status === "APPROVED" ? 1 : 0;
 const BASIS: Record<string, string> = { CALENDAR_DAYS: "calendar days", FIXED_30: "30-day month" };
 const EXCEPTION: Record<string, string> = { MISSING_PROVIDER_ID: "Missing provider employee id", NEGATIVE_NET: "Negative net pay", UNSUPPORTED_CURRENCY: "Currency not supported by the provider" };
 const RETRIED = "Retried with the same reference; only rows without a provider outcome were resent.";
@@ -56,6 +63,7 @@ export function PayrollRunsPanel({ mode = "prepare", command, hideHeader = false
   const ui = useUiText();
   const { money, date, dateTime } = useLocaleFormat();
   const { language } = useLocale();
+  const compact = (value: number) => new Intl.NumberFormat(language, { notation: "compact", maximumFractionDigits: 1 }).format(value);
   const monthLabel = (month: number, year: number, width: "long" | "short" = "long") =>
     new Intl.DateTimeFormat(language, { month: width, ...(width === "long" ? { year: "numeric" } : {}), timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, 1)));
   const [confirmApprove, setConfirmApprove] = useState<Version | null>(null);
@@ -68,6 +76,7 @@ export function PayrollRunsPanel({ mode = "prepare", command, hideHeader = false
   const [ids, setIds] = useState<Record<string, string>>({});
   const [outcomes, setOutcomes] = useState<Record<string, { outcome: string; reason: string }>>({});
   const [policyForm, setPolicyForm] = useState({ entityName: "", currency: "", effectiveFrom: "", packageLabel: "", scopeNote: "", prorationBasis: "CALENDAR_DAYS", leaveDivisor: "CALENDAR_DAYS", leaveYearStartMonth: "9", rounding: "HALF_UP" });
+  const [onlyIssues, setOnlyIssues] = useState(false), [lineFind, setLineFind] = useState("");
   const [providerForm, setProviderForm] = useState({ code: "", name: "", currencies: "" });
   // Currency defaults come from the school's locale package, never a hard-coded code (role-ux R7/F23).
   useEffect(() => {
@@ -129,19 +138,33 @@ export function PayrollRunsPanel({ mode = "prepare", command, hideHeader = false
     const review = run.exceptions.filter((e) => e.blocking);
     const accepted = submission?.rows.filter((r) => r.outcome === "ACCEPTED").length ?? 0;
     const rejected = submission?.rows.filter((r) => r.outcome === "REJECTED").length ?? 0;
+    // Rows that block approval (a listed exception, a negative net) first; the Exceptions tile narrows to them.
+    const flagged = (l: Line) => l.net < 0 || review.some((e) => e.userId === l.userId);
+    const needle = lineFind.trim().toLowerCase();
+    const lines = urgencyFirst(run.lines, (l) => flagged(l) ? 0 : 1).filter((l) => (!onlyIssues || flagged(l)) && (!needle || `${l.name} ${l.providerEmployeeId ?? ""}`.toLowerCase().includes(needle)));
     return (
-      <div className="space-y-3 rounded-xl border border-border p-3" key={run.id}>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="font-semibold">{ui(title)} · {ui("Version {0}", [run.version])}</h3>
-          <span className="text-sm font-semibold">{ui(STATUS[run.status] ?? run.status)}</span>
-        </div>
+      <DeskSection key={run.id} icon={run.correctionOfId ? RotateCcw : Wallet} tone={run.status === "STALE" ? "warning" : "brand"} data-payroll-run={run.status}
+        title={<>{ui(title)} <span className="text-sm font-semibold text-ink-muted">· {ui("Version {0}", [run.version])}</span></>}
+        action={<DeskPill tone={STATUS_TONE[run.status] ?? "neutral"}>{ui(STATUS[run.status] ?? run.status)}</DeskPill>}>
+        <ol aria-label={ui("Status")} className="flex flex-wrap items-center gap-1.5 text-xs font-semibold" data-payroll-lifecycle>
+          {LIFECYCLE.map((step, i) => {
+            const at = stageOf(run.status, Boolean(submission));
+            const done = i < at || (i === at && run.status === "ACKNOWLEDGED");
+            return <li key={step} className="flex items-center gap-1.5" aria-current={i === at ? "step" : undefined}>
+              <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1", done ? "border-status-success-border bg-status-success-surface text-status-success-text" : i === at ? "border-brand-200 bg-brand-50 text-primary" : "border-border-subtle text-ink-faint")}>
+                {done ? <Check aria-hidden="true" className="size-3.5" /> : <span aria-hidden="true" className="tabular-nums">{i + 1}</span>}{ui(step)}
+              </span>
+              {i < LIFECYCLE.length - 1 ? <span aria-hidden="true" className={cn("h-px w-4", i < at ? "bg-status-success-text" : "bg-border")} /> : null}
+            </li>;
+          })}
+        </ol>
         <p className="text-sm text-ink-subtle">{ui("{0} employees · {1} items need review", [run.lines.length, review.length])} · {ui("Net total {0}", [money(run.totalNet, run.currency)])}</p>
-        {run.staleReason ? <p role="alert" className="text-sm text-status-error-text">{ui(run.staleReason)}. {ui("Prepare a new version; approval is required again.")}</p> : null}
+        {run.staleReason ? <Alert tone="warning" compact role="alert">{ui(run.staleReason)}. {ui("Prepare a new version; approval is required again.")}</Alert> : null}
         {review.length ? (
-          <ul aria-label={ui("Exceptions")} className="space-y-1 text-sm text-status-error-text">
+          <ul aria-label={ui("Exceptions")} className="space-y-2 text-sm text-status-error-text">
             {review.map((e, i) => (
-              <li key={i} className="flex flex-wrap items-end gap-2">
-                <span><strong>{ui(EXCEPTION[e.code] ?? e.code)}</strong>{e.userId ? <> · <bdi>{run.lines.find((l) => l.userId === e.userId)?.name}</bdi></> : null}</span>
+              <li key={i} data-tone="danger" className={`${deskRow} flex flex-wrap items-center gap-2`}>
+                <span className="flex min-w-0 flex-1 items-center gap-2"><AlertTriangle aria-hidden="true" className="size-4 shrink-0" /><span><strong>{ui(EXCEPTION[e.code] ?? e.code)}</strong>{e.userId ? <> · <bdi>{run.lines.find((l) => l.userId === e.userId)?.name}</bdi></> : null}</span></span>
                 {preparer && e.code === "MISSING_PROVIDER_ID" && e.userId && data?.providers[0] ? (
                   <form className="flex items-end gap-2" onSubmit={(ev) => { ev.preventDefault(); void post({ action: "employee", id: e.userId, data: { providerIds: { [data.providers[0].code]: ids[e.userId!] ?? "" } } }, "Provider employee id saved. Prepare a new version to include it."); }}>
                     <FormField name={`pid-${e.userId}`} label={ui("Provider employee id")} className="w-40"><Input dir="ltr" value={ids[e.userId] ?? ""} onChange={(ev) => setIds((m) => ({ ...m, [e.userId!]: ev.target.value }))} /></FormField>
@@ -152,10 +175,12 @@ export function PayrollRunsPanel({ mode = "prepare", command, hideHeader = false
             ))}
           </ul>
         ) : null}
-        <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="text-xs text-ink-subtle"><th scope="col" className="text-start">{ui("Employee")}</th><th scope="col" className="text-start">{ui("Provider id")}</th><th scope="col" className="text-end">{ui("Gross")}</th><th scope="col" className="text-end">{ui("Deductions")}</th><th scope="col" className="text-end">{ui("Net")}</th></tr></thead>
-          <tbody>{run.lines.map((l) => (
-            <tr key={l.userId} className="border-t border-border align-top">
+        {run.lines.length > 8 ? <DeskQuickFilter value={lineFind} onChange={setLineFind} label={ui("Filter this list")} /> : null}
+        <DeskFilterStatus shown={lines.length} total={run.lines.length} onClear={() => { setOnlyIssues(false); setLineFind(""); }} />
+        <div className="overflow-x-auto rounded-xl border border-border-subtle"><table className="w-full text-sm [&_td]:px-3 [&_td]:py-2.5 [&_th]:px-3 [&_th]:py-2">
+          <thead><tr className="bg-surface-subtle text-xs text-ink-subtle"><th scope="col" className="text-start">{ui("Employee")}</th><th scope="col" className="text-start">{ui("Provider id")}</th><th scope="col" className="text-end">{ui("Gross")}</th><th scope="col" className="text-end">{ui("Deductions")}</th><th scope="col" className="text-end">{ui("Net")}</th></tr></thead>
+          <tbody>{lines.map((l) => (
+            <tr key={l.userId} className={cn("border-t border-border align-top", flagged(l) && "bg-status-error-surface/60")}>
               <td>
                 <details>
                   <summary className="cursor-pointer"><bdi>{l.name}</bdi>{l.employedDays < l.periodDays ? <span className="text-xs text-ink-subtle"> · {ui("{0} of {1} days", [l.employedDays, l.periodDays])}</span> : null}</summary>
@@ -167,7 +192,7 @@ export function PayrollRunsPanel({ mode = "prepare", command, hideHeader = false
               <td><bdi dir="ltr">{l.providerEmployeeId ?? "—"}</bdi></td>
               <td className="text-end" dir="ltr">{money(l.gross, run.currency)}</td>
               <td className="text-end" dir="ltr">{money(l.deductions, run.currency)}</td>
-              <td className={`text-end ${l.net < 0 ? "text-status-error-text" : ""}`} dir="ltr">{money(l.net, run.currency)}</td>
+              <td className={`text-end font-semibold tabular-nums ${l.net < 0 ? "text-status-error-text" : "text-ink-strong"}`} dir="ltr">{money(l.net, run.currency)}</td>
             </tr>
           ))}</tbody>
         </table></div>
@@ -177,10 +202,11 @@ export function PayrollRunsPanel({ mode = "prepare", command, hideHeader = false
           {preparer && (run.status === "APPROVED" || submission) ? <Button type="button" variant={submission ? "outline" : "default"} disabled={busy} onClick={() => void post({ action: "submit", id: run.id }, submission ? RETRIED : EXPORTED)}>{submission ? ui("Retry export") : ui("Export to provider")}</Button> : null}
           {submission ? <a className="text-sm underline" download={`${submission.reference}.csv`} href={`data:text/csv;charset=utf-8,${encodeURIComponent((submission as Submission & { file?: string }).file ?? "")}`}>{ui("Download export file")}</a> : null}
         </div>
-        {run.status === "EXPORTED" || submission ? <p className="text-xs font-semibold text-ink-subtle">{ui("Exported does not mean paid.")}</p> : null}
+        {run.status === "EXPORTED" || submission ? <Alert tone="info" compact>{ui("Exported does not mean paid.")}</Alert> : null}
         {submission ? (
-          <div className="space-y-2 rounded-lg bg-surface-subtle p-2 text-sm">
-            <p><span dir="ltr"><bdi>{submission.reference}</bdi></span> · {ui("Submitted {0}", [dateTime(submission.submittedAt)])} · {ui("Attempts: {0}", [submission.attempts])} · {ui("Accepted: {0}", [accepted])} · {ui("Rejected: {0}", [rejected])} · {ui(STATUS[submission.status] ?? submission.status)}</p>
+          <div className="space-y-2 rounded-xl border border-status-info-border bg-status-info-surface/50 p-3 text-sm">
+            {submission.rows.length ? <Progress size="sm" tone={rejected ? "warning" : "success"} value={accepted} max={submission.rows.length} showValue label={ui("Accepted: {0}", [accepted])} valueText={`${accepted} / ${submission.rows.length}`} /> : null}
+            <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1"><Send aria-hidden="true" className="size-3.5 text-status-info-text" /><span dir="ltr"><bdi>{submission.reference}</bdi></span> · {ui("Submitted {0}", [dateTime(submission.submittedAt)])} · {ui("Attempts: {0}", [submission.attempts])} · {ui("Accepted: {0}", [accepted])} · {ui("Rejected: {0}", [rejected])} · {ui(STATUS[submission.status] ?? submission.status)}</p>
             {preparer && submission.rows.some((r) => r.outcome === "PENDING") ? (
               <form className="space-y-2" onSubmit={(ev) => { ev.preventDefault(); const rows = submission.rows.filter((r) => r.outcome === "PENDING" && outcomes[r.providerEmployeeId]?.outcome).map((r) => ({ providerEmployeeId: r.providerEmployeeId, outcome: outcomes[r.providerEmployeeId].outcome, ...(outcomes[r.providerEmployeeId].reason ? { reason: outcomes[r.providerEmployeeId].reason } : {}) })); void post({ action: "result", id: submission.id, data: { rows } }, "Provider result recorded."); }}>
                 <h4 className="font-semibold">{ui("Record provider result")}</h4>
@@ -196,7 +222,7 @@ export function PayrollRunsPanel({ mode = "prepare", command, hideHeader = false
             ) : null}
           </div>
         ) : null}
-      </div>
+      </DeskSection>
     );
   };
 
@@ -227,26 +253,32 @@ export function PayrollRunsPanel({ mode = "prepare", command, hideHeader = false
         {error && data ? <Alert tone="danger" compact>{error}</Alert> : null}
         {notice ? <Alert tone="success" compact>{notice}</Alert> : null}
       </div>
+      {current ? <DeskStats data-payroll-pulse>
+        {/* Totals read at a glance in compact form ("3.4M"); the exact amount stays under the label. */}
+        {([["gross", Banknote, "brand", "Gross", current.lines.reduce((t, l) => t + l.gross, 0)], ["deductions", MinusCircle, "neutral", "Deductions", current.lines.reduce((t, l) => t + l.deductions, 0)], ["net", Wallet, "success", "Net", current.totalNet]] as const).map(([id, Icon, tone, label, amount], index) => (
+          <StatTile key={id} index={index} icon={Icon} tone={tone} value={<span dir="ltr">{compact(paisaToRupees(amount, current.currency))}</span>} label={ui(label)} hint={<span dir="ltr">{money(amount, current.currency)}</span>} />
+        ))}
+        <StatTile index={3} icon={AlertTriangle} tone={current.exceptions.some((e) => e.blocking) ? "danger" : "success"} value={current.exceptions.filter((e) => e.blocking).length} label={ui("Exceptions")} onSelect={() => setOnlyIssues((on) => !on)} selected={onlyIssues} />
+      </DeskStats> : null}
       {!data ? (error ? <ErrorState description={error} onRetry={() => void load()} retryLabel={ui("Try again")} /> : <SkeletonTable rows={4} columns={5} label={ui("Loading payroll…")} />) : (
         <>
           {data.policy && !showSettings ? null : data.policy ? (
-            <div className="rounded-xl border border-border p-3 text-sm">
-              <p><strong><bdi>{data.policy.entityName}</bdi></strong> · <span dir="ltr">{data.policy.currency}</span> · {ui("Policy {0} (version {1}) from {2}", [data.policy.packageLabel, data.policy.version, date(data.policy.effectiveFrom)])} · {ui("Provider")}: {data.providers[0] ? <bdi>{data.providers[0].name} v{data.providers[0].version}</bdi> : ui("not configured")}</p>
+            <div className="sk-desk-section text-sm" data-tone="neutral">
+              <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1"><FileCog aria-hidden="true" className="size-4 text-ink-muted" /><strong><bdi>{data.policy.entityName}</bdi></strong> · <span dir="ltr">{data.policy.currency}</span> · {ui("Policy {0} (version {1}) from {2}", [data.policy.packageLabel, data.policy.version, date(data.policy.effectiveFrom)])} · {ui("Provider")}: {data.providers[0] ? <bdi>{data.providers[0].name} v{data.providers[0].version}</bdi> : ui("not configured")}</p>
               <p className="text-ink-subtle">{ui("Proration")}: {ui(BASIS[data.policy.prorationBasis])} · {ui("Leave day")}: {ui(BASIS[data.policy.leaveDivisor])} · <bdi>{data.policy.scopeNote}</bdi></p>
               {showSettings ? <p className="text-xs text-ink-subtle">{ui("A school-configured local rule package, not certified statutory payroll.")}</p> : null}
             </div>
-          ) : <p role="status" className="rounded-xl border border-border p-3 text-sm">{approver ? ui("No payroll policy is in effect for this period. There is no default rule package; configure one under Policy and provider settings.") : ui("No payroll policy is in effect for this period. Your campus admin sets the payroll policy before a run can be prepared.")}</p>}
+          ) : <Alert tone="warning" role="status">{approver ? ui("No payroll policy is in effect for this period. There is no default rule package; configure one under Policy and provider settings.") : ui("No payroll policy is in effect for this period. Your campus admin sets the payroll policy before a run can be prepared.")}</Alert>}
           {!current && data.policy ? (preparer
             ? <p className="text-sm text-ink-subtle">{ui("{0} staff with a salary. Prepare a run to calculate this period.", [data.staffCount])}</p>
             : <EmptyState icon={Wallet} title={ui("Nothing to approve for {0}", [monthLabel(period.month, period.year)])} description={ui("Your accountant prepares the payroll run.")} />) : null}
           {current ? runCard(current, "Payroll run") : null}
           {queue.length ? (
-            <div className="space-y-2 rounded-xl border border-border p-3 text-sm">
-              <h3 className="font-semibold">{ui("Correction queue")}</h3>
+            <DeskSection title={ui("Correction queue")} icon={RotateCcw} tone="warning" className="text-sm">
               <p className="text-ink-subtle">{ui("Provider rejected {0} row(s). Accepted rows will not be resubmitted.", [queue.length])}</p>
-              <ul>{queue.map((r) => <li key={`${r.submissionId}-${r.userId}`}><bdi dir="ltr">{r.providerEmployeeId}</bdi> · <bdi>{r.reason}</bdi> · <span dir="ltr">{r.reference}</span></li>)}</ul>
+              <ul className="space-y-2">{queue.map((r) => <li key={`${r.submissionId}-${r.userId}`} data-tone={r.correctionStarted ? "muted" : "warning"} className={`${deskRow} flex flex-wrap items-center gap-x-2 gap-y-1`}><bdi dir="ltr" className="font-mono text-xs font-semibold text-primary">{r.providerEmployeeId}</bdi><bdi className="min-w-0 flex-1">{r.reason}</bdi><span dir="ltr" className="text-xs text-ink-muted">{r.reference}</span></li>)}</ul>
               {preparer && queue.some((r) => !r.correctionStarted) ? <Button type="button" disabled={busy} onClick={() => void post({ action: "correct", id: queue.find((r) => !r.correctionStarted)!.submissionId }, "Correction version created. It needs approval again.")}>{ui("Create correction version")}</Button> : null}
-            </div>
+            </DeskSection>
           ) : null}
           {correction ? runCard(correction, "Correction") : null}
           {data.versions.length > 1 ? <p className="text-xs text-ink-subtle">{ui("Version history")}: {data.versions.map((v) => `v${v.version} ${ui(STATUS[v.status] ?? v.status)}`).join(" · ")}</p> : null}

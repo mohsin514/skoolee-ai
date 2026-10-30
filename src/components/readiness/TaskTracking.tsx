@@ -3,6 +3,8 @@ import { BellRing, CalendarClock, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { DeskPill, RelativeTime, deskTimeline } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { getTaskTrackingCopy } from "./task-tracking-copy";
 
 export type TaskStatus = "OPEN" | "IN_PROGRESS" | "DONE" | "DEFERRED";
@@ -44,9 +46,10 @@ export function TaskTracking({ task, language, lead, staff, busy, onAction }: {
             <Input type="date" dir="ltr" value={task.dueOn ?? ""} disabled={busy} onChange={event => act({ action: "schedule", dueOn: event.target.value || null })} />
           </label>
         </div>
-      ) : task.dueOn ? <p className="text-sm text-ink-muted">{c.due}: <bdi>{day(task.dueOn)}</bdi></p> : null}
+      ) : task.dueOn ? <p className="text-sm text-ink-muted">{c.due}: <bdi>{day(task.dueOn)}</bdi>{open ? <> · <RelativeTime iso={`${task.dueOn}T23:59:59`} full={day(task.dueOn)} className={cn("font-semibold", overdue ? "text-status-error-text" : "text-ink")} /></> : null}</p> : null}
       <div className="flex flex-wrap items-center gap-2">
-        {overdue ? <span className="sk-choice-tag inline-flex items-center gap-1" data-tone="danger"><CalendarClock aria-hidden="true" className="size-3.5" />{c.overdue}</span> : null}
+        {overdue ? <DeskPill tone="danger" className="gap-1"><CalendarClock aria-hidden="true" className="size-3.5" />{c.overdue}</DeskPill> : null}
+        {lead && open && task.dueOn && !overdue ? <span className="text-xs font-semibold text-ink-muted">{c.due}: <RelativeTime iso={`${task.dueOn}T23:59:59`} full={day(task.dueOn)} /></span> : null}
         {task.status === "OPEN" ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => act({ action: "status", status: "IN_PROGRESS" })}>{c.start}</Button> : null}
         {lead && open && task.ownerId ? (
           <Button type="button" variant="ghost" size="sm" className="gap-1.5" disabled={busy} onClick={() => act({ action: "remind" })}>
@@ -58,9 +61,9 @@ export function TaskTracking({ task, language, lead, staff, busy, onAction }: {
       {task.history.length ? (
         <details className="text-xs text-ink-muted">
           <summary className="inline-flex cursor-pointer items-center gap-1 font-semibold"><History aria-hidden="true" className="size-3.5" />{c.history}</summary>
-          <ul className="mt-1 space-y-0.5 ps-5">
-            {task.history.map(entry => <li key={`${entry.at}-${entry.action}`}>{c.actions[entry.action] ?? entry.action} · {entry.byName} · <bdi>{when(entry.at)}</bdi></li>)}
-          </ul>
+          <ol className={cn(deskTimeline, "mt-2 gap-1.5")}>
+            {task.history.map(entry => <li key={`${entry.at}-${entry.action}`} data-tone={entry.action === "status:DONE" ? "success" : entry.action === "remind" ? "warning" : entry.action === "status:DEFERRED" ? "neutral" : "brand"}><span className="font-semibold text-ink">{c.actions[entry.action] ?? entry.action}</span> · {entry.byName} · <bdi>{when(entry.at)}</bdi></li>)}
+          </ol>
         </details>
       ) : null}
     </div>

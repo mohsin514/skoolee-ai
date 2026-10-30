@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ClipboardList, Copy, Plus } from "lucide-react";
+import { AlarmClock, BadgeCheck, CircleDashed, ClipboardList, Copy, FileText, Globe2, Hourglass, Inbox, MessageCircleQuestion, Plus, Sparkles, UserX, Users } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,10 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { Alert } from "@/components/ui/alert";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { DeskPill, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow, deskTimeline, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import type { LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { AssessmentsPanel, kindLabel, type Assessment } from "./assessments-panel";
 
 // SKO-398: the admissions desk. Work starts from ownership and the next action; the review shows the exact
@@ -32,6 +36,11 @@ type Detail = { id: string; reference: string; status: Status; channel: string; 
 
 const statusLabel = (ui: Ui, status: string) => ({ DRAFT: ui("Draft"), SUBMITTED: ui("New"), UNDER_REVIEW: ui("In review"), INFO_REQUESTED: ui("Waiting for family"), OFFERED: ui("Offered"), WAITLISTED: ui("Waitlisted"), ACCEPTED: ui("Accepted — ready to enrol"), DECLINED: ui("Declined"), REJECTED: ui("Not offered"), WITHDRAWN: ui("Withdrawn"), ENROLLED: ui("Enrolled") } as Record<string, string>)[status] ?? status;
 const eventLabel = (ui: Ui, kind: string) => ({ CREATED: ui("Started"), SUBMITTED: ui("Sent"), ASSIGNED: ui("Owner or next contact set"), STAGE: ui("Stage changed"), INFO_REQUESTED: ui("Information requested"), NOTE: ui("Office note"), ACCEPTED: ui("Offer accepted"), DUPLICATE_DECISION: ui("Duplicate decision"), ENROLLED: ui("Enrolled"), WITHDRAWN: ui("Withdrawn"), ASSESSMENT_SCHEDULED: ui("Booked"), ASSESSMENT_RECORDED: ui("Outcome recorded"), ASSESSMENT_CANCELLED: ui("Booking cancelled"), WAITLIST_MOVED: ui("Waitlist place changed") } as Record<string, string>)[kind] ?? kind;
+const STAGE_TONE: Record<string, DeskTone> = { SUBMITTED: "info", UNDER_REVIEW: "brand", INFO_REQUESTED: "warning", OFFERED: "brand", WAITLISTED: "neutral", ACCEPTED: "success", ENROLLED: "success" };
+const STAGE_ICON: Record<string, LucideIcon> = { SUBMITTED: Inbox, UNDER_REVIEW: FileText, INFO_REQUESTED: MessageCircleQuestion, OFFERED: Sparkles, WAITLISTED: Hourglass, ACCEPTED: BadgeCheck, ENROLLED: BadgeCheck };
+/** Work that slips first: overdue follow-ups, lapsed offers, unowned live applications, then families waiting on an answer. */
+const urgency = (row: Row) => row.overdue ? 0 : row.offerLapsed ? 1 : !row.owner && !["ENROLLED", "DECLINED", "REJECTED", "WITHDRAWN"].includes(row.status) ? 2 : row.status === "SUBMITTED" ? 3 : row.status === "OFFERED" ? 4 : 5;
+const rowTone = (row: Row): DeskTone | "muted" | undefined => row.overdue || row.offerLapsed ? "danger" : !row.owner && !["ENROLLED", "DECLINED", "REJECTED", "WITHDRAWN"].includes(row.status) ? "warning" : ["DECLINED", "REJECTED", "WITHDRAWN"].includes(row.status) ? "muted" : row.status === "ACCEPTED" ? "success" : undefined;
 const className = (cls: ClassOption) => [cls.name, cls.section].filter(Boolean).join(" ");
 
 async function send(method: string, body: Record<string, unknown>) {
@@ -113,12 +122,13 @@ function Pipeline({ forms, owners, classes, canDecide, entryInHeader, command }:
     if (command.id === "enter-application" && published.length) setCreating(true);
   }, [command, published.length]);
   return <div className="space-y-4">
-    <p className="flex flex-wrap gap-3 text-sm font-bold" aria-live="polite" data-admission-counts>
-      <span>{ui("Active: {0}", [counts.active])}</span>
-      <span>{ui("Assigned to me: {0}", [counts.mine])}</span>
-      <span className={counts.unassigned ? "text-status-warning-text" : ""} data-unassigned={counts.unassigned}>{ui("Unassigned: {0}", [counts.unassigned])}</span>
-      <span className={counts.overdue ? "text-status-error-text" : ""} data-overdue={counts.overdue}>{ui("Follow-up overdue: {0}", [counts.overdue])}</span>
-    </p>
+    {/* The counters are the queue's views: pressing one shows that queue, pressing it again goes back to "Needs my action". */}
+    <DeskStats aria-live="polite" data-admission-counts>
+      <StatTile index={0} icon={Inbox} tone="brand" value={counts.mine} label={ui("Needs my action")} onSelect={() => setView(view === "mine" ? "active" : "mine")} selected={view === "mine"} />
+      <StatTile index={1} icon={Users} tone="info" value={counts.active} label={ui("All active")} onSelect={() => setView(view === "active" ? "mine" : "active")} selected={view === "active"} />
+      <StatTile index={2} icon={UserX} tone={counts.unassigned ? "warning" : "neutral"} value={counts.unassigned} label={ui("Unassigned")} onSelect={() => setView(view === "unassigned" ? "mine" : "unassigned")} selected={view === "unassigned"} data-unassigned={counts.unassigned} />
+      <StatTile index={3} icon={AlarmClock} tone={counts.overdue ? "danger" : "success"} value={counts.overdue} label={ui("Follow-up overdue")} onSelect={() => setView(view === "overdue" ? "mine" : "overdue")} selected={view === "overdue"} data-overdue={counts.overdue} />
+    </DeskStats>
     <div className="flex flex-wrap items-end gap-3">
       <div className="grid flex-1 gap-3 sm:grid-cols-3">
         <FormField name="admission-filter-view" label={ui("Show")}><Select value={view} onChange={event => setView(event.target.value)}><option value="mine">{ui("Needs my action")}</option><option value="unassigned">{ui("Unassigned")}</option><option value="overdue">{ui("Follow-up overdue")}</option><option value="active">{ui("All active")}</option><option value="all">{ui("All applications")}</option></Select></FormField>
@@ -129,15 +139,16 @@ function Pipeline({ forms, owners, classes, canDecide, entryInHeader, command }:
     </div>
     {loading && !rows.length ? <SkeletonList rows={4} label={ui("Loading applications…")} />
       : loadError ? <ErrorState variant="panel" description={loadError} retryLabel={ui("Retry")} onRetry={() => void load()} />
-      : !rows.length ? <p className="rounded-2xl bg-muted p-4 text-sm" data-admissions-empty>{view === "mine" && !status && !q ? ui("Nothing needs your action. Unassigned applications are under Unassigned.") : ui("No applications match these filters. Share a published form's link with families, or enter an application.")}</p>
-      : <ul className="space-y-2" aria-label={ui("Applications")}>{rows.map(row => <li key={row.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3 text-sm ${row.overdue ? "border-status-error-border bg-status-error-surface/40" : "border-border"}`} data-application={row.reference} data-application-status={row.status}>
-        <div className="min-w-0 flex-1 space-y-0.5">
-          <p className="font-bold"><bdi dir="ltr">{row.reference}</bdi> · <bdi>{row.childName || ui("(name not given yet)")}</bdi></p>
-          <p className="text-xs text-ink-muted"><bdi>{row.formVersion.form.name}</bdi> · {ui("Form version {0}", [row.formVersion.version])}{row.channel === "STAFF" ? ` · ${ui("Entered by staff")}` : ""}{row.lastFamilyContact ? <> · {ui("Last family contact")} <bdi>{dateTime(row.lastFamilyContact)}</bdi></> : null}</p>
-          <p className="text-xs text-ink-muted">{row.owner ? <>{ui("Owner")}: <bdi>{row.owner.fullName}</bdi></> : <span className="font-bold text-status-warning-text">{ui("Unassigned")}</span>}{row.nextContactAt ? <> · <span className={row.overdue ? "font-bold text-status-error-text" : ""}>{ui("Next contact")} <bdi>{dateTime(row.nextContactAt)}</bdi></span></> : null}</p>
+      : !rows.length ? <div className="sk-panel" data-admissions-empty><EmptyState size="sm" icon={view === "mine" && !status && !q ? BadgeCheck : ClipboardList} title={view === "mine" && !status && !q ? ui("Nothing needs your action. Unassigned applications are under Unassigned.") : ui("No applications match these filters. Share a published form's link with families, or enter an application.")} /></div>
+      : <ul className="space-y-2.5" aria-label={ui("Applications")}>{urgencyFirst(rows, urgency).map(row => <li key={row.id} data-tone={rowTone(row)} className={cn(deskRow, "flex flex-wrap items-center gap-3 text-sm")} data-application={row.reference} data-application-status={row.status}>
+        <DeskRowIcon icon={STAGE_ICON[row.status] ?? CircleDashed} />
+        <div className="min-w-0 flex-1 basis-[calc(100%-3.5rem)] space-y-0.5 sm:basis-52">
+          <p className="font-bold text-ink-strong"><bdi dir="ltr" className="font-mono text-xs font-semibold text-primary">{row.reference}</bdi> <span className="text-ink-faint">·</span> <bdi>{row.childName || ui("(name not given yet)")}</bdi></p>
+          <p className="text-xs text-ink-muted"><bdi>{row.formVersion.form.name}</bdi> · {ui("Form version {0}", [row.formVersion.version])}{row.channel === "STAFF" ? ` · ${ui("Entered by staff")}` : ""}{row.lastFamilyContact ? <> · {ui("Last family contact")} <bdi><RelativeTime iso={row.lastFamilyContact} full={dateTime(row.lastFamilyContact)} /></bdi></> : null}</p>
+          <p className="text-xs text-ink-muted">{row.owner ? <>{ui("Owner")}: <bdi>{row.owner.fullName}</bdi></> : <span className="font-bold text-status-warning-text">{ui("Unassigned")}</span>}{row.nextContactAt ? <> · <span className={row.overdue ? "font-bold text-status-error-text" : ""}>{ui("Next contact")} <bdi><RelativeTime iso={row.nextContactAt} full={dateTime(row.nextContactAt)} /></bdi></span></> : null}</p>
         </div>
-        <span className="rounded-lg bg-muted px-2 py-0.5 text-2xs font-bold">{statusLabel(ui, row.status)}{row.status === "WAITLISTED" && row.waitlistRank ? ` · #${row.waitlistRank}` : ""}</span>
-        {row.status === "OFFERED" && row.offerExpiresAt ? <span className={`rounded-lg px-2 py-0.5 text-2xs font-bold ${row.offerLapsed ? "bg-status-error-surface text-status-error-text" : "bg-muted"}`} data-offer-deadline={row.offerLapsed ? "lapsed" : "open"}>{row.offerLapsed ? ui("Offer lapsed") : ui("Respond by {0}", [dateTime(row.offerExpiresAt)])}</span> : null}
+        <DeskPill tone={STAGE_TONE[row.status] ?? "neutral"}>{statusLabel(ui, row.status)}{row.status === "WAITLISTED" && row.waitlistRank ? ` · #${row.waitlistRank}` : ""}</DeskPill>
+        {row.status === "OFFERED" && row.offerExpiresAt ? <DeskPill tone={row.offerLapsed ? "danger" : "warning"} data-offer-deadline={row.offerLapsed ? "lapsed" : "open"}>{row.offerLapsed ? ui("Offer lapsed") : ui("Respond by {0}", [dateTime(row.offerExpiresAt)])}</DeskPill> : null}
         <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)} aria-label={ui("Review application {0}", [row.reference])}>{ui("Review")}</Button>
       </li>)}</ul>}
     {openId ? <ReviewDialog id={openId} owners={owners} classes={classes} canDecide={canDecide} onClose={() => { setOpenId(null); void load(); }} /> : null}
@@ -226,35 +237,35 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
       </div> : null}
       {detail.convertedStudent ? <Alert tone="success" compact live="off" data-converted>{ui("Enrolled as {0}, roll {1}.", [detail.convertedStudent.fullName, detail.convertedStudent.rollNo])}</Alert> : null}
 
-      {staffDraft ? <section className="space-y-2 rounded-xl border border-border p-3" aria-label={ui("Answers")}>
+      {staffDraft ? <section className="sk-desk-section gap-2" aria-label={ui("Answers")}>
         <p className="sk-eyebrow">{ui("Answers (entered by staff)")}</p>
         <Questions definition={definition} answers={answers} onChange={(key, value) => setAnswers(current => ({ ...current, [key]: value }))} problems={draftProblems} />
         <Button variant="secondary" disabled={busy} onClick={() => void run({ action: "save-answers", answers }, ui("Answers saved."), "POST")}>{ui("Save answers")}</Button>
-      </section> : <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Submitted answers")}>
+      </section> : <section className="sk-desk-section gap-2 text-sm" aria-label={ui("Submitted answers")}>
         <p className="sk-eyebrow">{ui("Submitted answers")} · {detail.submissions.length ? ui("Sent {0} time(s), last {1}", [detail.submissions.length, dateTime(detail.submissions[detail.submissions.length - 1].submittedAt)]) : ui("Not sent yet")}</p>
         <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-2">{visibleFields(definition, detail.answers).map(field => <div key={field.key}><dt className="text-xs text-ink-muted">{label(field.label, "en")}</dt><dd className="font-semibold"><bdi>{typeof detail.answers[field.key] === "boolean" ? (detail.answers[field.key] ? ui("Yes") : ui("No")) : field.type === "select" ? (field.options?.find(option => option.value === detail.answers[field.key])?.label.en ?? String(detail.answers[field.key] ?? "—")) : String(detail.answers[field.key] ?? "—")}</bdi></dd></div>)}</dl>
       </section>}
 
-      <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Documents")}>
+      <section className="sk-desk-section gap-2 text-sm" aria-label={ui("Documents")}>
         <p className="sk-eyebrow">{ui("Documents")}</p>
         {visibleDocuments(definition, detail.answers).map(document => {
           const files = detail.documents.filter(file => file.key === document.key);
           return <div key={document.key} className="flex flex-wrap items-center gap-2" data-review-document={document.key} data-present={files.length > 0}>
-            <span className={files.length ? "text-status-success-text" : document.required ? "font-bold text-status-error-text" : "text-ink-muted"}>{files.length ? "✓" : document.required ? "✗" : "·"} {label(document.label, "en")}{document.required ? "" : ` (${ui("optional")})`}</span>
+            <DeskPill tone={files.length ? "success" : document.required ? "danger" : "neutral"}>{label(document.label, "en")}{document.required ? "" : ` (${ui("optional")})`}</DeskPill>
             {files.map(file => <a key={file.id} className="text-xs font-bold text-primary underline" href={`/api/admissions?document=${encodeURIComponent(file.id)}`}><bdi>{file.fileName}</bdi></a>)}
             {["DRAFT", "SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "OFFERED", "WAITLISTED", "ACCEPTED"].includes(detail.status) ? <label className="cursor-pointer text-xs text-primary">{ui("Attach")}<input type="file" className="sr-only" accept="application/pdf,image/jpeg,image/png" onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void uploadFile(document.key, file); }} /></label> : null}
           </div>;
         })}
         {detail.missing.length ? <p className="text-xs font-bold text-status-error-text" data-review-missing>{ui("Missing: {0}", [detail.missing.join(", ")])}</p> : null}
       </section>
-      {staffDraft ? <div className="space-y-2 rounded-xl border border-border p-3">
+      {staffDraft ? <div className="sk-desk-section gap-2">
         <label className="flex items-start gap-2 text-sm"><Checkbox checked={consent} onChange={event => setConsent(event.target.checked)} />{ui("The family has read and agreed to this statement:")} {label(definition.consent, "en")}</label>
         <Button disabled={busy || !consent} onClick={() => void run({ action: "staff-submit", consent: true }, ui("Application sent."))}>{ui("Send on the family's behalf")}</Button>
       </div> : null}
 
       {!staffDraft && detail.status !== "DRAFT" ? <AssessmentsPanel assessments={detail.assessments} staff={owners} canBook={["SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "WAITLISTED"].includes(detail.status)} busy={busy} officeNote={officeNote} run={(body, message) => run(body, message)} /> : null}
 
-      {hasDuplicates ? <section className="space-y-1 rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-sm" aria-label={ui("Possible duplicates")} data-duplicates>
+      {hasDuplicates ? <section data-tone="warning" className="sk-desk-section gap-1 text-sm" aria-label={ui("Possible duplicates")} data-duplicates>
         <p className="font-bold">{ui("Possible duplicates")}</p>
         {detail.duplicates.students.map(student => <p key={student.id} data-duplicate-student={student.id}>{ui("Pupil")}: <bdi>{student.fullName}</bdi> · <bdi dir="ltr">{student.rollNo}</bdi> · <bdi>{student.className}</bdi>{student.dateOfBirth ? <> · <bdi dir="ltr">{student.dateOfBirth}</bdi></> : null}{student.archived ? ` · ${ui("archived")}` : ""}</p>)}
         {detail.duplicates.applications.map(other => <p key={other.id}>{ui("Application")}: <bdi dir="ltr">{other.reference}</bdi> · <bdi>{other.childName}</bdi> · {statusLabel(ui, other.status)}</p>)}
@@ -266,7 +277,7 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
         <Button variant="secondary" disabled={busy} onClick={() => void run({ action: "assign", ownerId: ownerId || null, nextContactAt: nextContact ? new Date(nextContact).toISOString() : null }, ui("Owner and next contact saved."))}>{ui("Save owner and next contact")}</Button>
       </div> : null}
 
-      {!["ENROLLED"].includes(detail.status) && !staffDraft ? <section className="space-y-2 rounded-xl border border-border p-3" aria-label={ui("Next step")}>
+      {!["ENROLLED"].includes(detail.status) && !staffDraft ? <section className="sk-desk-section gap-2" aria-label={ui("Next step")}>
         <FormField name="review-office-note" label={ui("Office note (staff only)")}><Textarea value={officeNote} rows={2} maxLength={2000} onChange={event => setOfficeNote(event.target.value)} /></FormField>
         <FormField name="review-family-message" label={ui("Message to the family (they will see this)")}><Textarea value={familyMessage} rows={2} maxLength={2000} onChange={event => setFamilyMessage(event.target.value)} /></FormField>
         {stageButtons.some(([action]) => action === "offer") ? <FormField name="review-intake" label={ui("Class offered")}><Select value={intakeClassId} onChange={event => setIntakeClassId(event.target.value)}>{classes.map(cls => <option key={cls.id} value={cls.id}>{className(cls)}</option>)}</Select></FormField> : null}
@@ -279,7 +290,7 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
       </section> : null}
 
       {detail.status === "ACCEPTED" && !canDecide ? <Alert tone="info" compact live="off">{ui("Your campus admin enrols accepted applications.")}</Alert> : null}
-      {detail.status === "ACCEPTED" && canDecide ? <section className="space-y-2 rounded-xl border-2 border-primary/30 p-3" aria-label={ui("Enrol")} data-convert>
+      {detail.status === "ACCEPTED" && canDecide ? <section data-tone="success" className="sk-desk-section gap-2 border-2 border-status-success-border" aria-label={ui("Enrol")} data-convert>
         <p className="text-sm font-bold">{ui("Enrol the child")}</p>
         <p className="text-xs text-ink-muted">{ui("This creates the pupil record once. Guardian sign-in invitations are sent separately from the pupil's record and can be retried there.")}</p>
         {hasDuplicates ? <fieldset className="space-y-1 text-sm"><legend className="text-xs font-bold">{ui("This child may already be on the school's records. Choose:")}</legend>
@@ -296,11 +307,11 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
 
       <section aria-label={ui("History")}>
         <p className="mb-2 text-xs font-semibold ltr:uppercase text-ink-subtle">{ui("History")}</p>
-        <ol className="space-y-1.5 text-xs" data-application-history>{detail.events.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2" data-event={event.kind}>
-          <p className="font-bold">{eventLabel(ui, event.kind)}{event.toStatus ? <> <span aria-hidden="true" className="inline-block rtl:rotate-180">→</span> {statusLabel(ui, event.toStatus)}</> : null} · <bdi>{dateTime(event.createdAt)}</bdi> · {event.actorName ? <bdi>{event.actorName}</bdi> : ui("Family")}</p>
+        <ol className={cn(deskTimeline, "text-xs")} data-application-history>{detail.events.map(event => <li key={event.id} data-tone={event.toStatus ? STAGE_TONE[event.toStatus] ?? "neutral" : event.kind === "NOTE" ? "neutral" : "brand"} className="space-y-0.5" data-event={event.kind}>
+          <p className="font-bold text-ink-strong">{eventLabel(ui, event.kind)}{event.toStatus ? <> <span aria-hidden="true" className="inline-block rtl:rotate-180">→</span> {statusLabel(ui, event.toStatus)}</> : null} · <bdi>{dateTime(event.createdAt)}</bdi> · {event.actorName ? <bdi>{event.actorName}</bdi> : ui("Family")}</p>
           {event.kind.startsWith("ASSESSMENT_") && typeof event.detail?.kind === "string" ? <p>{kindLabel(ui, event.detail.kind)}</p> : null}
-          {event.officeNote ? <p className="whitespace-pre-wrap"><span className="font-bold">{ui("Office note")}:</span> <bdi>{event.officeNote}</bdi></p> : null}
-          {event.familyMessage ? <p className="whitespace-pre-wrap text-primary"><span className="font-bold">{ui("To family")}:</span> <bdi>{event.familyMessage}</bdi></p> : null}
+          {event.officeNote ? <p className="whitespace-pre-wrap rounded-lg bg-surface-subtle px-2.5 py-1.5"><span className="font-bold">{ui("Office note")}:</span> <bdi>{event.officeNote}</bdi></p> : null}
+          {event.familyMessage ? <p className="whitespace-pre-wrap rounded-lg bg-status-brand-surface px-2.5 py-1.5 text-primary"><span className="font-bold">{ui("To family")}:</span> <bdi>{event.familyMessage}</bdi></p> : null}
         </li>)}</ol>
       </section>
     </div>}
@@ -318,11 +329,11 @@ function FormsTab({ forms, onChanged }: { forms: Form[]; onChanged: () => void }
   const link = (form: Form) => `${typeof window === "undefined" ? "" : window.location.origin}/apply/${form.publicToken}`;
   return <div className="space-y-3">
     <div className="flex justify-end"><Button onClick={() => setEditing("new")}><Plus className="size-4" aria-hidden="true" />{ui("New application form")}</Button></div>
-    {!forms.length ? <p className="rounded-2xl bg-muted p-4 text-sm">{ui("No application forms yet. Start from the suggested form and adjust it for your school.")}</p>
-      : <ul className="space-y-2" aria-label={ui("Application forms")}>{forms.map(form => {
+    {!forms.length ? <div className="sk-panel"><EmptyState size="sm" icon={ClipboardList} title={ui("No application forms yet. Start from the suggested form and adjust it for your school.")} primaryAction={{ id: "new-form", label: "New application form", icon: Plus, onClick: () => setEditing("new") }} /></div>
+      : <ul className="space-y-2.5" aria-label={ui("Application forms")}>{forms.map(form => {
         const changed = JSON.stringify(form.draft) !== JSON.stringify((form.published as unknown as { definition?: unknown })?.definition);
-        return <li key={form.id} className="space-y-1 rounded-2xl border border-border p-3 text-sm" data-admission-form={form.name}>
-          <p className="font-bold"><bdi>{form.name}</bdi></p>
+        return <li key={form.id} data-tone={!form.published ? "info" : changed ? "warning" : form.isOpen ? "success" : "muted"} className={cn(deskRow, "space-y-1.5 text-sm")} data-admission-form={form.name}>
+          <p className="flex flex-wrap items-center gap-2 font-bold text-ink-strong"><DeskRowIcon icon={form.isOpen && form.published ? Globe2 : FileText} className="size-8" /><bdi>{form.name}</bdi>{form.published && form.isOpen ? <DeskPill tone="success">{ui("Accepting applications")}</DeskPill> : null}</p>
           <p className="text-xs text-ink-muted">{form.published ? ui("Published version {0} · {1}", [form.published.version, dateTime(form.published.publishedAt)]) : ui("Draft — not published")}{form.published && changed ? ` · ${ui("Draft has unpublished changes")}` : ""} · {form.isOpen ? ui("Accepting applications") : ui("Closed to new applications")}</p>
           {form.published ? <p className="flex flex-wrap items-center gap-2 text-xs"><bdi dir="ltr" className="break-all" data-form-link>{link(form)}</bdi><Button size="sm" variant="ghost" onClick={() => { void navigator.clipboard?.writeText(link(form)); toast.success(ui("Link copied.")); }}><Copy className="size-3" aria-hidden="true" />{ui("Copy link")}</Button></p> : null}
           <div className="flex flex-wrap gap-2">
