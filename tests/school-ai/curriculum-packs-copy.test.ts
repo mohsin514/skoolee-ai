@@ -22,3 +22,9 @@ test("the screen has no hard-coded English title or browser-locale dates", () =>
   assert.doesNotMatch(source, /title="Curriculum packs"/);
   assert.doesNotMatch(source, /toLocaleString\(\)/);
 });
+
+test("an empty catalogue explains itself and hides the request form", () => {
+  const source = readFileSync("src/components/curriculum/CurriculumPacks.tsx", "utf8");
+  assert.match(source, /data\.canRequest && data\.catalogue\.length > 0 && data\.campuses\.length > 0/);
+  assert.match(source, /data-pack-catalogue-empty/);
+});

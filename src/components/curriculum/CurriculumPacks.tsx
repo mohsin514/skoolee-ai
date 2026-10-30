@@ -67,7 +67,7 @@ export function CurriculumPacks() {
       <section aria-labelledby="pack-requests" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="pack-requests" className="text-lg font-semibold text-ink-strong">{t.requestsTitle}</h2>
-          {data.canRequest && !requesting && <Button onClick={() => setRequesting(true)} data-pack-request-open>{t.request}</Button>}
+          {data.canRequest && data.catalogue.length > 0 && data.campuses.length > 0 && !requesting && <Button onClick={() => setRequesting(true)} data-pack-request-open>{t.request}</Button>}
         </div>
         {requesting && <RequestForm t={t} data={data} busy={busy} onCancel={() => setRequesting(false)} onSubmit={body => act(async () => { await send("/api/school-ai/curriculum-packs", JSON.stringify(body)); setRequesting(false); })} />}
         {!data.activations.length && <p className="text-sm text-ink-muted">{t.noRequests}</p>}
@@ -76,6 +76,7 @@ export function CurriculumPacks() {
       <section aria-labelledby="pack-catalogue" className="space-y-3">
         <h2 id="pack-catalogue" className="text-lg font-semibold text-ink-strong">{t.catalogueTitle}</h2>
         <p className="text-sm text-ink-muted">{t.catalogueIntro}</p>
+        {!data.catalogue.length && <Alert tone="info" title={t.catalogueEmpty} data-pack-catalogue-empty />}
         <ul className="grid gap-3 md:grid-cols-2">{data.catalogue.map(item => <li key={item.id} className="sk-panel space-y-1 p-4" data-pack-catalogue={item.packId}>
           <p className="font-semibold text-ink-strong"><bdi dir="ltr">{item.packId}</bdi> · {fill(t.version, [item.version])}</p>
           <p className="text-sm text-ink-muted">{t.board}: {item.board} · {t.grade}: <bdi dir="auto">{item.schoolGrade}</bdi> · {t.examYear}: {item.examYear} · {t.language}: {item.language.toUpperCase()}</p>
