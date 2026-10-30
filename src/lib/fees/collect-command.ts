@@ -25,6 +25,25 @@ export type CollectMethod = typeof COLLECT_METHODS[number];
 
 const conflict = (message: string, code: string) => new ApiError(message, 409, code);
 
+// SKAI-1305: stored money is Int32 minor units, so an amount must be a whole number inside that range.
+// Rounding it first would silently post a different amount than the one requested.
+const MAX_MINOR_UNITS = 2147483647;
+function minorUnits(value: unknown, field: string, fallback?: number) {
+  const raw = value === undefined || value === null ? fallback : value;
+  const amount = typeof raw === "number" || typeof raw === "string" ? Number(raw) : NaN;
+  if (raw === "" || !Number.isSafeInteger(amount) || amount < 0 || amount > MAX_MINOR_UNITS) {
+    throw new ApiError(`${field} must be a whole number of paisa between 0 and ${MAX_MINOR_UNITS}`, 400);
+  }
+  return amount;
+}
+
+// SKAI-1307: strict YYYY-MM-DD calendar day. 2026-02-30 must not roll over into another accounting day.
+function calendarDate(value: unknown): Date | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  return isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? null : date;
+}
+
 /**
  * Whether the school's approved Delivery Policy for this campus requires a second person (separationOfDuties
  * REQUIRED). The platform default is NOT_REQUIRED. Used by the hand-off (to target someone other than the
@@ -101,10 +120,11 @@ export function collectReceipt({ invoice, payment, credit, replayed }: CollectOu
 export async function collectPaymentCore(user: AuthUser, body: Record<string, unknown>): Promise<CollectOutcome> {
   if (!body.studentId || !body.invoiceId) throw new ApiError("studentId and invoiceId required", 400);
 
-  const amount = Math.round(Number(body.amount));
-  if (!Number.isInteger(amount) || amount <= 0) throw new ApiError("amount must be a positive integer (paisa)", 400);
+  const amount = minorUnits(body.amount, "amount");
+  if (amount <= 0) throw new ApiError("amount must be a positive integer (paisa)", 400);
 
-  const paymentDate = new Date((body.paymentDate ?? new Date().toISOString().split("T")[0]) as string);
+  const paymentDate = calendarDate(body.paymentDate ?? new Date().toISOString().split("T")[0]);
+  if (!paymentDate) throw new ApiError("paymentDate must be a real calendar date (YYYY-MM-DD)", 400);
   const paymentMethod = String(body.paymentMethod ?? "").toUpperCase();
   if (!(COLLECT_METHODS as readonly string[]).includes(paymentMethod)) {
     throw new ApiError("paymentMethod must be CASH, BANK, CHEQUE, SAFEPAY or MOBILE_WALLET", 400);
@@ -119,6 +139,8 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
     include: { student: { select: { id: true, fullName: true, campusId: true } } },
   });
   if (!invoice) throw new ApiError("Invoice not found for this student", 404);
+  // SKAI-1309: a cancelled invoice is terminal, so this is a business-rule rejection (409), not a server fault.
+  if (invoice.status === "CANCELLED") throw conflict("Cancelled invoices cannot accept payments.", "INVOICE_CANCELLED");
 
   const campusId = await resolveCampusId(user, invoice.student.campusId);
 
@@ -126,7 +148,7 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
   // response replays the original receipt; the same key with a different request is a conflict.
   const idempotencyKey = typeof body.idempotencyKey === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(body.idempotencyKey) ? body.idempotencyKey : null;
   if (!idempotencyKey) throw new ApiError("idempotencyKey is required for a manual collection", 400);
-  const fineAmount = Math.round(Number(body.fineAmount ?? 0)), discountAmount = Math.round(Number(body.discountAmount ?? 0));
+  const fineAmount = minorUnits(body.fineAmount, "fineAmount", 0), discountAmount = minorUnits(body.discountAmount, "discountAmount", 0);
   const referenceNumber = (body.referenceNumber ?? null) as string | null, note = (body.note ?? null) as string | null;
   const requestHash = createHash("sha256").update(JSON.stringify({ invoiceId: invoice.id, studentId: invoice.studentId, amount, fineAmount, discountAmount, paymentDate: paymentDate.toISOString().slice(0, 10), paymentMethod, referenceNumber, note })).digest("hex");
   const outcome = (payment: CollectPayment, credit: number, replayed: boolean): CollectOutcome => ({ invoice, payment, credit, replayed, campusId, amount });
@@ -176,6 +198,8 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
         const winner = await replay();
         if (winner) return winner;
       }
+      // SKAI-1310: the same campus, date and reference number already exist on another payment.
+      if (/reference/i.test(target)) throw conflict("A payment with this reference number already exists for this campus and date.", "DUPLICATE_REFERENCE");
       if (/workflow_?handoff/i.test(target)) throw conflict("This prepared collection was already recorded. Check its receipt before recording again.", "HANDOFF_ALREADY_POSTED");
     }
     throw error;

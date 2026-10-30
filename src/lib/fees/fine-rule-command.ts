@@ -21,7 +21,10 @@ export async function createFineRule(user: AuthUser, body: Record<string, unknow
   if (!Number.isInteger(value) || value < 0) throw new ApiError("value must be a non-negative integer", 400);
   if (type === "PERCENT" && value > 100) throw new ApiError("percent fine cannot exceed 100", 400);
 
-  const graceDays = Math.max(0, Math.round(Number(body.graceDays ?? 0)));
+  // SKAI-1308: a malformed grace period is a validation error, not NaN reaching the database.
+  const graceRaw = body.graceDays ?? 0;
+  const graceDays = typeof graceRaw === "number" || typeof graceRaw === "string" ? Number(graceRaw) : NaN;
+  if (graceRaw === "" || !Number.isInteger(graceDays) || graceDays < 0) throw new ApiError("graceDays must be a non-negative whole number of days", 400);
 
   const existing = await prisma.feeFineRule.findFirst({ where: { campusId, name } });
   if (existing) throw new ApiError("A fine rule with this name already exists", 409);
