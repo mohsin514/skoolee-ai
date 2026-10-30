@@ -23,7 +23,7 @@ function fixture() {
     guardianRelationship: { findMany: async (args: unknown) => { state.calls.push({ model: "guardian", args }); return state.guardianCurrent ? [{ guardianUserId: parent.userId }] : []; } },
     chatSetting: { findUnique: async () => null },
     class: { findMany: async () => state.teacherAssigned ? [{ id: "class-a" }] : [] },
-    subject: { findMany: async () => [] }, timetableSlot: { findMany: async () => [] },
+    subject: { findMany: async () => [] }, timetableSlot: { findMany: async () => [] }, teachingAssignment: { findMany: async () => [] },
     student: { findFirst: async () => state.guardianCurrent ? { id: "student-a" } : null },
   } as unknown as TxClient;
   const read = async (key: string) => { state.reads.push(key); return stream(); };
