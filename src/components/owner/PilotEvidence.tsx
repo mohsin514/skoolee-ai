@@ -3,7 +3,8 @@
 import { PilotCharter } from "./PilotCharter";
 import type { PilotCommercialEvidence } from "@/lib/pilots/service";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ClipboardPlus, Download, FlaskConical, Plus } from "lucide-react";
+import { CircleDot, ClipboardPlus, Download, FileCheck2, FlaskConical, Lock, Plus, Sparkles } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowIcon, DeskSection, DeskStats, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Badge as UiBadge } from "@/components/ui/badge";
@@ -50,6 +51,9 @@ const KIND_LABEL: Record<string, string> = { CORRECTNESS_EXTRACTION: "Extraction
 const STATUS_LABEL: Record<string, string> = { DRAFT: "Draft", APPROVED: "Approved", RETURNED: "Returned", WITHDRAWN: "Withdrawn", STALE: "Stale", WAITING_CHARTER: "Waiting for charter", WAITING_PAYMENT: "Waiting for payment", WAITING_PROVIDER: "Waiting for provider", WAITING_READINESS: "Waiting for readiness", WAITING_PILOT_GATE: "Waiting for pilot readiness gate",PLANNED: "Planned", ACTIVE: "Active", CLOSED: "Closed" };
 const PERMISSION_LABEL: Record<string, string> = { NONE: "No case-study permission", AGGREGATE: "Anonymised figures only", NAMED: "School may be named" };
 const PHASE_LABEL: Record<string, string> = { BASELINE: "Baseline", FOLLOW_UP: "Follow-up" };
+const PILOT_TONE: Record<string, DeskTone> = { ACTIVE: "success", PLANNED: "info", CLOSED: "neutral" };
+/** Running pilots first, then the ones still being set up; closed pilots sink to the end. */
+const PILOT_RANK: Record<string, number> = { ACTIVE: 0, PLANNED: 1, CLOSED: 3 };
 
 async function call(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } }).catch(() => null);
@@ -81,6 +85,7 @@ export function PilotEvidence() {
   const [adding, setAdding] = useState<"observation" | "measure" | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exported, setExported] = useState<Exported | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null), [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     try { const data = await call("/api/owner/pilots"); setPilots(data.pilots); setOwners(data.owners); setLoadFailed(false); }
@@ -126,11 +131,14 @@ export function PilotEvidence() {
 
   const newPilot = { id: "new-pilot", label: "New pilot", icon: Plus, onClick: () => { setError(null); setCreating(true); }, disabled: pilots === null || loadFailed };
   const exportAction = { id: "export-claims", label: "Export approved claims", icon: Download, onClick: () => void exportClaims(), loading: exporting };
+  const needle = query.trim().toLowerCase();
+  const shownPilots = pilots ? urgencyFirst(pilots.filter((pilot) => (!statusFilter || pilot.status === statusFilter) && (!needle || `${pilot.name} ${pilot.cohort ?? ""}`.toLowerCase().includes(needle))), (pilot) => PILOT_RANK[pilot.status] ?? 2) : [];
   return (
     // The scrolling body of the shell's one page card (addendum 2026-10-22).
     <div className={cn("custom-scrollbar min-h-0 flex-1 space-y-6 overflow-y-auto", PAGE_CARD_BODY)}>
       <PageHeader
         eyebrow="Platform operations"
+        icon={FlaskConical}
         title="Pilot evidence"
         description="Measured pilot results only. Targets, self-reports and synthetic demos are labelled and never counted as results."
         // One primary: "Add evidence" for the pilot in view (§4.4b); with no pilot open, starting one is the first job.
@@ -139,13 +147,14 @@ export function PilotEvidence() {
       />
       {error && !creating && !adding ? <Alert ref={errorRef} tabIndex={-1} tone="danger" compact onDismiss={() => setError(null)}>{error}</Alert> : null}
       {creating ? (
-        <Modal title={ui("New pilot")} subtitle={ui("Record the charter first, then a baseline, before reporting any impact.")} icon={FlaskConical} size="lg" onClose={() => setCreating(false)}>
+        <Modal title={ui("New pilot")} eyebrow={ui("Pilot charter")} subtitle={ui("Record the charter first, then a baseline, before reporting any impact.")} icon={FlaskConical} size="lg" onClose={() => setCreating(false)}>
           {error ? <Alert ref={errorRef} tabIndex={-1} tone="danger" compact>{error}</Alert> : null}
           <PilotForm owners={owners} onCreated={async (id) => { setCreating(false); toast.success(ui("Pilot charter saved.")); await load(); setSelected(id); }} onError={(m) => setError(ui(m))} />
         </Modal>
       ) : null}
       {adding && detail ? (
-        <Modal title={ui("Add evidence")} subtitle={<bdi>{detail.pilot.name}</bdi>} icon={ClipboardPlus} size="lg" onClose={() => setAdding(null)}>
+        <Modal title={ui("Add evidence")} subtitle={<bdi>{detail.pilot.name}</bdi>} icon={ClipboardPlus} tone="sky" size="lg" onClose={() => setAdding(null)}
+          chips={<><DeskPill tone={PILOT_TONE[detail.pilot.status] ?? "neutral"}>{ui(STATUS_LABEL[detail.pilot.status] ?? detail.pilot.status)}</DeskPill>{detail.pilot.synthetic ? <DeskPill tone="warning">{ui("Synthetic — not a result")}</DeskPill> : null}</>}>
           <div className="space-y-4">
             {error ? <Alert ref={errorRef} tabIndex={-1} tone="danger" compact>{error}</Alert> : null}
             <div role="group" aria-label={ui("Kind of evidence")} className="flex flex-wrap gap-2">
@@ -167,22 +176,37 @@ export function PilotEvidence() {
         : pilots === null ? <SkeletonList rows={3} label={ui("Loading pilots…")} />
         : pilots.length === 0 ? <div className="sk-panel"><EmptyState size="sm" icon={FlaskConical} title={ui("No pilots yet")} description={ui("Record a charter, then a baseline, before reporting any impact.")} primaryAction={newPilot} /></div>
         : (
+          <div className="space-y-3">
+          {/* Counters are filters: each status tile narrows the pilots below; pressing it again shows them all. */}
+          <DeskStats data-pilot-stats>
+            {([["ACTIVE", CircleDot], ["PLANNED", Sparkles], ["CLOSED", Lock]] as const).map(([status, Icon], index) => {
+              const count = pilots.filter((pilot) => pilot.status === status).length;
+              return <StatTile key={status} index={index} icon={Icon} tone={count ? PILOT_TONE[status] : "neutral"} label={ui(STATUS_LABEL[status])} value={count} selected={statusFilter === status} onSelect={() => setStatusFilter(statusFilter === status ? null : status)} />;
+            })}
+          </DeskStats>
+          {pilots.length > 8 ? <DeskQuickFilter value={query} onChange={setQuery} label={ui("Search pilots")} /> : null}
+          <DeskFilterStatus shown={shownPilots.length} total={pilots.length} onClear={() => { setStatusFilter(null); setQuery(""); }} />
           <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {pilots.map((pilot) => (
+            {shownPilots.map((pilot) => (
               <li key={pilot.id}>
-                <Button variant="choice" type="button" onClick={() => setSelected(pilot.id === selected ? null : pilot.id)} aria-pressed={pilot.id === selected}
-                  className="h-auto w-full flex-col items-start rounded-2xl p-4 text-start font-normal">
+                <Button variant="ghost" type="button" onClick={() => setSelected(pilot.id === selected ? null : pilot.id)} aria-pressed={pilot.id === selected}
+                  data-tone={pilot.synthetic ? "warning" : PILOT_TONE[pilot.status] ?? "neutral"}
+                  className={cn(deskRow, "flex h-auto w-full items-start gap-3 whitespace-normal text-start font-normal actionable-hover:text-ink aria-pressed:ring-2 aria-pressed:ring-primary/40")}>
+                  <DeskRowIcon icon={FlaskConical} />
+                  <span className="block min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="font-bold text-ink"><bdi>{pilot.name}</bdi></span>
-                    <Badge>{ui(STATUS_LABEL[pilot.status] ?? pilot.status)}</Badge>
-                    {pilot.synthetic ? <Badge tone="warn">{ui("Synthetic — not a result")}</Badge> : null}
+                    <DeskPill tone={PILOT_TONE[pilot.status] ?? "neutral"}>{ui(STATUS_LABEL[pilot.status] ?? pilot.status)}</DeskPill>
+                    {pilot.synthetic ? <DeskPill tone="warning">{ui("Synthetic — not a result")}</DeskPill> : null}
                   </span>
                   <span className="mt-1 block text-xs text-ink-muted" dir="ltr"><bdi>{pilot.cohort}</bdi></span>
                   <span className="mt-2 block text-xs font-medium text-ink-subtle tabular-nums">{ui("{0} observations · {1} measures · {2} claims", [pilot._count?.observations ?? 0, pilot._count?.measures ?? 0, pilot._count?.claims ?? 0])}</span>
+                  </span>
                 </Button>
               </li>
             ))}
           </ul>
+          </div>
         )}
 
       {detailLoading ? <SkeletonList rows={3} label={ui("Loading pilot details")} /> : detailFailed && selected ? <ErrorState title={ui("Pilot details did not load")} onRetry={() => void loadDetail(selected)} /> : currentDetail ? <PilotDetail key={currentDetail.pilot.id} detail={currentDetail} owners={owners} act={act} /> : null}
@@ -256,7 +280,7 @@ function PilotDetail({ detail, owners, act }: { detail: Detail; owners: { id: st
       <PilotCharter history={pilot.charterHistory ?? []} workflows={pilot.workflows} save={data => act("charter", data, "Charter updated.")} />
       <div className="sk-panel p-4 sm:p-6">
         <h2 id="pilot-detail-heading" className="text-base font-bold text-ink"><bdi>{pilot.name}</bdi></h2>
-        {pilot.synthetic ? <p className="mt-1 text-sm font-semibold text-status-warning-text">{ui("Synthetic demonstration: excluded from every finding, claim and export.")}</p> : null}
+        {pilot.synthetic ? <Alert className="mt-3" tone="warning" compact live="off">{ui("Synthetic demonstration: excluded from every finding, claim and export.")}</Alert> : null}
         <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div><dt className="text-xs font-bold text-ink-muted">{ui("Cohort")}</dt><dd dir="ltr"><bdi>{pilot.country} · {pilot.curriculum} · {pilot.language} · {pilot.useCase}</bdi></dd></div>
           <div><dt className="text-xs font-bold text-ink-muted">{ui("Dates")}</dt><dd dir="ltr">{pilot.startsOn.slice(0, 10)} → {pilot.endsOn?.slice(0, 10) ?? ui("open")}</dd></div>
@@ -465,15 +489,15 @@ function ClaimsPanel({ claims, findingKeys, act }: { claims: Claim[]; findingKey
         <div className="md:col-span-2"><Button type="submit">{ui("Propose claim")}</Button></div>
       </form>
       <ul className="space-y-3">{claims.map((claim) => (
-        <li key={claim.id} className="rounded-2xl border border-border p-4">
+        <li key={claim.id} data-tone={claim.stale || claim.status === "STALE" ? "danger" : claim.status === "APPROVED" ? "success" : claim.status === "RETURNED" ? "warning" : undefined} className={deskRow}>
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone={claim.status === "APPROVED" && !claim.stale ? "good" : claim.status === "STALE" || claim.stale ? "bad" : "neutral"}>{ui(claim.stale ? "Stale" : STATUS_LABEL[claim.status] ?? claim.status)}</Badge>
             <span className="text-xs text-ink-muted" dir="ltr">{claim.findingKey} · v{claim.version}</span>
             {claim.identifiable ? <Badge tone="warn">{ui("Identifies the school")}</Badge> : null}
           </div>
           <p className="mt-2 text-sm font-semibold text-ink"><bdi>{claim.statement}</bdi></p>
-          {!claim.support.supported ? <p className="mt-1 text-xs text-status-error-text">{ui("Not supported")}: {ui(claim.support.reason ?? "")}</p> : null}
-          {claim.exportBlockedBy ? <p className="mt-1 text-xs text-status-error-text">{ui("Blocked from export")}: {ui(claim.exportBlockedBy)}</p> : null}
+          {!claim.support.supported ? <Alert className="mt-2" tone="danger" compact live="off">{ui("Not supported")}: {ui(claim.support.reason ?? "")}</Alert> : null}
+          {claim.exportBlockedBy ? <Alert className="mt-2" tone="warning" compact live="off">{ui("Blocked from export")}: {ui(claim.exportBlockedBy)}</Alert> : null}
           {claim.reviewNote ? <p className="mt-1 text-xs text-ink-muted">{ui("Review note")}: <bdi>{claim.reviewNote}</bdi></p> : null}
           {claim.status !== "WITHDRAWN" ? (
             <div className="mt-3 flex flex-wrap items-end gap-2">
@@ -491,11 +515,8 @@ function ClaimsPanel({ claims, findingKeys, act }: { claims: Claim[]; findingKey
 function ExportView({ exported, onClose }: { exported: Exported; onClose: () => void }) {
   const ui = useUiText();
   return (
-    <div className="mb-6 rounded-2xl border border-border p-4" role="region" aria-label={ui("Export of approved claims")}>
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="font-bold text-ink">{ui("Export of approved claims")}</h2>
-        <Button size="sm" variant="ghost" onClick={onClose}>{ui("Close")}</Button>
-      </div>
+    <DeskSection icon={FileCheck2} tone="success" role="region" aria-label={ui("Export of approved claims")} title={ui("Export of approved claims")}
+      action={<Button size="sm" variant="ghost" onClick={onClose}>{ui("Close")}</Button>}>
       <p className="mt-1 text-xs text-ink-muted">{ui("{0} statements exported · {1} excluded", [exported.statements.length, exported.excluded.length])}</p>
       <ul className="mt-3 space-y-2 text-sm">{exported.statements.map((s) => (
         <li key={s.claimId} className="rounded-xl bg-surface-muted p-3">
@@ -504,7 +525,7 @@ function ExportView({ exported, onClose }: { exported: Exported; onClose: () => 
           <ul className="mt-1 list-disc ps-5 text-xs">{s.limitations.map((l) => <li key={l}><bdi>{l}</bdi></li>)}</ul>
         </li>
       ))}</ul>
-      {exported.excluded.length ? <ul className="mt-3 space-y-1 text-xs text-status-error-text">{exported.excluded.map((x) => <li key={x.claimId}><bdi>{x.pilot}</bdi>: {ui(x.reason)}</li>)}</ul> : null}
-    </div>
+      {exported.excluded.length ? <Alert className="mt-3" tone="warning" compact live="off"><ul className="space-y-1 text-xs">{exported.excluded.map((x) => <li key={x.claimId}><bdi>{x.pilot}</bdi>: {ui(x.reason)}</li>)}</ul></Alert> : null}
+    </DeskSection>
   );
 }
