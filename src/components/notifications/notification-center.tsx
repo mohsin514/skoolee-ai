@@ -104,7 +104,7 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
       </Button>)}
     </div>
     {tab === "actions" && counts?.overdueActions ? <div className="mx-3 mt-2"><Badge variant="danger" dot className="tabular-nums" data-overdue-actions={counts.overdueActions}>{ui("{0} overdue", [counts.overdueActions])}</Badge></div> : null}
-    <div className="max-h-[420px] space-y-1.5 overflow-y-auto p-2.5" aria-live="polite">
+    <div className="sk-scroll-cue max-h-[420px] space-y-1.5 overflow-y-auto p-2.5" aria-live="polite">
       {error ? <ErrorState error={error} onRetry={load} />
         : items === null ? <SkeletonList rows={3} label={ui("Loading…")} />
         : items.length === 0 ? <EmptyState size="sm" icon={Bell} title={tab === "actions" ? ui("No assigned actions need your attention.") : tab === "mentions" ? ui("No one has messaged you directly.") : ui("No notifications yet")} />
