@@ -225,7 +225,7 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
   ] as [string, string, string][]).filter(([action, , from]) => from.split(",").includes(detail.status)
     // The front desk moves an application forward; offers, refusals and acceptances are the campus admin's (§2.2 #51).
     && (canDecide || ["review", "withdraw"].includes(action)));
-  return <Modal title={detail ? ui("Application {0}", [detail.reference]) : ui("Application")} eyebrow={ui("Admissions")} icon={ClipboardList} tone="sky" size="lg" onClose={onClose} dirty={Boolean(officeNote || familyMessage || reason)}>
+  return <Modal title={detail ? ui("Application {0}", [detail.reference]) : ui("Application")} eyebrow={ui("Admissions")} subtitle={detail ? <bdi>{detail.childName}</bdi> : undefined} icon={ClipboardList} tone="sky" size="lg" onClose={onClose} dirty={Boolean(officeNote || familyMessage || reason)}>
     {loadError ? <ErrorState variant="panel" description={loadError} retryLabel={ui("Retry")} onRetry={() => { setLoadError(""); void load(); }} /> : !detail || !definition ? <SkeletonList rows={4} label={ui("Loading application…")} /> : <div className="space-y-4" data-application-review={detail.reference}>
       {error ? <Alert tone="danger" compact data-review-error>{error}</Alert> : null}
       <p className="text-sm font-bold" data-review-status={detail.status}>{statusLabel(ui, detail.status)} · <bdi>{detail.formVersion.form.name}</bdi> · {ui("Form version {0}", [detail.formVersion.version])}{detail.enquiry ? <> · {ui("From enquiry")} <bdi>{detail.enquiry.name}</bdi> ({detail.enquiry.source})</> : null}</p>

@@ -13,7 +13,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Alert } from "@/components/ui/alert";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
-import { BookOpenCheck, CalendarClock, CheckCircle2, ClipboardList, DoorOpen, LifeBuoy } from "lucide-react";
+import { BookOpenCheck, CalendarClock, ClipboardList, DoorOpen, LifeBuoy } from "lucide-react";
 
 // SKO-442: a teacher's cover. Lessons I cover: the handover, its resources (open only until the end of the
 // lesson's day), acknowledge, then say what actually happened. My lessons being covered: write the handover.
@@ -111,7 +111,7 @@ export function MyCover() {
       </div>
     </Modal> : null}
 
-    {rec ? <Modal size="sm" title={ui("Catch-up for a missed lesson")} eyebrow={`${rec.className} · ${rec.subjectName}`} subtitle={date(rec.date)} icon={rec.status === "PUBLISHED" ? CheckCircle2 : LifeBuoy} tone={rec.status === "PUBLISHED" ? "emerald" : "amber"} onClose={() => setRec(null)} footer={rec.status !== "PUBLISHED" ? <div className="flex flex-wrap justify-end gap-2"><Button variant="outline" disabled={busy || !recTitle.trim()} onClick={() => void run(() => recovery(rec, "plan", { title: recTitle, instructions: recText, dueDate: recDue }), "Catch-up saved. It is not shared yet.").then(ok => ok && setRec(null))} data-recovery-plan>{ui("Save catch-up")}</Button> {rec.status === "PLANNED" ? <Button disabled={busy} onClick={() => void run(() => recovery(rec, "publish", {}), "Shared with the class.").then(ok => ok && setRec(null))} data-recovery-publish>{ui("Share with the class")}</Button> : null}</div> : <div className="flex flex-wrap justify-end gap-2"><Button disabled={busy || !recNote.trim()} onClick={() => void run(() => recovery(rec, "complete", { evidenceNote: recNote }), "Catch-up completed.").then(ok => ok && setRec(null))} data-recovery-complete>{ui("Mark catch-up complete")}</Button></div>}>
+    {rec ? <Modal size="sm" title={ui("Catch-up for a missed lesson")} eyebrow={`${rec.className} · ${rec.subjectName}`} subtitle={date(rec.date)} icon={rec.status === "PUBLISHED" ? BookOpenCheck : LifeBuoy} tone={rec.status === "PUBLISHED" ? "sky" : "amber"} onClose={() => setRec(null)} footer={rec.status !== "PUBLISHED" ? <div className="flex flex-wrap justify-end gap-2"><Button variant="outline" disabled={busy || !recTitle.trim()} onClick={() => void run(() => recovery(rec, "plan", { title: recTitle, instructions: recText, dueDate: recDue }), "Catch-up saved. It is not shared yet.").then(ok => ok && setRec(null))} data-recovery-plan>{ui("Save catch-up")}</Button> {rec.status === "PLANNED" ? <Button disabled={busy} onClick={() => void run(() => recovery(rec, "publish", {}), "Shared with the class.").then(ok => ok && setRec(null))} data-recovery-publish>{ui("Share with the class")}</Button> : null}</div> : <div className="flex flex-wrap justify-end gap-2"><Button disabled={busy || !recNote.trim()} onClick={() => void run(() => recovery(rec, "complete", { evidenceNote: recNote }), "Catch-up completed.").then(ok => ok && setRec(null))} data-recovery-complete>{ui("Mark catch-up complete")}</Button></div>}>
       <div className="space-y-3" data-recovery-dialog>
         {rec.status !== "PUBLISHED" ? <>
           <FormField name="r-title" label={ui("Catch-up task")}><Input value={recTitle} onChange={e => setRecTitle(e.target.value)} maxLength={200} /></FormField>
