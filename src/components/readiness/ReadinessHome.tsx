@@ -23,6 +23,9 @@ import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 import { SetupAreasGuide, type SetupArea } from "./SetupAreasGuide";
 import { TaskTracking, type TaskAction, type TrackedTask } from "./TaskTracking";
 import { setupAreaFromTaskKey } from "@/lib/onboarding/setup-areas";
+import type { SetupProgress as ProgressData } from "@/lib/readiness/progress";
+import { SetupProgress } from "./SetupProgress";
+import { getSetupProgressCopy } from "./setup-progress-copy";
 import { rehearsalStepsFor } from "@/lib/readiness/checks";
 
 /**
@@ -48,9 +51,10 @@ type LeadView = {
   aiSetup?: boolean;
   canSwitchMode?: boolean;
   areas?: SetupArea[];
+  progress?: ProgressData;
 };
 type CampusStatus = { id: string; name: string; classes: number; students: number; ready: boolean };
-type StaffView = { lead: false; tasks: Task[] };
+type StaffView = { lead: false; tasks: Task[]; progress?: ProgressData };
 type Preview = { step: "attendance" | "assessment" | "family"; className: string; campusName: string; timezone: string; currency: string; learners: Array<{ name: string; status: string }>; subjects: string[] };
 const STEPS = ["attendance", "assessment", "family"] as const;
 const PHASES: { key: "foundation" | "people" | "money" | "rehearse"; icon: LucideIcon; checks: string[] }[] = [
@@ -83,6 +87,7 @@ export function ReadinessHome() {
   const [confirmingSwitch, setConfirmingSwitch] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [newTask, setNewTask] = useState({ title: "", ownerId: "" });
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try { setView(await call()); setLoadFailed(null); }
@@ -193,6 +198,9 @@ export function ReadinessHome() {
       {loadFailed === "error" && !view ? <ErrorState title={t.failedTitle} description={t.failed} onRetry={load} /> : null}
       {!view && !loadFailed ? <SkeletonList rows={4} label={t.loading} /> : null}
 
+      {/* ── Setup progress (SKAI-160): totals over the records below, with their read time ── */}
+      {view?.progress ? <SetupProgress progress={view.progress} language={language} lead={view.lead} busy={busy || refreshing} onRefresh={() => { setRefreshing(true); void load().finally(() => setRefreshing(false)); }} /> : null}
+
       {view && !view.lead ? (
         <section aria-labelledby="my-tasks" className="sk-panel space-y-3 p-4 sm:p-6">
           <h2 id="my-tasks" className="text-lg font-bold text-ink-strong">{t.myTasks}</h2>
@@ -203,6 +211,7 @@ export function ReadinessHome() {
 
       {lead ? <>
         <nav aria-label={l.sectionsLabel} className="sk-launch-nav">
+          {lead.progress ? <a href="#progress"><ListChecks aria-hidden="true" className="size-4" />{getSetupProgressCopy(language).title}</a> : null}
           {lead.areas?.length ? <a href="#setup-areas"><ListChecks aria-hidden="true" className="size-4" />{l.nav.setupAreas}</a> : null}
           <a href="#checks"><ListChecks aria-hidden="true" className="size-4" />{l.nav.checks}</a>
           <a href="#practice"><FlaskConical aria-hidden="true" className="size-4" />{l.nav.practice}</a>

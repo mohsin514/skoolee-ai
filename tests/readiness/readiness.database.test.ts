@@ -97,7 +97,12 @@ test("approval records the approver, time, evidence and open follow-ups, then ca
   assert.ok(evidence.outstandingOptional.some(task => task.key === "roster"));
   await assert.rejects(() => approveReadiness(s.owner, { expectedVersion: approved.version }), { status: 409 });
   await assert.rejects(() => db.schoolReadiness.update({ where: { schoolId: s.schoolId }, data: { approvedById: s.teacher.userId } }), /cannot be changed/);
-  assert.equal(await db.auditLog.count({ where: { schoolId: s.schoolId, tableName: "school_readiness" } }), 1);
+  // The automatic audit trail also logs every readiness write (rows carrying `operation`); the approval itself is
+  // the one hand-written SETUP → READY row.
+  const rows = await db.auditLog.findMany({ where: { schoolId: s.schoolId, tableName: "school_readiness" }, select: { oldValue: true, newValue: true } });
+  const approvals = rows.filter(row => (row.newValue as { operation?: unknown; status?: unknown } | null)?.operation === undefined && (row.newValue as { status?: unknown }).status === "READY");
+  assert.equal(approvals.length, 1);
+  assert.deepEqual(approvals[0].oldValue, { status: "SETUP", version: view.readiness.version });
 });
 
 test("the setup delegate leads; other staff see and close only follow-ups they own", async () => {
@@ -224,4 +229,35 @@ test("setup task tracking (SKAI-155): due dates, in-progress, stale edits, remin
   const otherView = await readinessView(other.owner);
   if (!otherView.lead) return;
   assert.ok(otherView.tasks.every(task => task.history.length === 0 && task.id !== area.id), "no history leaks across schools");
+});
+
+test("SKAI-160: progress totals reconcile with the school's own records and never count another school's", async () => {
+  const a = await school("FULL_OPERATIONS"), b = await school("FULL_OPERATIONS");
+  await configure(a); await configure(b);
+  // School B has extra pupils; none may show up in school A's totals.
+  await db.student.create({ data: { schoolId: b.schoolId, campusId: b.campusId, classId: b.classId, fullName: "Synthetic pupil B2", rollNo: "2", gender: "MALE", enrollmentDate: new Date("2026-09-01Z") } });
+  const first = await readinessView(a.owner);
+  if (!first.lead) return assert.fail("owner leads");
+  const holidays = first.tasks.find(task => task.key === "area:holidays")!, periods = first.tasks.find(task => task.key === "area:periods")!;
+  await updateReadinessTask(a.owner, { action: "status", taskId: holidays.id, status: "IN_PROGRESS" });
+  await updateReadinessTask(a.owner, { action: "status", taskId: periods.id, status: "DONE" });
+  const view = await readinessView(a.owner);
+  if (!view.lead) return assert.fail("owner leads");
+  const p = view.progress;
+  const rows = await db.readinessTask.groupBy({ by: ["status"], where: { schoolId: a.schoolId }, _count: true });
+  const count = (status: string) => rows.find(row => row.status === status)?._count ?? 0;
+  assert.deepEqual({ ...p.followUps }, { done: count("DONE"), inProgress: count("IN_PROGRESS"), open: count("OPEN"), deferred: count("DEFERRED"), total: await db.readinessTask.count({ where: { schoolId: a.schoolId } }) });
+  assert.equal(p.areas.find(area => area.id === "holidays")?.bucket, "inProgress", "in progress stays outstanding");
+  assert.equal(p.areas.find(area => area.id === "periods")?.bucket, "done");
+  assert.deepEqual(p.campusTotals, { total: 1, ready: 1, classes: 1, students: 1 });
+  assert.deepEqual(p.school, { classes: await db.class.count({ where: { schoolId: a.schoolId, archivedAt: null } }), students: await db.student.count({ where: { schoolId: a.schoolId, archivedAt: null } }) });
+  assert.equal(p.reconciled, true);
+  assert.deepEqual(p.partial, []);
+  assert.ok(Date.now() - new Date(p.generatedAt).getTime() < 60_000);
+  // A teacher owning one task sees progress over that task only.
+  await updateReadinessTask(a.owner, { action: "assign", taskId: holidays.id, ownerId: a.teacher.userId });
+  const mine = await readinessView(a.teacher);
+  assert.equal(mine.lead, false);
+  assert.deepEqual({ ...mine.progress.followUps }, { done: 0, inProgress: 1, open: 0, deferred: 0, total: 1 });
+  await assert.rejects(() => readinessView(b.teacher), { status: 403 }, "no tasks, no progress");
 });
