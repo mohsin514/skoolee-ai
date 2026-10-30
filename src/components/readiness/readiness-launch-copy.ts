@@ -21,7 +21,7 @@ export type LaunchCopy = {
   approveBar: string;
   practiceHint: string;
   sectionsLabel: string;
-  nav: { checks: string; practice: string; reconcile: string; tasks: string };
+  nav: { setupAreas: string; checks: string; practice: string; reconcile: string; tasks: string };
 };
 
 const en: LaunchCopy = {
@@ -54,7 +54,7 @@ const en: LaunchCopy = {
   approveBar: "All required checks are done.",
   practiceHint: "Runs on your real classes with synthetic learners. Nothing is saved, sent or charged.",
   sectionsLabel: "Readiness sections",
-  nav: { checks: "Checks", practice: "Practice", reconcile: "Reconcile", tasks: "Follow-ups" },
+  nav: { setupAreas: "Setup steps", checks: "Checks", practice: "Practice", reconcile: "Reconcile", tasks: "Follow-ups" },
 };
 
 const ar: LaunchCopy = {
@@ -87,7 +87,7 @@ const ar: LaunchCopy = {
   approveBar: "اكتملت كل الفحوص المطلوبة.",
   practiceHint: "يعمل على صفوفك الحقيقية بطلاب افتراضيين. لا يُحفظ أو يُرسل أو يُحصَّل أي شيء.",
   sectionsLabel: "أقسام الجاهزية",
-  nav: { checks: "الفحوص", practice: "التدريب", reconcile: "المطابقة", tasks: "المتابعات" },
+  nav: { setupAreas: "خطوات الإعداد", checks: "الفحوص", practice: "التدريب", reconcile: "المطابقة", tasks: "المتابعات" },
 };
 
 const ur: LaunchCopy = {
@@ -120,7 +120,7 @@ const ur: LaunchCopy = {
   approveBar: "تمام لازمی جانچیں مکمل ہیں۔",
   practiceHint: "آپ کی حقیقی جماعتوں پر فرضی طلبہ کے ساتھ چلتی ہے۔ کچھ محفوظ، ارسال یا وصول نہیں ہوتا۔",
   sectionsLabel: "تیاری کے حصے",
-  nav: { checks: "جانچیں", practice: "مشق", reconcile: "مطابقت", tasks: "فالو اپس" },
+  nav: { setupAreas: "سیٹ اپ کے مراحل", checks: "جانچیں", practice: "مشق", reconcile: "مطابقت", tasks: "فالو اپس" },
 };
 
 export function getLaunchCopy(language: string): LaunchCopy {
