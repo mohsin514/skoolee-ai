@@ -8,6 +8,8 @@ import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { FormErrorSummary } from "@/components/ui/form-field";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { ErrorState } from "@/components/ui/error-state";
+import { EmptyState } from "@/components/ui/empty-state";
+import { RelativeTime, deskTimeline } from "@/components/ui/desk";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
@@ -98,9 +100,9 @@ function HistoryDialog({ level, campusId, title, onClose }: { level: "school" | 
   useEffect(() => { let cancelled = false; getInstitutionHistory({ level, campusId }).then(data => { if (!cancelled) setRows(data); }).catch(failure => { if (!cancelled) setError(tr(failure instanceof Error ? failure.message : "History could not be loaded.")); }); return () => { cancelled = true; }; }, [level, campusId, tr]);
   const kind = (entry: InstitutionHistoryEntry) => entry.kind === "ARCHIVED" ? tr("Archived") : entry.kind === "RESTORED" ? tr("Restored") : entry.kind === "PAUSED" ? tr("Paused") : entry.kind === "RESUMED" ? tr("Resumed") : tr("Details changed");
   return <Modal title={tr("Change history")} eyebrow={title} icon={Clock} size="lg" onClose={onClose}>
-    {error ? <Alert tone="danger" compact>{error}</Alert> : !rows ? <SkeletonList rows={3} label={tr("Loading history…")} /> : !rows.length ? <p className="text-sm text-ink-muted">{tr("No changes have been recorded yet.")}</p>
-      : <ol className="space-y-2" data-institution-history>{rows.map(entry => <li key={entry.id} className="rounded-xl bg-brand-50/60 px-3 py-2 text-sm" data-history-kind={entry.kind}>
-        <p className="font-bold">{kind(entry)} · <bdi>{dateTime(entry.at)}</bdi>{entry.actor ? <> · <bdi>{entry.actor}</bdi></> : null}</p>
+    {error ? <Alert tone="danger" compact>{error}</Alert> : !rows ? <SkeletonList rows={3} label={tr("Loading history…")} /> : !rows.length ? <EmptyState size="sm" icon={Clock} title={tr("No changes have been recorded yet.")} />
+      : <ol className={`${deskTimeline} space-y-3`} data-institution-history>{rows.map(entry => <li key={entry.id} data-tone={entry.kind === "ARCHIVED" ? "danger" : entry.kind === "PAUSED" ? "warning" : entry.kind === "RESTORED" || entry.kind === "RESUMED" ? "success" : "brand"} className="space-y-1 text-sm" data-history-kind={entry.kind}>
+        <p className="font-bold text-ink-strong">{kind(entry)} · <RelativeTime iso={entry.at} full={dateTime(entry.at)} />{entry.actor ? <> · <bdi>{entry.actor}</bdi></> : null}</p>
         {Object.entries(entry.fields).map(([key, change]) => <p key={key} className="text-xs">{FIELD_LABEL(tr, key)}: <s className="text-ink-muted"><bdi>{String(change.from ?? "") || tr("(empty)")}</bdi></s> → <bdi>{String(change.to ?? "") || tr("(empty)")}</bdi></p>)}
         {entry.reason ? <p className="text-xs">{tr("Reason")}: <bdi>{entry.reason}</bdi></p> : null}
       </li>)}</ol>}

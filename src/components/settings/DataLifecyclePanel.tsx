@@ -1,6 +1,9 @@
 "use client";
 import { Alert } from "@/components/ui/alert";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { DeskPill, DeskRowIcon, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { Archive, DatabaseZap, FileDown, Lock, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,12 +44,9 @@ function dsrBody(form: { action: DsrAction; subject: DsrSubject; subjectId: stri
 }
 type Preview = { category: string; eligible: number; held: number; categoryHeld: boolean };
 
-const stateTone: Record<Placement["state"], string> = {
-  verified: "border-status-success-border bg-status-success-surface text-status-success-text",
-  configured: "border-status-warning-border bg-status-warning-surface text-status-warning-text",
-  unsupported: "border-border-subtle bg-surface-subtle text-ink-muted",
-  not_configured: "border-status-error-border bg-status-error-surface text-status-error-text",
-};
+const stateTone: Record<Placement["state"], DeskTone> = { verified: "success", configured: "warning", unsupported: "neutral", not_configured: "danger" };
+// SKAI-1277: request rows are toned by status, and the ones waiting on a reviewer sort first.
+const requestTone: Record<string, DeskTone> = { REQUESTED: "warning", APPROVED: "info", COMPLETED: "success", REJECTED: "neutral", FAILED: "danger", BLOCKED: "danger" };
 
 async function call(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", ...(init?.headers || {}) } });
@@ -145,10 +145,10 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
     {data?.admin && data.inventory && <section aria-labelledby="placement-heading" className="space-y-3">
       <h2 id="placement-heading" className="text-lg font-bold">{t.placementTitle}</h2>
       <p className="text-sm text-ink-muted">{t.placementHelp}</p>
-      <ul className="space-y-2 sm:hidden">{data.inventory.map(item => <li key={item.service} className="rounded-xl border p-3 text-sm">
+      <ul className="space-y-2 sm:hidden">{data.inventory.map(item => <li key={item.service} data-tone={stateTone[item.state]} className={`${deskRow} text-sm`}>
         <p className="font-semibold">{t.services[item.service as keyof typeof t.services] ?? item.service}</p>
         <p className="text-ink-muted">{t.provider}: <bdi>{item.provider}</bdi> · {t.location}: <bdi dir="ltr">{location(item)}</bdi></p>
-        <span className={`mt-2 inline-block rounded-full border px-2.5 py-1 text-xs font-semibold ${stateTone[item.state]}`}>{t.states[item.state]}</span>
+        <DeskPill tone={stateTone[item.state]} className="mt-2">{t.states[item.state]}</DeskPill>
       </li>)}</ul>
       <div className="hidden overflow-x-auto rounded-xl border sm:block">
         <table className="w-full min-w-[36rem] text-start text-sm">
@@ -157,7 +157,7 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
             <th scope="row" className="p-3 text-start font-semibold">{t.services[item.service as keyof typeof t.services] ?? item.service}</th>
             <td className="p-3"><bdi>{item.provider}</bdi></td>
             <td className="p-3"><bdi dir="ltr">{location(item)}</bdi></td>
-            <td className="p-3"><span className={`inline-block rounded-full border px-2.5 py-1 text-xs font-semibold ${stateTone[item.state]}`}>{t.states[item.state]}</span><p className="mt-1 text-xs text-ink-subtle" lang="en" dir="ltr">{item.note}</p></td>
+            <td className="p-3"><DeskPill tone={stateTone[item.state]}>{t.states[item.state]}</DeskPill><p className="mt-1 text-xs text-ink-subtle" lang="en" dir="ltr">{item.note}</p></td>
           </tr>)}</tbody>
         </table>
       </div>
@@ -192,8 +192,8 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
         <Button type="submit" disabled={busy}>{t.placeHold}</Button>
       </form>
       <h3 className="font-semibold">{t.holdsTitle}</h3>
-      {data.holds.length === 0 ? <p className="text-sm text-ink-muted">{t.noHolds}</p> : <ul className="space-y-2">{data.holds.map(item => <li key={item.id} className="grid gap-2 rounded-xl border p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-        <p className="text-sm"><span className="font-semibold">{categoryLabel(item.category)}</span> · {item.recordId ? <bdi dir="ltr">{item.recordId}</bdi> : t.wholeCategory}<span className="block text-ink-muted">{item.reason} · {date(item.placedAt)}{item.expiresAt ? <> · {t.expires} {date(item.expiresAt)}</> : null}</span></p>
+      {data.holds.length === 0 ? <EmptyState size="sm" icon={Lock} title={t.noHolds} /> : <ul className="space-y-2">{data.holds.map(item => <li key={item.id} data-tone="warning" className={`${deskRow} grid gap-2 sm:grid-cols-[auto_1fr_1fr_auto] sm:items-end`}>
+        <DeskRowIcon icon={Lock} className="hidden sm:inline-flex" /><p className="min-w-0 text-sm [overflow-wrap:anywhere]"><span className="font-semibold">{categoryLabel(item.category)}</span> · {item.recordId ? <bdi dir="ltr">{item.recordId}</bdi> : t.wholeCategory}<span className="block text-ink-muted">{item.reason} · {date(item.placedAt)}{item.expiresAt ? <> · {t.expires} {date(item.expiresAt)}</> : null}</span></p>
         <label className="grid gap-1 text-sm font-semibold">{t.releaseReason}<Input value={releaseReasons[item.id] ?? ""} onChange={event => setReleaseReasons({ ...releaseReasons, [item.id]: event.target.value })} /></label>
         <Button type="button" variant="outline" disabled={busy || (releaseReasons[item.id] ?? "").trim().length < 5} onClick={() => run(() => call("/api/data-lifecycle", { method: "POST", body: JSON.stringify({ action: "release", holdId: item.id, reason: releaseReasons[item.id] }) }))}>{t.release}</Button>
       </li>)}</ul>}
@@ -224,10 +224,10 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
 
     {data && <section aria-labelledby="requests-heading" className="space-y-3">
       <h2 id="requests-heading" className="text-lg font-bold">{t.requestsTitle}</h2>
-      {data.requests.length === 0 ? <p className="text-sm text-ink-muted">{t.noRequests}</p> : <ul className="space-y-3">{data.requests.map(request => {
+      {data.requests.length === 0 ? <EmptyState size="sm" icon={ShieldCheck} title={t.noRequests} /> : <ul className="space-y-3">{urgencyFirst(data.requests, request => request.status === "REQUESTED" ? 0 : request.status === "FAILED" || request.status === "BLOCKED" ? 1 : 2).map(request => {
         const expired = !!request.downloadExpiresAt && new Date(request.downloadExpiresAt) <= new Date();
-        return <li key={request.id} className="space-y-2 rounded-xl border p-4">
-          <p className="flex flex-wrap items-center gap-2 text-sm"><span className="font-semibold">{t.kinds[request.kind]}</span><span className="rounded-full border px-2 py-0.5 text-xs font-semibold">{t.statuses[request.status as keyof typeof t.statuses] ?? request.status}</span><span className="text-ink-muted">{t.requestedAt}: {date(request.requestedAt)}</span></p>
+        return <li key={request.id} data-tone={requestTone[request.status] ?? "neutral"} className={`${deskRow} space-y-2`}>
+          <p className="flex flex-wrap items-center gap-2 text-sm"><DeskRowIcon icon={request.kind === "EXPORT" || request.kind === "GUARDIAN_EXPORT" ? FileDown : request.kind === "MIGRATION" ? DatabaseZap : Archive} /><span className="font-semibold text-ink-strong">{t.kinds[request.kind]}</span><DeskPill tone={requestTone[request.status] ?? "neutral"}>{t.statuses[request.status as keyof typeof t.statuses] ?? request.status}</DeskPill><span className="text-ink-muted">{t.requestedAt}: {date(request.requestedAt)}</span></p>
           <p className="text-sm text-ink">{request.reason}{request.category ? <> · {categoryLabel(request.category)}</> : null}{request.targetRegion ? <> · <bdi dir="ltr">{data.regions[request.targetRegion]}</bdi></> : null}</p>
           {request.plan?.items && <ul className="grid gap-1 text-xs sm:grid-cols-2">{request.plan.items.map(item => <li key={item.service}>{t.services[item.service as keyof typeof t.services] ?? item.service}: {t.outcomes[item.outcome]}</li>)}</ul>}
           {request.plan?.blockers?.length ? (language === "en"
