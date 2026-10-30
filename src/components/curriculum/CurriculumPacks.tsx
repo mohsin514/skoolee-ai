@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BookCheck } from "lucide-react";
+import { Ban, BookCheck, BookMarked, CircleCheckBig, FilePen, Library, Plus, type LucideIcon } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskStats, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -26,6 +29,11 @@ type CatalogueItem = { id: string; packId: string; version: number; board: strin
 type Overview = { catalogue: CatalogueItem[]; activations: Activation[]; campuses: { id: string; name: string }[]; geographies: string[]; canRequest: boolean; uploadsAvailable: boolean };
 
 const tone: Record<Activation["status"], BadgeProps["variant"]> = { DRAFT: "neutral", APPROVED: "info", ACTIVE: "success", REVOKED: "danger" };
+const deskTone: Record<Activation["status"], DeskTone> = { DRAFT: "neutral", APPROVED: "info", ACTIVE: "success", REVOKED: "danger" };
+const statusIcon: Record<Activation["status"], LucideIcon> = { DRAFT: FilePen, APPROVED: BookCheck, ACTIVE: CircleCheckBig, REVOKED: Ban };
+const STATUSES = ["DRAFT", "APPROVED", "ACTIVE", "REVOKED"] as const;
+// Blocked drafts and approvals waiting to go live need someone first; live and revoked packs follow.
+const rank = (row: Activation) => row.status === "REVOKED" ? 4 : row.status === "ACTIVE" ? 3 : row.blockers.length ? 0 : row.status === "APPROVED" ? 1 : 2;
 const statusLabel = (t: CurriculumPacksCopy, status: Activation["status"]) => t[`status${status}`];
 const geoLabel = (t: CurriculumPacksCopy, geography: string) => (t as Record<string, string>)[`geo${geography}`] ?? geography;
 
@@ -45,6 +53,7 @@ export function CurriculumPacks() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [requesting, setRequesting] = useState(false);
+  const [only, setOnly] = useState<Activation["status"] | null>(null);
   const load = useCallback(async () => {
     setError("");
     try {
@@ -62,25 +71,32 @@ export function CurriculumPacks() {
   return <div className="min-w-0 space-y-6" data-curriculum-packs>
     <PageHeader icon={BookCheck} title={t.title} description={t.intro} />
     {error && <Alert tone="danger" title={<bdi dir="auto">{error}</bdi>} actions={!data ? <Button variant="outline" onClick={() => void load()}>{t.retry}</Button> : undefined} />}
-    {notice && !error && <p role="status" className="text-sm text-status-success-text">{notice}</p>}
+    {notice && !error && <Alert compact tone="success" onDismiss={() => setNotice("")}>{notice}</Alert>}
+    {!data && !error && <><SkeletonCards count={4} label={t.requestsTitle} /><SkeletonList rows={2} /></>}
     {data && <>
+      {data.activations.length > 0 && <DeskStats>{STATUSES.map((key, index) => <StatTile key={key} index={index} icon={statusIcon[key]} tone={deskTone[key]} label={statusLabel(t, key)} value={data.activations.filter(row => row.status === key).length} selected={only === key} onSelect={() => setOnly(current => current === key ? null : key)} />)}</DeskStats>}
       <section aria-labelledby="pack-requests" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="pack-requests" className="text-lg font-semibold text-ink-strong">{t.requestsTitle}</h2>
-          {data.canRequest && data.catalogue.length > 0 && data.campuses.length > 0 && !requesting && <Button onClick={() => setRequesting(true)} data-pack-request-open>{t.request}</Button>}
+          {data.canRequest && data.catalogue.length > 0 && data.campuses.length > 0 && !requesting && data.activations.length > 0 && <Button onClick={() => setRequesting(true)} data-pack-request-open><Plus aria-hidden="true" />{t.request}</Button>}
         </div>
+        <DeskFilterStatus shown={only ? data.activations.filter(row => row.status === only).length : data.activations.length} total={data.activations.length} onClear={() => setOnly(null)} />
         {requesting && <RequestForm t={t} data={data} busy={busy} onCancel={() => setRequesting(false)} onSubmit={body => act(async () => { await send("/api/school-ai/curriculum-packs", JSON.stringify(body)); setRequesting(false); })} />}
-        {!data.activations.length && <p className="text-sm text-ink-muted">{t.noRequests}</p>}
-        <ul className="space-y-4">{data.activations.map(activation => <li key={activation.id}><ActivationCard t={t} activation={activation} campus={data.campuses.find(item => item.id === activation.campusId)?.name ?? ""} busy={busy} uploads={data.uploadsAvailable} locale={locale} act={act} /></li>)}</ul>
+        {!data.activations.length && !requesting && <div className="sk-panel" data-static><EmptyState icon={BookMarked} title={t.noRequests} description={t.catalogueIntro}
+          action={data.canRequest && data.catalogue.length > 0 && data.campuses.length > 0 ? <Button onClick={() => setRequesting(true)} data-pack-request-open><Plus aria-hidden="true" />{t.request}</Button> : undefined} /></div>}
+        <ul className="space-y-4">{urgencyFirst(data.activations.filter(row => !only || row.status === only), rank).map(activation => <li key={activation.id}><ActivationCard t={t} activation={activation} campus={data.campuses.find(item => item.id === activation.campusId)?.name ?? ""} busy={busy} uploads={data.uploadsAvailable} locale={locale} act={act} /></li>)}</ul>
       </section>
       <section aria-labelledby="pack-catalogue" className="space-y-3">
         <h2 id="pack-catalogue" className="text-lg font-semibold text-ink-strong">{t.catalogueTitle}</h2>
         <p className="text-sm text-ink-muted">{t.catalogueIntro}</p>
         {!data.catalogue.length && <Alert tone="info" title={t.catalogueEmpty} data-pack-catalogue-empty />}
-        <ul className="grid gap-3 md:grid-cols-2">{data.catalogue.map(item => <li key={item.id} className="sk-panel space-y-1 p-4" data-pack-catalogue={item.packId}>
-          <p className="font-semibold text-ink-strong"><bdi dir="ltr">{item.packId}</bdi> · {fill(t.version, [item.version])}</p>
-          <p className="text-sm text-ink-muted">{t.board}: {item.board} · {t.grade}: <bdi dir="auto">{item.schoolGrade}</bdi> · {t.examYear}: {item.examYear} · {t.language}: {item.language.toUpperCase()}</p>
-          <Badge variant={item.unverifiedCount ? "warning" : "success"} size="sm">{item.unverifiedCount ? fill(t.unverified, [item.unverifiedCount]) : t.verified}</Badge>
+        <ul className="grid gap-3 md:grid-cols-2">{data.catalogue.map(item => <li key={item.id} className={`${deskRow} flex items-start gap-3`} data-tone={item.unverifiedCount ? "warning" : "success"} data-pack-catalogue={item.packId}>
+          <DeskRowIcon icon={Library} />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <p className="font-semibold text-ink-strong [overflow-wrap:anywhere]"><bdi dir="ltr">{item.packId}</bdi> · {fill(t.version, [item.version])}</p>
+            <p className="text-sm text-ink-muted">{t.board}: {item.board} · {t.grade}: <bdi dir="auto">{item.schoolGrade}</bdi> · {t.examYear}: {item.examYear} · {t.language}: {item.language.toUpperCase()}</p>
+            <DeskPill tone={item.unverifiedCount ? "warning" : "success"}>{item.unverifiedCount ? fill(t.unverified, [item.unverifiedCount]) : t.verified}</DeskPill>
+          </div>
         </li>)}</ul>
       </section>
     </>}
@@ -109,10 +125,10 @@ function ActivationCard({ t, activation, campus, busy, uploads, locale, act }: {
   const [reviewDueOn, setReviewDueOn] = useState("");
   const [reason, setReason] = useState("");
   const base = `/api/school-ai/curriculum-packs/${encodeURIComponent(activation.id)}`;
-  return <article className="sk-panel space-y-4 p-4" data-pack-activation={activation.status}>
+  return <article className={`${deskRow} space-y-4 p-4 sm:p-5`} data-tone={activation.status !== "REVOKED" && activation.blockers.length ? "warning" : deskTone[activation.status]} data-pack-activation={activation.status}>
     <header className="flex flex-wrap items-start justify-between gap-2">
-      <div><h3 className="font-semibold text-ink-strong"><bdi dir="ltr">{activation.packId}</bdi> · {fill(t.version, [activation.version])}</h3>
-        <p className="text-sm text-ink-muted">{t.campus}: {campus} · {t.grade}: <bdi dir="auto">{activation.schoolGrade}</bdi> · {geoLabel(t, activation.geography)}</p></div>
+      <div className="flex min-w-0 items-start gap-3"><DeskRowIcon icon={statusIcon[activation.status]} /><div className="min-w-0"><h3 className="font-semibold text-ink-strong [overflow-wrap:anywhere]"><bdi dir="ltr">{activation.packId}</bdi> · {fill(t.version, [activation.version])}</h3>
+        <p className="text-sm text-ink-muted">{t.campus}: {campus} · {t.grade}: <bdi dir="auto">{activation.schoolGrade}</bdi> · {geoLabel(t, activation.geography)}</p></div></div>
       <Badge variant={tone[activation.status]} dot>{statusLabel(t, activation.status)}</Badge>
     </header>
     {activation.status === "REVOKED" && activation.revokedReason && <Alert tone="neutral" title={fill(t.revokedBecause, [activation.revokedReason])} />}
@@ -135,7 +151,7 @@ function ActivationCard({ t, activation, campus, busy, uploads, locale, act }: {
     <div className="flex flex-wrap items-end gap-3">
       {activation.can.activate && <Button disabled={busy || activation.blockers.length > 0} onClick={() => void act(() => send(`${base}/transition`, JSON.stringify({ to: "ACTIVE" })))} data-pack-activate>{t.activate}</Button>}
       {activation.can.revoke && <form className="flex flex-1 flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); void act(() => send(`${base}/transition`, JSON.stringify({ to: "REVOKED", reason }))); }}>
-        <FormField name={`revoke-reason-${activation.id}`} label={t.revokeReason} className="min-w-64 flex-1"><Input required maxLength={500} value={reason} onChange={event => setReason(event.target.value)} /></FormField>
+        <FormField name={`revoke-reason-${activation.id}`} label={t.revokeReason} className="min-w-0 flex-1 basis-64"><Input required maxLength={500} value={reason} onChange={event => setReason(event.target.value)} /></FormField>
         <Button type="submit" variant="outline" disabled={busy || !reason.trim()} data-pack-revoke>{t.revoke}</Button>
       </form>}
     </div>
@@ -149,7 +165,7 @@ function EvidenceRow({ t, source, evidence, editable, uploads, busy, onSave }: {
   const [rightsScope, setRights] = useState(evidence?.rightsScope ?? "");
   const [permissionEvidence, setPermission] = useState(evidence?.permissionEvidence ?? "");
   const [file, setFile] = useState<File | null>(null);
-  return <div className="rounded-xl border border-border-subtle p-3 space-y-2" data-pack-source={source.id}>
+  return <div className="space-y-2 rounded-xl border border-border-subtle bg-surface-subtle/60 p-3" data-pack-source={source.id}>
     <p className="text-sm font-medium text-ink-strong"><bdi dir="auto">{source.reference}</bdi></p>
     <p className="text-xs text-ink-subtle"><bdi dir="auto">{source.authority}</bdi> · <a className="underline" href={source.url} target="_blank" rel="noreferrer noopener"><bdi dir="ltr">{source.url}</bdi></a></p>
     {!editable && <p className="text-sm text-ink-muted">{evidence ? <><bdi dir="auto">{evidence.rightsScope}</bdi> · <bdi dir="auto">{evidence.permissionEvidence}</bdi>{evidence.hasDocument ? ` · ${t.documentAttached}` : ""}</> : t.missingEvidence}</p>}

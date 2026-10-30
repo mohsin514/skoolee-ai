@@ -6,7 +6,7 @@ import { FormErrorSummary } from "@/components/ui/form-field";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { InputGroup, FieldAction } from "@/components/ui/input-group";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { DeskFilterStatus, DeskPill, DeskStats, StatTile, urgencyFirst } from "@/components/ui/desk";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { IconButton } from "@/components/ui/icon-button";
@@ -20,7 +20,7 @@ import Link from "next/link";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { toast } from "@/components/ui/toast";
 import {
-  ArrowDownToLine, BarChart3, ChevronDown, ClipboardList, Download, Eraser, Keyboard,
+  AlertCircle, ArrowDownToLine, BarChart3, CheckCircle2, ChevronDown, ClipboardList, Download, Eraser, Keyboard,
   Lock, PenLine, Plus, Search, Star, X,
 } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
@@ -68,6 +68,8 @@ export default function MarksPage() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [pendingExamId, setPendingExamId] = useState<string | null>(null);
   const [examQuery, setExamQuery] = useState("");
+  // The Missing marks tile narrows the cards to tests still owed marks; open tests with gaps always lead.
+  const [missingOnly, setMissingOnly] = useState(false);
   const [showAllExams, setShowAllExams] = useState(false);
   const gridRef = useRef<HTMLTableSectionElement>(null);
 
@@ -190,15 +192,16 @@ export default function MarksPage() {
   }, [markSheet, marksByKey, selectedExamId, ui]);
 
   const visibleExams = useMemo(() => {
-    const all: any[] = data?.exams || [];
+    const all: any[] = (data?.exams || []).filter((exam: any) => !missingOnly || (exam.missingMarks || 0) > 0);
     const q = examQuery.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter((exam) =>
+    const matched = !q ? all : all.filter((exam) =>
       `${exam.title || ""} ${exam.subject?.name || ""} ${classLabel(exam.class) || ""}`
         .toLowerCase()
         .includes(q),
     );
-  }, [data, examQuery]);
+    const locked = (exam: any) => exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(exam.status || "");
+    return urgencyFirst(matched, (exam) => ((exam.missingMarks || 0) > 0 && !locked(exam) ? 0 : locked(exam) ? 2 : 1));
+  }, [data, examQuery, missingOnly]);
 
   const dirtyKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -348,6 +351,24 @@ export default function MarksPage() {
           </div>
         ) : (<>
 
+        {/* What the tests owe, before the picker; Missing marks filters the cards. */}
+        {(() => {
+          const exams: any[] = data.exams || [];
+          const missing = exams.reduce((sum: number, exam: any) => sum + (exam.missingMarks || 0), 0);
+          const owing = exams.filter((exam: any) => (exam.missingMarks || 0) > 0).length;
+          const lockedCount = exams.filter((exam: any) => exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(exam.status || "")).length;
+          return (
+            <DeskStats>
+              <StatTile index={0} icon={ClipboardList} tone="brand" label={ui("Tests")} value={<bdi>{exams.length}</bdi>} />
+              <StatTile index={1} icon={CheckCircle2} tone="success" label={ui("Marks entered")} value={<bdi>{exams.reduce((sum: number, exam: any) => sum + (exam.enteredMarks || 0), 0)}</bdi>} />
+              <StatTile index={2} icon={AlertCircle} tone={missing > 0 ? "danger" : "neutral"} label={ui("Missing marks")} value={<bdi>{missing}</bdi>}
+                onSelect={owing ? () => setMissingOnly((value) => !value) : undefined} selected={missingOnly} />
+              <StatTile index={3} icon={Lock} tone="info" label={ui("Locked")} value={<bdi>{lockedCount}</bdi>} />
+            </DeskStats>
+          );
+        })()}
+        {missingOnly ? <DeskFilterStatus shown={visibleExams.length} total={data.exams.length} onClear={() => { setMissingOnly(false); setExamQuery(""); }} /> : null}
+
         {/* Assessment picker.
 
             This screen used to carry two controls for the same choice: a
@@ -416,9 +437,9 @@ export default function MarksPage() {
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="success" size="sm" dot data-numeric>{ui("{0} entered", [exam.enteredMarks || 0])}</Badge>
+                  <DeskPill tone="success" data-numeric>{ui("{0} entered", [exam.enteredMarks || 0])}</DeskPill>
                   {exam.missingMarks > 0 && (
-                    <Badge variant="danger" size="sm" dot data-numeric>{ui("{0} missing", [exam.missingMarks])}</Badge>
+                    <DeskPill tone="danger" data-numeric>{ui("{0} missing", [exam.missingMarks])}</DeskPill>
                   )}
                 </div>
               </Button>
@@ -683,7 +704,7 @@ export default function MarksPage() {
         </>)}
       </div>
 
-      <ConfirmAction open={pendingExamId !== null} title={ui("Change test?")} description={ui("Your marks are not saved to the server. Eligible input stays in this tab as a draft for up to 24 hours.")} confirmLabel={ui("Change test")} cancelLabel={ui("Keep editing")} onConfirm={() => { if (pendingExamId) setSelectedExamId(pendingExamId); setPendingExamId(null); }} onCancel={() => setPendingExamId(null)} />
+      <ConfirmAction open={pendingExamId !== null} tone="warning" title={ui("Change test?")} description={ui("Your marks are not saved to the server. Eligible input stays in this tab as a draft for up to 24 hours.")} confirmLabel={ui("Change test")} cancelLabel={ui("Keep editing")} onConfirm={() => { if (pendingExamId) setSelectedExamId(pendingExamId); setPendingExamId(null); }} onCancel={() => setPendingExamId(null)} />
       <FinalGradesPreview grading={grading} classHubs={classHubs} />
 
 

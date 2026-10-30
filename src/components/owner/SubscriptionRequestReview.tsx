@@ -1,16 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Inbox, RefreshCw } from "lucide-react";
+import { ArrowLeftRight, CalendarPlus, CircleSlash, CreditCard, Inbox, PlayCircle, ReceiptText, RefreshCw, RotateCcw, Webhook, type LucideIcon } from "lucide-react";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
 import { getPlanLimits } from "@/config/plans";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { DeskPill, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow } from "@/components/ui/desk";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Alert } from "@/components/ui/alert";
 import { ErrorState } from "@/components/ui/error-state";
 import { FormField } from "@/components/ui/form-field";
 import { PageHeader } from "@/components/ui/page-header";
@@ -38,6 +39,7 @@ type RequestRow = {
 type Decision = "APPROVE_REQUEST" | "DECLINE_REQUEST";
 
 const KIND_LABEL: Record<string, string> = { PLAN_CHANGE: "Plan change", CANCELLATION: "Cancellation", REFUND: "Refund review", RENEWAL_RECOVERY: "Payment recovery", PAYMENT_REPORT: "Payment report", GRACE_EXTENSION: "Grace extension", RESUME: "Resumed subscription" };
+const KIND_ICON: Record<string, LucideIcon> = { PLAN_CHANGE: ArrowLeftRight, CANCELLATION: CircleSlash, REFUND: RotateCcw, RENEWAL_RECOVERY: CreditCard, PAYMENT_REPORT: ReceiptText, GRACE_EXTENSION: CalendarPlus, RESUME: PlayCircle };
 const planName = (plan: string | null) => (plan ? getPlanLimits(plan).name : "");
 
 function useInstant() {
@@ -93,10 +95,17 @@ export function SubscriptionRequestReview() {
   return <div className={cn("custom-scrollbar min-h-0 flex-1 space-y-6 overflow-y-auto", PAGE_CARD_BODY)}>
     <PageHeader
       eyebrow="Platform operations"
+      icon={ReceiptText}
       title="Subscription requests"
       description="Plan changes, cancellations, refunds and recovery requests from schools. A refund review never submits a provider refund."
       secondaryActions={[{ id: "refresh", label: "Refresh", icon: RefreshCw, loading, onClick: () => { void load(); setRefreshVersion(value => value + 1); } }]}
     />
+    {requests?.length ? <DeskStats data-subscription-pulse>
+      <StatTile index={0} icon={Inbox} tone="warning" value={requests.length} label={t("Waiting for review")} />
+      <StatTile index={1} icon={CircleSlash} tone={requests.some(row => row.kind === "CANCELLATION") ? "danger" : "neutral"} value={requests.filter(row => row.kind === "CANCELLATION").length} label={t("Cancellation")} />
+      <StatTile index={2} icon={RotateCcw} tone={requests.some(row => row.kind === "REFUND") ? "danger" : "neutral"} value={requests.filter(row => row.kind === "REFUND").length} label={t("Refund review")} />
+      <StatTile index={3} icon={ArrowLeftRight} tone="brand" value={requests.filter(row => row.kind === "PLAN_CHANGE").length} label={t("Plan change")} />
+    </DeskStats> : null}
     {loadFailed ? (
       <div className="sk-panel"><ErrorState title={t("Subscription requests did not load")} description={t("Check your connection and try again.")} onRetry={() => void load()} /></div>
     ) : requests === null ? (
@@ -104,21 +113,24 @@ export function SubscriptionRequestReview() {
     ) : requests.length === 0 ? (
       <div className="sk-panel"><EmptyState size="sm" icon={Inbox} title={t("No requests need review")} description={t("New plan, cancellation, refund and recovery requests from schools appear here.")} /></div>
     ) : (
-      <ul className="space-y-4" aria-label={t("Subscription requests")}>
-        {requests.map(row => <li key={row.id} className="sk-panel space-y-3 p-4 sm:p-5" data-subscription-request={row.kind}>
+      <ul className="space-y-3" aria-label={t("Subscription requests")}>
+        {requests.map(row => <li key={row.id} data-tone={row.kind === "REFUND" || row.kind === "CANCELLATION" ? "danger" : "warning"} className={`${deskRow} space-y-3`} data-subscription-request={row.kind}>
           <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-1 basis-64 items-start gap-3">
+            <DeskRowIcon icon={KIND_ICON[row.kind] ?? Inbox} />
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-ink-strong">{t(KIND_LABEL[row.kind] ?? row.kind)} · <bdi>{row.school.name}</bdi></h2>
               <p className="mt-0.5 text-sm text-ink-muted">
                 {t("Current plan")}: <bdi>{planName(row.school.plan)}</bdi>
                 {row.requestedPlan ? <> <span aria-hidden="true" className="inline-block rtl:rotate-180">→</span> <bdi>{planName(row.requestedPlan)}</bdi></> : null}
-                {" · "}{t("Requested by {0}", [row.requestedBy.fullName])} · <bdi>{when.dateTime(row.createdAt)}</bdi>
+                {" · "}{t("Requested by {0}", [row.requestedBy.fullName])} · <bdi><RelativeTime iso={row.createdAt} full={when.dateTime(row.createdAt)} /></bdi>
               </p>
               {row.effectiveAt ? <p className="mt-0.5 text-sm text-ink-muted">{t("Effective date")}: <bdi>{when.date(row.effectiveAt)}</bdi></p> : null}
             </div>
-            <Badge size="sm" variant="warning" dot>{t("Waiting for review")}</Badge>
+            </div>
+            <DeskPill tone="warning">{t("Waiting for review")}</DeskPill>
           </div>
-          <details className="rounded-lg bg-surface-subtle p-3 text-xs">
+          <details className="rounded-xl border border-border-subtle bg-surface-subtle p-3 text-xs">
             <summary className="cursor-pointer font-semibold text-ink">{t("Request details")}</summary>
             <pre dir="ltr" className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap text-ink-muted">{JSON.stringify(row.details, null, 2)}</pre>
           </details>
@@ -181,18 +193,21 @@ function ProviderEventQueue({ refreshVersion }: { refreshVersion: number }) {
     finally { setBusy(null); }
   };
   return <section aria-labelledby="provider-events-title" data-provider-events className="space-y-4">
-    <div>
+    <div className="flex min-w-0 items-start gap-3">
+      <DeskRowIcon icon={Webhook} />
+      <div className="min-w-0">
       <h2 id="provider-events-title" className="text-lg font-bold text-ink-strong">{t("Payment provider events needing review")}</h2>
       <p className="mt-1 text-sm text-ink-muted">{t("Verified events the system did not apply automatically. Marking one handled records your note only; correct any billing state through a reviewed request or the provider.")}</p>
+      </div>
     </div>
     {loadFailed ? <div className="sk-panel"><ErrorState title={t("Provider events did not load")} description={t("Check your connection and try again.")} onRetry={() => void load()} /></div>
       : events === null ? <SkeletonList rows={3} label={t("Loading events")} />
       : events.length === 0 ? <div className="sk-panel"><EmptyState size="sm" icon={Inbox} title={t("No provider events need review")} description={t("Verified provider events that could not be applied automatically appear here.")} /></div>
       : <ul className="space-y-3">
-        {events.map(row => <li key={row.eventId} className="sk-panel space-y-2 p-4" data-provider-event={row.eventId} data-state={row.state}>
-          <p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong"><bdi dir="ltr">{row.provider} · {row.eventType}</bdi> <Badge variant={row.state === "NEEDS_REVIEW" ? "warning" : "danger"} dot>{row.state === "NEEDS_REVIEW" ? t("Needs review") : t("Failed")}</Badge></p>
-          <p className="text-xs tabular-nums text-ink-subtle"><bdi dir="ltr">{row.eventId}</bdi> · <bdi>{when.dateTime(row.receivedAt)}</bdi> · {t("{0} attempts", [row.attemptCount])} · {row.schoolId ? <>{t("Institution")} <bdi dir="ltr">{row.schoolId}</bdi></> : t("No matching institution")}</p>
-          {row.error ? <p className="text-sm" dir="auto">{row.error}</p> : null}
+        {events.map(row => <li key={row.eventId} data-tone={row.state === "NEEDS_REVIEW" ? "warning" : "danger"} className={`${deskRow} space-y-2`} data-provider-event={row.eventId} data-state={row.state}>
+          <p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong"><bdi dir="ltr">{row.provider} · {row.eventType}</bdi> <DeskPill tone={row.state === "NEEDS_REVIEW" ? "warning" : "danger"}>{row.state === "NEEDS_REVIEW" ? t("Needs review") : t("Failed")}</DeskPill></p>
+          <p className="text-xs tabular-nums text-ink-subtle"><bdi dir="ltr" className="break-all">{row.eventId}</bdi> · <bdi><RelativeTime iso={row.receivedAt} full={when.dateTime(row.receivedAt)} /></bdi> · {t("{0} attempts", [row.attemptCount])} · {row.schoolId ? <>{t("Institution")} <bdi dir="ltr">{row.schoolId}</bdi></> : t("No matching institution")}</p>
+          {row.error ? <Alert tone="danger" compact live="off"><span dir="auto">{row.error}</span></Alert> : null}
           <FormField name={`provider-note-${row.eventId}`} label={t("How was this handled?")} hint={t("At least 8 characters. Recorded with the event.")}>
             <Textarea className="w-full" value={notes[row.eventId] || ""} onChange={event => setNotes(previous => ({ ...previous, [row.eventId]: event.target.value }))} />
           </FormField>

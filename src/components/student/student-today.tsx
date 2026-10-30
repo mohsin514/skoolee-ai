@@ -6,7 +6,9 @@ import { Alert } from "@/components/ui/alert";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
-import { ChevronRight, MonitorCheck } from "lucide-react";
+import { BookOpenCheck, ChevronRight, Clock3, MonitorCheck, NotebookPen, PartyPopper, type LucideIcon } from "lucide-react";
+import { DeskPill, DeskRowIcon, RelativeTime, deskRow, type DeskTone } from "@/components/ui/desk";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // SKO-418: Today. One next action, then a short list. Times are the school's (its timezone is named), the
 // day switch moves in school days, and a closed day shows upcoming work calmly instead of an attendance
@@ -31,6 +33,9 @@ const shift = (day: string, n: number) => new Date(new Date(`${day}T00:00:00Z`).
 
 const stateLabel = (ui: Ui, state: string) => ({ OPEN: ui("Not started"), DRAFT: ui("Draft saved"), REOPENED: ui("Revision open"), SUBMITTED: ui("Submitted"), RETURNED: ui("Feedback returned"), CLOSED: ui("Closed") } as Record<string, string>)[state] ?? state;
 const actionLabel = (ui: Ui, kind: string) => ({ RESUME_EXAM: ui("Resume your exam"), CONTINUE_DRAFT: ui("Continue your saved draft"), OVERDUE: ui("Past due — still accepted"), DUE_TODAY: ui("Due today"), NEXT_DUE: ui("Next due") } as Record<string, string>)[kind] ?? kind;
+
+const stateTone = (item: Work): DeskTone => item.overdue ? (item.canSubmit ? "danger" : "neutral") : ({ DRAFT: "warning", REOPENED: "warning", SUBMITTED: "info", RETURNED: "success", CLOSED: "neutral" } as Record<string, DeskTone>)[item.state] ?? "brand";
+const actionIcon = (kind: string): LucideIcon => ({ RESUME_EXAM: MonitorCheck, CONTINUE_DRAFT: NotebookPen, OVERDUE: Clock3 } as Record<string, LucideIcon>)[kind] ?? BookOpenCheck;
 
 /** What the Today screen's one primary action should do ("Continue: {next action}"). */
 export type StudentNextAction = { label: string; href: string } | null;
@@ -109,19 +114,20 @@ export function StudentToday({ onNextAction }: { onNextAction?: (action: Student
         loading included, so a tour step never waits for data (§9.4). */}
     <div data-tour="student.today.next">
       {!data && !examUrl && loading ? <div aria-busy="true"><p className="sr-only">{ui("Loading Today…")}</p><SkeletonList /></div> : null}
-      {examUrl ? <div className="rounded-2xl border border-status-error-border bg-status-error-surface p-4" data-next-action="RESUME_EXAM">
-      <p className="text-xs font-semibold text-status-error-text">{actionLabel(ui, "RESUME_EXAM")}</p>
-      <p className="mt-1 text-sm text-status-error-text">{ui("Your exam is in progress. Other work and help are hidden until you finish it.")}</p>
-      <Link href={examUrl} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-3")} data-next-action-link>{ui("Resume exam")}</Link>
-    </div> : null}
+      {examUrl ? <div data-next-action="RESUME_EXAM"><Alert tone="danger" icon={MonitorCheck} live="off" title={actionLabel(ui, "RESUME_EXAM")} actions={<Link href={examUrl} className={buttonVariants({ variant: "outline", size: "sm" })} data-next-action-link>{ui("Resume exam")}</Link>}>
+      {ui("Your exam is in progress. Other work and help are hidden until you finish it.")}
+    </Alert></div> : null}
       {data && !examUrl ? (
-        data.nextAction ? <div className={cn("rounded-2xl border p-4", data.examLock ? "border-status-error-border bg-status-error-surface" : "border-primary/20 bg-brand-50")} data-next-action={data.nextAction.kind}>
+        data.nextAction ? <div data-tone={data.examLock ? "danger" : data.nextAction.kind === "OVERDUE" ? "warning" : "brand"} className={cn(deskRow, "flex flex-wrap items-start gap-3 p-4 sm:flex-nowrap")} data-next-action={data.nextAction.kind}>
+        <DeskRowIcon icon={actionIcon(data.nextAction.kind)} />
+        <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold text-primary">{actionLabel(ui, data.nextAction.kind)}</p>
-        <p className="mt-1 text-base font-bold [overflow-wrap:anywhere]" dir="auto">{data.nextAction.title}</p>
-        {data.nextAction.dueAt ? <p className="text-xs text-ink-muted">{ui("Due (school time)")}{" "}<bdi>{dateTime(data.nextAction.dueAt)}</bdi></p> : null}
-        <Link href={data.nextAction.href} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-3")} data-next-action-link>{data.nextAction.kind === "RESUME_EXAM" ? ui("Resume exam") : ui("Open")}</Link>
+        <p className="mt-1 text-base font-bold text-ink-strong [overflow-wrap:anywhere]" dir="auto">{data.nextAction.title}</p>
+        {data.nextAction.dueAt ? <p className="flex flex-wrap items-center gap-x-2 text-xs text-ink-muted"><span>{ui("Due (school time)")}{" "}<bdi>{dateTime(data.nextAction.dueAt)}</bdi></span><RelativeTime iso={data.nextAction.dueAt} full={dateTime(data.nextAction.dueAt)} className="font-semibold text-ink" /></p> : null}
         {data.examLock ? <p className="mt-2 text-xs text-status-error-text">{ui("Your exam is in progress. Other work and help are hidden until you finish it.")}</p> : null}
-      </div> : <p className="rounded-2xl border border-dashed p-4 text-sm text-ink-muted" data-next-action="NONE">{data.returned.length ? ui("No new work is due. Review feedback when you are ready.") : ui("No work is due. Enjoy the day.")}</p>
+        </div>
+        <div className="order-last basis-full ps-12 sm:order-none sm:basis-auto sm:ps-0"><Link href={data.nextAction.href} className={buttonVariants({ variant: "outline", size: "sm" })} data-next-action-link>{data.nextAction.kind === "RESUME_EXAM" ? ui("Resume exam") : ui("Open")}</Link></div>
+      </div> : <div className="sk-panel" data-next-action="NONE"><EmptyState size="sm" icon={PartyPopper} title={data.returned.length ? ui("No new work is due. Review feedback when you are ready.") : ui("No work is due. Enjoy the day.")} /></div>
       ) : null}
     </div>
     {/* Exam Studio's delivery side (addendum 2026-10-22): the learner's upcoming online exams stay prominent on
@@ -144,21 +150,21 @@ export function StudentToday({ onNextAction }: { onNextAction?: (action: Student
           <h3 id="today-lessons" className="text-sm font-bold text-ink-strong">{ui("Lessons")}{data.timetableVersion ? <span className="ms-2 text-2xs font-semibold text-ink-muted">{ui("Timetable version {0}", [String(data.timetableVersion)])}</span> : null}</h3>
           {!data.schoolDay ? <p className="mt-2 text-sm text-ink-muted" data-today-closed={data.closure?.kind}>{data.closure?.kind === "HOLIDAY" ? <>{ui("No school:")}{" "}<bdi>{data.closure.name}</bdi></> : ui("No school today. Upcoming work is below.")}</p>
             : data.lessons.length === 0 ? <p className="mt-2 text-sm text-ink-muted">{ui("No lessons are published for this day.")}</p>
-            : <ol className="mt-2 space-y-1">{data.lessons.map(lesson => <li key={lesson.id} className={cn("flex flex-wrap items-center gap-2 rounded-lg px-2 py-1 text-sm", data.current?.id === lesson.id && "bg-status-success-surface", data.next?.id === lesson.id && "bg-muted")} data-lesson={lesson.id} data-lesson-now={data.current?.id === lesson.id ? "current" : data.next?.id === lesson.id ? "next" : undefined}>
-                <span className="w-24 tabular-nums text-ink-muted"><bdi>{lesson.startTime}–{lesson.endTime}</bdi></span>
+            : <ol className="mt-2 space-y-1.5">{data.lessons.map(lesson => <li key={lesson.id} data-tone={data.current?.id === lesson.id ? "success" : data.next?.id === lesson.id ? "info" : lesson.kind === "CLASS" ? undefined : "muted"} className={cn(deskRow, "flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm")} data-lesson={lesson.id} data-lesson-now={data.current?.id === lesson.id ? "current" : data.next?.id === lesson.id ? "next" : undefined}>
+                <span className="w-24 shrink-0 tabular-nums text-ink-muted"><bdi>{lesson.startTime}–{lesson.endTime}</bdi></span>
                 <span className="font-bold" dir="auto">{lesson.kind === "CLASS" ? lesson.subject ?? ui("Free period") : ui("Break")}</span>
                 {lesson.room ? <span className="text-xs text-ink-muted">{ui("Room")}{" "}<bdi>{lesson.room}</bdi></span> : null}
-                {lesson.cover ? <span className="rounded bg-status-warning-surface px-1.5 text-2xs font-bold text-status-warning-text" data-lesson-cover>{ui("Cover teacher:")}{" "}<bdi>{lesson.teacher}</bdi></span> : null}
-                {data.current?.id === lesson.id ? <span className="text-xs font-semibold text-status-success-text">{ui("Now")}</span> : data.next?.id === lesson.id ? <span className="text-xs font-semibold text-primary">{ui("Next")}</span> : null}
+                {lesson.cover ? <DeskPill tone="warning" data-lesson-cover>{ui("Cover teacher:")}{" "}<bdi>{lesson.teacher}</bdi></DeskPill> : null}
+                {data.current?.id === lesson.id ? <DeskPill tone="success" className="ms-auto">{ui("Now")}</DeskPill> : data.next?.id === lesson.id ? <DeskPill tone="info" className="ms-auto">{ui("Next")}</DeskPill> : null}
               </li>)}</ol>}
         </section>
         {!data.examLock ? <section aria-labelledby="today-work" data-today-work={data.work.length}>
           <h3 id="today-work" className="text-sm font-bold text-ink-strong">{ui("Work")}</h3>
-          {data.work.length === 0 ? <p className="mt-2 text-sm text-ink-muted">{ui("Nothing open.")}</p> : <ul className="mt-2 space-y-1">{data.work.slice(0, 6).map(item => <li key={item.id} data-work={item.id} data-work-state={item.state}>
-            <Link href={item.href} className="flex flex-wrap items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-muted">
-              <span className="min-w-0 basis-full font-bold [overflow-wrap:anywhere] sm:flex-1" dir="auto">{item.title}</span>
-              <span className="w-full text-xs text-ink-muted sm:w-auto">{stateLabel(ui, item.state)} · <bdi>{dateTime(item.dueAt)}</bdi>{item.extended ? <> · {ui("Extended for you")}</> : null}</span>
-              {item.overdue ? <span className="text-xs font-semibold text-status-error-text">{item.canSubmit ? ui("Past due") : ui("Closed for submission")}</span> : null}
+          {data.work.length === 0 ? <p className="mt-2 text-sm text-ink-muted">{ui("Nothing open.")}</p> : <ul className="mt-2 space-y-2">{data.work.slice(0, 6).map(item => <li key={item.id} data-work={item.id} data-work-state={item.state}>
+            <Link href={item.href} data-tone={stateTone(item)} className={cn(deskRow, "flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-sm")}>
+              <span className="min-w-0 basis-full font-bold text-ink-strong [overflow-wrap:anywhere] sm:flex-1" dir="auto">{item.title}</span>
+              <DeskPill tone={stateTone(item)}>{item.overdue ? (item.canSubmit ? ui("Past due") : ui("Closed for submission")) : stateLabel(ui, item.state)}</DeskPill>
+              <span className="text-xs text-ink-muted">{item.overdue ? <>{stateLabel(ui, item.state)} · </> : null}<RelativeTime iso={item.dueAt} full={dateTime(item.dueAt)} />{item.extended ? <> · {ui("Extended for you")}</> : null}</span>
             </Link>
           </li>)}</ul>}
           {data.catchUp?.length ? <><h4 className="mt-3 text-xs font-semibold text-ink-muted">{ui("Catch-up from missed lessons")}</h4><ul className="space-y-1">{data.catchUp.map(item => <li key={item.id} className="text-sm" data-catch-up={item.id} data-catch-up-done={item.done ? "true" : "false"}><span className={cn("font-bold", item.done && "line-through opacity-70")} dir="auto">{item.title}</span> · <span dir="auto">{item.subject}</span>{item.dueDate ? <> · {ui("Due")} <bdi>{date(item.dueDate)}</bdi></> : null}{item.done ? <> · <span className="text-xs font-semibold text-status-success-text">{ui("Done")}</span></> : null}{item.instructions ? <p className="text-xs text-ink-muted" dir="auto">{item.instructions}</p> : null}</li>)}</ul></> : null}
