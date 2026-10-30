@@ -15,7 +15,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
-import { pickStructureForClass } from "@/lib/fees/structure-year";
+import { feeStructureActiveWhere, invoiceBatchStatus, pickStructureForClass } from "@/lib/fees/structure-year";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -72,8 +72,7 @@ export async function POST(req: NextRequest) {
     const feeStructures = await tx.feeStructure.findMany({
       where: {
         campusId,
-        activeFrom: { lte: dueDate },
-        OR: [{ activeTo: { gte: invoiceDate } }, { activeTo: null }],
+        ...feeStructureActiveWhere(invoiceDate, dueDate),
       },
       include: { class: true, academicYear: { select: { academicYear: true } } },
       orderBy: { activeFrom: "desc" },
@@ -274,6 +273,14 @@ export async function POST(req: NextRequest) {
     return { generated, errors, totalStudents: students.length, className: students[0]?.class?.name };
     });
     const { generated, errors } = committed;
+    const status = invoiceBatchStatus(generated, errors.length);
+    if (status !== 201) {
+      return Response.json(
+        { success: false, error: `No invoices generated: ${errors[0]?.error ?? "review the class setup"}`, totalStudents: committed.totalStudents, generated, errors },
+        { status }
+      );
+    }
+
     notify("INVOICES_GENERATED", {
       schoolId: user.schoolId,
       campusId,
