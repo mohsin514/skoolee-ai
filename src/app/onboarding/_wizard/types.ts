@@ -1,3 +1,4 @@
+import type { SchoolLifecycle } from "@/lib/billing/package-status";
 import type { ReactNode, RefObject } from "react";
 import type {
   AdoptionMode, CampusDraft, InstitutionType, OptionalWorkKey, SchoolDraft, SetupStepId, StepErrors,
@@ -64,7 +65,9 @@ export type IdentityStepProps = StepBase & {
 
 export type PackageStepProps = StepBase & {
   /** The package the owner chose (null until they choose; nothing is pre-selected). */
-  selectedPackage: { plan: string; status: string; provider: string } | null;
+  selectedPackage: { intentId: string; plan: string; status: string; provider: string } | null;
+  /** The school's subscription lifecycle (grace and expiry of an active package). */
+  lifecycle: SchoolLifecycle | null;
   /** A package chosen but not active yet (reserved for the team, custom terms, or checkout started). */
   pendingPackage: { plan: string; status: string; provider: string } | null;
   isGroup: boolean;

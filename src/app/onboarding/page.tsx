@@ -137,6 +137,7 @@ export default function OnboardingWizard() {
           planName={v.plan.name}
           pendingPackage={v.pendingPackage}
           selectedPackage={v.selectedPackage}
+          lifecycle={v.lifecycle ?? null}
           limit={limit}
           planned={planned.length}
           draftsBeyond={split.drafts.length}
