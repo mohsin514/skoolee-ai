@@ -11640,6 +11640,23 @@
   "source": "appendix-a"
  },
  {
+  "key": "offline.resolve_class_edit",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/offline",
+  "roles": [
+   "SUPER_ADMIN",
+   "ADMIN",
+   "CAMPUS_ADMIN"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "offline.resolve_conflict",
   "cluster": "C8 Platform, group governance and onboarding",
   "method": "POST",
@@ -11685,6 +11702,23 @@
    "ADMIN",
    "CAMPUS_ADMIN",
    "TEACHER"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "offline.sync_class_edits",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/offline",
+  "roles": [
+   "SUPER_ADMIN",
+   "ADMIN",
+   "CAMPUS_ADMIN"
   ],
   "risk": "UPDATE",
   "idempotent": "yes",
