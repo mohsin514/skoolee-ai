@@ -27,6 +27,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Progress } from "@/components/ui/progress";
+import { DeskPill, DeskRowButton, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { InfoTip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -68,12 +69,9 @@ interface HubStats {
 }
 
 /** Status tokens (R10): the server's tone names map onto the shared status scale. */
-const TONE: Record<Tone, { text: string; bg: string; border: string; dot: string }> = {
-  rose: { text: "text-status-error-text", bg: "bg-status-error-surface", border: "border-status-error-border", dot: "bg-status-error-text" },
-  amber: { text: "text-status-warning-text", bg: "bg-status-warning-surface", border: "border-status-warning-border", dot: "bg-status-warning-text" },
-  teal: { text: "text-status-info-text", bg: "bg-status-info-surface", border: "border-status-info-border", dot: "bg-status-info-text" },
-  emerald: { text: "text-status-success-text", bg: "bg-status-success-surface", border: "border-status-success-border", dot: "bg-status-success-text" },
-};
+const ATTENTION_TONE: Record<Tone, DeskTone> = { rose: "danger", amber: "warning", teal: "info", emerald: "success" };
+/** Blocking items (rose) first, then warnings, then the informational ones. */
+const ATTENTION_RANK: Record<Tone, number> = { rose: 0, amber: 1, teal: 2, emerald: 3 };
 
 /** Where each action item should take the user when clicked. */
 const ACTION_TARGET: Record<string, string> = {
@@ -556,12 +554,12 @@ export function AcademicHub({ campusId, onNavigate, showPlanner = true }: { camp
       </section>
 
       {/* ── Quick stats ── */}
-      <div className="sk-stagger grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={Users} label={ui("Classes")} value={stats.stats.totalClasses} tone="teal" info={ui("Active classes in the academic year shown.")} />
-        <StatCard icon={GraduationCap} label={ui("Teachers assigned")} value={stats.stats.teachersAssigned} tone="teal" info={ui("Teachers at this campus who teach at least one subject.")} />
-        <StatCard icon={BookOpen} label={ui("Timetables published")} value={stats.stats.publishedTimetables} tone="emerald" info={ui("Classes with a published timetable in the academic year shown.")} />
-        <StatCard icon={PieChart} label={ui("Exams in progress")} value={stats.stats.examsInProgress} tone="amber" info={ui("Exams this year that are running, collecting marks or waiting for review.")} />
-      </div>
+      <DeskStats data-academic-hub-stats>
+        <StatTile index={0} icon={Users} tone="info" value={stats.stats.totalClasses} label={<StatLabel label={ui("Classes")} info={ui("Active classes in the academic year shown.")} />} />
+        <StatTile index={1} icon={GraduationCap} tone="brand" value={stats.stats.teachersAssigned} label={<StatLabel label={ui("Teachers assigned")} info={ui("Teachers at this campus who teach at least one subject.")} />} />
+        <StatTile index={2} icon={BookOpen} tone="success" value={stats.stats.publishedTimetables} label={<StatLabel label={ui("Timetables published")} info={ui("Classes with a published timetable in the academic year shown.")} />} />
+        <StatTile index={3} icon={PieChart} tone={stats.stats.examsInProgress ? "warning" : "neutral"} value={stats.stats.examsInProgress} label={<StatLabel label={ui("Exams in progress")} info={ui("Exams this year that are running, collecting marks or waiting for review.")} />} />
+      </DeskStats>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* ── Needs attention ── */}
@@ -571,32 +569,29 @@ export function AcademicHub({ campusId, onNavigate, showPlanner = true }: { camp
             <h3 id="academic-hub-attention" className="text-base font-bold text-ink-strong">{ui("Needs your attention")}</h3>
           </div>
           {stats.actionItems.length > 0 ? (
-            <div className="space-y-3">
-              {stats.actionItems.map((a) => {
-                const t = TONE[a.tone] ?? TONE.amber;
+            <div className="space-y-2">
+              {urgencyFirst(stats.actionItems, (a) => ATTENTION_RANK[a.tone] ?? 1).map((a) => {
+                const tone = ATTENTION_TONE[a.tone] ?? "warning";
                 const copy = ACTION_COPY[a.id];
                 const label = copy ? plural(ui, a.count, copy[0], copy[1]) : ui(a.label);
                 const target = ACTION_TARGET[a.id] || "timetable";
-                const row = (
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span aria-hidden="true" className={cn("h-2.5 w-2.5 shrink-0 rounded-full", t.dot)} />
-                    <span className={cn("min-w-0 text-sm font-semibold", t.text)}>{label}</span>
-                  </span>
-                );
+                const title = <span className="block text-sm font-semibold text-ink-strong [overflow-wrap:anywhere]">{label}</span>;
                 return reachable(target) ? (
-                  <Button
-                    variant="outline"
+                  <DeskRowButton
                     key={a.id}
+                    tone={tone}
+                    icon={AlertTriangle}
                     onClick={() => go(target)}
-                    className={cn("sk-nudge-trigger w-full justify-between gap-3 px-4 py-3 text-start", t.border, t.bg)}
+                    className="sk-nudge-trigger items-center"
+                    trailing={<ArrowRight aria-hidden="true" className="sk-nudge h-4 w-4 text-ink-faint rtl:rotate-180" />}
                   >
-                    {row}
-                    <ArrowRight aria-hidden="true" className={cn("sk-nudge h-4 w-4 rtl:rotate-180", t.text)} />
-                  </Button>
+                    {title}
+                  </DeskRowButton>
                 ) : (
-                  <div key={a.id} className={cn("flex w-full flex-wrap items-center justify-between gap-2 rounded-2xl border px-4 py-3", t.border, t.bg)}>
-                    {row}
-                    <span className="text-xs font-semibold text-ink-muted">{ui("With your principal")}</span>
+                  <div key={a.id} data-tone={tone} className={cn(deskRow, "flex w-full flex-wrap items-center gap-3")}>
+                    <DeskRowIcon icon={AlertTriangle} />
+                    <span className="min-w-0 flex-1">{title}</span>
+                    <DeskPill tone="neutral">{ui("With your principal")}</DeskPill>
                   </div>
                 );
               })}
@@ -616,38 +611,30 @@ export function AcademicHub({ campusId, onNavigate, showPlanner = true }: { camp
             <div className="space-y-2">
               {stats.activity.map((a) => {
                 const target = a.kind === "exam" ? "exam-cycles" : "timetable";
-                const row = (
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span
-                      aria-hidden="true"
-                      className={cn(
-                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                        a.kind === "exam" ? "bg-status-warning-surface text-status-warning-text" : "bg-brand-100 text-primary",
-                      )}
-                    >
-                      {a.kind === "exam" ? <ListChecks className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
-                    </span>
-                    <span className="min-w-0">
-                      <bdi className="block truncate text-sm font-semibold text-ink-strong">{a.title}</bdi>
-                      <span className="block truncate text-xs font-normal text-ink-subtle">
-                        {[a.term, activityMeta(a.meta)].filter(Boolean).join(" · ")}
-                      </span>
-                    </span>
+                const tone = a.kind === "exam" ? "warning" : "brand";
+                const icon = a.kind === "exam" ? ListChecks : BookOpen;
+                const lines = <>
+                  <bdi className="block truncate text-sm font-semibold text-ink-strong">{a.title}</bdi>
+                  <span className="block truncate text-xs font-normal text-ink-subtle">
+                    {[a.term, activityMeta(a.meta)].filter(Boolean).join(" · ")}
                   </span>
-                );
+                  {a.at ? <RelativeTime iso={a.at} className="block text-xs text-ink-subtle" /> : null}
+                </>;
                 return reachable(target) ? (
-                  <Button
-                    variant="outline"
+                  <DeskRowButton
                     key={a.id}
+                    tone={tone}
+                    icon={icon}
                     onClick={() => go(target)}
-                    className="sk-nudge-trigger w-full justify-between gap-3 px-4 py-3 text-start"
+                    className="sk-nudge-trigger items-center"
+                    trailing={<ArrowRight aria-hidden="true" className="sk-nudge h-4 w-4 text-ink-faint rtl:rotate-180" />}
                   >
-                    {row}
-                    <ArrowRight aria-hidden="true" className="sk-nudge h-4 w-4 text-ink-faint rtl:rotate-180" />
-                  </Button>
+                    {lines}
+                  </DeskRowButton>
                 ) : (
-                  <div key={a.id} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-edge/15 px-4 py-3">
-                    {row}
+                  <div key={a.id} data-tone={tone} className={cn(deskRow, "flex w-full items-center gap-3")}>
+                    <DeskRowIcon icon={icon} />
+                    <span className="min-w-0 flex-1">{lines}</span>
                   </div>
                 );
               })}
@@ -658,13 +645,7 @@ export function AcademicHub({ campusId, onNavigate, showPlanner = true }: { camp
               icon={CircleDashed}
               title={ui("No recent activity yet")}
               description={ui("The latest exams and class timetables for this year will be listed here.")}
-              action={
-                academicLead ? (
-                  <Button type="button" variant="outline" size="sm" onClick={() => go("timetable")}>
-                    {ui("Open timetable")}
-                  </Button>
-                ) : undefined
-              }
+              primaryAction={academicLead ? { id: "open-timetable", label: "Open timetable", onClick: () => go("timetable") } : undefined}
             />
           )}
         </section>
@@ -674,32 +655,8 @@ export function AcademicHub({ campusId, onNavigate, showPlanner = true }: { camp
   );
 }
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  tone,
-  info,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: number;
-  tone: keyof typeof TONE;
-  /** What the number counts, shown behind an (i) beside the label. */
-  info?: string;
-}) {
+/** A stat tile's label with what the number counts behind an (i). */
+function StatLabel({ label, info }: { label: string; info: string }) {
   const ui = useUiText();
-  const t = TONE[tone];
-  return (
-    <div className="sk-panel min-w-0 p-4 sm:p-5">
-      <div aria-hidden="true" className={cn("flex h-10 w-10 items-center justify-center rounded-2xl", t.bg)}>
-        <Icon className={cn("h-5 w-5", t.text)} />
-      </div>
-      <p data-numeric className="mt-3 text-2xl font-bold tracking-tight text-ink-strong tabular-nums sm:text-3xl">{value}</p>
-      <div className="mt-1 flex min-w-0 items-center gap-0.5">
-        <p className="min-w-0 text-xs font-semibold text-ink-muted">{label}</p>
-        {info ? <InfoTip content={info} label={ui("About {0}", [label])} className="-my-1" /> : null}
-      </div>
-    </div>
-  );
+  return <span className="inline-flex min-w-0 items-center gap-0.5">{label}<InfoTip content={info} label={ui("About {0}", [label])} className="-my-1" /></span>;
 }

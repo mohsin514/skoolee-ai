@@ -12,11 +12,15 @@ import {
   ArrowRight,
   CheckCircle2,
   Circle,
+  CalendarClock,
   Lock,
   ShieldCheck,
 } from "lucide-react";
 import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { DeskPill, DeskRowIcon, deskRow, type DeskTone } from "@/components/ui/desk";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Progress } from "@/components/ui/progress";
 import { emitCycleChanged } from "@/lib/cycleEvents";
 
 interface ClosureStep {
@@ -41,10 +45,10 @@ interface ClosureData {
   blockedBy: { id: string; label: string; academicYear: number; status: string }[];
 }
 
-const OWNER_STYLE: Record<ClosureStep["owner"], string> = {
-  Teachers: "bg-status-warning-surface text-status-warning-text border-status-warning-border",
-  Office: "bg-brand-100 text-primary border-primary/20",
-  Principal: "bg-status-info-surface text-status-info-text border-status-info-border",
+const OWNER_STYLE: Record<ClosureStep["owner"], DeskTone> = {
+  Teachers: "warning",
+  Office: "brand",
+  Principal: "info",
 };
 /** EN UI keys for the step owner chip (translated through useUiText; AR/UR in p6-messages). */
 const OWNER_LABEL: Record<ClosureStep["owner"], string> = { Teachers: "Teachers", Office: "Office", Principal: "Principal" };
@@ -220,40 +224,31 @@ export function YearClosureChecklist({
 
       {/* Checklist */}
       {isEmptyYear ? (
-        <div className="rounded-2xl border border-border-subtle bg-surface-subtle px-4 py-5 text-center">
-          <p className="text-sm font-bold text-ink-strong">{ui("Nothing to close here")}</p>
-          <p className="mx-auto mt-1 max-w-md text-xs font-medium leading-relaxed text-ink-muted">
-            {ui("Once exams are created and results released for {0}, this checklist will show what is left before the year can be closed.", [label])}
-          </p>
-          {onNavigate && opens("exam-cycles") ? (
-            <Button variant="outline" onClick={() => onNavigate("exam-cycles")} className="mt-3">
-              {ui("Open Exams & results")}
-              <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" aria-hidden="true" />
-            </Button>
-          ) : null}
-        </div>
+        <EmptyState
+          size="sm"
+          icon={CalendarClock}
+          title={ui("Nothing to close here")}
+          description={ui("Once exams are created and results released for {0}, this checklist will show what is left before the year can be closed.", [label])}
+          primaryAction={onNavigate && opens("exam-cycles") ? { id: "open-exams", label: "Open Exams & results", onClick: () => onNavigate("exam-cycles") } : undefined}
+        />
       ) : (
+        <>
+        <Progress className="mb-4" value={data.steps.length - remaining} max={data.steps.length || 1} tone={data.canClose ? "success" : "warning"} label={ui("{0} of {1} done", [data.steps.length - remaining, data.steps.length])} showValue />
         <ul className="space-y-2">
-          {data.steps.map((s) => (
+          {/* Unfinished steps first: the list reads as what is left, then what is done. */}
+          {[...data.steps].sort((a, b) => Number(a.done) - Number(b.done)).map((s) => (
             <li
               key={s.id}
-              className={cn(
-                "flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3",
-                s.done ? "border-status-success-border bg-status-success-surface/50" : "border-border-subtle bg-card",
-              )}
+              data-tone={s.done ? "success" : "warning"}
+              data-step-done={s.done || undefined}
+              className={cn(deskRow, "flex flex-wrap items-center justify-between gap-3")}
             >
-              <div className="flex min-w-0 items-start gap-3">
-                {s.done ? (
-                  <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-status-success-text" />
-                ) : (
-                  <Circle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-edge" />
-                )}
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <DeskRowIcon icon={s.done ? CheckCircle2 : Circle} />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-bold text-ink-strong">{ui(s.label)}</p>
-                    <span className={cn("rounded-full border px-2 py-0.5 text-xs font-semibold", OWNER_STYLE[s.owner])}>
-                      {ui(OWNER_LABEL[s.owner])}
-                    </span>
+                    <DeskPill tone={OWNER_STYLE[s.owner]}>{ui(OWNER_LABEL[s.owner])}</DeskPill>
                   </div>
                   <p className="mt-0.5 text-xs font-medium text-ink-muted">{ui(s.detail)}</p>
                 </div>
@@ -267,6 +262,7 @@ export function YearClosureChecklist({
             </li>
           ))}
         </ul>
+        </>
       )}
 
       {/* Close action (the host's PageHeader owns it when `hideActions`) */}
