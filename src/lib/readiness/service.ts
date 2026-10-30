@@ -1,6 +1,6 @@
 import { canConfigureCampus } from "@/lib/school-ai/setup-role";
 import { z } from "zod";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
 import type { TxClient } from "@/lib/db/prisma";
@@ -95,18 +95,21 @@ export async function readinessView(user: AuthUser, now = new Date()) {
       // Other staff see only the follow-ups they own.
       const tasks = await tx.readinessTask.findMany({ where: { schoolId: user.schoolId, ownerId: user.userId }, orderBy: { createdAt: "asc" } });
       if (!tasks.length) throw new ApiError("School readiness is managed by the implementation lead.", 403);
-      return { lead: false as const, tasks, staff: [] as Array<{ id: string; fullName: string; role: string }> };
+      const audit = await taskAudit(tx, user.schoolId, tasks.map(task => task.id));
+      const people = await tx.user.findMany({ where: { schoolId: user.schoolId, id: { in: [...new Set(audit.map(row => row.userId))] } }, select: { id: true, fullName: true } });
+      return { lead: false as const, tasks: withHistory(tasks, audit, new Map(people.map(person => [person.id, person.fullName]))), staff: [] as Array<{ id: string; fullName: string; role: string }> };
     }
     await seedOptionalTasks(tx, user);
     const row = await readinessRow(tx, user);
     const facts = await gatherFacts(tx, user.schoolId, row.rehearsal as ReadinessFacts["rehearsal"]);
-    const [tasks, staff, locale] = await Promise.all([
+    const [tasks, staff, locale, audit] = await Promise.all([
       tx.readinessTask.findMany({ where: { schoolId: user.schoolId }, orderBy: { createdAt: "asc" } }),
       tx.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: { notIn: ["STUDENT", "PARENT", "APP_OWNER"] } }, select: { id: true, fullName: true, role: true }, orderBy: { fullName: "asc" } }),
       getLocalePackage(user.schoolId, null, now, undefined, tx),
+      taskAudit(tx, user.schoolId),
     ]);
     return { lead: true as const, readiness: { status: row.status, version: row.version, approvedById: row.approvedById, approvedAt: row.approvedAt, evidence: row.evidence, rehearsal: row.rehearsal },
-      facts, ...evaluateReadiness(facts, { role: user.role, institutionKind: user.institutionKind, isInstitutionOwner: user.isInstitutionOwner }), tasks, staff, locale: { country: locale.country, timezone: locale.timezone, currency: locale.currency },
+      facts, ...evaluateReadiness(facts, { role: user.role, institutionKind: user.institutionKind, isInstitutionOwner: user.isInstitutionOwner }), tasks: withHistory(tasks, audit, new Map(staff.map(person => [person.id, person.fullName]))), staff, locale: { country: locale.country, timezone: locale.timezone, currency: locale.currency },
       // The setup questionnaire lives in AI Workflows (/ai?setup=1).
       aiSetup: canConfigureCampus(user.role),
       // The setup areas in wizard order, each with where this viewer sets it up (status comes from its task).
@@ -126,7 +129,7 @@ export async function approveReadiness(user: AuthUser, raw: unknown, now = new D
     const facts = await gatherFacts(tx, user.schoolId, row.rehearsal as ReadinessFacts["rehearsal"]);
     const result = evaluateReadiness(facts);
     if (!result.ready) throw new ApiError(`Required checks are not complete: ${result.checks.filter(c => c.required && !c.passed).map(c => c.id).join(", ")}.`, 409);
-    const outstanding = await tx.readinessTask.findMany({ where: { schoolId: user.schoolId, status: "OPEN" }, select: { key: true, title: true, ownerId: true } });
+    const outstanding = await tx.readinessTask.findMany({ where: { schoolId: user.schoolId, status: { in: ["OPEN", "IN_PROGRESS"] } }, select: { key: true, title: true, ownerId: true, dueOn: true } });
     const evidence = { approvedFor: facts.adoptionMode, checks: result.checks, imports: facts.imports, outstandingOptional: outstanding } as unknown as Prisma.InputJsonValue;
     const updated = await tx.schoolReadiness.update({ where: { schoolId: user.schoolId }, data: { status: "READY", approvedById: user.userId, approvedAt: now, evidence, version: row.version + 1 } });
     await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "school_readiness", recordId: updated.id, userId: user.userId, oldValue: { status: "SETUP", version: row.version }, newValue: { status: "READY", version: updated.version } } });
@@ -134,11 +137,45 @@ export async function approveReadiness(user: AuthUser, raw: unknown, now = new D
   });
 }
 
+const taskId = z.string().min(1), expectedVersion = z.number().int().min(1).optional();
+const dueOn = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-11-30.").nullable();
+export const TASK_STATUSES = ["OPEN", "IN_PROGRESS", "DONE", "DEFERRED"] as const;
 export const taskInput = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("assign"), taskId: z.string().min(1), ownerId: z.string().min(1).nullable() }).strict(),
-  z.object({ action: z.literal("status"), taskId: z.string().min(1), status: z.enum(["OPEN", "DONE", "DEFERRED"]) }).strict(),
-  z.object({ action: z.literal("create"), title: z.string().trim().min(3).max(160), ownerId: z.string().min(1).nullable() }).strict(),
+  z.object({ action: z.literal("assign"), taskId, ownerId: z.string().min(1).nullable(), expectedVersion }).strict(),
+  z.object({ action: z.literal("status"), taskId, status: z.enum(TASK_STATUSES), expectedVersion }).strict(),
+  z.object({ action: z.literal("schedule"), taskId, dueOn, expectedVersion }).strict(),
+  z.object({ action: z.literal("remind"), taskId, expectedVersion }).strict(),
+  z.object({ action: z.literal("create"), title: z.string().trim().min(3).max(160), ownerId: z.string().min(1).nullable(), dueOn: dueOn.optional() }).strict(),
 ]);
+const REMIND_EVERY_MS = 86_400_000;
+const taskNoticeKey = (id: string) => `readiness-task:${id}`;
+type TaskRow = Prisma.ReadinessTaskGetPayload<object>;
+const auditValue = (task: TaskRow) => ({ status: task.status, ownerId: task.ownerId, dueOn: task.dueOn?.toISOString().slice(0, 10) ?? null, version: task.version });
+
+/** A due date is a calendar day: today or later, and at most two years out. */
+function parseDueOn(value: string | null | undefined, now: Date) {
+  if (!value) return null;
+  const day = new Date(`${value}T00:00:00Z`), today = new Date(now.toISOString().slice(0, 10) + "T00:00:00Z");
+  if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== value) throw new ApiError("Choose a real calendar date.", 400);
+  if (day < today) throw new ApiError("The due date cannot be in the past.", 400);
+  if (day.getTime() - today.getTime() > 730 * 86_400_000) throw new ApiError("Choose a due date within two years.", 400);
+  return day;
+}
+
+/** The audit trail (SKAI-155): the tracking changes of these tasks, newest first. One query, so it can run alongside the rest. */
+function taskAudit(tx: TxClient, schoolId: string, taskIds?: string[]) {
+  return tx.auditLog.findMany({ where: { schoolId, tableName: "readiness_tasks", newValue: { path: ["action"], not: Prisma.AnyNull }, ...(taskIds ? { recordId: { in: taskIds } } : {}) }, orderBy: { createdAt: "desc" }, take: 300, select: { recordId: true, userId: true, newValue: true, createdAt: true } });
+}
+function withHistory<T extends TaskRow>(tasks: T[], audit: Awaited<ReturnType<typeof taskAudit>>, names: Map<string, string>) {
+  const history: Record<string, Array<{ action: string; byName: string; at: string }>> = {};
+  for (const row of audit) {
+    const action = (row.newValue as { action?: unknown } | null)?.action;
+    const list = (history[row.recordId] ??= []);
+    if (typeof action === "string" && list.length < 5) list.push({ action, byName: names.get(row.userId) ?? "", at: row.createdAt.toISOString() });
+  }
+  return tasks.map(task => ({ ...task, dueOn: task.dueOn?.toISOString().slice(0, 10) ?? null, history: history[task.id] ?? [] }));
+}
+
 export async function updateReadinessTask(user: AuthUser, raw: unknown, now = new Date()) {
   const input = taskInput.parse(raw);
   return schoolAiTransaction(user, async tx => {
@@ -146,21 +183,52 @@ export async function updateReadinessTask(user: AuthUser, raw: unknown, now = ne
     const assertOwner = async (ownerId: string | null) => {
       if (ownerId && !(await tx.user.findFirst({ where: { id: ownerId, schoolId: user.schoolId, isActive: true, role: { notIn: ["STUDENT", "PARENT", "APP_OWNER"] } }, select: { id: true } }))) throw new ApiError("Choose an active staff member from this school.", 400);
     };
+    const audit = (task: TaskRow, oldValue: object | null, action: string) => tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "readiness_tasks", recordId: task.id, userId: user.userId, oldValue: oldValue ?? undefined, newValue: { action, ...auditValue(task) } } });
     if (input.action === "create") {
       if (!lead) throw new ApiError("Only the implementation lead can add follow-ups.", 403);
       await assertOwner(input.ownerId);
-      return tx.readinessTask.create({ data: { schoolId: user.schoolId, key: `custom-${crypto.randomUUID()}`, title: input.title, ownerId: input.ownerId, createdById: user.userId } });
+      const created = await tx.readinessTask.create({ data: { schoolId: user.schoolId, key: `custom-${crypto.randomUUID()}`, title: input.title, ownerId: input.ownerId, dueOn: parseDueOn(input.dueOn, now), createdById: user.userId } });
+      await audit(created, null, "create");
+      return created;
     }
     const task = await tx.readinessTask.findFirst({ where: { id: input.taskId, schoolId: user.schoolId } });
     if (!task) throw new ApiError("Task not found.", 404);
+    // Only the lead plans the work; the owner moves their own task along but cannot put it off.
+    if (!lead && (input.action !== "status" || task.ownerId !== user.userId || input.status === "DEFERRED")) throw new ApiError("You can only update follow-ups assigned to you.", 403);
+    if (input.expectedVersion !== undefined && input.expectedVersion !== task.version) throw new ApiError("This task changed since you opened it. Review the latest and try again.", 409);
+    let data: Prisma.ReadinessTaskUpdateManyMutationInput & { ownerId?: string | null };
     if (input.action === "assign") {
-      if (!lead) throw new ApiError("Only the implementation lead can assign follow-ups.", 403);
       await assertOwner(input.ownerId);
-      return tx.readinessTask.update({ where: { id: task.id }, data: { ownerId: input.ownerId } });
+      if (input.ownerId === task.ownerId) return task;
+      data = { ownerId: input.ownerId, remindedAt: null };
+    } else if (input.action === "schedule") {
+      data = { dueOn: parseDueOn(input.dueOn, now) };
+    } else if (input.action === "remind") {
+      if (!task.ownerId) throw new ApiError("Assign this task before sending a reminder.", 409);
+      if (task.status === "DONE") throw new ApiError("This task is already done.", 409);
+      if (task.remindedAt && now.getTime() - task.remindedAt.getTime() < REMIND_EVERY_MS) throw new ApiError("A reminder was already sent in the last 24 hours.", 409);
+      data = { remindedAt: now };
+    } else {
+      if (input.status === task.status) return task;
+      const closed = input.status === "DONE" || input.status === "DEFERRED";
+      data = { status: input.status, completedAt: closed ? now : null, completedById: closed ? user.userId : null };
     }
-    // The owner closes their own task; the lead can close or defer any.
-    if (!lead && (task.ownerId !== user.userId || input.status === "DEFERRED")) throw new ApiError("You can only complete follow-ups assigned to you.", 403);
-    return tx.readinessTask.update({ where: { id: task.id }, data: { status: input.status, completedAt: input.status === "OPEN" ? null : now, completedById: input.status === "OPEN" ? null : user.userId } });
+    // The version check and the write are one statement, so two tabs cannot both win.
+    const { count } = await tx.readinessTask.updateMany({ where: { id: task.id, schoolId: user.schoolId, version: task.version }, data: { ...data, version: { increment: 1 } } });
+    if (count !== 1) throw new ApiError("This task changed since you opened it. Review the latest and try again.", 409);
+    const updated = await tx.readinessTask.findUniqueOrThrow({ where: { id: task.id } });
+    await audit(updated, auditValue(task), input.action === "status" ? `status:${input.status}` : input.action);
+    const noticeKey = taskNoticeKey(task.id);
+    if (input.action === "remind" && updated.ownerId) {
+      const notice = { title: "Setup task reminder", message: `Please finish: ${updated.title}${updated.dueOn ? ` (due ${updated.dueOn.toISOString().slice(0, 10)})` : ""}.`, link: "/setup/readiness", actorId: user.userId, dueAt: updated.dueOn, lastRemindedAt: now, resolvedAt: null };
+      await tx.notification.upsert({ where: { userId_dedupeKey: { userId: updated.ownerId, dedupeKey: noticeKey } },
+        create: { ...notice, schoolId: user.schoolId, userId: updated.ownerId, type: "SETUP_TASK", category: "ACTION", sourceType: "readiness_task", sourceId: task.id, dedupeKey: noticeKey, reminderCount: 1 },
+        update: { ...notice, isRead: false, readAt: null, reminderCount: { increment: 1 } } });
+    } else if ((input.action === "assign" || input.action === "status" && updated.status !== "OPEN" && updated.status !== "IN_PROGRESS") && task.ownerId) {
+      // A reminder is resolved by the task: done, put off or handed to someone else.
+      await tx.notification.updateMany({ where: { schoolId: user.schoolId, userId: task.ownerId, dedupeKey: noticeKey, resolvedAt: null }, data: { resolvedAt: now, resolution: input.action === "assign" ? "REASSIGNED" : updated.status === "DONE" ? "COMPLETED" : "CANCELLED" } });
+    }
+    return updated;
   });
 }
 

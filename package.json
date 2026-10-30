@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm run test:authz && pnpm run test:navigation && pnpm run test:notifications && pnpm run test:tour && pnpm run test:locale && pnpm run test:commercial && pnpm run test:deployment && pnpm run test:pilots && pnpm run test:db-pool && pnpm run test:dashboard && pnpm run test:realtime && pnpm run test:students && pnpm run test:otp && pnpm run test:email && pnpm run test:educator-eval && pnpm run test:audit-trail && pnpm run test:guardian-consent && pnpm run test:teaching-mode && pnpm run test:password-reset && pnpm run test:logo && pnpm run test:grade-weights && pnpm run test:weekend && pnpm run test:subject-setup && pnpm run test:year-dates && pnpm run test:setup-areas && pnpm run test:cycle-rules && pnpm run test:grading-model && pnpm run test:package-choice && pnpm run test:package-status && pnpm run test:login && pnpm run test:class-sync",
+    "test": "pnpm run test:authz && pnpm run test:navigation && pnpm run test:notifications && pnpm run test:tour && pnpm run test:locale && pnpm run test:commercial && pnpm run test:deployment && pnpm run test:pilots && pnpm run test:db-pool && pnpm run test:dashboard && pnpm run test:realtime && pnpm run test:students && pnpm run test:otp && pnpm run test:email && pnpm run test:educator-eval && pnpm run test:audit-trail && pnpm run test:guardian-consent && pnpm run test:teaching-mode && pnpm run test:password-reset && pnpm run test:logo && pnpm run test:grade-weights && pnpm run test:weekend && pnpm run test:subject-setup && pnpm run test:year-dates && pnpm run test:setup-areas && pnpm run test:cycle-rules && pnpm run test:grading-model && pnpm run test:package-choice && pnpm run test:package-status && pnpm run test:login && pnpm run test:class-sync && pnpm run test:school-registration",
     "test:password-reset": "node --import tsx --test tests/password-reset/*.test.ts",
     "test:teaching-mode": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/teaching-mode.test.ts",
     "test:weekend": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/weekend-rules.test.ts",
@@ -96,6 +96,7 @@
     "test:deployment": "node --test tests/deployment/*.test.mjs",
     "smoke:deployment": "node scripts/deployment/smoke.mjs",
     "test:package-status": "node --import tsx --test tests/package-status/package-status.test.ts",
+    "test:school-registration": "node --import tsx --test tests/school-registration/*.test.ts",
     "test:login": "node --import ./tests/support/server-only.mjs --import tsx --test tests/login/*.test.ts"
   },
   "prisma": {

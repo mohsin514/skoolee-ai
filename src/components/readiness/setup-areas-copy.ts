@@ -3,7 +3,7 @@ import type { SetupAreaId } from "@/lib/onboarding/setup-areas";
 type AreaCopy = Record<SetupAreaId, { title: string; why: string }>;
 type SetupAreasCopy = {
   title: string; intro: string; doneSuffix: string; next: string; open: string; markDone: string; later: string; reopen: string; delegated: string;
-  statuses: { OPEN: string; DONE: string; DEFERRED: string };
+  statuses: { OPEN: string; IN_PROGRESS: string; DONE: string; DEFERRED: string };
   areas: AreaCopy;
 };
 
@@ -12,7 +12,7 @@ const en: SetupAreasCopy = {
   intro: "Work through these in order. Open one, set it up, then come back here. Choose Later to skip one for now: your progress is saved.",
   doneSuffix: "done", next: "Next", open: "Open", markDone: "Mark done", later: "Later", reopen: "Back to list",
   delegated: "Each campus admin sets this up for their campus.",
-  statuses: { OPEN: "To do", DONE: "Done", DEFERRED: "Later" },
+  statuses: { OPEN: "To do", IN_PROGRESS: "In progress", DONE: "Done", DEFERRED: "Later" },
   areas: {
     logo: { title: "School logo", why: "Prints on report cards, receipts and letters." },
     academicYear: { title: "Academic year", why: "Terms and dates every class and exam belongs to." },
@@ -31,7 +31,7 @@ const ar: SetupAreasCopy = {
   intro: "أنجز هذه الخطوات بالترتيب. افتح خطوة وأعدّها ثم عُد إلى هنا. اختر «لاحقًا» لتخطي خطوة الآن: يُحفظ تقدمك.",
   doneSuffix: "منجزة", next: "التالي", open: "فتح", markDone: "تم", later: "لاحقًا", reopen: "إعادة إلى القائمة",
   delegated: "يُعدّ مسؤول كل فرع هذا لفرعه.",
-  statuses: { OPEN: "للإنجاز", DONE: "منجزة", DEFERRED: "لاحقًا" },
+  statuses: { OPEN: "للإنجاز", IN_PROGRESS: "قيد التنفيذ", DONE: "منجزة", DEFERRED: "لاحقًا" },
   areas: {
     logo: { title: "شعار المدرسة", why: "يظهر على الشهادات والإيصالات والخطابات." },
     academicYear: { title: "العام الدراسي", why: "الفصول والتواريخ التي تتبعها كل الصفوف والاختبارات." },
@@ -50,7 +50,7 @@ const ur: SetupAreasCopy = {
   intro: "یہ مراحل ترتیب سے مکمل کریں۔ ایک کھولیں، سیٹ اپ کریں، پھر یہاں واپس آئیں۔ کسی کو ابھی چھوڑنے کے لیے «بعد میں» منتخب کریں: آپ کی پیش رفت محفوظ رہتی ہے۔",
   doneSuffix: "مکمل", next: "اگلا", open: "کھولیں", markDone: "مکمل", later: "بعد میں", reopen: "فہرست میں واپس",
   delegated: "ہر کیمپس کا ایڈمن اپنے کیمپس کے لیے یہ سیٹ اپ کرتا ہے۔",
-  statuses: { OPEN: "باقی", DONE: "مکمل", DEFERRED: "بعد میں" },
+  statuses: { OPEN: "باقی", IN_PROGRESS: "جاری", DONE: "مکمل", DEFERRED: "بعد میں" },
   areas: {
     logo: { title: "اسکول کا لوگو", why: "رپورٹ کارڈ، رسیدوں اور خطوط پر چھپتا ہے۔" },
     academicYear: { title: "تعلیمی سال", why: "وہ ٹرم اور تاریخیں جن سے ہر کلاس اور امتحان منسلک ہے۔" },
