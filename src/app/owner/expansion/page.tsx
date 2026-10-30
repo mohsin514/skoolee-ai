@@ -7,11 +7,12 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Layers, Save } from "lucide-react";
+import { CircleCheck, CircleSlash, Layers, Save } from "lucide-react";
+import { DeskPill, DeskStats, StatTile, type DeskTone } from "@/components/ui/desk";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { PageCard } from "@/components/ui/page-card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { ErrorState } from "@/components/ui/error-state";
 import { Alert } from "@/components/ui/alert";
 import { FormField } from "@/components/ui/form-field";
@@ -27,7 +28,7 @@ const COPY = {
   ar: { title: "بوابة توسيع الحزم", description: "تبقى الحزم المؤجلة غير متاحة حتى تجتاز أدلتها واعتماداتها وبوابة التجربة الخاصة بها.", candidate: "المرشح", decision: "القرار", availability: "الإتاحة", blockers: "المتطلبات المانعة", available: "متاحة", unavailable: "غير متاحة", record: "تسجيل قرار", recordHint: "سجل البوابة الكامل (JSON): هوية المصدر وحقوقه، واختيار المدرسة، ومجالات معايرة العلوم، واعتماد المعلم، والقرار مع مرجعي المؤسس والمعلم والمبرر والتذكرة المحددة.", save: "حفظ القرار", saved: "تم تسجيل القرار. تُعاد حساب الإتاحة من الأدلة.", loadFailed: "تعذر تحميل مرشحي التوسيع.", none: "لا شيء", PENDING: "معلّق", ADOPT: "اعتماد", DEFER: "تأجيل", REJECT: "رفض" },
 } as const;
 
-const TONE: Record<ExpansionStatus["outcome"], BadgeProps["variant"]> = { PENDING: "neutral", ADOPT: "success", DEFER: "warning", REJECT: "danger" };
+const TONE: Record<ExpansionStatus["outcome"], DeskTone> = { PENDING: "neutral", ADOPT: "success", DEFER: "warning", REJECT: "danger" };
 
 const template = (candidateId: string) => JSON.stringify({ candidateId, source: { board: "", qualification: "", subject: "", grade: "", edition: "", examYear: "", academicYear: "", term: "", tier: "", language: "en", officialUrl: "https://", retrievedOn: "", rightsStatus: "UNKNOWN", verification: "UNVERIFIED" }, calibration: [], decision: { outcome: "DEFER", founder: { role: "Founder", reference: "", on: "" }, educator: { role: "Subject educator", reference: "", on: "" }, rationale: "" } }, null, 2);
 
@@ -66,7 +67,11 @@ export default function PackExpansionPage() {
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <PageHeader icon={Layers} title={t.title} description={t.description} />
-      {failed ? <ErrorState title={t.loadFailed} onRetry={load} /> : (
+      {rows?.length ? <DeskStats>
+        <StatTile index={0} icon={CircleCheck} tone="success" label={t.available} value={rows.filter((r) => r.available).length} />
+        <StatTile index={1} icon={CircleSlash} tone="neutral" label={t.unavailable} value={rows.filter((r) => !r.available).length} />
+      </DeskStats> : null}
+      {failed ? <ErrorState title={t.loadFailed} onRetry={load} /> : !rows ? <SkeletonList rows={3} label={t.title} /> : (
         <PageCard>
           <Table>
             <TableHeader><TableRow><TableHead>{t.candidate}</TableHead><TableHead>{t.decision}</TableHead><TableHead>{t.availability}</TableHead><TableHead>{t.blockers}</TableHead></TableRow></TableHeader>
@@ -74,8 +79,8 @@ export default function PackExpansionPage() {
               {(rows ?? []).map((r) => (
                 <TableRow key={r.id}>
                   <TableCell><bdi dir="ltr" className="font-semibold">{r.id}</bdi><div className="text-xs text-ink-muted" dir="ltr">{r.board} · {r.qualification} · {r.subject} · {r.grade}</div></TableCell>
-                  <TableCell><Badge size="sm" variant={TONE[r.outcome]}>{t[r.outcome]}</Badge>{r.boundedTicket ? <div className="text-xs" dir="ltr">{r.boundedTicket}</div> : null}</TableCell>
-                  <TableCell><Badge size="sm" variant={r.available ? "success" : "neutral"}>{r.available ? t.available : t.unavailable}</Badge></TableCell>
+                  <TableCell><DeskPill tone={TONE[r.outcome]}>{t[r.outcome]}</DeskPill>{r.boundedTicket ? <div className="text-xs" dir="ltr">{r.boundedTicket}</div> : null}</TableCell>
+                  <TableCell><DeskPill tone={r.available ? "success" : "neutral"}>{r.available ? t.available : t.unavailable}</DeskPill></TableCell>
                   <TableCell>{r.blockers.length ? <ul className="list-disc ps-4 text-sm" dir="ltr">{r.blockers.map((b) => <li key={b}>{b}</li>)}</ul> : t.none}</TableCell>
                 </TableRow>
               ))}
