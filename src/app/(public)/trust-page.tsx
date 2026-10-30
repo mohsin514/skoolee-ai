@@ -11,6 +11,9 @@ export interface TrustPageCopy {
     title: string;
     body: string;
   }[];
+  currentHref?: string;
+  /** SKAI-1000 trust-pack documents: draft banner, version and language switch. */
+  legal?: { lang: "en" | "ur"; draft: string; version: string; switchHref: string; switchLabel: string };
 }
 
 const SECTION_ICONS = [ShieldCheck, Lock, Eye, Database];
@@ -20,6 +23,9 @@ const NAV = [
   { label: "Security", href: "/security", desc: "How access and data are protected" },
   { label: "AI Governance", href: "/ai-governance", desc: "How AI assists and is reviewed" },
   { label: "Human Review Policy", href: "/human-review-policy", desc: "How drafts are approved before sharing" },
+  { label: "Terms of service", href: "/terms", desc: "Rules for using Skoolee AI" },
+  { label: "Data processing agreement", href: "/dpa", desc: "Template between a school and Skoolee" },
+  { label: "Guardian notice", href: "/guardian-notice", desc: "What parents are told about their child's data" },
 ];
 
 export function TrustPage({ copy }: { copy: TrustPageCopy }) {
@@ -33,7 +39,11 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
   };
 
   return (
-    <main className="min-h-screen font-sans text-ink-strong">
+    <main
+      lang={copy.legal?.lang}
+      dir={copy.legal?.lang === "ur" ? "rtl" : undefined}
+      className="min-h-screen font-sans text-ink-strong"
+    >
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -99,6 +109,17 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
 
       {/* ─── SECTIONS ─────────────────────────────────── */}
       <section className="mx-auto max-w-4xl px-4 pb-16 sm:px-6">
+        {copy.legal && (
+          <div role="note" className="sk-panel mt-12 flex flex-wrap items-center justify-between gap-3 border-warning p-4">
+            <p className="text-sm font-semibold text-ink-strong">
+              {copy.legal.draft}
+              <span className="ms-2 font-normal text-ink-muted">{copy.legal.version}</span>
+            </p>
+            <Link href={copy.legal.switchHref} className={buttonVariants({ variant: "outline", size: "sm" })}>
+              {copy.legal.switchLabel}
+            </Link>
+          </div>
+        )}
         <div className="sk-stagger grid gap-4 pt-12">
           {copy.sections.map((section, i) => {
             const Icon = SECTION_ICONS[i % SECTION_ICONS.length];
@@ -129,7 +150,7 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
               <Link
                 key={nav.href}
                 href={nav.href}
-                aria-current={nav.label === copy.title ? "page" : undefined}
+                aria-current={(copy.currentHref ? nav.href === copy.currentHref : nav.label === copy.title) ? "page" : undefined}
                 className="sk-panel sk-hover-lift sk-nudge-trigger group flex items-start justify-between gap-3 p-4 aria-[current=page]:border-primary aria-[current=page]:bg-surface-selected"
               >
                 <span className="min-w-0">
