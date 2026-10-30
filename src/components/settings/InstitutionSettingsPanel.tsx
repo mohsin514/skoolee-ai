@@ -209,13 +209,11 @@ export function InstitutionSettingsPanel({
     if (!requestEdit || !data) return;
     openEditor();
     // Only a new request opens the dialog; data refreshes must not reopen it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestEdit, data]);
   usePanelCommand(command, { save: openEditor, edit: openEditor }, Boolean(data));
   useEffect(() => {
     if (!requestArchive || !data || !focusCampus || !data.canArchiveCampuses) return;
     setArchiving(focusCampus);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestArchive, data, focusCampus]);
 
   if (section === "archived") {

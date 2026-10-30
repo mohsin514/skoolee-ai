@@ -12,6 +12,15 @@ import { jsonObjectBody } from "@/lib/validators/route-bodies";
 //                                                          (unique payroll_line_id) against the
 //                                                          campus "Salaries Expense" account.
 
+/** SKAI-1326: a payroll amount is a whole, non-negative number of paisa that fits the Int32 column. */
+function payrollAmount(value: unknown, field: string): number {
+  const amount = Number(value);
+  if (!Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
+    throw new ApiError(`${field} must be a whole, non-negative amount`, 400);
+  }
+  return amount;
+}
+
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
@@ -83,10 +92,11 @@ export async function PATCH(req: NextRequest) {
     if (line.status !== "DRAFT" && line.status !== "UNPAID") {
       throw new ApiError("Only DRAFT lines can be edited", 409);
     }
-    const basic = body.basic !== undefined ? parseInt(String(body.basic), 10) || 0 : line.basic;
-    const allowances = body.allowances !== undefined ? parseInt(String(body.allowances), 10) || 0 : line.allowances;
-    const deductions = body.deductions !== undefined ? parseInt(String(body.deductions), 10) || 0 : line.deductions;
-    const bonus = body.bonus !== undefined ? parseInt(String(body.bonus), 10) || 0 : line.bonus;
+    // SKAI-1326: amounts are whole, non-negative paisa within the Int32 column; anything else is rejected, not truncated.
+    const basic = body.basic !== undefined ? payrollAmount(body.basic, "basic") : line.basic;
+    const allowances = body.allowances !== undefined ? payrollAmount(body.allowances, "allowances") : line.allowances;
+    const deductions = body.deductions !== undefined ? payrollAmount(body.deductions, "deductions") : line.deductions;
+    const bonus = body.bonus !== undefined ? payrollAmount(body.bonus, "bonus") : line.bonus;
 
     const updated = await prisma.$transaction(async (tx) => {
       const next = await tx.payrollLine.update({

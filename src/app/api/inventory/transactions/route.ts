@@ -63,7 +63,12 @@ export async function POST(req: NextRequest) {
     // SKO-435: a retried movement with the same key is the same movement.
     if (idempotencyKey) {
       const existing = await prisma.itemTransaction.findFirst({ where: { schoolId: user.schoolId, idempotencyKey }, include: { item: true, store: true, supplier: true } });
-      if (existing) return Response.json({ success: true, data: existing, replayed: true }, { status: 200 });
+      // SKAI-1333: a reused key replays only the same movement; a different one must not look accepted.
+      if (existing) {
+        const same = existing.itemId === itemId && existing.storeId === storeId && existing.kind === kind && existing.quantity === quantity;
+        if (!same) throw new ApiError("This idempotency key was already used for a different stock movement.", 409);
+        return Response.json({ success: true, data: existing, replayed: true }, { status: 200 });
+      }
     }
 
     const [item, store, supplier] = await Promise.all([

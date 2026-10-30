@@ -55,11 +55,31 @@ export async function resetPassword(token: string, newPassword: string): Promise
     const hashed = digest(token);
     const request = await prisma.passwordReset.findUnique({ where: { token: hashed } });
     if (!request?.userId || request.expiresAt <= new Date()) return expired;
+    // SKAI-1318: a reset must not reuse the current password or any of the last five, the same rule as change-password.
+    const userId = request.userId;
+    const current = await prisma.user.findUnique({ where: { id: userId }, select: { password: true } });
+    if (current?.password && await bcrypt.compare(newPassword, current.password)) {
+      return { success: false, error: "New password must be different from current password" };
+    }
+    const recentPasswords = await prisma.passwordHistory.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { oldPasswordHash: true },
+    });
+    for (const entry of recentPasswords) {
+      if (await bcrypt.compare(newPassword, entry.oldPasswordHash)) {
+        return { success: false, error: "Cannot reuse one of the last 5 passwords" };
+      }
+    }
     const password = await bcrypt.hash(newPassword, 12);
     const claimed = await prisma.$transaction(async tx => {
       const claim = await tx.passwordReset.deleteMany({ where: { token: hashed, expiresAt: { gt: new Date() } } });
       if (claim.count !== 1) return false;
       const user = await tx.user.update({ where: { id: request.userId! }, data: { password, accessVersion: { increment: 1 }, lastPasswordChange: new Date() } });
+      if (current?.password) {
+        await tx.passwordHistory.create({ data: { userId: user.id, oldPasswordHash: current.password, changedBy: user.id, changeReason: "password_reset" } });
+      }
       await tx.loginSession.updateMany({ where: { userId: user.id }, data: { isActive: false, logoutAt: new Date() } });
       await tx.passwordReset.deleteMany({ where: { userId: user.id } });
       await tx.auditLog.create({ data: { schoolId: user.schoolId, userId: user.id, tableName: "account_security", recordId: user.id, newValue: { action: "password_reset.completed", sessionsRevoked: true } } });

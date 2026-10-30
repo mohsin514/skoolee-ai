@@ -94,7 +94,6 @@ export function NetworkOverview({ data, onSelectCampus }: NetworkOverviewProps) 
       leaderboard: [...rows].sort((a, b) => (b.average ?? -1) - (a.average ?? -1)),
     };
     // Recomputed when the loaded dashboard or the app language (month labels) changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, tag]);
   const needle = scoreQuery.trim().toLocaleLowerCase();
   const scoreboard = needle ? derived.leaderboard.filter((c) => `${c.name} ${c.city ?? ""}`.toLocaleLowerCase().includes(needle)) : derived.leaderboard;
