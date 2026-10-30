@@ -565,7 +565,7 @@ export function AcademicPanel({
   onViewClass: (cls: any) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
   onDeleteClass?: (cls: any) => void;
-  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<boolean | void>;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }) => Promise<boolean | void>;
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
   onAddSection?: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
@@ -1270,7 +1270,7 @@ export function ClassDetailModal({
   /** Omitted for a read-only viewer: no Delete class control. */
   onDeleteClass?: (cls: any) => void;
   /** Omitted for a read-only viewer: no Edit control for the class details. */
-  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<boolean | void>;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }) => Promise<boolean | void>;
   onDeleteSubject: (subject: any) => void;
   onUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
@@ -1327,9 +1327,11 @@ export function ClassDetailModal({
   const [editClassName, setEditClassName] = useState(cls.name || "");
   const [editClassSection, setEditClassSection] = useState(cls.section || "");
   const [editClassAcademicYear, setEditClassAcademicYear] = useState(String(cls.academicYear || new Date().getFullYear()));
+  const [editClassCapacity, setEditClassCapacity] = useState(cls.capacity ? String(cls.capacity) : "");
 
   useEffect(() => {
     if (!editingClass) {
+      setEditClassCapacity(cls.capacity ? String(cls.capacity) : "");
       setEditClassName(cls.name || "");
       setEditClassSection(cls.section || "");
       setEditClassAcademicYear(String(cls.academicYear || new Date().getFullYear()));
@@ -1342,6 +1344,7 @@ export function ClassDetailModal({
       name: editClassName,
       section: editClassSection,
       academicYear: Number(editClassAcademicYear) || new Date().getFullYear(),
+      capacity: editClassCapacity.trim() ? Number(editClassCapacity) : null,
     });
     if (saved !== false) setEditingClass(false);
   };
@@ -1519,10 +1522,11 @@ export function ClassDetailModal({
             </div>
             {editingClass && onUpdateClass ? (
               <div className="mt-4 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <FormInput label={ui("Class Name")} value={editClassName} placeholder={ui("e.g. Class 10")} onChange={setEditClassName} />
                   <FormInput label={ui("Section")} value={editClassSection} placeholder="e.g. A" onChange={setEditClassSection} />
                   <FormInput label={ui("Academic Year")} type="number" value={editClassAcademicYear} placeholder="2026" onChange={setEditClassAcademicYear} />
+                  <FormInput label={ui("Capacity (seats per class)")} type="number" value={editClassCapacity} placeholder={ui("Optional, e.g. 35")} onChange={setEditClassCapacity} />
                 </div>
                 <div className="flex justify-end">
                   <BrandButton variant="dark" className="h-12" onClick={saveClassEdit} disabled={classUpdateBusy}>
@@ -1534,6 +1538,7 @@ export function ClassDetailModal({
               <div className="mt-4 flex items-center justify-between gap-3">
                 <p className="text-xs font-bold text-ink-muted">
                   {cls.name}{cls.section ? " · " + ui("Section {0}", [cls.section]) : ""} · {cls.academicYear}
+                  {" · "}{cls.capacity ? ui("{0} of {1} seats filled", [cls._count?.students ?? 0, cls.capacity]) : ui("Capacity not set")}
                 </p>
                 {onDeleteClass ? (
                   <SystemButton variant="ghost"
@@ -3687,7 +3692,7 @@ export function ClassGroupCard({
   onViewClass: (cls: any) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
   onDeleteClass?: (cls: any) => void;
-  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<boolean | void>;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }) => Promise<boolean | void>;
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
   onAddSection?: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
@@ -3901,7 +3906,7 @@ export function SectionCard({
   onBulkImport?: (classId?: string) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
   onDeleteClass?: (cls: any) => void;
-  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<boolean | void>;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }) => Promise<boolean | void>;
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {

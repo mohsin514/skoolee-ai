@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Archive, RotateCcw } from "lucide-react";
+import { Archive, Pause, Play, RotateCcw } from "lucide-react";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
-import { archiveCampus, previewCampusArchive, restoreCampus, type CampusArchivePreview } from "@/app/actions/settings";
+import { archiveCampus, previewCampusArchive, restoreCampus, setCampusPaused, type CampusArchivePreview } from "@/app/actions/settings";
 
 // SKO-389: a campus is archived only after the owner has seen what it still holds; anything that
 // would be stranded (pupils, classes, payments awaiting confirmation, the last active campus) blocks it.
@@ -67,6 +67,33 @@ export function CampusArchiveButton({ campus, onDone }: { campus: { id: string; 
   return <>
     <Button variant="outline" type="button" onClick={() => setOpen(true)} className="shrink-0" data-archive-campus={campus.id}><Archive aria-hidden="true" />{ui("Archive")}</Button>
     <CampusArchiveDialog campus={campus} open={open} onClose={() => setOpen(false)} onDone={onDone} />
+  </>;
+}
+
+/** SKAI-113: pause (with a reason) or resume a campus; a paused campus stays listed but takes no new staff. */
+export function CampusPauseButton({ campus, onDone }: { campus: { id: string; name: string; pausedAt: string | null }; onDone: () => Promise<void> | void }) {
+  const ui = useUiText();
+  const paused = Boolean(campus.pausedAt);
+  const [open, setOpen] = useState(false), [reason, setReason] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const confirm = async () => {
+    if (!paused && !reason.trim()) { setError(ui("Give a reason for pausing this campus.")); return; }
+    setBusy(true); setError("");
+    try {
+      await setCampusPaused({ campusId: campus.id, paused: !paused, reason });
+      toast.success(paused ? ui("{0} resumed.", [campus.name]) : ui("{0} paused. Its people and records are kept.", [campus.name]));
+      setOpen(false); setReason(""); await onDone();
+    } catch (failure) { setError(friendlyErrorMessage(failure, ui("Could not change this campus's status."))); } finally { setBusy(false); }
+  };
+  return <>
+    <Button variant="outline" type="button" onClick={() => { setError(""); setOpen(true); }} className="shrink-0" data-pause-campus={campus.id}>{paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}{paused ? ui("Resume") : ui("Pause")}</Button>
+    <ConfirmAction open={open} title={paused ? ui("Resume {0}?", [campus.name]) : ui("Pause {0}?", [campus.name])}
+      description={paused ? ui("The campus becomes active again and can take new staff invitations.") : ui("The campus stays in every list and keeps its people and records, but takes no new staff invitations until you resume it.")}
+      confirmLabel={paused ? ui("Resume campus") : ui("Pause campus")} cancelLabel={ui("Keep editing")} tone={paused ? "primary" : "warning"} busy={busy}
+      detail={<div className="space-y-3 text-sm">
+        {paused ? null : <FormField name="campus-pause-reason" label={ui("Reason")} required><Input value={reason} maxLength={300} dir="auto" onChange={event => setReason(event.target.value)} /></FormField>}
+        {error && <p role="alert" className="font-medium text-destructive">{error}</p>}
+      </div>}
+      onConfirm={() => confirm()} onCancel={() => { if (!busy) setOpen(false); }} />
   </>;
 }
 

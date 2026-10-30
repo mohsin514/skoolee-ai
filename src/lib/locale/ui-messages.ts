@@ -6,6 +6,8 @@ import { arabicWhatsappUi, urduWhatsappUi } from "./whatsapp-ui-messages";
 import { arabicConsentUi, urduConsentUi } from "./consent-ui-messages";
 import { arabicImportRehearsalUi, urduImportRehearsalUi } from "./import-rehearsal-ui-messages";
 import { arabicSubjectSetupUi, urduSubjectSetupUi } from "./subject-setup-ui-messages";
+import { arabicCampusSetupUi, urduCampusSetupUi } from "./campus-setup-ui-messages";
+import { arabicClassSetupUi, urduClassSetupUi } from "./class-setup-ui-messages";
 /**
  * The reviewed Arabic catalog (everything translated before the role re-architecture). It keeps precedence: a
  * role-ux package entry for the same key never changes a reviewed meaning (P9-01; tests/locale/catalog-conflicts.test.ts).
@@ -414,7 +416,7 @@ export const arabicReviewedUi: Record<string, string> = {
 };
 
 /** Every Arabic UI key. The role re-architecture catalogs (§10.10) only fill gaps: reviewed entries win. */
-export const arabicUi: Record<string, string> = { ...arabicRoleUxUi, ...arabicReviewedUi };
+export const arabicUi: Record<string, string> = { ...arabicRoleUxUi, ...arabicCampusSetupUi, ...arabicReviewedUi };
 
 /** The reviewed Urdu catalog; same precedence rule as `arabicReviewedUi`. */
 export const urduReviewedUi: Record<string, string> = {
@@ -822,7 +824,7 @@ export const urduReviewedUi: Record<string, string> = {
 };
 
 /** Every Urdu UI key. The role re-architecture catalogs (§10.10) only fill gaps: reviewed entries win. */
-export const urduUi: Record<string, string> = { ...urduRoleUxUi, ...urduReviewedUi };
+export const urduUi: Record<string, string> = { ...urduRoleUxUi, ...urduCampusSetupUi, ...urduReviewedUi };
 
 const academicModelUi: Record<"ar" | "ur", Record<string, string>> = {
   ar: {
@@ -871,7 +873,7 @@ export function reviewedTranslation(source: string, language: "en" | "ar" | "ur"
   const catalog = language === "ar" ? arabicReviewedUi : urduReviewedUi;
   const workflow = language === "ar" ? arabicWorkflowUi : urduWorkflowUi;
   const navigation = language === "ar" ? arabicNavigationUi : urduNavigationUi;
-  return navigation[source] ?? catalog[source] ?? workflow[source] ?? academicModelUi[language][source] ?? academicModelUiExtra[language][source] ?? (language === "ar" ? arabicWhatsappUi : urduWhatsappUi)[source] ?? (language === "ar" ? arabicConsentUi : urduConsentUi)[source] ?? (language === "ar" ? arabicImportRehearsalUi : urduImportRehearsalUi)[source] ?? (language === "ar" ? arabicSubjectSetupUi : urduSubjectSetupUi)[source];
+  return navigation[source] ?? catalog[source] ?? workflow[source] ?? academicModelUi[language][source] ?? academicModelUiExtra[language][source] ?? (language === "ar" ? arabicWhatsappUi : urduWhatsappUi)[source] ?? (language === "ar" ? arabicConsentUi : urduConsentUi)[source] ?? (language === "ar" ? arabicImportRehearsalUi : urduImportRehearsalUi)[source] ?? (language === "ar" ? arabicSubjectSetupUi : urduSubjectSetupUi)[source] ?? (language === "ar" ? arabicClassSetupUi : urduClassSetupUi)[source];
 }
 
 const reportedMissing = new Set<string>();

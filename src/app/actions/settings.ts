@@ -8,7 +8,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
 
 import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
-import { assertSchoolOperational } from "@/lib/billing/entitlements";
+import { assertPlanCapacity, assertSchoolOperational } from "@/lib/billing/entitlements";
 import { enterTenantContext } from "@/lib/db/tenant-context";
 import { defaultBoardFor } from "@/config/boards";
 import { schoolCountry } from "@/lib/school/country";
@@ -131,6 +131,8 @@ export interface InstitutionSettings {
     logoUrl: string;
     archivedAt: string | null;
     archiveReason: string;
+    pausedAt: string | null;
+    pauseReason: string;
   }[];
 }
 
@@ -197,6 +199,8 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
       logoUrl: c.logoUrl || "",
       archivedAt: c.archivedAt?.toISOString() ?? null,
       archiveReason: c.archiveReason || "",
+      pausedAt: c.pausedAt?.toISOString() ?? null,
+      pauseReason: c.pauseReason || "",
     })),
   };
 }
@@ -259,7 +263,7 @@ export async function updateCampusDetails(input: CampusDetailsInput) {
   return updateCampusDetailsCommand(session, input);
 }
 
-export interface InstitutionHistoryEntry { id: string; at: string; actor: string | null; kind: "DETAILS" | "ARCHIVED" | "RESTORED"; fields: Record<string, { from: unknown; to: unknown }>; reason: string | null }
+export interface InstitutionHistoryEntry { id: string; at: string; actor: string | null; kind: "DETAILS" | "ARCHIVED" | "RESTORED" | "PAUSED" | "RESUMED"; fields: Record<string, { from: unknown; to: unknown }>; reason: string | null }
 
 /** Who changed what, and when, for the school or one campus (newest first). */
 export async function getInstitutionHistory(input: { level: "school" | "campus"; campusId?: string }): Promise<InstitutionHistoryEntry[]> {
@@ -276,7 +280,7 @@ export async function getInstitutionHistory(input: { level: "school" | "campus";
   const people = new Map((await prisma.user.findMany({ where: { schoolId: session.schoolId, id: { in: [...new Set(rows.map(row => row.userId))] } }, select: { id: true, fullName: true } })).map(person => [person.id, person.fullName]));
   return rows.map(row => {
     const before = (row.oldValue ?? {}) as Record<string, unknown>, after = (row.newValue ?? {}) as Record<string, unknown>;
-    const kind = after.kind === "DETAILS" ? "DETAILS" : after.archived === true ? "ARCHIVED" : "RESTORED";
+    const kind = after.kind === "DETAILS" ? "DETAILS" : after.kind === "PAUSED" || after.kind === "RESUMED" ? after.kind : after.archived === true ? "ARCHIVED" : "RESTORED";
     const fromFields = (before.fields ?? {}) as Record<string, unknown>, toFields = (after.fields ?? {}) as Record<string, unknown>;
     return { id: row.id, at: row.createdAt.toISOString(), actor: people.get(row.userId) ?? null, kind, fields: Object.fromEntries(Object.keys(toFields).map(key => [key, { from: fromFields[key] ?? null, to: toFields[key] ?? null }])), reason: typeof after.reason === "string" ? after.reason : null };
   });
@@ -360,10 +364,37 @@ export async function restoreCampus(campusId: string) {
     if (!campus.archivedAt) return { success: true, alreadyActive: true };
     const clash = await tx.campus.findFirst({ where: { schoolId: session.schoolId, archivedAt: null, id: { not: id }, name: { equals: campus.name, mode: "insensitive" } }, select: { id: true } });
     if (clash) return { success: false, error: "An active campus already uses this name. Rename one of them before restoring." };
+    // SKAI-113: archived campuses free their package slot, so restoring one must fit the plan again.
+    await assertPlanCapacity({ schoolId: session.schoolId, metric: "campuses", client: tx });
     await tx.campus.update({ where: { id }, data: { archivedAt: null, archiveReason: null } });
     await tx.auditLog.create({ data: { schoolId: session.schoolId, tableName: "campus", recordId: id, userId: session.userId, oldValue: { archived: true }, newValue: { archived: false } } });
     return { success: true, alreadyActive: false };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+/**
+ * SKAI-113: pause or resume a campus. A paused campus keeps its people and records and stays in every
+ * list, but takes no new staff invitations until the group admin resumes it. Archived campuses are
+ * restored, not resumed. Retrying with the same state is a no-op, so a double submit writes one audit entry.
+ */
+export async function setCampusPaused(input: { campusId: string; paused: boolean; reason?: string }) {
+  const session = await requireSession();
+  if (!isGroupConsole(session)) throw new Error("Only the group admin can pause or resume a campus.");
+  const campusId = requiredText(input.campusId, "Campus");
+  if (typeof input.paused !== "boolean") throw new Error("Choose pause or resume.");
+  const reason = input.paused ? requiredText(input.reason, "Reason").slice(0, 300) : null;
+  // A conditional update is the lock: only a live campus in the other state changes, so a retry or a
+  // concurrent click matches nothing and writes no second audit entry.
+  const changed = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.campus.updateMany({ where: { id: campusId, schoolId: session.schoolId, archivedAt: null, pausedAt: input.paused ? null : { not: null } }, data: { pausedAt: input.paused ? new Date() : null, pauseReason: reason } });
+    if (count) await tx.auditLog.create({ data: { schoolId: session.schoolId, campusId, tableName: "campus", recordId: campusId, userId: session.userId, oldValue: { paused: !input.paused }, newValue: { kind: input.paused ? "PAUSED" : "RESUMED", paused: input.paused, reason } } });
+    return count > 0;
+  }, { timeout: 60_000 });
+  if (changed) return { success: true, unchanged: false };
+  const current = await prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { archivedAt: true } });
+  if (!current) throw new Error("Campus not found.");
+  if (current.archivedAt) throw new Error("Restore this campus before changing its status.");
+  return { success: true, unchanged: true };
 }
 
 /**
