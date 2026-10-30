@@ -123,7 +123,8 @@ async function handleLogin(req: NextRequest) {
     }
 
     // A soft-deleted tenant is not a place anyone can sign in to.
-    const usable = matched.filter((c) => c.isActive && String(c.school?.status || "").toUpperCase() !== "DELETED");
+    // SKAI-1361: membership in an archived campus cannot sign in.
+    const usable = matched.filter((c) => c.isActive && !c.campus?.archivedAt && String(c.school?.status || "").toUpperCase() !== "DELETED");
     if (usable.length === 0) {
       // The password is proven, so saying "verify first" tells the holder nothing new,
       // and the sign-in screen can offer a fresh link. Deactivated accounts stay generic.

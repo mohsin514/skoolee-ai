@@ -32,6 +32,8 @@ export async function GET() {
     }));
 
     if (!profile?.isActive || profile.schoolId !== user.schoolId || profile.role !== user.role || profile.campusId !== user.campusId) return NextResponse.json({ user: null, activeExamUrl: null }, { status: 401, headers: noStore });
+    // SKAI-1361: a session bound to an archived campus is no longer usable.
+    if (profile.campusId && !(await prisma.campus.findFirst({ where: { id: profile.campusId, schoolId: user.schoolId, archivedAt: null }, select: { id: true } }))) return NextResponse.json({ user: null, activeExamUrl: null }, { status: 401, headers: noStore });
 
     // SKO-479: the signed-in scope by name, so every workspace can show which school and campus an action affects.
     const [school, campus] = await Promise.all([
