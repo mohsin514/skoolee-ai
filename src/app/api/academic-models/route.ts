@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     const campusId = await resolveCampusId(user, params.get("campusId"));
     const academicYear = Number(params.get("academicYear")) || new Date().getFullYear();
-    const [classes, versions, templates] = await Promise.all([
+    const [classes, versions, templates, year] = await Promise.all([
       prisma.class.findMany({
         where: { campusId, academicYear, status: "ACTIVE" },
         orderBy: [{ name: "asc" }, { section: "asc" }],
@@ -37,8 +37,10 @@ export async function GET(request: NextRequest) {
         where: { schoolId: user.schoolId, campusId: null, isSharedTemplate: true, templateApprovedAt: { not: null } },
         orderBy: [{ title: "asc" }, { version: "desc" }],
       }),
+      // SKAI-117: the campus academic year that bounds this year's terms.
+      prisma.academicCycle.findFirst({ where: { schoolId: user.schoolId, campusId, academicYear }, select: { label: true, status: true, startDate: true, endDate: true } }),
     ]);
-    return Response.json({ success: true, campusId, academicYear, classes, versions, templates, canShareTemplates: user.role === "SUPER_ADMIN" });
+    return Response.json({ success: true, campusId, academicYear, classes, versions, templates, year, canShareTemplates: user.role === "SUPER_ADMIN" });
   } catch (error) {
     return errorResponse(error, "[academic-models] GET failed");
   }
