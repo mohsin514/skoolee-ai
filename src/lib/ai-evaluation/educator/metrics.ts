@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AI_RELEASE_THRESHOLDS } from "@/config/ai-release-thresholds";
 
 /**
  * SKAI-1053 (D5-04) metric math, pre-registered in docs/evaluation/D5-preregistration.md:
@@ -6,7 +7,13 @@ import { z } from "zod";
  * kappa at least 0.6 between the two independent reviewers on the "curriculum-aligned" judgement
  * (below it the run is repeated and no pass/fail is recorded).
  */
-export const D5_THRESHOLDS = { minAlignment: 0.9, maxCriticalErrors: 0, minMarkingAgreement: 0.85, minKappa: 0.6 } as const;
+// SKAI-841: the values live in src/config/ai-release-thresholds.ts so the founder signs off one file.
+export const D5_THRESHOLDS = {
+  minAlignment: AI_RELEASE_THRESHOLDS.minAlignment,
+  maxCriticalErrors: AI_RELEASE_THRESHOLDS.maxCriticalErrors,
+  minMarkingAgreement: AI_RELEASE_THRESHOLDS.minMarkingAgreement,
+  minKappa: AI_RELEASE_THRESHOLDS.minKappa,
+} as const;
 
 export const reviewEntrySchema = z.object({ id: z.string(), aligned: z.boolean(), critical: z.boolean(), mark: z.number().int().nonnegative() }).strict();
 export const reviewFileSchema = z.object({
@@ -68,8 +75,8 @@ export function evaluateReviews(input: { itemIds: string[]; itemSetSha256: strin
   };
   if (metrics.kappa < D5_THRESHOLDS.minKappa) return { verdict: "REPEAT", metrics, failures: [`Inter-rater kappa ${metrics.kappa.toFixed(2)} is below ${D5_THRESHOLDS.minKappa}; repeat the run.`] };
   const failures: string[] = [];
-  if (metrics.alignment < D5_THRESHOLDS.minAlignment) failures.push(`Alignment ${(metrics.alignment * 100).toFixed(1)}% is below 90%.`);
-  if (metrics.criticalErrors > D5_THRESHOLDS.maxCriticalErrors) failures.push(`${metrics.criticalErrors} critical error(s); zero allowed.`);
-  if (metrics.markingAgreement < D5_THRESHOLDS.minMarkingAgreement) failures.push(`Marking agreement ${(metrics.markingAgreement * 100).toFixed(1)}% is below 85%.`);
+  if (metrics.alignment < D5_THRESHOLDS.minAlignment) failures.push(`Alignment ${(metrics.alignment * 100).toFixed(1)}% is below ${D5_THRESHOLDS.minAlignment * 100}%.`);
+  if (metrics.criticalErrors > D5_THRESHOLDS.maxCriticalErrors) failures.push(`${metrics.criticalErrors} critical error(s); at most ${D5_THRESHOLDS.maxCriticalErrors} allowed.`);
+  if (metrics.markingAgreement < D5_THRESHOLDS.minMarkingAgreement) failures.push(`Marking agreement ${(metrics.markingAgreement * 100).toFixed(1)}% is below ${D5_THRESHOLDS.minMarkingAgreement * 100}%.`);
   return { verdict: failures.length ? "FAILED" : "PASSED", metrics, failures };
 }

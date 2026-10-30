@@ -41,8 +41,8 @@ export async function GET(req: NextRequest) {
       prisma.class.findMany({ where: { status: "ACTIVE" }, select: { id: true, name: true, section: true, campusId: true, academicYear: true, campus: { select: { name: true } } } }),
       prisma.studentDocument.findMany({ where: { studentId: id }, select: { id: true, kind: true, fileName: true, uploadedAt: true } }),
     ]);
-    const events = family ? [] : await prisma.studentTimelineEvent.findMany({ where: { studentId: id, kind: { in: ["ENROLLMENT_TRANSITION", "IDENTITY_CONSOLIDATED", "ADMITTED", "PROMOTED"] } }, select: { id: true, kind: true, title: true, createdAt: true }, orderBy: { createdAt: "desc" } });
-    return Response.json({ pupil, proposals, classes, documents, events, canConsolidate: isInstitutionAuthority(user), canManage }, { headers: { "Cache-Control": "private, no-store" } });
+    // The timeline is served by /api/students/timeline (SKAI-166), the one scoped and paged reader.
+    return Response.json({ pupil, proposals, classes, documents, canConsolidate: isInstitutionAuthority(user), canManage }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error, "Unable to load enrollment history"); }
 }
 export async function POST(req: NextRequest) {

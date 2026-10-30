@@ -370,8 +370,11 @@ export async function PATCH(req: NextRequest) {
       try { data[key] = parse(updates[key]); } catch (error) { throw new ApiError((error as Error).message, 400); }
     }
     const regulatorChange = regulatorAuditChange(existing, data);
+    // Gender is required on a pupil record, so a blank value keeps the stored one.
     if (updates.gender) data.gender = updates.gender;
-    if (updates.bloodType && ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].includes(updates.bloodType)) data.bloodType = updates.bloodType;
+    // SKAI-164: "Not known" clears the blood type. It used to be ignored, so the profile's
+    // save check saw the old value come back and reported an unconfirmed save.
+    if (updates.bloodType !== undefined) data.bloodType = updates.bloodType || null;
     if (updates.status && STUDENT_STATUSES.includes(updates.status)) data.status = updates.status;
     if (updates.dateOfBirth !== undefined) data.dateOfBirth = asDate(updates.dateOfBirth);
     let previousClassName = "";

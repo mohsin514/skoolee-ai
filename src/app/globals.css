@@ -2395,14 +2395,14 @@ html[data-step-direction="back"]::view-transition-new(sk-step-card) { animation-
 
   /* ── Operational desks (src/components/ui/desk.tsx): stat tiles, record rows, pills, timeline, sections ──
      One tone vocabulary for every desk. Each tone sets four local properties that the parts read. */
-  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li) {
+  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li, .sk-notif-item) {
     --dk-ink: var(--brand-700); --dk-solid: var(--brand-600); --dk-surface: var(--status-brand-surface); --dk-border: var(--brand-200);
   }
-  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li)[data-tone="info"] { --dk-ink: var(--status-info-text); --dk-solid: #2563eb; --dk-surface: var(--status-info-surface); --dk-border: var(--status-info-border); }
-  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li)[data-tone="success"] { --dk-ink: var(--status-success-text); --dk-solid: #059669; --dk-surface: var(--status-success-surface); --dk-border: var(--status-success-border); }
-  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li)[data-tone="warning"] { --dk-ink: var(--status-warning-text); --dk-solid: #d97706; --dk-surface: var(--status-warning-surface); --dk-border: var(--status-warning-border); }
-  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li)[data-tone="danger"] { --dk-ink: var(--status-error-text); --dk-solid: #dc2626; --dk-surface: var(--status-error-surface); --dk-border: var(--status-error-border); }
-  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li)[data-tone="neutral"] { --dk-ink: var(--ink-muted); --dk-solid: var(--ink-faint); --dk-surface: var(--surface-subtle); --dk-border: var(--border-subtle); }
+  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li, .sk-notif-item)[data-tone="info"] { --dk-ink: var(--status-info-text); --dk-solid: #2563eb; --dk-surface: var(--status-info-surface); --dk-border: var(--status-info-border); }
+  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li, .sk-notif-item)[data-tone="success"] { --dk-ink: var(--status-success-text); --dk-solid: #059669; --dk-surface: var(--status-success-surface); --dk-border: var(--status-success-border); }
+  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li, .sk-notif-item)[data-tone="warning"] { --dk-ink: var(--status-warning-text); --dk-solid: #d97706; --dk-surface: var(--status-warning-surface); --dk-border: var(--status-warning-border); }
+  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li, .sk-notif-item)[data-tone="danger"] { --dk-ink: var(--status-error-text); --dk-solid: #dc2626; --dk-surface: var(--status-error-surface); --dk-border: var(--status-error-border); }
+  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li, .sk-notif-item)[data-tone="neutral"] { --dk-ink: var(--ink-muted); --dk-solid: var(--ink-faint); --dk-surface: var(--surface-subtle); --dk-border: var(--border-subtle); }
 
   @media (min-width: 640px) { .sk-stat-tile-value { font-size: 1.75rem; line-height: 2.125rem; } }
   .sk-desk-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: .625rem; min-width: 0; }
@@ -2429,6 +2429,17 @@ html[data-step-direction="back"]::view-transition-new(sk-step-card) { animation-
   .sk-stat-tile[data-selected] { border-color: var(--dk-solid); background: color-mix(in srgb, var(--dk-surface) 70%, hsl(var(--card))); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dk-solid) 18%, transparent), 0 14px 30px -18px color-mix(in srgb, var(--dk-solid) 70%, transparent); }
   .sk-stat-tile[data-selected]::after { opacity: 1; block-size: 3px; }
   .sk-stat-tile > span { display: block; }
+
+  /* Notification centre (NotificationCenter): segmented views, day headings, toned items with an unread dot. */
+  .sk-notif-tabs { display: flex; gap: .25rem; margin: .625rem .75rem 0; padding: .25rem; border-radius: 1rem; background: var(--surface-subtle); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+  .sk-notif-day { position: sticky; inset-block-start: -.625rem; z-index: 1; margin: .5rem .25rem .25rem; padding-block: .25rem; background: hsl(var(--card)); font-size: var(--text-2xs); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-subtle); }
+  .sk-notif-item { position: relative; padding: .625rem .75rem; border-radius: var(--radius-control-small); border: 1px solid transparent; transition: background-color var(--duration-control) var(--ease-standard), border-color var(--duration-control) var(--ease-standard); }
+  .sk-notif-item:hover { background: var(--surface-hover); border-color: var(--border-subtle); }
+  .sk-notif-item[data-unread] { background: color-mix(in srgb, var(--dk-surface) 70%, hsl(var(--card))); border-color: color-mix(in srgb, var(--dk-border) 60%, transparent); }
+  .sk-notif-item[data-tone="muted"] { opacity: .75; }
+  .sk-notif-icon { display: grid; place-items: center; inline-size: 2.25rem; block-size: 2.25rem; flex: none; border-radius: .75rem; background: var(--dk-surface); color: var(--dk-solid); box-shadow: inset 0 0 0 1px var(--dk-border); }
+  .sk-notif-item[data-tone="muted"] .sk-notif-icon { background: var(--surface-subtle); color: var(--ink-faint); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+  .sk-notif-dot { display: inline-block; inline-size: .5rem; block-size: .5rem; margin-inline-end: .375rem; border-radius: 999px; background: var(--dk-solid); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dk-solid) 20%, transparent); vertical-align: middle; }
 
   /* Quick filter and the "N of M shown" line under it. */
   .sk-desk-filter { position: relative; min-width: 0; }
