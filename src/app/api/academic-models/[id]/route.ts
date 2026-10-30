@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
-import { academicModelConfigurationSchema, changedConfigurationSections, simulateAcademicResult, validateAcademicModel, type AcademicModelConfiguration, type SimulatedComponent } from "@/lib/academic/model-config";
+import { academicModelConfigurationSchema, changedConfigurationSections, previewRegrade, simulateAcademicResult, validateAcademicModel, type AcademicModelConfiguration, type SimulatedComponent } from "@/lib/academic/model-config";
 import { Prisma } from "@prisma/client";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -106,10 +106,27 @@ export async function POST(request: NextRequest, context: Context) {
     ]).map((component: any) => ({ ...component, weight: Number(component.weight), total: Number(component.total), score: component.score === null ? null : Number(component.score) }));
     const simulation = simulateAcademicResult(configuration, components);
     if (action === "simulate") return Response.json({ success: true, simulation });
-    const preview = { success: problems.length === 0, problems, changedSections, simulation, impact: { students: studentCount, exams: examCount, publishedReports: publishedReportCount, pendingReports: pendingReportCount }, inheritedRules: model.inheritedConfiguration, localOverrideKeys: model.localOverrideKeys };
+    // Re-grade the marks that already exist under the rules they were graded with, so the
+    // reviewer sees how many letters and pass decisions this version would change.
+    const recorded = selectedClassIds.length ? await prisma.mark.findMany({
+      where: { campusId: model.campusId!, isAbsent: false, isExempt: false, exam: { classId: { in: selectedClassIds }, academicYear: model.academicYear } },
+      select: { marksObtained: true, grade: true, subject: { select: { totalMarks: true } }, exam: { select: { status: true } } },
+    }) : [];
+    const before = changedFrom ? (changedFrom.configuration as unknown as AcademicModelConfiguration).grading : null;
+    const regrade = previewRegrade(
+      recorded.filter((mark) => mark.subject.totalMarks > 0).map((mark) => ({ percentage: (mark.marksObtained / mark.subject.totalMarks) * 100, grade: mark.grade, published: mark.exam.status === "PUBLISHED" })),
+      before?.thresholds?.length ? before : null,
+      configuration.grading,
+    );
+    const needsAcknowledgement = publishedReportCount > 0 || regrade.gradeChanges > 0 || regrade.passFlips > 0;
+    const preview = { success: problems.length === 0, problems, changedSections, simulation, regrade, needsAcknowledgement, impact: { students: studentCount, exams: examCount, publishedReports: publishedReportCount, pendingReports: pendingReportCount }, inheritedRules: model.inheritedConfiguration, localOverrideKeys: model.localOverrideKeys };
     if (action === "preview") return Response.json(preview, { status: problems.length ? 409 : 200 });
     if (action !== "activate") throw new ApiError("Unsupported academic model action", 400);
     if (problems.length) return Response.json(preview, { status: 409 });
+    // Published results never change silently: the approver confirms the counts they reviewed.
+    if (needsAcknowledgement && body.acknowledgeImpact !== true) {
+      return Response.json({ ...preview, success: false, error: "Confirm the re-grade impact before you activate this version." }, { status: 409 });
+    }
 
     const grading = configuration.grading;
     const grades = new Map(grading.thresholds.map((threshold) => [threshold.label.toUpperCase(), threshold.minimum]));
@@ -144,10 +161,10 @@ export async function POST(request: NextRequest, context: Context) {
         where: { id: model.id },
         data: { status: "ACTIVE", approvedAt: new Date(), approvedBy: user.userId },
       });
-      await tx.auditLog.create({ data: { tableName: "academic_model_versions", recordId: model.id, userId: user.userId, oldValue: { status: "DRAFT" }, newValue: { status: "ACTIVE", version: model.version, changedSections, effectiveFrom: model.effectiveFrom, effectiveTo: model.effectiveTo, impactedStudents: studentCount, impactedPublishedReports: publishedReportCount } } });
+      await tx.auditLog.create({ data: { tableName: "academic_model_versions", recordId: model.id, userId: user.userId, oldValue: { status: "DRAFT" }, newValue: { status: "ACTIVE", version: model.version, changedSections, effectiveFrom: model.effectiveFrom, effectiveTo: model.effectiveTo, impactedStudents: studentCount, impactedPublishedReports: publishedReportCount, regrade: { evaluated: regrade.evaluated, gradeChanges: regrade.gradeChanges, passFlips: regrade.passFlips, publishedChanges: regrade.publishedChanges }, acknowledgedImpact: needsAcknowledgement } } });
       return version;
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    return Response.json({ success: true, model: activated, preview: { changedSections, simulation, impact: preview.impact } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 30_000 });
+    return Response.json({ success: true, model: activated, preview: { changedSections, simulation, regrade, impact: preview.impact } });
   } catch (error) {
     return errorResponse(error, "[academic-models/:id] POST failed");
   }

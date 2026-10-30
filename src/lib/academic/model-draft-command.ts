@@ -123,6 +123,6 @@ export async function createAcademicModelDraft(user: AuthUser, body: Record<stri
       data: { tableName: "academic_model_versions", recordId: created.id, userId: user.userId, oldValue: Prisma.DbNull, newValue: { version: created.version, title: created.title, academicYear, cohortLabel: label, isSharedTemplate: isTemplate, templateSourceId } },
     });
     return created;
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 30_000 });
   return { ok: true, model };
 }
