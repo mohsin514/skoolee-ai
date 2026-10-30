@@ -114,9 +114,13 @@ export async function POST(req: NextRequest) {
 
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
-      select: { id: true, name: true, plan: true },
+      select: { id: true, name: true, plan: true, status: true },
     });
     if (!school) throw new ApiError("School not found", 404);
+    // SKAI-1377: a suspended or deleted school accepts no new active staff.
+    if (["SUSPENDED", "DELETED"].includes(school.status)) {
+      throw new ApiError("This school is not accepting new staff accounts", 409);
+    }
 
     // SUPER_ADMIN spans the whole school, so it carries no campus.
     // Every other role must be pinned to a campus in that school.
