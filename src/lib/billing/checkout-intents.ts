@@ -164,6 +164,9 @@ export async function settleVerifiedCheckoutIntent(input: {
   const { runWithTenantContext } = await import("@/lib/db/tenant-context");
   const { activatePlan } = await import("@/lib/billing/entitlements");
   return runWithTenantContext({ schoolId: input.schoolId }, () => prisma.$transaction(async (tx) => {
+    // SKAI-157: replayed or concurrent confirmations (webhook retries, a return page and a webhook at once)
+    // wait on this row lock and then see SETTLED, so the plan is activated exactly once.
+    await tx.$queryRaw`SELECT id FROM onboarding_checkout_intents WHERE id=${input.id} AND school_id=${input.schoolId} FOR UPDATE`;
     const intent = await tx.onboardingCheckoutIntent.findFirst({
       where: { id: input.id, schoolId: input.schoolId },
     });

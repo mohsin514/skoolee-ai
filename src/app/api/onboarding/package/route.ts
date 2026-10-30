@@ -360,8 +360,8 @@ export async function POST(req: NextRequest) {
           },
       });
       if (!result.ok) {
-        await prisma.onboardingCheckoutIntent.update({
-          where: { id: intent.id },
+        await prisma.onboardingCheckoutIntent.updateMany({
+          where: { id: intent.id, provider: "SAFEPAY", providerReference: orderRef, status: "CREATING_CHECKOUT" },
           data: { status: "PENDING_SETTLEMENT", failureReason: result.message || "SafePay checkout creation is being reconciled." },
         });
         throw new ApiError(result.message || "SafePay checkout could not be started.", 502);
@@ -373,10 +373,16 @@ export async function POST(req: NextRequest) {
       return Response.json({ success: true, intentId: intent.id, status: "CHECKOUT_PENDING", url: result.redirectUrl });
     }
 
-    await prisma.onboardingCheckoutIntent.update({
-      where: { id: intent.id },
+    // SKAI-157: claim only an untouched intent, so a concurrent retry that already opened an online checkout
+    // is never switched to bank transfer underneath a payment in flight.
+    const bankClaim = await prisma.onboardingCheckoutIntent.updateMany({
+      where: { id: intent.id, provider: { in: ["NONE", "BANK_TRANSFER"] }, status: { in: ["PENDING", "PENDING_SETTLEMENT"] } },
       data: { provider: "BANK_TRANSFER", providerReference: intent.id, status: "PENDING_SETTLEMENT" },
     });
+    if (!bankClaim.count) {
+      const latest = await prisma.onboardingCheckoutIntent.findUnique({ where: { id: intent.id } });
+      return Response.json({ success: true, intentId: intent.id, status: latest?.status ?? "PENDING", url: latest?.checkoutUrl ?? undefined, returnStep: intent.returnStep });
+    }
     return Response.json({
       success: true,
       intentId: intent.id,
