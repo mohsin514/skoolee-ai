@@ -62,6 +62,8 @@ export async function applyLeave(user: AuthUser, body: Record<string, unknown>) 
 
   const request = await prisma.leaveRequest.create({
     data: {
+      // SKAI-1400: the school is part of every leave row (required, with a foreign key to schools).
+      schoolId: user.schoolId,
       campusId,
       userId: user.userId,
       leaveTypeId,
