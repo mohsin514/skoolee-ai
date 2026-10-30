@@ -414,6 +414,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
 
     if (event.type === "message-updated") {
+      // SKAI-1291: an edit to the latest message refreshes its inbox preview too.
+      const edited = event.payload;
+      if (edited.isEdited && !edited.isDeleted) {
+        setConversations((prev) => prev.map((c) => (c.id === event.conversationId && c.lastMessageAt === edited.createdAt ? { ...c, lastMessagePreview: edited.body || c.lastMessagePreview } : c)));
+      }
       if (activeIdRef.current !== event.conversationId) return;
       setMessages((prev) =>
         prev.map((m) => (m.id === event.payload.id ? event.payload : m))
