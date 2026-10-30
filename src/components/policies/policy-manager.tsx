@@ -12,7 +12,8 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { Archive, MoreHorizontal, Pencil, ScrollText } from "lucide-react";
+import { Archive, CheckCircle2, FilePen, MessageCircleQuestion, MoreHorizontal, Pencil, ScrollText, XCircle } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { Menu, type MenuItem } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
@@ -29,6 +30,8 @@ type EvalResult = { passed: number; total: number; results: { id: string; questi
 const OFFICE_LABEL: Record<string, string> = { GENERAL: "School office", ATTENDANCE: "Attendance office", FINANCE: "Fees office", ACTIVITIES: "Activities office", ADMISSIONS: "Admissions office", WELFARE: "Student welfare office" };
 const AUDIENCE_LABEL: Record<string, string> = { FAMILY: "Families", STAFF: "Staff only", ALL: "Everyone" };
 const STATUS_LABEL: Record<string, string> = { DRAFT: "Draft", APPROVED: "Approved", SUPERSEDED: "Superseded", ARCHIVED: "Archived", ANSWERED: "Answer from current policy", CONFLICT: "I found two policies that may conflict", UNCERTAIN: "The matching policy is not in effect now", NO_ANSWER: "No verified answer" };
+
+const STATUS_TONE: Record<string, DeskTone> = { DRAFT: "warning", APPROVED: "success", SUPERSEDED: "neutral", ARCHIVED: "neutral" };
 
 async function call(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json" } }).catch(() => null);
@@ -80,9 +83,14 @@ export function PolicyManager({ command }: { command?: { id: string; nonce: numb
     formRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
   }, [editing]);
   const setSection = (i: number, key: keyof Section, value: string) => setForm((f) => ({ ...f, sections: f.sections.map((s, j) => (j === i ? { ...s, [key]: value } : s)) }));
+  // The counters filter the list; drafts lead because they are the ones waiting on an approval.
+  const [statusFilter, setStatusFilter] = useState<"DRAFT" | "APPROVED" | null>(null);
+  const shownPolicies = policies ? urgencyFirst(statusFilter ? policies.filter((p) => p.status === statusFilter) : policies, (p) => (p.status === "DRAFT" ? 0 : p.status === "APPROVED" ? 1 : 2)) : null;
+  const count = (status: string) => policies?.filter((p) => p.status === status).length ?? 0;
+  const waiting = queue.filter((q) => !q.resolution).length;
   return (
     <section aria-labelledby="policy-manager" className="sk-panel space-y-4 p-4">
-      <h2 id="policy-manager" className="text-lg font-bold">{ui("School policies")}</h2>
+      <h2 id="policy-manager" className="flex items-center gap-2 text-lg font-bold"><ScrollText className="size-5 shrink-0 text-primary" aria-hidden="true" />{ui("School policies")}</h2>
       <p className="text-sm text-ink-subtle">{ui("Only approved versions in effect on the question date and meant for the asker's audience are used to answer questions.")}</p>
 
       <ConfirmAction
@@ -111,11 +119,20 @@ export function PolicyManager({ command }: { command?: { id: string; nonce: numb
         : !policies ? <SkeletonList rows={3} label={ui("Loading policies…")} />
         : policies.length === 0 ? <EmptyState size="sm" icon={ScrollText} title={ui("No policies yet")} description={ui("Write the first policy below. Families get answers from it once you approve it.")} />
         : null}
-      <ul className="space-y-2">{policies?.map((p) => (
-        <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3 text-sm">
-          <div>
-            <p className="font-semibold"><bdi>{p.title}</bdi> · v{p.version} · {ui(STATUS_LABEL[p.status] ?? p.status)}</p>
+      {policies && policies.length > 0 ? <DeskStats>
+        <StatTile index={0} icon={FilePen} tone="warning" value={count("DRAFT")} label={ui("Draft")} onSelect={() => setStatusFilter((f) => (f === "DRAFT" ? null : "DRAFT"))} selected={statusFilter === "DRAFT"} />
+        <StatTile index={1} icon={CheckCircle2} tone="success" value={count("APPROVED")} label={ui("Approved")} onSelect={() => setStatusFilter((f) => (f === "APPROVED" ? null : "APPROVED"))} selected={statusFilter === "APPROVED"} />
+        <StatTile index={2} icon={MessageCircleQuestion} tone={waiting ? "danger" : "neutral"} value={waiting} label={ui("Questions sent to the school office")} />
+      </DeskStats> : null}
+      {policies ? <DeskFilterStatus shown={shownPolicies?.length ?? 0} total={policies.length} onClear={() => setStatusFilter(null)} /> : null}
+      <ul className="space-y-2">{shownPolicies?.map((p) => (
+        <li key={p.id} data-tone={STATUS_TONE[p.status] ?? "neutral"} className={`${deskRow} flex flex-wrap items-center justify-between gap-3 text-sm`}>
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <DeskRowIcon icon={ScrollText} />
+            <div className="min-w-0 space-y-1">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold"><span><bdi>{p.title}</bdi> · v{p.version}</span><DeskPill tone={STATUS_TONE[p.status] ?? "neutral"}>{ui(STATUS_LABEL[p.status] ?? p.status)}</DeskPill></p>
             <p className="text-ink-subtle"><span dir="ltr">{p.topic}</span> · {ui(AUDIENCE_LABEL[p.audience] ?? p.audience)} · {ui(OFFICE_LABEL[p.office] ?? p.office)} · <span>{formatDay(p.effectiveFrom)} <span aria-hidden="true" className="inline-block rtl:rotate-180">→</span> {p.effectiveUntil ? formatDay(p.effectiveUntil) : "…"}</span></p>
+            </div>
           </div>
           {/* §4.5.2–3: one inline action per row (Approve a draft, start the next version of an approved one); Edit
               and Archive sit in the row overflow, Archive behind its confirmation. */}
@@ -165,9 +182,9 @@ export function PolicyManager({ command }: { command?: { id: string; nonce: numb
 
       <div className="space-y-2">
         <h3 className="font-semibold">{ui("Questions sent to the school office")}</h3>
-        {queue.length === 0 ? <EmptyState size="sm" icon={ScrollText} title={ui("No questions are waiting.")} /> : queue.map((q) => (
-          <div key={q.id} className="space-y-1 rounded-xl border border-border p-3 text-sm">
-            <p className="font-semibold">{ui(OFFICE_LABEL[q.escalation.office] ?? q.escalation.office)} · <bdi>{q.askedBy?.fullName ?? "—"}</bdi> · {ui(STATUS_LABEL[q.escalation.answerStatus] ?? q.escalation.answerStatus)}</p>
+        {queue.length === 0 ? <EmptyState size="sm" icon={MessageCircleQuestion} title={ui("No questions are waiting.")} /> : urgencyFirst(queue, (q) => (q.resolution ? 1 : 0)).map((q) => (
+          <div key={q.id} data-tone={q.resolution ? "success" : "warning"} className={`${deskRow} space-y-1 text-sm`}>
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold"><DeskRowIcon icon={MessageCircleQuestion} className="me-1" /><span className="min-w-0 flex-1">{ui(OFFICE_LABEL[q.escalation.office] ?? q.escalation.office)} · <bdi>{q.askedBy?.fullName ?? "—"}</bdi></span><DeskPill tone={q.resolution ? "success" : "warning"}>{ui(STATUS_LABEL[q.escalation.answerStatus] ?? q.escalation.answerStatus)}</DeskPill><RelativeTime iso={q.escalatedAt} full={formatDay(q.escalatedAt)} className="text-xs font-normal text-ink-subtle" /></p>
             {q.escalation.includedQuestion ? <p>{ui("Question")}: <bdi>{q.escalation.includedQuestion}</bdi></p> : null}
             <p><bdi>{q.escalation.message}</bdi></p>
             {q.resolution ? <p className="text-ink-subtle">{ui("Reply")}: <bdi>{q.resolution}</bdi></p> : (
@@ -191,7 +208,7 @@ export function PolicyManager({ command }: { command?: { id: string; nonce: numb
           <div className="flex gap-2 md:col-span-2"><Button type="submit" size="sm" variant="outline">{ui("Add check")}</Button><Button type="button" size="sm" onClick={async () => { const r = await post({ action: "eval-run" }, "Checks run against the current policies."); if (r) setEvalResult(r as EvalResult); }}>{ui("Run all checks")}</Button></div>
         </form>
         {evalResult ? <div className="text-sm"><p className="font-semibold">{ui("{0} of {1} checks passed", [evalResult.passed, evalResult.total])}</p>
-          <ul className="space-y-1">{evalResult.results.map((r) => <li key={r.id} className={r.passed ? "" : "text-status-error-text"}>{ui(r.passed ? "Passed" : "Failed")} · <bdi>{r.question}</bdi> · {ui(STATUS_LABEL[r.status] ?? r.status)}{r.cited ? <> · <span dir="ltr">{r.cited}</span></> : null}</li>)}</ul></div> : null}
+          <ul className="space-y-1">{evalResult.results.map((r) => <li key={r.id} className="flex flex-wrap items-center gap-x-2 gap-y-1"><DeskPill tone={r.passed ? "success" : "danger"}>{r.passed ? <CheckCircle2 className="size-3.5" aria-hidden="true" /> : <XCircle className="size-3.5" aria-hidden="true" />}{ui(r.passed ? "Passed" : "Failed")}</DeskPill><bdi>{r.question}</bdi> · {ui(STATUS_LABEL[r.status] ?? r.status)}{r.cited ? <> · <span dir="ltr">{r.cited}</span></> : null}</li>)}</ul></div> : null}
       </div>
     </section>
   );

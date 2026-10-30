@@ -1,7 +1,9 @@
 "use client";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Lock } from "lucide-react";
+import { Accessibility, CalendarClock, CalendarDays, Lock, UserCheck, UserRound } from "lucide-react";
+import { DeskPill, DeskRowIcon, DeskSection, deskRow, urgencyFirst } from "@/components/ui/desk";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,19 +60,19 @@ export function CoordinatorAccess() {
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
   if (!view) return <div dir={rtl ? "rtl" : "ltr"}><Status status={status} />{!status && <SkeletonList rows={3} label={t.loading} />}</div>;
   return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-5">
-    <section aria-labelledby="review-heading" className="rounded-xl border bg-card p-4 text-sm">
-      <h2 id="review-heading" className="text-base font-semibold">{t.review}</h2>
-      {view.review.length ? <ul className="mt-2 grid gap-1">{view.review.map(row => <li key={row.planId}><span dir="auto">{row.fullName}</span> · {row.expired ? t.reviewExpired : t.reviewSoon} {date(row.validUntil)}</li>)}</ul> : <p className="text-ink-muted">{t.noReview}</p>}
-    </section>
+    {/* Expired plans lead the review list: they no longer apply to anything until renewed. */}
+    <DeskSection aria-labelledby="review-heading" tone={view.review.length ? "warning" : "success"} icon={CalendarClock} title={<span id="review-heading">{t.review}</span>} className="text-sm">
+      {view.review.length ? <ul className="mt-2 grid gap-2">{urgencyFirst(view.review, row => (row.expired ? 0 : 1)).map(row => <li key={row.planId} className="flex flex-wrap items-center gap-2"><span dir="auto" className="font-semibold">{row.fullName}</span><DeskPill tone={row.expired ? "danger" : "warning"}>{row.expired ? t.reviewExpired : t.reviewSoon} {date(row.validUntil)}</DeskPill></li>)}</ul> : <p className="text-ink-muted">{t.noReview}</p>}
+    </DeskSection>
     <label className="grid max-w-sm gap-1 text-xs font-semibold">{t.class}<Select value={view.classId ?? ""} onChange={event => { setClassId(event.target.value); setEditing(null); }}>{view.classes.map(row => <option key={row.id} value={row.id}>{row.name}{row.section ? ` ${row.section}` : ""}</option>)}</Select></label>
     <Status status={status} />
     <ul className="grid gap-3" aria-label={t.title}>{view.students.map(student => {
       const active = student.plans.find(plan => plan.status === "ACTIVE");
-      return <li key={student.id} className="rounded-xl border bg-card p-4">
+      return <li key={student.id} data-tone={active ? "success" : "neutral"} className={deskRow}>
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0"><p className="font-semibold" dir="auto">{student.fullName}</p>
+          <div className="flex min-w-0 flex-1 basis-full items-start gap-3 sm:basis-0"><DeskRowIcon icon={active ? UserCheck : UserRound} /><div className="min-w-0"><p className="font-semibold" dir="auto">{student.fullName}</p>
             {active ? <p className="text-xs text-ink-subtle">{t.active} · {t.version} {active.version} · {t.validity} {date(active.validFrom)} – {date(active.validUntil)} · {active.assessmentTypes.map(type => t.types[type]).join(", ")}</p> : <p className="text-xs text-ink-subtle">{t.none}</p>}
-          </div>
+          </div></div>
           <Button type="button" variant="outline" onClick={() => setEditing(editing?.id === student.id ? null : student)}>{active ? t.editPlan : t.newPlan}</Button>
         </div>
         {active && <div className="mt-2 space-y-2"><Capability t={t} plan={active} />{active.instructions && <p className="text-sm" dir="auto">{active.instructions}</p>}
@@ -120,7 +122,7 @@ function SupportRecords({ t, planId, language }: { t: AccessCopy; planId: string
   return <details className="mt-3 rounded-lg border border-status-warning-border bg-status-warning-surface p-3 text-sm" onToggle={event => { if ((event.target as HTMLDetailsElement).open && !records) void open(); }}>
     <summary className="flex cursor-pointer items-center gap-2 font-semibold"><Lock className="h-4 w-4" aria-hidden />{t.support}</summary>
     <p className="mt-1 text-xs text-status-warning-text">{t.supportHelp}</p>
-    {error && <p role="alert" className="text-status-error-text">{error}</p>}
+    {error && <Alert tone="danger" compact className="mt-2">{error}</Alert>}
     {records && (records.length ? <ul className="mt-2 grid gap-1">{records.map(row => <li key={row.id} dir="auto">{new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(row.createdAt))} · {row.note}</li>)}</ul> : <p className="mt-2 text-ink-muted">{t.noSupport}</p>)}
     <div className="mt-2 flex flex-wrap items-end gap-2"><label className="grid flex-1 gap-1 text-xs font-semibold">{t.note}<Input value={note} onChange={event => setNote(event.target.value)} maxLength={4000} /></label><Button type="button" variant="outline" disabled={note.trim().length < 3} onClick={() => void open({ note })}>{t.addNote}</Button></div>
   </details>;
@@ -133,11 +135,11 @@ export function StaffAccess() {
   const [error, setError] = useState("");
   useEffect(() => { call("/api/accommodations?view=staff").then(data => setPlans(data.plans)).catch(cause => setError(cause instanceof Error ? cause.message : t.failed)); }, [t.failed]);
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
-  if (error) return <p role="alert" className="text-sm text-status-error-text">{error}</p>;
+  if (error) return <Alert tone="danger">{error}</Alert>;
   if (!plans) return <SkeletonList rows={2} label={t.loading} />;
-  return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">{plans.length === 0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-ink-muted">{t.noStaff}</p>
-    : <ul className="grid gap-3" aria-label={t.staffTitle}>{plans.map(({ student, plan }) => <li key={plan.id} className="space-y-2 rounded-xl border bg-card p-4">
-      <p className="font-semibold" dir="auto">{student.fullName}</p>
+  return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">{plans.length === 0 ? <EmptyState size="sm" icon={Accessibility} title={t.noStaff} />
+    : <ul className="grid gap-3" aria-label={t.staffTitle}>{plans.map(({ student, plan }) => <li key={plan.id} data-tone="info" className={`${deskRow} space-y-2`}>
+      <p className="flex items-center gap-3 font-semibold"><DeskRowIcon icon={Accessibility} /><span dir="auto" className="min-w-0">{student.fullName}</span></p>
       <p className="text-xs text-ink-subtle">{t.validity} {date(plan.validFrom)} – {date(plan.validUntil)} · {plan.assessmentTypes.map(type => t.types[type]).join(", ")}</p>
       <Capability t={t} plan={plan} />
       {plan.instructions && <p className="text-sm" dir="auto">{plan.instructions}</p>}
@@ -157,24 +159,24 @@ export function LearnerAccess() {
   useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
   const date = (value: string, time = false) => new Intl.DateTimeFormat(language, time ? { dateStyle: "medium", timeStyle: "short" } : { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
   if (!view) return <div dir={rtl ? "rtl" : "ltr"}><Status status={status} />{!status && <SkeletonList rows={3} label={t.loading} />}</div>;
-  if (view.mode === "guardian") return <ul dir={rtl ? "rtl" : "ltr"} className="grid gap-3" aria-label={t.learnerTitle}>{view.children.map(child => <li key={child.fullName} className="space-y-2 rounded-xl border bg-card p-4">
-    <p className="font-semibold" dir="auto">{child.fullName}</p>
+  if (view.mode === "guardian") return <ul dir={rtl ? "rtl" : "ltr"} className="grid gap-3" aria-label={t.learnerTitle}>{view.children.map(child => <li key={child.fullName} data-tone={child.plan ? "success" : "neutral"} className={`${deskRow} space-y-2`}>
+    <p className="flex items-center gap-3 font-semibold"><DeskRowIcon icon={child.plan ? UserCheck : UserRound} /><span dir="auto" className="min-w-0">{child.fullName}</span></p>
     {child.plan ? <><p className="text-xs text-ink-subtle">{t.validity} {date(child.plan.validFrom)} – {date(child.plan.validUntil)} · {child.plan.assessmentTypes.map(type => t.types[type]).join(", ")}</p><Capability t={t} plan={child.plan} /><p className="text-sm">{child.plan.extraMinutes || child.plan.extraPercent ? `${t.extraMinutes}: ${child.plan.extraMinutes}${child.plan.extraPercent ? ` + ${child.plan.extraPercent}%` : ""}` : t.noExtra}</p></> : <p className="text-sm text-ink-muted">{t.none}</p>}
   </li>)}</ul>;
   const plan = view.plan;
   const sample = view.exams[0]?.effective ?? (plan ? effectiveSettings({ baseMinutes: 45, type: "PRACTICE", at: new Date(), plan: { ...asRow(plan), assessmentTypes: [...plan.assessmentTypes, "PRACTICE"] } }) : null);
   return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-4">
     <Status status={status} />
-    {!plan ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-ink-muted">{t.none}</p> : <>
+    {!plan ? <EmptyState size="sm" icon={Accessibility} title={t.none} /> : <>
       <section className="space-y-2 rounded-xl border bg-card p-4">
         <p className="text-lg font-bold">{sample && sample.extraMinutes + sample.breakMinutes > 0 ? fillAccess(t.includes, { n: sample.extraMinutes + sample.breakMinutes }) : t.noExtra}</p>
         <Capability t={t} plan={plan} />
         <p className="text-xs text-ink-subtle">{t.validity} {date(plan.validFrom)} – {date(plan.validUntil)}</p>
       </section>
-      {view.exams.length > 0 && <section aria-labelledby="upcoming-heading" className="space-y-2 rounded-xl border bg-card p-4"><h2 id="upcoming-heading" className="font-semibold">{t.upcoming}</h2>
+      {view.exams.length > 0 && <section aria-labelledby="upcoming-heading" className="space-y-2 rounded-xl border bg-card p-4"><h2 id="upcoming-heading" className="flex items-center gap-2 font-semibold"><CalendarDays className="size-4 shrink-0 text-primary" aria-hidden="true" />{t.upcoming}</h2>
         <ul className="grid gap-3">{view.exams.map(exam => <li key={exam.id} className="space-y-1"><p className="text-sm font-semibold"><bdi>{exam.title}</bdi> · <bdi>{date(exam.startsAt, true)}</bdi></p><Breakdown t={t} effective={exam.effective} /></li>)}</ul></section>}
       <section aria-labelledby="practice-heading" className="space-y-3 rounded-xl border bg-card p-4">
-        <h2 id="practice-heading" className="font-semibold">{t.practice}</h2>
+        <h2 id="practice-heading" className="flex items-center gap-2 font-semibold"><Accessibility className="size-4 shrink-0 text-primary" aria-hidden="true" />{t.practice}</h2>
         <p className="text-sm text-ink-muted">{t.practiceHelp}</p>
         <div className={`rounded-lg border p-4 ${plan.capabilities.largeText ? "text-2xl" : "text-base"} ${plan.capabilities.highContrast ? "bg-black text-white" : "bg-surface-subtle"}`}>{t.sample}</div>
         <p className="text-sm">{plan.rehearsedAt ? fillAccess(t.rehearsed, { date: date(plan.rehearsedAt, true) }) : t.notRehearsed}</p>
