@@ -33,9 +33,12 @@ export default async function ForbiddenPage() {
 
   return (
     <main lang={language} dir={language === "en" ? "ltr" : "rtl"} className="sk-app-canvas flex min-h-screen items-center justify-center p-4 text-ink-strong sm:p-6">
-      <section className="sk-panel sk-enter-scale sk-elevation-3 w-full max-w-md p-6 text-center sm:p-10">
-        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-3xl bg-brand-50 text-primary ring-1 ring-brand-100">
-          <Icon aria-hidden="true" className="h-8 w-8" />
+      <section className="sk-panel sk-enter-scale sk-elevation-3 relative isolate w-full max-w-md overflow-hidden p-6 text-center sm:p-10">
+        {/* The same backdrop and gradient tile as the 404 view, so every "you can't open this" screen reads as one family. */}
+        <div aria-hidden="true" className="sk-grid-pattern pointer-events-none absolute inset-x-0 top-0 -z-10 h-48" />
+        <p className="mb-4 flex justify-center"><span className="sk-eyebrow rounded-full border border-border-subtle bg-card px-3 py-1 tabular-nums text-ink-subtle">403</span></p>
+        <div aria-hidden="true" className="sk-gradient-border mx-auto mb-6 grid size-16 place-items-center rounded-3xl text-primary shadow-md">
+          <Icon className="size-7" />
         </div>
         <h1 className="mb-2 text-2xl font-bold tracking-tight text-ink-strong">{title}</h1>
         <p className="mb-6 text-sm font-normal leading-relaxed text-ink-muted">{description}</p>

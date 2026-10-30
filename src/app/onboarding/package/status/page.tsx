@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { Activity, Banknote, Clock, CreditCard, Hash, Landmark, Package, ReceiptText, RefreshCw, Wallet, type LucideIcon } from "lucide-react";
+import { Activity, Banknote, CalendarClock, Clock, CreditCard, Hash, Landmark, Package, ReceiptText, RefreshCw, Wallet, type LucideIcon } from "lucide-react";
 import { translateUi } from "@/lib/locale/ui-messages";
 import { getPackageCopy } from "../copy";
 import { formatPackageAmount, packageStatus, type SchoolLifecycle } from "@/lib/billing/package-status";
@@ -207,7 +207,7 @@ function CheckoutStatus() {
           <DeskSection title={copy.planNames[intent.plan as keyof typeof copy.planNames] ?? intent.plan} icon={Package} tone={pillTone}>
             <dl className="grid gap-4 text-sm sm:grid-cols-2">
               <Detail icon={Hash} label={copy.orderReference} ltr><bdi className="font-mono">{intent.id}</bdi></Detail>
-              <Detail icon={Package} label={copy.package}>{copy.planNames[intent.plan as keyof typeof copy.planNames] ?? intent.plan}</Detail>
+              <Detail icon={CalendarClock} label={copy.billingPeriod}>{intent.billingPeriod === "annual" ? copy.annual : copy.monthly}</Detail>
               <Detail icon={stateIcon} label={copy.paymentState}>{stateName}</Detail>
               {intent.amount != null && <Detail icon={Wallet} label={copy.savedAmount} ltr><bdi className="tabular-nums">{formatPackageAmount(intent.amount, intent.currency, language)}</bdi></Detail>}
             </dl>
