@@ -17,7 +17,7 @@ async function plan(fromClassId: string, toClassId: string, effectiveDate: Date,
   if (fromClassId === toClassId) throw new ApiError("Choose a different section to move the students to.", 400);
   const [from, to] = await Promise.all([
     prisma.class.findFirst({ where: { id: fromClassId, ...(campusScope ? { campusId: campusScope } : {}) }, select: { id: true, name: true, section: true, campusId: true, academicYear: true, archivedAt: true } }),
-    prisma.class.findFirst({ where: { id: toClassId, ...(campusScope ? { campusId: campusScope } : {}) }, select: { id: true, name: true, section: true, campusId: true, academicYear: true, archivedAt: true, status: true } }),
+    prisma.class.findFirst({ where: { id: toClassId, ...(campusScope ? { campusId: campusScope } : {}) }, select: { id: true, name: true, section: true, campusId: true, academicYear: true, archivedAt: true, status: true, capacity: true } }),
   ]);
   if (!from || !to) throw new ApiError("Section not found", 404);
   if (to.archivedAt || to.status !== "ACTIVE") throw new ApiError("Students can only move to an active section.", 409);
@@ -53,11 +53,15 @@ export async function POST(req: NextRequest) {
     const preview = await plan(String(body.fromClassId ?? ""), String(body.toClassId ?? ""), effectiveDate, campusScope);
     const summary = {
       from: { id: preview.from.id, label: label(preview.from) }, to: { id: preview.to.id, label: label(preview.to) },
-      students: preview.ready.length + preview.blocked.length, ready: preview.ready.length, blocked: preview.blocked, targetOccupancy: preview.targetOccupancy,
+      students: preview.ready.length + preview.blocked.length, ready: preview.ready.length, blocked: preview.blocked, targetOccupancy: preview.targetOccupancy, targetCapacity: preview.to.capacity,
       preserved: preview.ready.reduce((sum, row) => ({ attendance: sum.attendance + row.preserved.attendance, reports: sum.reports + row.preserved.reports, invoices: sum.invoices + row.preserved.invoices }), { attendance: 0, reports: 0, invoices: 0 }),
     };
     if (body.action !== "apply") return Response.json({ success: true, preview: summary });
     // All or nothing: a section is never left half-moved.
+    // SKAI-170: the whole section must fit; a partial move would split the class.
+    if (preview.to.capacity != null && preview.targetOccupancy + preview.ready.length > preview.to.capacity) {
+      throw new ApiError(`${label(preview.to)} has ${Math.max(preview.to.capacity - preview.targetOccupancy, 0)} free seat(s) for ${preview.ready.length} student(s). Raise its capacity first; nobody was moved.`, 409);
+    }
     if (preview.blocked.length) throw new ApiError(`${preview.blocked.length} student(s) cannot move on this date. Resolve them first; nobody was moved.`, 409);
     const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim().slice(0, 500) : `Section transfer to ${label(preview.to)}`;
     const result = await retryDatabaseTransaction(() => prisma.$transaction(async tx => {
