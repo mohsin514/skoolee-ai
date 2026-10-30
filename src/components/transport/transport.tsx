@@ -15,6 +15,10 @@ import { MapPin, Users } from "lucide-react";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
+import { Alert } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowButton, DeskRowIcon, DeskSection, DeskStats, StatTile, deskRow, deskTimeline, type DeskTone } from "@/components/ui/desk";
+import { AlertTriangle, Bus, CheckCircle2, ClipboardCheck, Flag, HandHeart, Route, ShieldAlert, UserCheck, UserMinus } from "lucide-react";
 
 // SKO-437: route riders and stops, dated trips with a frozen manifest, and the crew's trip desk.
 // The desk shows unresolved riders first and uses large actions; every event carries the time it happened
@@ -33,6 +37,10 @@ const eventId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ?
 const statusLabel = (ui: Ui, s: string) => ({ EXPECTED: ui("Expected"), ABSENT: ui("Not travelling"), BOARDED: ui("On board"), HANDED_OVER: ui("Handed over"), REMOVED: ui("Removed by amendment"), TRANSFERRED: ui("Moved to another trip"), PUBLISHED: ui("Published"), DEPARTED: ui("Departed"), CLOSED: ui("Closed"), CLOSED_EMERGENCY: ui("Closed in an emergency") } as Record<string, string>)[s] ?? s;
 const kindLabel = (ui: Ui, k: string) => ({ UNLISTED_PASSENGER: ui("Unlisted passenger"), CAPACITY_OVERFLOW: ui("Over capacity"), MISSING_CHILD: ui("Missing child"), MISSING_RECIPIENT: ui("No one to receive the student"), DOUBLE_BOARDING: ui("Already on another vehicle"), LATE_CHANGE: ui("Late change") } as Record<string, string>)[k] ?? k;
 const receiverLabel = (ui: Ui, r: string) => ({ STAFF: ui("School staff"), GUARDIAN: ui("Guardian"), AUTHORIZED_ADULT: ui("Authorised adult") } as Record<string, string>)[r] ?? r;
+const tripTone = (s: string): DeskTone => ({ PUBLISHED: "info", DEPARTED: "brand", CLOSED: "success", CLOSED_EMERGENCY: "danger" } as Record<string, DeskTone>)[s] ?? "neutral";
+const passengerTone = (s: string): DeskTone => ({ EXPECTED: "warning", BOARDED: "brand", HANDED_OVER: "success", ABSENT: "neutral", REMOVED: "neutral", TRANSFERRED: "neutral" } as Record<string, DeskTone>)[s] ?? "neutral";
+type ManifestFocus = "unresolved" | "boarded" | "handedOver" | "absent";
+const MANIFEST: Record<ManifestFocus, (status: string) => boolean> = { unresolved: s => s === "EXPECTED" || s === "BOARDED", boarded: s => s === "BOARDED" || s === "HANDED_OVER", handedOver: s => s === "HANDED_OVER", absent: s => s === "ABSENT" };
 const direction = (ui: Ui, d: string) => d === "AM" ? ui("Morning run") : ui("Afternoon run");
 
 // ─── Offline queue (per device) ──────────────────────────────────────────
@@ -65,6 +73,7 @@ export function TripView({ tripId, onBack }: { tripId: string; onBack?: () => vo
   const [check, setCheck] = useState({ empty: false, signature: "" }), [stop, setStop] = useState("");
   const [amendForm, setAmendForm] = useState<{ change: string; studentId: string; reason: string } | null>(null), [emergency, setEmergency] = useState(""), [resolve, setResolve] = useState<Record<string, { resolution: string; outcome: string; receiverName: string }>>({});
   const [students, setStudents] = useState<{ id: string; fullName: string }[]>([]), [q, setQ] = useState("");
+  const [focus, setFocus] = useState<ManifestFocus | null>(null), [find, setFind] = useState("");
   const load = useCallback(async () => { try { setData(await call(`/api/transport/trips?id=${tripId}`)); setError(null); } catch (e) { setError(e instanceof Error ? e.message : "Cannot verify the current manifest. Follow the school's documented fallback."); } }, [tripId]);
   useEffect(() => { setQueue(readQueue().filter(x => x.body.tripId === tripId)); void load(); }, [load, tripId]);
   const flush = useCallback(async () => {
@@ -93,25 +102,28 @@ export function TripView({ tripId, onBack }: { tripId: string; onBack?: () => vo
   if (error && !data) return <section className="sk-panel space-y-2 p-4" data-trip-error><p className="text-sm">{ui(error)}</p>{onBack ? <Button variant="secondary" onClick={onBack}>{ui("Back")}</Button> : null}</section>;
   if (!data) return <p className="text-sm text-ink-muted" data-trip-loading>{ui("Loading the latest manifest; boarding actions are unavailable.")}</p>;
   const t = data.trip, open = t.status === "PUBLISHED" || t.status === "DEPARTED";
-  const ordered = [...data.passengers].sort((a, b) => Number(["EXPECTED", "BOARDED"].includes(b.status)) - Number(["EXPECTED", "BOARDED"].includes(a.status)));
+  // Riders who still need an action come first; a pressed counter or the quick filter narrows the manifest.
+  const needle = find.trim().toLocaleLowerCase();
+  const ordered = [...data.passengers].sort((a, b) => Number(["EXPECTED", "BOARDED"].includes(b.status)) - Number(["EXPECTED", "BOARDED"].includes(a.status)))
+    .filter(p => (!focus || MANIFEST[focus](p.status)) && (!needle || [p.name, p.stop ?? ""].some(v => v.toLocaleLowerCase().includes(needle))));
+  const pick = (id: ManifestFocus) => ({ onSelect: () => setFocus(focus === id ? null : id), selected: focus === id });
   const canClose = open && !data.counts.unresolved && !data.counts.openExceptions && !!t.vehicleCheckAt && !queue.length;
   const pendingFor = (studentId: string) => queue.filter(x => x.body.studentId === studentId).map(x => x.label);
   return <section className="min-w-0 space-y-4" data-trip={t.id} data-trip-status={t.status}>
-    <header className="sk-panel sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 p-3" data-trip-header>
-      <div className="min-w-0"><h2 className="text-lg font-bold"><bdi>{t.label}</bdi> · <bdi dir="ltr">{t.vehicleNumber}</bdi></h2><p className="text-xs text-ink-muted">{direction(ui, t.direction)} · <bdi>{t.serviceDate}</bdi> · {statusLabel(ui, t.status)} · {ui("Coordinator: {0}", [t.coordinator])}</p></div>
+    <header className="sk-panel sk-console-head sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4" data-trip-header>
+      <div className="flex min-w-0 items-center gap-3"><span aria-hidden="true" className="sk-page-icon"><Bus className="size-5" /></span><div className="min-w-0"><h2 className="text-lg font-bold text-ink-strong"><bdi>{t.label}</bdi> · <bdi dir="ltr">{t.vehicleNumber}</bdi></h2><p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted"><DeskPill tone={tripTone(t.status)}>{statusLabel(ui, t.status)}</DeskPill>{direction(ui, t.direction)} · <bdi>{t.serviceDate}</bdi> · {ui("Coordinator: {0}", [t.coordinator])}</p></div></div>
       {onBack ? <Button variant="secondary" onClick={onBack}>{ui("Back")}</Button> : null}
     </header>
-    <p className="text-xs text-ink-muted">{ui("Record events only while the vehicle is safely stopped. This is a manifest, not live location.")}</p>
+    <Alert tone="info" compact>{ui("Record events only while the vehicle is safely stopped. This is a manifest, not live location.")}</Alert>
     {queue.length ? <div className="rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-sm text-status-warning-text" data-trip-pending={queue.length}><p className="font-semibold">{ui("{0} events saved on this device only — not yet confirmed by the server.", [String(queue.length)])}</p><Button size="sm" className="mt-2" onClick={() => void flush()} data-trip-flush>{ui("Send now")}</Button></div> : null}
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-trip-counts>
-      <div className="sk-panel p-3"><p className="text-2xl font-bold tabular-nums text-ink-strong" data-count="unresolved">{data.counts.unresolved}</p><p className="text-xs">{ui("Unresolved")}</p></div>
-      <div className="sk-panel p-3"><p className="text-2xl font-bold tabular-nums text-ink-strong" data-count="boarded">{data.counts.boarded}/{data.counts.expected}</p><p className="text-xs">{ui("{0} of {1} expected students boarded", [String(data.counts.boarded), String(data.counts.expected)])}</p></div>
-      <div className="sk-panel p-3"><p className="text-2xl font-bold tabular-nums text-ink-strong" data-count="handedOver">{data.counts.handedOver}</p><p className="text-xs">{ui("Handed over")}</p></div>
-      <div className="sk-panel p-3"><p className="text-2xl font-bold tabular-nums text-ink-strong" data-count="absent">{data.counts.absent}</p><p className="text-xs">{ui("Not travelling")}</p></div>
-    </div>
-    {data.exceptions.some(e => e.status === "OPEN") ? <div className="sk-panel space-y-2 border-status-warning-border p-3" data-trip-exceptions>
-      <h3 className="font-bold">{data.exceptions.filter(e => e.status === "OPEN").length === 1 ? ui("One exception needs attention") : ui("{0} exceptions need attention", [String(data.exceptions.filter(e => e.status === "OPEN").length)])}</h3>
-      {data.exceptions.filter(e => e.status === "OPEN").map(e => <div key={e.id} className="rounded-xl border px-3 py-2 text-sm" data-trip-exception={e.kind}>
+    <DeskStats data-trip-counts>
+      <StatTile {...pick("unresolved")} index={0} icon={AlertTriangle} tone={data.counts.unresolved ? "warning" : "success"} value={data.counts.unresolved} valueProps={{ "data-count": "unresolved" }} label={ui("Unresolved")} />
+      <StatTile {...pick("boarded")} index={1} icon={UserCheck} tone="brand" value={`${data.counts.boarded}/${data.counts.expected}`} valueProps={{ "data-count": "boarded" }} label={ui("{0} of {1} expected students boarded", [String(data.counts.boarded), String(data.counts.expected)])} hint={data.counts.expected ? <Progress size="sm" value={Math.round((data.counts.boarded / data.counts.expected) * 100)} label={ui("{0} of {1} expected students boarded", [String(data.counts.boarded), String(data.counts.expected)])} /> : undefined} />
+      <StatTile {...pick("handedOver")} index={2} icon={HandHeart} tone="success" value={data.counts.handedOver} valueProps={{ "data-count": "handedOver" }} label={ui("Handed over")} />
+      <StatTile {...pick("absent")} index={3} icon={UserMinus} tone="neutral" value={data.counts.absent} valueProps={{ "data-count": "absent" }} label={ui("Not travelling")} />
+    </DeskStats>
+    {data.exceptions.some(e => e.status === "OPEN") ? <DeskSection tone="warning" icon={ShieldAlert} title={data.exceptions.filter(e => e.status === "OPEN").length === 1 ? ui("One exception needs attention") : ui("{0} exceptions need attention", [String(data.exceptions.filter(e => e.status === "OPEN").length)])} data-trip-exceptions>
+      {data.exceptions.filter(e => e.status === "OPEN").map(e => <div key={e.id} data-tone={e.kind === "MISSING_CHILD" ? "danger" : "warning"} className={cn(deskRow, "text-sm")} data-trip-exception={e.kind}>
         <p className="font-bold">{kindLabel(ui, e.kind)}{e.studentId ? <> · <bdi>{data.passengers.find(p => p.studentId === e.studentId)?.name ?? ""}</bdi></> : null}</p>
         <p dir="auto">{e.note}</p><p className="text-xs text-ink-muted">{ui("Owner: {0}", [e.owner])} · <bdi>{dateTime(e.createdAt)}</bdi></p>
         {data.lead ? <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
@@ -121,11 +133,13 @@ export function TripView({ tripId, onBack }: { tripId: string; onBack?: () => vo
           {resolve[e.id]?.outcome === "HANDED_OVER_CONFIRMED" ? <Input value={resolve[e.id]?.receiverName ?? ""} onChange={ev => setResolve({ ...resolve, [e.id]: { ...resolve[e.id], receiverName: ev.target.value } })} placeholder={ui("Who received the student?")} aria-label={ui("Who received the student?")} dir="auto" className="sm:col-span-3" /> : null}
         </div> : null}
       </div>)}
-    </div> : null}
-    <ul className="space-y-2" data-trip-manifest>{ordered.map(p => {
+    </DeskSection> : null}
+    {data.passengers.length > 8 ? <DeskQuickFilter value={find} onChange={setFind} label={ui("Filter this list")} /> : null}
+    <DeskFilterStatus shown={ordered.length} total={data.passengers.length} onClear={() => { setFocus(null); setFind(""); }} />
+    <ul className="space-y-2.5" data-trip-manifest>{ordered.map(p => {
       const pending = pendingFor(p.studentId);
-      return <li key={p.id} className={cn("sk-panel flex flex-wrap items-center justify-between gap-3 p-3", !["EXPECTED", "BOARDED"].includes(p.status) && "opacity-80")} data-passenger={p.studentId} data-passenger-status={p.status}>
-        <div className="min-w-0"><p className="text-base font-bold"><bdi>{p.name}</bdi></p><p className="text-xs text-ink-muted">{p.stop ? <><bdi>{p.stop}</bdi> · </> : null}{statusLabel(ui, p.status)}{p.source === "AMENDMENT" ? <> · {ui("Added by amendment")}</> : null}{p.boardedAt ? <> · {ui("Boarded {0}", [dateTime(p.boardedAt)])}</> : null}{p.receiverName ? <> · {ui("To {0} ({1})", [p.receiverName, receiverLabel(ui, p.receiverType ?? "")])}</> : null}</p>{pending.length ? <p className="text-xs text-status-warning-text" data-passenger-pending>{ui("On this device only: {0}", [pending.map(x => ui(x)).join(", ")])}</p> : null}</div>
+      return <li key={p.id} data-tone={["EXPECTED", "BOARDED"].includes(p.status) ? passengerTone(p.status) : "muted"} className={cn(deskRow, "flex flex-wrap items-center justify-between gap-3")} data-passenger={p.studentId} data-passenger-status={p.status}>
+        <div className="flex min-w-0 items-center gap-3"><DeskRowIcon icon={p.status === "HANDED_OVER" ? CheckCircle2 : p.status === "BOARDED" ? Bus : p.status === "EXPECTED" ? UserCheck : UserMinus} /><div className="min-w-0"><p className="text-base font-bold"><bdi>{p.name}</bdi></p><p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-ink-muted">{p.stop ? <><MapPin aria-hidden="true" className="size-3.5 text-ink-faint" /><bdi>{p.stop}</bdi> · </> : null}<DeskPill tone={passengerTone(p.status)}>{statusLabel(ui, p.status)}</DeskPill>{p.source === "AMENDMENT" ? <> · {ui("Added by amendment")}</> : null}{p.boardedAt ? <> · {ui("Boarded {0}", [dateTime(p.boardedAt)])}</> : null}{p.receiverName ? <> · {ui("To {0} ({1})", [p.receiverName, receiverLabel(ui, p.receiverType ?? "")])}</> : null}</p>{pending.length ? <p className="text-xs text-status-warning-text" data-passenger-pending>{ui("On this device only: {0}", [pending.map(x => ui(x)).join(", ")])}</p> : null}</div></div>
         {open ? <div className="flex flex-wrap gap-2">
           {p.status === "EXPECTED" ? <><Button size="lg" disabled={busy} onClick={() => void send({ action: "board", studentId: p.studentId }, "Boarding", "Boarding recorded.")} data-board>{ui("Mark boarded")}</Button><Button variant="outline" disabled={busy} onClick={() => { setAbsent(p); setAbsentReason(""); }} data-absent>{ui("Not travelling")}</Button><Button variant="secondary" disabled={busy} onClick={() => setReport({ kind: "MISSING_CHILD", studentId: p.studentId, note: "" })} data-missing>{ui("Report exception")}</Button></> : null}
           {p.status === "BOARDED" ? <><Button size="lg" disabled={busy} onClick={() => { setHand(p); setHandForm({ receiverType: t.direction === "AM" ? "STAFF" : "GUARDIAN", receiverUserId: "", receiverName: "", identityChecked: false }); }} data-handover>{ui("Hand over")}</Button><Button variant="secondary" disabled={busy} onClick={() => setReport({ kind: "MISSING_RECIPIENT", studentId: p.studentId, note: "" })} data-no-recipient>{ui("No one to receive")}</Button></> : null}
@@ -133,24 +147,23 @@ export function TripView({ tripId, onBack }: { tripId: string; onBack?: () => vo
         </div> : null}
       </li>;
     })}</ul>
-    {open ? <div className="sk-panel space-y-3 p-4" data-trip-actions>
+    {open ? <DeskSection title={ui("Trip actions")} icon={Flag} data-trip-actions>
       <div className="flex flex-wrap gap-2">{t.status === "PUBLISHED" ? <Button variant="outline" disabled={busy} onClick={() => void send({ action: "depart" }, "Departure", "Departure recorded.")} data-depart>{ui("Record departure")}</Button> : null}<Button variant="secondary" disabled={busy} onClick={() => setReport({ kind: "UNLISTED_PASSENGER", note: "" })} data-unlisted>{ui("Report unlisted passenger")}</Button>{data.lead ? <Button variant="outline" onClick={() => { setAmendForm({ change: "add", studentId: "", reason: "" }); setQ(""); }} data-amend-add>{ui("Add student by amendment")}</Button> : null}</div>
       <div className="flex flex-col gap-2 sm:flex-row"><Input value={stop} onChange={e => setStop(e.target.value)} placeholder={ui("Stop reached")} aria-label={ui("Stop reached")} dir="auto" data-stop-name /><Button variant="outline" disabled={busy || !stop.trim()} onClick={() => void send({ action: "stop", stop }, "Stop arrival", "Stop arrival recorded.").then(ok => ok && setStop(""))} data-stop>{ui("Record stop arrival")}</Button></div>
-      <div className="space-y-2 rounded-xl border p-3" data-vehicle-check>
-        <h3 className="font-bold">{ui("Empty-vehicle check")}</h3>
+      <DeskSection tone={t.vehicleCheckAt ? "success" : "brand"} icon={ClipboardCheck} title={ui("Empty-vehicle check")} className="bg-surface-subtle" data-vehicle-check>
         {t.vehicleCheckAt ? <p className="text-sm" data-vehicle-check-done>{ui("Checked empty by {0} at {1}", [t.vehicleCheckBy ?? "", dateTime(t.vehicleCheckAt)])}</p> : <>
           <label className="flex items-start gap-2 text-sm"><Checkbox checked={check.empty} onChange={e => setCheck({ ...check, empty: e.target.checked })} data-check-empty /><span>{ui("I walked the whole vehicle, including every seat, and no student is on board.")}</span></label>
           <FormField name="vc-sign" label={ui("Sign with your full name")}><Input value={check.signature} onChange={e => setCheck({ ...check, signature: e.target.value })} dir="auto" data-check-signature /></FormField>
           <Button disabled={busy || !check.empty || !check.signature.trim()} onClick={() => void send({ action: "vehicle-check", empty: true, signature: check.signature }, "Vehicle check", "Vehicle check recorded.")} data-check-save>{ui("Record vehicle check")}</Button>
         </>}
-      </div>
+      </DeskSection>
       <div className="space-y-1" data-trip-close>
         <Button size="lg" disabled={busy || !canClose} onClick={() => void lead({ action: "close" }, "Trip reconciled and vehicle check recorded.")} data-close>{ui("Close trip")}</Button>
         {!canClose ? <p className="text-xs text-ink-muted" data-close-blocked>{queue.length ? ui("Send the events saved on this device first.") : data.counts.unresolved ? ui("{0} students still need a handover or an absence.", [String(data.counts.unresolved)]) : data.counts.openExceptions ? ui("Resolve the open exceptions first.") : ui("Record the empty-vehicle check first.")}</p> : null}
       </div>
-      {data.lead ? <div className="space-y-2 rounded-xl border border-status-error-border p-3" data-emergency-close><h3 className="font-bold">{ui("Emergency closure")}</h3><p className="text-xs text-ink-muted">{ui("Only after escalation. Every unresolved student becomes an exception you own.")}</p><Input value={emergency} onChange={e => setEmergency(e.target.value)} placeholder={ui("Escalation and reason")} aria-label={ui("Escalation and reason")} dir="auto" data-emergency-reason /><Button variant="destructive" disabled={busy || !emergency.trim()} onClick={() => void lead({ action: "emergency-close", reason: emergency }, "Trip closed in an emergency. Exceptions remain open.")} data-emergency-submit>{ui("Close in an emergency")}</Button></div> : null}
-    </div> : <div className="sk-panel p-4 text-sm" data-trip-closed>{t.status === "CLOSED" ? ui("Trip reconciled and vehicle check recorded.") : ui("Closed in an emergency: {0}", [t.emergencyReason ?? ""])}</div>}
-    {data.lead && data.events.length ? <details className="sk-panel p-4 text-sm" data-trip-history><summary className="cursor-pointer font-bold">{ui("Event history")}</summary><ol className="mt-2 space-y-1">{data.events.map(e => <li key={e.id} data-trip-event={e.kind}><bdi>{dateTime(e.occurredAt)}</bdi> · {e.kind} · <bdi>{e.actor}</bdi>{e.studentId ? <> · <bdi>{data.passengers.find(p => p.studentId === e.studentId)?.name ?? ""}</bdi></> : null}{Math.abs(new Date(e.recordedAt).getTime() - new Date(e.occurredAt).getTime()) > 120_000 ? <> · {ui("received {0}", [dateTime(e.recordedAt)])}</> : null}</li>)}</ol></details> : null}
+      {data.lead ? <DeskSection tone="danger" icon={AlertTriangle} title={ui("Emergency closure")} data-emergency-close><p className="text-xs text-ink-muted">{ui("Only after escalation. Every unresolved student becomes an exception you own.")}</p><Input value={emergency} onChange={e => setEmergency(e.target.value)} placeholder={ui("Escalation and reason")} aria-label={ui("Escalation and reason")} dir="auto" data-emergency-reason /><Button variant="destructive" disabled={busy || !emergency.trim()} onClick={() => void lead({ action: "emergency-close", reason: emergency }, "Trip closed in an emergency. Exceptions remain open.")} data-emergency-submit>{ui("Close in an emergency")}</Button></DeskSection> : null}
+    </DeskSection> : <Alert tone={t.status === "CLOSED" ? "success" : "danger"} data-trip-closed>{t.status === "CLOSED" ? ui("Trip reconciled and vehicle check recorded.") : ui("Closed in an emergency: {0}", [t.emergencyReason ?? ""])}</Alert>}
+    {data.lead && data.events.length ? <details className="sk-panel p-4 text-sm" data-trip-history><summary className="cursor-pointer font-bold">{ui("Event history")}</summary><ol className={cn(deskTimeline, "mt-3")}>{data.events.map(e => <li key={e.id} data-trip-event={e.kind}><bdi>{dateTime(e.occurredAt)}</bdi> · {e.kind} · <bdi>{e.actor}</bdi>{e.studentId ? <> · <bdi>{data.passengers.find(p => p.studentId === e.studentId)?.name ?? ""}</bdi></> : null}{Math.abs(new Date(e.recordedAt).getTime() - new Date(e.occurredAt).getTime()) > 120_000 ? <> · {ui("received {0}", [dateTime(e.recordedAt)])}</> : null}</li>)}</ol></details> : null}
     {hand ? <Modal title={ui("Hand over {0}", [hand.name])} onClose={() => setHand(null)}>
       <div className="space-y-3" data-handover-form>
         <p className="text-sm"><bdi>{hand.name}</bdi> · <bdi>{t.label}</bdi></p>
@@ -176,10 +189,11 @@ export function TripView({ tripId, onBack }: { tripId: string; onBack?: () => vo
 type TripRow = { id: string; label: string; direction: string; vehicleNumber: string; status: string; expected: number; boarded: number; handedOver: number; unresolved: number; openExceptions: number };
 function TripList({ rows, onOpen }: { rows: TripRow[]; onOpen: (id: string) => void }) {
   const ui = useUiText();
-  return <ul className="space-y-2">{rows.map(r => <li key={r.id}><Button variant="outline" className="h-auto w-full flex-wrap justify-between gap-2 py-3 text-start" onClick={() => onOpen(r.id)} data-trip-row={r.label}>
-    <span className="font-bold"><bdi>{r.label}</bdi> · <bdi dir="ltr">{r.vehicleNumber}</bdi></span>
-    <span className="text-xs">{statusLabel(ui, r.status)} · {r.unresolved ? ui("{0} unresolved", [String(r.unresolved)]) : ui("All reconciled")} · {ui("{0} of {1} expected students boarded", [String(r.boarded), String(r.expected)])}{r.openExceptions ? <> · {ui("{0} exceptions", [String(r.openExceptions)])}</> : null}</span>
-  </Button></li>)}</ul>;
+  return <ul className="space-y-2.5">{rows.map(r => <li key={r.id}><DeskRowButton tone={r.openExceptions ? "danger" : r.unresolved && r.status === "DEPARTED" ? "warning" : r.status.startsWith("CLOSED") ? "muted" : undefined} icon={r.direction === "AM" ? Route : Bus} trailing={<DeskPill tone={tripTone(r.status)}>{statusLabel(ui, r.status)}</DeskPill>} onClick={() => onOpen(r.id)} data-trip-row={r.label}>
+    <span className="block font-bold text-ink-strong"><bdi>{r.label}</bdi> · <bdi dir="ltr">{r.vehicleNumber}</bdi></span>
+    <span className="block text-xs text-ink-muted">{direction(ui, r.direction)} · {r.unresolved ? ui("{0} unresolved", [String(r.unresolved)]) : ui("All reconciled")} · {ui("{0} of {1} expected students boarded", [String(r.boarded), String(r.expected)])}{r.openExceptions ? <> · <span className="font-semibold text-status-error-text">{ui("{0} exceptions", [String(r.openExceptions)])}</span></> : null}</span>
+    {r.expected ? <Progress size="sm" value={Math.round((r.boarded / r.expected) * 100)} className="mt-1 max-w-xs" label={ui("{0} of {1} expected students boarded", [String(r.boarded), String(r.expected)])} /> : null}
+  </DeskRowButton></li>)}</ul>;
 }
 
 /** Crew desk at /transport: today's trips assigned to this person (coordinators see the campus). */
@@ -192,8 +206,8 @@ export function TripDesk() {
   if (error) return <div data-trip-desk-error><ErrorState description={ui(error)} onRetry={() => void load()} retryLabel={ui("Try again")} /></div>;
   if (!data) return <SkeletonList rows={3} label={ui("Loading the latest manifest; boarding actions are unavailable.")} />;
   return <section className="min-w-0 space-y-3" data-trip-desk>
-    <PageHeader title="Today's trip" description="Board and drop off riders from the live manifest; families see each step." status={<span className="text-sm text-ink-muted"><bdi>{data.serviceDate}</bdi></span>} />
-    {data.trips.length ? <TripList rows={data.trips} onOpen={setOpen} /> : <div className="sk-panel" data-trip-empty><EmptyState size="sm" title={ui("No trip assigned for today. Contact the transport coordinator.")} /></div>}
+    <PageHeader icon={Bus} title="Today's trip" description="Board and drop off riders from the live manifest; families see each step." status={<span className="text-sm text-ink-muted"><bdi>{data.serviceDate}</bdi></span>} />
+    {data.trips.length ? <TripList rows={data.trips} onOpen={setOpen} /> : <div className="sk-panel" data-trip-empty><EmptyState size="sm" icon={Bus} title={ui("No trip assigned for today. Contact the transport coordinator.")} /></div>}
   </section>;
 }
 

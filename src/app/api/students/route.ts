@@ -1,5 +1,6 @@
 import { assertListBudget } from "@/lib/lists/access";
 import { createStudentRecords } from "@/lib/students/create";
+import { rosterSummarySelect } from "@/lib/students/roster-summary";
 import { NextRequest } from "next/server";
 import { randomUUID } from "crypto";
 import { Prisma, type Student } from "@prisma/client";
@@ -162,12 +163,9 @@ export async function GET(req: NextRequest) {
     const [students, total] = await Promise.all([
       prisma.student.findMany({
         where,
-        include: {
-          class: { select: { id: true, name: true, section: true, academicYear: true } },
-          studentUser: { select: { id: true, email: true, isActive: true } },
-          campus: { select: { id: true, name: true } },
-          category: { select: { id: true, name: true } },
-          group: { select: { id: true, name: true } },
+        // The summary only (SKAI-163): medical, identity and address fields come from /api/students/<id>.
+        select: {
+          ...rosterSummarySelect,
           documents: { select: { id: true, kind: true, fileName: true } },
           _count: { select: { attendance: true, invoices: true, timelineEvents: true } },
         },

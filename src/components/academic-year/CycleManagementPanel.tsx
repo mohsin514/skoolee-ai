@@ -18,6 +18,8 @@ import { Alert } from "@/components/ui/alert";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { useNavigationAccess } from "@/components/nav/NavigationAccess";
+import { Progress } from "@/components/ui/progress";
+import { DeskFilterStatus, DeskStats, RelativeTime, StatTile, deskRow, type DeskTone } from "@/components/ui/desk";
 
 
 interface Cycle {
@@ -31,6 +33,14 @@ interface Cycle {
   updatedAt: string;
 }
 
+const STATUS_TONE: Record<string, DeskTone | "muted"> = { DRAFT: "info", ACTIVE: "success", PAUSED: "warning", ENDED: "muted" };
+/** How far through its dates a year is, 0–100, or null while the dates are not set. */
+function yearProgress(start: string | null, end: string | null, now = Date.now()) {
+  if (!start || !end) return null;
+  const from = new Date(start).getTime(), to = new Date(end).getTime();
+  if (!(to > from)) return null;
+  return Math.round(Math.min(1, Math.max(0, (now - from) / (to - from))) * 100);
+}
 const day = (value: string | null) => (value ? value.slice(0, 10) : "");
 
 const statusConfig: Record<string, { color: string; bg: string; icon: typeof Activity; label: string; badge: "info" | "success" | "warning" | "neutral" }> = {
@@ -196,6 +206,10 @@ export function CycleManagementPanel({
   };
 
   const activeCycle = cycles.find((c) => c.status === "ACTIVE");
+  // Status counters double as filters once the list is long enough to need them.
+  const [focus, setFocus] = useState<string | null>(null);
+  const listed = focus ? cycles.filter((c) => c.status === focus) : cycles;
+  const elapsed = activeCycle ? yearProgress(activeCycle.startDate, activeCycle.endDate) : null;
   // `closeRequest` (a plain number) is the short form of `closeCommand={{ id: "close", nonce }}`.
   const command = useMemo<YearCloseCommand | undefined>(
     () => closeCommand ?? (closeRequest ? { id: "close", nonce: closeRequest } : undefined),
@@ -268,6 +282,15 @@ export function CycleManagementPanel({
                 </p>
               </div>
             </div>
+            {elapsed !== null && activeCycle.endDate ? (
+              <div className="w-full min-w-0 space-y-1.5 sm:order-last" data-cycle-progress={elapsed}>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-ink-muted">
+                  <span>{ui("{0} to {1}", [formatDay(activeCycle.startDate!), formatDay(activeCycle.endDate)])}</span>
+                  <span className="tabular-nums text-ink-strong"><bdi dir="ltr">{elapsed}%</bdi> · <RelativeTime iso={activeCycle.endDate} full={formatDay(activeCycle.endDate)} /></span>
+                </div>
+                <Progress value={elapsed} tone={elapsed >= 90 ? "warning" : "success"} label={ui("Academic year {0}", [activeCycle.academicYear])} />
+              </div>
+            ) : null}
             {canManageCycles ? (
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm"
@@ -369,7 +392,18 @@ export function CycleManagementPanel({
         />
       ) : (
         <div className="space-y-3">
-          {cycles.map((cycle, i) => {
+          {cycles.length > 3 ? (
+            <DeskStats data-cycle-stats>
+              {(["ACTIVE", "DRAFT", "PAUSED", "ENDED"] as const).map((status, index) => {
+                const count = cycles.filter((c) => c.status === status).length;
+                const tone = STATUS_TONE[status];
+                return <StatTile key={status} index={index} icon={statusConfig[status].icon} tone={tone === "muted" ? "neutral" : tone} value={count} label={ui(statusConfig[status].label)}
+                  onSelect={count ? () => setFocus(focus === status ? null : status) : undefined} selected={focus === status} data-cycle-focus={status} />;
+              })}
+            </DeskStats>
+          ) : null}
+          <DeskFilterStatus shown={listed.length} total={cycles.length} onClear={() => setFocus(null)} />
+          {listed.map((cycle, i) => {
             const config = statusConfig[cycle.status] || statusConfig.DRAFT;
             const Icon = config.icon;
             const isActive = cycle.status === "ACTIVE";
@@ -377,9 +411,10 @@ export function CycleManagementPanel({
             return (
               <div
                 key={cycle.id}
+                data-tone={STATUS_TONE[cycle.status] ?? "info"}
                 className={cn(
-                  "sk-panel sk-rise sk-hover-lift flex flex-wrap items-center justify-between gap-3 p-4",
-                  isActive && "border-status-success-border ring-1 ring-status-success-border"
+                  deskRow, "sk-rise flex flex-wrap items-center justify-between gap-3",
+                  isActive && "ring-1 ring-status-success-border"
                 )}
                 style={{ animationDelay: `${i * 60}ms` }}
               >

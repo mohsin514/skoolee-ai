@@ -11,8 +11,9 @@ import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
 import { ErrorState } from "@/components/ui/error-state";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { BookOpenCheck, CalendarClock, DoorOpen, LifeBuoy } from "lucide-react";
 
 // SKO-442: a teacher's cover. Lessons I cover: the handover, its resources (open only until the end of the
 // lesson's day), acknowledge, then say what actually happened. My lessons being covered: write the handover.
@@ -36,6 +37,9 @@ export function MyCover() {
   const [editing, setEditing] = useState<Duty | null>(null), [objective, setObjective] = useState(""), [instructions, setInstructions] = useState(""), [picked, setPicked] = useState<string[]>([]);
   const [outcomeFor, setOutcomeFor] = useState<Duty | null>(null), [outcome, setOutcome] = useState(""), [activity, setActivity] = useState("");
   const [rec, setRec] = useState<Recovery | null>(null), [recTitle, setRecTitle] = useState(""), [recText, setRecText] = useState(""), [recDue, setRecDue] = useState(""), [recNote, setRecNote] = useState("");
+  // A counter shows only its own list; pressing it again shows everything.
+  const [focus, setFocus] = useState<"" | "covering" | "covered" | "recoveries">("");
+  const toggle = (next: typeof focus) => setFocus(f => f === next ? "" : next);
   const load = useCallback(async () => { setError(""); try { setData(await call("GET")); } catch (e) { setError(ui(e instanceof Error ? e.message : "Cover could not be loaded.")); } }, [ui]);
   useEffect(() => { void load(); }, [load]);
   const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); await load(); return false; } finally { setBusy(false); } };
@@ -47,32 +51,46 @@ export function MyCover() {
   const outcomeLabel = (o: string) => o === "DELIVERED" ? ui("Taught as planned") : o === "SUPERVISED_ONLY" ? ui("Supervised only") : ui("Did not take place");
   const recStatus = (s: string) => ({ DECISION_NEEDED: ui("Decision needed"), PLANNED: ui("Planned, not shared"), PUBLISHED: ui("Shared with the class"), COMPLETED: ui("Completed"), NOT_NEEDED: ui("No catch-up needed") } as Record<string, string>)[s] ?? s;
   const covering = data.duties.filter(d => d.role === "COVERING"), covered = data.duties.filter(d => d.role === "COVERED");
+  const recTone = (s: string): DeskTone => ({ DECISION_NEEDED: "warning", PLANNED: "info", PUBLISHED: "brand", COMPLETED: "success", NOT_NEEDED: "neutral" } as Record<string, DeskTone>)[s] ?? "neutral";
+  const decisions = data.recoveries.filter(r => r.status === "DECISION_NEEDED").length;
+  const recoveries = urgencyFirst(data.recoveries, r => r.status === "DECISION_NEEDED" ? 0 : r.status === "PLANNED" ? 1 : r.status === "PUBLISHED" ? 2 : 3);
+  const show = (part: typeof focus) => !focus || focus === part;
+  const all = covering.length + covered.length + data.recoveries.length;
+  const shownCount = (show("covering") ? covering.length : 0) + (show("covered") ? covered.length : 0) + (show("recoveries") ? data.recoveries.length : 0);
 
   return <section className="sk-panel space-y-4 p-5" data-my-cover>
     <header><h3 className="text-base font-bold text-ink-strong">{ui("Cover and missed learning")}</h3><p className="text-xs leading-relaxed text-ink-muted">{ui("Covering a room is not the same as teaching the planned lesson. Say what happened so missed learning is followed up.")}</p></header>
 
-    {covering.length ? <div className="space-y-2" data-cover-covering><p className="sk-eyebrow">{ui("Lessons you are covering")}</p>
-      {covering.map(d => <div key={d.id} className="rounded-xl border border-edge/40 p-3" data-duty={d.id}>
+    <DeskStats data-cover-pulse>
+      <StatTile index={0} icon={DoorOpen} tone={covering.some(d => !d.handover?.acknowledgedAt) ? "warning" : "brand"} value={covering.length} label={ui("Lessons you are covering")} onSelect={covering.length ? () => toggle("covering") : undefined} selected={focus === "covering"} />
+      <StatTile index={1} icon={CalendarClock} tone={covered.some(d => d.date >= data.today && !d.handover?.objective) ? "warning" : "info"} value={covered.length} label={ui("Your lessons being covered")} onSelect={covered.length ? () => toggle("covered") : undefined} selected={focus === "covered"} />
+      <StatTile index={2} icon={LifeBuoy} tone={decisions ? "warning" : data.recoveries.length ? "brand" : "success"} value={data.recoveries.length} label={ui("Missed learning to follow up")} hint={decisions ? ui("Decision needed") : undefined} onSelect={data.recoveries.length ? () => toggle("recoveries") : undefined} selected={focus === "recoveries"} />
+    </DeskStats>
+    <DeskFilterStatus shown={shownCount} total={all} onClear={() => setFocus("")} />
+
+    {covering.length && show("covering") ? <div className="space-y-2" data-cover-covering><p className="sk-eyebrow">{ui("Lessons you are covering")}</p>
+      {covering.map(d => <div key={d.id} className={cn(deskRow, "flex items-start gap-3")} data-tone={!d.handover?.objective ? "warning" : d.handover.outcome ? "success" : undefined} data-duty={d.id}>
+        <DeskRowIcon icon={DoorOpen} /><div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-ink-strong">{lesson(d)}</p><p className="text-xs text-ink-muted">{ui("For {0}", [d.originalTeacher])}</p>
         {d.handover?.objective ? <div className="mt-2 rounded-lg bg-surface-sunken p-2 text-sm" data-handover><p><span className="font-semibold text-ink-strong">{ui("Objective")}:</span> <span dir="auto">{d.handover.objective}</span></p>{d.handover.instructions ? <p className="mt-1 text-xs" dir="auto">{d.handover.instructions}</p> : null}
           {d.resources.length ? <ul className="mt-1 text-xs">{d.resources.map(r => <li key={r.id}>{d.resourcesOpen ? <a className="sk-link" href={`/api/resources/${r.id}/file`} data-handover-resource={r.id} dir="auto">{r.title}</a> : <span dir="auto">{r.title}</span>}</li>)}</ul> : null}
           {!d.resourcesOpen && d.resources.length ? <p className="text-2xs text-ink-muted">{ui("Resources were available until the end of the lesson's day.")}</p> : null}
         </div> : <Alert tone="warning" compact live="off" className="mt-2">{ui("No handover yet. Ask the class teacher or your coordinator.")}</Alert>}
         <div className="mt-2 flex flex-wrap gap-2">
-          {!d.handover?.acknowledgedAt ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(() => call("POST", { action: "acknowledge", dutyId: d.id }), "Cover acknowledged.")} data-duty-ack>{ui("Acknowledge")}</Button> : <Badge variant="success" size="sm" dot>{ui("Acknowledged")}</Badge>}
-          {d.handover?.outcome ? <Badge variant="neutral" size="sm">{outcomeLabel(d.handover.outcome)}</Badge> : d.canRecord ? <Button size="sm" disabled={busy} onClick={() => { setOutcomeFor(d); setOutcome(""); setActivity(""); }} data-duty-outcome>{ui("Say what happened")}</Button> : null}
+          {!d.handover?.acknowledgedAt ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(() => call("POST", { action: "acknowledge", dutyId: d.id }), "Cover acknowledged.")} data-duty-ack>{ui("Acknowledge")}</Button> : <DeskPill tone="success">{ui("Acknowledged")}</DeskPill>}
+          {d.handover?.outcome ? <DeskPill tone={d.handover.outcome === "DELIVERED" ? "success" : "warning"}>{outcomeLabel(d.handover.outcome)}</DeskPill> : d.canRecord ? <Button size="sm" disabled={busy} onClick={() => { setOutcomeFor(d); setOutcome(""); setActivity(""); }} data-duty-outcome>{ui("Say what happened")}</Button> : null}
         </div>
-      </div>)}</div> : null}
+      </div></div>)}</div> : null}
 
-    {covered.length ? <div className="space-y-2" data-cover-covered><p className="sk-eyebrow">{ui("Your lessons being covered")}</p>
-      {covered.map(d => <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-edge/40 p-3" data-duty={d.id}>
-        <div><p className="text-sm font-semibold text-ink-strong">{lesson(d)}</p><p className="text-xs text-ink-muted">{ui("Covered by {0}", [d.substitute])}{d.handover?.acknowledgedAt ? <> · {ui("Acknowledged")}</> : null}{d.handover?.outcome ? <> · {outcomeLabel(d.handover.outcome)}</> : null}</p></div>
+    {covered.length && show("covered") ? <div className="space-y-2" data-cover-covered><p className="sk-eyebrow">{ui("Your lessons being covered")}</p>
+      {covered.map(d => <div key={d.id} className={cn(deskRow, "flex flex-wrap items-center justify-between gap-3")} data-tone={d.date >= data.today && !d.handover?.objective ? "warning" : d.handover?.acknowledgedAt ? "success" : undefined} data-duty={d.id}>
+        <div className="flex min-w-0 flex-1 items-start gap-3"><DeskRowIcon icon={CalendarClock} /><div className="min-w-0"><p className="text-sm font-semibold text-ink-strong">{lesson(d)}</p><p className="text-xs text-ink-muted">{ui("Covered by {0}", [d.substitute])}{d.handover?.acknowledgedAt ? <> · {ui("Acknowledged")}</> : null}{d.handover?.outcome ? <> · {outcomeLabel(d.handover.outcome)}</> : null}</p></div></div>
         {d.date >= data.today ? <Button size="sm" variant={d.handover?.objective ? "outline" : "default"} onClick={() => { setEditing(d); setObjective(d.handover?.objective ?? ""); setInstructions(d.handover?.instructions ?? ""); setPicked(d.handover?.resourceIds ?? []); }} data-duty-handover>{d.handover?.objective ? ui("Edit handover") : ui("Write handover")}</Button> : null}
       </div>)}</div> : null}
 
-    {data.recoveries.length ? <div className="space-y-2" data-cover-recoveries><p className="sk-eyebrow">{ui("Missed learning to follow up")}</p>
-      {data.recoveries.map(r => <div key={r.id} className={cn("flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3", r.status === "DECISION_NEEDED" ? "border-status-warning-border bg-status-warning-surface" : "border-edge/40")} data-recovery={r.id} data-recovery-status={r.status}>
-        <div><p className="text-sm font-semibold text-ink-strong"><bdi>{date(r.date)}</bdi> · <bdi>{r.className}</bdi> · <span dir="auto">{r.subjectName}</span></p><p className="text-xs text-ink-muted">{r.source === "UNCOVERED" ? ui("No cover") : r.source === "SUPERVISED_ONLY" ? ui("Supervised only") : ui("Did not take place")} · {recStatus(r.status)}{r.title ? <> · <span dir="auto">{r.title}</span></> : null}{r.dueDate ? <> · {ui("Due")} <bdi>{date(r.dueDate)}</bdi></> : null}</p></div>
+    {data.recoveries.length && show("recoveries") ? <div className="space-y-2" data-cover-recoveries><p className="sk-eyebrow">{ui("Missed learning to follow up")}</p>
+      {recoveries.map(r => <div key={r.id} className={cn(deskRow, "flex flex-wrap items-center justify-between gap-3")} data-tone={r.status === "DECISION_NEEDED" ? "warning" : r.status === "COMPLETED" ? "success" : undefined} data-recovery={r.id} data-recovery-status={r.status}>
+        <div className="flex min-w-0 flex-1 items-start gap-3"><DeskRowIcon icon={BookOpenCheck} /><div className="min-w-0 space-y-1"><p className="text-sm font-semibold text-ink-strong"><bdi>{date(r.date)}</bdi> · <bdi>{r.className}</bdi> · <span dir="auto">{r.subjectName}</span></p><p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-ink-muted"><DeskPill tone={recTone(r.status)}>{recStatus(r.status)}</DeskPill>{r.source === "UNCOVERED" ? ui("No cover") : r.source === "SUPERVISED_ONLY" ? ui("Supervised only") : ui("Did not take place")}{r.title ? <> · <span dir="auto">{r.title}</span></> : null}{r.dueDate ? <> · {ui("Due")} <RelativeTime iso={r.dueDate} full={date(r.dueDate)} /></> : null}</p></div></div>
         {["DECISION_NEEDED", "PLANNED", "PUBLISHED"].includes(r.status) ? <Button size="sm" onClick={() => { setRec(r); setRecTitle(r.title ?? ""); setRecText(r.instructions ?? ""); setRecDue(r.dueDate ?? data.today); setRecNote(""); }} data-recovery-open>{ui("Follow up")}</Button> : null}
       </div>)}</div> : null}
 
@@ -105,7 +123,7 @@ export function MyCover() {
             <Button variant="outline" disabled={busy || !recTitle.trim()} onClick={() => void run(() => recovery(rec, "plan", { title: recTitle, instructions: recText, dueDate: recDue }), "Catch-up saved. It is not shared yet.").then(ok => ok && setRec(null))} data-recovery-plan>{ui("Save catch-up")}</Button>
             {rec.status === "PLANNED" ? <Button disabled={busy} onClick={() => void run(() => recovery(rec, "publish", {}), "Shared with the class.").then(ok => ok && setRec(null))} data-recovery-publish>{ui("Share with the class")}</Button> : null}
           </div>
-          <div className="space-y-2 rounded-xl border border-dashed p-3"><FormField name="r-none" label={ui("Or: why no catch-up is needed")}><Input value={recNote} onChange={e => setRecNote(e.target.value)} /></FormField>
+          <div className="space-y-2 rounded-(--radius-control) border border-dashed border-border-subtle bg-surface-subtle p-3"><FormField name="r-none" label={ui("Or: why no catch-up is needed")}><Input value={recNote} onChange={e => setRecNote(e.target.value)} /></FormField>
             <div className="flex justify-end"><Button size="sm" variant="secondary" disabled={busy || !recNote.trim()} onClick={() => void run(() => recovery(rec, "not_needed", { note: recNote }), "Recorded.").then(ok => ok && setRec(null))} data-recovery-none>{ui("No catch-up needed")}</Button></div></div>
         </> : <>
           <p className="text-sm"><span className="font-semibold text-ink-strong" dir="auto">{rec.title}</span>{rec.dueDate ? <> · {ui("Due")} <bdi>{date(rec.dueDate)}</bdi></> : null}</p>

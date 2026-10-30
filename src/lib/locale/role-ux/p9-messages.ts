@@ -196,6 +196,14 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   // tests/locale/ui-coverage.test.ts, which P9 owns). Kept here so the coverage test is green; P3 may move them.
   ["Your profile could not be opened", "تعذّر فتح ملفك الشخصي", "آپ کی پروفائل نہیں کھل سکی"],
   ["Saved to your staff record only. It is not shown to parents and is not kept in device drafts.", "يُحفظ في سجلك الوظيفي فقط. لا يظهر لأولياء الأمور ولا يُحتفظ به في مسودات الجهاز.", "صرف آپ کے عملے کے ریکارڈ میں محفوظ ہوتا ہے۔ یہ والدین کو نہیں دکھایا جاتا اور ڈیوائس کے مسودوں میں نہیں رکھا جاتا۔"],
+  // Operational desk kit (src/components/ui/desk.tsx): section titles the desks gained in the Sprint 2 UI pass.
+  ["Manage this request", "إدارة هذا الطلب", "اس درخواست کا انتظام"],
+  ["Trip actions", "إجراءات الرحلة", "سفر کی کارروائیاں"],
+  ["Filter this list", "صفِّ هذه القائمة", "اس فہرست کو فلٹر کریں"],
+  ["Out of stock", "نفد من المخزون", "اسٹاک ختم"],
+  ["Layout not recorded", "لم يُسجَّل التخطيط", "ترتیب درج نہیں"],
+  ["Exam halls: {0}", "قاعات الامتحان: {0}", "امتحانی ہال: {0}"],
+  ["No rooms match these filters.", "لا توجد غرف تطابق هذه المرشحات.", "ان فلٹرز سے کوئی کمرہ میل نہیں کھاتا۔"],
 ];
 
 export const arabicP9Ui: Record<string, string> = Object.fromEntries(ROWS.map(([en, ar]) => [en, ar]));

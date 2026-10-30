@@ -13,6 +13,10 @@ import { ViewTabs } from "@/components/ui/view-tabs";
 import { PageHeader } from "@/components/ui/page-header";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowButton, DeskSection, DeskStats, RelativeTime, StatTile, deskTimeline, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { AlarmClock, CircleDot, Hourglass, LifeBuoy, ShieldAlert, UserX, Wrench } from "lucide-react";
 
 type DeskTab = "mine" | "new" | "queue";
 /** Deep links from the Help menu: `?tab=new` (Report a problem) and `?tab=queue` (service agents). */
@@ -46,13 +50,21 @@ async function call(url: string, method = "GET", body?: Record<string, unknown>)
 const key = () => `sd-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 const readPhoto = (file: File) => new Promise<{ data: string; contentType: string }>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve({ data: String(r.result).split(",")[1] ?? "", contentType: file.type }); r.onerror = reject; r.readAsDataURL(file); });
 const statusLabel = (ui: Ui, s: string, owned = false) => ({ OPEN: owned ? ui("Assigned · not started yet") : ui("Waiting for the team"), IN_PROGRESS: ui("In progress"), BLOCKED: ui("Waiting"), RESOLVED: ui("Work completed · awaiting your confirmation"), CLOSED: ui("Closed") } as Record<string, string>)[s] ?? s;
+const statusTone = (s: string): DeskTone => ({ OPEN: "info", IN_PROGRESS: "brand", BLOCKED: "warning", RESOLVED: "success", CLOSED: "neutral" } as Record<string, DeskTone>)[s] ?? "neutral";
+type Focus = "progress" | "waiting" | "unassigned" | "overdue";
+const LIVE = ["OPEN", "IN_PROGRESS", "BLOCKED"];
+const FOCUS: Record<Focus, (r: Summary) => boolean> = { progress: r => r.status === "IN_PROGRESS", waiting: r => r.status === "BLOCKED", unassigned: r => !r.ownerId && LIVE.includes(r.status), overdue: r => r.overdue };
+/** Overdue first, then safety, then unassigned live work, then waiting; finished work last. */
+const urgency = (r: Summary) => r.overdue ? 0 : r.safety && LIVE.includes(r.status) ? 1 : !r.ownerId && LIVE.includes(r.status) ? 2 : r.status === "BLOCKED" ? 3 : LIVE.includes(r.status) ? 4 : r.status === "RESOLVED" ? 5 : 6;
+const eventTone = (kind: string): DeskTone => ({ RESOLVED: "success", CONFIRMED: "success", BLOCKED: "warning", ESCALATED: "danger", REOPENED: "warning", NOTE: "neutral" } as Record<string, DeskTone>)[kind] ?? "brand";
 const priorityLabel = (ui: Ui, p: string) => ({ LOW: ui("Low"), NORMAL: ui("Normal"), HIGH: ui("High"), URGENT: ui("Urgent") } as Record<string, string>)[p] ?? p;
 
 export function ServiceDesk() {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
   const [tab, setTabState] = useState<DeskTab>("mine");
-  const setTab = useCallback((next: DeskTab) => { setTabState(next); writeTab(next); }, []);
+  const [focus, setFocus] = useState<Focus | null>(null), [query, setQuery] = useState("");
+  const setTab = useCallback((next: DeskTab) => { setTabState(next); writeTab(next); setFocus(null); setQuery(""); }, []);
   useEffect(() => { const wanted = tabFromUrl(); if (wanted) setTabState(wanted); }, []);
   const [mine, setMine] = useState<Summary[] | null>(null), [q, setQ] = useState<{ agent: boolean; lead?: boolean; requests: Summary[]; staff?: { id: string; name: string }[] } | null>(null);
   const [form, setForm] = useState<Form | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
@@ -77,25 +89,44 @@ export function ServiceDesk() {
     } catch (e) { toast.error(ui(e instanceof Error ? e.message : "Your update was not saved. Try again.")); } finally { setBusy(false); }
   };
   const chosen = useMemo(() => form?.categories.find(c => c.id === draft.categoryId) ?? null, [form, draft.categoryId]);
-  const list = (rows: Summary[], showRequester: boolean) => rows.length ? <ul className="space-y-2">{rows.map(r => <li key={r.id}>
-    <Button type="button" variant="ghost" className={cn("block h-auto w-full whitespace-normal rounded-xl border p-3 text-start font-normal", r.overdue ? "border-status-error-border bg-status-error-surface" : !r.ownerId && ["OPEN", "IN_PROGRESS", "BLOCKED"].includes(r.status) ? "border-status-warning-border bg-status-warning-surface" : "border-edge/40 bg-card")} onClick={() => void openRequest(r.id)} data-sd-row={r.reference} data-sd-status={r.status}>
-      <p className="text-sm font-bold"><bdi>{r.reference}</bdi> · <span dir="auto">{r.title}</span>{r.safety ? <span className="ms-2 rounded bg-status-error-surface px-1.5 text-2xs font-bold text-status-error-text">{ui("Safety")}</span> : null}</p>
-      <p className="text-xs text-ink-muted"><span dir="auto">{r.location}</span> · <span dir="auto">{r.category}</span> · {priorityLabel(ui, r.priority)} · {statusLabel(ui, r.status, Boolean(r.ownerId))}{r.status === "BLOCKED" && r.blockedReason ? <>: <span dir="auto">{r.blockedReason}</span></> : null}</p>
-      <p className="text-xs">{r.owner ? <>{ui("Owner")}: <bdi>{r.owner}</bdi></> : <span className="font-bold text-status-warning-text">{ui("Unassigned")}</span>}{showRequester ? <> · {ui("Requested by {0}", [r.requester])}</> : null}{r.resolveDueAt ? <> · {ui("Due")} <bdi>{dateTime(r.resolveDueAt)}</bdi></> : null}{r.overdue ? <> · <span className="font-bold text-status-error-text">{ui("Overdue")}</span></> : null}{r.reopenedCount ? <> · {ui("Reopened {0}×", [String(r.reopenedCount)])}</> : null}</p>
-    </Button></li>)}</ul> : <p className="rounded-xl border border-dashed p-4 text-sm text-ink-muted">{ui("No open requests match these filters.")}</p>;
+  const list = (rows: Summary[], showRequester: boolean) => rows.length ? <ul className="space-y-2.5">{rows.map(r => <li key={r.id}>
+    <DeskRowButton tone={r.overdue ? "danger" : !r.ownerId && ["OPEN", "IN_PROGRESS", "BLOCKED"].includes(r.status) ? "warning" : r.status === "CLOSED" ? "muted" : undefined} icon={r.safety ? ShieldAlert : Wrench} trailing={<DeskPill tone={statusTone(r.status)}>{statusLabel(ui, r.status, Boolean(r.ownerId))}</DeskPill>} onClick={() => void openRequest(r.id)} data-sd-row={r.reference} data-sd-status={r.status}>
+      <p className="text-sm font-bold text-ink-strong"><bdi className="font-mono text-xs font-semibold text-primary">{r.reference}</bdi> <span className="text-ink-faint">·</span> <span dir="auto">{r.title}</span>{r.safety ? <DeskPill tone="danger" className="ms-2">{ui("Safety")}</DeskPill> : null}</p>
+      <p className="text-xs text-ink-muted"><span dir="auto">{r.location}</span> · <span dir="auto">{r.category}</span> · {priorityLabel(ui, r.priority)}{r.status === "BLOCKED" && r.blockedReason ? <>: <span dir="auto">{r.blockedReason}</span></> : null}</p>
+      <p className="text-xs">{r.owner ? <>{ui("Owner")}: <bdi>{r.owner}</bdi></> : <span className="font-bold text-status-warning-text">{ui("Unassigned")}</span>}{showRequester ? <> · {ui("Requested by {0}", [r.requester])}</> : null}{r.resolveDueAt ? <> · {ui("Due")} <bdi><RelativeTime iso={r.resolveDueAt} full={dateTime(r.resolveDueAt)} /></bdi></> : null}{r.overdue ? <> · <span className="font-bold text-status-error-text">{ui("Overdue")}</span></> : null}{r.reopenedCount ? <> · {ui("Reopened {0}×", [String(r.reopenedCount)])}</> : null}</p>
+    </DeskRowButton></li>)}</ul> : <div className="sk-panel"><EmptyState size="sm" icon={LifeBuoy} title={ui("No open requests match these filters.")} /></div>;
+  // Counters are filters: pressing one narrows the list to those requests; pressing it again shows all.
+  const board = (rows: Summary[], showRequester: boolean) => {
+    const live = rows.filter(r => LIVE.includes(r.status));
+    const needle = query.trim().toLocaleLowerCase();
+    const shown = urgencyFirst(rows.filter(r => (!focus || FOCUS[focus](r)) && (!needle || [r.reference, r.title, r.location, r.category, r.owner ?? "", r.requester].some(v => v.toLocaleLowerCase().includes(needle)))), urgency);
+    const tile = (id: Focus, index: number, icon: typeof CircleDot, tone: DeskTone, label: string) => <StatTile index={index} icon={icon} tone={tone} value={rows.filter(FOCUS[id]).length} label={ui(label)} onSelect={() => setFocus(focus === id ? null : id)} selected={focus === id} data-sd-focus={id} />;
+    return <div className="space-y-4">
+      {rows.length ? <DeskStats data-sd-pulse>
+        {tile("progress", 0, CircleDot, "brand", "In progress")}
+        {tile("waiting", 1, Hourglass, live.some(FOCUS.waiting) ? "warning" : "neutral", "Waiting")}
+        {tile("unassigned", 2, UserX, live.some(FOCUS.unassigned) ? "warning" : "neutral", "Unassigned")}
+        {tile("overdue", 3, AlarmClock, rows.some(FOCUS.overdue) ? "danger" : "success", "Overdue")}
+      </DeskStats> : null}
+      {rows.length > 6 ? <DeskQuickFilter value={query} onChange={setQuery} label={ui("Filter this list")} /> : null}
+      <DeskFilterStatus shown={shown.length} total={rows.length} onClear={() => { setFocus(null); setQuery(""); }} />
+      {list(shown, showRequester)}
+    </div>;
+  };
 
   // The framed route's one page card (RoleFrame) is the surface; the desk draws no card of its own (addendum item 2).
   return <section className="min-w-0 max-w-full space-y-4" data-service-desk>
     <PageHeader
+      icon={LifeBuoy}
       title="Service desk"
       description="Report repairs, access, supplies or questions. Each request gets a reference and an owner."
       tabs={<ViewTabs ariaLabel="Service desk sections" value={tab === "queue" && !q?.agent ? "mine" : tab} onChange={(id) => setTab(id as DeskTab)} items={[{ id: "mine", label: "My requests" }, { id: "new", label: "New request" }, { id: "queue", label: "Service queue", hidden: !q?.agent }]} />}
     />
 
-    {tab === "mine" || (tab === "queue" && q && !q.agent) ? (error && !mine ? <ErrorState description={error} onRetry={() => void loadMine()} retryLabel={ui("Try again")} /> : mine ? list(mine, false) : <SkeletonList rows={3} label={ui("Loading assignments and latest updates.")} />) : null}
-    {tab === "queue" && q ? <div data-sd-queue><p className="mb-2 text-xs text-ink-muted">{ui("Unassigned and overdue requests are listed first.")}</p>{list(q.requests, true)}</div> : null}
+    {tab === "mine" || (tab === "queue" && q && !q.agent) ? (error && !mine ? <ErrorState description={error} onRetry={() => void loadMine()} retryLabel={ui("Try again")} /> : mine ? board(mine, false) : <SkeletonList rows={3} label={ui("Loading assignments and latest updates.")} />) : null}
+    {tab === "queue" && q ? <div className="space-y-3" data-sd-queue><p className="text-xs text-ink-muted">{ui("Unassigned and overdue requests are listed first.")}</p>{board(q.requests, true)}</div> : null}
     {tab === "new" ? <div className="min-w-0 space-y-3" data-sd-new>
-      <p className="rounded-lg bg-status-warning-surface p-2 text-xs text-status-warning-text">{ui("Safety concerns follow the school's escalation procedure. Confidential or safeguarding concerns use the restricted workflow, not this desk.")}</p>
+      <Alert tone="warning" compact>{ui("Safety concerns follow the school's escalation procedure. Confidential or safeguarding concerns use the restricted workflow, not this desk.")}</Alert>
       <FormField name="sd-title" label={ui("What is the problem?")}><Input value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} maxLength={120} /></FormField>
       <FormField name="sd-description" label={ui("Describe it")}><Textarea rows={3} value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} /></FormField>
       <div className="grid gap-2 sm:grid-cols-2">
@@ -112,13 +143,13 @@ export function ServiceDesk() {
     {open ? <Modal title={open.title} eyebrow={open.reference} subtitle={`${open.location} · ${open.category} · ${open.team}`} onClose={() => setOpen(null)} wide>
       <div className="space-y-4" data-sd-detail data-sd-agent={open.agent ? "true" : "false"}>
         <p className="text-sm" dir="auto">{open.description}</p>
-        <p className="text-xs">{statusLabel(ui, open.status, Boolean(open.ownerId))} · {priorityLabel(ui, open.priority)} · {open.owner ? <>{ui("Owner")}: <bdi>{open.owner}</bdi></> : <span className="font-bold text-status-warning-text">{ui("Unassigned")}</span>}{open.resolveDueAt ? <> · {ui("Due")} <bdi>{dateTime(open.resolveDueAt)}</bdi></> : null}{open.firstResponseAt ? <> · {ui("First response")} <bdi>{dateTime(open.firstResponseAt)}</bdi></> : null}</p>
-        <ol className="space-y-2 border-s-2 border-edge/50 ps-3" data-sd-timeline>{open.events.map(e => <li key={e.id} className={cn("text-sm", e.visibility === "INTERNAL" && "rounded-lg bg-surface-subtle p-2")} data-sd-event={e.kind} data-sd-visibility={e.visibility}>
-          <p className="text-xs text-ink-muted"><bdi>{dateTime(e.createdAt)}</bdi>{e.actor ? <> · <bdi>{e.actor}</bdi></> : null} · {kindLabel(ui, e.kind, e.detail)}{e.visibility === "INTERNAL" ? <span className="ms-2 rounded bg-muted px-1 text-2xs font-bold">{ui("Internal — not shown to the requester")}</span> : null}</p>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs"><DeskPill tone={statusTone(open.status)}>{statusLabel(ui, open.status, Boolean(open.ownerId))}</DeskPill>{priorityLabel(ui, open.priority)} · {open.owner ? <>{ui("Owner")}: <bdi>{open.owner}</bdi></> : <span className="font-bold text-status-warning-text">{ui("Unassigned")}</span>}{open.resolveDueAt ? <> · {ui("Due")} <bdi>{dateTime(open.resolveDueAt)}</bdi></> : null}{open.firstResponseAt ? <> · {ui("First response")} <bdi>{dateTime(open.firstResponseAt)}</bdi></> : null}</p>
+        <ol className={deskTimeline} data-sd-timeline>{open.events.map(e => <li key={e.id} data-tone={eventTone(e.kind)} className={cn("text-sm", e.visibility === "INTERNAL" && "rounded-xl bg-surface-subtle p-2.5")} data-sd-event={e.kind} data-sd-visibility={e.visibility}>
+          <p className="text-xs text-ink-muted"><bdi>{dateTime(e.createdAt)}</bdi>{e.actor ? <> · <bdi>{e.actor}</bdi></> : null} · {kindLabel(ui, e.kind, e.detail)}{e.visibility === "INTERNAL" ? <DeskPill tone="neutral" className="ms-2">{ui("Internal — not shown to the requester")}</DeskPill> : null}</p>
           {e.body ? <p dir="auto">{e.body}</p> : null}{e.attachment ? <a className="text-xs underline" href={e.attachment} target="_blank" rel="noreferrer">{ui("Photo")}</a> : null}
         </li>)}</ol>
 
-        {open.agent && ["OPEN", "IN_PROGRESS", "BLOCKED"].includes(open.status) ? <div className="space-y-2 rounded-xl border p-3" data-sd-agent-actions>
+        {open.agent && ["OPEN", "IN_PROGRESS", "BLOCKED"].includes(open.status) ? <DeskSection title={ui("Manage this request")} icon={Wrench} data-sd-agent-actions>
           <div className="flex flex-wrap items-end gap-2">
             <FormField name="sd-owner" label={ui("Owner")}><Select value={assignee} onChange={e => setAssignee(e.target.value)}><option value="">{ui("Unassigned")}</option>{q?.staff?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></FormField>
             <Button size="sm" variant="outline" disabled={busy || assignee === (open.ownerId ?? "")} onClick={() => void act({ action: "assign", ownerId: assignee || null, reason }, "Request assigned; the requester can track its status.")} data-sd-assign>{ui("Assign")}</Button>
@@ -139,9 +170,9 @@ export function ServiceDesk() {
           </div>
           <FormField name="sd-work" label={ui("Work performed")}><Textarea rows={2} value={work} onChange={e => setWork(e.target.value)} /></FormField>
           <div className="flex justify-end"><Button size="sm" disabled={busy || !work.trim()} onClick={() => void act({ action: "resolve", workPerformed: work }, "Marked as resolved; the requester will confirm.")} data-sd-resolve>{ui("Mark resolved")}</Button></div>
-        </div> : null}
+        </DeskSection> : null}
 
-        {!open.agent || open.status === "RESOLVED" || open.status === "CLOSED" ? <div className="space-y-2 rounded-xl border p-3" data-sd-requester-actions>
+        {!open.agent || open.status === "RESOLVED" || open.status === "CLOSED" ? <DeskSection title={ui("Your reply")} icon={LifeBuoy} tone={open.status === "RESOLVED" ? "success" : "brand"} data-sd-requester-actions>
           {open.status === "RESOLVED" ? <p className="text-sm font-bold">{ui("Repair completed · awaiting your confirmation")}</p> : null}
           <FormField name="sd-reply" label={ui("Message")}><Textarea rows={2} value={message} onChange={e => setMessage(e.target.value)} /></FormField>
           <div className="flex flex-wrap justify-end gap-2">
@@ -149,7 +180,7 @@ export function ServiceDesk() {
             {open.status === "RESOLVED" && !open.agent ? <Button size="sm" disabled={busy} onClick={() => void act({ action: "confirm", body: message }, "Thank you. The request is closed.")} data-sd-confirm>{ui("Confirm resolved")}</Button> : null}
             {["RESOLVED", "CLOSED"].includes(open.status) ? <Button size="sm" variant="secondary" disabled={busy || !message.trim()} onClick={() => void act({ action: "reopen", reason: message }, "Request reopened.")} data-sd-reopen>{ui("Reopen request")}</Button> : null}
           </div>
-        </div> : null}
+        </DeskSection> : null}
       </div>
     </Modal> : null}
   </section>;

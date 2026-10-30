@@ -7,6 +7,16 @@
  * اسکول منتظم, group admin = مدير المجموعة / ادارے کا منتظم, principal = المدير / پرنسپل.
  */
 const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
+  // SKAI-165: student documents — file checks, denied and failed list states.
+  ["{0} is larger than 10 MB. Choose a smaller file.", "حجم {0} أكبر من 10 ميغابايت. اختر ملفًا أصغر.", "{0} کا سائز 10 MB سے زیادہ ہے۔ چھوٹی فائل منتخب کریں۔"],
+  ["{0} is empty. Choose another file.", "الملف {0} فارغ. اختر ملفًا آخر.", "{0} خالی ہے۔ کوئی اور فائل منتخب کریں۔"],
+  ["{0} is not a supported file. Use PDF, JPG, PNG, WebP or Word.", "{0} ليس ملفًا مدعومًا. استخدم PDF أو JPG أو PNG أو WebP أو Word.", "{0} معاون فائل نہیں۔ PDF، JPG، PNG، WebP یا Word استعمال کریں۔"],
+  ["Choose a document to upload", "اختر وثيقة لرفعها", "اپ لوڈ کے لیے دستاویز منتخب کریں"],
+  ["PDF, JPG, PNG, WebP or Word, up to 10 MB. Files are private to this school.", "PDF أو JPG أو PNG أو WebP أو Word، حتى 10 ميغابايت. الملفات خاصة بهذه المدرسة.", "PDF، JPG، PNG، WebP یا Word، زیادہ سے زیادہ 10 MB۔ فائلیں صرف اسی اسکول کے لیے نجی ہیں۔"],
+  ["You don't have access to these documents.", "ليس لديك صلاحية الوصول إلى هذه الوثائق.", "آپ کو ان دستاویزات تک رسائی نہیں ہے۔"],
+  ["The file could not be stored. Your choice is kept; try again.", "تعذّر حفظ الملف. اختيارك محفوظ؛ حاول مرة أخرى.", "فائل محفوظ نہیں ہو سکی۔ آپ کا انتخاب برقرار ہے؛ دوبارہ کوشش کریں۔"],
+  ["Could not load the documents.", "تعذّر تحميل الوثائق.", "دستاویزات لوڈ نہیں ہو سکیں۔"],
+  ["Ask a school administrator for student access.", "اطلب من مدير المدرسة صلاحية الوصول إلى الطلاب.", "طلبہ تک رسائی کے لیے اسکول منتظم سے رابطہ کریں۔"],
   // SKAI-1149: regulator field set on student and staff records.
   ["Emirates ID", "رقم الهوية الإماراتية", "امارات آئی ڈی"],
   ["eSIS / MOE ID", "رقم eSIS / وزارة التربية", "eSIS / MOE آئی ڈی"],

@@ -120,7 +120,7 @@ export function PageHeader({
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-1 items-start gap-3 sm:basis-64">
           {Icon ? (
-            <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-2xl bg-brand-50 text-primary ring-1 ring-brand-100">
+            <span aria-hidden="true" className="sk-page-icon">
               <Icon className="size-5" />
             </span>
           ) : null}

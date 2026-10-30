@@ -10,6 +10,7 @@ import { AvatarImage } from "@/components/ui/avatar-image";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Progress } from "@/components/ui/progress";
 
 import { checkedListJson, readRequest } from "@/lib/http/request-state";
 import { specialtyMatches } from "@/lib/academic/teacher-load";
@@ -258,6 +259,11 @@ export function TeacherPicker({
                       {ui(subjectLoad(t) === 1 ? "{0} subject" : "{0} subjects", [subjectLoad(t)])} · {ui(classLoad(t) === 1 ? "{0} class" : "{0} classes", [classLoad(t)])}
                       {a?.weeklyCapacity != null ? ` · ${ui("{0}/{1} periods", [a.weeklyPeriods ?? 0, a.weeklyCapacity])}` : ""}
                     </p>
+                    {/* Weekly load at a glance: the bar warms as the teacher approaches their period capacity. */}
+                    {a?.weeklyCapacity ? (() => {
+                      const share = Math.round(((a.weeklyPeriods ?? 0) / a.weeklyCapacity) * 100);
+                      return <Progress size="sm" className="mt-1.5 max-w-48" value={share} tone={share >= 100 ? "danger" : share >= 85 ? "warning" : "brand"} label={ui("{0}/{1} periods", [a.weeklyPeriods ?? 0, a.weeklyCapacity])} />;
+                    })() : null}
                     {!blocked && atLoadLimit(a) ? (
                       <p className="mt-1 flex items-start gap-1 text-xs font-medium leading-relaxed text-status-warning-text">
                         <AlertTriangle aria-hidden="true" className="mt-px h-2.5 w-2.5 shrink-0" />

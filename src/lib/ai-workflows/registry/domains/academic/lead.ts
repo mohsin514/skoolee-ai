@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, canLeadAcademics, canManageOperations } from "@/lib/api/scope";
 import { isCampusOperator } from "@/lib/auth/institution";
 import { notify } from "@/lib/notifications/in-app";
-import { updateClassWithTeacherAssignment, updateSubjectWithTeacherAssignment } from "@/lib/api/teacher-assignments";
+import { planTeacherAllocations, updateClassWithTeacherAssignment, updateSubjectWithTeacherAssignment } from "@/lib/api/teacher-assignments";
 import { createCampusSubjects } from "@/lib/academic/subject-write";
 import { coverBoard, proposeCover, setCapacity } from "@/lib/staff/workload";
 import { createManualTimetable } from "@/lib/timetable/manual";
@@ -317,6 +317,66 @@ const SUBJECT_ASSIGN_TEACHER = defineCapability<SubjectTeacherInput>({
     const { existing, subject } = await updateSubjectWithTeacherAssignment(ctx.user, { id: current.id, teacherId: teacher.id });
     if (subject.teacher) notify("SUBJECT_TEACHER_ASSIGNED", { schoolId: ctx.user.schoolId, campusId: existing.campusId, actorId: ctx.user.userId, actorName: ctx.user.fullName, teacherName: subject.teacher.fullName, subjectName: subject.name, className: [subject.class?.name, subject.class?.section].filter(Boolean).join(" "), teacherId: subject.teacherId ?? undefined });
     return write("academic.subject.assign_teacher", [{ model: "subject", id: subject.id }], { changes: 1 }, link, { teacherId: teacher.id, previousTeacherId: existing.teacherId });
+  },
+});
+
+// ─── academic.subject.allocate_teachers_bulk ──────────────────────────────
+
+const allocateInput = z.strictObject({
+  /** Each subject with the teacher as the user named them; bound to active teachers of this campus. */
+  allocations: z.array(z.strictObject({ subjectId: ID, teacher: z.string().trim().min(1).max(120), teacherId: ID.optional() })).min(1).max(50),
+});
+type AllocateInput = z.infer<typeof allocateInput>;
+
+async function boundAllocations(ctx: CapabilityContext, campusId: string, input: AllocateInput) {
+  if (new Set(input.allocations.map(row => row.subjectId)).size !== input.allocations.length) throw new WorkflowError("DOMAIN_REFUSED", { reason: "DUPLICATE_SUBJECT" });
+  const rows = [];
+  for (const row of input.allocations) {
+    const subject = await campusSubject(ctx, campusId, row.subjectId);
+    const teacher = await campusPerson(ctx, campusId, row.teacher, "/teacher", SUBJECT_TEACHER_ROLES, row.teacherId);
+    rows.push({ subject, teacher });
+  }
+  return rows;
+}
+
+const SUBJECT_ALLOCATE_TEACHERS_BULK = defineCapability<AllocateInput>({
+  key: "academic.subject.allocate_teachers_bulk", version: 1, cluster: "C1", inventoryKeys: ["academic.subject.allocate_teachers_bulk"], risk: "UPDATE", roles: LEADS, class: "B",
+  input: allocateInput, evidence: ["/teacher"], humanFields: ["allocations"],
+  gates: leadGates(permission("exams", "edit")), scope: { kind: "own-campus" },
+  copy: c(
+    ["Allocate subject teachers", "Give several subjects to active teachers of this campus at once; every change saves together or none does.", "Give 9A Physics to Mr Imran and 9B Chemistry to Ms Sana"],
+    ["توزيع معلمي المواد", "أسند عدة مواد إلى معلمين نشطين في هذا الحرم دفعة واحدة؛ تُحفظ كل التغييرات معاً أو لا يُحفظ شيء.", "أسند فيزياء 9أ إلى الأستاذ عمران وكيمياء 9ب إلى الأستاذة سناء"],
+    ["مضامین کے استاد تقسیم کریں", "کئی مضامین ایک ساتھ اس کیمپس کے فعال اساتذہ کو دیں؛ سب تبدیلیاں ایک ساتھ محفوظ ہوں گی یا کوئی نہیں۔", "9اے کی فزکس سر عمران کو اور 9بی کی کیمسٹری مس ثناء کو دے دیں"],
+  ),
+  idempotency: { mode: "convergent" },
+  source: { route: "POST /api/subjects/allocations", service: "src/lib/api/teacher-assignments.ts:planTeacherAllocations", reuse: "direct" },
+  async resolve(ctx, input) {
+    const campusId = await leadCampus(ctx);
+    const rows = await boundAllocations(ctx, campusId, input);
+    return { allocations: rows.map(({ subject, teacher }) => ({ subjectId: subject.id, teacher: teacher.fullName, teacherId: teacher.id })) };
+  },
+  async preview(ctx, input) {
+    const campusId = ownCampusId(ctx);
+    const rows = await boundAllocations(ctx, campusId, input);
+    const plan = await planTeacherAllocations(ctx.user, campusId, rows.map(({ subject, teacher }) => ({ subjectId: subject.id, teacherId: teacher.id, expectedTeacherId: subject.teacherId })), { preview: true });
+    return {
+      title: say(ctx, l("Allocate subject teachers", "توزيع معلمي المواد", "مضامین کے استاد تقسیم کریں")),
+      lines: [
+        ...rows.map(({ subject, teacher }) => ({ label: `${subject.name} · ${classLabel(subject.class)}`, value: subject.teacherId === teacher.id ? `${teacher.fullName} · ${say(ctx, l("already set", "معيّن مسبقاً", "پہلے سے مقرر"))}` : `${subject.teacher?.fullName ?? say(ctx, NOBODY)} → ${teacher.fullName}` })),
+        ...plan.warnings.map(warning => ({ label: say(ctx, l("Warning", "تنبيه", "انتباہ")), value: warning.message })),
+      ],
+      counts: { changes: plan.changes, lessons: plan.scheduledSubjects },
+      confirmLabel: say(ctx, l(`Save ${plan.changes} subject teachers`, `حفظ ${plan.changes} من معلمي المواد`, `${plan.changes} استاد محفوظ کریں`)),
+      basis: { input, current: rows.map(({ subject }) => subject.teacherId) },
+    };
+  },
+  async execute(ctx, input): Promise<Receipt> {
+    const campusId = await leadCampus(ctx);
+    const rows = await boundAllocations(ctx, campusId, input);
+    const link = consoleLink(ctx, "classes");
+    const plan = await planTeacherAllocations(ctx.user, campusId, rows.map(({ subject, teacher }) => ({ subjectId: subject.id, teacherId: teacher.id, expectedTeacherId: subject.teacherId })), { preview: false });
+    for (const subject of plan.results) if (subject.teacher) notify("SUBJECT_TEACHER_ASSIGNED", { schoolId: ctx.user.schoolId, campusId, actorId: ctx.user.userId, actorName: ctx.user.fullName, teacherName: subject.teacher.fullName, subjectName: subject.name, className: [subject.class?.name, subject.class?.section].filter(Boolean).join(" "), teacherId: subject.teacherId ?? undefined });
+    return write("academic.subject.allocate_teachers_bulk", rows.map(({ subject }) => ({ model: "subject", id: subject.id })), { changes: plan.changes }, link, { reconciled: plan.changes === 0, unchanged: plan.unchanged });
   },
 });
 
@@ -1270,7 +1330,7 @@ const REQUEST_OPERATOR_SETUP = defineCapability<OperatorSetupInput>({
 });
 
 export const ACADEMIC_LEAD_ENTRIES: readonly CapabilityEntry[] = [
-  CLASS_ASSIGN_TEACHER, SUBJECT_CREATE, SUBJECT_ASSIGN_TEACHER, WORKLOAD_CAPACITY, TIMETABLE_CREATE, EXAM_SESSION_CREATE, INVIGILATION_ASSIGN,
+  CLASS_ASSIGN_TEACHER, SUBJECT_CREATE, SUBJECT_ASSIGN_TEACHER, SUBJECT_ALLOCATE_TEACHERS_BULK, WORKLOAD_CAPACITY, TIMETABLE_CREATE, EXAM_SESSION_CREATE, INVIGILATION_ASSIGN,
   MODEL_CREATE_DRAFT, IMPROVEMENT_FRAMEWORK, PROPOSE_COVER, LEARNING_SAVE_DRAFT,
   DECIDE_MARK, LEARNING_ACTIVATE, MODEL_ACTIVATE, REPORTS_APPROVE, DATESHEET_PUBLISH, PRINCIPAL_REVIEW, REQUEST_OPERATOR_SETUP,
 ];

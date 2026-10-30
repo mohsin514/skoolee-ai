@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import type { DeskTone } from "@/components/ui/desk";
 import { NOTIFICATION_FIXED_MESSAGE_KINDS, NOTIFICATION_FIXED_TITLE_KINDS, NOTIFICATION_NOTICE_ONLY_KINDS } from "@/lib/notifications/links";
 
 // SKO-416: All / Mentions / Needs you. "Seen" is attention only; an assigned action stays open until its
@@ -26,6 +27,16 @@ const TABS = [
   { key: "mentions", label: "Mentions" },
   { key: "actions", label: "Needs you" },
 ] as const;
+
+/** Overdue tasks read as danger, open tasks as warning, mentions as info, plain updates as brand. */
+const toneOf = (item: Item): DeskTone | "muted" => item.state === "unavailable" ? "muted" : item.category === "ACTION" ? (item.state === "resolved" ? "success" : item.overdue ? "danger" : "warning") : item.category === "MENTION" ? "info" : "brand";
+/** "Today" / "Yesterday" / "Earlier", from the reader's local calendar day. */
+function dayBucket(iso: string): "Today" | "Yesterday" | "Earlier" {
+  const at = new Date(iso), now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (at.getTime() >= start) return "Today";
+  return at.getTime() >= start - 86_400_000 ? "Yesterday" : "Earlier";
+}
 
 export function NotificationCenter({ formatTime, onClose, onChanged }: { formatTime: (iso: string) => string; onClose: () => void; onChanged: () => void }) {
   const ui = useUiText();
@@ -86,18 +97,18 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
 
   const badge = (key: string) => key === "mentions" ? counts?.mentionsUnread : key === "actions" ? counts?.openActions : counts?.unread;
   return <div data-notification-center>
-    <div role="tablist" aria-label={ui("Notification views")} className="flex gap-1 border-b border-border px-3 pt-2">
+    <div role="tablist" aria-label={ui("Notification views")} className="sk-notif-tabs">
       {TABS.map(item => <Button variant="ghost" key={item.key} role="tab" type="button" disabled={busy} aria-selected={tab === item.key} onClick={() => { setItems(null); setTab(item.key); }}
-        className={cn("flex items-center gap-1 rounded-t-lg px-3 py-2 text-xs font-semibold", tab === item.key ? "border-b-2 border-primary text-primary" : "text-ink-muted")} data-tab={item.key}>
+        className={cn("min-h-9 flex-1 gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold", tab === item.key ? "bg-card text-primary shadow-xs" : "text-ink-muted")} data-tab={item.key}>
         {ui(item.label)}{badge(item.key) ? <Badge size="sm" variant="neutral" className="tabular-nums" data-tab-count={badge(item.key)}>{badge(item.key)}</Badge> : null}
       </Button>)}
     </div>
     {tab === "actions" && counts?.overdueActions ? <div className="mx-3 mt-2"><Badge variant="danger" dot className="tabular-nums" data-overdue-actions={counts.overdueActions}>{ui("{0} overdue", [counts.overdueActions])}</Badge></div> : null}
-    <div className="max-h-[360px] space-y-1 overflow-y-auto p-2" aria-live="polite">
+    <div className="max-h-[420px] space-y-1.5 overflow-y-auto p-2.5" aria-live="polite">
       {error ? <ErrorState error={error} onRetry={load} />
         : items === null ? <SkeletonList rows={3} label={ui("Loading…")} />
         : items.length === 0 ? <EmptyState size="sm" icon={Bell} title={tab === "actions" ? ui("No assigned actions need your attention.") : tab === "mentions" ? ui("No one has messaged you directly.") : ui("No notifications yet")} />
-        : items.map(item => {
+        : items.map((item, index) => {
           const Icon = item.category === "ACTION" ? ClipboardList : item.category === "MENTION" ? AtSign : Bell;
           // Fixed sentences (and the "no longer available" placeholder) read in the viewer's language; titles and
           // messages that carry names, classes or amounts stay as written.
@@ -105,11 +116,14 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
           const title = hidden || (item.type && NOTIFICATION_FIXED_TITLE_KINDS.has(item.type)) ? ui(item.title) : item.title;
           const message = hidden || (item.type && NOTIFICATION_FIXED_MESSAGE_KINDS.has(item.type)) ? ui(item.message) : item.message;
           const openable = !hidden && !(item.type && NOTIFICATION_NOTICE_ONLY_KINDS.has(item.type));
-          return <article key={item.id} className={cn("rounded-xl p-2.5", openable && "cursor-pointer", !item.isRead && "bg-brand-50/50")} data-notification={item.id} data-category={item.category} data-state={item.state} data-read={item.isRead} onClick={() => { if (openable) void open(item); }}>
+          // A day heading opens each run of items from the same day (the list arrives newest first).
+          const day = dayBucket(item.createdAt);
+          const heading = index === 0 || dayBucket(items[index - 1].createdAt) !== day ? <h3 className="sk-notif-day" data-notification-day={day}>{ui(day)}</h3> : null;
+          return <div key={item.id}>{heading}<article data-tone={toneOf(item)} data-unread={!item.isRead || undefined} className={cn("sk-notif-item", openable && "cursor-pointer")} data-notification={item.id} data-category={item.category} data-state={item.state} data-read={item.isRead} onClick={() => { if (openable) void open(item); }}>
             <div className="flex items-start gap-2.5">
-              <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", item.state === "unavailable" ? "bg-muted text-ink-subtle" : "bg-primary/10 text-primary")}><Icon className="h-4 w-4" aria-hidden /></span>
+              <span aria-hidden="true" className="sk-notif-icon"><Icon className="h-4 w-4" /></span>
               <div className="min-w-0 flex-1">
-                <p className={cn("text-sm", !item.isRead ? "font-bold" : "font-semibold")}><bdi>{title}</bdi>{item.reminderCount > 0 ? <span className="ms-1 text-2xs font-bold text-ink-muted">· {ui("{0} more", [item.reminderCount])}</span> : null}</p>
+                <p className={cn("text-sm text-ink-strong", !item.isRead ? "font-bold" : "font-semibold")}>{!item.isRead ? <span className="sk-notif-dot" aria-hidden="true" /> : null}<bdi>{title}</bdi>{item.reminderCount > 0 ? <span className="ms-1 text-2xs font-bold text-ink-muted">· {ui("{0} more", [item.reminderCount])}</span> : null}</p>
                 <p className="line-clamp-2 text-xs text-ink-muted"><bdi>{message}</bdi></p>
                 <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-2xs font-semibold text-ink-subtle">
                   <span>{formatTime(item.createdAt)}</span>
@@ -128,7 +142,7 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
                 </div>
               </div>
             </div>
-          </article>;
+          </article></div>;
         })}
     </div>
     {tab !== "actions" && (counts?.unread ?? 0) > 0 ? <div className="border-t border-border px-4 py-2.5">
