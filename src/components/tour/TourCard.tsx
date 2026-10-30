@@ -54,9 +54,11 @@ export function TourCard({ titleId, bodyId, title, body, index, total, canTry = 
 
   return <div className="sk-tour-card-body rounded-[var(--radius-panel)] bg-card shadow-2xl" onKeyDown={onKeyDown}>
     <div className="sk-ink-cover rounded-none px-5 pb-5 pt-4 shadow-none">
-      <p className="text-xs font-semibold text-brand-200">
+      <p className="flex flex-wrap items-center justify-between gap-3 text-xs font-semibold text-brand-200">
         <span className="sr-only" aria-live="polite">{t("Step {0} of {1}: {2}", [step, total, title])}</span>
         <span aria-hidden="true">{t("Step")} <bdi dir="ltr">{step} / {total}</bdi></span>
+        {/* SKAI-1277: a step rail — done steps, the current one stretched, the rest dim. */}
+        {total > 1 && total <= 16 ? <span aria-hidden="true" className="flex items-center gap-1">{Array.from({ length: total }, (_, i) => <span key={i} className={cn("h-1.5 rounded-full motion-safe:transition-all motion-safe:duration-300", i === index ? "w-5 bg-white" : i < index ? "w-1.5 bg-brand-200" : "w-1.5 bg-white/25")} />)}</span> : null}
       </p>
       <InkHeading
         as="h2"

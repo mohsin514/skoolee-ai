@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
-import { Wallet } from "lucide-react";
+import { MessageCircle, Power, Receipt, Wallet } from "lucide-react";
+import { DeskPill, DeskStats, RelativeTime, StatTile } from "@/components/ui/desk";
 import { useFetch } from "@/hooks";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -48,25 +48,26 @@ export function ManagedSendingPanel() {
     </CardHeader>
     <CardContent className="space-y-4">
       {empty ? <Alert tone="danger" live="off">{ui("Credit is used up. WhatsApp messages are paused until Skoolee adds credit.")}</Alert> : null}
-      <dl className="grid gap-3 text-sm sm:grid-cols-3">
-        <div><dt className="text-ink-muted">{ui("Status")}</dt><dd>{data.enabled ? <Badge variant="success">{ui("On")}</Badge> : <Badge variant="neutral">{ui("Off")}</Badge>}</dd></div>
-        <div><dt className="text-ink-muted">{ui("Credit left")}</dt><dd><bdi dir="ltr">{usd(data.balanceMicroUsd)}</bdi></dd></div>
-        <div><dt className="text-ink-muted">{ui("Last 30 days")}</dt><dd>{ui("{0} messages", [number(data.last30Days.messages, 0)])} · <bdi dir="ltr">{usd(data.last30Days.spentMicroUsd)}</bdi></dd></div>
-      </dl>
-      {!data.provisioned ? <p className="text-sm text-ink-muted">{ui("Ask Skoolee support to set up a managed number for your school.")}</p> : null}
+      {/* SKAI-1277: status, credit and the last 30 days as the shared stat tiles. */}
+      <DeskStats>
+        <StatTile index={0} icon={Power} tone={data.enabled ? "success" : "neutral"} label={ui("Status")} value={<DeskPill tone={data.enabled ? "success" : "neutral"}>{data.enabled ? ui("On") : ui("Off")}</DeskPill>} />
+        <StatTile index={1} icon={Wallet} tone={empty ? "danger" : data.balanceMicroUsd > 0 ? "brand" : "neutral"} label={ui("Credit left")} value={<bdi dir="ltr">{usd(data.balanceMicroUsd)}</bdi>} />
+        <StatTile index={2} icon={MessageCircle} tone="info" label={ui("Last 30 days")} value={ui("{0} messages", [number(data.last30Days.messages, 0)])} hint={<bdi dir="ltr">{usd(data.last30Days.spentMicroUsd)}</bdi>} />
+      </DeskStats>
+      {!data.provisioned ? <Alert tone="info" compact live="off">{ui("Ask Skoolee support to set up a managed number for your school.")}</Alert> : null}
       <Button variant={data.enabled ? "outline" : "default"} disabled={busy || (!data.enabled && !data.provisioned)} onClick={() => void toggle()}>{ui(data.enabled ? "Turn off managed sending" : "Turn on managed sending")}</Button>
       {data.entries.length ? <Table>
         <TableHeader><TableRow>
           <TableHead>{ui("Date")}</TableHead><TableHead>{ui("Type")}</TableHead><TableHead>{ui("Meta rate")}</TableHead><TableHead>{ui("Fee")}</TableHead><TableHead>{ui("Amount")}</TableHead>
         </TableRow></TableHeader>
         <TableBody>{data.entries.map(e => <TableRow key={e.id}>
-          <TableCell>{dateTime(e.createdAt)}</TableCell>
+          <TableCell className="whitespace-nowrap"><RelativeTime iso={e.createdAt} full={dateTime(e.createdAt)} /></TableCell>
           <TableCell>{e.kind === "TOP_UP" ? ui("Credit added") : `${ui(CATEGORY_LABEL[e.category ?? "UTILITY"] ?? "Utility")} · ${e.country ?? ""}`}</TableCell>
           <TableCell><bdi dir="ltr">{e.kind === "TOP_UP" ? "—" : usd(e.metaRateMicroUsd)}</bdi></TableCell>
           <TableCell><bdi dir="ltr">{e.kind === "TOP_UP" ? "—" : usd(e.marginMicroUsd)}</bdi></TableCell>
           <TableCell><bdi dir="ltr">{e.kind === "TOP_UP" ? "+" : "−"}{usd(e.amountMicroUsd)}</bdi></TableCell>
         </TableRow>)}</TableBody>
-      </Table> : <EmptyState title={ui("No managed messages yet")} />}
+      </Table> : <EmptyState size="sm" icon={Receipt} title={ui("No managed messages yet")} />}
     </CardContent>
   </Card>;
 }
