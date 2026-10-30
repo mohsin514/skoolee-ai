@@ -478,7 +478,7 @@ const P6: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Dates & rooms", "التواريخ والقاعات", "تاریخیں اور کمرے"],
   ["Switch the sort to “Board order” to arrange cards by hand.", "غيّر الترتيب إلى «ترتيب اللوحة» لترتيب البطاقات يدويًا.", "کارڈز ہاتھ سے ترتیب دینے کے لیے ترتیب کو “بورڈ کی ترتیب” پر کریں۔"],
   ["Date sheet", "جدول الامتحانات", "ڈیٹ شیٹ"],
-  ["Seating", "الجلوس", "نشستیں"],
+  ["Seating", "المقاعد", "نشستیں"],
   ["PDF", "PDF", "PDF"],
   ["Final Exam", "الامتحان النهائي", "سالانہ امتحان"],
   ["Mid-Term Exam", "امتحان منتصف الفصل", "وسط مدتی امتحان"],
