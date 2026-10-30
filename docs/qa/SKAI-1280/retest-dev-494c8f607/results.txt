@@ -1,0 +1,9 @@
+✔ the Seating step uses the seating-plan term in Arabic (0.504125ms)
+ℹ pass 10
+ℹ fail 0
+✔ publication is blocked until every hard check passes; teachers cannot publish formal sessions (8781.59275ms)
+✔ families see only the published version; a change needs a reason, names who is affected and tells them once (946.799459ms)
+✔ documents name the version they show; families cannot take another class's sheet; seating stays with exam staff (1711.16975ms)
+✔ the office reviews checks, pending changes and history before publishing (84259.398459ms)
+ℹ pass 4
+ℹ fail 0

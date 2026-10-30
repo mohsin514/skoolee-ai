@@ -1,0 +1,6 @@
+✔ exams still in marks entry leave report cards and principal approval pending (784.533292ms)
+✔ a locked exam with report cards still waits for the principal (0.212791ms)
+✔ reviewed and published exams with report cards complete every step (0.096875ms)
+✔ a year with no exams completes nothing (0.108542ms)
+ℹ pass 4
+ℹ fail 0

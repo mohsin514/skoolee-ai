@@ -1,0 +1,30 @@
+{
+  "status": 200,
+  "canClose": false,
+  "steps": [
+    {
+      "id": "marks-complete",
+      "done": false,
+      "outstanding": 2,
+      "detail": "2 exams are still awaiting marks: Synthetic Final in 2 classes"
+    },
+    {
+      "id": "report-cards",
+      "done": false,
+      "outstanding": 2,
+      "detail": "2 exams have no report cards yet."
+    },
+    {
+      "id": "principal-approved",
+      "done": false,
+      "outstanding": 2,
+      "detail": "2 exams are waiting for the principal's approval."
+    },
+    {
+      "id": "results-released",
+      "done": false,
+      "outstanding": 2,
+      "detail": "2 exams have not been released yet."
+    }
+  ]
+}
