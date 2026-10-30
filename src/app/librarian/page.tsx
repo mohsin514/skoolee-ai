@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BookCopy, Plus, RotateCcw, ScanLine } from "lucide-react";
+import { BookCopy, CalendarCheck, Library, Plus, RotateCcw, ScanLine } from "lucide-react";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { getOperationsStaffDashboardData } from "@/app/actions/dashboard";
 import { RoleShell } from "@/components/role-dashboard";
@@ -91,6 +91,7 @@ function LibraryWorkspace({ data, view, tab, setView, setTab, retiredNotice }: {
         <ConsolePage
           consoleId="librarian"
           view="lending"
+          icon={ScanLine}
           description={DESCRIPTIONS.lending}
           captureDesk
           primaryAction={{ id: "scan", label: "Scan", icon: ScanLine, onClick: () => run("scan") }}
@@ -109,6 +110,7 @@ function LibraryWorkspace({ data, view, tab, setView, setTab, retiredNotice }: {
         <ConsolePage
           consoleId="librarian"
           view="catalogue"
+          icon={Library}
           description={DESCRIPTIONS.catalogue}
           primaryAction={{ id: create.id, label: create.label, icon: Plus, onClick: () => run(create.id) }}
           tabs={<ViewTabs ariaLabel="Catalogue sections" value={section} onChange={(id) => { setCommand(null); setTab(id); }} items={CATALOGUE_TABS} />}
@@ -119,7 +121,7 @@ function LibraryWorkspace({ data, view, tab, setView, setTab, retiredNotice }: {
     }
     case "my-leave":
       return (
-        <ConsolePage consoleId="librarian" view="my-leave">
+        <ConsolePage consoleId="librarian" view="my-leave" icon={CalendarCheck}>
           <MyLeavePanel />
         </ConsolePage>
       );

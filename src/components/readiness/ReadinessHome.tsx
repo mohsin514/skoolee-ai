@@ -3,8 +3,10 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  CheckCircle2, Circle, ClipboardCheck, Coins, FlaskConical, Info, ListChecks, Rocket, Users, Building2, type LucideIcon,
+  CheckCircle2, Circle, ClipboardCheck, Coins, FlaskConical, Info, ListChecks, Rocket, Users, Building2, UserX, Wallet, Inbox, type LucideIcon,
 } from "lucide-react";
+import { DeskPill, DeskStats, StatTile } from "@/components/ui/desk";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -16,7 +18,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
 import { FlagshipChip } from "@/components/ui/flagship";
 import { ForwardArrow } from "@/components/onboarding/ForwardArrow";
-import { useLocale } from "@/components/locale/LocaleProvider";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { getReadinessCopy } from "./readiness-copy";
 import { getLaunchCopy } from "./readiness-launch-copy";
 import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
@@ -75,6 +77,7 @@ async function call(body?: unknown) {
 
 export function ReadinessHome() {
   const { language } = useLocale();
+  const ui = useUiText();
   const t = getReadinessCopy(language);
   const l = getLaunchCopy(language);
   const rtl = language === "ar" || language === "ur";
@@ -120,7 +123,7 @@ export function ReadinessHome() {
               <span className="block truncate text-sm font-semibold text-ink-strong">{campus.name}</span>
               <span className="text-xs text-ink-muted"><bdi dir="ltr">{campus.classes}</bdi> {t.campusClasses} · <bdi dir="ltr">{campus.students}</bdi> {t.campusPupils}</span>
             </span>
-            <span className="sk-choice-tag" data-tone={campus.ready ? undefined : "info"}>{campus.ready ? t.campusReadyTag : t.campusWaitingTag}</span>
+            <DeskPill tone={campus.ready ? "success" : "info"}>{campus.ready ? t.campusReadyTag : t.campusWaitingTag}</DeskPill>
           </li>
         ))}
       </ul>
@@ -135,7 +138,7 @@ export function ReadinessHome() {
       <li key={task.id} className="sk-launch-task" data-status={task.status}>
         <div className="min-w-0 space-y-2">
           <p className="font-semibold text-ink-strong">{t.optionalTasks[task.key] ?? task.title}</p>
-          <span className="sk-choice-tag" data-tone={task.status === "DONE" ? undefined : task.status === "DEFERRED" ? "brand" : "info"}>{t.statuses[task.status]}</span>
+          <DeskPill tone={task.status === "DONE" ? "success" : task.status === "DEFERRED" ? "neutral" : task.status === "IN_PROGRESS" ? "brand" : "info"}>{t.statuses[task.status]}</DeskPill>
           {!lead ? <p className="text-sm text-ink-muted">{t.assignedToYou}</p> : null}
           <TaskTracking task={task} language={language} lead={lead && !!view?.lead} staff={view?.lead ? view.staff : []} busy={busy} onAction={taskAction} />
         </div>
@@ -205,7 +208,7 @@ export function ReadinessHome() {
         <section aria-labelledby="my-tasks" className="sk-panel space-y-3 p-4 sm:p-6">
           <h2 id="my-tasks" className="text-lg font-bold text-ink-strong">{t.myTasks}</h2>
           <p className="text-sm text-ink-muted">{t.myTasksHelp}</p>
-          <ul className="space-y-2">{view.tasks.map(task => taskRow(task, false))}</ul>
+          {view.tasks.length ? <ul className="space-y-2">{view.tasks.map(task => taskRow(task, false))}</ul> : <EmptyState size="sm" icon={Inbox} title={ui("Nothing is waiting on you.")} />}
         </section>
       ) : null}
 
@@ -319,15 +322,15 @@ export function ReadinessHome() {
         <section id="reconcile" aria-labelledby="reconcile-heading" className="sk-panel space-y-3 p-4 sm:p-6">
           <h2 id="reconcile-heading" className="text-lg font-bold text-ink-strong">{t.reconcileTitle}</h2>
           <p className="text-sm text-ink-muted">{t.reconcileHelp}</p>
-          <div className="sk-launch-stats">
-            <div><span className="tabular-nums"><bdi dir="ltr">{lead.facts.students}</bdi></span><small>{t.evidence.students}</small></div>
-            <div data-tone={lead.facts.studentsWithoutGuardian ? "warning" : undefined}><span className="tabular-nums"><bdi dir="ltr">{lead.facts.studentsWithoutGuardian}</bdi></span><small>{t.guardiansMissing}</small></div>
-            <div><span className="tabular-nums"><bdi dir="ltr">{lead.facts.openingBalances}</bdi></span><small>{t.openingBalances}</small></div>
-          </div>
-          {lead.facts.imports.batches.length === 0 ? <p className="text-sm text-ink-muted">{t.noImports}</p> : (
+          <DeskStats data-readiness-reconcile>
+            <StatTile index={0} icon={Users} tone="brand" value={<bdi dir="ltr">{lead.facts.students}</bdi>} label={t.evidence.students} />
+            <StatTile index={1} icon={UserX} tone={lead.facts.studentsWithoutGuardian ? "warning" : "success"} value={<bdi dir="ltr">{lead.facts.studentsWithoutGuardian}</bdi>} label={t.guardiansMissing} />
+            <StatTile index={2} icon={Wallet} tone="info" value={<bdi dir="ltr">{lead.facts.openingBalances}</bdi>} label={t.openingBalances} />
+          </DeskStats>
+          {lead.facts.imports.batches.length === 0 ? <EmptyState size="sm" icon={ClipboardCheck} title={<>{t.noImports}</>} /> : (
             <ul className="grid gap-2 sm:grid-cols-2">{lead.facts.imports.batches.map(batch => (
               <li key={batch.id} className="sk-launch-batch">
-                <p className="font-semibold text-ink-strong"><bdi>{batch.sourceName}</bdi> <span className="text-xs text-ink-subtle">· {batch.kind} · {batch.state}</span></p>
+                <p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong"><bdi>{batch.sourceName}</bdi> <span className="text-xs text-ink-subtle">· {batch.kind}</span><DeskPill tone={batch.unresolved || batch.unknownClass ? "warning" : batch.rejected ? "danger" : "success"}>{batch.state}</DeskPill></p>
                 <p className="text-sm text-ink-muted">{t.source}: <bdi dir="ltr">{batch.total}</bdi> {t.rows} → <bdi dir="ltr">{batch.accepted}</bdi> {t.accepted} · <bdi dir="ltr">{batch.rejected}</bdi> {t.rejected} · <bdi dir="ltr">{batch.unresolved}</bdi> {t.unresolved}{batch.unknownClass ? <> · <strong className="text-status-warning-text"><bdi dir="ltr">{batch.unknownClass}</bdi> {t.unknownClass}</strong></> : null}</p>
               </li>
             ))}</ul>
@@ -373,6 +376,7 @@ export function ReadinessHome() {
         />
         <ConfirmAction
           open={confirmingSwitch}
+          tone="warning"
           title={l.switchTitle}
           description={l.switchBody}
           confirmLabel={l.switchMode[otherMode]}

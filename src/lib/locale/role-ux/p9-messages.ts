@@ -215,6 +215,9 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   // SKAI-1293 whole-app UI pass
   ["Negative margin", "هامش سلبي", "منفی مارجن"],
   ["Search pilots", "ابحث في التجارب", "پائلٹ تلاش کریں"],
+  // SKAI-1279 whole-app UI pass
+  ["Occupied today", "مشغولة اليوم", "آج زیرِ استعمال"],
+  ["{0} of {1} done", "اكتمل {0} من {1}", "{1} میں سے {0} مکمل"],
   // SKAI-1277 whole-app UI pass
   ["Filter corrections", "تصفية التصحيحات", "تصحیحات فلٹر کریں"],
   ["Filter messages", "تصفية الرسائل", "پیغامات فلٹر کریں"],

@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, CheckCircle2, DoorOpen, Inbox, LogIn, Phone, Plus, ScanLine, ShieldAlert, Download } from "lucide-react";
+import { CalendarCheck, Camera, CheckCircle2, ClipboardList, DoorOpen, Inbox, LogIn, Mail, MessageSquareWarning, Phone, PhoneCall, Plus, ScanLine, ShieldAlert, ShieldCheck, Download, Award, UserCheck, type LucideIcon } from "lucide-react";
+import { DeskPill, DeskRowIcon, deskRow } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { callbackDueByToday } from "@/lib/front-desk/callback-day";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { getOperationsStaffDashboardData } from "@/app/actions/dashboard";
@@ -111,6 +113,7 @@ function ReceptionWorkspace({ data, view, tab, setView, setTab, retiredNotice }:
         <ConsolePage
           consoleId="receptionist"
           view="visitors"
+          icon={UserCheck}
           description={DESCRIPTIONS.visitors}
           captureDesk
           primaryAction={{ id: "check-in", label: "Check in visitor", icon: LogIn, onClick: () => run("check-in") }}
@@ -127,6 +130,7 @@ function ReceptionWorkspace({ data, view, tab, setView, setTab, retiredNotice }:
         <ConsolePage
           consoleId="receptionist"
           view="pickup"
+          icon={ShieldCheck}
           description={DESCRIPTIONS.pickup}
           captureDesk
           primaryAction={{ id: "check-code", label: "Check code", icon: ScanLine, onClick: () => run("check-code") }}
@@ -144,6 +148,7 @@ function ReceptionWorkspace({ data, view, tab, setView, setTab, retiredNotice }:
         <ConsolePage
           consoleId="receptionist"
           view="admissions"
+          icon={ClipboardList}
           primaryAction={section === "enquiries"
             ? { id: "new-enquiry", label: "New enquiry", icon: Plus, onClick: () => run("new-enquiry") }
             : {
@@ -168,6 +173,7 @@ function ReceptionWorkspace({ data, view, tab, setView, setTab, retiredNotice }:
         <ConsolePage
           consoleId="receptionist"
           view="complaints"
+          icon={MessageSquareWarning}
           description={DESCRIPTIONS.complaints}
           primaryAction={{ id: "record-complaint", label: "Record complaint", icon: Plus, onClick: () => run("record-complaint") }}
         >
@@ -179,6 +185,7 @@ function ReceptionWorkspace({ data, view, tab, setView, setTab, retiredNotice }:
         <ConsolePage
           consoleId="receptionist"
           view="phone-calls"
+          icon={PhoneCall}
           description={DESCRIPTIONS["phone-calls"]}
           primaryAction={{ id: "log-call", label: "Log call", icon: Phone, onClick: () => run("log-call") }}
         >
@@ -190,6 +197,7 @@ function ReceptionWorkspace({ data, view, tab, setView, setTab, retiredNotice }:
         <ConsolePage
           consoleId="receptionist"
           view="postal"
+          icon={Mail}
           description={DESCRIPTIONS.postal}
           primaryAction={{ id: "record-item", label: "Record item", icon: Plus, onClick: () => run("record-item") }}
         >
@@ -201,6 +209,7 @@ function ReceptionWorkspace({ data, view, tab, setView, setTab, retiredNotice }:
         <ConsolePage
           consoleId="receptionist"
           view="certificates"
+          icon={Award}
           description={DESCRIPTIONS.certificates}
           primaryAction={{ id: "issue-certificate", label: "Issue certificate", icon: Plus, disabled: !certificateReady, disabledReason: "No template is approved yet. Your campus admin approves certificate templates before documents can be issued.", onClick: () => run("issue-certificate") }}
         >
@@ -209,7 +218,7 @@ function ReceptionWorkspace({ data, view, tab, setView, setTab, retiredNotice }:
       );
     case "my-leave":
       return (
-        <ConsolePage consoleId="receptionist" view="my-leave">
+        <ConsolePage consoleId="receptionist" view="my-leave" icon={CalendarCheck}>
           <MyLeavePanel />
         </ConsolePage>
       );
@@ -314,6 +323,8 @@ function useFrontDeskQueue(): FrontDeskQueueState {
 
 const QUEUE_LIMIT = 6;
 const VIEW_ACTION: Record<QueueItem["view"], string> = { pickup: "Open pickup", "phone-calls": "Open calls", visitors: "Open visitors" };
+const VIEW_ICON: Record<QueueItem["view"], LucideIcon> = { pickup: ShieldAlert, "phone-calls": PhoneCall, visitors: UserCheck };
+const TONE_LABEL: Record<QueueItem["tone"], string> = { danger: "Urgent", warning: "Needs attention", info: "Due today" };
 
 /** The queue panel for the receptionist's Today: one row per item, one inline action (open the desk it belongs to). */
 function FrontDeskQueue({ state, onNavigate }: { state: FrontDeskQueueState; onNavigate: (view: string) => void }) {
@@ -327,14 +338,18 @@ function FrontDeskQueue({ state, onNavigate }: { state: FrontDeskQueueState; onN
   return (
     <section className="sk-panel space-y-3 p-5" data-front-desk-queue data-tour="reception.today.queue">
       <div className="flex flex-wrap items-center justify-between gap-2">{heading}<Badge variant="warning" size="sm"><bdi>{state.items.length}</bdi></Badge></div>
-      <ul className="divide-y divide-border-subtle">
+      <ul className="space-y-2">
         {shown.map((item) => (
-          <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5" data-queue-item={item.view}>
-            <div className="min-w-0">
+          <li key={item.id} data-tone={item.tone} className={cn(deskRow, "flex flex-wrap items-center gap-3")} data-queue-item={item.view}>
+            <DeskRowIcon icon={VIEW_ICON[item.view]} />
+            <div className="min-w-0 flex-1 space-y-1">
               <p className="text-sm font-semibold text-ink-strong [overflow-wrap:anywhere]">{item.title}</p>
               <p className={item.tone === "danger" ? "text-xs font-medium text-status-error-text" : "text-xs text-ink-muted"}>{item.detail}</p>
             </div>
-            <Button size="sm" variant="outline" onClick={() => onNavigate(item.view)}>{tr(VIEW_ACTION[item.view])}</Button>
+            <div className="flex flex-wrap items-center gap-2 ps-12 sm:ps-0">
+              <DeskPill tone={item.tone}>{tr(TONE_LABEL[item.tone])}</DeskPill>
+              <Button size="sm" variant="outline" onClick={() => onNavigate(item.view)}>{tr(VIEW_ACTION[item.view])}</Button>
+            </div>
           </li>
         ))}
       </ul>
