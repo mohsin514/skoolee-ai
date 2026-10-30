@@ -1,9 +1,9 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Landmark, Scale } from "lucide-react";
+import { FileSpreadsheet, Landmark, Scale } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { DeskPill, DeskRowIcon, deskRow, urgencyFirst } from "@/components/ui/desk";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -50,12 +50,14 @@ export function ReconciliationsPanel({ campusId, version = 0, onPosted, showEmpt
   if (!items || items.length === 0) return null;
   return <section className="sk-panel space-y-4 p-5" data-reconciliations>
     <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><Landmark className="size-4 text-primary" aria-hidden="true" />{ui("Bank reconciliations")}</h3>
-    {items.map(rec => {
+    {/* Statements awaiting review lead; posted and reversed ones are history. */}
+    {urgencyFirst(items, rec => (rec.status === "pending" ? 0 : 1)).map(rec => {
       const currency = rec.matched[0]?.currency || rec.unmatched[0]?.currency || campusCurrency, fmt = (amount: number) => money(amount, currency), r = rec.report;
-      return <article key={rec.id} className="space-y-3 rounded-2xl border border-edge p-4" data-reconciliation={rec.id} data-reconciliation-status={rec.status}>
+      const tone = rec.status === "posted" ? "success" : rec.status === "reversed" ? "neutral" : r.balanced ? "warning" : "danger";
+      return <article key={rec.id} data-tone={tone} className={`${deskRow} space-y-3`} data-reconciliation={rec.id} data-reconciliation-status={rec.status}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="min-w-0 text-sm font-semibold text-ink-strong tabular-nums">{rec.bankAccount} · {rec.from ? date(rec.from) : ""} – {rec.to ? date(rec.to) : ""}</p>
-          <Badge dot variant={rec.status === "posted" ? "success" : rec.status === "reversed" ? "neutral" : "warning"}>{rec.status === "posted" ? ui("Posted") : rec.status === "reversed" ? ui("Reversed") : ui("Awaiting review")}</Badge>
+          <p className="flex min-w-0 items-center gap-3 text-sm font-semibold text-ink-strong tabular-nums"><DeskRowIcon icon={FileSpreadsheet} /><span className="min-w-0">{rec.bankAccount} · {rec.from ? date(rec.from) : ""} – {rec.to ? date(rec.to) : ""}</span></p>
+          <DeskPill tone={rec.status === "posted" ? "success" : rec.status === "reversed" ? "neutral" : "warning"}>{rec.status === "posted" ? ui("Posted") : rec.status === "reversed" ? ui("Reversed") : ui("Awaiting review")}</DeskPill>
         </div>
         <p className={`flex flex-wrap items-center gap-2 text-xs ${r.balanced ? "text-ink-muted" : "font-semibold text-status-error-text"}`} data-conservation={r.balanced ? "balanced" : "difference"}><Scale className="size-3.5" aria-hidden="true" />
           <bdi>{ui("Received {0} = allocated {1} + credit {2} + unallocated {3}", [fmt(r.received), fmt(r.allocated), fmt(r.credited), fmt(r.unallocated)])}</bdi>{r.balanced ? "" : ` · ${ui("Unexplained difference {0}", [fmt(r.difference)])}`}</p>

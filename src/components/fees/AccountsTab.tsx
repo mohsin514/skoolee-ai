@@ -34,7 +34,7 @@ import { BrandButton, EmptyState, StatCard } from "@/components/role-dashboard";
 import { ReviewedDeleteDialog } from "@/components/ui/reviewed-delete";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ModalActions, FormInput, FormSelect } from "@/components/shared-admin";
-import { Modal } from "@/components/ui/modal";
+import { Modal, ModalActions as DialogActions } from "@/components/ui/modal";
 import { Menu, type MenuItem } from "@/components/ui/menu";
 import { formatPKR, forwardCommand, paisaToRupees, rupeesToPaisa, usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
@@ -279,7 +279,7 @@ function ChartPanel({ campusId, command, hideCreate = false }: SectionProps) {
       )}
 
       {showModal && (
-        <Modal title={editing ? tr("Edit account") : tr("New account")} eyebrow={tr("Accounts · Chart")} onClose={() => setShowModal(false)}>
+        <Modal icon={Landmark} title={editing ? tr("Edit account") : tr("New account")} eyebrow={tr("Accounts · Chart")} onClose={() => setShowModal(false)} footer={<DialogActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save changes") : tr("Create account")} onCancel={() => setShowModal(false)} onAction={handleSave} />}>
           <div className="space-y-4">
             <FormInput label={tr("Account name")} value={name} placeholder={tr("e.g. Library Fee")} onChange={setName} />
             <label>
@@ -293,7 +293,6 @@ function ChartPanel({ campusId, command, hideCreate = false }: SectionProps) {
               </SystemSelect>
               <span className="mt-1 block text-xs leading-relaxed text-ink-subtle">{editing && ((editing._count?.entries ?? 0) > 0 || editing.isSystem) ? tr("The type is locked because this account is a system account or already has entries.") : tr("Income and expense heads are used for ledger entries. The type cannot be changed once the account has entries.")}</span>
             </label>
-            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save changes") : tr("Create account")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </Modal>
       )}
@@ -446,10 +445,9 @@ function MethodsPanel({ campusId, command, hideCreate = false }: SectionProps) {
       )}
 
       {showModal && (
-        <Modal title={editing ? tr("Edit payment method") : tr("New payment method")} eyebrow={tr("Accounts · Methods")} onClose={() => setShowModal(false)}>
+        <Modal icon={CreditCard} title={editing ? tr("Edit payment method") : tr("New payment method")} eyebrow={tr("Accounts · Methods")} onClose={() => setShowModal(false)} footer={<DialogActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save changes") : tr("Create method")} onCancel={() => setShowModal(false)} onAction={handleSave} />}>
           <div className="space-y-4">
             <FormInput label={tr("Name")} value={name} placeholder={tr("e.g. Cash")} onChange={setName} />
-            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save changes") : tr("Create method")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </Modal>
       )}
@@ -631,13 +629,12 @@ function BanksPanel({ campusId, command, hideCreate = false }: SectionProps) {
       )}
 
       {showModal && (
-        <Modal title={editing ? tr("Edit bank account") : tr("New bank account")} eyebrow={tr("Accounts · Banks")} onClose={() => setShowModal(false)}>
+        <Modal icon={Building2} title={editing ? tr("Edit bank account") : tr("New bank account")} eyebrow={tr("Accounts · Banks")} onClose={() => setShowModal(false)} footer={<DialogActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save changes") : tr("Create bank account")} onCancel={() => setShowModal(false)} onAction={handleSave} />}>
           <div className="space-y-4">
             <FormInput label={tr("Account name")} value={name} placeholder={tr("e.g. Main School Account")} onChange={setName} />
             <FormInput label={tr("Bank name")} value={bankName} placeholder={tr("e.g. HBL")} onChange={setBankName} />
             <FormInput label={tr("Account number")} value={accountNumber} placeholder={tr("e.g. {0}", ["1234-5678-90"])} onChange={setAccountNumber} />
             <FormInput label={`${tr("Opening balance")} (${currency})`} type="number" value={openingBalance} placeholder="0" onChange={setOpeningBalance} />
-            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save changes") : tr("Create bank account")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
         </Modal>
       )}
@@ -920,6 +917,8 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
 
       {showModal && (
         <Modal
+          icon={kind === "INCOME" ? TrendingUp : TrendingDown}
+          tone={kind === "INCOME" ? "emerald" : "amber"}
           title={kind === "INCOME" ? tr("Record income") : tr("Record expense")}
           eyebrow={tr("Accounts · Ledger")}
           subtitle={kind === "INCOME" ? tr("Money received by the school. It increases income for {0}.", [shownCurrency]) : tr("Money paid out by the school. It increases expense for {0}.", [shownCurrency])}

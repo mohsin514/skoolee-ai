@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { Send } from "lucide-react";
 
 // SKO-403: review before publishing. Shows the hard conflicts that block publication (each with the other
 // booking it collides with), soft warnings, the lessons that change against the latest published version
@@ -75,7 +76,11 @@ export function PublicationReview({ timetableId, className, onClose, onPublished
     } finally { setBusy(false); }
   };
   // R2: one dialog API — the shared Modal (the ModalFrame adapter is deprecated).
-  return <Modal title={ui("Review and publish")} eyebrow={ui("Timetable")} subtitle={<bdi>{className}</bdi>} onClose={onClose} size="lg" dismissible={!busy}>
+  return <Modal icon={Send} tone={data && hard.length ? "rose" : "violet"} title={ui("Review and publish")} eyebrow={ui("Timetable")} subtitle={<bdi>{className}</bdi>} onClose={onClose} size="lg" dismissible={!busy}
+    footer={data ? <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <Button variant="outline" onClick={onClose} disabled={busy}>{ui("Keep editing")}</Button>
+      <Button loading={busy} disabled={busy || hard.length > 0 || !effectiveFrom} onClick={() => void publish()} data-confirm-publish>{ui("Publish version {0}", [String((data.latest?.version ?? 0) + 1)])}</Button>
+    </div> : undefined}>
     <div className="space-y-4" data-publication-review>
       {error ? <div data-publication-error><Alert tone="danger" compact live="assertive">{error}</Alert></div> : null}
       {!data ? <div role="status" aria-label={ui("Checking actual times, rooms and teachers…")}><p className="mb-3 text-sm text-ink-muted">{ui("Checking actual times, rooms and teachers…")}</p><SkeletonList /></div> : <>
@@ -93,10 +98,6 @@ export function PublicationReview({ timetableId, className, onClose, onPublished
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField name="publication-effective" label={ui("Takes effect from")}><Input type="date" value={effectiveFrom} min={data.today} onChange={event => setEffectiveFrom(event.target.value)} /></FormField>
           <FormField name="publication-note" label={ui("Note (optional)")}><Textarea value={note} maxLength={500} onChange={event => setNote(event.target.value)} /></FormField>
-        </div>
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="outline" onClick={onClose} disabled={busy}>{ui("Keep editing")}</Button>
-          <Button loading={busy} disabled={busy || hard.length > 0 || !effectiveFrom} onClick={() => void publish()} data-confirm-publish>{ui("Publish version {0}", [String((data.latest?.version ?? 0) + 1)])}</Button>
         </div>
       </>}
     </div>

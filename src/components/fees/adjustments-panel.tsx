@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, Scale } from "lucide-react";
+import { BadgePercent, CheckCircle2, ReceiptText, Scale, Undo2 } from "lucide-react";
+import { DeskPill, DeskRowIcon, deskRow, urgencyFirst } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +33,10 @@ const EFFECT: Record<Adjustment["kind"], string> = {
   WAIVER: "A waiver forgives part of the amount owed; it does not return cash.",
 };
 const STATUS_TONE: Record<string, "warning" | "danger" | "success" | "info" | "neutral"> = { REQUESTED: "warning", DECLINED: "neutral", APPLIED: "success", APPROVED: "info", DISBURSED: "success", FAILED: "danger" };
+const KIND_ICON = { REFUND: Undo2, CREDIT_NOTE: ReceiptText, WAIVER: BadgePercent } as const;
+// A decision waiting leads, then a payout waiting, then everything already settled.
+const URGENCY: Record<string, number> = { REQUESTED: 0, APPROVED: 1, FAILED: 2 };
+const byUrgency = (rows: Adjustment[]) => urgencyFirst(rows, row => URGENCY[row.status] ?? 3);
 const CATEGORIES = ["WITHDRAWAL", "OVERPAYMENT", "BILLING_ERROR", "HARDSHIP", "SCHOLARSHIP", "SIBLING_POLICY", "OTHER"] as const;
 const CATEGORY_LABEL: Record<string, string> = { WITHDRAWAL: "Withdrawal", OVERPAYMENT: "Overpayment", BILLING_ERROR: "Billing error", HARDSHIP: "Financial hardship", SCHOLARSHIP: "Scholarship", SIBLING_POLICY: "Sibling policy", OTHER: "Other" };
 
@@ -54,8 +60,8 @@ function AdjustmentRow({ row, onChanged }: { row: Adjustment; onChanged: () => v
   const kindLabel = ui(KIND_LABEL[row.kind]);
   const selfDecision = row.mine && row.needsReason === true;
   const decide = confirming === "approve" || confirming === "decline";
-  return <li className="space-y-2 rounded-xl border border-edge p-3 text-xs leading-relaxed" data-adjustment={row.id} data-adjustment-status={row.status} data-adjustment-kind={row.kind}>
-    <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-semibold text-ink-strong tabular-nums">{kindLabel} · <bdi>{amountLabel}</bdi></span><span className="flex flex-wrap items-center gap-1.5">{row.selfApproved ? <Badge variant="warning" size="sm">{ui("Self-approved")}</Badge> : null}<Badge dot variant={STATUS_TONE[row.status] ?? "neutral"}>{ui(STATUS_LABEL[row.status] ?? row.status)}</Badge></span></div>
+  return <li data-tone={STATUS_TONE[row.status] ?? "neutral"} className={cn(deskRow, "space-y-2 text-xs leading-relaxed")} data-adjustment={row.id} data-adjustment-status={row.status} data-adjustment-kind={row.kind}>
+    <div className="flex flex-wrap items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-3 text-sm font-semibold text-ink-strong tabular-nums"><DeskRowIcon icon={KIND_ICON[row.kind]} /><span className="min-w-0">{kindLabel} · <bdi>{amountLabel}</bdi></span></span><span className="flex flex-wrap items-center gap-1.5">{row.selfApproved ? <Badge variant="warning" size="sm">{ui("Self-approved")}</Badge> : null}<DeskPill tone={STATUS_TONE[row.status] ?? "neutral"}>{ui(STATUS_LABEL[row.status] ?? row.status)}</DeskPill></span></div>
     <p className="text-ink-muted">{ui(CATEGORY_LABEL[row.reasonCategory] ?? row.reasonCategory)} · {row.reason}</p>
     <p className="text-ink-muted">{ui("Family sees: {0}", [row.publicExplanation])}</p>
     {row.kind === "REFUND" && row.creditAmount > 0 && <p className="text-ink-muted">{ui("{0} from unapplied credit, {1} from money applied to the invoice.", [money(row.creditAmount, row.currency), money(row.invoiceAmount, row.currency)])}</p>}
@@ -136,8 +142,8 @@ export function InvoiceAdjustmentsPanel({ invoice, onChanged, canRequest = true 
   return <section className="space-y-3 rounded-2xl border border-edge p-4" data-adjustments-panel>
     <h4 className="flex items-center gap-2 text-sm font-bold text-ink-strong"><Scale className="size-4 text-primary" aria-hidden="true" />{ui("Refunds, credits and waivers")}</h4>
     {loadFailed ? <ErrorState variant="panel" title={ui("Adjustments could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void load()} retryLabel={ui("Try again")} className="py-6" /> : null}
-    {rows.length > 0 && <ul className="space-y-2">{rows.map(row => <AdjustmentRow key={row.id} row={row} onChanged={() => { void load(); onChanged?.(); }} />)}</ul>}
-    {!canRequest && !rows.length && !loadFailed ? <p className="text-xs text-ink-muted">{ui("No refunds, credits or waivers on this invoice.")}</p> : null}
+    {rows.length > 0 && <ul className="space-y-2">{byUrgency(rows).map(row => <AdjustmentRow key={row.id} row={row} onChanged={() => { void load(); onChanged?.(); }} />)}</ul>}
+    {!canRequest && !rows.length && !loadFailed ? <EmptyState size="sm" icon={Scale} title={ui("No refunds, credits or waivers on this invoice.")} /> : null}
     {canRequest ? <>
     <div className="grid gap-3 sm:grid-cols-2">
       <FormField name="adjustment-kind" label={ui("Adjustment type")}><Select value={kind} onChange={event => setKind(event.target.value as Adjustment["kind"])}>{(["CREDIT_NOTE", "WAIVER", "REFUND"] as const).map(option => <option key={option} value={option}>{ui(KIND_LABEL[option])}</option>)}</Select></FormField>
@@ -183,6 +189,6 @@ export function AdjustmentsQueue({ version = 0, showEmpty = false }: { version?:
   if (!rows.length) return showEmpty ? <section className="sk-panel space-y-3 p-5" data-adjustments-queue data-queue-state="empty">{title}<EmptyState size="sm" icon={CheckCircle2} title={ui("Nothing is waiting on you.")} description={ui("Refunds, credits and waivers appear here when one needs a decision or a payout.")} /></section> : null;
   return <section className="sk-panel space-y-3 p-5" data-adjustments-queue>
     {title}
-    <ul className="space-y-2">{rows.map(row => <AdjustmentRow key={row.id} row={row} onChanged={() => void load()} />)}</ul>
+    <ul className="space-y-2">{byUrgency(rows).map(row => <AdjustmentRow key={row.id} row={row} onChanged={() => void load()} />)}</ul>
   </section>;
 }

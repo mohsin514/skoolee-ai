@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
 import { Modal } from "@/components/ui/modal";
+import { Alert } from "@/components/ui/alert";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { FileDown, Printer, ScanLine } from "lucide-react";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { scanQuality } from "@/lib/school-ai/scan";
 import { cn } from "@/lib/utils";
@@ -115,7 +117,7 @@ export function MarkScanPanel({ examId, subjects, onImported }: { examId: string
         {view.batch.status === "APPROVED" ? <Button disabled={busy || view.exam.locked} onClick={() => setImportOpen(true)} data-scan-import>{ui("Review import")}</Button> : null}
         {view.batch.status === "COMMITTED" ? <Button variant="outline" disabled={busy} onClick={() => setConfirmReverse(true)} data-scan-reverse>{ui("Reverse this import")}</Button> : null}
       </div>
-      {view.batch.receipt ? <div className="rounded-xl bg-status-success-surface p-3 text-sm text-status-success-text" data-scan-receipt>{ui("Imported {0} marks · unchanged {1} · left out {2} · kept other changes {3}. Results stay unpublished until approved as usual.", [String(view.batch.receipt.changed.length), String(view.batch.receipt.unchanged.length), String(view.batch.receipt.excluded), String(view.batch.receipt.kept.length)])}{view.batch.status === "REVERSED" ? <> {ui("This import was reversed.")}</> : null}</div> : null}
+      {view.batch.receipt ? <Alert tone={view.batch.status === "REVERSED" ? "warning" : "success"} live="off" data-scan-receipt>{ui("Imported {0} marks · unchanged {1} · left out {2} · kept other changes {3}. Results stay unpublished until approved as usual.", [String(view.batch.receipt.changed.length), String(view.batch.receipt.unchanged.length), String(view.batch.receipt.excluded), String(view.batch.receipt.kept.length)])}{view.batch.status === "REVERSED" ? <> {ui("This import was reversed.")}</> : null}</Alert> : null}
     </> : null}
     <ConfirmAction
       open={confirmReverse}
@@ -128,7 +130,7 @@ export function MarkScanPanel({ examId, subjects, onImported }: { examId: string
       onCancel={() => setConfirmReverse(false)}
       onConfirm={async () => { if (await reverse()) setConfirmReverse(false); }}
     />
-    {editing && view ? <Modal size="lg" title={editing.name} eyebrow={ui("Check this mark")} subtitle={ui("Row {0} · page {1}", [String(editing.rowNumber), String(editing.pageNumber)])} onClose={() => setEditing(null)}>
+    {editing && view ? <Modal size="lg" icon={ScanLine} tone={editing.alternatives.length || editing.changedSinceScan ? "amber" : "violet"} title={editing.name} eyebrow={ui("Check this mark")} subtitle={ui("Row {0} · page {1}", [String(editing.rowNumber), String(editing.pageNumber)])} onClose={() => setEditing(null)}>
       <div className="space-y-3" data-scan-cell-dialog>
         {editing.pageImage ? <div className="h-24 w-full overflow-hidden rounded-lg border bg-card" aria-label={ui("Photo of this row")} role="img" style={{ backgroundImage: `url(${editing.pageImage})`, backgroundSize: "100% auto", backgroundRepeat: "no-repeat", backgroundPosition: `0 ${(editing.crop.top / Math.max(0.0001, 1 - editing.crop.height)) * 100}%` }} data-scan-crop /> : null}
         {editing.alternatives.length ? <p className="text-sm font-bold text-status-warning-text">{ui("Please confirm this mark: {0}", [[editing.proposedValue, ...editing.alternatives].filter(v => v !== null).join(" / ")])}</p> : null}
@@ -140,7 +142,7 @@ export function MarkScanPanel({ examId, subjects, onImported }: { examId: string
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => void saveCell(true)} data-scan-exclude>{ui("Leave out of this import")}</Button><Button disabled={busy || (!absent && value === "")} onClick={() => void saveCell()} data-scan-confirm>{ui("Confirm")}</Button></div>
       </div>
     </Modal> : null}
-    {importOpen && view ? <Modal size="lg" title={ui("Import marks")} eyebrow={view.exam.title} subtitle={view.subject.name} onClose={() => setImportOpen(false)}>
+    {importOpen && view ? <Modal size="lg" icon={FileDown} tone={conflicts.length ? "amber" : "emerald"} title={ui("Import marks")} eyebrow={view.exam.title} subtitle={view.subject.name} onClose={() => setImportOpen(false)}>
       <div className="space-y-3" data-scan-import-dialog>
         <p className="text-sm">{ui("These marks will change in the gradebook:")}</p>
         <ul className="max-h-64 space-y-1 overflow-y-auto text-sm">{changes.map(c => <li key={c.id} data-import-change={c.studentId}><bdi>{c.name}</bdi>: <bdi>{markText(ui, c.current)}</bdi> → <bdi>{c.reviewedAbsent ? ui("Absent") : c.reviewedValue}</bdi>
@@ -150,7 +152,7 @@ export function MarkScanPanel({ examId, subjects, onImported }: { examId: string
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setImportOpen(false)}>{ui("Back")}</Button><Button disabled={busy || conflicts.some(c => !decisions[c.studentId])} onClick={() => void commit()} data-scan-commit>{ui("Import {0} marks", [String(changes.filter(c => !(c.changedSinceScan && decisions[c.studentId] === "keep")).length)])}</Button></div>
       </div>
     </Modal> : null}
-    {sheet ? <Modal size="lg" title={ui("Marks sheet")} eyebrow={`${sheet.examTitle} · ${sheet.subjectName}`} subtitle={ui("Sheet version {0} · {1}", [String(sheet.version), sheet.className])} onClose={() => setSheet(null)}>
+    {sheet ? <Modal size="lg" icon={Printer} title={ui("Marks sheet")} eyebrow={`${sheet.examTitle} · ${sheet.subjectName}`} subtitle={ui("Sheet version {0} · {1}", [String(sheet.version), sheet.className])} onClose={() => setSheet(null)}>
       <div className="space-y-6" data-scan-sheet>
         {sheet.pages.map(page => <div key={page.page} className="space-y-2 break-after-page" data-sheet-page={page.page}>
           <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-ink-strong">{ui("Page {0} of {1}", [String(page.page), String(sheet.pages.length)])}</p><p className="text-xs">{ui("Write a whole mark out of {0}, or A for absent.", [String(sheet.maxMarks)])}</p></div><div className="text-center"><img src={page.qr} alt={ui("Page code")} width={96} height={96} /><p className="font-mono text-2xs" dir="ltr">{page.code}</p></div></div>

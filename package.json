@@ -85,7 +85,7 @@
     "check:ai-release": "tsx scripts/check-ai-release.ts",
     "check:audit-coverage": "node scripts/audit-coverage.mjs --check",
     "test:mfa": "node --import tsx --test tests/mfa/*.test.ts",
-    "test:locale": "node --import ./tests/support/server-only.mjs --import tsx --test tests/locale/package.test.ts",
+    "test:locale": "node --import ./tests/support/server-only.mjs --import tsx --test tests/locale/package.test.ts tests/locale/exam-seating-term.test.ts",
     "test:locale:db": "node --import tsx --test tests/locale/database.test.ts",
     "test:cohort-cycle": "node --import ./tests/support/server-only.mjs --import tsx --test tests/school-ai/cohort-cycle.test.ts",
     "test:assessment-locale": "node --import ./tests/support/server-only.mjs --import tsx --test tests/school-ai/mixed-math-locale.test.ts tests/school-ai/paper-print.test.ts tests/school-ai/paper-accessibility.test.ts",
