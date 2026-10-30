@@ -87,9 +87,9 @@ export function SetupProgress({ progress, language, lead, busy, onRefresh }: { p
         <div id="campus-progress" className="overflow-x-auto">
           <table className="w-full min-w-[22rem] text-sm">
             <thead><tr className="text-start text-xs text-ink-muted">
-              <th scope="col" className="py-1.5 text-start font-semibold">{c.campuses}</th>
-              <th scope="col" className="py-1.5 text-end font-semibold">{c.classes}</th>
-              <th scope="col" className="py-1.5 text-end font-semibold">{c.pupils}</th>
+              <th scope="col" className="py-1.5 text-start font-semibold">{c.campus}</th>
+              <th scope="col" className="py-1.5 text-end font-semibold capitalize">{c.classes}</th>
+              <th scope="col" className="py-1.5 text-end font-semibold capitalize">{c.pupils}</th>
             </tr></thead>
             <tbody>
               {progress.campuses.map(campus => (

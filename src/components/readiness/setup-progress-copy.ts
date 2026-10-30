@@ -5,7 +5,7 @@ type SetupProgressCopy = {
   mismatch: string; mismatchBody: string; reconciled: string;
   areas: string; followUps: string; checks: string; campuses: string; ofTotal: string;
   buckets: { done: string; inProgress: string; open: string; deferred: string };
-  campusReady: string; classes: string; pupils: string; schoolTotal: string; openRecords: string;
+  campus: string; campusReady: string; classes: string; pupils: string; schoolTotal: string; openRecords: string;
   definitionsTitle: string; definitions: string[]; mine: string; empty: string;
 };
 
@@ -19,7 +19,7 @@ const en: SetupProgressCopy = {
   reconciled: "Totals match the records",
   areas: "Setup areas", followUps: "Follow-ups", checks: "Required checks", campuses: "Campuses ready", ofTotal: "{0} of {1}",
   buckets: { done: "Done", inProgress: "In progress", open: "Not started", deferred: "Later" },
-  campusReady: "Ready", classes: "classes", pupils: "pupils", schoolTotal: "School total", openRecords: "Open records",
+  campus: "Campus", campusReady: "Ready", classes: "classes", pupils: "pupils", schoolTotal: "School total", openRecords: "Open records",
   definitionsTitle: "How progress is counted",
   definitions: [
     "A setup area is done when its task is marked done. “Later” and “In progress” are not done.",
@@ -41,7 +41,7 @@ const ar: SetupProgressCopy = {
   reconciled: "الإجماليات مطابقة للسجلات",
   areas: "مجالات الإعداد", followUps: "المتابعات", checks: "الفحوص المطلوبة", campuses: "الفروع الجاهزة", ofTotal: "{0} من {1}",
   buckets: { done: "مكتملة", inProgress: "قيد التنفيذ", open: "لم تبدأ", deferred: "لاحقًا" },
-  campusReady: "جاهز", classes: "صفوف", pupils: "طلاب", schoolTotal: "إجمالي المدرسة", openRecords: "فتح السجلات",
+  campus: "الفرع", campusReady: "جاهز", classes: "صفوف", pupils: "طلاب", schoolTotal: "إجمالي المدرسة", openRecords: "فتح السجلات",
   definitionsTitle: "كيف يُحسب التقدّم",
   definitions: [
     "يكتمل مجال الإعداد عندما تُعلَّم مهمته مكتملة. «لاحقًا» و«قيد التنفيذ» ليست مكتملة.",
@@ -63,7 +63,7 @@ const ur: SetupProgressCopy = {
   reconciled: "مجموعہ ریکارڈز سے ملتا ہے",
   areas: "سیٹ اپ کے شعبے", followUps: "فالو اپس", checks: "لازمی جانچ", campuses: "تیار کیمپس", ofTotal: "{1} میں سے {0}",
   buckets: { done: "مکمل", inProgress: "جاری", open: "شروع نہیں ہوا", deferred: "بعد میں" },
-  campusReady: "تیار", classes: "کلاسیں", pupils: "طلبہ", schoolTotal: "اسکول کا مجموعہ", openRecords: "ریکارڈ کھولیں",
+  campus: "کیمپس", campusReady: "تیار", classes: "کلاسیں", pupils: "طلبہ", schoolTotal: "اسکول کا مجموعہ", openRecords: "ریکارڈ کھولیں",
   definitionsTitle: "پیش رفت کیسے گنی جاتی ہے",
   definitions: [
     "سیٹ اپ کا شعبہ تب مکمل ہوتا ہے جب اس کا کام مکمل نشان زد ہو۔ «بعد میں» اور «جاری» مکمل نہیں۔",
