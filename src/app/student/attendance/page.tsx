@@ -15,6 +15,7 @@ import { CalendarCheck, CalendarDays, ChevronLeft, ChevronRight, CheckCircle2, X
 import { StudentPage } from "@/components/student/student-page";
 import { AttendanceSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { StatCard } from "@/components/student/student-ui";
+import { DeskStats } from "@/components/ui/desk";
 import { useStudentData } from "../student-data-context";
 
 /** Register statuses as words (EN keys; the same labels the class register uses). */
@@ -126,12 +127,12 @@ export default function StudentAttendancePage() {
           </Alert>
         )}
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <DeskStats>
           <StatCard icon={CalendarDays} label={tr("Total days")} value={stats.total} sub={tr("School days recorded")} delay={40} />
           <StatCard icon={CheckCircle2} label={tr("Present")} value={stats.present} sub={`${stats.total ? Math.round((stats.present / stats.total) * 100) : 0}% ${tr("of total")}`} tone="green" ring={stats.total ? Math.round((stats.present / stats.total) * 100) : null} delay={80} />
           <StatCard icon={X} label={tr("Absent")} value={stats.absent} sub={consecutiveAbsences > 0 ? tr("Consecutive: {0}", [consecutiveAbsences]) : tr("No consecutive")} tone="rose" delay={120} />
           <StatCard icon={Clock} label={tr("Leave")} value={stats.leave} sub={tr("Approved leaves")} tone="amber" delay={160} />
-        </div>
+        </DeskStats>
 
         <section aria-labelledby="attendance-calendar-title" className="sk-panel sk-rise p-3 sm:p-4" style={{ animationDelay: "120ms" }}>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">

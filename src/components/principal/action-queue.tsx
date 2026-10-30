@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlarmClock, CheckCheck, History, ListChecks, MoreHorizontal, RefreshCw, UserPlus } from "lucide-react";
+import { AlarmClock, BookOpenCheck, CalendarCheck, CheckCheck, ClipboardCheck, FileCheck2, FileText, GraduationCap, History, LifeBuoy, ListChecks, Lock, MessageSquareWarning, MoreHorizontal, Receipt, RefreshCw, Send, UserPlus, UserX, type LucideIcon } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow, deskTimeline, type DeskTone } from "@/components/ui/desk";
 import { ErrorState } from "@/components/ui/error-state";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -26,6 +26,9 @@ type QueueMessage = { key: string; values: (string | number)[] };
 type Item = { titleMessage?: QueueMessage; triggerMessage?: QueueMessage; reasonMessage?: QueueMessage; key: string; type: string; title: string; trigger: string; nextAction: string; sourceOwner: { id: string; name: string } | null; dueAt: string | null; link: string; overdue: boolean; reason: string; assignee: { id: string; name: string } | null; acknowledgedAt: string | null; snoozedUntil: string | null; snoozeReason: string | null; snoozed: boolean };
 type Queue = { viewerId: string; items: Item[]; resolved: { key: string; title: string | null; resolvedAt: string }[]; counts: { active: number; overdue: number; snoozed: number; unassigned: number }; failedSources: string[]; checkedAt: string; sortingRule: string };
 type Staff = { id: string; fullName: string; role: string };
+/** One icon per source, so a long queue scans by kind before it is read. */
+const TYPE_ICON: Record<string, LucideIcon> = { COMPLAINT: MessageSquareWarning, ATTENDANCE_MISSING: CalendarCheck, DELIVERY_FAILED: Send, LEAVE_PENDING: CalendarCheck, REPORT_APPROVAL: FileCheck2, ADJUSTMENT_APPROVAL: Receipt, CORRECTION_APPROVAL: ClipboardCheck, SUPPORT_CHECKIN: LifeBuoy, SYLLABUS_APPROVAL: BookOpenCheck, PAPER_DUE: FileText, PAPER_MODERATION: FileText, PAPER_SEAL: Lock, RESULT_RELEASE: GraduationCap };
+type Focus = "overdue" | "unassigned" | "snoozed";
 const TYPE_LABEL: Record<string, string> = { COMPLAINT: "Complaints", ATTENDANCE_MISSING: "Attendance", DELIVERY_FAILED: "Family messages", LEAVE_PENDING: "Leave", REPORT_APPROVAL: "Report approval", ADJUSTMENT_APPROVAL: "Fee adjustments", CORRECTION_APPROVAL: "Record corrections", SUPPORT_CHECKIN: "Learning actions", SYLLABUS_APPROVAL: "Syllabi", PAPER_DUE: "Papers due", PAPER_MODERATION: "Paper moderation", PAPER_SEAL: "Papers to seal", RESULT_RELEASE: "Results to publish" };
 
 export function ActionQueue({ campusId }: { campusId?: string }) {
@@ -34,6 +37,8 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
   const [queue, setQueue] = useState<Queue | null>(null), [error, setError] = useState(""), [loading, setLoading] = useState(false);
   const [live, setLive] = useState(false), [type, setType] = useState(""), [owner, setOwner] = useState(""), [showSnoozed, setShowSnoozed] = useState(false), [showResolved, setShowResolved] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set()), [staff, setStaff] = useState<Staff[]>([]);
+  // Counters are filters (desk kit): a tile narrows the list below it; pressing it again shows everything.
+  const [focus, setFocus] = useState<Focus | null>(null), [query, setQuery] = useState("");
   const [snoozing, setSnoozing] = useState<Item[] | null>(null), [historyFor, setHistoryFor] = useState<Item | null>(null), [assignTo, setAssignTo] = useState("");
   const scope = campusId ? `campusId=${encodeURIComponent(campusId)}` : "";
   const requestRef = useRef(0);
@@ -66,17 +71,25 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
   };
 
   const viewerId = queue?.viewerId;
-  const visible = (queue?.items ?? []).filter(item => (!type || item.type === type) && (showSnoozed || !item.snoozed || item.overdue)
-    && (owner === "" || (owner === "me" && (item.assignee?.id === viewerId || item.sourceOwner?.id === viewerId)) || (owner === "unassigned" && !item.assignee && !item.sourceOwner)));
+  const unowned = (item: Item) => !item.assignee && !item.sourceOwner;
+  const base = (queue?.items ?? []).filter(item => (!type || item.type === type) && (showSnoozed || focus === "snoozed" || !item.snoozed || item.overdue)
+    && (owner === "" || (owner === "me" && (item.assignee?.id === viewerId || item.sourceOwner?.id === viewerId)) || (owner === "unassigned" && unowned(item))));
+  const titleOf = (item: Item) => ui(item.titleMessage?.key ?? item.title, item.titleMessage?.values);
+  const needle = query.trim().toLocaleLowerCase();
+  // The server already orders the queue by its published sorting rule, so the desk filters but never re-sorts.
+  const visible = base.filter(item => (!focus || (focus === "overdue" ? item.overdue : focus === "unassigned" ? unowned(item) : item.snoozed))
+    && (!needle || [titleOf(item), ui(item.triggerMessage?.key ?? item.trigger, item.triggerMessage?.values), ui(TYPE_LABEL[item.type] ?? item.type), item.assignee?.name ?? "", item.sourceOwner?.name ?? ""].some(text => text.toLocaleLowerCase().includes(needle))));
+  const rowTone = (item: Item): DeskTone | "muted" | undefined => item.overdue ? "danger" : item.snoozed ? "muted" : unowned(item) ? "warning" : undefined;
+  const tile = (id: Focus, index: number, icon: LucideIcon, tone: DeskTone, value: number, label: string, valueProps?: Record<`data-${string}`, number>) => <StatTile index={index} icon={icon} tone={tone} value={value} label={ui(label)} valueProps={valueProps} onSelect={() => setFocus(focus === id ? null : id)} selected={focus === id} data-queue-focus={id} />;
   const toggle = (key: string) => setSelected(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
 
   // The Today queue (§8.2: "Today queue (seats)"); the spotlight tour points at it (work.today.queue).
   return <section className="sk-panel space-y-4 p-5" data-action-queue data-tour="work.today.queue" aria-labelledby="action-queue-title">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 id="action-queue-title" className="flex items-center gap-2 text-lg font-bold text-ink-strong"><ListChecks className="size-5 text-primary" aria-hidden />{ui("Waiting on you")}</h2>
+      <div className="flex min-w-0 items-start gap-3"><span aria-hidden="true" className="sk-page-icon"><ListChecks className="size-5" /></span><div className="min-w-0">
+        <h2 id="action-queue-title" className="text-lg font-bold text-ink-strong sm:text-xl">{ui("Waiting on you")}</h2>
         <p className="text-xs text-ink-muted" aria-live="polite">{queue ? ui("Sources checked {0}", [dateTime(queue.checkedAt)]) : ui("Checking sources…")}{live ? ` · ${ui("Live: re-checks every 2 minutes")}` : ""}</p>
-      </div>
+      </div></div>
       <div className="flex flex-wrap items-center gap-2">
         <div role="group" aria-label={ui("Update mode")} className="flex rounded-xl bg-muted p-0.5 text-xs font-bold">
           <Button variant="ghost" type="button" aria-pressed={!live} onClick={() => setLive(false)} className={`rounded-lg px-3 py-1.5 ${!live ? "bg-card shadow-sm" : ""}`} data-mode="snapshot">{ui("Snapshot")}</Button>
@@ -86,12 +99,12 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
       </div>
     </div>
 
-    {queue ? <p className="flex flex-wrap gap-3 text-sm font-semibold tabular-nums" data-queue-counts>
-      <span data-active={queue.counts.active}>{ui("Open: {0}", [queue.counts.active])}</span>
-      <span className={queue.counts.overdue ? "text-status-error-text" : ""} data-overdue={queue.counts.overdue}>{ui("Overdue: {0}", [queue.counts.overdue])}</span>
-      <span className={queue.counts.unassigned ? "text-status-warning-text" : ""}>{ui("No owner: {0}", [queue.counts.unassigned])}</span>
-      <span>{ui("Snoozed: {0}", [queue.counts.snoozed])}</span>
-    </p> : null}
+    {queue ? <DeskStats data-queue-counts aria-label={[ui("Open: {0}", [queue.counts.active]), ui("Overdue: {0}", [queue.counts.overdue]), ui("No owner: {0}", [queue.counts.unassigned]), ui("Snoozed: {0}", [queue.counts.snoozed])].join(" · ")}>
+      <StatTile index={0} icon={ListChecks} tone="brand" value={queue.counts.active} label={ui("Open")} valueProps={{ "data-active": queue.counts.active }} />
+      {tile("overdue", 1, AlarmClock, queue.counts.overdue ? "danger" : "success", queue.counts.overdue, "Overdue", { "data-overdue": queue.counts.overdue })}
+      {tile("unassigned", 2, UserX, queue.counts.unassigned ? "warning" : "neutral", queue.counts.unassigned, "No owner")}
+      {tile("snoozed", 3, AlarmClock, "neutral", queue.counts.snoozed, "Snoozed")}
+    </DeskStats> : null}
     {queue?.failedSources.length ? <div data-failed-sources><Alert tone="warning" compact>{ui("Some sources could not be checked ({0}). Totals are incomplete until they recover.", [queue.failedSources.map(s => ui(TYPE_LABEL[s] ?? s)).join(", ")])}</Alert></div> : null}
     {queue ? <details className="text-xs text-ink-muted"><summary className="cursor-pointer font-bold">{ui("How items are ordered")}</summary><p className="mt-1">{ui(queue.sortingRule)}</p></details> : null}
 
@@ -108,19 +121,23 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
       <Button size="sm" variant="secondary" onClick={() => setSnoozing((queue?.items ?? []).filter(item => selected.has(item.key)))}><AlarmClock className="size-3.5" aria-hidden />{ui("Snooze")}</Button>
     </div> : null}
 
+    {queue && base.length > 8 ? <DeskQuickFilter value={query} onChange={setQuery} label={ui("Filter this list")} /> : null}
+    {queue ? <DeskFilterStatus shown={visible.length} total={base.length} onClear={() => { setFocus(null); setQuery(""); }} /> : null}
     {error ? <ErrorState description={error} onRetry={() => void load()} retryLabel={ui("Retry")} />
       : !queue ? <SkeletonList rows={3} label={ui("Checking sources…")} />
-      : !visible.length ? <div data-queue-empty><EmptyState size="sm" icon={queue.items.length ? ListChecks : CheckCheck} title={queue.items.length ? ui("No items match these filters.") : ui("Nothing needs attention in this campus right now.")} secondaryAction={queue.items.length && (type || owner) ? <Button size="sm" variant="ghost" onClick={() => { setType(""); setOwner(""); }}>{ui("Clear filters")}</Button> : undefined} /></div>
-      : <ol className="space-y-2" aria-label={ui("Waiting on you")}>{visible.map(item => <li key={item.key} className={`rounded-2xl border p-3 ${item.overdue ? "border-status-error-border bg-status-error-surface" : "border-border"}`} data-queue-item={item.key} data-queue-type={item.type} data-overdue={item.overdue} data-snoozed={item.snoozed}>
+      : !visible.length ? <div data-queue-empty><EmptyState size="sm" icon={queue.items.length ? ListChecks : CheckCheck} title={queue.items.length ? ui("No items match these filters.") : ui("Nothing needs attention in this campus right now.")} secondaryAction={queue.items.length && (type || owner || focus || query) ? <Button size="sm" variant="ghost" onClick={() => { setType(""); setOwner(""); setFocus(null); setQuery(""); }}>{ui("Clear filters")}</Button> : undefined} /></div>
+      : <ol className="space-y-2" aria-label={ui("Waiting on you")}>{visible.map(item => <li key={item.key} data-tone={rowTone(item)} className={deskRow} data-queue-item={item.key} data-queue-type={item.type} data-overdue={item.overdue} data-snoozed={item.snoozed}>
         <div className="flex items-start gap-3">
-          <Checkbox className="mt-1" checked={selected.has(item.key)} onChange={() => toggle(item.key)} aria-label={ui("Select {0}", [ui(item.titleMessage?.key ?? item.title, item.titleMessage?.values)])} />
-          <div className="min-w-0 flex-1 space-y-0.5">
-            <p className="text-sm font-bold"><bdi>{ui(item.titleMessage?.key ?? item.title, item.titleMessage?.values)}</bdi></p>
+          <Checkbox className="mt-2.5" checked={selected.has(item.key)} onChange={() => toggle(item.key)} aria-label={ui("Select {0}", [ui(item.titleMessage?.key ?? item.title, item.titleMessage?.values)])} />
+          <DeskRowIcon icon={TYPE_ICON[item.type] ?? ListChecks} className="hidden sm:grid" />
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="text-sm font-bold text-ink-strong"><bdi>{titleOf(item)}</bdi></p>
             <p className="text-xs text-ink-muted"><bdi>{ui(item.triggerMessage?.key ?? item.trigger, item.triggerMessage?.values)}</bdi></p>
-            <p className="flex flex-wrap gap-x-2 text-2xs font-semibold text-ink-subtle">
-              <Badge size="sm" variant={item.overdue ? "danger" : "neutral"} data-reason>{ui(item.reasonMessage?.key ?? item.reason, item.reasonMessage?.values)}</Badge>
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-ink-subtle">
+              <DeskPill tone={item.overdue ? "danger" : unowned(item) ? "warning" : "neutral"} data-reason>{ui(item.reasonMessage?.key ?? item.reason, item.reasonMessage?.values)}</DeskPill>
               <span>{ui(TYPE_LABEL[item.type])}</span>
               <span>{item.assignee ? ui("Assigned to {0}", [item.assignee.name]) : item.sourceOwner ? ui("Owner: {0}", [item.sourceOwner.name]) : ui("No owner yet")}</span>
+              {item.dueAt ? <span className={item.overdue ? "font-semibold text-status-error-text" : undefined}>{ui("Due")} <bdi><RelativeTime iso={item.dueAt} full={dateTime(item.dueAt)} /></bdi></span> : null}
               {item.acknowledgedAt ? <span>{ui("Acknowledged")}</span> : null}
               {item.snoozed ? <span className="text-status-warning-text">{ui("Snoozed until {0}: {1}", [dateTime(item.snoozedUntil!), item.snoozeReason ?? ""])}</span> : null}
             </p>
@@ -165,6 +182,8 @@ function SnoozeDialog({ items, onClose, onSave }: { items: Item[]; onClose: () =
   return <Modal
     title={items.length === 1 ? ui("Snooze this item") : ui("Snooze {0} items", [items.length])}
     eyebrow={ui("Waiting on you")}
+    icon={AlarmClock}
+    tone="amber"
     subtitle={ui("Snoozing hides an item until the return time. It does not resolve it, and overdue items stay visible.")}
     onClose={onClose}
     dirty={Boolean(reason)}
@@ -196,9 +215,9 @@ function HistoryDialog({ item, scope, staff, onClose }: { item: Item; scope: str
   }, [item.key, scope, attempt]);
   const name = (id: string | null) => staff.find(person => person.id === id)?.fullName ?? "";
   const KIND: Record<string, string> = { ASSIGNED: "Assigned", ACKNOWLEDGED: "Acknowledged", SNOOZED: "Snoozed", UNSNOOZED: "Snooze removed", RESOLVED: "Resolved at the source" };
-  return <Modal title={ui(item.titleMessage?.key ?? item.title, item.titleMessage?.values)} eyebrow={ui("Waiting on you")} subtitle={ui(item.triggerMessage?.key ?? item.trigger, item.triggerMessage?.values)} onClose={onClose}>
+  return <Modal title={ui(item.titleMessage?.key ?? item.title, item.titleMessage?.values)} eyebrow={ui("Waiting on you")} icon={History} tone="sky" subtitle={ui(item.triggerMessage?.key ?? item.trigger, item.triggerMessage?.values)} onClose={onClose}>
     {failed ? <ErrorState title={ui("The history did not load")} onRetry={() => { setFailed(false); setEvents(null); setAttempt(n => n + 1); }} retryLabel={ui("Try again")} />
       : !events ? <SkeletonList rows={3} label={ui("Loading history…")} /> : !events.length ? <EmptyState size="sm" icon={History} title={ui("No changes recorded yet.")} />
-      : <ol className="space-y-1.5 text-xs" data-queue-history>{events.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2"><p className="font-bold">{ui(KIND[event.kind] ?? event.kind)} · {dateTime(event.createdAt)}{event.actorId ? <> · <bdi>{name(event.actorId)}</bdi></> : null}</p>{event.assigneeId ? <p>{ui("Assigned to {0}", [name(event.assigneeId)])}</p> : null}{event.note ? <p><bdi>{event.note}</bdi></p> : null}</li>)}</ol>}
+      : <ol className={`${deskTimeline} text-sm`} data-queue-history>{events.map(event => <li key={event.id} data-tone={event.kind === "RESOLVED" ? "success" : event.kind === "SNOOZED" ? "warning" : "brand"}><p className="text-xs font-bold text-ink-strong">{ui(KIND[event.kind] ?? event.kind)} · {dateTime(event.createdAt)}{event.actorId ? <> · <bdi>{name(event.actorId)}</bdi></> : null}</p>{event.assigneeId ? <p>{ui("Assigned to {0}", [name(event.assigneeId)])}</p> : null}{event.note ? <p><bdi>{event.note}</bdi></p> : null}</li>)}</ol>}
   </Modal>;
 }

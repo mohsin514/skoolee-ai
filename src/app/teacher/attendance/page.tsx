@@ -1,9 +1,10 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ViewTabs } from "@/components/ui/view-tabs";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { BarChart3, CalendarCheck, ChevronLeft, ChevronRight, GraduationCap } from "lucide-react";
+import { AlertTriangle, BarChart3, CalendarCheck, CalendarDays, ChevronLeft, ChevronRight, GraduationCap, SearchX, TrendingUp, Users } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskStats, StatTile, deskRow, urgencyFirst } from "@/components/ui/desk";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { Select } from "@/components/ui/select";
 import { IconButton } from "@/components/ui/icon-button";
@@ -154,7 +155,18 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
     const [y, m] = selectedMonth.split("-").map(Number);
     return new Date(y, m - 1).toLocaleDateString(localeTag(locale), { month: "long", year: "numeric" });
   })();
-  const students: any[] = monthlyData?.students || [];
+  const students: any[] = useMemo(() => monthlyData?.students || [], [monthlyData]);
+  // The At-risk tile filters the list; the lowest rates come first so the pupils to follow up lead.
+  const [riskOnly, setRiskOnly] = useState(false);
+  const [query, setQuery] = useState("");
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = students.filter((student) => (!riskOnly || student.percentage < 75)
+      && (!q || `${student.name || ""} ${student.rollNo || ""}`.toLowerCase().includes(q)));
+    return urgencyFirst(list, (student) => (student.percentage < 75 ? 0 : 1));
+  }, [students, riskOnly, query]);
+  const clearFilters = () => { setRiskOnly(false); setQuery(""); };
+  const atRiskCount = monthlyData?.atRiskStudents?.length || 0;
 
   return (
     <>
@@ -213,37 +225,17 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
         </div>
       ) : monthlyData ? (
         <>
-          {/* Summary stats */}
-          <div className="sk-stagger grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="sk-panel px-4 py-3.5">
-              <p className="sk-eyebrow">{ui("Students")}</p>
-              <p className="mt-0.5 text-xl font-bold tabular-nums text-ink-strong">{monthlyData.totalStudents}</p>
-            </div>
-            <div className="rounded-2xl border border-status-success-border bg-status-success-surface px-4 py-3.5 shadow-xs">
-              <p className="flex items-center gap-0.5 text-2xs font-semibold text-status-success-text">
-                <span className="min-w-0 truncate">{ui("Average attendance")}</span>
-                <InfoTip className="-my-1" content={ui("The average of every student's attendance rate this month, counted with your school's attendance rule.")} />
-              </p>
-              <p className="mt-0.5 text-xl font-bold tabular-nums text-status-success-text">{monthlyData.classAveragePercentage}%</p>
-            </div>
-            <div className="rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3.5 shadow-xs">
-              <p className="flex items-center gap-0.5 text-2xs font-semibold text-status-error-text">
-                <span className="min-w-0 truncate">{ui("At risk")}</span>
-                <InfoTip className="-my-1" content={ui("Students below 75% attendance this month who have at least one day recorded.")} />
-              </p>
-              <p className="mt-0.5 text-xl font-bold tabular-nums text-status-error-text">{monthlyData.atRiskStudents?.length || 0}</p>
-            </div>
-            <div className="rounded-2xl border border-status-brand-border bg-status-brand-surface px-4 py-3.5 shadow-xs">
-              <p className="flex items-center gap-0.5 text-2xs font-semibold text-primary">
-                <span className="min-w-0 truncate">{ui("Total days")}</span>
-                <InfoTip className="-my-1" content={ui("Every present, absent and leave entry recorded for this class this month, added together.")} />
-              </p>
-              <p className="mt-0.5 text-xl font-bold tabular-nums text-primary">{monthlyData.summary ? monthlyData.summary.totalPresent + monthlyData.summary.totalAbsent + monthlyData.summary.totalLeave : 0}</p>
-            </div>
-          </div>
+          {/* Summary stats — At risk is a filter for the list below. */}
+          <DeskStats>
+            <StatTile index={0} icon={Users} tone="brand" label={ui("Students")} value={<bdi>{monthlyData.totalStudents}</bdi>} />
+            <StatTile index={1} icon={TrendingUp} tone="success" label={<span className="inline-flex items-center gap-0.5">{ui("Average attendance")}<InfoTip className="-my-1" content={ui("The average of every student's attendance rate this month, counted with your school's attendance rule.")} /></span>} value={<bdi>{monthlyData.classAveragePercentage}%</bdi>} />
+            <StatTile index={2} icon={AlertTriangle} tone={atRiskCount ? "danger" : "neutral"} label={ui("At risk")} value={<bdi>{atRiskCount}</bdi>}
+              onSelect={atRiskCount ? () => setRiskOnly((value) => !value) : undefined} selected={riskOnly} />
+            <StatTile index={3} icon={CalendarDays} tone="info" label={<span className="inline-flex items-center gap-0.5">{ui("Total days")}<InfoTip className="-my-1" content={ui("Every present, absent and leave entry recorded for this class this month, added together.")} /></span>} value={<bdi>{monthlyData.summary ? monthlyData.summary.totalPresent + monthlyData.summary.totalAbsent + monthlyData.summary.totalLeave : 0}</bdi>} />
+          </DeskStats>
 
           {/* At-risk students */}
-          {monthlyData.atRiskStudents?.length > 0 && (
+          {monthlyData.atRiskStudents?.length > 0 && !riskOnly && (
             <Alert tone="warning" live="off" title={ui("At-risk students (below 75% attendance)")}>
               <ul className="mt-2 space-y-2">
                 {monthlyData.atRiskStudents.map((s: any) => (
@@ -275,6 +267,14 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
               />
             </div>
           ) : (
+            <>
+            {students.length > 8 ? <DeskQuickFilter value={query} onChange={setQuery} label={ui("Filter this list")} /> : null}
+            <DeskFilterStatus shown={shown.length} total={students.length} onClear={clearFilters} />
+            {shown.length === 0 ? (
+              <div className="sk-panel">
+                <EmptyState size="sm" icon={SearchX} title={ui("No pupils found")} description={ui("Try adjusting your search or filter.")} />
+              </div>
+            ) : (
             <div className="sk-panel overflow-hidden">
               <div className="hidden gap-3 bg-surface-subtle px-5 py-3 sm:grid sm:grid-cols-[1fr_80px_80px_80px_100px]">
                 <span className="text-2xs font-semibold text-ink-muted">{ui("Student")}</span>
@@ -284,10 +284,10 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
                 <span className="text-center text-2xs font-semibold text-primary">{ui("Rate")}</span>
               </div>
               <div className="divide-y divide-muted">
-                {students.map((student: any) => (
-                  <div key={student.studentId} className={cn(
-                    "grid grid-cols-4 gap-x-3 gap-y-2.5 px-5 py-3.5 transition-colors hover:bg-surface-hover sm:grid-cols-[1fr_80px_80px_80px_100px] sm:items-center",
-                    student.percentage < 75 && "bg-status-error-surface/40"
+                {shown.map((student: any) => (
+                  <div key={student.studentId} data-tone={student.percentage < 75 ? "danger" : undefined} className={cn(
+                    deskRow,
+                    "grid grid-cols-4 gap-x-3 gap-y-2.5 rounded-none border-0 shadow-none px-5 py-3.5 sm:grid-cols-[1fr_80px_80px_80px_100px] sm:items-center",
                   )}>
                     <div className="col-span-4 flex min-w-0 items-center gap-3 sm:col-span-1">
                       <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl border-2 border-card bg-surface-subtle shadow-sm">
@@ -295,7 +295,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
                       </div>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-ink-strong">{student.name}</p>
-                        <p className="text-xs text-ink-subtle">{student.rollNo || ui("No roll")}</p>
+                        <p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-subtle">{student.rollNo || ui("No roll")}{student.percentage < 75 ? <DeskPill tone="danger">{ui("At risk")}</DeskPill> : null}</p>
                       </div>
                     </div>
                     <p className="text-center text-sm font-bold tabular-nums text-status-success-text">
@@ -325,6 +325,8 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
                 ))}
               </div>
             </div>
+            )}
+            </>
           )}
         </>
       ) : (

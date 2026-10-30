@@ -8,7 +8,8 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip as HintTooltip, InfoTip } from "@/components/ui/tooltip";
 import { useMemo, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, BarChart3, CalendarCheck, GraduationCap, TrendingUp } from "lucide-react";
+import { DeskPill } from "@/components/ui/desk";
+import { BarChart3, CalendarCheck, GraduationCap, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { classLabel } from "@/components/teacher/teacher-components";
 import { TeacherPage } from "@/components/teacher/teacher-page";
@@ -345,12 +346,9 @@ export default function TeacherInsightsPage() {
                       </TableCell>
                       <TableCell className="px-3 py-3 text-center">
                         {cls.missing > 0 ? (
-                          <Badge variant="danger" size="sm" data-numeric>
-                            <AlertCircle aria-hidden="true" />
-                            {cls.missing}
-                          </Badge>
+                          <DeskPill tone="danger" data-numeric>{cls.missing}</DeskPill>
                         ) : (
-                          <Badge variant="success" size="sm" dot>{ui("All in")}</Badge>
+                          <DeskPill tone="success">{ui("All in")}</DeskPill>
                         )}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-end">

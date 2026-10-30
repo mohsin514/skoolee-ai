@@ -8,7 +8,7 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { useCountLabel } from "@/components/locale/use-count-label";
 import { toast } from "@/components/ui/toast";
 import {
-  AlertCircle, BarChart3, BrainCircuit, CalendarCheck, CheckCircle2, Download, FileText, Languages, Loader2, MessageCircle, Phone, RefreshCw, Save, Send, Star, Users,
+  AlertCircle, Award, BarChart3, BrainCircuit, CalendarCheck, CheckCircle2, Download, FileText, Languages, Loader2, MessageCircle, Phone, RefreshCw, Save, Send, Star, TrendingDown, UserRound, Users,
 } from "lucide-react";
 import { useTeacherData as useTeacherDataContext } from "@/app/teacher/teacher-data-context";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
@@ -31,6 +31,9 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { DeskPill, DeskStats, StatTile, type DeskTone } from "@/components/ui/desk";
+import type { ModalTone } from "@/components/ui/modal";
+import type { LucideIcon } from "lucide-react";
 
 
 /* ── Pure helpers ── */
@@ -124,13 +127,18 @@ export function MiniMetric({ label, value, active, danger }: { label: string; va
   );
 }
 
+/** The desk-kit tone a record status reads in (the same buckets as `statusTone`, plus "waiting" states in amber). */
+export function statusDeskTone(status?: string): DeskTone {
+  if (["ACTIVE", "MARKS_ENTRY", "PUBLISHED", "SENT", "APPROVED", "PRESENT"].includes(status || "")) return "success";
+  if (["LOCKED", "PRINCIPAL_REVIEWED", "REVIEWED", "LEAVE"].includes(status || "")) return "brand";
+  if (["ABSENT", "FAILED", "BLOCKED"].includes(status || "")) return "danger";
+  if (["DRAFT", "PENDING", "PENDING_REVIEW", "SUBMITTED"].includes(status || "")) return "warning";
+  return "neutral";
+}
+
 export function StatusPill({ status }: { status?: string }) {
   const ui = useUiText();
-  return (
-    <span className={`inline-flex shrink-0 rounded-full px-3 py-1 text-2xs font-semibold ${statusTone(status)}`}>
-      {ui(formatStatus(status))}
-    </span>
-  );
+  return <DeskPill tone={statusDeskTone(status)} className="shrink-0">{ui(formatStatus(status))}</DeskPill>;
 }
 
 /** `text` is an EN UI key (translated here). */
@@ -191,8 +199,10 @@ export function ModalSkeleton({ fieldRows = 4 }: { fieldRows?: number }) {
  * teacher-facing prop shape is kept so the call sites in this file read the
  * same as before.
  */
-export function ModalFrame({ title, eyebrow, children, onClose, wide = false, footer, dirty = false, dirtyMessage = "You have unsaved changes. Discard them?" }: {
+export function ModalFrame({ title, eyebrow, subtitle, icon, avatar, chips, tone, children, onClose, wide = false, footer, dirty = false, dirtyMessage = "You have unsaved changes. Discard them?" }: {
   title: string; eyebrow: string; children: ReactNode; onClose: () => void; wide?: boolean; footer?: ReactNode;
+  /** One plain line under the title; the header's icon tile (or a photo) and its colour. */
+  subtitle?: ReactNode; icon?: LucideIcon; avatar?: ReactNode; chips?: ReactNode; tone?: ModalTone;
   /** Holds typed-but-unsaved input — closing then asks before discarding. */
   dirty?: boolean;
   dirtyMessage?: string;
@@ -201,6 +211,11 @@ export function ModalFrame({ title, eyebrow, children, onClose, wide = false, fo
     <Modal
       title={title}
       eyebrow={eyebrow}
+      subtitle={subtitle}
+      icon={icon}
+      avatar={avatar}
+      chips={chips}
+      tone={tone}
       onClose={onClose}
       size={wide ? "lg" : "sm"}
       footer={footer}
@@ -288,6 +303,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
     <Modal
       title={ui("Final grades preview")}
       eyebrow={ui("Weighted grades")}
+      icon={BarChart3}
       subtitle={ui("A preview from your marks. Your academic lead generates the final grades and report cards.")}
       size="lg"
       onClose={onClose}
@@ -324,27 +340,11 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
           {/* A ranked list of forty rows does not tell a teacher how the class
               did. Three numbers above it do. */}
           {summary ? (
-            <div className="mb-4 grid grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-primary/10 bg-brand-50/60 px-4 py-3 text-center">
-                <p className="text-2xl font-bold tabular-nums text-primary"><bdi>{summary.average}%</bdi></p>
-                <p className="text-2xs font-semibold text-ink-subtle">{ui("Class average")}</p>
-              </div>
-              <div className="rounded-2xl border border-status-success-border bg-status-success-surface px-4 py-3 text-center">
-                <p className="text-2xl font-bold tabular-nums text-status-success-text"><bdi>{summary.passed}</bdi></p>
-                <p className="text-2xs font-semibold text-status-success-text">{ui("Passing")}</p>
-              </div>
-              <div className={cn(
-                "rounded-2xl border px-4 py-3 text-center",
-                summary.failed > 0 ? "border-status-error-border bg-status-error-surface" : "border-border-subtle bg-card",
-              )}>
-                <p className={cn("text-2xl font-bold tabular-nums", summary.failed > 0 ? "text-status-error-text" : "text-ink-subtle")}>
-                  <bdi>{summary.failed}</bdi>
-                </p>
-                <p className={cn("text-2xs font-semibold", summary.failed > 0 ? "text-status-error-text" : "text-ink-subtle")}>
-                  {ui("Below pass")}
-                </p>
-              </div>
-            </div>
+            <DeskStats className="mb-4">
+              <StatTile index={0} icon={BarChart3} tone="brand" label={ui("Class average")} value={<bdi>{summary.average}%</bdi>} />
+              <StatTile index={1} icon={Award} tone="success" label={ui("Passing")} value={<bdi>{summary.passed}</bdi>} />
+              <StatTile index={2} icon={TrendingDown} tone={summary.failed > 0 ? "danger" : "neutral"} label={ui("Below pass")} value={<bdi>{summary.failed}</bdi>} />
+            </DeskStats>
           ) : null}
           <div className="overflow-x-auto rounded-2xl border border-muted">
             <table className="w-full min-w-[600px] text-start">
@@ -423,6 +423,7 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
     <ModalFrame
       title={student.fullName}
       eyebrow={ui("Pupil profile")}
+      icon={UserRound}
       onClose={onClose}
       wide
       /* One primary contact route: a message on the school record (D6). A phone call stays as a
@@ -464,18 +465,12 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
           </p>
           {student.todayAttendance !== undefined ? (
             <p className="mt-2">
-              <span className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-2xs font-semibold",
-                student.todayAttendance === "PRESENT" ? "border-status-success-border bg-status-success-surface text-status-success-text"
-                  : student.todayAttendance === "ABSENT" ? "border-status-error-border bg-status-error-surface text-status-error-text"
-                  : student.todayAttendance === "LEAVE" ? "border-status-warning-border bg-status-warning-surface text-status-warning-text"
-                  : "border-edge/30 bg-card text-ink-subtle",
-              )}>
+              <DeskPill tone={student.todayAttendance === "PRESENT" ? "success" : student.todayAttendance === "ABSENT" ? "danger" : student.todayAttendance === "LEAVE" ? "warning" : "neutral"}>
                 {student.todayAttendance === "PRESENT" ? ui("In today")
                   : student.todayAttendance === "ABSENT" ? ui("Absent today")
                   : student.todayAttendance === "LEAVE" ? ui("On leave today")
                   : ui("Not marked today")}
-              </span>
+              </DeskPill>
             </p>
           ) : null}
         </div>
@@ -698,6 +693,8 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
     <ModalFrame
       title={ui("{0} — report card", [viewReport.student?.fullName || ui("Pupil")])}
       eyebrow={ui("Academic result")}
+      icon={FileText}
+      tone={viewReport.isSent ? "emerald" : "violet"}
       onClose={onClose}
       wide
       dirty={Boolean(onSaveRemarks) && remarksDirty}
@@ -705,9 +702,9 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
       footer={
         <div className="flex flex-wrap items-center justify-end gap-3">
           {remarksDirty && onSaveRemarks ? (
-            <span className="me-auto inline-flex items-center gap-1.5 rounded-full bg-status-warning-surface px-3 py-1.5 text-2xs font-semibold text-status-warning-text">
+            <DeskPill tone="warning" className="me-auto">
               <AlertCircle aria-hidden="true" className="h-3.5 w-3.5" /> {ui("Unsaved remarks")}
-            </span>
+            </DeskPill>
           ) : null}
           {viewReport.exam?.id && viewReport.student?.id && onGenerateRemarks ? (
             <BrandButton variant="soft" icon={<BrainCircuit className="w-4 h-4" />}
@@ -721,9 +718,9 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
             {downloadingPdf ? ui("Preparing PDF…") : ui("Download PDF")}
           </BrandButton>
           {viewReport.isSent ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-status-success-border bg-status-success-surface px-4 py-2 text-2xs font-semibold text-status-success-text">
+            <DeskPill tone="success">
               <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" /> {ui("Already sent")}
-            </span>
+            </DeskPill>
           ) : (
             /* Sending mails a family. It fired on a single click with no
                confirmation, and there is no way to unsend it afterwards. */
@@ -876,9 +873,9 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
               <div className="flex flex-wrap items-center gap-2">
                 <bdi className="rounded-full bg-brand-50 px-3 py-1 text-2xs font-bold text-primary">{viewReport.overall.overallPercentage}%</bdi>
                 <bdi className="rounded-full bg-card border border-edge/10 px-3 py-1 text-2xs font-bold text-ink-strong">{viewReport.overall.overallGrade}</bdi>
-                <span className={`rounded-full px-3 py-1 text-2xs font-semibold ${viewReport.overall.passed ? "bg-status-success-surface text-status-success-text" : "bg-status-error-surface text-status-error-text"}`}>
+                <DeskPill tone={viewReport.overall.passed ? "success" : "danger"}>
                   {viewReport.overall.passed ? ui("Pass") : ui("Below pass")}
-                </span>
+                </DeskPill>
               </div>
             </div>
           ) : null}
@@ -951,7 +948,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
 
     <ConfirmAction
       open={confirmSend}
-      tone="primary"
+      tone="warning"
       title={ui("Send this report card?")}
       description={ui("{0}'s guardian will be emailed the result for {1}. A sent report card cannot be recalled.", [viewReport.student?.fullName || ui("This pupil"), viewReport.exam?.title || ui("this test")])}
       detail={

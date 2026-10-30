@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
 
-for (const route of ['/privacy', '/security', '/ai-governance', '/human-review-policy']) {
+for (const route of ['/privacy', '/security', '/ai-governance', '/human-review-policy', '/terms', '/dpa', '/guardian-notice']) {
   test(`${route} keeps policy content accessible through shared navigation`, async ({ page }) => {
     await page.goto(route);
     const title = page.getByRole('heading', { level: 1 });
     await expect(title).toBeVisible();
     const navigation = page.getByRole('navigation', { name: 'Trust policies' });
-    await expect(navigation.getByRole('link')).toHaveCount(4);
+    await expect(navigation.getByRole('link')).toHaveCount(7);
     const active = navigation.locator('[aria-current="page"]');
     await expect(active).toHaveCount(1);
     await expect(active).toHaveAttribute('href', route);
@@ -24,5 +24,19 @@ for (const route of ['/privacy', '/security', '/ai-governance', '/human-review-p
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/human-review-policy$/);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Human Review Policy');
+  });
+}
+
+// SKAI-1000: trust-pack drafts carry the legal-review banner and render Urdu right-to-left.
+for (const route of ['/privacy', '/terms', '/dpa', '/guardian-notice']) {
+  test(`${route} shows the draft banner in English and Urdu`, async ({ page }) => {
+    await page.goto(route);
+    await expect(page.getByRole('note')).toContainText('DRAFT — requires legal review');
+    await page.getByRole('link', { name: 'اردو' }).click();
+    await expect(page).toHaveURL(new RegExp(`${route}\\?lang=ur$`));
+    await expect(page.locator('main')).toHaveAttribute('dir', 'rtl');
+    await expect(page.getByRole('note')).toContainText('DRAFT — requires legal review');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `test-results/design-system/evidence/trust-pages/${route.slice(1)}-ur.png`, fullPage: true });
   });
 }

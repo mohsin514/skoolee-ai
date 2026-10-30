@@ -37,6 +37,7 @@ const PUBLIC_PATHS = [
   "/whatsapp-report-card-software", "/multi-campus-school-erp",
   "/school-fee-management-software", "/ai-student-performance-analytics",
   "/privacy", "/ai-governance", "/security", "/human-review-policy",
+  "/terms", "/dpa", "/guardian-notice", // SKAI-1000 trust pack drafts; static text, no data.
   "/api/auth/login",
   "/sso", "/api/auth/sso", // SKO-446: school sign-in; the routes verify state, PKCE and the provider's ID token.
   "/api/auth/logout", "/api/auth/verify", "/api/auth/session",

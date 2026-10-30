@@ -10,6 +10,8 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ParentErrorState, ParentListSkeleton, ParentStat } from "@/components/parent/parent-components";
+import { DeskRowIcon, DeskStats, deskRow } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useParentData } from "../parent-data-context";
 import { downloadPdfFile } from "@/lib/download";
@@ -78,12 +80,12 @@ export default function ParentResultsPage() {
           <EmptyState size="sm" icon={FileText} title={ui("No results yet")} description={ui("Results will appear here after exams are published.")} />
         ) : (
           <>
-            <div className="sk-rise grid grid-cols-2 gap-3 md:grid-cols-4" style={{ animationDelay: "40ms" }}>
+            <DeskStats>
               <ParentStat icon={FileText} label={ui("Report cards")} value={reportCards.length} sub={ui("Issued to date")} />
-              <ParentStat icon={Award} label={ui("Best score")} value={reportCards.length ? `${Math.max(...reportCards.map((r: any) => Math.round(r.percentage)))}%` : "—"} sub={ui("Highest result")} tone="green" />
-              <ParentStat icon={ClipboardList} label={ui("Exams")} value={marksByExam.length} sub={ui("Marked so far")} tone="amber" />
-              <ParentStat icon={CheckCircle2} label={ui("Published")} value={publishedCount} sub={reportCards.length - publishedCount ? ui("{0} pending release", [reportCards.length - publishedCount]) : ui("All released")} tone="violet" />
-            </div>
+              <ParentStat icon={Award} label={ui("Best score")} value={reportCards.length ? `${Math.max(...reportCards.map((r: any) => Math.round(r.percentage)))}%` : "—"} sub={ui("Highest result")} tone="green" index={1} />
+              <ParentStat icon={ClipboardList} label={ui("Exams")} value={marksByExam.length} sub={ui("Marked so far")} tone="amber" index={2} />
+              <ParentStat icon={CheckCircle2} label={ui("Published")} value={publishedCount} sub={reportCards.length - publishedCount ? ui("{0} pending release", [reportCards.length - publishedCount]) : ui("All released")} tone="violet" index={3} />
+            </DeskStats>
 
             <div className="sk-stagger space-y-3">
               {reportCards.map((rc: any) => {
@@ -91,9 +93,9 @@ export default function ParentResultsPage() {
                 const downloading = downloadingId === rc.id;
                 const remarks = rc.language === "ar" ? rc.remarksAr : rc.language === "ur" ? rc.remarksUr : rc.remarksEn;
                 return (
-                  <div key={rc.id} className="sk-panel relative min-w-0 p-4 transition-[border-color,box-shadow] duration-200 hover:border-primary/25 hover:shadow-md">
+                  <div key={rc.id} data-tone={scoreVariant(pct)} className={cn(deskRow, "p-4")}>
                     <div className="flex min-w-0 items-start justify-between gap-4">
-                      <div className="min-w-0">
+                      <div className="flex min-w-0 items-start gap-3"><DeskRowIcon icon={Award} /><div className="min-w-0">
                         <p className="sk-eyebrow [overflow-wrap:anywhere]">{rc.term} {rc.academicYear}</p>
                         <h2 className="mt-0.5 text-base font-bold text-ink-strong [overflow-wrap:anywhere]"><bdi>{rc.examTitle}</bdi></h2>
                         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -101,7 +103,7 @@ export default function ParentResultsPage() {
                           <span className="text-xs font-medium text-ink-muted">{ui("Grade: {0}", [rc.grade || "—"])}</span>
                           {rc.rank && <span className="text-xs font-medium tabular-nums text-ink-muted">{ui("Rank: #{0}", [rc.rank])}</span>}
                         </div>
-                      </div>
+                      </div></div>
                       <div className="shrink-0 text-end">
                         <p className="text-2xl font-bold tabular-nums text-primary">{rc.obtainedMarks}<span className="text-sm font-semibold text-ink-subtle">/{rc.totalMarks}</span></p>
                       </div>

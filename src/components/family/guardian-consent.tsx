@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ShieldCheck } from "lucide-react";
+import { Bot, Camera, CircleAlert, CircleCheck, CircleDashed, FileArchive, Globe2, MessageSquare, Receipt, ShieldCheck, type LucideIcon } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskStats, StatTile, deskRow, type DeskTone } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -32,6 +34,9 @@ const PURPOSES: Record<Purpose, [string, string]> = {
   aiAssistance: ["AI assistance", "Use AI tools on my child's work. Names are removed before anything is sent."],
   crossBorderHosting: ["Hosting outside the country", "Store and process my child's data on secure servers outside our country."],
 };
+const PURPOSE_ICON: Record<Purpose, LucideIcon> = { schoolRecords: FileArchive, familyMessages: MessageSquare, photosMedia: Camera, aiAssistance: Bot, crossBorderHosting: Globe2 };
+const STATE_ICON: Record<State, LucideIcon> = { CURRENT: CircleCheck, PARTIAL: CircleAlert, OUTDATED: CircleAlert, MISSING: CircleDashed };
+const deskTone = (state: State): DeskTone => (state === "CURRENT" ? "success" : state === "MISSING" ? "neutral" : "warning");
 const LANGUAGE_NAME: Record<string, string> = { en: "English", ar: "العربية", ur: "اردو" };
 const stateLabel = (ui: Ui, state: State) => ({ CURRENT: ui("Up to date"), OUTDATED: ui("Needs a new answer"), MISSING: ui("No answer yet"), PARTIAL: ui("Some guardians answered") })[state];
 const stateVariant = (state: State) => (state === "CURRENT" ? "success" : state === "MISSING" ? "neutral" : "warning") as "success" | "neutral" | "warning";
@@ -87,13 +92,13 @@ export function GuardianConsentForm({ studentId }: { studentId: string }) {
       ) : null}
       <Card className="space-y-5 p-5">
         <p className="text-sm text-ink-muted">{ui("Choose yes or no for each purpose. You can change your answers at any time; every answer is kept on record.")}</p>
-        <ul className="divide-y divide-border-subtle">
+        <ul className="space-y-2">
           {data.purposes.map(purpose => (
-            <li key={purpose} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
+            <li key={purpose} data-tone={typeof choices[purpose] === "boolean" ? (choices[purpose] ? "success" : "neutral") : undefined} className={cn(deskRow, "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between")}>
+              <div className="flex min-w-0 items-start gap-3"><DeskRowIcon icon={PURPOSE_ICON[purpose]} /><div className="min-w-0">
                 <p className="font-semibold text-ink">{ui(PURPOSES[purpose][0])}</p>
                 <p className="text-sm text-ink-muted">{ui(PURPOSES[purpose][1])}</p>
-              </div>
+              </div></div>
               <SegmentedChoice
                 className="shrink-0"
                 label={ui(PURPOSES[purpose][0])}
@@ -115,10 +120,11 @@ export function GuardianConsentForm({ studentId }: { studentId: string }) {
           <h2 className="text-base font-semibold text-ink">{ui("Your answers on record")}</h2>
           <ul className="space-y-2">
             {data.history.map(row => (
-              <li key={row.id}><Card className="flex flex-wrap items-center justify-between gap-2 p-4 text-sm">
-                <span>{dateTime(row.at)} · {LANGUAGE_NAME[row.language] ?? row.language} · {ui("{0} of {1} agreed", [Object.values(row.choices).filter(Boolean).length, Object.keys(row.choices).length])}</span>
-                <span className="font-mono text-xs text-ink-muted" dir="ltr">{row.receiptCode}</span>
-              </Card></li>
+              <li key={row.id} data-tone="info" className={cn(deskRow, "flex flex-wrap items-center gap-3 text-sm")}>
+                <DeskRowIcon icon={Receipt} />
+                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]"><bdi>{dateTime(row.at)}</bdi> · {LANGUAGE_NAME[row.language] ?? row.language} · {ui("{0} of {1} agreed", [Object.values(row.choices).filter(Boolean).length, Object.keys(row.choices).length])}</span>
+                <DeskPill tone="neutral"><span className="font-mono" dir="ltr">{row.receiptCode}</span></DeskPill>
+              </li>
             ))}
           </ul>
         </section>
@@ -132,22 +138,25 @@ export function ConsentStatusPanel() {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
   const { data, failure, load } = useJson<StudentStatus[]>("/api/guardian-consents");
+  const [only, setOnly] = useState<State | null>(null);
   if (failure) return <ErrorState title={ui("Consent could not be loaded")} error={failure} onRetry={load} />;
   if (!data) return <SkeletonList rows={4} />;
   if (!data.length) return <EmptyState icon={ShieldCheck} title={ui("No active pupils")} description={ui("Consent appears here once pupils are enrolled and guardians are linked.")} />;
   const counts = (["CURRENT", "PARTIAL", "MISSING"] as State[]).map(state => [state, data.filter(row => row.state === state).length] as const);
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">{counts.map(([state, count]) => <Badge key={state} variant={stateVariant(state)} dot>{stateLabel(ui, state)}: {count}</Badge>)}</div>
+      {/* Each counter filters the table to that standing; pressing it again shows every pupil. */}
+      <DeskStats>{counts.map(([state, count], index) => <StatTile key={state} index={index} icon={STATE_ICON[state]} tone={deskTone(state)} value={<bdi>{count}</bdi>} label={stateLabel(ui, state)} onSelect={() => setOnly(only === state ? null : state)} selected={only === state} />)}</DeskStats>
+      <DeskFilterStatus shown={only ? data.filter(row => row.state === only).length : data.length} total={data.length} onClear={() => setOnly(null)} />
       <Card className="overflow-x-auto p-0">
         <Table>
           <TableHeader><TableRow><TableHead>{ui("Pupil")}</TableHead><TableHead>{ui("Class")}</TableHead><TableHead>{ui("Status")}</TableHead><TableHead>{ui("Guardians")}</TableHead></TableRow></TableHeader>
           <TableBody>
-            {data.map(row => (
+            {data.filter(row => !only || row.state === only).map(row => (
               <TableRow key={row.studentId}>
                 <TableCell><bdi className="font-medium">{row.fullName}</bdi> <bdi dir="ltr" className="text-xs text-ink-muted">#{row.rollNo}</bdi></TableCell>
                 <TableCell>{row.className}</TableCell>
-                <TableCell><Badge variant={stateVariant(row.state)} dot>{stateLabel(ui, row.state)}</Badge></TableCell>
+                <TableCell><DeskPill tone={deskTone(row.state)}>{stateLabel(ui, row.state)}</DeskPill></TableCell>
                 <TableCell>
                   {row.guardians.length ? <ul className="space-y-1 text-sm">{row.guardians.map((g, i) => (
                     <li key={i}><bdi className="font-medium">{g.name}</bdi> · {g.consent

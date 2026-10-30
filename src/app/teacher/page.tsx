@@ -4,16 +4,15 @@ import { DepartmentAppeals } from "@/components/school-ai/exam-studio/department
 import { schoolClock } from "@/lib/timetable/school-clock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DeskPill, DeskRowButton, DeskStats, StatTile } from "@/components/ui/desk";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertCircle, ArrowRight, CalendarCheck, CheckCircle2,
+  AlertCircle, ArrowRight, CalendarCheck, CheckCircle2, type LucideIcon,
   ClipboardList, GraduationCap, Sun, UserCheck, Users,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { TeacherPage } from "@/components/teacher/teacher-page";
-import { StatTiles } from "@/components/shared-admin/workspace";
 import {
   DashboardSkeleton, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
@@ -241,15 +240,14 @@ export default function TeacherToday() {
         <TeachingLinePrompt slots={todaySlots} />
 
         {/* ── Four figures for the day ── */}
-        <StatTiles
-          columns={4}
-          tiles={[
-            { key: "classes", icon: GraduationCap, label: singular(classHubs.length) ? ui("Class") : ui("Classes"), value: classHubs.length, tone: "violet" },
-            { key: "students", icon: Users, label: singular(data.totalStudents) ? ui("Pupil") : ui("Pupils"), value: data.totalStudents, tone: "emerald" },
-            { key: "present", icon: CheckCircle2, label: ui("Present today"), value: attendanceStats.present, tone: "emerald" },
-            { key: "tests", icon: ClipboardList, label: ui("Open tests"), value: activeExamCount, tone: "violet" },
-          ]}
-        />
+        {/* Each figure opens the screen it counts. */}
+        <DeskStats aria-label={ui("Today")}>
+          <StatTile index={0} icon={GraduationCap} tone="brand" label={singular(classHubs.length) ? ui("Class") : ui("Classes")} value={<bdi>{classHubs.length}</bdi>} valueProps={{ "data-count": "classes" }} />
+          <StatTile index={1} icon={Users} tone="info" label={singular(data.totalStudents) ? ui("Pupil") : ui("Pupils")} value={<bdi>{data.totalStudents}</bdi>} valueProps={{ "data-count": "students" }} />
+          <StatTile index={2} icon={CheckCircle2} tone="success" label={ui("Present today")} value={<bdi>{attendanceStats.present}</bdi>} valueProps={{ "data-count": "present" }}
+            hint={attendanceStats.unmarked > 0 ? ui("{0} not marked today", [count(attendanceStats.unmarked, "pupil")]) : undefined} />
+          <StatTile index={3} icon={ClipboardList} tone={missingMarksTotal > 0 ? "warning" : "brand"} label={ui("Open tests")} value={<bdi>{activeExamCount}</bdi>} valueProps={{ "data-count": "tests" }} />
+        </DeskStats>
 
         {/* ── How the term is going, under what needs doing today ── */}
         <TeachingInsights
@@ -269,39 +267,37 @@ function toMinutes(hhmm: string) {
   return (h || 0) * 60 + (m || 0);
 }
 
-/** A one-line "this needs you" row. Reads faster than a card and costs less. */
+/** A one-line "this needs you" row: a toned desk row with its count as the trailing pill. */
 function AlertRow({
   tone,
-  icon: Icon,
+  icon,
   title,
   detail,
   onClick,
 }: {
   tone: "warning" | "danger";
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   title: string;
   detail: string;
   onClick: () => void;
 }) {
-  const chips = {
-    warning: "bg-status-warning-surface text-status-warning-text",
-    danger: "bg-status-error-surface text-status-error-text",
-  } as const;
+  const ui = useUiText();
   return (
-    <Button variant="choice"
-      type="button"
+    <DeskRowButton
+      tone={tone}
+      icon={icon}
       onClick={onClick}
-      className="group sk-nudge-trigger w-full justify-start gap-3 p-3 text-start"
+      className="group sk-nudge-trigger"
+      trailing={
+        <span className="inline-flex items-center gap-2">
+          <DeskPill tone={tone}>{tone === "danger" ? ui("Needs you") : ui("Today")}</DeskPill>
+          {/* Points forward in the reading direction and leans that way on hover. */}
+          <ArrowRight aria-hidden="true" className="sk-nudge size-4 shrink-0 text-ink-subtle group-hover:text-primary rtl:rotate-180" />
+        </span>
+      }
     >
-      <span aria-hidden="true" className={cn("sk-icon-tile flex size-9 shrink-0 items-center justify-center rounded-xl", chips[tone])}>
-        <Icon className="size-4" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold leading-snug text-ink-strong">{title}</span>
-        <span className="block truncate text-xs font-normal text-ink-muted">{detail}</span>
-      </span>
-      {/* Points forward in the reading direction and leans that way on hover. */}
-      <ArrowRight aria-hidden="true" className="sk-nudge size-4 shrink-0 text-ink-subtle group-hover:text-primary rtl:rotate-180" />
-    </Button>
+      <span className="block text-sm font-semibold leading-snug text-ink-strong">{title}</span>
+      <span className="block text-xs font-normal text-ink-muted">{detail}</span>
+    </DeskRowButton>
   );
 }

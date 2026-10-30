@@ -7,6 +7,7 @@ import { toast } from "@/components/ui/toast";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { downloadReportCardPdf } from "@/lib/download";
 import { StatCard } from "@/components/student/student-ui";
+import { DeskStats } from "@/components/ui/desk";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -56,12 +57,12 @@ export default function ReportsPage() {
       <div className="space-y-3">
         {user.reportCards.length > 0 ? (
           <>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <DeskStats>
               <StatCard icon={FileText} label={ui("Report cards")} value={summary.total} sub={ui("Issued")} delay={40} />
               <StatCard icon={GraduationCap} label={ui("Best score")} value={`${summary.best}%`} sub={summary.best >= 80 ? ui("Excellent") : summary.best >= 60 ? ui("Good") : ui("Needs focus")} tone="green" ring={summary.best} delay={80} />
               <StatCard icon={Award} label={ui("Average")} value={`${summary.average}%`} sub={ui("Across {0} cards", [summary.total])} tone="purple" ring={summary.average} delay={120} />
               <StatCard icon={CheckCircle2} label={ui("Published")} value={summary.published} sub={summary.draft ? ui("{0} still in draft", [summary.draft]) : ui("All released")} tone={summary.draft ? "amber" : "green"} delay={160} />
-            </div>
+            </DeskStats>
 
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {user.reportCards.map((report: any, index: number) => (
