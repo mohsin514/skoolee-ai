@@ -78,8 +78,10 @@ export const transportRouteFormSchema = z.object({
  * but each keeps its own rule, and `id` is mandatory because the row to update
  * cannot be inferred.
  */
+// SKAI-1352: a PATCH that omits fare must leave it unchanged; the create default of 0 must not apply here.
 export const transportRoutePatchSchema = transportRouteSchema.partial().extend({
   id: id("Route"),
+  fare: integer("Fare", { min: 0, max: 100_000_000 }).optional(),
   vehicleIds: z.array(id("Vehicle")).max(100, "Too many vehicles selected").optional(),
 });
 

@@ -87,6 +87,11 @@ export async function POST(req: NextRequest) {
     if (!classId || !academicYear) {
       return NextResponse.json({ error: "classId and academicYear are required" }, { status: 400 });
     }
+    // SKAI-1340: a malformed year is a client error with a plain message, never a 500 that exposes ORM internals.
+    const year = Number(academicYear);
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      return NextResponse.json({ error: "academicYear must be a four-digit year" }, { status: 400 });
+    }
 
     const cls = await prisma.class.findFirst({
       where: { id: classId, campusId: user.campusId },
@@ -99,7 +104,7 @@ export async function POST(req: NextRequest) {
       where: {
         campusId: user.campusId,
         classId,
-        academicYear: Number(academicYear),
+        academicYear: year,
         examType: "FINAL",
         subjectId: null,
       },
@@ -179,6 +184,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, count: grades.length });
   } catch (error: any) {
     console.error("Generate-from-grades error:", error);
-    return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });
+    // SKAI-1340: the detail stays in the server log; the client gets a plain message.
+    return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
 }

@@ -1,11 +1,30 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
+  ApiError,
   assertStaffRole,
+  canLeadAcademics,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+
+/**
+ * SKAI-1346: campus leaders see the whole campus. Anyone else sees history only for
+ * classes they teach or lead; null means unrestricted.
+ */
+async function visibleClassIds(user: Awaited<ReturnType<typeof requireAuthUser>>, campusId: string): Promise<string[] | null> {
+  if (await canLeadAcademics(user, campusId)) return null;
+  const classes = await prisma.class.findMany({
+    where: {
+      schoolId: user.schoolId,
+      campusId,
+      OR: [{ classTeacherId: user.userId }, { subjects: { some: { teacherId: user.userId } } }],
+    },
+    select: { id: true },
+  });
+  return classes.map((c) => c.id);
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,10 +36,11 @@ export async function GET(req: NextRequest) {
     const academicYear = Number(sp.get("academicYear"));
     const classId = sp.get("classId");
     const studentId = sp.get("studentId");
+    const visible = await visibleClassIds(user, campusId);
 
     if (studentId) {
       const history = await prisma.studentClassHistory.findMany({
-        where: { studentId, campusId },
+        where: { studentId, campusId, ...(visible ? { classId: { in: visible } } : {}) },
         include: {
           class: { select: { id: true, name: true, section: true } },
           student: { select: { id: true, fullName: true, admissionNo: true, profileImageUrl: true } },
@@ -32,6 +52,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (classId && academicYear) {
+      if (visible && !visible.includes(classId)) throw new ApiError("You are not assigned to this class.", 403);
       const records = await prisma.studentClassHistory.findMany({
         where: { classId, academicYear, campusId },
         include: {
@@ -66,7 +87,7 @@ export async function GET(req: NextRequest) {
 
     if (academicYear) {
       const classes = await prisma.class.findMany({
-        where: { campusId, academicYear },
+        where: { campusId, academicYear, ...(visible ? { id: { in: visible } } : {}) },
         select: {
           id: true,
           name: true,

@@ -196,7 +196,7 @@ export async function renewLoan(user: AuthUser, raw: unknown) {
     const rules = (loan.policySnapshot as LoanRules | null) ?? (await currentRules(tx, user.schoolId, campusOf(user)));
     if (loan.renewals >= rules.maxRenewals) throw new ApiError(`This loan has used its ${rules.maxRenewals} renewals.`, 409);
     if (await tx.bookReservation.count({ where: { bookId: loan.bookId, status: "WAITING" } })) throw new ApiError("Another reader is waiting for this title, so it cannot be renewed.", 409);
-    return tx.bookIssue.update({ where: { id: loan.id }, data: { dueAt: dueDate(new Date(), rules), renewals: { increment: 1 } } });
+    return tx.bookIssue.update({ where: { id: loan.id }, data: { dueAt: dueDate(loan.dueAt > new Date() ? loan.dueAt : new Date(), rules), renewals: { increment: 1 } } });
   });
 }
 
