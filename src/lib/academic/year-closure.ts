@@ -47,6 +47,9 @@ export interface YearClosureReport {
 /** Exams whose marks are still being worked on. */
 const UNFINISHED_MARK_STATUSES = ["DRAFT", "ACTIVE", "MARKS_ENTRY"];
 
+/** Exams the principal has signed off. */
+const REVIEWED_STATUSES = ["PRINCIPAL_REVIEWED", "PUBLISHED"];
+
 /** "Quiz 1 in 10 classes, Midterm" instead of repeating one exam title per class. */
 function groupTitles(titles: string[]) {
   const counts = new Map<string, number>();
@@ -79,13 +82,14 @@ export async function getYearClosureReport(
   // 1 — Marks finished and locked by the teachers.
   const marksOutstanding = exams.filter((e) => UNFINISHED_MARK_STATUSES.includes(e.status));
 
-  // 2 — Report cards generated. Only meaningful once an exam is locked, since
-  // locking is what generates them.
-  const lockedOrLater = exams.filter((e) => !UNFINISHED_MARK_STATUSES.includes(e.status));
-  const missingReportCards = lockedOrLater.filter((e) => e._count.reportCards === 0);
+  // 2 — Report cards generated. Locking is what generates them, so an exam still in
+  // marks entry has none yet and counts as outstanding too (SKAI-1289: counting only
+  // locked exams let an empty set read as "all generated").
+  const missingReportCards = exams.filter((e) => e._count.reportCards === 0);
 
-  // 3 — Principal has reviewed. Anything still sitting at LOCKED is awaiting them.
-  const awaitingPrincipal = exams.filter((e) => e.status === "LOCKED");
+  // 3 — Principal has reviewed. Every exam not yet PRINCIPAL_REVIEWED or PUBLISHED is
+  // outstanding, including ones that have not reached LOCKED (SKAI-1289).
+  const awaitingPrincipal = exams.filter((e) => !REVIEWED_STATUSES.includes(e.status));
 
   // 4 — Results released to families.
   const notPublished = exams.filter((e) => e.status !== "PUBLISHED");
