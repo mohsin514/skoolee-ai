@@ -72,7 +72,7 @@ export class SetupCompletionError extends Error {
 }
 
 type SetupRow = NonNullable<Awaited<ReturnType<typeof prisma.institutionSetup.findUnique>>>;
-type SchoolRow = { id: string; name: string; city: string; contactEmail: string; phone: string | null; regId: string; registrationKind: string; registrationIdMode: string; plan: string; commercialContract: Prisma.JsonValue };
+type SchoolRow = { id: string; name: string; city: string; contactEmail: string; phone: string | null; regId: string; registrationKind: string; registrationIdMode: string; plan: string; commercialContract: Prisma.JsonValue; status: string; subscriptionLifecycleState: string; graceEndsAt: Date | null };
 
 export interface SetupActor {
   kind: "owner" | "delegate";
@@ -81,7 +81,7 @@ export interface SetupActor {
   school: SchoolRow;
 }
 
-const schoolSelect = { id: true, name: true, city: true, contactEmail: true, phone: true, regId: true, plan: true, registrationKind: true, registrationIdMode: true, commercialContract: true } as const;
+const schoolSelect = { id: true, name: true, city: true, contactEmail: true, phone: true, regId: true, plan: true, registrationKind: true, registrationIdMode: true, commercialContract: true, status: true, subscriptionLifecycleState: true, graceEndsAt: true } as const;
 
 function initialDraft(school: SchoolRow, ownerPhone: string | null, country: string): SetupDraft {
   const year = new Date().getFullYear();
@@ -181,7 +181,7 @@ export async function setupView(actor: SetupActor) {
     prisma.onboardingCheckoutIntent.findFirst({
       where: { schoolId: school.id, status: { in: ["FREE_SELECTED", "SETTLED", "PENDING_SETTLEMENT", "CHECKOUT_PENDING", "CUSTOM_QUOTE"] } },
       orderBy: { createdAt: "desc" },
-      select: { plan: true, status: true, provider: true },
+      select: { id: true, plan: true, status: true, provider: true },
     }),
   ]);
   const type = setup.institutionType as InstitutionType;
@@ -223,7 +223,9 @@ export async function setupView(actor: SetupActor) {
       expectedCampuses: openChoice.expectedCampuses, expectedEnrollment: openChoice.expectedEnrollment,
     } : null,
     /** The package the owner chose in setup (null until they choose one: setup never picks for them). */
-    selectedPackage: lastChoice ? { plan: lastChoice.plan, status: lastChoice.status, provider: lastChoice.provider } : null,
+    selectedPackage: lastChoice ? { intentId: lastChoice.id, plan: lastChoice.plan, status: lastChoice.status, provider: lastChoice.provider } : null,
+    /** SKAI-161: the subscription lifecycle, so an active package can show grace or expiry. */
+    lifecycle: { status: school.status, lifecycleState: school.subscriptionLifecycleState, graceEndsAt: school.graceEndsAt?.toISOString() ?? null },
     activeCampuses,
     contactEmail: school.contactEmail,
     language: me?.preferredLanguage || "en",
