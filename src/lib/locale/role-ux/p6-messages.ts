@@ -1483,6 +1483,20 @@ const P6: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Save dates", "حفظ التواريخ", "تاریخیں محفوظ کریں"],
   ["Holidays fall outside the new dates", "عطلات تقع خارج التواريخ الجديدة", "کچھ تعطیلات نئی تاریخوں سے باہر ہیں"],
   ["Save dates anyway", "حفظ التواريخ على أي حال", "پھر بھی تاریخیں محفوظ کریں"],
+  // SKAI-117 academic cycle setup
+  ["Add at least one reporting period.", "أضف فترة تقارير واحدة على الأقل.", "کم از کم ایک رپورٹنگ مدت شامل کریں۔"],
+  ["Review the name, dates and teaching weeks for {0}.", "راجع الاسم والتواريخ وأسابيع التدريس لـ {0}.", "{0} کا نام، تاریخیں اور تدریسی ہفتے دیکھیں۔"],
+  ["{0} falls outside this version's effective dates.", "تقع {0} خارج تواريخ سريان هذا الإصدار.", "{0} اس ورژن کی مؤثر تاریخوں سے باہر ہے۔"],
+  ["{0} overlaps {1}. Change one period's dates before activation.", "تتداخل {0} مع {1}. غيّر تواريخ إحدى الفترتين قبل التفعيل.", "{0} اور {1} ایک دوسرے سے ٹکراتے ہیں۔ فعال کرنے سے پہلے ایک مدت کی تاریخیں بدلیں۔"],
+  ["{0} falls outside {1} ({2} to {3}).", "تقع {0} خارج {1} (من {2} إلى {3}).", "{0} {1} سے باہر ہے ({2} سے {3} تک)۔"],
+  ["Create this academic year before activating its terms.", "أنشئ هذا العام الدراسي قبل تفعيل فصوله.", "اس تعلیمی سال کی مدتیں فعال کرنے سے پہلے سال بنائیں۔"],
+  ["Set the start and end dates of {0} before activating its terms.", "حدّد تاريخي بداية {0} ونهايته قبل تفعيل فصوله.", "{0} کی مدتیں فعال کرنے سے پہلے اس کی شروع اور اختتام کی تاریخیں مقرر کریں۔"],
+  ["Every period stays inside {0}: {1} to {2}.", "تبقى كل فترة ضمن {0}: من {1} إلى {2}.", "ہر مدت {0} کے اندر رہتی ہے: {1} سے {2} تک۔"],
+  ["Set the academic year dates first", "حدّد تواريخ العام الدراسي أولًا", "پہلے تعلیمی سال کی تاریخیں مقرر کریں"],
+  ["Open academic year", "فتح العام الدراسي", "تعلیمی سال کھولیں"],
+  ["Terms can be drafted now, but activation waits until the academic year has start and end dates.", "يمكن صياغة الفصول الآن، لكن التفعيل ينتظر تحديد تاريخي بداية العام الدراسي ونهايته.", "مدتوں کا مسودہ ابھی بن سکتا ہے، لیکن فعال کرنا تعلیمی سال کی شروع اور اختتام کی تاریخوں تک رکا رہے گا۔"],
+  ["In session", "جارية الآن", "جاری ہے"],
+  ["Starts next", "تبدأ تاليًا", "اگلی شروع ہوگی"],
 ];
 
 export const arabicP6Ui: Record<string, string> = Object.fromEntries(P6.map(([en, ar]) => [en, ar]));

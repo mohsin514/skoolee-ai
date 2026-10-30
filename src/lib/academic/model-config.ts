@@ -48,6 +48,9 @@ export interface ConfigProblem {
   code: string;
   message: string;
   repairHref: string;
+  /** SKAI-117: catalog template and values so the panel can show the problem in the reader's language. */
+  template?: string;
+  params?: string[];
 }
 
 export const academicModelConfigurationSchema = z.object({
@@ -133,8 +136,8 @@ export function validateAcademicModel(
   },
 ): ConfigProblem[] {
   const problems: ConfigProblem[] = [];
-  const fail = (code: string, message: string, repairHref = "#academic-model-subject-mapping") =>
-    problems.push({ code, message, repairHref });
+  const fail = (code: string, message: string, repairHref = "#academic-model-subject-mapping", template?: string, params?: string[]) =>
+    problems.push({ code, message, repairHref, ...(template ? { template, params } : {}) });
   const weights = [configuration.grading.quizWeight, configuration.grading.classTestWeight, configuration.grading.midTermWeight, configuration.grading.finalWeight];
   if (weights.some((weight) => !Number.isFinite(weight) || weight < 0 || weight > 100)) {
     fail("invalid_weight", "Each assessment weight must be between 0 and 100%.", "#academic-model-grading");
@@ -163,7 +166,7 @@ export function validateAcademicModel(
   const to = options.effectiveTo ? Date.parse(`${options.effectiveTo}T00:00:00Z`) : Number.POSITIVE_INFINITY;
   if (!Number.isFinite(from) || to < from) fail("effective_dates", "The effective end date must be the same as or after its start date.", "#academic-model-periods");
   const terms = [...configuration.terms].sort((a, b) => a.startDate.localeCompare(b.startDate));
-  if (!terms.length) fail("period_required", "Add at least one reporting period.", "#academic-model-periods");
+  if (!terms.length) fail("period_required", "Add at least one reporting period.", "#academic-model-periods", "Add at least one reporting period.");
   const labels = new Set<string>();
   for (let index = 0; index < terms.length; index += 1) {
     const term = terms[index];
@@ -171,14 +174,14 @@ export function validateAcademicModel(
     const end = Date.parse(`${term.endDate}T00:00:00Z`);
     const templateDatesMissing = options.template && !term.startDate && !term.endDate;
     if (!term.label.trim() || labels.has(term.label.trim().toLocaleLowerCase()) || (!templateDatesMissing && (!Number.isFinite(start) || !Number.isFinite(end) || end < start)) || !Number.isInteger(term.teachingWeeks) || term.teachingWeeks < 1 || term.teachingWeeks > 52) {
-      fail("period_invalid", `Review the name, dates and teaching weeks for ${term.label || `period ${index + 1}`}.`, "#academic-model-periods");
+      fail("period_invalid", `Review the name, dates and teaching weeks for ${term.label || `period ${index + 1}`}.`, "#academic-model-periods", "Review the name, dates and teaching weeks for {0}.", [term.label || `#${index + 1}`]);
       continue;
     }
     labels.add(term.label.trim().toLocaleLowerCase());
-    if (!templateDatesMissing && (start < from || end > to)) fail("period_outside_effective", `${term.label} falls outside this version's effective dates.`, "#academic-model-periods");
+    if (!templateDatesMissing && (start < from || end > to)) fail("period_outside_effective", `${term.label} falls outside this version's effective dates.`, "#academic-model-periods", "{0} falls outside this version's effective dates.", [term.label]);
     const previous = terms[index - 1];
     if (previous && term.startDate && previous.endDate && Date.parse(`${term.startDate}T00:00:00Z`) <= Date.parse(`${previous.endDate}T00:00:00Z`)) {
-      fail("period_conflict", `${term.label} overlaps ${previous.label}. Change one period's dates before activation.`, "#academic-model-periods");
+      fail("period_conflict", `${term.label} overlaps ${previous.label}. Change one period's dates before activation.`, "#academic-model-periods", "{0} overlaps {1}. Change one period's dates before activation.", [term.label, previous.label]);
     }
   }
   if (!options.template) {
