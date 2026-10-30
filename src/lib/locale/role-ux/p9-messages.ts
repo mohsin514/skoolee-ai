@@ -269,6 +269,28 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   ["Publish reviewed document", "نشر المستند بعد مراجعته", "جائزہ شدہ دستاویز شائع کریں"],
   ["Evidence before answers", "الأدلة قبل الإجابات", "جوابات سے پہلے شواہد"],
   ["Only current published documents are searchable. Drafts, archived sources, expired versions and other schools’ documents are excluded.", "المستندات المنشورة الحالية فقط قابلة للبحث. تُستبعد المسودات والمصادر المؤرشفة والإصدارات المنتهية ومستندات المدارس الأخرى.", "صرف موجودہ شائع شدہ دستاویزات تلاش کی جا سکتی ہیں۔ مسودے، آرکائیو شدہ ماخذ، میعاد ختم ورژن اور دوسرے اسکولوں کی دستاویزات شامل نہیں۔"],
+  // SKAI-1331 workspace flexibility
+  ["Focus mode", "وضع التركيز", "فوکس موڈ"],
+  ["Exit focus mode", "الخروج من وضع التركيز", "فوکس موڈ سے باہر نکلیں"],
+  ["Focus mode (hide sidebar and header)", "وضع التركيز (إخفاء الشريط الجانبي والرأس)", "فوکس موڈ (سائیڈبار اور ہیڈر چھپائیں)"],
+  ["Hide the sidebar and header", "إخفاء الشريط الجانبي والرأس", "سائیڈبار اور ہیڈر چھپائیں"],
+  ["Work faster without leaving the keyboard.", "اعمل أسرع دون مغادرة لوحة المفاتيح.", "کی بورڈ چھوڑے بغیر تیزی سے کام کریں۔"],
+  ["Turn focus mode on or off", "تشغيل وضع التركيز أو إيقافه", "فوکس موڈ آن یا آف کریں"],
+  ["Filter the current list", "تصفية القائمة الحالية", "موجودہ فہرست فلٹر کریں"],
+  ["Close a dialog, restore a card or leave focus mode", "إغلاق نافذة أو استعادة بطاقة أو مغادرة وضع التركيز", "ڈائیلاگ بند کریں، کارڈ واپس لائیں یا فوکس موڈ چھوڑیں"],
+  ["Show this list", "عرض هذه القائمة", "یہ فہرست دکھائیں"],
+  ["Back to top", "العودة إلى الأعلى", "اوپر واپس جائیں"],
+  ["Keep sidebar open", "إبقاء الشريط الجانبي مفتوحًا", "سائیڈبار کھلا رکھیں"],
+  ["Keep open", "إبقاء مفتوحًا", "کھلا رکھیں"],
+  ["Comfortable spacing", "مسافات مريحة", "آرام دہ فاصلہ"],
+  ["More room around each row", "مساحة أكبر حول كل صف", "ہر قطار کے گرد زیادہ جگہ"],
+  ["Compact spacing", "مسافات مضغوطة", "مختصر فاصلہ"],
+  ["See more on screen at once", "اعرض المزيد على الشاشة دفعة واحدة", "ایک ساتھ اسکرین پر زیادہ دیکھیں"],
+  ["Expand all", "توسيع الكل", "سب کھولیں"],
+  ["Collapse all", "طي الكل", "سب بند کریں"],
+  ["Maximize", "تكبير", "بڑا کریں"],
+  ["Hide section", "إخفاء القسم", "حصہ چھپائیں"],
+  ["Show section", "إظهار القسم", "حصہ دکھائیں"],
 ];
 
 export const arabicP9Ui: Record<string, string> = Object.fromEntries(ROWS.map(([en, ar]) => [en, ar]));

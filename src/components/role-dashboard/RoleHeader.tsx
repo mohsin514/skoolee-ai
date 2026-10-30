@@ -9,7 +9,9 @@ import { openSettings } from "@/components/settings/settings-sections";
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { useEffect, useRef, useState } from "react";
-import { Bell, ChevronDown, Languages, LayoutDashboard, LogOut, Settings, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Bell, ChevronDown, Keyboard, Languages, LayoutDashboard, LogOut, Maximize2, Rows3, Rows4, Settings, ShieldCheck, type LucideIcon } from "lucide-react";
+import { IconButton } from "@/components/ui/icon-button";
+import { useWorkspacePrefs } from "./workspace-controls";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { EditableProfile } from "@/components/profile/editable-profile-card";
@@ -82,6 +84,7 @@ export function RoleHeader({
   const t = useUiText();
   const { language, timezone } = useLocale();
   const session = useShellSession();
+  const workspace = useWorkspacePrefs();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [bellShake, setBellShake] = useState(false);
@@ -228,6 +231,7 @@ export function RoleHeader({
             {context ? <div data-tour="shell.header.context" className="flex min-w-0 max-w-full items-center gap-2">{context}</div> : null}
           </div>
           {viewerRole ? <HelpMenu role={viewerRole} framed={framed} /> : null}
+          <IconButton data-focus-toggle label={t("Focus mode")} tooltip={t("Focus mode (hide sidebar and header)")} variant="outline" aria-keyshortcuts="Control+Period Meta+Period" className="hidden md:inline-flex" onClick={() => workspace.setFocus(true)}><Maximize2 aria-hidden="true" /></IconButton>
           <div ref={notifRef} className="sm:relative">
             <Tooltip content={t("View notifications")} describe={false}>
             <Button variant="outline" size="icon"
@@ -288,6 +292,12 @@ export function RoleHeader({
               // The same Settings section `/account/security` redirects to, opened without leaving the page.
               { id: "security", label: "Security & sign-in", icon: ShieldCheck, onSelect: () => openSettings("security") },
               ...accountLinks.map((link): MenuItem => ({ id: link.id, label: link.label, icon: link.icon, href: link.href, onSelect: link.href ? undefined : link.onSelect })),
+              "separator",
+              workspace.density === "compact"
+                ? { id: "density", label: "Comfortable spacing", icon: Rows3, description: "More room around each row", onSelect: () => workspace.setDensity("comfortable") }
+                : { id: "density", label: "Compact spacing", icon: Rows4, description: "See more on screen at once", onSelect: () => workspace.setDensity("compact") },
+              { id: "focus", label: "Focus mode", icon: Maximize2, description: "Hide the sidebar and header", onSelect: () => workspace.setFocus(true) },
+              { id: "shortcuts", label: "Keyboard shortcuts", icon: Keyboard, onSelect: workspace.openShortcuts },
               "separator",
               { id: "sign-out", label: "Sign out", icon: LogOut, onSelect: handleLogout },
             ]}

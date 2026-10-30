@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Search, X, type LucideIcon } from "lucide-react";
+import { ChevronDown, Search, X, type LucideIcon } from "lucide-react";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
 import { Input } from "./input";
 import { Kbd } from "./kbd";
+import { IconButton } from "./icon-button";
 import { LiveAnnouncer } from "./live-announcer";
+import { MaximizeBackdrop, MaximizeButton, useMaximize } from "./maximize";
 
 /**
  * The operational desks' shared surfaces (Front desk, Library, Transport, Service desk, Care, Activities,
@@ -151,15 +153,34 @@ export function DeskPill({ tone = "neutral", className, children, ...props }: Re
 export const deskTimeline = "sk-desk-timeline";
 
 /** A titled block inside a desk (vehicle check, agent actions, emergency closure). */
-export function DeskSection({ title, icon: Icon, tone = "brand", action, className, children, ...props }: Omit<React.HTMLAttributes<HTMLElement>, "title"> & { title: React.ReactNode; icon?: LucideIcon; tone?: DeskTone; action?: React.ReactNode }) {
+/**
+ * A titled block of a desk. Its head can fold the block away (to make room for the one you are working in) and open
+ * it full screen; both controls appear on hover or keyboard focus, and stay visible on touch screens.
+ */
+export function DeskSection({ title, icon: Icon, tone = "brand", action, collapsible = true, maximizable = true, className, children, ...props }: Omit<React.HTMLAttributes<HTMLElement>, "title"> & { title: React.ReactNode; icon?: LucideIcon; tone?: DeskTone; action?: React.ReactNode; collapsible?: boolean; maximizable?: boolean }) {
+  const t = useUiText();
+  const [open, setOpen] = React.useState(true);
+  const { ref: maxRef, maximized, toggle: toggleMax, close: closeMax } = useMaximize<HTMLElement>();
+  const bodyId = React.useId();
+  const showBody = open || maximized;
   return (
-    <section data-tone={tone} className={cn("sk-desk-section", className)} {...props}>
-      <div className="sk-desk-section-head">
-        {Icon ? <span aria-hidden="true" className="sk-desk-section-icon"><Icon /></span> : null}
-        <h3 className="min-w-0 flex-1">{title}</h3>
-        {action}
-      </div>
-      {children}
-    </section>
+    <>
+      {maximized ? <MaximizeBackdrop onClose={closeMax} /> : null}
+      <section ref={maxRef} data-tone={tone} data-collapsed={!showBody || undefined} data-maximized={maximized || undefined} className={cn("sk-desk-section", className)} {...props}>
+        <div className="sk-desk-section-head">
+          {Icon ? <span aria-hidden="true" className="sk-desk-section-icon"><Icon /></span> : null}
+          <h3 className="min-w-0 flex-1">{title}</h3>
+          {action}
+          {maximizable ? <MaximizeButton maximized={maximized} onToggle={toggleMax} className="sk-reveal-on-hover" /> : null}
+          {collapsible && !maximized ? (
+            <IconButton size="sm" variant="ghost" data-section-toggle label={showBody ? t("Hide section") : t("Show section")} aria-expanded={showBody} aria-controls={bodyId}
+              className={cn(showBody && "sk-reveal-on-hover")} onClick={() => setOpen((value) => !value)}>
+              <ChevronDown aria-hidden="true" className={cn("transition-transform duration-200", showBody && "rotate-180")} />
+            </IconButton>
+          ) : null}
+        </div>
+        <div id={bodyId} hidden={!showBody} style={{ display: showBody ? "contents" : "none" }}>{children}</div>
+      </section>
+    </>
   );
 }
