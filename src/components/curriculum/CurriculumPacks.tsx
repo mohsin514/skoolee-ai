@@ -11,7 +11,8 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { curriculumPacksCopy, fill, type CurriculumPacksCopy } from "./curriculum-packs-copy";
+import { formatDateOnly, formatInstant, type LocalePackage } from "@/lib/locale/package";
+import { actorRoleLabel, curriculumPacksCopy, fill, type CurriculumPacksCopy } from "./curriculum-packs-copy";
 
 type Evidence = { sourceId: string; rightsScope: string; permissionEvidence: string; hasDocument: boolean; documentName?: string };
 type Activation = {
@@ -37,8 +38,8 @@ async function send(url: string, body: BodyInit, json = true) {
 
 /** SKAI-1008..1012: a school's curriculum pack requests, evidence, educator approval, activation and revocation. */
 export function CurriculumPacks() {
-  const { language } = useLocale();
-  const t = curriculumPacksCopy(language);
+  const locale = useLocale();
+  const t = curriculumPacksCopy(locale.language);
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -59,7 +60,7 @@ export function CurriculumPacks() {
     finally { setBusy(false); }
   };
   return <div className="min-w-0 space-y-6" data-curriculum-packs>
-    <PageHeader icon={BookCheck} title="Curriculum packs" description={t.intro} />
+    <PageHeader icon={BookCheck} title={t.title} description={t.intro} />
     {error && <Alert tone="danger" title={<bdi dir="auto">{error}</bdi>} actions={!data ? <Button variant="outline" onClick={() => void load()}>{t.retry}</Button> : undefined} />}
     {notice && !error && <p role="status" className="text-sm text-status-success-text">{notice}</p>}
     {data && <>
@@ -70,7 +71,7 @@ export function CurriculumPacks() {
         </div>
         {requesting && <RequestForm t={t} data={data} busy={busy} onCancel={() => setRequesting(false)} onSubmit={body => act(async () => { await send("/api/school-ai/curriculum-packs", JSON.stringify(body)); setRequesting(false); })} />}
         {!data.activations.length && <p className="text-sm text-ink-muted">{t.noRequests}</p>}
-        <ul className="space-y-4">{data.activations.map(activation => <li key={activation.id}><ActivationCard t={t} activation={activation} campus={data.campuses.find(item => item.id === activation.campusId)?.name ?? ""} busy={busy} uploads={data.uploadsAvailable} act={act} /></li>)}</ul>
+        <ul className="space-y-4">{data.activations.map(activation => <li key={activation.id}><ActivationCard t={t} activation={activation} campus={data.campuses.find(item => item.id === activation.campusId)?.name ?? ""} busy={busy} uploads={data.uploadsAvailable} locale={locale} act={act} /></li>)}</ul>
       </section>
       <section aria-labelledby="pack-catalogue" className="space-y-3">
         <h2 id="pack-catalogue" className="text-lg font-semibold text-ink-strong">{t.catalogueTitle}</h2>
@@ -101,7 +102,7 @@ function RequestForm({ t, data, busy, onCancel, onSubmit }: { t: CurriculumPacks
   </form>;
 }
 
-function ActivationCard({ t, activation, campus, busy, uploads, act }: { t: CurriculumPacksCopy; activation: Activation; campus: string; busy: boolean; uploads: boolean; act: (work: () => Promise<unknown>) => Promise<void> }) {
+function ActivationCard({ t, activation, campus, busy, uploads, locale, act }: { t: CurriculumPacksCopy; activation: Activation; campus: string; busy: boolean; uploads: boolean; locale: LocalePackage; act: (work: () => Promise<unknown>) => Promise<void> }) {
   const today = new Date().toISOString().slice(0, 10);
   const [approvedOn, setApprovedOn] = useState(today);
   const [reviewDueOn, setReviewDueOn] = useState("");
@@ -119,7 +120,7 @@ function ActivationCard({ t, activation, campus, busy, uploads, act }: { t: Curr
       <ul className="list-disc space-y-1 ps-5 text-sm">{activation.blockers.map(item => <li key={item}><bdi dir="auto">{item}</bdi></li>)}</ul>
     </Alert>}
     {activation.status === "APPROVED" && !activation.blockers.length && <Alert tone="info" title={t.readyTitle}>{t.readyBody}</Alert>}
-    {activation.educatorApprover && activation.approvedOn && <p className="text-sm text-ink-muted">{fill(t.approvedBy, [activation.educatorApprover, activation.approvedOn, activation.reviewDueOn ?? ""])}</p>}
+    {activation.educatorApprover && activation.approvedOn && <p className="text-sm text-ink-muted">{fill(t.approvedBy, [activation.educatorApprover, formatDateOnly(activation.approvedOn.slice(0, 10), locale), activation.reviewDueOn ? formatDateOnly(activation.reviewDueOn.slice(0, 10), locale) : ""])}</p>}
 
     <section className="space-y-3"><h4 className="text-sm font-semibold text-ink-strong">{t.evidenceTitle}</h4>
       {activation.sources.map(source => <EvidenceRow key={source.id} t={t} source={source} evidence={activation.sourceEvidence.find(item => item.sourceId === source.id)} editable={activation.can.edit} uploads={uploads} busy={busy} onSave={form => act(() => send(`${base}/evidence`, form, false))} />)}
@@ -127,7 +128,7 @@ function ActivationCard({ t, activation, campus, busy, uploads, act }: { t: Curr
 
     {activation.can.approve && <form className="grid gap-3 md:grid-cols-3" aria-label={t.approveTitle} onSubmit={event => { event.preventDefault(); void act(() => send(`${base}/transition`, JSON.stringify({ to: "APPROVED", approvedOn, reviewDueOn }))); }}>
       <FormField name={`approved-on-${activation.id}`} label={t.approvedOn}><Input type="date" required max={today} value={approvedOn} onChange={event => setApprovedOn(event.target.value)} /></FormField>
-      <FormField name={`review-due-${activation.id}`} label={t.reviewDueOn}><Input type="date" required min={today} value={reviewDueOn} onChange={event => setReviewDueOn(event.target.value)} /></FormField>
+      <FormField name={`review-due-${activation.id}`} label={t.reviewDueOn}><Input type="date" required min={approvedOn > today ? approvedOn : today} value={reviewDueOn} onChange={event => setReviewDueOn(event.target.value)} /></FormField>
       <div className="flex items-end"><Button type="submit" disabled={busy} data-pack-approve>{t.approve}</Button></div>
     </form>}
     <div className="flex flex-wrap items-end gap-3">
@@ -138,7 +139,7 @@ function ActivationCard({ t, activation, campus, busy, uploads, act }: { t: Curr
       </form>}
     </div>
     {activation.events.length > 0 && <details><summary className="cursor-pointer text-sm font-semibold">{t.history}</summary>
-      <ol className="mt-2 space-y-1 text-sm text-ink-muted">{activation.events.map(event => <li key={`${event.at}-${event.to}`}>{new Date(event.at).toLocaleString()} · {event.from ? `${statusLabel(t, event.from as Activation["status"])} → ` : ""}{statusLabel(t, event.to as Activation["status"])} · {event.actorRole}{event.reason ? <> · <bdi dir="auto">{event.reason}</bdi></> : null}</li>)}</ol>
+      <ol className="mt-2 space-y-1 text-sm text-ink-muted">{activation.events.map(event => <li key={`${event.at}-${event.to}`}>{formatInstant(event.at, locale)} · {event.from ? `${statusLabel(t, event.from as Activation["status"])} → ` : ""}{statusLabel(t, event.to as Activation["status"])} · {actorRoleLabel(t, event.actorRole)}{event.reason ? <> · <bdi dir="auto">{event.reason}</bdi></> : null}</li>)}</ol>
     </details>}
   </article>;
 }
