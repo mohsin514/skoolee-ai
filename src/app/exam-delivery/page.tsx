@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale } from "@/components/locale/LocaleProvider";
+import { ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { SecureProfiles } from "@/components/school-ai/secure-browser";
 import type { AssessmentLocale } from "@/lib/school-ai/assessment";
@@ -16,6 +17,7 @@ export default function ExamDeliveryPage() {
   return (
     <div className="mx-auto w-full min-w-0 max-w-5xl space-y-5">
       <PageHeader
+        icon={ShieldCheck}
         title="Secure exam delivery"
         description="Tested Safe Exam Browser profiles for secure exams. Only keys reported by a tested client are trusted."
       />

@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FileText } from "lucide-react";
+import { FileText, MessageSquareWarning, Upload } from "lucide-react";
+import { DeskPill, DeskRowIcon, deskRow, urgencyFirst } from "@/components/ui/desk";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
@@ -54,12 +54,14 @@ export function PapersOwed({ onOpenBrief }: { onOpenBrief?: (briefId: string, sl
     </header>
     {failed ? <Alert tone="danger" compact live="polite">{failed}</Alert> : null}
     <ul className="grid gap-2 md:grid-cols-2">
-      {slots.map(slot => <li key={slot.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-subtle bg-surface-subtle p-3" data-paper-owed={slot.status}>
-        <div className="min-w-0 space-y-0.5">
+      {/* Overdue papers lead, then returned ones; each row carries its urgency as a tone. */}
+      {urgencyFirst(slots, slot => slot.overdue ? 0 : slot.status === "NEEDS_CORRECTION" ? 1 : 2).map(slot => <li key={slot.id} data-tone={slot.overdue ? "danger" : slot.status === "NEEDS_CORRECTION" ? "warning" : undefined} className={`${deskRow} flex flex-wrap items-center justify-between gap-3`} data-paper-owed={slot.status}>
+        <DeskRowIcon icon={slot.status === "NEEDS_CORRECTION" ? MessageSquareWarning : FileText} />
+        <div className="min-w-0 flex-1 basis-52 space-y-0.5">
           <p className="font-semibold"><bdi>{slot.subjectName}</bdi> · <bdi>{slot.gradeName}</bdi></p>
           <p className="text-xs text-ink-muted"><bdi>{slot.sessionTitle}</bdi> · {fillStudioCopy(t.dueOn, [date(slot.dueOn)])}</p>
           <div className="flex flex-wrap gap-1.5 pt-1">
-            <Badge variant={slot.overdue ? "danger" : "neutral"} size="sm">{slot.overdue ? t.overdue : (t as Record<string, string>)[`status${slot.status}`] ?? slot.status}</Badge>
+            <DeskPill tone={slot.overdue ? "danger" : slot.status === "NEEDS_CORRECTION" ? "warning" : "neutral"}>{slot.overdue ? t.overdue : (t as Record<string, string>)[`status${slot.status}`] ?? slot.status}</DeskPill>
           </div>
         </div>
         <span className="flex flex-wrap gap-2">
@@ -71,7 +73,7 @@ export function PapersOwed({ onOpenBrief }: { onOpenBrief?: (briefId: string, sl
         </span>
       </li>)}
     </ul>
-    {uploading ? <Modal title={t.uploadPaper} size="lg" onClose={() => setUploading(null)}><UploadPaper slotId={uploading.id} subjectId={(uploading.sections.find(section => section.teacherId === uploading.authorUserId) ?? uploading.sections[0])?.subjectId ?? null} classId={(uploading.sections.find(section => section.teacherId === uploading.authorUserId) ?? uploading.sections[0])?.classId ?? null} onDone={() => void load()} /></Modal> : null}
-    {comments ? <Modal title={t.returnedComments} size="lg" onClose={() => setComments(null)}><ModerationPanel slotId={comments.id} /></Modal> : null}
+    {uploading ? <Modal title={t.uploadPaper} icon={Upload} tone="sky" size="lg" onClose={() => setUploading(null)}><UploadPaper slotId={uploading.id} subjectId={(uploading.sections.find(section => section.teacherId === uploading.authorUserId) ?? uploading.sections[0])?.subjectId ?? null} classId={(uploading.sections.find(section => section.teacherId === uploading.authorUserId) ?? uploading.sections[0])?.classId ?? null} onDone={() => void load()} /></Modal> : null}
+    {comments ? <Modal title={t.returnedComments} icon={MessageSquareWarning} tone="amber" size="lg" onClose={() => setComments(null)}><ModerationPanel slotId={comments.id} /></Modal> : null}
   </section>;
 }

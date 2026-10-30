@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { DeskPill } from "@/components/ui/desk";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -83,13 +85,13 @@ function PlanPanel({ curriculumId, planId, targets }: { curriculumId: string; pl
 
   return <div className="mt-3 space-y-4" data-plan-panel>
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      {view.plan.origin === "AI" && !view.plan.confirmed ? <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900" data-ai-draft>{ui("AI draft: review the examples and timing before use.")}</span> : null}
+      {view.plan.origin === "AI" && !view.plan.confirmed ? <DeskPill tone="warning" data-ai-draft>{ui("AI draft: review the examples and timing before use.")}</DeskPill> : null}
       <span>{ui("Owner")}: <bdi>{view.plan.owner ?? "—"}</bdi></span>
-      <span className={over ? "font-bold text-amber-900" : "font-bold text-emerald-800"} data-minutes>{ui("{0} / {1} minutes planned", [view.plan.plannedMinutes, view.plan.durationMinutes])}{view.lessonMinutes ? ` · ${ui("period {0} minutes", [view.lessonMinutes])}` : ""}</span>
+      <span className={over ? "font-bold text-status-warning-text" : "font-bold text-status-success-text"} data-minutes>{ui("{0} / {1} minutes planned", [view.plan.plannedMinutes, view.plan.durationMinutes])}{view.lessonMinutes ? ` · ${ui("period {0} minutes", [view.lessonMinutes])}` : ""}</span>
       <span>{view.plan.confirmed ? ui("Confirmed by the teacher") : ui("Not confirmed yet")}</span>
     </div>
-    {shown.length ? <ul role="alert" className="list-disc space-y-0.5 rounded-xl bg-amber-50 p-3 ps-8 text-sm text-amber-900" data-plan-issues>{shown.map(issue => <li key={issue}>{ui(issue)}</li>)}</ul>
-      : <p className="rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-900" data-plan-ready>{ui("Ready: timing, resources and groups check out.")}</p>}
+    {shown.length ? <Alert tone="warning" live="assertive" data-plan-issues><ul className="list-disc space-y-0.5 ps-5">{shown.map(issue => <li key={issue}>{ui(issue)}</li>)}</ul></Alert>
+      : <Alert compact tone="success" live="off" data-plan-ready>{ui("Ready: timing, resources and groups check out.")}</Alert>}
     {notice ? <p role="status" className="text-sm font-bold" data-plan-notice>{notice}</p> : null}
 
     {view.canManage ? <>

@@ -2,7 +2,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Inbox, RefreshCw } from "lucide-react";
+import { ArrowRight, Eye, Hourglass, Inbox, RefreshCw } from "lucide-react";
+import { DeskFilterStatus, DeskStats, StatTile, urgencyFirst } from "@/components/ui/desk";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,7 +16,7 @@ import { useLocale } from "@/components/locale/LocaleProvider";
 import type { UserRole } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { UI, errorWords, t, type T } from "./run-copy";
-import { InboxCard, claimErrorWords, type Handoff } from "./inbox-card";
+import { CARD_WORDS, InboxCard, claimErrorWords, type Handoff } from "./inbox-card";
 import { InboxSkeleton } from "./inbox-skeleton";
 import { ClassGlyph } from "./workflow-marks";
 import { Num, TimeAgo } from "./workflow-format";
@@ -36,7 +37,11 @@ const WORDS = {
   yesterday: { en: "Yesterday", ar: "أمس", ur: "کل" },
   earlier: { en: "Earlier", ar: "سابقًا", ur: "پہلے" },
   count: { en: "{0} waiting", ar: "{0} بالانتظار", ur: "{0} زیر التوا" },
+  closingSoon: { en: "Closing soon", ar: "يُغلق قريبًا", ur: "جلد بند ہو گا" },
 } satisfies Record<string, T>;
+
+const SOON_MS = 48 * 3_600_000;
+type Only = "soon" | "opened" | null;
 
 type Phase = "loading" | "ready" | "error";
 type State = { phase: Phase; items: Handoff[]; code: string | null; offline: boolean; loadedAt: string | null };
@@ -55,6 +60,7 @@ export function HandoffInbox({ role }: { role?: UserRole }) {
   const [state, setState] = React.useState<State>({ phase: "loading", items: [], code: null, offline: false, loadedAt: null });
   const [claimingId, setClaimingId] = React.useState<string | null>(null);
   const [cardErrors, setCardErrors] = React.useState<Record<string, string>>({});
+  const [only, setOnly] = React.useState<Only>(null);
   const inFlight = React.useRef(false);
   const controllerRef = React.useRef<AbortController | null>(null);
 
@@ -117,12 +123,20 @@ export function HandoffInbox({ role }: { role?: UserRole }) {
     const today = dayKey(now, zone);
     const yesterday = dayKey(now - 86_400_000, zone);
     const buckets: Record<"today" | "yesterday" | "earlier", Handoff[]> = { today: [], yesterday: [], earlier: [] };
-    for (const item of state.items) {
+    const soon = (item: Handoff) => Boolean(item.expiresAt) && Date.parse(item.expiresAt!) - now < SOON_MS;
+    const picked = state.items.filter(item => only === "soon" ? soon(item) : only === "opened" ? item.status === "CLAIMED" : true);
+    // Urgency first: what closes soonest leads each day, then what nobody has opened yet.
+    for (const item of urgencyFirst(picked, row => soon(row) ? 0 : row.status === "CLAIMED" ? 2 : 1)) {
       const key = dayKey(item.createdAt, zone);
       buckets[key === today ? "today" : key === yesterday ? "yesterday" : "earlier"].push(item);
     }
     return (["today", "yesterday", "earlier"] as const).filter(id => buckets[id].length > 0).map(id => ({ id, items: buckets[id] }));
-  }, [state.items, state.loadedAt, locale.timezone]);
+  }, [state.items, state.loadedAt, locale.timezone, only]);
+  const counts = React.useMemo(() => {
+    const now = state.loadedAt ? Date.parse(state.loadedAt) : 0;
+    return { soon: state.items.filter(item => item.expiresAt && Date.parse(item.expiresAt) - now < SOON_MS).length, opened: state.items.filter(item => item.status === "CLAIMED").length };
+  }, [state.items, state.loadedAt]);
+  const shownCount = groups.reduce((sum, group) => sum + group.items.length, 0);
 
   const ready = state.phase === "ready";
   return (
@@ -157,6 +171,15 @@ export function HandoffInbox({ role }: { role?: UserRole }) {
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-ink-muted">{WORDS.lead[language]}</p>
       </header>
+
+      {ready && state.items.length > 0 ? (
+        <DeskStats data-ai-inbox-stats>
+          <StatTile index={0} icon={Inbox} tone="brand" label={WORDS.items[language]} value={<Num value={state.items.length} />} />
+          <StatTile index={1} icon={Hourglass} tone={counts.soon ? "warning" : "neutral"} label={WORDS.closingSoon[language]} value={<Num value={counts.soon} />} selected={only === "soon"} onSelect={() => setOnly(current => current === "soon" ? null : "soon")} />
+          <StatTile index={2} icon={Eye} tone="info" label={CARD_WORDS.opened[language]} value={<Num value={counts.opened} />} selected={only === "opened"} onSelect={() => setOnly(current => current === "opened" ? null : "opened")} />
+        </DeskStats>
+      ) : null}
+      {ready ? <DeskFilterStatus shown={shownCount} total={state.items.length} onClear={() => setOnly(null)} /> : null}
 
       {state.phase === "loading" ? <InboxSkeleton label={WORDS.loading[language]} /> : null}
 

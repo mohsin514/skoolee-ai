@@ -2,6 +2,7 @@
 import { AdvancedQuestionOptions } from "./assessment-extensions";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DeskPill } from "@/components/ui/desk";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -65,10 +66,10 @@ export function QuestionBank({ paper, curriculum, campusId, locale, onReuse, onB
   const isDuplicate = (item: EligibleBankEntry) => paper.questions.some((question) => normalized(question.prompt) === normalized(item.question.prompt));
   const alignmentBadge = (item: EligibleBankEntry) => {
     if (!item.alignment) return null;
-    if (item.alignment.mode === "SAME_VERSION") return <span className="rounded-full border px-2 py-0.5">{align.sameVersion}</span>;
+    if (item.alignment.mode === "SAME_VERSION") return <DeskPill tone="info">{align.sameVersion}</DeskPill>;
     const lists = item.question.outcomeIds.map((id) => item.alignment?.mode === "MAPPED" ? item.alignment.targets[id] ?? [] : []);
     const text = lists.every((list) => list.length) ? align.mapped : lists.some((list) => list.length) ? align.partlyMapped : align.unmapped;
-    return <span className={`rounded-full border px-2 py-0.5 ${lists.every((list) => list.length) ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-rose-300 bg-rose-50 text-rose-900"}`}>{text}</span>;
+    return <DeskPill tone={lists.every((list) => list.length) ? "success" : "danger"}>{text}</DeskPill>;
   };
   // Within the same curriculum version any taught section objective may be chosen; otherwise only lead-recorded mappings.
   const allowedTargets = (sourceOutcomeId: string): Array<{ id: string; title: string; relation?: "SAME" | "PARTIAL" | "STABLE_ID" }> => {
