@@ -6,7 +6,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Alert } from "@/components/ui/alert";
 import SkooleeLogo from "@/components/SkooleeLogo";
-import { Building2, Crown, GraduationCap, Rocket, Sparkles, Sprout, Users, type LucideIcon } from "lucide-react";
+import { Building2, Coins, Crown, GraduationCap, Rocket, Sparkles, Sprout, Users, type LucideIcon } from "lucide-react";
 import { COMMERCIAL_CONTRACT } from "@/config/commercial-contract";
 import { ANNUAL_DISCOUNT, PLAN_ORDER, PLANS, annualMonthlyPrice, type BillingPeriod } from "@/config/plans";
 import { COUNTRIES, currencyForCountry, type Country } from "@/lib/locale/country";
@@ -157,7 +157,7 @@ export function PricingPage() {
         </div>
 
         <div className="mt-7 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border-subtle bg-white p-4">
-          <p className="text-sm font-semibold">{t.currency}: <bdi>{regionalCurrency}</bdi> <span className="mx-2 text-ink-subtle">·</span> {t.priceCurrency}: <bdi>{COMMERCIAL_CONTRACT.currency}</bdi></p>
+          <p className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-sm font-semibold"><Coins aria-hidden="true" className="me-1 size-4 shrink-0 text-primary" />{t.currency}: <bdi>{regionalCurrency}</bdi> <span className="mx-2 text-ink-subtle">·</span> {t.priceCurrency}: <bdi>{COMMERCIAL_CONTRACT.currency}</bdi></p>
           <div className="inline-flex rounded-full border border-edge bg-brand-50 p-1" role="group" aria-label={`${t.monthly} / ${t.annual}`}>
             {(["monthly", "annual"] as const).map((value) => <Button key={value} type="button" variant={period === value ? "default" : "ghost"} aria-pressed={period === value} onClick={() => setPeriod(value)} className="rounded-full">{value === "monthly" ? t.monthly : t.annual}{value === "annual" && <span className="ms-2 text-xs">({t.save} {Math.round(ANNUAL_DISCOUNT * 100)}%)</span>}</Button>)}
           </div>
