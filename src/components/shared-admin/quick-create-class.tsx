@@ -120,6 +120,11 @@ export function QuickCreateClass({
   const [copyFromClassId, setCopyFromClassId] = useState("");
   const [newSubjectName, setNewSubjectName] = useState("");
   const [newSubjectMarks, setNewSubjectMarks] = useState("100");
+  // SKAI-148: seats per class, and "Grade 1 … Grade 5" in one go.
+  const [capacity, setCapacity] = useState("");
+  const [useRange, setUseRange] = useState(false);
+  const [gradeFrom, setGradeFrom] = useState("1");
+  const [gradeTo, setGradeTo] = useState("5");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
 
@@ -150,41 +155,69 @@ export function QuickCreateClass({
    * section, so a duplicate found halfway leaves the earlier ones created.
    * Checking as they type means the chip itself says so.
    */
+  const fromGrade = Number(gradeFrom), toGrade = Number(gradeTo);
+  const rangeInvalid = useRange && (!Number.isInteger(fromGrade) || !Number.isInteger(toGrade) || fromGrade < 0 || toGrade < fromGrade || toGrade - fromGrade >= 15);
+  /** The class names this form writes: one, or every grade in the range. */
+  const classNames = useMemo(() => {
+    if (!useRange) return [name.trim()];
+    if (rangeInvalid) return [];
+    return Array.from({ length: toGrade - fromGrade + 1 }, (_, i) => `${name.trim()} ${fromGrade + i}`);
+  }, [useRange, rangeInvalid, name, fromGrade, toGrade]);
+
+  /** Sections of the first named class that already exist this year (drives the chip strike-through). */
   const takenSections = useMemo(() => {
-    const target = name.trim().toLowerCase();
+    const target = (classNames[0] || "").toLowerCase();
     const taken = new Set<string>();
-    if (!target) return taken;
+    if (!target || useRange) return taken;
     for (const cls of classes || []) {
       if ((cls.name || "").trim().toLowerCase() !== target) continue;
       if (Number(cls.academicYear) !== year) continue;
       taken.add((cls.section || "").trim().toLowerCase());
     }
     return taken;
-  }, [classes, name, year]);
+  }, [classes, classNames, useRange, year]);
 
-  const clashingSections = useMemo(
-    () =>
-      hasSections
+  const clashingSections = useMemo(() => {
+    if (!useRange) {
+      return hasSections
         ? sectionNames.filter((section) => takenSections.has(section.toLowerCase()))
         : takenSections.has("")
           ? ["\u2014"]
-          : [],
-    [hasSections, sectionNames, takenSections],
-  );
+          : [];
+    }
+    const wanted = hasSections ? sectionNames : [""];
+    const clashes: string[] = [];
+    for (const className of classNames) {
+      for (const section of wanted) {
+        const exists = (classes || []).some((cls: any) => (cls.name || "").trim().toLowerCase() === className.toLowerCase() && (cls.section || "").trim().toLowerCase() === section.toLowerCase() && Number(cls.academicYear) === year);
+        if (exists) clashes.push(section ? `${className} ${section}` : className);
+      }
+    }
+    return clashes;
+  }, [useRange, hasSections, sectionNames, takenSections, classNames, classes, year]);
 
   /* What pressing Create will actually write. Sections become class rows; every
      subject is created once per section. */
-  const classRowCount = hasSections ? sectionNames.length : 1;
+  const classRowCount = classNames.length * (hasSections ? sectionNames.length : 1);
   const subjectRowCount = classRowCount * subjects.length;
 
   /**
    * Everything standing between the form and a successful create, said before
    * the click rather than as a toast after it.
    */
+  const capacityInvalid = capacity.trim() !== "" && !(Number.isInteger(Number(capacity)) && Number(capacity) >= 1 && Number(capacity) <= 200);
   const blockedReason = !name.trim()
     ? ui("Name the class to continue.")
     : hasSections && sectionNames.length === 0
       ? ui("Add at least one section, or turn sections off.")
+      : rangeInvalid
+        ? ui("The last grade must be the same as or after the first grade, at most 15 grades.")
+      : capacityInvalid
+        ? ui("Capacity must be a whole number from 1 to 200, or left blank.")
+      : classRowCount > 60
+        ? ui("That would create more than 60 classes at once. Split the range or the sections.")
+      : useRange && clashingSections.length > 0
+        ? ui("{0} already exist for {1}.", [clashingSections.join(", "), year])
       : clashingSections.length > 0
         ? hasSections
           ? clashingSections.length === 1
@@ -325,8 +358,8 @@ export function QuickCreateClass({
           }))
         : [{ name: "", teacherId: "" }];
 
-    // 1 bulk class call + every subject per section.
-    const totalOps = 1 + effectiveSections.length * subjects.length;
+    // 1 bulk class call + every subject per created class.
+    const totalOps = 1 + classRowCount * subjects.length;
 
     setBusy(true);
     setProgress({ done: 0, total: totalOps });
@@ -346,6 +379,8 @@ export function QuickCreateClass({
           academicYear: Number(academicYear) || new Date().getFullYear(),
           sections: effectiveSections.map((s) => s.name).filter(Boolean),
           teachingMode,
+          capacity: capacity.trim() || null,
+          ...(useRange ? { gradeRange: { prefix: name.trim(), from: fromGrade, to: toGrade } } : {}),
         }),
       });
       const classResult = await classRes.json();
@@ -356,14 +391,8 @@ export function QuickCreateClass({
         : [classResult.data];
       tick();
 
-      // Map each created row back to the section.
-      const plan = effectiveSections.map((s) => ({
-        ...s,
-        cls:
-          createdClasses.find(
-            (c: any) => (c.section || "").trim() === s.name.trim(),
-          ) || createdClasses[0],
-      }));
+      // Every created row (grade × section) gets the subject list.
+      const plan = createdClasses.map((cls: any) => ({ cls }));
 
       // -- Wave 2: subjects, in parallel --
       if (subjects.length > 0) {
@@ -393,7 +422,9 @@ export function QuickCreateClass({
         await runPooled(subjectJobs);
       }
 
-      toast.success(effectiveSections.length > 1
+      toast.success(useRange
+        ? ui("Created {0} classes, {1} to {2}", [createdClasses.length, classNames[0], classNames[classNames.length - 1]])
+        : effectiveSections.length > 1
         ? ui("\"{0}\" created with {1} sections", [name.trim(), effectiveSections.length])
         : effectiveSections[0].name
           ? ui("\"{0}\" created with section {1}", [name.trim(), effectiveSections[0].name])
@@ -493,11 +524,30 @@ export function QuickCreateClass({
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder={ui("e.g. Grade 8")}
+                    placeholder={useRange ? ui("e.g. Grade") : ui("e.g. Grade 8")}
                     autoFocus
                     className="h-14 w-full px-4 transition-all"
                   />
                 </label>
+                <label className="mt-4 flex min-h-10 cursor-pointer items-center justify-between gap-3">
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-ink-strong">{ui("Create a range of grades")}</span>
+                    <span className="mt-1 block text-xs text-ink-muted">{ui("e.g. Grade 1 to Grade 5, each with the same sections")}</span>
+                  </span>
+                  <Switch checked={useRange} onChange={(event) => setUseRange(event.target.checked)} />
+                </label>
+                {useRange ? (
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className="mb-2 block ps-2 text-2xs font-semibold text-ink-subtle">{ui("From grade")}</span>
+                      <SystemInput type="number" inputMode="numeric" min={0} value={gradeFrom} onChange={(e) => setGradeFrom(e.target.value)} className="h-12 w-full px-4" />
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 block ps-2 text-2xs font-semibold text-ink-subtle">{ui("To grade")}</span>
+                      <SystemInput type="number" inputMode="numeric" min={0} value={gradeTo} onChange={(e) => setGradeTo(e.target.value)} className="h-12 w-full px-4" />
+                    </label>
+                  </div>
+                ) : null}
               </div>
 
               {/* Academic Year */}
@@ -511,6 +561,25 @@ export function QuickCreateClass({
                     value={academicYear}
                     onChange={(e) => setAcademicYear(e.target.value)}
                     placeholder="2026"
+                    className="h-14 w-full px-4 transition-all"
+                  />
+                </label>
+              </div>
+
+              {/* Capacity (SKAI-148): blank = not set */}
+              <div className="rounded-3xl border border-edge/25 bg-brand-50/50 p-5">
+                <label className="block">
+                  <span className="mb-2 block ps-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                    {ui("Capacity (seats per class)")}
+                  </span>
+                  <SystemInput
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={200}
+                    value={capacity}
+                    onChange={(e) => setCapacity(e.target.value)}
+                    placeholder={ui("Optional, e.g. 35")}
                     className="h-14 w-full px-4 transition-all"
                   />
                 </label>
