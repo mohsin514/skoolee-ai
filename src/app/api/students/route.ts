@@ -291,33 +291,33 @@ export async function PATCH(req: NextRequest) {
         }
       }
 
-      const wasArchived = owned.filter((student) => student.archivedAt !== null || student.status === "archived");
-      const now = new Date();
       const archiveReason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim().slice(0, 500) : "Administrative archive";
-      const changing = status === "archived"
-        ? owned.filter((student) => student.archivedAt === null)
-        : status === "active"
-          ? wasArchived
-          : owned;
+      const now = new Date();
       const updateData = status === "archived"
         ? { status, archivedAt: now, archiveReason }
         : status === "active"
           ? { status, archivedAt: null, archiveReason: null }
           : { status };
+      // SKAI-1334: only pupils whose state actually flips inside this transaction are changed and audited,
+      // so a retried or double-clicked request is a no-op rather than a second archive with false history.
+      const flipWhere = status === "archived" ? { archivedAt: null } : status === "active" ? { archivedAt: { not: null } } : {};
       const result = await prisma.$transaction(async (tx) => {
-        const changed = changing.length ? await tx.student.updateMany({ where: { id: { in: changing.map((s) => s.id) } }, data: updateData }) : { count: 0 };
-        const auditChanging = status === "archived" ? changing : status === "active" ? changing : [];
-        if (auditChanging.length) await tx.auditLog.createMany({ data: auditChanging.map((student) => ({
-          tableName: "student", recordId: student.id,
-          oldValue: { archived: status !== "active" },
-          newValue: status === "archived" ? { archived: true, reason: archiveReason } : { archived: false },
-          userId: user.userId,
-        })) });
-        return changed;
+        const candidates = await tx.student.findMany({ where: { id: { in: owned.map((s) => s.id) }, ...flipWhere }, select: { id: true } });
+        const changingIds = candidates.map((s) => s.id);
+        const changed = changingIds.length ? await tx.student.updateMany({ where: { id: { in: changingIds }, ...flipWhere }, data: updateData }) : { count: 0 };
+        if (changingIds.length && (status === "archived" || status === "active")) {
+          await tx.auditLog.createMany({ data: changingIds.map((id) => ({
+            tableName: "student", recordId: id,
+            oldValue: { archived: status === "active" },
+            newValue: status === "archived" ? { archived: true, reason: archiveReason } : { archived: false },
+            userId: user.userId,
+          })) });
+        }
+        return { count: changed.count, changingIds };
       });
       // SKO-389: each selected pupil's outcome, so a partly no-op bulk action is explained rather than counted.
-      const changedIds = new Set(changing.map((student) => student.id));
-      const outcomes = owned.map((student) => ({ id: student.id, outcome: changedIds.has(student.id) ? "changed" : "unchanged" as const }));
+      const changedIds = new Set(result.changingIds);
+      const outcomes = owned.map((student) => ({ id: student.id, outcome: changedIds.has(student.id) ? "changed" as const : "unchanged" as const }));
       return Response.json({ success: true, updated: result.count, unchanged: outcomes.filter((o) => o.outcome === "unchanged").length, outcomes, status });
     }
 

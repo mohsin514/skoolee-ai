@@ -157,12 +157,35 @@ export async function decideRequest(user: AuthUser, id: string, raw: unknown) {
 }
 
 /** Record a delivery. The same idempotency key returns the first receipt and changes nothing. */
+/**
+ * Whether a stored receipt was made from the same request. Each line's delivered
+ * quantity is what was accepted plus any excess that was recorded as a discrepancy.
+ */
+function sameDelivery(prior: { deliveryNote: string | null; lines: unknown; discrepancies: unknown }, input: { deliveryNote?: string; lines: { line: number; quantity: number; storeId?: string }[] }) {
+  if ((prior.deliveryNote ?? null) !== (input.deliveryNote ?? null)) return false;
+  const accepted = prior.lines as { line: number; quantity: number; storeId?: string }[];
+  const excess = prior.discrepancies as { line: number; excess: number }[];
+  const delivered = new Map<number, number>();
+  const stores = new Map<number, string | undefined>();
+  for (const a of accepted) {
+    delivered.set(a.line, (delivered.get(a.line) ?? 0) + a.quantity);
+    stores.set(a.line, a.storeId);
+  }
+  for (const d of excess) delivered.set(d.line, (delivered.get(d.line) ?? 0) + d.excess);
+  if (delivered.size !== input.lines.length) return false;
+  return input.lines.every((l) => delivered.get(l.line) === l.quantity && (!stores.has(l.line) || stores.get(l.line) === l.storeId));
+}
+
 export async function receiveGoods(user: AuthUser, id: string, raw: unknown) {
   assert(OPS.includes(user.role) || ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"].includes(user.role), "Only store or office staff record deliveries.");
   const input = parse(z.object({ idempotencyKey: key, deliveryNote: text(2, 120).optional(), lines: z.array(z.object({ line: z.number().int().min(0), quantity: z.number().int().min(1).max(100000), storeId: z.string().min(1).max(120).optional() }).strict()).min(1).max(50) }).strict(), raw);
   return prisma.$transaction(async (tx) => {
     const prior = await tx.goodsReceipt.findFirst({ where: { requestId: id, idempotencyKey: input.idempotencyKey } });
-    if (prior) return { receipt: prior, replayed: true };
+    // SKAI-1330: a reused key replays only the same delivery; a different one must not be reported as accepted.
+    if (prior) {
+      if (!sameDelivery(prior, input)) throw new ApiError("This idempotency key was already used for a different delivery.", 409);
+      return { receipt: prior, replayed: true };
+    }
     const r = await tx.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId } });
     if (!r) throw new ApiError("Request not found", 404);
     if (!["APPROVED", "PARTIALLY_RECEIVED"].includes(r.status)) throw new ApiError("Approve the order, then record delivery.", 409);

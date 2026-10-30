@@ -59,6 +59,15 @@ async function findSchoolForSubscription(subscription: Stripe.Subscription) {
   return school?.id || null;
 }
 
+/**
+ * SKAI-1317: grace starts no earlier than the paid-through date. A failed payment
+ * during paid service must not end access before the period the school already paid for.
+ */
+function graceAfterPaidThrough(planEndsAt: Date | null | undefined): Date {
+  const paidThrough = planEndsAt && planEndsAt > new Date() ? planEndsAt : new Date();
+  return new Date(paidThrough.getTime() + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000);
+}
+
 async function syncSubscription(subscription: Stripe.Subscription, eventCreated: number) {
   const schoolId = await findSchoolForSubscription(subscription);
   // SKO-373: a verified event for no known institution is parked for an operator, not dropped.
@@ -78,12 +87,12 @@ async function syncSubscription(subscription: Stripe.Subscription, eventCreated:
   const pricePlan = planFromStripePriceId(subscriptionPriceId(subscription));
   const plan = pricePlan || metadataPlan || "FREE";
   const customerId = stringId(subscription.customer);
-  const current = await prisma.school.findUnique({ where: { id: schoolId }, select: { plan: true, commercialContract: true, lastStripeEventCreated: true, graceEndsAt: true, stripeSubscriptionId: true, subscriptionLifecycleState: true } });
+  const current = await prisma.school.findUnique({ where: { id: schoolId }, select: { plan: true, commercialContract: true, lastStripeEventCreated: true, graceEndsAt: true, planEndsAt: true, stripeSubscriptionId: true, subscriptionLifecycleState: true } });
   if (current?.stripeSubscriptionId && current.stripeSubscriptionId !== subscription.id) return;
   if (current?.lastStripeEventCreated != null && eventCreated < current.lastStripeEventCreated) return;
   const paymentPastDue = subscription.status === "past_due" || subscription.status === "unpaid";
   const graceEndsAt = paymentPastDue
-    ? current?.graceEndsAt || new Date(Date.now() + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000)
+    ? current?.graceEndsAt || graceAfterPaidThrough(current?.planEndsAt)
     : null;
   const inGrace = Boolean(graceEndsAt && graceEndsAt > new Date());
   const status = paymentPastDue ? (inGrace ? "ACTIVE" : "SUSPENDED") : stripeStatusToSchoolStatus(subscription.status);
@@ -152,10 +161,10 @@ async function suspendByCustomer(customerId: string | null, eventCreated: number
       { lastStripeEventCreated: null },
       { lastStripeEventCreated: { lte: eventCreated } },
     ] },
-    select: { id: true, graceEndsAt: true },
+    select: { id: true, graceEndsAt: true, planEndsAt: true },
   });
   for (const school of schools) {
-    const graceEndsAt = school.graceEndsAt || new Date(Date.now() + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000);
+    const graceEndsAt = school.graceEndsAt || graceAfterPaidThrough(school.planEndsAt);
     const inGrace = graceEndsAt > new Date();
     await prisma.school.updateMany({
       where: { id: school.id, OR: [

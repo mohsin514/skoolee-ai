@@ -11,18 +11,29 @@ import { isStaffRole } from "@/lib/roles";
  * Throws ApiError with the route's exact messages and statuses; the reviewers (academic lead for teaching
  * staff, the campus operator for everyone else) are notified, and approval stays with them.
  */
+/**
+ * SKAI-1323: accept only a real YYYY-MM-DD calendar day. Impossible dates such as
+ * 2026-02-30 must not be normalised into a neighbouring day.
+ */
+function calendarDate(value: unknown): Date | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  if (isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) return null;
+  return date;
+}
+
 export async function applyLeave(user: AuthUser, body: Record<string, unknown>) {
   // Leave is for members of staff; families and the platform operator have no leave record.
   if (!isStaffRole(user.role)) throw new ApiError("Leave applications are for school staff.", 403);
 
   const campusId = await resolveCampusId(user, body.campusId as string | null | undefined);
   const leaveTypeId = String(body.leaveTypeId ?? "");
-  const fromDate = body.fromDate ? new Date(String(body.fromDate)) : null;
-  const toDate = body.toDate ? new Date(String(body.toDate)) : null;
+  const fromDate = calendarDate(body.fromDate);
+  const toDate = calendarDate(body.toDate);
 
   if (!leaveTypeId) throw new ApiError("leaveTypeId is required", 400);
-  if (!fromDate || isNaN(fromDate.getTime())) throw new ApiError("Valid fromDate is required", 400);
-  if (!toDate || isNaN(toDate.getTime())) throw new ApiError("Valid toDate is required", 400);
+  if (!fromDate) throw new ApiError("Valid fromDate is required", 400);
+  if (!toDate) throw new ApiError("Valid toDate is required", 400);
 
   const start = new Date(fromDate);
   start.setHours(0, 0, 0, 0);
