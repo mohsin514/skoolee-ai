@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Alert } from "@/components/ui/alert";
+import SkooleeLogo from "@/components/SkooleeLogo";
+import { Building2, Crown, GraduationCap, Rocket, Sparkles, Sprout, Users, type LucideIcon } from "lucide-react";
 import { COMMERCIAL_CONTRACT } from "@/config/commercial-contract";
 import { ANNUAL_DISCOUNT, PLAN_ORDER, PLANS, annualMonthlyPrice, type BillingPeriod } from "@/config/plans";
 import { COUNTRIES, currencyForCountry, type Country } from "@/lib/locale/country";
@@ -12,6 +14,8 @@ import type { PlanType } from "@/types";
 import { SALES_EMAIL as salesEmail } from "@/lib/config/contact";
 
 type Language = "en" | "ar" | "ur";
+/** One mark per plan, from a first step to a custom build; the plan name beside it carries the meaning. */
+const PLAN_ICONS: Record<PlanType, LucideIcon> = { FREE: Sprout, BASIC: Rocket, PRO: Building2, ENTERPRISE: Crown };
 type PricingCopy = {
   title: string; description: string; country: string; language: string; currency: string; priceCurrency: string; featureList: string;
   monthly: string; annual: string; save: string; billedMonthly: string; billedAnnual: string; free: string;
@@ -126,7 +130,7 @@ export function PricingPage() {
     <main dir={direction} lang={language} className="min-h-screen px-4 py-8 text-ink-strong sm:px-8 sm:py-12">
       <div className="mx-auto max-w-6xl">
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <Link href="/" className="text-lg font-bold text-primary">SkooleeAI</Link>
+          <Link href="/" aria-label="SkooleeAI" className="flex shrink-0 items-center"><SkooleeLogo size="1.15rem" /></Link>
           <Link href="/login" className={buttonVariants({ variant: "ghost" })}>Log in</Link>
         </header>
 
@@ -166,17 +170,21 @@ export function PricingPage() {
             const plan = PLANS[key];
             const monthly = plan.price === null ? null : period === "annual" ? annualMonthlyPrice(plan.price) : plan.price;
             const annualTotal = plan.price === null ? null : Math.round(plan.price * (1 - ANNUAL_DISCOUNT) * 12);
+            const PlanIcon = PLAN_ICONS[key];
             return (
               <article key={key} className="sk-panel sk-hover-lift flex min-w-0 flex-col p-5">
-                <h2 className="text-lg font-bold text-primary">{t.planNames[key]}</h2>
+                <div className="flex min-w-0 items-center gap-3">
+                  <span aria-hidden="true" className="sk-page-icon"><PlanIcon className="size-5" /></span>
+                  <h2 className="min-w-0 text-lg font-bold text-primary [overflow-wrap:anywhere]">{t.planNames[key]}</h2>
+                </div>
                 <div className="mt-4 min-h-16">
                   {plan.isCustom ? <p className="text-xl font-bold tracking-tight text-ink-strong">{t.custom}</p> : plan.price === 0 ? <p className="text-3xl font-extrabold tabular-nums tracking-tight text-ink-strong">{t.free}</p> : <><p className="text-3xl font-extrabold tabular-nums tracking-tight text-ink-strong"><bdi>{money(monthly!)}</bdi><span className="ms-1 text-sm font-semibold text-ink-muted">{t.perMonth}</span></p><p className="mt-1 text-xs text-ink-muted">{period === "annual" ? `${t.billedAnnual}: ${money(annualTotal!)}${t.perYear}` : t.billedMonthly}</p></>}
                 </div>
                 <dl className="mt-4 space-y-3 border-y border-border-subtle py-4 text-sm">
-                  <div className="flex justify-between gap-3"><dt>{t.students}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxStudents)}</dd></div>
-                  <div className="flex justify-between gap-3"><dt>{t.teachers}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxTeachers)}</dd></div>
-                  <div className="flex justify-between gap-3"><dt>{t.campuses}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxCampuses)}</dd></div>
-                  <div className="flex justify-between gap-3"><dt>{t.credits}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.aiCredits)}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="flex min-w-0 items-start gap-2"><GraduationCap aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />{t.students}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxStudents)}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="flex min-w-0 items-start gap-2"><Users aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />{t.teachers}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxTeachers)}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="flex min-w-0 items-start gap-2"><Building2 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />{t.campuses}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxCampuses)}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="flex min-w-0 items-start gap-2"><Sparkles aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />{t.credits}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.aiCredits)}</dd></div>
                 </dl>
                 <p className="mt-4 text-xs leading-5 text-ink-muted">{t.featureList}</p>
                 <div className="mt-auto pt-5">
