@@ -63,3 +63,19 @@ export const pendingVerificationWhere = { isActive: false, emailVerifiedAt: null
 
 export const isPendingVerification = (user: { isActive: boolean; emailVerifiedAt: Date | null; isInstitutionOwner: boolean }) =>
   !user.isActive && !user.emailVerifiedAt && user.isInstitutionOwner;
+
+/** SKAI-83: audit actions written by /api/auth/verify, so every activation and refused link is traceable. */
+export const VERIFICATION_COMPLETED_ACTION = "email_verification.completed";
+export const VERIFICATION_REJECTED_ACTION = "email_verification.rejected";
+
+export type VerificationOutcome = "activated" | "already_verified" | "superseded" | "invalid";
+
+/**
+ * SKAI-83: where /api/auth/verify sends the visitor for each outcome. Superseded, unknown and
+ * never-verifiable accounts share one message, so the redirect never says whether an account exists.
+ */
+export function verificationRedirect(outcome: VerificationOutcome): { pathname: string; params: Record<string, string> } {
+  if (outcome === "activated") return { pathname: "/verify-success", params: {} };
+  if (outcome === "already_verified") return { pathname: "/login", params: { verified: "true" } };
+  return { pathname: "/login", params: { error: "This verification link is invalid or has expired" } };
+}

@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
-import { isCurrentVerificationLink, pendingVerificationWhere, readVerificationToken, VERIFICATION_RESENT_ACTION } from "@/lib/auth/verification";
+import {
+  isCurrentVerificationLink,
+  pendingVerificationWhere,
+  readVerificationToken,
+  VERIFICATION_COMPLETED_ACTION,
+  VERIFICATION_REJECTED_ACTION,
+  VERIFICATION_RESENT_ACTION,
+  verificationRedirect,
+  type VerificationOutcome,
+} from "@/lib/auth/verification";
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
@@ -18,10 +27,11 @@ export async function GET(req: NextRequest) {
   const link = await readVerificationToken(token);
   const userId = link?.userId;
 
-  if (!link || !userId || !(await isLatestLink(userId, link.tokenId))) {
+  if (!link || !userId) return redirectFor(req, "invalid");
+  if (!(await isLatestLink(userId, link.tokenId))) {
     // The sign-in screen offers a new link for this message (SKO-457).
-    loginUrl.searchParams.set("error", "This verification link is invalid or has expired");
-    return NextResponse.redirect(loginUrl);
+    await audit(userId, VERIFICATION_REJECTED_ACTION, { reason: "superseded", tokenId: link.tokenId });
+    return redirectFor(req, "superseded");
   }
 
   try {
@@ -44,16 +54,15 @@ export async function GET(req: NextRequest) {
       );
       // Unknown and never-verifiable accounts read the same as an invalid link.
       if (!existing?.emailVerifiedAt) {
-        loginUrl.searchParams.set("error", "This verification link is invalid or has expired");
-        return NextResponse.redirect(loginUrl);
+        await audit(userId, VERIFICATION_REJECTED_ACTION, { reason: "not_pending", tokenId: link.tokenId });
+        return redirectFor(req, "invalid");
       }
       // Already verified: sign in as usual; sign-in itself decides whether the account is usable.
-      loginUrl.searchParams.set("verified", "true");
-      return NextResponse.redirect(loginUrl);
+      return redirectFor(req, "already_verified");
     }
 
-    loginUrl.pathname = "/verify-success";
-    return NextResponse.redirect(loginUrl);
+    await audit(userId, VERIFICATION_COMPLETED_ACTION, { tokenId: link.tokenId });
+    return redirectFor(req, "activated");
   } catch (error) {
     console.error("[VERIFY ERROR]", error);
     loginUrl.searchParams.set("error", "Verification failed");
@@ -75,4 +84,26 @@ async function isLatestLink(userId: string, tokenId: string | null) {
   });
   const value = latest?.newValue as { tokenId?: unknown } | null | undefined;
   return isCurrentVerificationLink(tokenId, typeof value?.tokenId === "string" ? value.tokenId : null);
+}
+
+function redirectFor(req: NextRequest, outcome: VerificationOutcome) {
+  const { pathname, params } = verificationRedirect(outcome);
+  const url = new URL(pathname, req.url);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  return NextResponse.redirect(url);
+}
+
+// SKAI-83: an audit row per activation and per refused link of a known account (no email or token
+// in it). Unknown user ids get no row, since audit rows need a school. A failed write never changes
+// what the visitor sees.
+async function audit(userId: string, action: string, detail: Record<string, string | null>) {
+  try {
+    await runUnscoped("email verification: audit outcome", async () => {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { schoolId: true } });
+      if (!user) return;
+      await prisma.auditLog.create({ data: { schoolId: user.schoolId, userId, tableName: "account_security", recordId: userId, newValue: { action, ...detail } } });
+    });
+  } catch {
+    console.warn("[verify] audit write failed");
+  }
 }
