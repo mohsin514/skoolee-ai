@@ -13,7 +13,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Alert } from "@/components/ui/alert";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
-import { BookOpenCheck, CalendarClock, DoorOpen, LifeBuoy } from "lucide-react";
+import { BookOpenCheck, CalendarClock, ClipboardList, DoorOpen, LifeBuoy } from "lucide-react";
 
 // SKO-442: a teacher's cover. Lessons I cover: the handover, its resources (open only until the end of the
 // lesson's day), acknowledge, then say what actually happened. My lessons being covered: write the handover.
@@ -94,41 +94,34 @@ export function MyCover() {
         {["DECISION_NEEDED", "PLANNED", "PUBLISHED"].includes(r.status) ? <Button size="sm" onClick={() => { setRec(r); setRecTitle(r.title ?? ""); setRecText(r.instructions ?? ""); setRecDue(r.dueDate ?? data.today); setRecNote(""); }} data-recovery-open>{ui("Follow up")}</Button> : null}
       </div>)}</div> : null}
 
-    {editing ? <Modal size="sm" title={ui("Handover")} eyebrow={editing.substitute} subtitle={`${date(editing.date)} ${editing.startTime}–${editing.endTime} · ${editing.className}`} onClose={() => setEditing(null)}>
+    {editing ? <Modal size="sm" title={ui("Handover")} eyebrow={editing.substitute} subtitle={`${date(editing.date)} ${editing.startTime}–${editing.endTime} · ${editing.className}`} icon={ClipboardList} onClose={() => setEditing(null)} footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setEditing(null)}>{ui("Back")}</Button><Button disabled={busy || !objective.trim()} onClick={() => void run(() => call("POST", { action: "handover", dutyId: editing.id, objective, instructions, resourceIds: picked }), "Handover saved. The substitute has been told.").then(ok => ok && setEditing(null))} loading={busy} data-handover-save>{ui("Save handover")}</Button></div>}>
       <div className="space-y-3" data-handover-dialog>
         <FormField name="h-objective" label={ui("What should pupils learn?")}><Input value={objective} onChange={e => setObjective(e.target.value)} maxLength={300} /></FormField>
         <FormField name="h-instructions" label={ui("Instructions for the substitute (staff only)")}><Textarea rows={3} value={instructions} onChange={e => setInstructions(e.target.value)} maxLength={2000} /></FormField>
         <fieldset><legend className="text-sm font-semibold text-ink-strong">{ui("Resources the substitute may open for this lesson")}</legend>
           {editing.choices.length ? editing.choices.map(c => <label key={c.id} className="flex items-center gap-2 text-sm"><Checkbox checked={picked.includes(c.id)} onChange={e => setPicked(e.target.checked ? [...picked, c.id] : picked.filter(x => x !== c.id))} data-handover-pick={c.id} /> <span dir="auto">{c.title}</span></label>) : <p className="text-xs text-ink-muted">{ui("This class has no published resources.")}</p>}</fieldset>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setEditing(null)}>{ui("Back")}</Button><Button disabled={busy || !objective.trim()} onClick={() => void run(() => call("POST", { action: "handover", dutyId: editing.id, objective, instructions, resourceIds: picked }), "Handover saved. The substitute has been told.").then(ok => ok && setEditing(null))} loading={busy} data-handover-save>{ui("Save handover")}</Button></div>
       </div>
     </Modal> : null}
 
-    {outcomeFor ? <Modal size="sm" title={ui("What happened in this lesson?")} eyebrow={outcomeFor.className} subtitle={`${date(outcomeFor.date)} ${outcomeFor.startTime}–${outcomeFor.endTime}`} onClose={() => setOutcomeFor(null)}>
+    {outcomeFor ? <Modal size="sm" title={ui("What happened in this lesson?")} eyebrow={outcomeFor.className} subtitle={`${date(outcomeFor.date)} ${outcomeFor.startTime}–${outcomeFor.endTime}`} icon={DoorOpen} tone="sky" onClose={() => setOutcomeFor(null)} footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setOutcomeFor(null)}>{ui("Back")}</Button><Button disabled={busy || !outcome || (outcome !== "DELIVERED" && !activity.trim())} onClick={() => void run(() => call("POST", { action: "outcome", dutyId: outcomeFor.id, outcome, actualActivity: activity }), "Recorded.").then(ok => ok && setOutcomeFor(null))} loading={busy} data-outcome-save>{ui("Record")}</Button></div>}>
       <div className="space-y-3" data-outcome-dialog>
         {/* Shared choice buttons as a radio group (no native radio, §11.0 rule 4). */}
         <div role="radiogroup" aria-label={ui("What happened in this lesson?")} className="flex flex-col gap-2">{["DELIVERED", "SUPERVISED_ONLY", "NOT_HELD"].map(o => <Button key={o} type="button" variant="choice" role="radio" aria-checked={outcome === o} onClick={() => setOutcome(o)} className="w-full justify-start text-start" data-outcome={o}>{outcomeLabel(o)}</Button>)}</div>
         {outcome && outcome !== "DELIVERED" ? <FormField name="o-activity" label={ui("What did pupils do instead?")} hint={ui("The class teacher will decide on a catch-up.")}><Textarea rows={2} value={activity} onChange={e => setActivity(e.target.value)} /></FormField> : null}
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOutcomeFor(null)}>{ui("Back")}</Button><Button disabled={busy || !outcome || (outcome !== "DELIVERED" && !activity.trim())} onClick={() => void run(() => call("POST", { action: "outcome", dutyId: outcomeFor.id, outcome, actualActivity: activity }), "Recorded.").then(ok => ok && setOutcomeFor(null))} loading={busy} data-outcome-save>{ui("Record")}</Button></div>
       </div>
     </Modal> : null}
 
-    {rec ? <Modal size="sm" title={ui("Catch-up for a missed lesson")} eyebrow={`${rec.className} · ${rec.subjectName}`} subtitle={date(rec.date)} onClose={() => setRec(null)}>
+    {rec ? <Modal size="sm" title={ui("Catch-up for a missed lesson")} eyebrow={`${rec.className} · ${rec.subjectName}`} subtitle={date(rec.date)} icon={rec.status === "PUBLISHED" ? BookOpenCheck : LifeBuoy} tone={rec.status === "PUBLISHED" ? "sky" : "amber"} onClose={() => setRec(null)} footer={rec.status !== "PUBLISHED" ? <div className="flex flex-wrap justify-end gap-2"><Button variant="outline" disabled={busy || !recTitle.trim()} onClick={() => void run(() => recovery(rec, "plan", { title: recTitle, instructions: recText, dueDate: recDue }), "Catch-up saved. It is not shared yet.").then(ok => ok && setRec(null))} data-recovery-plan>{ui("Save catch-up")}</Button> {rec.status === "PLANNED" ? <Button disabled={busy} onClick={() => void run(() => recovery(rec, "publish", {}), "Shared with the class.").then(ok => ok && setRec(null))} data-recovery-publish>{ui("Share with the class")}</Button> : null}</div> : <div className="flex flex-wrap justify-end gap-2"><Button disabled={busy || !recNote.trim()} onClick={() => void run(() => recovery(rec, "complete", { evidenceNote: recNote }), "Catch-up completed.").then(ok => ok && setRec(null))} data-recovery-complete>{ui("Mark catch-up complete")}</Button></div>}>
       <div className="space-y-3" data-recovery-dialog>
         {rec.status !== "PUBLISHED" ? <>
           <FormField name="r-title" label={ui("Catch-up task")}><Input value={recTitle} onChange={e => setRecTitle(e.target.value)} maxLength={200} /></FormField>
           <FormField name="r-text" label={ui("Instructions for pupils")}><Textarea rows={3} value={recText} onChange={e => setRecText(e.target.value)} /></FormField>
           <FormField name="r-due" label={ui("Due")}><Input type="date" value={recDue} min={rec.date} onChange={e => setRecDue(e.target.value)} /></FormField>
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="outline" disabled={busy || !recTitle.trim()} onClick={() => void run(() => recovery(rec, "plan", { title: recTitle, instructions: recText, dueDate: recDue }), "Catch-up saved. It is not shared yet.").then(ok => ok && setRec(null))} data-recovery-plan>{ui("Save catch-up")}</Button>
-            {rec.status === "PLANNED" ? <Button disabled={busy} onClick={() => void run(() => recovery(rec, "publish", {}), "Shared with the class.").then(ok => ok && setRec(null))} data-recovery-publish>{ui("Share with the class")}</Button> : null}
-          </div>
           <div className="space-y-2 rounded-(--radius-control) border border-dashed border-border-subtle bg-surface-subtle p-3"><FormField name="r-none" label={ui("Or: why no catch-up is needed")}><Input value={recNote} onChange={e => setRecNote(e.target.value)} /></FormField>
             <div className="flex justify-end"><Button size="sm" variant="secondary" disabled={busy || !recNote.trim()} onClick={() => void run(() => recovery(rec, "not_needed", { note: recNote }), "Recorded.").then(ok => ok && setRec(null))} data-recovery-none>{ui("No catch-up needed")}</Button></div></div>
         </> : <>
           <p className="text-sm"><span className="font-semibold text-ink-strong" dir="auto">{rec.title}</span>{rec.dueDate ? <> · {ui("Due")} <bdi>{date(rec.dueDate)}</bdi></> : null}</p>
           <FormField name="r-evidence" label={ui("How do you know the learning was recovered?")}><Textarea rows={2} value={recNote} onChange={e => setRecNote(e.target.value)} /></FormField>
-          <div className="flex justify-end"><Button disabled={busy || !recNote.trim()} onClick={() => void run(() => recovery(rec, "complete", { evidenceNote: recNote }), "Catch-up completed.").then(ok => ok && setRec(null))} data-recovery-complete>{ui("Mark catch-up complete")}</Button></div>
         </>}
       </div>
     </Modal> : null}
