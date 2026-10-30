@@ -63,6 +63,14 @@ test('role/campus version change and missing session rows deny prior tokens', as
  const c = cookie(await login('ACCOUNTANT'), 'skoolee_token'); const changed = await fetch(base + '/api/memberships', { method: 'PUT', headers: { cookie: ownerSession, 'content-type': 'application/json' }, body: JSON.stringify({ userId: accounts.get('ACCOUNTANT')!.id, campusId: campusB, role: 'ACCOUNTANT', isActive: true, canPurchaseSubscription: false, canManageMemberships: false, expectedVersion: 0, reviewed: true }) }); assert.equal(changed.status, 200, await changed.text()); assert.equal((await sessionCheck(c)).status, 401);
  const user = accounts.get('LIBRARIAN')!; const token = await new SignJWT({ userId: user.id, schoolId, role: 'LIBRARIAN', accessVersion: 0 }).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode(process.env.AUTH_SECRET)); assert.equal((await sessionCheck(`skoolee_token=${token}`)).status, 401);
 });
+test('SKAI-1290: deactivating an account rejects its existing cookie on the session API and protected APIs', async () => {
+ const user = accounts.get('TEACHER')!; const c = cookie(await login('TEACHER'), 'skoolee_token'); assert.equal((await sessionCheck(c)).status, 200);
+ await raw.user.update({ where: { id: user.id }, data: { isActive: false } });
+ try {
+  const after = await sessionCheck(c); assert.equal(after.status, 401); assert.equal((await after.json()).user, null);
+  assert.equal((await fetch(base + '/api/accounts/chart', { headers: { cookie: c } })).status, 401);
+ } finally { await raw.user.update({ where: { id: user.id }, data: { isActive: true } }); }
+});
 test('own sessions can be revoked; another user cannot revoke them', async () => {
  const one = cookie(await login('RECEPTIONIST'), 'skoolee_token'), other = cookie(await login('PARENT'), 'skoolee_token');
  const list = await fetch(base + '/api/auth/sessions', { headers: { cookie: one } }).then(r => r.json()); assert.ok(list.sessions.length); assert.equal(list.sessions[0].tokenHash, undefined); const id = list.sessions[0].id;
