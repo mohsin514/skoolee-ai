@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Award, Ban, CheckCircle2, Eye, FileText, Hourglass, IdCard, Plus, Replace } from "lucide-react";
+import { Award, Ban, CheckCircle2, Eye, FilePen, FileText, Hourglass, IdCard, Plus, Replace, ShieldCheck } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -222,7 +222,8 @@ function IssueDialog({ templates, reissue, onClose, onDone }: { templates: Templ
       setError(failure instanceof TypeError ? ui("The connection failed before the server answered. Retrying will not issue the document twice.") : ui(failure instanceof Error ? failure.message : "The change was not saved."));
     } finally { setBusy(false); }
   };
-  return <Modal title={reissue ? ui("Reissue {0}", [reissue.serial]) : ui("Issue document")} eyebrow={ui("Certificates and ID cards")} size="lg" onClose={onClose} dirty={Boolean(student || reason)}>
+  return <Modal icon={reissue ? Replace : Award} tone={reissue ? "amber" : "violet"} title={reissue ? ui("Reissue {0}", [reissue.serial]) : ui("Issue document")} eyebrow={ui("Certificates and ID cards")} size="lg" onClose={onClose} dirty={Boolean(student || reason)}
+    footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void issue()} loading={busy} disabled={busy || !preview || preview.missing.length > 0}>{preview?.requiresApproval ? ui("Request approval") : ui("Issue")}</Button></div>}>
     <div className="space-y-3" data-issue-dialog>
       <DraftRecovery recordLabel={ui("Certificate issue")} draft={issueDraft} saving={busy} excluded={ui("Preview content and student records are never stored in browser drafts.")} />
       {error ? <Alert tone="danger" compact data-issue-error>{error}</Alert> : null}
@@ -244,7 +245,6 @@ function IssueDialog({ templates, reissue, onClose, onDone }: { templates: Templ
         <p className="text-xs text-ink-muted">{preview.requiresApproval ? ui("Sent to your campus admin for approval before it can be downloaded.") : ui("This document is issued as soon as you confirm.")}</p>
       </DeskSection> : null}
       {reissue ? <FormField name="issue-reason" label={ui("Reason for reissue")}><Input value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField> : null}
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void issue()} loading={busy} disabled={busy || !preview || preview.missing.length > 0}>{preview?.requiresApproval ? ui("Request approval") : ui("Issue")}</Button></div>
     </div>
   </Modal>;
 }
@@ -260,13 +260,13 @@ function DecisionDialog({ issue, action, onClose, onDone }: { issue: Issue; acti
     finally { setBusy(false); }
   };
   const title = action === "approve" ? ui("Approve {0}", [issue.serial]) : action === "reject" ? ui("Reject {0}", [issue.serial]) : ui("Revoke {0}", [issue.serial]);
-  return <Modal title={title} eyebrow={ui("Certificates and ID cards")} onClose={onClose} dirty={Boolean(note)}>
+  return <Modal icon={action === "approve" ? ShieldCheck : Ban} tone={action === "approve" ? "emerald" : "rose"} title={title} eyebrow={ui("Certificates and ID cards")} onClose={onClose} dirty={Boolean(note)}
+    footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy} disabled={busy} variant={action === "approve" ? "default" : "destructive"}>{action === "approve" ? ui("Approve and issue") : action === "reject" ? ui("Reject") : ui("Revoke")}</Button></div>}>
     <div className="space-y-3" data-decision={action}>
       {error ? <Alert tone="danger" compact>{error}</Alert> : null}
       <p className="text-sm"><bdi className="font-semibold text-ink-strong">{issue.title}</bdi> · <bdi>{issue.student.fullName}</bdi> · <bdi dir="ltr">{issue.student.rollNo}</bdi></p>
       {action === "approve" ? <p className="text-xs text-ink-muted">{ui("Check the pupil's name, dates and the template version. Approving issues the document with today's date.")}</p> : null}
       <FormField name="decision-note" label={action === "approve" ? ui("Note (optional)") : ui("Reason (required)")}><Input value={note} maxLength={500} onChange={event => setNote(event.target.value)} /></FormField>
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy} disabled={busy} variant={action === "approve" ? "default" : "destructive"}>{action === "approve" ? ui("Approve and issue") : action === "reject" ? ui("Reject") : ui("Revoke")}</Button></div>
     </div>
   </Modal>;
 }
@@ -326,7 +326,8 @@ function TemplateDialog({ template, onClose, onDone }: { template: Template | nu
     catch (failure) { setError(failure instanceof TypeError ? ui("The connection failed before the server answered. Your draft is kept; try again.") : ui(failure instanceof Error ? failure.message : "The change was not saved.")); }
     finally { setBusy(false); }
   };
-  return <Modal title={template ? ui("Edit template draft") : ui("New template")} eyebrow={ui("Certificates and ID cards")} size="lg" onClose={onClose} dirty={Boolean(form.body || form.title)}>
+  return <Modal icon={template ? FilePen : FileText} tone="violet" title={template ? ui("Edit template draft") : ui("New template")} eyebrow={ui("Certificates and ID cards")} size="lg" onClose={onClose} dirty={Boolean(form.body || form.title)}
+    footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} loading={busy} disabled={busy}>{ui("Save draft")}</Button></div>}>
     <div className="space-y-3" data-template-dialog>
       {error ? <Alert tone="danger" compact data-template-error>{error}</Alert> : null}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -339,7 +340,6 @@ function TemplateDialog({ template, onClose, onDone }: { template: Template | nu
       <FormField name="template-title" label={ui("Document title")}><Input value={form.title} maxLength={120} dir={form.language === "en" ? "ltr" : "rtl"} onChange={set("title")} /></FormField>
       <FormField name="template-body" label={ui("Document text")}><Textarea value={form.body} rows={6} maxLength={4000} dir={form.language === "en" ? "ltr" : "rtl"} onChange={set("body")} /></FormField>
       <p className="text-xs text-ink-muted">{ui("Insert pupil details with {{variable}}. Available:")} <bdi dir="ltr" className="break-words font-mono">{VARIABLES.map(name => `{{${name}}}`).join(" ")}</bdi></p>
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} loading={busy} disabled={busy}>{ui("Save draft")}</Button></div>
     </div>
   </Modal>;
 }

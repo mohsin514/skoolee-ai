@@ -140,7 +140,8 @@ export function ServiceDesk() {
       <div className="flex justify-end"><Button disabled={busy || !draft.title.trim() || !draft.description.trim() || !draft.location.trim() || !draft.categoryId} onClick={() => void submit()} data-sd-submit>{ui("Send request")}</Button></div>
     </div> : null}
 
-    {open ? <Modal title={open.title} eyebrow={open.reference} subtitle={`${open.location} · ${open.category} · ${open.team}`} onClose={() => setOpen(null)} wide>
+    {open ? <Modal icon={open.agent ? Wrench : LifeBuoy} tone={["RESOLVED", "CLOSED"].includes(open.status) ? "emerald" : open.status === "BLOCKED" ? "amber" : open.priority === "URGENT" ? "rose" : "violet"} title={open.title} eyebrow={open.reference} subtitle={`${open.location} · ${open.category} · ${open.team}`} onClose={() => setOpen(null)} wide
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={() => setOpen(null)}>{ui("Close")}</Button>{open.agent && ["OPEN", "IN_PROGRESS", "BLOCKED"].includes(open.status) ? <Button disabled={busy || !work.trim()} onClick={() => void act({ action: "resolve", workPerformed: work }, "Marked as resolved; the requester will confirm.")} data-sd-resolve>{ui("Mark resolved")}</Button> : null}{open.status === "RESOLVED" && !open.agent ? <Button disabled={busy} onClick={() => void act({ action: "confirm", body: message }, "Thank you. The request is closed.")} data-sd-confirm>{ui("Confirm resolved")}</Button> : null}</div>}>
       <div className="space-y-4" data-sd-detail data-sd-agent={open.agent ? "true" : "false"}>
         <p className="text-sm" dir="auto">{open.description}</p>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs"><DeskPill tone={statusTone(open.status)}>{statusLabel(ui, open.status, Boolean(open.ownerId))}</DeskPill>{priorityLabel(ui, open.priority)} · {open.owner ? <>{ui("Owner")}: <bdi>{open.owner}</bdi></> : <span className="font-bold text-status-warning-text">{ui("Unassigned")}</span>}{open.resolveDueAt ? <> · {ui("Due")} <bdi>{dateTime(open.resolveDueAt)}</bdi></> : null}{open.firstResponseAt ? <> · {ui("First response")} <bdi>{dateTime(open.firstResponseAt)}</bdi></> : null}</p>
@@ -169,7 +170,6 @@ export function ServiceDesk() {
             <Button size="sm" variant="outline" disabled={busy || !message.trim()} onClick={() => void act({ action: "update", body: message }, "Update sent to the requester.")} data-sd-update>{ui("Send update to requester")}</Button>
           </div>
           <FormField name="sd-work" label={ui("Work performed")}><Textarea rows={2} value={work} onChange={e => setWork(e.target.value)} /></FormField>
-          <div className="flex justify-end"><Button size="sm" disabled={busy || !work.trim()} onClick={() => void act({ action: "resolve", workPerformed: work }, "Marked as resolved; the requester will confirm.")} data-sd-resolve>{ui("Mark resolved")}</Button></div>
         </DeskSection> : null}
 
         {!open.agent || open.status === "RESOLVED" || open.status === "CLOSED" ? <DeskSection title={ui("Your reply")} icon={LifeBuoy} tone={open.status === "RESOLVED" ? "success" : "brand"} data-sd-requester-actions>
@@ -177,7 +177,6 @@ export function ServiceDesk() {
           <FormField name="sd-reply" label={ui("Message")}><Textarea rows={2} value={message} onChange={e => setMessage(e.target.value)} /></FormField>
           <div className="flex flex-wrap justify-end gap-2">
             {["OPEN", "IN_PROGRESS", "BLOCKED"].includes(open.status) && !open.agent ? <Button size="sm" variant="outline" disabled={busy || !message.trim()} onClick={() => void act({ action: "comment", body: message }, "Message sent.")} data-sd-comment>{ui("Send message")}</Button> : null}
-            {open.status === "RESOLVED" && !open.agent ? <Button size="sm" disabled={busy} onClick={() => void act({ action: "confirm", body: message }, "Thank you. The request is closed.")} data-sd-confirm>{ui("Confirm resolved")}</Button> : null}
             {["RESOLVED", "CLOSED"].includes(open.status) ? <Button size="sm" variant="secondary" disabled={busy || !message.trim()} onClick={() => void act({ action: "reopen", reason: message }, "Request reopened.")} data-sd-reopen>{ui("Reopen request")}</Button> : null}
           </div>
         </DeskSection> : null}

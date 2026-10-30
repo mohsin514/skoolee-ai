@@ -776,6 +776,106 @@ button:disabled,
   font-weight: 600 !important;
 }
 
+/* ── Micro-interaction layer (SKAI-1329) ─────────────────────────────────────
+   Feel, not form: every rule here sits on an overlay, an extra background layer or an independent
+   transform property, so the pinned fills, borders, shadows and press-scale of the primitives stay
+   exactly as their specs expect. Everything stops under prefers-reduced-motion. */
+
+/* Primary button: a light sweep crosses on hover; while busy, a slow shimmer says "working". */
+.sk-btn-primary { overflow: hidden; isolation: isolate; }
+.sk-btn-primary::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.22) 48%, rgb(255 255 255 / 0.06) 56%, transparent 70%);
+  translate: -120% 0; transition: translate 700ms var(--ease-enter);
+}
+.sk-btn-primary:where(:hover, :focus-visible):not(:disabled):not([aria-disabled="true"])::after { translate: 120% 0; }
+.sk-btn-primary:dir(rtl)::after { translate: 120% 0; }
+.sk-btn-primary:dir(rtl):where(:hover, :focus-visible):not(:disabled):not([aria-disabled="true"])::after { translate: -120% 0; }
+.sk-btn-primary[aria-busy="true"]::after { transition: none; animation: sk-btn-shimmer 1.4s linear infinite; }
+@keyframes sk-btn-shimmer { from { translate: -120% 0; } to { translate: 120% 0; } }
+
+/* Arrows and chevrons lean toward where they lead (independent `translate`, so rtl:rotate-180 still applies). */
+:where(button, a, [role="button"]) > svg:is(.lucide-arrow-right, .lucide-chevron-right, .lucide-arrow-up-right, .lucide-move-right) { transition: translate var(--duration-control) var(--ease-enter); }
+:where(button, a, [role="button"]):where(:hover, :focus-visible) > svg:is(.lucide-arrow-right, .lucide-chevron-right, .lucide-arrow-up-right, .lucide-move-right) { translate: 2px 0; }
+:where(button, a, [role="button"]):where(:hover, :focus-visible):dir(rtl) > svg:is(.lucide-arrow-right, .lucide-chevron-right, .lucide-arrow-up-right, .lucide-move-right) { translate: -2px 0; }
+:where(button, a, [role="button"]) > svg.lucide-arrow-left { transition: translate var(--duration-control) var(--ease-enter); }
+:where(button, a, [role="button"]):where(:hover, :focus-visible) > svg.lucide-arrow-left { translate: -2px 0; }
+:where(button, a, [role="button"]):where(:hover, :focus-visible):dir(rtl) > svg.lucide-arrow-left { translate: 2px 0; }
+
+/* Toasts: a countdown line along the bottom edge (an extra background layer: Sonner owns both
+   pseudo-elements). It pauses while the stack is hovered/expanded or the toast holds focus, like the
+   timer itself, and is skipped for loading toasts and toasts that carry an action. */
+@property --sk-toast-left { syntax: "<percentage>"; inherits: false; initial-value: 100%; }
+[data-sonner-toast].skoolee-toast:not([data-type="loading"]):not(:has([data-button])) {
+  background:
+    linear-gradient(var(--sk-toast-accent), var(--sk-toast-accent)) left 0 top 10px / 3px calc(100% - 20px) no-repeat,
+    linear-gradient(color-mix(in srgb, var(--sk-toast-accent) 55%, transparent), color-mix(in srgb, var(--sk-toast-accent) 55%, transparent)) left 14px bottom 0 / calc((100% - 28px) * var(--sk-toast-left) / 100%) 2px no-repeat,
+    var(--normal-bg) !important;
+  animation: sk-toast-countdown var(--sk-toast-life, 5000ms) linear forwards;
+}
+[data-sonner-toast].skoolee-toast:dir(rtl):not([data-type="loading"]):not(:has([data-button])) {
+  background:
+    linear-gradient(var(--sk-toast-accent), var(--sk-toast-accent)) right 0 top 10px / 3px calc(100% - 20px) no-repeat,
+    linear-gradient(color-mix(in srgb, var(--sk-toast-accent) 55%, transparent), color-mix(in srgb, var(--sk-toast-accent) 55%, transparent)) right 14px bottom 0 / calc((100% - 28px) * var(--sk-toast-left) / 100%) 2px no-repeat,
+    var(--normal-bg) !important;
+}
+[data-sonner-toast].skoolee-toast[data-type="success"] { --sk-toast-life: 4000ms; }
+[data-sonner-toast].skoolee-toast[data-type="info"] { --sk-toast-life: 5000ms; }
+[data-sonner-toast].skoolee-toast[data-type="warning"] { --sk-toast-life: 6000ms; }
+[data-sonner-toast].skoolee-toast[data-type="error"] { --sk-toast-life: 7000ms; }
+[data-sonner-toast].skoolee-toast:is(:hover, :focus-within, [data-expanded="true"]) { animation-play-state: paused; }
+@keyframes sk-toast-countdown { from { --sk-toast-left: 100%; } to { --sk-toast-left: 0%; } }
+/* Errors and warnings carry a soft halo of their tone so they read as urgent at a glance. */
+[data-sonner-toast].skoolee-toast:is([data-type="error"], [data-type="warning"]) {
+  box-shadow: var(--shadow-toast), 0 0 0 1px rgb(255 255 255 / 0.6) inset, 0 12px 32px -14px color-mix(in srgb, var(--sk-toast-accent) 60%, transparent) !important;
+}
+
+/* Tooltips point at what they describe. */
+/* The popover UA sheet sets overflow:auto, which would clip the arrow. */
+.sk-tooltip { overflow: visible; }
+.sk-tooltip::after {
+  content: ""; position: absolute; inset-inline-start: auto; left: calc(var(--sk-tip-arrow, 50%) - 5px);
+  inline-size: 10px; block-size: 10px; background: inherit; transform: rotate(45deg); border-radius: 2px;
+}
+.sk-tooltip:not([data-side="bottom"])::after { bottom: -4px; }
+.sk-tooltip[data-side="bottom"]::after { top: -4px; }
+
+/* Urgent status dots breathe slowly, so the eye finds them first. */
+.sk-desk-pill:is([data-tone="danger"], [data-tone="warning"]) .sk-desk-pill-dot,
+[data-badge-dot="danger"], [data-badge-dot="warning"], [data-badge-dot="destructive"] { animation: sk-dot-live 2.4s var(--ease-standard) infinite; }
+@keyframes sk-dot-live {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 0%, transparent); }
+}
+/* Pills inside a clickable row or button lift a hair with it. */
+:where(a, button, [role="button"]):hover .sk-desk-pill { translate: 0 -1px; transition: translate var(--duration-control) var(--ease-enter); }
+
+/* Stat numbers settle into place instead of popping. */
+.sk-stat-tile-value { animation: sk-count-in 520ms var(--ease-enter) both; animation-delay: calc(var(--sk-i, 0) * 60ms + 80ms); }
+@keyframes sk-count-in { from { opacity: 0; translate: 0 6px; filter: blur(3px); } to { opacity: 1; translate: 0 0; filter: none; } }
+
+/* Scrollable areas fade at an edge only while more content is waiting past it (scroll-driven; static elsewhere). */
+@supports (animation-timeline: scroll()) {
+  .sk-scroll-cue {
+    --sk-cue: 18px;
+    mask-image: linear-gradient(to bottom, transparent 0, #000 var(--sk-cue-top, 0px), #000 calc(100% - var(--sk-cue-bottom, var(--sk-cue))), transparent 100%);
+    animation: sk-scroll-cue linear both; animation-timeline: scroll(self);
+  }
+  @property --sk-cue-top { syntax: "<length>"; inherits: false; initial-value: 0px; }
+  @property --sk-cue-bottom { syntax: "<length>"; inherits: false; initial-value: 18px; }
+  @keyframes sk-scroll-cue { 0% { --sk-cue-top: 0px; --sk-cue-bottom: 18px; } 8% { --sk-cue-top: 18px; } 92% { --sk-cue-bottom: 18px; } 100% { --sk-cue-top: 18px; --sk-cue-bottom: 0px; } }
+}
+
+/* A console view's content rises in when it first appears. */
+[data-console-content] > * { animation: sk-enter 360ms var(--ease-enter) both; }
+[data-console-content] > :nth-child(2) { animation-delay: 40ms; }
+[data-console-content] > :nth-child(3) { animation-delay: 80ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-btn-primary::after, [data-sonner-toast].skoolee-toast, .sk-stat-tile-value, [data-console-content] > *,
+  .sk-desk-pill-dot, [data-badge-dot] { animation: none !important; transition: none !important; }
+}
+
 /* F61 shared interaction tokens. Use words with every status color. */
 :root {
   /* Semantic geometry and elevation retain the existing component values. */

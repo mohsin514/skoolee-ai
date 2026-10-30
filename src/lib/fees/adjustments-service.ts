@@ -46,6 +46,17 @@ async function refundable(tx: TxClient, invoice: InvoiceRow, paymentId: string) 
 /** SD3 reason floor (role-ux §2.5). */
 export const SELF_APPROVAL_REASON_MIN = 10;
 
+/**
+ * SKAI-1311: a reused idempotency key replays the earlier adjustment only when
+ * the retry is the same request. A different invoice, payment, kind, amount or
+ * reason must fail with 409, never return an unrelated adjustment as accepted.
+ */
+function replayedAdjustment<T extends { kind: string; invoiceId: string; paymentId: string | null; amount: number; reasonCategory: string }>(previous: T, input: { kind: AdjustmentKind; invoiceId: string; paymentId?: string | null; amount: number; reasonCategory: string }) {
+  const same = previous.kind === input.kind && previous.invoiceId === input.invoiceId && (previous.paymentId ?? null) === (input.paymentId ?? null) && previous.amount === input.amount && previous.reasonCategory === input.reasonCategory;
+  if (!same) throw new ApiError("This idempotency key was already used for a different adjustment.", 409);
+  return previous;
+}
+
 export async function requestAdjustment(user: AuthUser, input: { kind: AdjustmentKind; invoiceId: string; paymentId?: string | null; amount: number; reasonCategory: string; reason: string; publicExplanation: string; privateNote?: string | null; idempotencyKey: string }) {
   if (!canManageFinance(user)) throw new ApiError("Only the finance desk requests refunds, credit notes and waivers.", 403);
   if (!ADJUSTMENT_KINDS.includes(input.kind)) throw new ApiError("Choose refund, credit note or waiver.", 400);
@@ -57,7 +68,7 @@ export async function requestAdjustment(user: AuthUser, input: { kind: Adjustmen
   try {
     return await prisma.$transaction(async (tx) => {
       const previous = await tx.financialAdjustment.findFirst({ where: { schoolId: user.schoolId, requesterId: user.userId, idempotencyKey: input.idempotencyKey } });
-      if (previous) return previous;
+      if (previous) return replayedAdjustment(previous, input);
       const invoice = await lockInvoice(tx, user, input.invoiceId);
       if (invoice.status === "CANCELLED") throw new ApiError("A cancelled invoice cannot be adjusted.", 409);
       let invoiceAmount = 0, creditAmount = 0, sourceVersion = invoiceVersion(invoice), paymentId: string | null = null;
@@ -83,7 +94,7 @@ export async function requestAdjustment(user: AuthUser, input: { kind: Adjustmen
       return created;
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return prisma.financialAdjustment.findFirstOrThrow({ where: { schoolId: user.schoolId, requesterId: user.userId, idempotencyKey: input.idempotencyKey } });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return replayedAdjustment(await prisma.financialAdjustment.findFirstOrThrow({ where: { schoolId: user.schoolId, requesterId: user.userId, idempotencyKey: input.idempotencyKey } }), input);
     throw error;
   }
 }

@@ -225,6 +225,8 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   ["Filter pupils", "تصفية التلاميذ", "طلبہ فلٹر کریں"],
   // SKAI-1294 whole-app UI pass
   ["Search ranks", "البحث في الرتب", "رینک تلاش کریں"],
+  // SKAI-1321 whole-app UI pass
+  ["Families see the cost, timing and refund terms before they ask for a place.", "ترى الأسر التكلفة والموعد وشروط الاسترداد قبل أن تطلب مقعدًا.", "خاندان جگہ مانگنے سے پہلے لاگت، وقت اور رقم کی واپسی کی شرائط دیکھتے ہیں۔"],
   // SKAI-1331 workspace flexibility
   ["Focus mode", "وضع التركيز", "فوکس موڈ"],
   ["Exit focus mode", "الخروج من وضع التركيز", "فوکس موڈ سے باہر نکلیں"],

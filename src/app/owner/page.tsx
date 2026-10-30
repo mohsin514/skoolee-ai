@@ -2773,6 +2773,7 @@ function SchoolDetailModal({
     <Modal
       title={school.name}
       eyebrow={t("School")}
+      icon={School}
       subtitle={
         <>
           <bdi dir="ltr">{school.contactEmail || "—"}</bdi> · <bdi>{school.city || "—"}</bdi>
