@@ -221,7 +221,8 @@ export function StudentsPanel({
           fetch("/api/student-groups").then((r) => r.json()),
         ]);
         if (cancelled) return;
-        setAllCategories(readApiData(cats, []));
+        // SKAI-168: inactive categories cannot be newly applied, so the bulk menu offers active ones only.
+        setAllCategories(readApiData<any[]>(cats, []).filter((c) => c.isActive !== false));
         setAllGroups(readApiData(grps, []));
       } catch {
         /* the roster still works without them; the bulk menu just stays empty */

@@ -7,6 +7,10 @@
  * اسکول منتظم, group admin = مدير المجموعة / ادارے کا منتظم, principal = المدير / پرنسپل.
  */
 const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
+  // SKAI-168: student categories — stale edit and deactivation impact.
+  ["This category was changed by someone else. The latest version is now shown.", "غيّر شخص آخر هذه الفئة. تُعرض الآن أحدث نسخة.", "یہ زمرہ کسی اور نے تبدیل کر دیا ہے۔ اب تازہ ترین ورژن دکھایا جا رہا ہے۔"],
+  ["Deactivating this category", "إلغاء تفعيل هذه الفئة", "اس زمرے کو غیر فعال کرنا"],
+  ["{0} students keep it and {1} fee discounts still apply to them. It can't be chosen for new admissions or moves.", "يحتفظ بها {0} من الطلاب وتظل {1} من خصومات الرسوم سارية عليهم. لا يمكن اختيارها للقبول الجديد أو النقل.", "{0} طلبہ پر یہ برقرار رہے گا اور فیس کی {1} رعایتیں ان پر لاگو رہیں گی۔ اسے نئے داخلوں یا منتقلی کے لیے منتخب نہیں کیا جا سکتا۔"],
   // SKAI-165: student documents — file checks, denied and failed list states.
   ["{0} is larger than 10 MB. Choose a smaller file.", "حجم {0} أكبر من 10 ميغابايت. اختر ملفًا أصغر.", "{0} کا سائز 10 MB سے زیادہ ہے۔ چھوٹی فائل منتخب کریں۔"],
   ["{0} is empty. Choose another file.", "الملف {0} فارغ. اختر ملفًا آخر.", "{0} خالی ہے۔ کوئی اور فائل منتخب کریں۔"],
