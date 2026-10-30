@@ -86,7 +86,7 @@ import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { PlatformOverview } from "@/components/insights";
 import { AddUserModal, ProvisionSchoolModal, type SchoolProvisionPrefill } from "@/components/owner/provisioning-modals";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
-import { DeskPill, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { DeskPill, DeskRowIcon, DeskSection, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { formatPlanLimit, getPlanLimits } from "@/config/plans";
 import {
   EmptyState,
@@ -2656,11 +2656,9 @@ function AiWorkflowsLivePanel({ school, onChange }: { school: SchoolRow; onChang
 
   const MarkIcon = live ? Zap : ShieldCheck;
   return (
-    <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-5" data-ai-live-state={live ? "live" : "practice"}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="sk-eyebrow text-primary">{t("AI Workflows")}</p>
-        {live ? <Badge variant="warning" size="sm"><Zap aria-hidden="true" />{t("Live · saves real records")}</Badge> : <Badge variant="neutral" size="sm"><ShieldCheck aria-hidden="true" />{t("Practice mode")}</Badge>}
-      </div>
+    // Live mode is the risky state, so the whole block turns amber while it is on.
+    <DeskSection data-ai-live-state={live ? "live" : "practice"} icon={Zap} tone={live ? "warning" : "brand"} title={t("AI Workflows")}
+      action={live ? <DeskPill tone="warning">{t("Live · saves real records")}</DeskPill> : <DeskPill tone="neutral">{t("Practice mode")}</DeskPill>}>
       <label className="flex min-h-11 cursor-pointer items-center gap-4" aria-busy={saving || undefined}>
         <span
           aria-hidden="true"
@@ -2712,7 +2710,7 @@ function AiWorkflowsLivePanel({ school, onChange }: { school: SchoolRow; onChang
         onCancel={() => setConfirming(false)}
         onConfirm={() => save(true)}
       />
-    </div>
+    </DeskSection>
   );
 }
 
@@ -2819,13 +2817,9 @@ function SchoolDetailModal({
                 <MiniStat label={t("Staff")} value={school.totalStaff} />
                 <MiniStat label={t("Classes")} value={school.totalClasses} />
               </div>
-              <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-5">
-                <div className="mb-3 flex items-center gap-1">
-                  <p className="sk-eyebrow text-primary">{t("AI credits")}</p>
-                  <InfoTip content={t(AI_CREDITS_HELP)} label={t("About AI credits")} />
-                </div>
+              {/* Nearly spent credits turn the block amber, so the operator sees the overage risk before opening it. */}
+              <DeskSection icon={Zap} tone={school.aiCreditsLimit > 0 && creditRatio > 0.8 ? "warning" : "brand"} title={t("AI credits")} action={<InfoTip content={t(AI_CREDITS_HELP)} label={t("About AI credits")} />}>
                 <div className="flex items-center gap-4">
-                  <Zap aria-hidden="true" className="size-8 shrink-0 text-status-warning-text" />
                   <div className="min-w-0 flex-1">
                     <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                       <span className="text-sm font-bold tabular-nums text-ink-strong"><bdi>{dates.number(school.aiCreditsUsed)} / {school.aiCreditsLimit < 0 ? t("Unlimited") : dates.number(school.aiCreditsLimit)}</bdi></span>
@@ -2838,7 +2832,7 @@ function SchoolDetailModal({
                     )}
                   </div>
                 </div>
-              </div>
+              </DeskSection>
               <AiWorkflowsLivePanel school={school} onChange={onAiWorkflowsLiveChange} />
               <DataRegionPanel schoolId={school.id} value={school.dataRegion} onChange={onDataRegionChange} />
               <AttendanceRegulatorPanel schoolId={school.id} value={school.attendanceRegulator} onChange={onAttendanceRegulatorChange} />
