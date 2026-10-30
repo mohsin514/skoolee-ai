@@ -173,7 +173,7 @@ test("SKAI-912: the institution authority switches adoption mode before go-live;
   if (!after.lead) throw new Error("owner leads");
   assert.equal(after.ready, false, "full operations re-gates guardians and the whole rehearsal");
   assert.equal(after.checks.find(c => c.id === "roster")!.passed, true);
-  assert.ok(after.readiness.rehearsal.assessment, "the assessment rehearsal is kept");
+  assert.ok((after.readiness.rehearsal as Record<string, string>).assessment, "the assessment rehearsal is kept");
   assert.ok(after.tasks.some(task => task.key === "feesPayroll"), "fees and payroll become a follow-up");
   // A screen opened under the old mode cannot approve.
   await assert.rejects(() => approveReadiness(s.owner, { expectedVersion: version }), { status: 409 });
