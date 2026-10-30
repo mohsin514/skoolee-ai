@@ -5,6 +5,7 @@ import { academicModelConfigurationSchema, changedConfigurationSections, preview
 import { Prisma } from "@prisma/client";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { cycleYearProblems, isModelCurrent } from "@/lib/academic/cycle-rules";
 
 type Context = { params: Promise<{ id: string }> };
 function overlap(aStart: Date, aEnd: Date | null, bStart: Date, bEnd: Date | null) {
@@ -47,6 +48,9 @@ export async function POST(request: NextRequest, context: Context) {
       if (allowedCampus !== model.campusId) throw new ApiError("Academic model is outside your campus", 403);
     }
     const action = String(body.action ?? "");
+    if ((action === "activate" || action === "approve-template") && !isModelCurrent(body.expectedUpdatedAt, model.updatedAt)) {
+      throw new ApiError("Someone else changed this academic model. Reload to see the latest version.", 409);
+    }
 
     if (action === "approve-template") {
       if (!model.isSharedTemplate || model.status !== "DRAFT") throw new ApiError("Only a shared template draft can be approved", 409);
@@ -79,6 +83,9 @@ export async function POST(request: NextRequest, context: Context) {
       selectedClassIds,
       actualSubjects,
     });
+    // SKAI-117: the campus academic year (SKAI-116) bounds every term in the version.
+    const year = await prisma.academicCycle.findFirst({ where: { schoolId: user.schoolId, campusId: model.campusId!, academicYear: model.academicYear }, select: { label: true, startDate: true, endDate: true } });
+    problems.push(...cycleYearProblems(configuration.terms, year));
     const activeVersions = await prisma.academicModelVersion.findMany({
       where: { campusId: model.campusId, academicYear: model.academicYear, status: "ACTIVE" },
       select: { id: true, title: true, cohortLabel: true, effectiveFrom: true, effectiveTo: true, configuration: true },
@@ -137,6 +144,9 @@ export async function POST(request: NextRequest, context: Context) {
         return idsIntersect(selectedClassIds, activeConfig.classIds ?? []) && overlap(model.effectiveFrom, model.effectiveTo, active.effectiveFrom, active.effectiveTo);
       });
       if (raceConflict) throw new ApiError("Another model became active for this cohort and period. Reload the preview.", 409);
+      // A double-clicked or retried activation finds the version already active and writes nothing twice.
+      const claimed = await tx.academicModelVersion.updateMany({ where: { id: model.id, status: "DRAFT", updatedAt: model.updatedAt }, data: { status: "DRAFT" } });
+      if (!claimed.count) throw new ApiError("This version changed while you were reviewing it. Reload to see its current state.", 409);
       for (const classId of selectedClassIds) {
         await tx.gradeWeightConfig.upsert({
           where: { classId_academicYear: { classId, academicYear: model.academicYear } },

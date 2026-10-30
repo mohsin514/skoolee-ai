@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/api/scope";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { getLocalePackage } from "@/lib/locale/store";
 import { parseSetupDraft, unresolvedOptionalWork, type AdoptionMode as SetupAdoptionMode, type InstitutionType, type OptionalWorkKey } from "@/lib/onboarding/setup-state";
+import { SETUP_AREAS, SETUP_AREA_TITLES, setupAreaHref, setupAreaTaskKey } from "@/lib/onboarding/setup-areas";
 import { evaluateReadiness, isUnknownClassError, REHEARSAL_STEPS, type AdoptionMode, type ImportFacts, type ReadinessFacts, type RehearsalStep } from "./checks";
 
 type ImportRowJson = { state?: string; errors?: string[] };
@@ -75,6 +76,10 @@ async function readinessRow(tx: TxClient, user: AuthUser) {
 
 /** Optional follow-ups come from what onboarding left unresolved; each stays visible until done or deferred. */
 async function seedOptionalTasks(tx: TxClient, user: AuthUser) {
+  // The wizard's setup areas (SKAI-111), also for schools that predate onboarding. The logo is seeded below only
+  // while it is missing, so it is not repeated here.
+  const areas = SETUP_AREAS.filter(id => id !== "logo").map(id => ({ schoolId: user.schoolId, key: setupAreaTaskKey(id), title: SETUP_AREA_TITLES[id], createdById: user.userId }));
+  await tx.readinessTask.createMany({ data: areas, skipDuplicates: true });
   const setup = await tx.institutionSetup.findUnique({ where: { schoolId: user.schoolId } });
   if (!setup) return;
   const keys = unresolvedOptionalWork(setup.institutionType as InstitutionType, setup.adoptionMode as SetupAdoptionMode | null, parseSetupDraft(setup.draft));
@@ -103,7 +108,9 @@ export async function readinessView(user: AuthUser, now = new Date()) {
     return { lead: true as const, readiness: { status: row.status, version: row.version, approvedById: row.approvedById, approvedAt: row.approvedAt, evidence: row.evidence, rehearsal: row.rehearsal },
       facts, ...evaluateReadiness(facts, { role: user.role, institutionKind: user.institutionKind, isInstitutionOwner: user.isInstitutionOwner }), tasks, staff, locale: { country: locale.country, timezone: locale.timezone, currency: locale.currency },
       // The setup questionnaire lives in AI Workflows (/ai?setup=1).
-      aiSetup: canConfigureCampus(user.role) };
+      aiSetup: canConfigureCampus(user.role),
+      // The setup areas in wizard order, each with where this viewer sets it up (status comes from its task).
+      areas: SETUP_AREAS.map(id => ({ id, ...setupAreaHref(id, { role: user.role, institutionKind: user.institutionKind, isInstitutionOwner: user.isInstitutionOwner }) })) };
   });
 }
 
