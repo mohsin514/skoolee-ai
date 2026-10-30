@@ -1195,7 +1195,7 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="min-w-0 truncate text-base font-bold text-ink-strong"><bdi>{school.name}</bdi></h3>
+                            <h3 className="min-w-0 max-w-full break-words text-base font-bold text-ink-strong"><bdi>{school.name}</bdi></h3>
                             <PlanBadge plan={school.plan} />
                             {school.status !== "ACTIVE" ? <StatusPill status={school.status} /> : null}
                             {school.aiWorkflowsLiveAt ? <Badge variant="warning" size="sm"><Zap aria-hidden="true" className="size-3" />{t("AI live")}</Badge> : null}

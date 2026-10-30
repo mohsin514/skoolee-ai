@@ -107,7 +107,7 @@ export function AiCostReport() {
       {!data.rows.length ? <div data-ai-cost-empty><EmptyState size="sm" icon={Coins} title={ui("No AI usage was recorded in this period.")} /></div> : <div className="overflow-x-auto"><Table><TableHeader><TableRow>
         <TableHead>{ui("Month")}</TableHead><TableHead>{ui("School")}</TableHead><TableHead>{ui("Plan")}</TableHead><TableHead>{ui("Credits consumed")}</TableHead><TableHead>{ui("OpenAI spend (USD)")}</TableHead><TableHead>{ui("Cost per credit (PKR)")}</TableHead><TableHead>{ui("Plan price per credit (PKR)")}</TableHead><TableHead>{ui("Margin (PKR)")}</TableHead><TableHead>{ui("Margin %")}</TableHead>
       </TableRow></TableHeader><TableBody>{rows.map(r => <TableRow key={`${r.month}-${r.schoolId}`} data-ai-cost-row={r.schoolId} className={r.marginPkr !== null && r.marginPkr < 0 ? "bg-status-error-surface/60" : undefined}>
-        <TableCell><bdi dir="ltr">{r.month}</bdi></TableCell><TableCell><bdi>{r.schoolName}</bdi></TableCell><TableCell>{r.plan}</TableCell>
+        <TableCell className="whitespace-nowrap"><bdi dir="ltr">{r.month}</bdi></TableCell><TableCell><bdi>{r.schoolName}</bdi></TableCell><TableCell>{r.plan}</TableCell>
         <TableCell><bdi dir="ltr">{num(r.credits, 0)}</bdi></TableCell><TableCell><bdi dir="ltr">{num(r.spendUsd, 4)}</bdi></TableCell>
         <TableCell><bdi dir="ltr">{num(r.costPerCreditPkr, 4)}</bdi></TableCell><TableCell><bdi dir="ltr">{num(r.pricePerCreditPkr, 4)}</bdi></TableCell>
         <TableCell className={cn("font-semibold", r.marginPkr !== null && r.marginPkr < 0 ? "text-status-error-text" : "")}><bdi dir="ltr">{num(r.marginPkr)}</bdi></TableCell><TableCell><bdi dir="ltr">{num(r.marginPct, 1)}</bdi></TableCell>
