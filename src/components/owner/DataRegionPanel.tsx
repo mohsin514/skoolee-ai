@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DeskSection } from "@/components/ui/desk";
 import { FormField } from "@/components/ui/form-field";
 import { Select } from "@/components/ui/select";
 import { toast, friendlyErrorMessage } from "@/components/ui/toast";
@@ -39,13 +40,11 @@ export function DataRegionPanel({ schoolId, value, onChange }: { schoolId: strin
   };
 
   return (
-    <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-5" data-data-region={current}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="sk-eyebrow flex items-center gap-2 text-primary"><Globe aria-hidden="true" className="size-4" />{t("Data region")}</p>
-        <Button type="button" size="sm" variant="outline" disabled={saving || draft === current} loading={saving} onClick={() => void save()}>
+    // A titled settings block; Save stays beside the title and is only live once the choice changed.
+    <DeskSection data-data-region={current} icon={Globe} tone={draft === current ? "brand" : "warning"} title={t("Data region")}
+      action={<Button type="button" size="sm" variant={draft === current ? "outline" : "default"} disabled={saving || draft === current} loading={saving} onClick={() => void save()}>
           {t("Save region")}
-        </Button>
-      </div>
+        </Button>}>
       <FormField
         name="dataRegion"
         idScope={`data-region-${schoolId}`}
@@ -56,6 +55,6 @@ export function DataRegionPanel({ schoolId, value, onChange }: { schoolId: strin
           {DATA_REGIONS.map((region) => <option key={region} value={region}>{t(DATA_REGION_LABELS[region])}</option>)}
         </Select>
       </FormField>
-    </div>
+    </DeskSection>
   );
 }

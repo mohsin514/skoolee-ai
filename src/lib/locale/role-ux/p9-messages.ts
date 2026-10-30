@@ -211,6 +211,10 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   ["Everything the ledger kept for this school is deleted. You can join again later.", "يُحذف كل ما احتفظ به السجل لهذه المدرسة. يمكنك الانضمام مجددًا لاحقًا.", "اس اسکول کے لیے لیجر میں محفوظ سب کچھ حذف ہو جائے گا۔ آپ بعد میں دوبارہ شامل ہو سکتے ہیں۔"],
   // SKAI-1276 whole-app UI pass
   ["Open slots", "مواعيد متاحة", "دستیاب اوقات"],
+
+  // SKAI-1293 whole-app UI pass
+  ["Negative margin", "هامش سلبي", "منفی مارجن"],
+  ["Search pilots", "ابحث في التجارب", "پائلٹ تلاش کریں"],
 ];
 
 export const arabicP9Ui: Record<string, string> = Object.fromEntries(ROWS.map(([en, ar]) => [en, ar]));

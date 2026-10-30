@@ -15,6 +15,10 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
+import { DeskPill, DeskRowIcon, DeskStats, StatTile, deskRow } from "@/components/ui/desk";
+import { PAGE_CARD_BODY } from "@/components/role-dashboard/RoleShellSkeleton";
+import { cn } from "@/lib/utils";
+import { Globe2, ListChecks, School, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { REQUIRED_NOTICE_LOCALES, TRUST_MARKETS, TRUST_REQUIREMENTS, type TrustMarket } from "@/lib/school-ai/market-trust-readiness";
 import { MARKET_CURRENCY, validateProposal, type PilotMarket } from "@/lib/school-ai/pilot-offer";
@@ -58,11 +62,14 @@ export function PilotReadinessConsole() {
     toast.success(ui(success)); await load(); return json.data;
   }, [schoolId, load, ui]);
 
-  if (error) return <ErrorState title={ui("Could not load pilot readiness.")} description={ui(error)} onRetry={() => void load()} />;
-  if (!data) return <SkeletonList rows={4} />;
+  // The scrolling body of the owner shell's one page card, like every other owner view.
+  const body = cn("custom-scrollbar min-h-0 min-w-0 flex-1 space-y-6 overflow-y-auto", PAGE_CARD_BODY);
+  const header = <PageHeader eyebrow="Platform operations" icon={ListChecks} title={ui("Pilot readiness")} description={ui("Market trust, bounded proposals and the go/no-go decision for each pilot school. A pilot stays unavailable until every item passes.")} />;
+  if (error) return <div className={body}>{header}<div className="sk-panel"><ErrorState title={ui("Could not load pilot readiness.")} description={ui(error)} onRetry={() => load()} /></div></div>;
+  if (!data) return <div className={body}>{header}<SkeletonList rows={4} label={ui("Pilot readiness")} /></div>;
   return (
-    <div className="space-y-6">
-      <PageHeader title={ui("Pilot readiness")} description={ui("Market trust, bounded proposals and the go/no-go decision for each pilot school. A pilot stays unavailable until every item passes.")} />
+    <div className={body}>
+      {header}
       <TrustBoard board={data.board} post={post} />
       <section className="sk-panel p-4 sm:p-6" aria-labelledby="pilot-school-heading">
         <h2 id="pilot-school-heading" className="text-base font-bold text-ink">{ui("School")}</h2>
@@ -84,7 +91,7 @@ export function PilotReadinessConsole() {
           <StageRecorder records={data.records} post={post} />
           <ReadinessForm records={data.records} post={post} />
         </>
-      ) : <EmptyState title={ui("Choose a school to build its proposal and readiness record.")} />}
+      ) : <div className="sk-panel"><EmptyState icon={School} title={ui("Choose a school to build its proposal and readiness record.")} /></div>}
     </div>
   );
 }
@@ -104,12 +111,17 @@ function TrustBoard({ board, post }: { board: Data["board"]; post: Post }) {
     <section className="sk-panel p-4 sm:p-6" aria-labelledby="trust-board-heading">
       <h2 id="trust-board-heading" className="text-base font-bold text-ink">{ui("Market trust readiness")}</h2>
       <p className="mt-1 text-sm text-ink-muted">{ui("Each market is evaluated on its own. References point to restricted storage; never paste agreement text or personal data.")}</p>
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+      <DeskStats className="mt-4">
+        <StatTile index={0} icon={ShieldCheck} tone="success" label={ui("Ready")} value={board.markets.filter((m) => m.ready).length} />
+        <StatTile index={1} icon={ShieldAlert} tone={board.markets.some((m) => !m.ready) ? "danger" : "neutral"} label={ui("Blocked")} value={board.markets.filter((m) => !m.ready).length} />
+      </DeskStats>
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
         {board.markets.map((m) => (
-          <div key={m.market} className="rounded-lg border border-line p-4" data-testid={`trust-market-${m.market}`}>
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="font-bold text-ink">{ui(MARKET_LABEL[m.market])}</h3>
-              <Badge size="sm" variant={m.ready ? "success" : "danger"}>{ui(m.ready ? "Ready" : "Blocked")}</Badge>
+          <div key={m.market} data-tone={m.ready ? "success" : "danger"} className={deskRow} data-testid={`trust-market-${m.market}`}>
+            <div className="flex flex-wrap items-center gap-3">
+              <DeskRowIcon icon={Globe2} />
+              <h3 className="min-w-0 flex-1 font-bold text-ink">{ui(MARKET_LABEL[m.market])}</h3>
+              <DeskPill tone={m.ready ? "success" : "danger"}>{ui(m.ready ? "Ready" : "Blocked")}</DeskPill>
             </div>
             {m.ready ? null : <ul className="mt-2 list-disc space-y-1 ps-5 text-sm text-ink-muted">{m.reasons.map((r) => <li key={r}>{ui(r)}</li>)}</ul>}
           </div>

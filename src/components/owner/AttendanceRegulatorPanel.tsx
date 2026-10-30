@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DeskSection } from "@/components/ui/desk";
 import { FormField } from "@/components/ui/form-field";
 import { Select } from "@/components/ui/select";
 import { toast, friendlyErrorMessage } from "@/components/ui/toast";
@@ -39,13 +40,11 @@ export function AttendanceRegulatorPanel({ schoolId, value, onChange }: { school
   };
 
   return (
-    <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-5" data-attendance-regulator={current}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="sk-eyebrow flex items-center gap-2 text-primary"><ClipboardCheck aria-hidden="true" className="size-4" />{t("Attendance regulator")}</p>
-        <Button type="button" size="sm" variant="outline" disabled={saving || draft === current} loading={saving} onClick={() => void save()}>
+    // A titled settings block; Save stays beside the title and is only live once the choice changed.
+    <DeskSection data-attendance-regulator={current} icon={ClipboardCheck} tone={draft === current ? "brand" : "warning"} title={t("Attendance regulator")}
+      action={<Button type="button" size="sm" variant={draft === current ? "outline" : "default"} disabled={saving || draft === current} loading={saving} onClick={() => void save()}>
           {t("Save regulator")}
-        </Button>
-      </div>
+        </Button>}>
       <FormField
         name="attendanceRegulator"
         idScope={`attendance-regulator-${schoolId}`}
@@ -56,6 +55,6 @@ export function AttendanceRegulatorPanel({ schoolId, value, onChange }: { school
           {ATTENDANCE_REGULATORS.map((regulator) => <option key={regulator} value={regulator}>{t(REGULATOR_SETS[regulator].name)}</option>)}
         </Select>
       </FormField>
-    </div>
+    </DeskSection>
   );
 }

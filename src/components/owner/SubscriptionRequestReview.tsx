@@ -8,7 +8,7 @@ import { getPlanLimits } from "@/config/plans";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { DeskPill, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow } from "@/components/ui/desk";
+import { DeskPill, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst } from "@/components/ui/desk";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Alert } from "@/components/ui/alert";
@@ -114,7 +114,8 @@ export function SubscriptionRequestReview() {
       <div className="sk-panel"><EmptyState size="sm" icon={Inbox} title={t("No requests need review")} description={t("New plan, cancellation, refund and recovery requests from schools appear here.")} /></div>
     ) : (
       <ul className="space-y-3" aria-label={t("Subscription requests")}>
-        {requests.map(row => <li key={row.id} data-tone={row.kind === "REFUND" || row.kind === "CANCELLATION" ? "danger" : "warning"} className={`${deskRow} space-y-3`} data-subscription-request={row.kind}>
+        {/* Money leaving or a school leaving comes first: refunds and cancellations, then everything else. */}
+        {urgencyFirst(requests, row => row.kind === "REFUND" || row.kind === "CANCELLATION" ? 0 : 1).map(row => <li key={row.id} data-tone={row.kind === "REFUND" || row.kind === "CANCELLATION" ? "danger" : "warning"} className={`${deskRow} space-y-3`} data-subscription-request={row.kind}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex min-w-0 flex-1 basis-64 items-start gap-3">
             <DeskRowIcon icon={KIND_ICON[row.kind] ?? Inbox} />

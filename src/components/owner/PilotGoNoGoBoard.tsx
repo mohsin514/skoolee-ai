@@ -7,7 +7,10 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Gauge } from "lucide-react";
+import { CircleCheck, CircleSlash, Gauge, PauseCircle } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskStats, StatTile, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { PAGE_CARD_BODY } from "@/components/role-dashboard/RoleShellSkeleton";
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { PageCard } from "@/components/ui/page-card";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
@@ -30,13 +33,17 @@ const COPY = {
 } as const;
 
 const RAG_TONE: Record<Rag, BadgeProps["variant"]> = { GREEN: "success", AMBER: "warning", RED: "danger" };
-const VERDICT_TONE: Record<Verdict, BadgeProps["variant"]> = { GO: "success", HOLD: "warning", NO_GO: "danger" };
+const VERDICT_TONE: Record<Verdict, DeskTone> = { GO: "success", HOLD: "warning", NO_GO: "danger" };
+const VERDICT_ICON = { GO: CircleCheck, HOLD: PauseCircle, NO_GO: CircleSlash } as const;
+/** A pilot that is stopped or on hold needs a decision before one that is going. */
+const VERDICT_RANK: Record<Verdict, number> = { NO_GO: 0, HOLD: 1, GO: 2 };
 
 export function PilotGoNoGoBoard() {
   const { language } = useLocale();
   const t = COPY[language as keyof typeof COPY] ?? COPY.en;
   const [rows, setRows] = useState<GoNoGoRow[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [verdict, setVerdict] = useState<Verdict | null>(null);
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -48,13 +55,23 @@ export function PilotGoNoGoBoard() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
+    // The scrolling body of the owner shell's one page card, like every other owner view.
+    <div className={cn("custom-scrollbar flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto", PAGE_CARD_BODY)}>
       <PageHeader icon={Gauge} title={t.title} description={t.description} />
+      {rows?.length ? <>
+        <DeskStats>
+          {(["NO_GO", "HOLD", "GO"] as const).map((key, index) => {
+            const count = rows.filter((row) => row.result.verdict === key).length;
+            return <StatTile key={key} index={index} icon={VERDICT_ICON[key]} tone={count ? VERDICT_TONE[key] : "neutral"} label={t[key]} value={count} selected={verdict === key} onSelect={() => setVerdict(verdict === key ? null : key)} />;
+          })}
+        </DeskStats>
+        <DeskFilterStatus shown={verdict ? rows.filter((row) => row.result.verdict === verdict).length : rows.length} total={rows.length} onClear={() => setVerdict(null)} />
+      </> : null}
       {failed ? <ErrorState title={t.loadFailed} onRetry={load} />
         : !rows ? <SkeletonList rows={3} label={t.title} />
         : !rows.length ? <PageCard><EmptyState icon={Gauge} title={t.empty} description={t.emptyHint} /></PageCard>
-        : rows.map((row) => (
-          <PageCard key={row.pilotId}>
+        : urgencyFirst(rows.filter((row) => !verdict || row.result.verdict === verdict), (row) => VERDICT_RANK[row.result.verdict]).map((row) => (
+          <PageCard key={row.pilotId} data-verdict={row.result.verdict}>
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-ink"><bdi>{row.schoolName}</bdi></h2>
@@ -62,7 +79,7 @@ export function PilotGoNoGoBoard() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-ink-muted">{t.verdict}</span>
-                <Badge dot variant={VERDICT_TONE[row.result.verdict]}>{t[row.result.verdict]}</Badge>
+                <DeskPill tone={VERDICT_TONE[row.result.verdict]}>{t[row.result.verdict]}</DeskPill>
               </div>
             </div>
             {row.result.reasons.length ? <ul className="mb-4 list-disc ps-5 text-sm text-ink-muted" dir="ltr">{row.result.reasons.map((r) => <li key={r}>{r}</li>)}</ul> : null}
