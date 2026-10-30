@@ -20,6 +20,8 @@ import { useLocale } from "@/components/locale/LocaleProvider";
 import { getReadinessCopy } from "./readiness-copy";
 import { getLaunchCopy } from "./readiness-launch-copy";
 import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
+import { SetupAreasGuide, type SetupArea } from "./SetupAreasGuide";
+import { setupAreaFromTaskKey } from "@/lib/onboarding/setup-areas";
 
 /**
  * School readiness as "launch control": a hero with the share of required checks done, a spotlight on the
@@ -42,6 +44,7 @@ type LeadView = {
   checks: Check[]; ready: boolean; campuses: CampusStatus[]; nextRequired: string | null; tasks: Task[]; staff: Array<{ id: string; fullName: string; role: string }>;
   locale: { country: string; timezone: string; currency: string };
   aiSetup?: boolean;
+  areas?: SetupArea[];
 };
 type CampusStatus = { id: string; name: string; classes: number; students: number; ready: boolean };
 type StaffView = { lead: false; tasks: Task[] };
@@ -192,6 +195,7 @@ export function ReadinessHome() {
 
       {lead ? <>
         <nav aria-label={l.sectionsLabel} className="sk-launch-nav">
+          {lead.areas?.length ? <a href="#setup-areas"><ListChecks aria-hidden="true" className="size-4" />{l.nav.setupAreas}</a> : null}
           <a href="#checks"><ListChecks aria-hidden="true" className="size-4" />{l.nav.checks}</a>
           <a href="#practice"><FlaskConical aria-hidden="true" className="size-4" />{l.nav.practice}</a>
           <a href="#reconcile"><ClipboardCheck aria-hidden="true" className="size-4" />{l.nav.reconcile}</a>
@@ -217,6 +221,9 @@ export function ReadinessHome() {
             {!live ? <Button type="button" disabled={busy || !lead.ready} onClick={() => setConfirmingApproval(true)} className="shrink-0 gap-2"><Rocket aria-hidden="true" className="size-4" />{l.goApprove}</Button> : null}
           </>}
         </section>
+
+        {/* ── The wizard's setup areas (SKAI-111), in order ── */}
+        {lead.areas?.length ? <SetupAreasGuide language={language} areas={lead.areas} tasks={lead.tasks} busy={busy} onStatus={(taskId, status) => void run(() => call({ op: "task", action: "status", taskId, status }))} /> : null}
 
         {/* ── The journey ── */}
         <section id="checks" aria-label={l.nav.checks} className="sk-launch-journey">
@@ -314,7 +321,7 @@ export function ReadinessHome() {
         <section id="tasks" aria-labelledby="tasks-heading" className="sk-panel space-y-3 p-4 sm:p-6">
           <h2 id="tasks-heading" className="text-lg font-bold text-ink-strong">{t.tasksTitle}</h2>
           <p className="text-sm text-ink-muted">{t.tasksHelp}</p>
-          <ul className="space-y-2">{lead.tasks.map(task => taskRow(task, true))}</ul>
+          <ul className="space-y-2">{lead.tasks.filter(task => !lead.areas?.length || !setupAreaFromTaskKey(task.key)).map(task => taskRow(task, true))}</ul>
           <form className="grid gap-2 sm:grid-cols-[2fr_1fr_auto] sm:items-end" onSubmit={event => { event.preventDefault(); run(() => call({ op: "task", action: "create", title: newTask.title, ownerId: newTask.ownerId || null }).then(() => setNewTask({ title: "", ownerId: "" }))); }}>
             <label className="grid gap-1 text-sm font-semibold">{t.newTask}<Input required minLength={3} value={newTask.title} onChange={event => setNewTask({ ...newTask, title: event.target.value })} /></label>
             <label className="grid gap-1 text-sm font-semibold">{t.owner}<Select value={newTask.ownerId} onChange={event => setNewTask({ ...newTask, ownerId: event.target.value })}><option value="">{t.unassigned}</option>{lead.staff.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></label>
