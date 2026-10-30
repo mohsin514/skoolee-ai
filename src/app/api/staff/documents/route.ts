@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     const documentId = req.nextUrl.searchParams.get("documentId");
     if (documentId) {
       const document = await prisma.staffDocument.findFirst({
-        where: { id: documentId, userId, user: campusScope(user) },
+        where: { id: documentId, userId, user: { role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] }, ...campusScope(user) } },
         select: { fileKey: true, fileName: true },
       });
       if (!document) throw new ApiError("Document not found", 404);
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
       return privateDownloadResponse(document.fileKey, document.fileName);
     }
     const documents = await prisma.staffDocument.findMany({
-      where: { userId, user: campusScope(user) },
+      where: { userId, user: { role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] }, ...campusScope(user) } },
       select: { id: true, kind: true, fileKey: true, fileName: true, uploadedAt: true },
       orderBy: { uploadedAt: "desc" },
     });
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     if (!fileKey || !fileName) throw new ApiError("fileKey and fileName are required", 400);
 
     const staff = await prisma.user.findFirst({
-      where: { id: userId, ...campusScope(user) },
+      where: { id: userId, role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] }, ...campusScope(user) },
       select: { id: true },
     });
     if (!staff) throw new ApiError("Staff member not found", 404);
