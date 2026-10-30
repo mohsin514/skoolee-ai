@@ -8,10 +8,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { FormField } from "@/components/ui/form-field";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { toast, friendlyErrorMessage } from "@/components/ui/toast";
-import { CheckCheck, ClipboardCheck, Eye, FileDown, FileText, Send, Upload } from "lucide-react";
+import { CheckCheck, ClipboardCheck, Eye, FileDown, FileText, Send, ShieldAlert, Upload } from "lucide-react";
+import { DeskPill, DeskStats, StatTile, deskRow } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
@@ -395,16 +396,16 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
           icon={FileText}
           title={ui(copy.emptyTitle)}
           description={ui(canDeliver ? copy.empty : copy.emptyWaiting)}
-          action={canDeliver ? <Button type="button" variant="outline" disabled={busy} onClick={() => void action("generate")}><FileDown aria-hidden="true" />{ui(copy.generate)}</Button> : undefined}
+          action={canDeliver ? <Button type="button" disabled={busy} onClick={() => void action("generate")}><FileDown aria-hidden="true" />{ui(copy.generate)}</Button> : undefined}
         />
       ) : (
         <>
-          <div className="flex flex-wrap gap-2 tabular-nums">
-            <Badge variant="danger" dot>{ui(copy.blocked)}: <bdi>{blocked}</bdi></Badge>
-            <Badge variant="info" dot>{ui(copy.eligible)}: <bdi>{cards.length - blocked}</bdi></Badge>
-            <Badge variant="success" dot>{ui(copy.approved)}: <bdi>{approvedCount}</bdi></Badge>
-            {mode === "delivery" && !allApproved ? <Badge variant="neutral">{ui(copy.waiting)}</Badge> : null}
-          </div>
+          {/* The counters are the readiness filter's shortcuts: pressing one narrows the list, pressing it again shows all. */}
+          <DeskStats data-report-pipeline-stats>
+            <StatTile index={0} icon={ShieldAlert} tone={blocked ? "danger" : "success"} value={<bdi>{blocked}</bdi>} label={ui(copy.blocked)} onSelect={() => setFilter(filter === "blocked" ? "all" : "blocked")} selected={filter === "blocked"} />
+            <StatTile index={1} icon={FileText} tone="info" value={<bdi>{cards.length - blocked}</bdi>} label={ui(copy.eligible)} onSelect={() => setFilter(filter === "eligible" ? "all" : "eligible")} selected={filter === "eligible"} />
+            <StatTile index={2} icon={CheckCheck} tone="success" value={<bdi>{approvedCount}</bdi>} label={ui(copy.approved)} hint={mode === "delivery" && !allApproved ? ui(copy.waiting) : undefined} />
+          </DeskStats>
           {canReview && cards.some((c) => c.review.predecessorId) && (
             <FormField name="correctionReason" label={ui(copy.reason)} showCount>
               <Textarea
@@ -451,7 +452,7 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
           {/* With a host-owned Approve, the spotlight anchor marks the versions the principal ticks to approve. */}
           <ul className="space-y-3" data-tour={hideApprove && canReview && tourAnchor ? "principal.reports.approve" : undefined}>
             {visibleCards.map((c) => (
-              <li key={c.id} className="space-y-2 rounded-2xl border border-border-subtle bg-card p-3 sm:p-4">
+              <li key={c.id} data-tone={c.review.blockers.length ? "danger" : c.review.approvedAt ? "success" : "info"} className={cn(deskRow, "block space-y-2")}>
                 <div className="flex flex-wrap items-center gap-2">
                   {canReview && (
                     <Checkbox
@@ -463,9 +464,9 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
                   )}
                   <strong className="text-ink-strong"><bdi>{c.student?.fullName}</bdi></strong>
                   <bdi className="text-xs text-ink-subtle">v{c.review.number}</bdi>
-                  <Badge size="sm" variant={c.review.blockers.length ? "danger" : c.review.approvedAt ? "success" : "info"}>
+                  <DeskPill tone={c.review.blockers.length ? "danger" : c.review.approvedAt ? "success" : "info"}>
                     {ui(c.review.blockers.length ? copy.blocked : c.review.approvedAt ? copy.approved : copy.eligible)}
-                  </Badge>
+                  </DeskPill>
                 </div>
                 {c.review.changedSections.length ? (
                   <p className="text-sm text-ink-muted">{ui(copy.changed)}: {c.review.changedSections.map(label).join(", ")}</p>
