@@ -59,6 +59,8 @@ export async function GET(req: NextRequest) {
     }>();
 
     for (const inv of invoices) {
+      // SKAI-1328: a cancelled invoice is not a charge; partly paid invoices are still outstanding.
+      if (inv.status === "CANCELLED") continue;
       const key = inv.enrollment?.classId || inv.student.class.id;
       const cls = classMap.get(key) ?? {
         className: inv.enrollment?.className || `${inv.student.class.name}${inv.student.class.section ? ` ${inv.student.class.section}` : ""}`,
@@ -70,7 +72,7 @@ export async function GET(req: NextRequest) {
       cls.studentIds.add(inv.studentId);
       cls.totalDue += inv.totalAmount;
       cls.totalPaid += inv.totalAmountPaid;
-      if (inv.status === "PENDING" || inv.status === "OVERDUE") {
+      if (inv.status === "PENDING" || inv.status === "PARTIAL" || inv.status === "OVERDUE") {
         cls.totalOverdue += inv.balanceDue;
       }
       classMap.set(key, cls);

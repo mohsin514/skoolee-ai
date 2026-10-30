@@ -114,8 +114,9 @@ export async function PATCH(req: NextRequest) {
       data.contractType = ct || null;
     }
     if (body.basicSalary !== undefined) {
-      const salary = Math.round(Number(body.basicSalary));
-      if (!Number.isFinite(salary) || salary < 0) throw new ApiError("basicSalary must be a non-negative integer (paisa)", 400);
+      // SKAI-1325: salary is stored as whole paisa in an Int32 column; never round or overflow silently.
+      const salary = Number(body.basicSalary);
+      if (!Number.isSafeInteger(salary) || salary < 0 || salary > 2147483647) throw new ApiError("basicSalary must be a non-negative whole number of paisa within range", 400);
       data.basicSalary = salary;
     }
     if (body.allowances !== undefined) data.allowancesJson = body.allowances;
