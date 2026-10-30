@@ -116,3 +116,14 @@ test("a signed plan purchase activates once; the replay is reported as a duplica
   assert.deepEqual(await post(body), { status: 200, body: { success: true, duplicate: true } });
   assert.equal(h.activations.length, 1, "replayed notification must not extend the plan twice");
 });
+
+// SKAI-1287: the exact replay from the bug report, an annual BASIC order delivered twice.
+test("an annual plan order replayed with the same orderRef activates the year once", async () => {
+  const annual = { event: "order.completed", data: { order_ref: "QA-REPLAY-001", amount: 48_000, metadata: { schoolId: "school-a", plan: "BASIC", billingPeriod: "annual" } } };
+  const body = signed(annual);
+  assert.deepEqual(await post(body), { status: 200, body: { success: true } });
+  assert.equal(h.activations.length, 1);
+  assert.equal((h.activations[0] as unknown[])[3], 365);
+  for (let i = 0; i < 3; i++) assert.deepEqual(await post(body), { status: 200, body: { success: true, duplicate: true } });
+  assert.equal(h.activations.length, 1, "each replay must leave the paid-through date unchanged");
+});
