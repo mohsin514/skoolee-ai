@@ -9,7 +9,8 @@ import { checkedJson, readRequest, requestFailure, resourceState, type RequestFa
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
-import { Search, X } from "lucide-react";
+import { FileText, GraduationCap, School, Search, UserRound, X, type LucideIcon } from "lucide-react";
+import { DeskPill, DeskRowIcon, DeskStats, StatTile, deskRow } from "@/components/ui/desk";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -26,6 +27,7 @@ type Result = { type: SearchType; id: string; title: string; context: string[]; 
 type Response = { scope: { school: string; campus: string | null; allCampuses: boolean }; allowedTypes: SearchType[]; types: SearchType[]; groups: { type: SearchType; rows: Result[]; total: number }[]; sources: Record<string, "ok" | "failed">; partial: boolean; page: number; pageSize: number };
 type Options = { campuses: { id: string; name: string }[]; classes: { id: string; name: string; section: string | null; academicYear: number }[]; years: number[]; allowedTypes: SearchType[] };
 const typeLabel = (ui: Ui, type: string) => ({ student: ui("Pupils"), class: ui("Classes"), staff: ui("Staff"), application: ui("Applications") } as Record<string, string>)[type] ?? type;
+const TYPE_ICON: Record<SearchType, LucideIcon> = { student: GraduationCap, class: School, staff: UserRound, application: FileText };
 const statusLabel = (ui: Ui, status: string) => ({ active: ui("Current only"), archived: ui("Archived or closed only"), all: ui("Current and archived") } as Record<string, string>)[status] ?? status;
 
 /**
@@ -145,19 +147,24 @@ export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
       <p className="sr-only" role="status" aria-live="polite">{loading ? ui("Searching…") : data ? ui("{0} results", [total]) : ""}</p>
       {loading && !data ? <SkeletonList rows={4} label={ui("Searching…")} /> : null}
       {!loading && data && !total && !error ? <div data-search-empty><EmptyState size="sm" icon={Search} title={state.q ? ui("No matches for “{0}”.", [state.q]) : ui("No records in this scope.")} description={chips.length ? ui("Filters in use: {0}. Remove one to widen the search.", [chips.map(chip => chip.text).join(", ")]) : ui("Try part of the name, or the exact roll number, admission number or application reference.")} action={chips.length ? <Button size="sm" variant="secondary" onClick={() => update({ types: null, status: null, year: null, class: null, campus: null })}>{ui("Clear filters")}</Button> : undefined} /></div> : null}
+      {/* SKAI-1277: one tile per record type with matches; a tile narrows the search to that type and back. */}
+      {data && total > 0 && (state.types.length === 1 || data.groups.filter(group => group.total > 0).length > 1) ? <DeskStats data-search-stats>{data.groups.filter(group => group.total > 0).map((group, index) => <StatTile key={group.type} index={index} icon={TYPE_ICON[group.type]} tone={state.types.length === 1 && state.types[0] === group.type ? "brand" : "neutral"} value={group.total} label={typeLabel(ui, group.type)} selected={state.types.length === 1 && state.types[0] === group.type} onSelect={() => update({ types: state.types.length === 1 && state.types[0] === group.type ? null : group.type })} />)}</DeskStats> : null}
       <div ref={listRef} className={`space-y-5 ${loading ? "opacity-60" : ""}`} aria-busy={loading}>
         {data?.groups.filter(group => group.total > 0).map(group => <section key={group.type} aria-label={typeLabel(ui, group.type)} data-search-group={group.type}>
-          <h2 className="mb-2 flex items-center justify-between text-sm font-bold"><span>{typeLabel(ui, group.type)} <span className="text-ink-muted">({group.total})</span></span>{!single && group.total > group.rows.length ? <Button size="sm" variant="ghost" onClick={() => update({ types: group.type })}>{ui("See all {0}", [group.total])}</Button> : null}</h2>
+          <h2 className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm font-bold"><span>{typeLabel(ui, group.type)} <span className="text-ink-muted">({group.total})</span></span>{!single && group.total > group.rows.length ? <Button size="sm" variant="ghost" onClick={() => update({ types: group.type })}>{ui("See all {0}", [group.total])}</Button> : null}</h2>
           <ul className="space-y-1.5">{group.rows.map(row => <li key={`${row.type}-${row.id}-${row.identifiers[0] ?? ""}`}>
-            <Link href={row.href} data-search-result={row.id} className="block rounded-xl border border-border bg-card px-3 py-2 text-sm hover:bg-muted">
-              <span className="flex flex-wrap items-center gap-2"><bdi className="font-bold">{row.title}</bdi>{row.exact ? <span className="rounded bg-status-success-surface px-1.5 text-2xs font-bold text-status-success-text">{ui("Exact match")}</span> : null}{row.archived ? <span className="rounded bg-muted px-1.5 text-2xs font-bold">{row.type === "application" ? ui("Closed") : ui("Archived")}</span> : null}</span>
-              <span className="block text-xs text-ink-muted">{row.context.filter(Boolean).map((part, index) => <span key={index}>{index ? " · " : ""}<bdi>{part}</bdi></span>)}{row.identifiers.length ? <> · {row.identifiers.map((id, index) => <span key={index}>{index ? " · " : ""}<bdi dir="ltr">{id}</bdi></span>)}</> : null}</span>
+            <Link href={row.href} data-search-result={row.id} data-tone={row.archived ? "muted" : row.exact ? "success" : undefined} className={`${deskRow} flex items-start gap-3 text-sm`}>
+              <DeskRowIcon icon={TYPE_ICON[row.type] ?? Search} />
+              <span className="block min-w-0 flex-1 space-y-1">
+              <span className="flex flex-wrap items-center gap-2"><bdi className="min-w-0 font-bold text-ink-strong [overflow-wrap:anywhere]">{row.title}</bdi>{row.exact ? <DeskPill tone="success">{ui("Exact match")}</DeskPill> : null}{row.archived ? <DeskPill tone="neutral">{row.type === "application" ? ui("Closed") : ui("Archived")}</DeskPill> : null}</span>
+              <span className="block text-xs text-ink-muted [overflow-wrap:anywhere]">{row.context.filter(Boolean).map((part, index) => <span key={index}>{index ? " · " : ""}<bdi>{part}</bdi></span>)}{row.identifiers.length ? <> · {row.identifiers.map((id, index) => <span key={index}>{index ? " · " : ""}<bdi dir="ltr">{id}</bdi></span>)}</> : null}</span>
               {row.note ? <span className="block text-xs text-status-warning-text">{ui("This identifier belongs to a merged record; it opens the current one.")}</span> : null}
+              </span>
             </Link>
           </li>)}</ul>
         </section>)}
       </div>
-      {single && single.total > (data?.pageSize ?? 25) ? <nav className="flex items-center justify-between gap-2" aria-label={ui("Pages")}>
+      {single && single.total > (data?.pageSize ?? 25) ? <nav className="flex flex-wrap items-center justify-between gap-2" aria-label={ui("Pages")}>
         <Button variant="secondary" size="sm" disabled={loading || (data?.page ?? state.page) <= 1} onClick={() => update({ page: String((data?.page ?? state.page) - 1) })}>{ui("Previous")}</Button>
         <span className="text-xs" data-search-page-number>{ui("Page {0} of {1}", [data?.page ?? state.page, Math.ceil(single.total / (data?.pageSize ?? 25))])}</span>
         <Button variant="secondary" size="sm" disabled={loading || (data?.page ?? state.page) >= Math.ceil(single.total / (data?.pageSize ?? 25))} onClick={() => update({ page: String((data?.page ?? state.page) + 1) })}>{ui("Next")}</Button>

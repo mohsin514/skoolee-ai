@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Clock, Download, Mail, MessageCircle, RefreshCw, Send, ShieldAlert, Smartphone, type LucideIcon } from "lucide-react";
-import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmAction } from "@/components/ui/confirm-action";
@@ -25,10 +25,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { InfoTip } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toast";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
-import { cn } from "@/lib/utils";
+import { DeskPill, DeskQuickFilter, DeskFilterStatus, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 
 type DeliveryStatus = "PENDING" | "SENT" | "FAILED" | "NO_RECIPIENT" | "BLOCKED";
 type Channel = "WHATSAPP" | "EMAIL" | "SMS";
@@ -57,6 +56,7 @@ const STATUS_META: Record<Filter, { label: string; variant: NonNullable<BadgePro
   BLOCKED: { label: "Blocked", variant: "secondary", icon: ShieldAlert },
   PENDING: { label: "Pending", variant: "neutral", icon: Clock },
 };
+const STATUS_TONE: Record<string, DeskTone> = { SENT: "success", FAILED: "danger", NO_RECIPIENT: "warning", BLOCKED: "brand", PENDING: "neutral" };
 const FILTERS: Filter[] = ["ALL", "FAILED", "SENT", "NO_RECIPIENT", "BLOCKED", "PENDING"];
 
 const CHANNEL_META: Record<string, { label: string; icon: LucideIcon }> = {
@@ -107,6 +107,7 @@ export function EngagementPanel({ mode, hideActions = false, command }: Engageme
   const [confirmRun, setConfirmRun] = useState(false);
   const [running, setRunning] = useState(false);
   const [reload, setReload] = useState(0);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -130,12 +131,16 @@ export function EngagementPanel({ mode, hideActions = false, command }: Engageme
   }, [filter, office, reload]);
 
   const refresh = useCallback(() => setReload((value) => value + 1), []);
+  // SKAI-1277: failed and undelivered messages first; a long log narrows as you type.
+  const needle = query.trim().toLocaleLowerCase();
+  const shown = useMemo(() => urgencyFirst(rows.filter((item) => !needle || [item.student?.fullName, item.recipientName, item.recipient, item.body, ui(TEMPLATE_LABELS[item.templateKey] ?? humanize(item.templateKey))].some((value) => typeof value === "string" && value.toLocaleLowerCase().includes(needle))),
+    (item) => item.status === "FAILED" ? 0 : item.status === "NO_RECIPIENT" ? 1 : 2), [rows, needle, ui]);
 
   const totals = useMemo(() => [
-    { key: "SENT", label: "Sent", value: summary.SENT ?? 0, icon: CheckCircle2, tile: "border-status-success-border bg-status-success-surface text-status-success-text" },
-    { key: "FAILED", label: "Failed", value: summary.FAILED ?? 0, icon: AlertCircle, tile: "border-status-error-border bg-status-error-surface text-status-error-text", info: "Sending was tried and did not go through. The reason appears under the message." },
-    { key: "BLOCKED", label: "Blocked", value: summary.BLOCKED ?? 0, icon: ShieldAlert, tile: "border-status-brand-border bg-status-brand-surface text-status-brand-text", info: "Held back before sending, for example because the plan does not include this channel, the school's plan is paused or approved school data is still needed." },
-    { key: "NO_RECIPIENT", label: "No contact", value: summary.NO_RECIPIENT ?? 0, icon: MessageCircle, tile: "border-status-warning-border bg-status-warning-surface text-status-warning-text", info: "Not sent because the guardian has no contact details on file for that channel." },
+    { key: "SENT", label: "Sent", value: summary.SENT ?? 0, icon: CheckCircle2, tone: "success" as DeskTone },
+    { key: "FAILED", label: "Failed", value: summary.FAILED ?? 0, icon: AlertCircle, tone: "danger" as DeskTone, info: "Sending was tried and did not go through. The reason appears under the message." },
+    { key: "BLOCKED", label: "Blocked", value: summary.BLOCKED ?? 0, icon: ShieldAlert, tone: "brand" as DeskTone, info: "Held back before sending, for example because the plan does not include this channel, the school's plan is paused or approved school data is still needed." },
+    { key: "NO_RECIPIENT", label: "No contact", value: summary.NO_RECIPIENT ?? 0, icon: MessageCircle, tone: "warning" as DeskTone, info: "Not sent because the guardian has no contact details on file for that channel." },
   ], [summary]);
 
   const runReminders = async () => {
@@ -191,24 +196,14 @@ export function EngagementPanel({ mode, hideActions = false, command }: Engageme
 
   return (
     <div className="space-y-5" data-engagement-mode={mode}>
-      <div className="sk-stagger grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        {totals.map((stat) => (
-          <Card key={stat.key} className="min-w-0 p-4 sm:p-5">
-            <div className="flex min-w-0 items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="flex min-w-0 items-center gap-1 text-sm font-medium text-ink-muted">
-                  <span className="truncate">{ui(stat.label)}</span>
-                  {stat.info ? <InfoTip content={ui(stat.info)} /> : null}
-                </p>
-                <p className="mt-1 text-2xl font-bold tracking-tight text-ink-strong tabular-nums"><bdi>{loading ? "–" : stat.value}</bdi></p>
-              </div>
-              <span aria-hidden="true" className={cn("hidden size-10 shrink-0 items-center justify-center rounded-xl border sm:flex", stat.tile)}>
-                <stat.icon className="size-5" />
-              </span>
-            </div>
-          </Card>
+      {/* Each counter is also the filter for its status; pressing it again shows every message. */}
+      <DeskStats>
+        {totals.map((stat, index) => (
+          <StatTile key={stat.key} index={index} icon={stat.icon} tone={stat.tone} value={<bdi>{loading ? "–" : stat.value}</bdi>} label={ui(stat.label)}
+            hint={stat.info ? <span className="line-clamp-2">{ui(stat.info)}</span> : undefined}
+            selected={filter === stat.key} onSelect={() => setFilter(filter === stat.key ? "ALL" : stat.key as Filter)} />
         ))}
-      </div>
+      </DeskStats>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div role="group" aria-label={ui("Filter by delivery status")} className="flex flex-wrap gap-2">
@@ -265,9 +260,10 @@ export function EngagementPanel({ mode, hideActions = false, command }: Engageme
           />
         ) : (
           <>
+            {rows.length > 8 ? <div className="space-y-2 border-b border-border-subtle p-3 sm:px-5"><DeskQuickFilter value={query} onChange={setQuery} label={ui("Filter messages")} /><DeskFilterStatus shown={shown.length} total={rows.length} onClear={() => setQuery("")} /></div> : null}
             {/* Cards below md (R9): a six-column table does not fit a phone. */}
-            <ul className="divide-y divide-border-subtle md:hidden">
-              {rows.map((item) => <DeliveryCard key={item.id} item={item} />)}
+            <ul className="space-y-2 p-3 md:hidden">
+              {shown.map((item) => <DeliveryCard key={item.id} item={item} />)}
             </ul>
             <div className="hidden md:block">
               <Table>
@@ -282,7 +278,7 @@ export function EngagementPanel({ mode, hideActions = false, command }: Engageme
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((item) => {
+                  {shown.map((item) => {
                     const channel = CHANNEL_META[item.channel];
                     const ChannelIcon = channel?.icon ?? MessageCircle;
                     const meta = STATUS_META[item.status as Filter] ?? STATUS_META.PENDING;
@@ -300,12 +296,12 @@ export function EngagementPanel({ mode, hideActions = false, command }: Engageme
                         <TableCell>
                           <span className="inline-flex items-center gap-2 text-sm text-ink"><ChannelIcon aria-hidden="true" className="size-4 text-ink-subtle" />{ui(channel?.label ?? item.channel)}</span>
                         </TableCell>
-                        <TableCell><Badge variant={meta.variant} size="sm" dot>{ui(meta.label)}</Badge></TableCell>
+                        <TableCell><DeskPill tone={STATUS_TONE[item.status] ?? "neutral"}>{ui(meta.label)}</DeskPill></TableCell>
                         <TableCell className="min-w-40">
                           <p className="text-ink"><bdi>{item.recipientName || ui("Guardian")}</bdi></p>
                           <p className="break-all text-xs text-ink-subtle"><bdi>{item.recipient}</bdi></p>
                         </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm text-ink-muted tabular-nums"><bdi>{dateTime(item.sentAt ?? item.createdAt)}</bdi></TableCell>
+                        <TableCell className="whitespace-nowrap text-sm text-ink-muted tabular-nums"><RelativeTime iso={item.sentAt ?? item.createdAt} full={dateTime(item.sentAt ?? item.createdAt)} /></TableCell>
                       </TableRow>
                     );
                   })}
@@ -338,14 +334,16 @@ function DeliveryCard({ item }: { item: Communication }) {
   const { dateTime } = useLocaleFormat();
   const meta = STATUS_META[item.status as Filter] ?? STATUS_META.PENDING;
   const channel = CHANNEL_META[item.channel];
+  const tone = STATUS_TONE[item.status] ?? "neutral";
   return (
-    <li className="space-y-2 px-4 py-4">
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <p className="min-w-0 font-semibold text-ink-strong">{ui(TEMPLATE_LABELS[item.templateKey] ?? humanize(item.templateKey))}</p>
-        <Badge variant={meta.variant} size="sm" dot>{ui(meta.label)}</Badge>
+    <li data-tone={tone === "neutral" || tone === "success" ? undefined : tone} className={`${deskRow} space-y-2`}>
+      <div className="flex min-w-0 flex-wrap items-start gap-3">
+        <DeskRowIcon icon={channel?.icon ?? MessageCircle} />
+        <p className="min-w-0 flex-1 font-semibold text-ink-strong">{ui(TEMPLATE_LABELS[item.templateKey] ?? humanize(item.templateKey))}</p>
+        <DeskPill tone={tone}>{ui(meta.label)}</DeskPill>
       </div>
       <p className="text-xs text-ink-subtle">
-        <bdi>{item.student?.fullName ?? item.recipientName ?? ui("Guardian")}</bdi> · {ui(channel?.label ?? item.channel)} · <bdi className="tabular-nums">{dateTime(item.sentAt ?? item.createdAt)}</bdi>
+        <bdi>{item.student?.fullName ?? item.recipientName ?? ui("Guardian")}</bdi> · {ui(channel?.label ?? item.channel)} · <RelativeTime className="tabular-nums" iso={item.sentAt ?? item.createdAt} full={dateTime(item.sentAt ?? item.createdAt)} />
       </p>
       <p className="line-clamp-2 text-sm leading-relaxed text-ink-muted" dir="auto">{item.body}</p>
       {item.failedReason ? <p className="text-xs font-medium text-status-error-text" dir="auto">{item.failedReason}</p> : null}
