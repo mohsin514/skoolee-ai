@@ -34,7 +34,7 @@ export function ClassSyncPanel({ onSynced }: { onSynced?: () => void }) {
   const [me, setMe] = useState<{ id: string; schoolId: string } | null>(null), [online, setOnline] = useState(true), [bucket, setBucket] = useState<Bucket | null>(null);
   const [editing, setEditing] = useState<ClassRow | null>(null), [form, setForm] = useState({ name: "", section: "", capacity: "" }), [resolving, setResolving] = useState<ClassOp | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
-  const ref = useRef<Bucket | null>(null);
+  const ref = useRef<Bucket | null>(null), running = useRef(false), again = useRef(false), syncLatest = useRef<() => Promise<void>>(async () => undefined);
   const persist = useCallback((next: Bucket) => { if (!me) return; ref.current = next; save(me.id, me.schoolId, next); setBucket(next); }, [me]);
   useEffect(() => {
     fetch("/api/auth/session", { cache: "no-store" }).then(r => r.json()).then(j => { if (j.user) { setMe({ id: j.user.id, schoolId: j.user.schoolId }); const b = load(j.user.id, j.user.schoolId); ref.current = b; setBucket(b); } }).catch(() => undefined);
@@ -49,34 +49,43 @@ export function ClassSyncPanel({ onSynced }: { onSynced?: () => void }) {
   };
   /** Reconnect: pull changes since the cursor, then push the queue. */
   const sync = useCallback(async () => {
-    let b = ref.current; if (!me || !b || busy) return;
-    setBusy(true); setError("");
+    if (!me || !ref.current) return;
+    // A reconnect or new edit during a running sync is not dropped: it runs once that sync ends.
+    if (running.current) { again.current = true; return; }
+    running.current = true; setBusy(true); setError("");
+    // Every step applies its result to the latest bucket, so an edit queued while a request is in flight survives.
+    const cur = () => ref.current!;
     try {
       for (let more = true; more;) {
-        const r = await fetch(`/api/offline?view=class-changes${b.classCursor ? `&cursor=${encodeURIComponent(b.classCursor)}` : ""}`, { cache: "no-store" });
+        const cursor = cur().classCursor;
+        const r = await fetch(`/api/offline?view=class-changes${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`, { cache: "no-store" });
         const j = await r.json();
         if (!r.ok || !j.success) throw new Error(j.error);
-        b = mergeClassChanges(b, j.data.items, j.data.cursor); more = j.data.more;
+        persist(mergeClassChanges(cur(), j.data.items, j.data.cursor)); more = j.data.more;
       }
-      const queue = (b.classOps ?? []).filter(o => o.state === "LOCAL");
+      const queue = (cur().classOps ?? []).filter(o => o.state === "LOCAL");
       if (queue.length) {
-        persist({ ...b, classOps: (b.classOps ?? []).map(o => o.state === "LOCAL" ? { ...o, state: "SYNCING" as OpState, sent: true } : o) });
+        const ids = new Set(queue.map(o => o.operationId));
+        persist({ ...cur(), classOps: (cur().classOps ?? []).map(o => ids.has(o.operationId) ? { ...o, state: "SYNCING" as OpState, sent: true } : o) });
         const { r, j } = await call({ action: "class-sync", deviceId: deviceId(), operations: queue.map(({ state: _s, message: _m, server: _v, sent: _t, ...op }) => op) });
         if (!r.ok || !j.success) throw new Error(j.error);
         const out = new Map<string, { status: OpState; message?: string; server?: ClassRow }>(j.data.outcomes.map((o: { operationId: string }) => [o.operationId, o]));
-        const classes = { ...(b.classes ?? {}) };
+        const b = cur(), classes = { ...(b.classes ?? {}) };
         const classOps = (b.classOps ?? []).map(o => { const res = out.get(o.operationId); if (!res) return o; if (res.status === "ACCEPTED" && res.server) classes[o.classId] = res.server; return { ...o, state: res.status, message: res.message ?? null, server: res.server ?? null }; });
-        b = { ...b, classes, classOps };
+        persist({ ...b, classes, classOps });
         const conflicts = classOps.filter(o => o.state === "CONFLICT").length;
         toast[conflicts ? "warning" : "success"](conflicts ? ui("{0} class edit(s) need your decision.", [String(conflicts)]) : ui("Class changes synced."));
         if (j.data.accepted) onSynced?.();
       }
-      persist(b);
     } catch {
-      persist({ ...b, classOps: (b.classOps ?? []).map(o => o.state === "SYNCING" ? { ...o, state: "LOCAL" as OpState } : o) });
+      persist({ ...cur(), classOps: (cur().classOps ?? []).map(o => o.state === "SYNCING" ? { ...o, state: "LOCAL" as OpState } : o) });
       setError(ui("No connection. Your class edits stay on this device until the server accepts them."));
-    } finally { setBusy(false); }
-  }, [me, busy, persist, ui, onSynced]);
+    } finally {
+      running.current = false; setBusy(false);
+      if (again.current && navigator.onLine) { again.current = false; setTimeout(() => void syncLatest.current(), 0); }
+    }
+  }, [me, persist, ui, onSynced]);
+  useEffect(() => { syncLatest.current = sync; }, [sync]);
   useEffect(() => { if (me && online) void sync(); }, [me, online]);
   const queue = () => {
     const b = ref.current; if (!b || !editing) return;
