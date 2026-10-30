@@ -11,7 +11,7 @@ import { prisma } from "@/lib/db/prisma";
 import { loginSchema } from "@/lib/validators/schemas";
 import bcrypt from "bcryptjs";
 import { logSuperAdminAction } from "@/lib/audit";
-import { authRateLimit } from "@/lib/auth/rate-limit";
+import { checkLoginThrottle } from "@/lib/auth/login-throttle";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { isPendingVerification } from "@/lib/auth/verification";
 
@@ -48,13 +48,14 @@ async function handleLogin(req: NextRequest) {
     }
     const ip = clientIp(req.headers);
     const body = await parseBody(req, jsonObjectBody, { preserve: ["password"] });
-    const rateKeyEmail = typeof body?.email === "string" ? body.email.toLowerCase().trim() : "";
-    const { ok, remaining } = await authRateLimit(`login:${ip}:${rateKeyEmail}`, { limit: 10, windowMs: 60_000 });
-    const ipLimit = await authRateLimit(`login-ip:${ip}`, { limit: 60, windowMs: 60_000 });
-    if (!ok || !ipLimit.ok) {
+    const throttle = await checkLoginThrottle(ip, typeof body?.email === "string" ? body.email : "");
+    if (!throttle.ok) {
+      const error = throttle.retryAfterSeconds > 60
+        ? "Too many login attempts. Please try again in 15 minutes."
+        : "Too many login attempts. Please try again in a minute.";
       return NextResponse.json(
-        { error: "Too many login attempts. Please try again in a minute." },
-        { status: 429, headers: { "Retry-After": "60", "X-RateLimit-Remaining": String(remaining) } }
+        { error },
+        { status: 429, headers: { "Retry-After": String(throttle.retryAfterSeconds), "X-RateLimit-Remaining": String(throttle.remaining) } }
       );
     }
     const parsed = loginSchema.safeParse(body);
