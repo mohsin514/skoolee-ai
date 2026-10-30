@@ -64,7 +64,8 @@ async function assignedClass(db: TxClient, user: AuthUser, classId: string) {
 /** Pupils enrolled in the class on the date, whatever their class is today. */
 async function datedRoster(db: TxClient, user: AuthUser, classId: string, date: Date) {
   const enrollments = await db.studentEnrollment.findMany({
-    where: { schoolId: user.schoolId, classId, startDate: { lte: date }, OR: [{ endDate: null }, { endDate: { gt: date } }] },
+    // SKAI-1354: an archived pupil has left the register, so they are not on a current dated roster.
+    where: { schoolId: user.schoolId, classId, startDate: { lte: date }, OR: [{ endDate: null }, { endDate: { gt: date } }], student: { archivedAt: null } },
     select: { id: true, studentId: true, rollNo: true, student: { select: { id: true, fullName: true, classId: true, profileImageUrl: true } } },
     orderBy: [{ rollNo: "asc" }, { studentId: "asc" }],
   });
@@ -250,6 +251,8 @@ export async function entryHistory(user: AuthUser, attendanceId: string) {
   if (!canMarkAttendance(user)) throw new ApiError("You cannot view attendance history.", 403);
   const row = await prisma.attendance.findFirst({ where: { id: attendanceId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, include: { editHistory: { orderBy: { editedAt: "asc" } }, explanations: { orderBy: { createdAt: "asc" } } } });
   if (!row) throw new ApiError("Attendance record not found", 404);
+  // SKAI-1357: a teacher sees a pupil-day's history only for a class they are assigned to.
+  if (user.role === "TEACHER" && row.classId) await assignedClass(prisma, user, row.classId);
   const ids = [...new Set([...row.editHistory.map(h => h.editedBy), row.markedBy].filter((v): v is string => Boolean(v)))];
   const people = new Map((await prisma.user.findMany({ where: { schoolId: user.schoolId, id: { in: ids } }, select: { id: true, fullName: true } })).map(p => [p.id, p.fullName]));
   return { status: row.status, version: row.version, changes: row.editHistory.map(h => ({ at: h.editedAt, from: h.oldStatus, to: h.newStatus, by: h.editedBy ? people.get(h.editedBy) ?? null : null, reason: h.reason, source: h.source })), explanations: row.explanations.map(e => ({ status: e.status, reason: e.reason, proposedStatus: e.proposedStatus, reviewNote: e.reviewNote, at: e.createdAt })) };

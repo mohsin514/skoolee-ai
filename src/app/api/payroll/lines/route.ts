@@ -42,6 +42,8 @@ export async function PATCH(req: NextRequest) {
       if (line.status === "PAID") {
         return Response.json({ success: true, data: line, alreadyPaid: true });
       }
+      // SKAI-1350: a negative or zero net cannot be paid; it would post a negative expense.
+      if (!(line.net > 0)) throw new ApiError("Only a payroll line with a positive net can be paid.", 409);
       const paymentMethodId = body.paymentMethodId ? String(body.paymentMethodId) : null;
       const now = new Date();
 

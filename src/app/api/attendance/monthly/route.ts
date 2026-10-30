@@ -22,8 +22,10 @@ export async function GET(req: NextRequest) {
       : await resolveCampusId(user, user.campusId);
 
     const [year, mon] = month.split("-").map(Number);
-    const startDate = new Date(year, mon - 1, 1);
-    const endDate = new Date(year, mon, 0); // last day of month
+    // SKAI-1351: attendance dates are stored at UTC midnight, so the month is built in UTC; local midnight
+    // in a positive UTC offset would drop the last day.
+    const startDate = new Date(Date.UTC(year, mon - 1, 1));
+    const endDate = new Date(Date.UTC(year, mon, 0)); // last day of month
 
     if (studentId) {
       // Student monthly report

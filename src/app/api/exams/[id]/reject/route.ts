@@ -1,4 +1,4 @@
-import { errorResponse } from "@/lib/api/scope";
+import { canLeadAcademics, errorResponse } from "@/lib/api/scope";
 import { resolveExamSchedulingCampus, withExamSchedulingWrite } from "@/lib/academic/exam-scheduling-write";
 import { NextRequest } from "next/server";
 import { getAuthUser } from "@/lib/auth";
@@ -63,6 +63,11 @@ export async function POST(
     }
 
     const campusId = await resolveExamSchedulingCampus(user, null, { kind: "exam", id });
+    // SKAI-1314: a campus admin may review only where no principal leads academics; a principal's
+    // locked results are not reversed or their report cards deleted by another role.
+    if (user.role !== "SUPER_ADMIN" && !(await canLeadAcademics(user, campusId))) {
+      return Response.json({ error: "Results are reviewed by your principal" }, { status: 403 });
+    }
     const result = await withExamSchedulingWrite(user, campusId, "edit", async prisma => {
     const exam = await prisma.exam.findUnique({
       where: { id },
