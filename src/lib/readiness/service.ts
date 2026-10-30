@@ -87,9 +87,8 @@ async function seedOptionalTasks(tx: TxClient, user: AuthUser) {
   const setup = await tx.institutionSetup.findUnique({ where: { schoolId: user.schoolId } });
   if (!setup) return;
   const keys = unresolvedOptionalWork(setup.institutionType as InstitutionType, setup.adoptionMode as SetupAdoptionMode | null, parseSetupDraft(setup.draft));
-  for (const key of keys) {
-    await tx.readinessTask.upsert({ where: { schoolId_key: { schoolId: user.schoolId, key } }, create: { schoolId: user.schoolId, key, title: OPTIONAL_TITLES[key], createdById: user.userId }, update: {} });
-  }
+  // One insert, existing follow-ups untouched: a per-key upsert outlived the transaction timeout on a slow database.
+  await tx.readinessTask.createMany({ data: keys.map(key => ({ schoolId: user.schoolId, key, title: OPTIONAL_TITLES[key], createdById: user.userId })), skipDuplicates: true });
 }
 
 export async function readinessView(user: AuthUser, now = new Date()) {
@@ -123,6 +122,8 @@ export async function readinessView(user: AuthUser, now = new Date()) {
       facts, ...evaluation, tasks: withHistory(tasks, audit, new Map(staff.map(person => [person.id, person.fullName]))), staff, locale: { country: locale.country, timezone: locale.timezone, currency: locale.currency },
       // The setup questionnaire lives in AI Workflows (/ai?setup=1).
       aiSetup: canConfigureCampus(user.role),
+      // Only the institution authority chooses the adoption mode, and only before go-live (SKAI-912).
+      canSwitchMode: isInstitutionAuthority(user) && row.status !== "READY" && Boolean(await tx.institutionSetup.findUnique({ where: { schoolId: user.schoolId }, select: { id: true } })),
       // The setup areas in wizard order, each with where this viewer sets it up (status comes from its task).
       areas };
   });
@@ -145,6 +146,27 @@ export async function approveReadiness(user: AuthUser, raw: unknown, now = new D
     const updated = await tx.schoolReadiness.update({ where: { schoolId: user.schoolId }, data: { status: "READY", approvedById: user.userId, approvedAt: now, evidence, version: row.version + 1 } });
     await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "school_readiness", recordId: updated.id, userId: user.userId, oldValue: { status: "SETUP", version: row.version }, newValue: { status: "READY", version: updated.version } } });
     return updated;
+  });
+}
+
+// ─── Adoption mode (SKAI-912) ─────────────────────────────────────
+// Switching mode changes which checks gate the first class, never the data: classes, rosters, follow-ups and
+// rehearsal times all stay. The readiness version moves, so a screen opened under the old mode cannot approve.
+export const modeInput = z.object({ mode: z.enum(["EXAM_STUDIO", "FULL_OPERATIONS"]), expectedVersion: z.number().int().min(0) }).strict();
+export async function switchAdoptionMode(user: AuthUser, raw: unknown) {
+  const input = modeInput.parse(raw);
+  return schoolAiTransaction(user, async tx => {
+    if (!isInstitutionAuthority(user)) throw new ApiError("Only the school or group administrator can change how the school uses Skoolee.", 403);
+    const setup = await tx.institutionSetup.findUnique({ where: { schoolId: user.schoolId }, select: { id: true, adoptionMode: true } });
+    if (!setup) throw new ApiError("Finish the institution setup first.", 409);
+    const row = await readinessRow(tx, user);
+    if (row.status === "READY") throw new ApiError("Readiness is already approved. Contact support to change the adoption mode.", 409);
+    if (row.version !== input.expectedVersion) throw new ApiError("Readiness changed. Review the current checks.", 409);
+    if (setup.adoptionMode === input.mode) return { mode: input.mode, version: row.version };
+    await tx.institutionSetup.update({ where: { schoolId: user.schoolId }, data: { adoptionMode: input.mode } });
+    const updated = await tx.schoolReadiness.update({ where: { schoolId: user.schoolId }, data: { version: row.version + 1 } });
+    await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "institution_setup", recordId: setup.id, userId: user.userId, oldValue: { adoptionMode: setup.adoptionMode }, newValue: { action: "adoption_mode.switched", adoptionMode: input.mode } } });
+    return { mode: input.mode, version: updated.version };
   });
 }
 
@@ -246,6 +268,7 @@ export async function updateReadinessTask(user: AuthUser, raw: unknown, now = ne
 // ─── Practice rehearsal ───────────────────────────────────────────
 // The rehearsal is a read-only preview over the school's real configuration:
 // it writes no attendance, assessment, message or money, only the step time.
+// Every step can be rehearsed in every mode; the mode only decides which ones gate go-live (rehearsalStepsFor).
 export const rehearsalInput = z.object({ step: z.enum(REHEARSAL_STEPS) }).strict();
 const SYNTHETIC_LEARNERS = ["Practice learner A", "Practice learner B", "Practice learner C"];
 

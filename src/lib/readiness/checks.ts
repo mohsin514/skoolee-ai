@@ -5,6 +5,13 @@
 export type AdoptionMode = "EXAM_STUDIO" | "FULL_OPERATIONS";
 export const REHEARSAL_STEPS = ["attendance", "assessment", "family"] as const;
 export type RehearsalStep = typeof REHEARSAL_STEPS[number];
+/**
+ * The rehearsal a mode needs before its first class goes live (SKAI-912). An assessment-only pilot rehearses the
+ * assessment; attendance and the family view stay available but wait for full operations.
+ */
+export function rehearsalStepsFor(mode: AdoptionMode): readonly RehearsalStep[] {
+  return mode === "EXAM_STUDIO" ? ["assessment"] : REHEARSAL_STEPS;
+}
 
 export interface ImportFacts {
   pendingBatches: number;          // staged or partially committed batches still awaiting a decision
@@ -44,7 +51,8 @@ export type CheckId = "campus" | "locale" | "academic" | "staff" | "roster" | "c
  * link opens Campuses). `handledElsewhere`: someone else fixes it in their console and the viewer has no screen for it,
  * so there is no link at all (`href` null) — never a link back to the readiness page itself (P9-08).
  */
-export interface ReadinessCheck { id: CheckId; required: boolean; passed: boolean; evidence: Record<string, number | boolean>; href: string | null; delegated?: boolean; handledElsewhere?: boolean }
+/** `later`: not needed for this mode's first class, but required once the school switches to full operations (SKAI-912). */
+export interface ReadinessCheck { id: CheckId; required: boolean; later?: boolean; passed: boolean; evidence: Record<string, number | boolean>; href: string | null; delegated?: boolean; handledElsewhere?: boolean }
 export type CheckTarget = { href: string | null; delegated?: boolean; handledElsewhere?: boolean };
 
 /**
@@ -105,25 +113,26 @@ export function checkHref(id: CheckId, viewer: CheckViewer | string): CheckTarge
 
 export function evaluateReadiness(facts: ReadinessFacts, viewer: CheckViewer | string = { role: "ADMIN" }) {
   const full = facts.adoptionMode === "FULL_OPERATIONS";
-  const rehearsed = REHEARSAL_STEPS.filter(step => !!facts.rehearsal[step]).length;
+  const steps = rehearsalStepsFor(facts.adoptionMode);
+  const rehearsed = steps.filter(step => !!facts.rehearsal[step]).length;
   const breakdown = facts.campusBreakdown ?? [];
   const campusesWaiting = breakdown.filter(campus => !campusReady(campus)).length;
   const checks: ReadinessCheck[] = [
     { id: "campus", required: true, passed: facts.campuses >= 1, evidence: { campuses: facts.campuses }, href: "" },
     { id: "locale", required: true, passed: facts.localeConfirmed, evidence: { confirmed: facts.localeConfirmed }, href: "" },
     { id: "academic", required: true, passed: facts.activeCycles >= 1 && facts.classes >= 1, evidence: { activeCycles: facts.activeCycles, classes: facts.classes }, href: "" },
-    // Exam Studio needs someone to run the first class; full operations needs classes owned by teachers.
-    { id: "staff", required: true, passed: full ? facts.classesWithTeacher >= 1 : facts.teachers >= 1, evidence: { teachers: facts.teachers, classesWithTeacher: facts.classesWithTeacher }, href: "" },
+    // Every mode's first class goes live with a responsible teacher, not just a teacher somewhere in the school (SKAI-912).
+    { id: "staff", required: true, passed: facts.classesWithTeacher >= 1, evidence: { teachers: facts.teachers, classesWithTeacher: facts.classesWithTeacher }, href: "" },
     { id: "roster", required: true, passed: facts.students >= 1, evidence: { students: facts.students }, href: "" },
     // Full operations runs every campus, so each needs a class and pupils; Exam Studio may start on one campus.
     { id: "campusCoverage", required: full, passed: campusesWaiting === 0, evidence: { campusesReady: breakdown.length - campusesWaiting, campusesTotal: breakdown.length }, href: "" },
     { id: "imports", required: true, passed: facts.imports.pendingBatches === 0, evidence: { pendingBatches: facts.imports.pendingBatches, rejectedRows: facts.imports.rejectedRows, unresolvedRows: facts.imports.unresolvedRows, unknownClassRows: facts.imports.unknownClassRows }, href: "" },
     { id: "guardians", required: full, passed: facts.studentsWithoutGuardian === 0 && facts.guardianReviewRequired === 0, evidence: { studentsWithoutGuardian: facts.studentsWithoutGuardian, reviewRequired: facts.guardianReviewRequired }, href: "" },
     { id: "fees", required: full, passed: facts.feeStructures >= 1, evidence: { feeStructures: facts.feeStructures, openingBalances: facts.openingBalances }, href: "" },
-    { id: "rehearsal", required: true, passed: rehearsed === REHEARSAL_STEPS.length, evidence: { completedSteps: rehearsed, totalSteps: REHEARSAL_STEPS.length }, href: "" },
+    { id: "rehearsal", required: true, passed: rehearsed === steps.length, evidence: { completedSteps: rehearsed, totalSteps: steps.length }, href: "" },
   ];
   // Every href comes from checkHref for this viewer; the list above never hard-codes a console.
-  for (const check of checks) Object.assign(check, checkHref(check.id, viewer));
+  for (const check of checks) Object.assign(check, checkHref(check.id, viewer), full || check.required ? {} : { later: true });
   const blocking = checks.filter(check => check.required && !check.passed);
   return { checks, ready: blocking.length === 0, nextRequired: blocking[0]?.id ?? null, campuses: breakdown.map(campus => ({ ...campus, ready: campusReady(campus) })) };
 }

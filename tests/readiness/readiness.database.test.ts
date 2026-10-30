@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import type { AuthUser } from "../../src/lib/auth";
 import { prisma } from "../../src/lib/db/prisma";
-import { approveReadiness, readinessView, rehearsalPreview, updateReadinessTask } from "../../src/lib/readiness/service";
+import { approveReadiness, readinessView, rehearsalPreview, switchAdoptionMode, updateReadinessTask } from "../../src/lib/readiness/service";
 
 const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only isolated PG55438.");
@@ -155,6 +155,41 @@ test("SKAI-154: an empty second campus blocks full-operations approval; campus a
   const ready = await readinessView(lead);
   if (!ready.lead) return;
   assert.equal(ready.ready, true, "an archived campus no longer blocks go-live");
+});
+
+test("SKAI-912: the institution authority switches adoption mode before go-live; data stays, other roles and schools cannot", async () => {
+  const s = await school("EXAM_STUDIO"), other = await school("EXAM_STUDIO");
+  await configure(s, { guardians: false });
+  await rehearsalPreview(s.owner, { step: "assessment" });
+  const before = await readinessView(s.owner);
+  if (!before.lead) throw new Error("owner leads");
+  assert.equal(before.ready, true, "an Exam Studio pilot needs only the assessment rehearsal");
+  assert.equal(before.canSwitchMode, true);
+  const version = before.readiness.version;
+  // The setup delegate, a teacher and a stale screen are all refused; nothing changes.
+  await assert.rejects(() => switchAdoptionMode(s.delegate, { mode: "FULL_OPERATIONS", expectedVersion: version }), { status: 403 });
+  await assert.rejects(() => switchAdoptionMode(s.teacher, { mode: "FULL_OPERATIONS", expectedVersion: version }), { status: 403 });
+  await assert.rejects(() => switchAdoptionMode(s.owner, { mode: "FULL_OPERATIONS", expectedVersion: version - 1 }), { status: 409 });
+  const switched = await switchAdoptionMode(s.owner, { mode: "FULL_OPERATIONS", expectedVersion: version });
+  assert.equal(switched.mode, "FULL_OPERATIONS");
+  // The other school is untouched; this school's data, follow-ups and rehearsal are kept.
+  assert.equal((await db.institutionSetup.findUnique({ where: { schoolId: other.schoolId } }))!.adoptionMode, "EXAM_STUDIO");
+  const after = await readinessView(s.owner);
+  if (!after.lead) throw new Error("owner leads");
+  assert.equal(after.ready, false, "full operations re-gates guardians and the whole rehearsal");
+  assert.equal(after.checks.find(c => c.id === "roster")!.passed, true);
+  assert.ok((after.readiness.rehearsal as Record<string, string>).assessment, "the assessment rehearsal is kept");
+  assert.ok(after.tasks.some(task => task.key === "feesPayroll"), "fees and payroll become a follow-up");
+  // A screen opened under the old mode cannot approve.
+  await assert.rejects(() => approveReadiness(s.owner, { expectedVersion: version }), { status: 409 });
+  // Switching back keeps everything, and the follow-up is not deleted.
+  await switchAdoptionMode(s.owner, { mode: "EXAM_STUDIO", expectedVersion: after.readiness.version });
+  const back = await readinessView(s.owner);
+  if (!back.lead) throw new Error("owner leads");
+  assert.equal(back.ready, true);
+  assert.ok(back.tasks.some(task => task.key === "feesPayroll"));
+  await approveReadiness(s.owner, { expectedVersion: back.readiness.version });
+  await assert.rejects(() => switchAdoptionMode(s.owner, { mode: "FULL_OPERATIONS", expectedVersion: back.readiness.version + 1 }), { status: 409 }, "no switch after go-live");
 });
 
 test("setup task tracking (SKAI-155): due dates, in-progress, stale edits, reminders, audit trail and two-school isolation", async () => {

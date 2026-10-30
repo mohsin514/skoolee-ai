@@ -14,7 +14,7 @@ import { createBridge, decideFamilyConsent, exportTransfer, getTransfer, importT
 // version makes mappings and the plan stale; marks are never touched; other schools and unrelated teachers
 // see nothing.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `transfer-${randomUUID()}`, otherSchoolId = `transfer-other-${randomUUID()}`, campusId = randomUUID(), otherCampusId = randomUUID(), classId = randomUUID(), subjectId = randomUUID(), studentId = randomUUID();
 const actor = (role: AuthUser["role"], school = schoolId, campus = campusId): AuthUser => ({ userId: randomUUID(), schoolId: school, campusId: campus, role, email: `${randomUUID()}@example.invalid` });
 const lead = actor("PRINCIPAL"), teacher = actor("TEACHER"), otherTeacher = actor("TEACHER"), guardian = actor("PARENT"), stranger = actor("PRINCIPAL", otherSchoolId, otherCampusId);

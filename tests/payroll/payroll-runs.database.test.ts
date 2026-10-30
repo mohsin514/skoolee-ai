@@ -13,7 +13,7 @@ import { addAdjustment, approveRun, createCorrection, payrollOverview, prepareRu
 // approval stale; a submission is created once and retries reuse its reference; rejected rows are
 // corrected in a version that covers only them.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `payroll-${randomUUID()}`, campusId = randomUUID(), otherCampusId = randomUUID();
 const actor = (role: AuthUser["role"], campus = campusId): AuthUser => ({ userId: randomUUID(), schoolId, campusId: campus, role, email: `${randomUUID()}@example.invalid` });
 const principal = actor("PRINCIPAL"), campusAdmin = actor("CAMPUS_ADMIN"), deputyAdmin = actor("CAMPUS_ADMIN"), accountant = actor("ACCOUNTANT"), teacherUser = actor("TEACHER"), otherAdmin = actor("CAMPUS_ADMIN", otherCampusId);

@@ -16,7 +16,7 @@ import { assessmentFixture } from "./assessment-fixture";
 // the answer assisted; keys and worked examples stay on the server until an answer is given; pausing
 // keeps accepted work; finishing sets a bounded, explained revisit; nothing touches formal results.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `practice-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), otherClassId = randomUUID(), subjectId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid` });
 const lead = actor("CAMPUS_ADMIN"), learner = actor("STUDENT"), outsider = actor("STUDENT");

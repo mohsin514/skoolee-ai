@@ -17,7 +17,7 @@ import { assessmentFixture } from "./assessment-fixture";
 
 // SKO-408 browser acceptance for the studio rail: Brief, Review desk evidence drawer and Results and improvement.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.RELEASE_TEST_APP || "http://localhost:3107";
 const evidence = process.env.RELEASE_EVIDENCE_DIR || "/tmp/sko408-spaces-evidence";
 const raw = new PrismaClient(), password = "SyntheticSpaces408!";

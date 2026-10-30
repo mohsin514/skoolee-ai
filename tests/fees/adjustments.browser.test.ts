@@ -11,7 +11,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // requester cannot approve; approval is not disbursement; a refund is paid out once; waivers reduce
 // what is owed without cash; a stale request cannot be approved; families see outcomes, not notes.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.FEES_TEST_APP || "http://localhost:3107";
 const evidence = process.env.FEES_EVIDENCE_DIR || "/tmp/sko433-evidence";
 const db = new PrismaClient(), password = "SyntheticAdjust433!";
