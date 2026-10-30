@@ -7,6 +7,7 @@ import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { calculateWeightedGradeForClass } from "@/lib/academic/grade-calculator";
+import { brandHex } from "@/lib/school/branding";
 
 const styles = StyleSheet.create({
   page: {
@@ -153,12 +154,15 @@ type CampusInfo = {
     website: string | null;
     tagline: string | null;
     contactEmail: string | null;
+    brandColor?: string | null;
   } | null;
 };
 
 function Header({ campus }: { campus: CampusInfo }) {
   const logo = campus.logoUrl || campus.school?.logoUrl || null;
   const tagline = campus.school?.tagline || null;
+  // SKAI-114: the school's palette colour underlines the header.
+  const brand = brandHex(campus.school?.brandColor);
   const contactLine = [
     campus.board,
     campus.city,
@@ -169,7 +173,7 @@ function Header({ campus }: { campus: CampusInfo }) {
   ].filter(Boolean).join(" | ");
 
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, brand ? { borderBottomColor: brand, borderBottomWidth: 2 } : {}]}>
       <View style={styles.headerRow}>
         {logo ? <Image src={logo} style={styles.logo} /> : null}
         <View style={styles.headerText}>
@@ -196,7 +200,7 @@ export async function generateClassGradesPdf(classId: string) {
     where: { id: classId },
     include: {
       campus: {
-        select: { name: true, city: true, address: true, phone: true, email: true, website: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true } } },
+        select: { name: true, city: true, address: true, phone: true, email: true, website: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, brandColor: true } } },
       },
     },
   });
@@ -259,7 +263,7 @@ export async function generateInvoicePdf(invoiceId: string) {
     include: {
       enrollment: true,
       campus: {
-        select: { name: true, city: true, address: true, phone: true, email: true, website: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true } } },
+        select: { name: true, city: true, address: true, phone: true, email: true, website: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, brandColor: true } } },
       },
       student: {
         include: { class: { select: { name: true, section: true } } },

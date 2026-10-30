@@ -27,13 +27,17 @@ export async function GET(req: NextRequest) {
       throw new ApiError("This checkout belongs to another buyer.", 403);
     }
 
-    const [paymentConfig, ownerSettings] = await Promise.all([
+    const [paymentConfig, ownerSettings, school] = await Promise.all([
       intent.provider === "BANK_TRANSFER" ? getPaymentConfig() : Promise.resolve(null),
       prisma.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId }, select: { preferredLanguage: true } }),
+      prisma.school.findUnique({ where: { id: user.schoolId }, select: { status: true, subscriptionLifecycleState: true, graceEndsAt: true } }),
     ]);
     return Response.json({
       language: ownerSettings?.preferredLanguage || "en",
       bank: paymentConfig?.bank ?? null,
+      // SKAI-161: lets the page show grace or expiry of an active package; only this school's own row.
+      lifecycle: school ? { status: school.status, lifecycleState: school.subscriptionLifecycleState, graceEndsAt: school.graceEndsAt?.toISOString() ?? null } : null,
+      checkedAt: new Date().toISOString(),
       intent: {
         id: intent.id,
         plan: intent.plan,

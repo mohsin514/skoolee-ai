@@ -384,7 +384,7 @@ export async function getLiveReportCardPayload(reportCardId: string, db: TxClien
     where: { id: reportCardId },
     include: {
       enrollment: true,
-      campus: { select: { name: true, city: true, address: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true, uaeReportTemplate: true } } } },
+      campus: { select: { name: true, city: true, address: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true, uaeReportTemplate: true, nameUr: true, nameAr: true, brandColor: true } } } },
       exam: {
         select: {
           id: true, title: true, term: true, academicYear: true, examType: true, subjectId: true, academicModelVersionId: true,

@@ -2588,6 +2588,7 @@ html[data-step-direction="back"]::view-transition-new(sk-step-card) { animation-
   .sk-choice-tag[data-tone="info"] { background: var(--status-info-surface); border-color: var(--status-info-border); color: var(--status-info-text); }
   .sk-choice-tag[data-tone="brand"] { background: var(--status-brand-surface); border-color: var(--status-brand-border); color: var(--status-brand-text); }
   .sk-choice-tag[data-tone="danger"] { background: var(--status-error-surface); border-color: var(--status-error-border); color: var(--status-error-text); }
+  .sk-choice-tag[data-tone="warning"] { background: var(--status-warning-surface); border-color: var(--status-warning-border); color: var(--status-warning-text); }
 
   /* Footer: Oolee's verdict bubble and the actions (the recommended action mirrored). */
   .sk-chooser-footer { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; }

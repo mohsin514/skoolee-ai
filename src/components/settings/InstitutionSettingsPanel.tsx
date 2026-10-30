@@ -51,6 +51,8 @@ import {
 import { resolveMediaUrl } from "@/lib/storage/s3";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { phoneProblem } from "@/lib/school/details";
+import { BRAND_PALETTE } from "@/lib/school/branding";
+import { ChoiceCard, arrowSelect } from "@/components/ui/choice-card";
 import { LOGO_ACCEPT, logoFileProblem } from "@/lib/school/logo-policy";
 import { UaeReportTemplateToggle } from "./UaeReportTemplateToggle";
 
@@ -73,7 +75,7 @@ type Tr = ReturnType<typeof useUiText>;
 
 // SKO-402: a save sends only the fields that changed (the server keeps every omitted field) and is reviewed
 // first as a before/after list; the record's history shows who changed what.
-const FIELD_LABEL = (tr: Tr, key: string) => ({ name: tr("Name"), tagline: tr("Tagline / Motto"), city: tr("City"), address: tr("Address"), phone: tr("Phone"), website: tr("Website"), email: tr("Campus Email"), principalName: tr("Head of Campus"), board: tr("Examination Board"), logoUrl: tr("Logo"), establishedYear: tr("Established"), timezone: tr("Time Zone") } as Record<string, string>)[key] ?? key;
+const FIELD_LABEL = (tr: Tr, key: string) => ({ name: tr("Name"), tagline: tr("Tagline / Motto"), nameUr: tr("Official name (Urdu)"), nameAr: tr("Official name (Arabic)"), shortName: tr("Short name"), brandColor: tr("Brand colour"), city: tr("City"), address: tr("Address"), phone: tr("Phone"), website: tr("Website"), email: tr("Campus Email"), principalName: tr("Head of Campus"), board: tr("Examination Board"), logoUrl: tr("Logo"), establishedYear: tr("Established"), timezone: tr("Time Zone") } as Record<string, string>)[key] ?? key;
 const clean = (value: unknown) => (typeof value === "string" ? value.trim() : value ?? "");
 function changedFields<T extends Record<string, unknown>>(baseline: T, form: T, keys: (keyof T)[]) {
   return keys.filter(key => String(clean(form[key])) !== String(clean(baseline[key])));
@@ -294,6 +296,13 @@ export function InstitutionSettingsPanel({
             <div className="min-w-0">
               <p className="text-2xs font-semibold text-primary"><UiText>{"Institution"}</UiText></p>
               <h3 className="mt-0.5 truncate text-xl font-bold tracking-tight text-ink-strong"><bdi>{data.school.name}</bdi></h3>
+              {data.school.shortName || data.school.nameUr || data.school.nameAr ? (
+                <p className="mt-0.5 flex flex-wrap gap-x-3 truncate text-xs font-semibold text-ink-muted">
+                  {data.school.shortName ? <bdi>{data.school.shortName}</bdi> : null}
+                  {data.school.nameUr ? <bdi lang="ur" dir="rtl">{data.school.nameUr}</bdi> : null}
+                  {data.school.nameAr ? <bdi lang="ar" dir="rtl">{data.school.nameAr}</bdi> : null}
+                </p>
+              ) : null}
               {data.school.tagline ? (
                 <p className="mt-0.5 truncate text-xs font-semibold italic text-ink-muted"><bdi>“{data.school.tagline}”</bdi></p>
               ) : null}
@@ -396,7 +405,7 @@ function SchoolDialog({
   const tr = useUiText();
   const [form, setForm] = useState<SchoolForm>(school);
   const draft = useFormDraft({ record: "settings:school", schema: 1, values: form, baseline: school,
-    fields: ["name", "tagline", "city", "address", "phone", "website", "establishedYear", "timezone"], apply: setForm, current: async () => {
+    fields: ["name", "tagline", "nameUr", "nameAr", "shortName", "brandColor", "city", "address", "phone", "website", "establishedYear", "timezone"], apply: setForm, current: async () => {
       const latest = await getInstitutionSettings();
       if (!latest.canEditSchool) throw new Error("Access revoked");
       return latest.school;
@@ -426,7 +435,7 @@ function SchoolDialog({
     : null;
 
   const [reviewing, setReviewing] = useState(false);
-  const changes = changedFields(school as unknown as Record<string, unknown>, form as unknown as Record<string, unknown>, ["name", "tagline", "city", "address", "phone", "website", "logoUrl", "establishedYear"]);
+  const changes = changedFields(school as unknown as Record<string, unknown>, form as unknown as Record<string, unknown>, ["name", "tagline", "nameUr", "nameAr", "shortName", "brandColor", "city", "address", "phone", "website", "logoUrl", "establishedYear"]);
   const save = async () => {
     if (!changes.length) { toast.info(tr("Nothing changed.")); onClose(); return; }
     setSaving(true);
@@ -481,11 +490,16 @@ function SchoolDialog({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field id="s-name" label={tr("School Name")} required icon={GraduationCap} value={form.name} placeholder={tr("e.g. Horizon Academy")} onChange={(v) => set("name", v)} />
           <Field id="s-tagline" label={tr("Tagline / Motto")} icon={Tag} value={form.tagline} placeholder={tr("Optional")} onChange={(v) => set("tagline", v)} />
+          <Field id="s-name-ur" dir="rtl" lang="ur" label={tr("Official name (Urdu)")} icon={GraduationCap} value={form.nameUr} placeholder={tr("Optional")} onChange={(v) => set("nameUr", v)} />
+          <Field id="s-name-ar" dir="rtl" lang="ar" label={tr("Official name (Arabic)")} icon={GraduationCap} value={form.nameAr} placeholder={tr("Optional")} onChange={(v) => set("nameAr", v)} />
+          <Field id="s-short" label={tr("Short name")} icon={Tag} value={form.shortName} placeholder={tr("e.g. HA")} onChange={(v) => set("shortName", v.slice(0, 24))} />
           <Field id="s-city" label={tr("City")} required icon={MapPin} value={form.city} placeholder={tr("e.g. Lahore")} onChange={(v) => set("city", v)} />
           <Field id="s-phone" label={tr("Phone")} icon={Phone} value={form.phone} placeholder="+92 300 0000000" onChange={(v) => set("phone", v)} />
           <Field id="s-website" label={tr("Website")} icon={Globe} value={form.website} placeholder={tr("www.school.edu.pk")} onChange={(v) => set("website", v)} />
           <Field id="s-year" label={tr("Established")} icon={CalendarDays} value={form.establishedYear} placeholder="e.g. 1998" onChange={(v) => set("establishedYear", v.replace(/[^\d]/g, "").slice(0, 4))} />
         </div>
+
+        <BrandColorPicker value={form.brandColor} onChange={(v) => set("brandColor", v)} />
 
         <Field id="s-address" label={tr("Address")} icon={MapPin} value={form.address} placeholder={tr("Street address")} onChange={(v) => set("address", v)} />
 
@@ -738,8 +752,10 @@ function LogoPicker({
 }
 
 function Field({
-  id, label, value, placeholder, onChange, icon: Icon, required,
+  id, label, value, placeholder, onChange, icon: Icon, required, dir, lang,
 }: {
+  dir?: "rtl" | "ltr";
+  lang?: string;
   id: string;
   label: string;
   value: string;
@@ -760,10 +776,33 @@ function Field({
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
+          dir={dir}
+          lang={lang}
           className="w-full ps-10 pe-4 placeholder:text-ink-subtle"
         />
       </InputGroup>
     </div>
+  );
+}
+
+/** SKAI-114: palette swatches only, so every brand colour keeps white text legible (WCAG AA). */
+function BrandColorPicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const tr = useUiText();
+  const options = [{ id: "", label: "Default", hex: null as string | null }, ...BRAND_PALETTE];
+  const choices = options.map((option) => ({ value: option.id, label: option.label }));
+  return (
+    <fieldset className="space-y-1.5">
+      <legend className="sk-field-label">{tr("Brand colour")}</legend>
+      <div role="radiogroup" aria-label={tr("Brand colour")} className="grid grid-cols-2 gap-2 sm:grid-cols-3" onKeyDown={(event) => arrowSelect(event, choices, value, onChange)}>
+        {options.map((option) => (
+          <div key={option.id || "default"} className="relative">
+            <ChoiceCard option={{ value: option.id, label: tr(option.label) }} shape="radio" selected={value === option.id} tabbable={value === option.id} onSelect={() => onChange(option.id)} className="pe-10" />
+            <span aria-hidden="true" className="pointer-events-none absolute end-3 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border border-border bg-primary" style={option.hex ? { backgroundColor: option.hex } : undefined} />
+          </div>
+        ))}
+      </div>
+      <p className="px-1 text-2xs font-bold text-ink-subtle">{tr("Used on report cards, receipts and PDF headers. Every colour keeps text readable.")}</p>
+    </fieldset>
   );
 }
 

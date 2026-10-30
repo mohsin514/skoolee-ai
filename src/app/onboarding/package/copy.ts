@@ -8,6 +8,7 @@ export type PackageCopy = {
   unlimited: string; perMonth: string; perYear: string; continueFree: string; choose: string; quote: string;
   checkoutUnavailable: string; checkoutNotConfigured: string; statusReserved: string; savedReserved: string; sizingTitle: string; folio: string; paidUnavailable: string; regionalQuote: string; pricesAndTerms: string; approvedTerms: string;
   priceDisclosure: string; statusTitle: string; loadingOrder: string; missingReference: string;
+  lastChecked: string; statusGrace: string; statusExpired: string; savedGrace: string; savedExpired: string; statusBank: string;
   statusConfirmed: string; statusPending: string; statusQuote: string; statusFree: string;
   statusCancelled: string; statusFailed: string; savedActive: string; savedPending: string;
   savedFailed: string; savedCancelled: string; savedSelection: string; orderReference: string;
@@ -61,7 +62,7 @@ const en: PackageCopy = {
   checkoutUnavailable: "Checkout unavailable", statusReserved: "Package reserved", savedReserved: "Nothing has been charged. Our team will contact you to confirm the price and payment; your setup stays saved and you can keep going.", checkoutNotConfigured: "Online checkout is not switched on yet. Request a quote and our team will confirm the price and payment with you; your setup stays saved.", sizingTitle: "Your expected size", folio: "Setup · Package", paidUnavailable: "Paid checkout is not currently available.", regionalQuote: "Online payment is not available for your region yet. Request a quote and our team will confirm the price, currency and payment method with you.",
   pricesAndTerms: "Prices in PKR. The regional currency does not convert the catalogue price.", approvedTerms: "Approved terms",
   priceDisclosure: "Prices are shown in PKR. Regional currency is informational and does not convert the price.",
-  statusTitle: "Payment and setup status", loadingOrder: "Loading saved order…", missingReference: "Checkout reference is missing.",
+  statusTitle: "Payment and setup status", lastChecked: "Last checked {0}", statusGrace: "Grace period", statusExpired: "Package expired", savedGrace: "Payment is overdue. Everything keeps working until the grace period ends; renew to keep access.", savedExpired: "The package has lapsed. Records are kept, but adding campuses, staff and students waits until you renew.", statusBank: "Bank transfer awaiting confirmation", loadingOrder: "Loading saved order…", missingReference: "Checkout reference is missing.",
   statusConfirmed: "Payment confirmed by the provider", statusPending: "Payment is being confirmed",
   statusQuote: "Custom quote requested", statusFree: "Free package selected", statusCancelled: "Checkout cancelled",
   statusFailed: "Payment failed", savedActive: "Your package is active. Resume the setup you saved.",
@@ -154,7 +155,7 @@ const ar: PackageCopy = {
   checkoutUnavailable: "الدفع غير متاح", statusReserved: "تم حجز الباقة", savedReserved: "لم يتم خصم أي مبلغ. سيتواصل معك فريقنا لتأكيد السعر والدفع، ويبقى إعدادك محفوظاً ويمكنك المتابعة.", checkoutNotConfigured: "الدفع الإلكتروني غير مفعّل بعد. اطلب عرض سعر وسيؤكد فريقنا السعر وطريقة الدفع معك، ويبقى إعدادك محفوظاً.", sizingTitle: "الحجم المتوقع", folio: "الإعداد · الباقة", paidUnavailable: "الدفع للباقة المدفوعة غير متاح حالياً.", regionalQuote: "الدفع الإلكتروني غير متاح لمنطقتك بعد. اطلب عرض سعر وسيؤكد فريقنا السعر والعملة وطريقة الدفع معك.",
   pricesAndTerms: "الأسعار بعملة PKR. العملة الإقليمية لا تحوّل سعر الكتالوج.", approvedTerms: "الشروط المعتمدة",
   priceDisclosure: "تُعرض الأسعار بعملة PKR. العملة الإقليمية للمعلومات فقط ولا تحوّل السعر.",
-  statusTitle: "حالة الدفع والإعداد", loadingOrder: "جارٍ تحميل الطلب المحفوظ…", missingReference: "مرجع الدفع غير موجود.",
+  statusTitle: "حالة الدفع والإعداد", lastChecked: "آخر تحقق {0}", statusGrace: "فترة سماح", statusExpired: "انتهت الباقة", savedGrace: "الدفع متأخر. يستمر كل شيء بالعمل حتى نهاية فترة السماح؛ جدّد للحفاظ على الوصول.", savedExpired: "انتهت صلاحية الباقة. تبقى السجلات محفوظة، لكن إضافة الفروع والموظفين والطلاب تنتظر التجديد.", statusBank: "تحويل بنكي بانتظار التأكيد", loadingOrder: "جارٍ تحميل الطلب المحفوظ…", missingReference: "مرجع الدفع غير موجود.",
   statusConfirmed: "أكد مزود الدفع العملية", statusPending: "جارٍ تأكيد الدفع",
   statusQuote: "تم طلب عرض سعر مخصص", statusFree: "تم اختيار الباقة المجانية", statusCancelled: "تم إلغاء الدفع",
   statusFailed: "تعذر إتمام الدفع", savedActive: "أصبحت باقتك مفعّلة. تابع الإعداد الذي حفظته.",
@@ -258,7 +259,7 @@ const ur: PackageCopy = {
   checkoutUnavailable: "ادائیگی دستیاب نہیں", statusReserved: "پیکیج محفوظ کر لیا گیا", savedReserved: "کوئی رقم نہیں کاٹی گئی۔ ہماری ٹیم قیمت اور ادائیگی کی تصدیق کے لیے آپ سے رابطہ کرے گی؛ آپ کا سیٹ اپ محفوظ ہے اور آپ جاری رکھ سکتے ہیں۔", checkoutNotConfigured: "آن لائن ادائیگی ابھی فعال نہیں۔ قیمت طلب کریں، ہماری ٹیم قیمت اور ادائیگی آپ کے ساتھ طے کرے گی؛ آپ کا سیٹ اپ محفوظ رہے گا۔", sizingTitle: "متوقع حجم", folio: "سیٹ اپ · پیکیج", paidUnavailable: "ادائیگی والا پیکیج فی الحال دستیاب نہیں۔", regionalQuote: "آپ کے علاقے کے لیے آن لائن ادائیگی ابھی دستیاب نہیں۔ قیمت طلب کریں، ہماری ٹیم آپ کے ساتھ قیمت، کرنسی اور ادائیگی کا طریقہ طے کرے گی۔",
   pricesAndTerms: "قیمتیں PKR میں ہیں۔ علاقائی کرنسی فہرست کی قیمت تبدیل نہیں کرتی۔", approvedTerms: "منظور شدہ شرائط",
   priceDisclosure: "قیمتیں PKR میں دکھائی گئی ہیں۔ علاقائی کرنسی صرف معلومات کے لیے ہے اور قیمت تبدیل نہیں کرتی۔",
-  statusTitle: "ادائیگی اور سیٹ اپ کی حالت", loadingOrder: "محفوظ آرڈر لوڈ ہو رہا ہے…", missingReference: "ادائیگی کا حوالہ موجود نہیں۔",
+  statusTitle: "ادائیگی اور سیٹ اپ کی حالت", lastChecked: "آخری بار جانچا گیا {0}", statusGrace: "رعایتی مدت", statusExpired: "پیکیج کی میعاد ختم", savedGrace: "ادائیگی واجب الادا ہے۔ رعایتی مدت ختم ہونے تک سب کچھ چلتا رہے گا؛ رسائی برقرار رکھنے کے لیے تجدید کریں۔", savedExpired: "پیکیج کی میعاد ختم ہو گئی۔ ریکارڈ محفوظ ہیں، لیکن کیمپس، عملہ اور طلبہ شامل کرنا تجدید تک رکا رہے گا۔", statusBank: "بینک ٹرانسفر تصدیق کا منتظر", loadingOrder: "محفوظ آرڈر لوڈ ہو رہا ہے…", missingReference: "ادائیگی کا حوالہ موجود نہیں۔",
   statusConfirmed: "ادائیگی فراہم کنندہ نے تصدیق کر دی", statusPending: "ادائیگی کی تصدیق ہو رہی ہے",
   statusQuote: "حسب ضرورت قیمت کی درخواست بھیج دی گئی", statusFree: "مفت پیکیج منتخب کیا گیا", statusCancelled: "ادائیگی منسوخ کر دی گئی",
   statusFailed: "ادائیگی مکمل نہیں ہو سکی", savedActive: "آپ کا پیکیج فعال ہے۔ محفوظ کردہ سیٹ اپ جاری رکھیں۔",

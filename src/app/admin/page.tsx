@@ -101,6 +101,7 @@ import { BulkImportDialog } from "@/components/students/bulk-import-dialog";
 import { QuickCreateClass } from "@/components/shared-admin/quick-create-class";
 import { ClassManager } from "@/components/shared-admin/class-manager";
 import { ArchivedClassesPanel } from "@/components/shared-admin/archived-classes-panel";
+import { ClassSyncPanel } from "@/components/offline/class-sync-panel";
 import { classArchiveText, studentArchiveText, fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
@@ -1764,6 +1765,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
             onUpdateSubject={ctx.handleUpdateSubject}
             onAddSection={ctx.handleAddSection}
           />
+          <ClassSyncPanel onSynced={() => void ctx.reload()} />
         </>
       );
 

@@ -113,6 +113,11 @@ model School {
   logoUrl              String?   @map("logo_url") // Institution icon / logo
   establishedYear      Int?      @map("established_year") // Year the institution was founded
   tagline              String? // Motto / short descriptor
+  // SKAI-114: official name in Urdu/Arabic, a short name and a palette brand colour (src/lib/school/branding.ts).
+  nameUr               String?   @map("name_ur")
+  nameAr               String?   @map("name_ar")
+  shortName            String?   @map("short_name")
+  brandColor           String?   @map("brand_color")
   // Which ladder of ranks this tenant starts from: SCHOOL | COLLEGE |
   // UNIVERSITY | ACADEMY | CUSTOM. It only chooses the preset seeded into
   // StaffDesignation — every rank stays editable afterwards.
@@ -1387,6 +1392,8 @@ model Class {
   teachingMode   String  @default("SINGLE") @map("teaching_mode")
   // SKO-404: seats for rollover checks; null = not set (warned, never assumed).
   capacity       Int?
+  // SKAI-193: version token for stale-edit detection and the offline reconnect cursor.
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
 
   // Relations
   students            Student[]
@@ -1402,6 +1409,7 @@ model Class {
   conversations       Conversation[]
 
   @@index([schoolId])
+  @@index([schoolId, updatedAt])
   @@map("classes")
 }
 

@@ -12,6 +12,7 @@ import { assertPlanCapacity, assertSchoolOperational } from "@/lib/billing/entit
 import { enterTenantContext } from "@/lib/db/tenant-context";
 import { defaultBoardFor } from "@/config/boards";
 import { schoolCountry } from "@/lib/school/country";
+import { assertScriptName, assertShortName, parseBrandColor } from "@/lib/school/branding";
 import {
   assertPhone,
   assertWebsite,
@@ -104,6 +105,11 @@ export interface InstitutionSettings {
     regId: string;
     contactEmail: string;
     tagline: string;
+    /** SKAI-114: official name in Urdu and Arabic, a short name and a palette brand colour id. */
+    nameUr: string;
+    nameAr: string;
+    shortName: string;
+    brandColor: string;
     city: string;
     address: string;
     phone: string;
@@ -173,6 +179,10 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
       regId: school.regId,
       contactEmail: school.contactEmail,
       tagline: school.tagline || "",
+      nameUr: school.nameUr || "",
+      nameAr: school.nameAr || "",
+      shortName: school.shortName || "",
+      brandColor: school.brandColor || "",
       city: school.city || "",
       address: school.address || "",
       phone: school.phone || "",
@@ -209,6 +219,10 @@ export interface SchoolDetailsInput {
   expectedRevision?: string;
   name?: string;
   tagline?: string;
+  nameUr?: string;
+  nameAr?: string;
+  shortName?: string;
+  brandColor?: string;
   city?: string;
   address?: string;
   phone?: string;
@@ -227,6 +241,10 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
   const city = input.city === undefined ? undefined : requiredText(input.city, "City");
   const phone = input.phone === undefined ? undefined : assertPhone(optionalText(input.phone), "Phone number");
   const website = input.website === undefined ? undefined : assertWebsite(optionalText(input.website), "website");
+  const nameUr = input.nameUr === undefined ? undefined : assertScriptName(optionalText(input.nameUr), "Urdu name");
+  const nameAr = input.nameAr === undefined ? undefined : assertScriptName(optionalText(input.nameAr), "Arabic name");
+  const shortName = input.shortName === undefined ? undefined : assertShortName(optionalText(input.shortName));
+  const brandColor = input.brandColor === undefined ? undefined : parseBrandColor(input.brandColor);
   // A timezone change moves every scheduled time, so it is previewed and applied in Language and regional
   // settings; here it may only be repeated unchanged.
   const timezone = safeTimezone(input.timezone);
@@ -240,7 +258,7 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
     const current = await tx.school.findUnique({ where: { id: session.schoolId } });
     if (!current || (input.expectedRevision && input.expectedRevision !== recordRevision(current))) throw new Error("This record changed. Review your draft against the current values before saving.");
     const data = {
-      name, city, phone, website,
+      name, city, phone, website, nameUr, nameAr, shortName, brandColor,
       tagline: patchText(input.tagline),
       address: patchText(input.address),
       logoUrl: newLogoUrl,
@@ -251,7 +269,8 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
     const school = await tx.school.update({ where: { id: session.schoolId }, data });
     await tx.auditLog.create({ data: { schoolId: session.schoolId, tableName: "school", recordId: session.schoolId, userId: session.userId, oldValue: { kind: "DETAILS", fields: AUDIT_FIELDS(diff, "from") } as Prisma.InputJsonValue, newValue: { kind: "DETAILS", fields: AUDIT_FIELDS(diff, "to") } as Prisma.InputJsonValue } });
     return { school, changed: Object.keys(diff) };
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    // SKAI-114: read, update and audit run in one transaction; the 5 s default expired on a slow database and refused the save.
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 30_000 });
 
   return { success: true, changed: result.changed, school: { id: result.school.id, name: result.school.name, timezone: result.school.timezone } };
 }

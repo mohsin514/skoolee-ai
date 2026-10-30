@@ -1,4 +1,5 @@
 import { reportMessages } from "@/lib/locale/report-messages";
+import { brandHex, localizedSchoolName } from "@/lib/school/branding";
 import { formatInstant, localeTag } from "@/lib/locale/package";
 import { Document, Font, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import path from "path";
@@ -360,6 +361,7 @@ export function ReportCardDocument({ payload, logoUrl }: { payload: ReportPayloa
   const campus = reportCard.campus as any;
   const school = campus?.school;
   const logo = logoUrl;
+  const brand = brandHex(school?.brandColor);
   const avatarUrl = student.profileImageUrl?.startsWith("http") ? student.profileImageUrl : null;
   const displayPercentage = reportCard.percentage || 0;
   const displayGrade = reportCard.grade || "—";
@@ -379,10 +381,12 @@ export function ReportCardDocument({ payload, logoUrl }: { payload: ReportPayloa
       <Page size="A4" style={[styles.page, { fontFamily: `Report-${locale.language}`, direction: locale.language !== "en" ? "rtl" : "ltr", textAlign: locale.language !== "en" ? "right" : "left" }]}>
         {/* School/Campus branding header */}
         {logo ? (
-          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12, gap: 10 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12, gap: 10, ...(brand ? { borderBottomWidth: 2, borderBottomColor: brand, paddingBottom: 6 } : {}) }}>
             <Image src={logo} style={{ width: 36, height: 36, borderRadius: 6 }} />
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 11, fontWeight: 700 }}>{campus?.name || ""}</Text>
+              {/* SKAI-114: the official school name in the card's language (Urdu/Arabic when stored). */}
+              {school && localizedSchoolName(school, locale.language) !== school.name ? <Text style={{ fontSize: 9 }}>{localizedSchoolName(school, locale.language)}</Text> : null}
               {school?.tagline ? <Text style={{ fontSize: 7, color: "#667085" }}>{school.tagline}</Text> : null}
               <Text style={{ fontSize: 7, color: "#667085" }}>
                 {[campus?.city, campus?.address, campus?.phone || school?.phone, campus?.email || school?.contactEmail, campus?.website || school?.website].filter(Boolean).join(" | ")}
