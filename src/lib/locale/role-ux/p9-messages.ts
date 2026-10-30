@@ -218,6 +218,11 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   // SKAI-1279 whole-app UI pass
   ["Occupied today", "مشغولة اليوم", "آج زیرِ استعمال"],
   ["{0} of {1} done", "اكتمل {0} من {1}", "{1} میں سے {0} مکمل"],
+  // SKAI-1277 whole-app UI pass
+  ["Filter corrections", "تصفية التصحيحات", "تصحیحات فلٹر کریں"],
+  ["Filter messages", "تصفية الرسائل", "پیغامات فلٹر کریں"],
+  ["No plan", "بلا خطة", "کوئی منصوبہ نہیں"],
+  ["Filter pupils", "تصفية التلاميذ", "طلبہ فلٹر کریں"],
 ];
 
 export const arabicP9Ui: Record<string, string> = Object.fromEntries(ROWS.map(([en, ar]) => [en, ar]));

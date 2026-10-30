@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Settings } from "lucide-react";
+import { MessagesSquare, Settings } from "lucide-react";
 import { ChatSettingsDialog, ChatWorkspace, useChat } from "@/components/chat";
 import { PageHeader } from "@/components/ui/page-header";
 
@@ -36,6 +36,7 @@ export function MessagesWorkspace() {
     <div className="flex min-h-0 flex-1 flex-col gap-4 font-sans text-foreground">
       <PageHeader
         title="Messages"
+        icon={MessagesSquare}
         description={
           viewer?.role === "SUPER_ADMIN" || viewer?.role === "OWNER"
             ? "Conversations with campus leaders and colleagues stay on the school record."

@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, PlugZap } from "lucide-react";
+import { DeskPill, DeskRowIcon, RelativeTime, deskRow } from "@/components/ui/desk";
 import { useFetch } from "@/hooks";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmAction } from "@/components/ui/confirm-action";
@@ -92,13 +92,13 @@ export function WhatsAppConnectionPanel() {
     <CardContent className="space-y-4">
       {data.mode === "mock" ? <Alert tone="info" compact live="off">{ui("Test mode: no real Meta account is contacted.")}</Alert> : null}
       {!ready ? <Alert tone="warning" live="off">{ui("WhatsApp sign-up is not set up for this deployment yet. Ask Skoolee support.")}</Alert> : null}
-      {connection ? <dl className="grid gap-3 text-sm sm:grid-cols-2">
-        <div><dt className="text-ink-muted">{ui("Status")}</dt><dd><Badge variant="success">{ui("Connected")}</Badge></dd></div>
+      {connection ? <dl data-tone="success" className={`${deskRow} grid gap-3 text-sm sm:grid-cols-2 [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]`}>
+        <div><dt className="text-ink-muted">{ui("Status")}</dt><dd><DeskPill tone="success">{ui("Connected")}</DeskPill></dd></div>
         <div><dt className="text-ink-muted">{ui("Business name")}</dt><dd>{connection.verifiedName ?? "—"}</dd></div>
         <div><dt className="text-ink-muted">{ui("Phone number")}</dt><dd><bdi dir="ltr">{connection.displayPhoneNumber ?? "—"}</bdi></dd></div>
-        <div><dt className="text-ink-muted">{ui("Connected on")}</dt><dd>{dateTime(connection.connectedAt)}</dd></div>
+        <div><dt className="text-ink-muted">{ui("Connected on")}</dt><dd><RelativeTime iso={connection.connectedAt} full={dateTime(connection.connectedAt)} /></dd></div>
         <div><dt className="text-ink-muted">{ui("WhatsApp Business Account ID")}</dt><dd className="font-mono text-xs"><bdi dir="ltr">{connection.wabaId}</bdi></dd></div>
-      </dl> : <p className="text-sm"><Badge variant="neutral">{ui("Not connected")}</Badge></p>}
+      </dl> : <div data-tone="muted" className={`${deskRow} flex items-center gap-3 text-sm`}><DeskRowIcon icon={PlugZap} /><DeskPill tone="neutral">{ui("Not connected")}</DeskPill></div>}
       <div className="flex flex-wrap gap-2">
         {connection
           ? <Button variant="outline" disabled={busy} onClick={() => setConfirm(true)}>{ui("Disconnect")}</Button>
