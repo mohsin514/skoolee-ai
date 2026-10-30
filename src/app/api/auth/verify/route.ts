@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
-import { pendingVerificationWhere, verifyVerificationToken } from "@/lib/auth/verification";
+import { isCurrentVerificationLink, pendingVerificationWhere, readVerificationToken, VERIFICATION_RESENT_ACTION } from "@/lib/auth/verification";
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
@@ -15,9 +15,10 @@ export async function GET(req: NextRequest) {
   // Activation is driven by the signed token alone. The `id` that older
   // links carried is ignored — trusting it let anyone activate an account
   // by guessing a user id.
-  const userId = await verifyVerificationToken(token);
+  const link = await readVerificationToken(token);
+  const userId = link?.userId;
 
-  if (!userId) {
+  if (!link || !userId || !(await isLatestLink(userId, link.tokenId))) {
     // The sign-in screen offers a new link for this message (SKO-457).
     loginUrl.searchParams.set("error", "This verification link is invalid or has expired");
     return NextResponse.redirect(loginUrl);
@@ -58,4 +59,20 @@ export async function GET(req: NextRequest) {
     loginUrl.searchParams.set("error", "Verification failed");
     return NextResponse.redirect(loginUrl);
   }
+}
+
+// SKAI-84: a resend supersedes every earlier link for the account. A resend logged before links had
+// ids carries no tokenId and supersedes nothing.
+async function isLatestLink(userId: string, tokenId: string | null) {
+  const latest = await runUnscoped("email verification: newest resent link", async () => {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { schoolId: true } });
+    if (!user) return null;
+    return prisma.auditLog.findFirst({
+      where: { schoolId: user.schoolId, tableName: "account_security", recordId: userId, newValue: { path: ["action"], equals: VERIFICATION_RESENT_ACTION } },
+      orderBy: { createdAt: "desc" },
+      select: { newValue: true },
+    });
+  });
+  const value = latest?.newValue as { tokenId?: unknown } | null | undefined;
+  return isCurrentVerificationLink(tokenId, typeof value?.tokenId === "string" ? value.tokenId : null);
 }
