@@ -115,11 +115,16 @@ test("draft preview and activation retain a pinned version and prevent overlaps"
   overlapping.terms[0].startDate = "2026-06-01";
   overlapping.terms[0].endDate = "2026-08-01";
   overlapping.terms[1].startDate = "2026-08-02";
+  overlapping.grading.thresholds[1].minimum = 89; // the recorded 88 moves from A to B
   const duplicate = await request("", "CAMPUS_ADMIN", { action: "create", campusId, academicYear: 2026, title: "Overlapping draft", effectiveFrom: "2026-06-01", configuration: overlapping }, "POST");
   assert.equal(duplicate.status, 201);
   const conflict = await request(`/${(await duplicate.json()).model.id}`, "PRINCIPAL", { action: "preview", campusId }, "POST");
   assert.equal(conflict.status, 409);
-  assert.equal((await conflict.json()).problems[0].code, "period_conflict");
+  const conflictReview = await conflict.json();
+  assert.equal(conflictReview.problems[0].code, "period_conflict");
+  // The exempt mark is left out; the scored one is re-graded against the active version's bands.
+  assert.deepEqual({ evaluated: conflictReview.regrade.evaluated, gradeChanges: conflictReview.regrade.gradeChanges }, { evaluated: 1, gradeChanges: 1 });
+  assert.equal(conflictReview.needsAcknowledgement, true);
 });
 
 test("campus cannot bind a class from another campus and templates require group role", async () => {

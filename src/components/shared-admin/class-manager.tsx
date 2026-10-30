@@ -47,6 +47,7 @@ import {
   useTeacherAvailability,
 } from "@/components/shared-admin/teacher-picker";
 import { SubjectSyllabus } from "@/components/shared-admin/subject-syllabus";
+import { BulkAllocate } from "@/components/shared-admin/bulk-allocate";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import {
   classLabel,
@@ -655,9 +656,11 @@ function MatrixView({
   subjectBusyId,
   onChangeSubjectTeacher,
   refreshAvailability,
+  onRefresh,
   flashKey,
   flash,
 }: {
+  onRefresh?: () => void;
   sections: any[];
   allStudents: any[];
   teachers: any[];
@@ -734,6 +737,13 @@ function MatrixView({
                     ) : null;
                   })()}
                 </div>
+                <BulkAllocate
+                  subjectName={subjectName}
+                  rows={sections.filter((sec) => teachingMode(sec) === "SUBJECT").map((sec) => findSubjectByName(sec, subjectName)).filter(Boolean).map((subject: any) => ({ subjectId: subject.id, expectedTeacherId: subject.teacher?.id ?? null }))}
+                  teachers={teachers}
+                  availability={availability}
+                  onDone={() => { refreshAvailability(); onRefresh?.(); }}
+                />
               </td>
 
               {/* One cell per section */}
@@ -2186,6 +2196,7 @@ export function ClassManager({
                     subjectBusyId={subjectBusyId}
                     onChangeSubjectTeacher={changeSubjectTeacher}
                     refreshAvailability={refreshAvailability}
+                    onRefresh={onRefresh}
                     flashKey={flashKey}
                     flash={flash}
                   />

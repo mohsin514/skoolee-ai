@@ -26,7 +26,9 @@ export interface AcademicModelConfiguration {
     finalWeight: number;
     passingPercentage: number;
     weightMode: "NORMALIZED" | "ABSOLUTE";
-    thresholds: Array<{ label: string; minimum: number }>;
+    // Bands descend to a 0% floor. `points` is the optional GPA value of a band;
+    // set it on every band or on none.
+    thresholds: Array<{ label: string; minimum: number; points?: number }>;
     missingPolicy: ResultPolicy;
     absentPolicy: ResultPolicy;
     exemptPolicy: ResultPolicy;
@@ -60,7 +62,7 @@ export const academicModelConfigurationSchema = z.object({
   grading: z.object({
     quizWeight: z.number(), classTestWeight: z.number(), midTermWeight: z.number(), finalWeight: z.number(),
     passingPercentage: z.number(), weightMode: z.enum(["NORMALIZED", "ABSOLUTE"]),
-    thresholds: z.array(z.object({ label: z.string(), minimum: z.number() })),
+    thresholds: z.array(z.object({ label: z.string(), minimum: z.number(), points: z.number().optional() })),
     missingPolicy: z.enum(["COUNT_AS_ZERO", "EXCLUDE", "BLOCK"]),
     absentPolicy: z.enum(["COUNT_AS_ZERO", "EXCLUDE", "BLOCK"]),
     exemptPolicy: z.enum(["COUNT_AS_ZERO", "EXCLUDE", "BLOCK"]),
@@ -113,16 +115,16 @@ export function thresholdsFromConfiguration(configuration: AcademicModelConfigur
     b: byLabel.get("B") ?? 70,
     c: byLabel.get("C") ?? 60,
     d: byLabel.get("D") ?? 50,
+    // The configured bands win over the five legacy columns, so custom labels
+    // (Distinction, E, A*) and extra bands reach every grade consumer.
+    bands: configuration.grading.thresholds.map(({ label, minimum }) => ({ label, minimum })),
   };
 }
 
-function gradeAt(percentage: number, thresholds: GradeThresholds) {
-  if (percentage >= thresholds.aplus) return "A+";
-  if (percentage >= thresholds.a) return "A";
-  if (percentage >= thresholds.b) return "B";
-  if (percentage >= thresholds.c) return "C";
-  if (percentage >= thresholds.d) return "D";
-  return "F";
+/** The band a percentage falls in: the first band (highest first) whose minimum it reaches. */
+export function bandFor(percentage: number, bands: Array<{ label: string; minimum: number; points?: number }>) {
+  const ordered = [...bands].sort((a, b) => b.minimum - a.minimum);
+  return ordered.find((band) => percentage >= band.minimum) ?? ordered.at(-1) ?? null;
 }
 
 export function validateAcademicModel(
@@ -155,6 +157,18 @@ export function validateAcademicModel(
       fail("grade_boundaries", "Grade boundaries must descend from 100% to 0%, with no duplicate or out-of-range value.", "#academic-model-grading");
       break;
     }
+  }
+  const bandLabels = thresholds.map((band) => band.label.trim().toLocaleLowerCase());
+  if (bandLabels.some((label, index) => label && bandLabels.indexOf(label) !== index)) {
+    fail("grade_duplicate_label", "Each grade band needs a different label.", "#academic-model-grading");
+  }
+  const pass = configuration.grading.passingPercentage;
+  if (thresholds.length && !thresholds.some((band) => band.minimum === pass)) {
+    fail("pass_band_conflict", "The pass mark must equal the start of a grade band, so no band mixes passing and failing results.", "#academic-model-grading");
+  }
+  const pointed = thresholds.filter((band) => band.points !== undefined && band.points !== null);
+  if (pointed.length && (pointed.length !== thresholds.length || pointed.some((band, index) => !Number.isFinite(band.points) || band.points! < 0 || band.points! > 10 || (index > 0 && band.points! > pointed[index - 1].points!)))) {
+    fail("gpa_points", "Give every grade band GPA points from 0 to 10, never higher than the band above it.", "#academic-model-grading");
   }
   if (configuration.grading.passingPercentage < 0 || configuration.grading.passingPercentage > 100) {
     fail("pass_boundary", "The passing percentage must be between 0 and 100.", "#academic-model-grading");
@@ -220,12 +234,14 @@ export function simulateAcademicResult(configuration: AcademicModelConfiguration
   const blocked = explained.some((component) => component.blocked);
   const raw = heldWeight ? earned / heldWeight * 100 : 0;
   const overallPercentage = roundConfigured(raw, configuration.grading.roundingRule);
+  const band = bandFor(overallPercentage, configuration.grading.thresholds);
   return {
     blocked,
     components: explained,
     heldWeight,
     overallPercentage,
-    overallGrade: gradeAt(overallPercentage, thresholdsFromConfiguration(configuration)),
+    overallGrade: band?.label ?? "F",
+    gradePoints: band?.points ?? null,
     passed: !blocked && overallPercentage >= configuration.grading.passingPercentage,
   };
 }
@@ -234,4 +250,34 @@ export function changedConfigurationSections(before: unknown, after: unknown): s
   const a = (before && typeof before === "object" ? before : {}) as Record<string, unknown>;
   const b = (after && typeof after === "object" ? after : {}) as Record<string, unknown>;
   return ["terms", "subjectMappings", "grading", "progression", "report", "classIds"].filter((key) => JSON.stringify(a[key]) !== JSON.stringify(b[key]));
+}
+
+export type RecordedMark = { percentage: number; grade: string | null; published: boolean };
+type GradingRules = Pick<AcademicModelConfiguration["grading"], "thresholds" | "passingPercentage" | "roundingRule">;
+
+/**
+ * How a new grading model would re-grade marks that already exist. `before` is
+ * the rule set the marks were graded under (the active version, or the class's
+ * stored weights); it is null when nothing was configured yet.
+ */
+export function previewRegrade(marks: RecordedMark[], before: GradingRules | null, after: GradingRules) {
+  let gradeChanges = 0;
+  let passFlips = 0;
+  let publishedChanges = 0;
+  const moves = new Map<string, number>();
+  for (const mark of marks) {
+    const percentage = roundConfigured(mark.percentage, after.roundingRule);
+    const next = bandFor(percentage, after.thresholds)?.label ?? "F";
+    const previous = before ? bandFor(roundConfigured(mark.percentage, before.roundingRule), before.thresholds)?.label ?? "F" : mark.grade;
+    const passedBefore = before ? roundConfigured(mark.percentage, before.roundingRule) >= before.passingPercentage : null;
+    if (passedBefore !== null && passedBefore !== percentage >= after.passingPercentage) passFlips += 1;
+    if (previous && previous !== next) {
+      gradeChanges += 1;
+      if (mark.published) publishedChanges += 1;
+      const key = `${previous} → ${next}`;
+      moves.set(key, (moves.get(key) ?? 0) + 1);
+    }
+  }
+  const topMoves = [...moves.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([change, count]) => ({ change, count }));
+  return { evaluated: marks.length, gradeChanges, passFlips, publishedChanges, topMoves };
 }
