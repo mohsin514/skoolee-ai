@@ -7,6 +7,7 @@ import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { FormField, FormErrorSummary } from "@/components/ui/form-field";
 import { InputGroup, FieldAction } from "@/components/ui/input-group";
 import { Alert } from "@/components/ui/alert";
+import { DeskSection } from "@/components/ui/desk";
 import { IconButton } from "@/components/ui/icon-button";
 import { Tooltip } from "@/components/ui/tooltip";
 
@@ -839,13 +840,7 @@ function GuardianPicker({
   }, [search]);
 
   return (
-    <div className="rounded-2xl border border-status-brand-border bg-status-brand-surface p-4 shadow-xs">
-      <div className="mb-1 flex items-center gap-2">
-        <UserCheck aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" />
-        <p className="text-sm font-semibold text-ink-strong">
-          {ui("Already have a guardian at this school?")}
-        </p>
-      </div>
+    <DeskSection title={ui("Already have a guardian at this school?")} icon={UserCheck} tone="brand">
       <p className="mb-3 text-xs leading-relaxed text-ink-muted">
         {ui("Search by name, phone or email to reuse their details and link this student to their brothers and sisters.")}
       </p>
@@ -898,7 +893,7 @@ function GuardianPicker({
           ))}
         </div>
       ) : null}
-    </div>
+    </DeskSection>
   );
 }
 

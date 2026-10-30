@@ -33,6 +33,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { BrandButton } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { DeskPill, DeskRowIcon, deskRow } from "@/components/ui/desk";
 import { AvatarImage, initialsOf } from "@/components/ui/avatar-image";
 import { cn } from "@/lib/utils";
 import { DEPARTMENT_KIND_LABELS, DEPARTMENT_ROLE_LABELS } from "@/lib/staff/hierarchy-presets";
@@ -248,11 +249,10 @@ export function DepartmentManager({
 
     return (
       <li key={unit.id} style={{ marginInlineStart: depth * 20 }} className="space-y-1.5">
+        {/* A desk row: an archived unit is muted, a unit nobody heads carries the warning rail. */}
         <div
-          className={cn(
-            "sk-hover-lift rounded-2xl border bg-card px-3.5 py-3",
-            unit.isActive ? "border-edge/40" : "border-dashed border-edge/60 opacity-60"
-          )}
+          data-tone={!unit.isActive ? "muted" : head ? undefined : "warning"}
+          className={cn(deskRow, !unit.isActive && "border-dashed")}
         >
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <IconButton variant="secondary"
@@ -262,16 +262,17 @@ export function DepartmentManager({
             >
               {isOpen ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" className="rtl:rotate-180" />}
             </IconButton>
+            <DeskRowIcon icon={Building2} className="max-sm:hidden" />
 
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-center gap-1.5">
                 <span className="text-sm font-semibold text-ink-strong">{unit.name}</span>
                 {unit.code ? <span className="text-xs font-medium text-ink-muted">{unit.code}</span> : null}
-                <Badge variant="secondary" size="sm">
+                <DeskPill tone="brand">
                   {ui(DEPARTMENT_KIND_LABELS[unit.kind])}
-                </Badge>
+                </DeskPill>
                 {!unit.isActive ? (
-                  <Badge variant="neutral" size="sm" dot>{ui("Archived")}</Badge>
+                  <DeskPill tone="neutral">{ui("Archived")}</DeskPill>
                 ) : null}
               </span>
               <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs font-normal text-ink-subtle">
@@ -281,7 +282,7 @@ export function DepartmentManager({
                     {head.isActing ? ui("Acting head") : ui("Head")}: {head.user.fullName}
                   </span>
                 ) : (
-                  <span className="font-medium text-status-warning-text">{ui("No head assigned")}</span>
+                  <DeskPill tone="warning">{ui("No head assigned")}</DeskPill>
                 )}
                 <span aria-hidden="true">·</span>
                 <span className="inline-flex items-center gap-1">

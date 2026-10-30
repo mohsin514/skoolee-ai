@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Building2, Layers, Network, RefreshCw, TriangleAlert, Users, CalendarClock } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { DeskStats, StatTile } from "@/components/ui/desk";
 import { ViewTabs } from "@/components/ui/view-tabs";
 import { SkeletonCards } from "@/components/ui/skeleton";
 import { OrgChart } from "./org-chart";
@@ -149,22 +149,24 @@ export function StaffHierarchyPanel({
     <div className="space-y-4">
       {/* ── Summary ──────────────────────────────────────── */}
       {stats ? (
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          <Stat icon={Users} label={ui("Staff on this campus")} value={stats.staff} />
-          <Stat
+        <DeskStats>
+          <StatTile icon={Users} label={ui("Staff on this campus")} value={<bdi>{stats.staff}</bdi>} />
+          <StatTile
             icon={Layers}
+            index={1}
             label={ui("Given a rank")}
-            value={`${stats.ranked}/${stats.staff}`}
-            tone={stats.unranked > 0 ? "amber" : "default"}
+            value={<bdi>{`${stats.ranked}/${stats.staff}`}</bdi>}
+            tone={stats.unranked > 0 ? "warning" : "success"}
           />
-          <Stat icon={Building2} label={ui("Departments")} value={stats.departments} hint={ui("{0} with a head", [stats.headed])} />
-          <Stat
+          <StatTile icon={Building2} index={2} label={ui("Departments")} value={<bdi>{stats.departments}</bdi>} hint={ui("{0} with a head", [stats.headed])} tone="info" />
+          <StatTile
             icon={TriangleAlert}
+            index={3}
             label={ui("No reporting line")}
-            value={stats.unplaced}
-            tone={stats.unplaced > 0 ? "amber" : "default"}
+            value={<bdi>{stats.unplaced}</bdi>}
+            tone={stats.unplaced > 0 ? "warning" : "success"}
           />
-        </div>
+        </DeskStats>
       ) : null}
 
       {/* ── Tabs (the console renders them in its PageHeader when it controls the section) ── */}
@@ -236,43 +238,6 @@ export function StaffHierarchyPanel({
           onSaved={() => load(true)}
         />
       ) : null}
-    </div>
-  );
-}
-
-function Stat({
-  icon: Icon,
-  label,
-  value,
-  hint,
-  tone = "default",
-}: {
-  icon: typeof Users;
-  label: string;
-  value: string | number;
-  hint?: string;
-  tone?: "default" | "amber";
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-3 rounded-2xl border px-3.5 py-3",
-        tone === "amber" ? "border-status-warning-border bg-status-warning-surface" : "border-edge/40 bg-card"
-      )}
-    >
-      <span
-        className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-          tone === "amber" ? "bg-card text-status-warning-text" : "bg-brand-50 text-primary"
-        )}
-      >
-        <Icon className="h-4 w-4" aria-hidden="true" />
-      </span>
-      <span className="min-w-0">
-        <bdi className="block text-lg font-bold leading-none tabular-nums text-ink">{value}</bdi>
-        <span className="mt-0.5 block truncate text-xs font-semibold text-ink-subtle">{label}</span>
-        {hint ? <span className="block truncate text-xs font-medium text-ink-subtle">{hint}</span> : null}
-      </span>
     </div>
   );
 }

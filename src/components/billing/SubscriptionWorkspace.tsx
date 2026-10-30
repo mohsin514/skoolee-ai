@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Building2, CheckCircle2, CreditCard, Mail, RefreshCw, ShieldAlert } from "lucide-react";
+import { ArrowUpRight, Building2, CheckCircle2, CreditCard, GraduationCap, Mail, RefreshCw, School, ShieldAlert, Sparkles, Users, type LucideIcon } from "lucide-react";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { AccessNotice } from "@/components/ui/access-notice";
@@ -10,6 +10,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { DeskPill, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow } from "@/components/ui/desk";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { FormField } from "@/components/ui/form-field";
@@ -304,6 +305,7 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
   // AI credits read the school's own allowance (the same source as the overview), not the catalogue tier.
   const aiLimit = snapshot.school.aiCreditsLimit ?? snapshot.limits.aiCredits;
   const aiUsed = snapshot.school.aiCreditsUsed ?? snapshot.usage.aiCredits;
+  const USAGE_ICONS: Record<string, LucideIcon> = { Students: GraduationCap, Teachers: Users, Campuses: School, "AI credits": Sparkles };
   const usage: Array<[string, number, number]> = [
     ["Students", snapshot.usage.students, snapshot.limits.maxStudents],
     ["Teachers", snapshot.usage.teachers, snapshot.limits.maxTeachers],
@@ -336,15 +338,17 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
             {school.graceEndsAt && overdue ? <span className="mt-1 block font-semibold">{t("Grace ends")}: <bdi>{date(school.graceEndsAt)}</bdi></span> : null}
           </Alert>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {usage.map(([label, used, limit]) => (
-            <div key={label} className="rounded-2xl border border-border-subtle bg-surface-subtle p-3">
-              <p className="text-xs font-medium text-ink-muted">{t(label)}</p>
-              <p className="mt-1 text-lg font-bold tabular-nums text-ink-strong">{t("{0} of {1}", [number.format(used), limitText(limit)])}</p>
-              {limit > 0 ? <Progress className="mt-2" size="sm" value={Math.min(used, limit)} max={limit} label={t(label)} tone={used > limit ? "danger" : used < limit && used / limit > 0.85 ? "warning" : used === limit ? "neutral" : "brand"} /> : null}
-            </div>
-          ))}
-        </div>
+        {/* Usage against the plan as the desks' stat tiles: the tile's tone and meter turn amber near the cap and red past it. */}
+        <DeskStats className="sm:grid-cols-2 lg:grid-cols-4">
+          {usage.map(([label, used, limit], index) => {
+            const tone = used > limit && limit > 0 ? "danger" : used < limit && used / limit > 0.85 ? "warning" : used === limit && limit > 0 ? "neutral" : "brand";
+            return (
+              <StatTile key={label} index={index} icon={USAGE_ICONS[label] ?? Users} tone={tone} label={t(label)}
+                value={<span className="text-lg sm:text-xl">{t("{0} of {1}", [number.format(used), limitText(limit)])}</span>}
+                hint={limit > 0 ? <Progress className="mt-2" size="sm" value={Math.min(used, limit)} max={limit} label={t(label)} tone={tone} /> : undefined} />
+            );
+          })}
+        </DeskStats>
         {!snapshot.isOperational ? (
           <Alert tone="warning" live="off" compact>{t("Subscription access is paused. Update billing to restore student, teacher, campus, AI, PDF and messaging workflows.")}</Alert>
         ) : null}
@@ -460,12 +464,13 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
         {requests.length === 0 ? (
           <EmptyState size="sm" icon={CreditCard} title={t("No billing requests yet.")} />
         ) : (
-          <ul className="mt-3 divide-y divide-border-subtle text-sm" data-requests>
+          <ul className="mt-3 space-y-2 text-sm" data-requests>
             {requests.slice(0, 8).map((request) => (
-              <li key={request.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5" data-request-kind={request.kind} data-request-state={request.state}>
-                <span className="font-medium text-ink-strong">{t(KIND[request.kind] ?? request.kind)}{request.requestedPlan ? <> · <bdi>{snapshot.plans[request.requestedPlan as PlanType]?.name ?? request.requestedPlan}</bdi></> : null}</span>
+              <li key={request.id} data-tone={request.state === "REVIEWED_DECLINED" ? "danger" : request.state === "PENDING_REVIEW" ? "warning" : undefined} className={cn(deskRow, "flex flex-wrap items-center justify-between gap-2")} data-request-kind={request.kind} data-request-state={request.state}>
+                <span className="flex min-w-0 items-center gap-3 font-medium text-ink-strong"><DeskRowIcon icon={CreditCard} /><span className="min-w-0">{t(KIND[request.kind] ?? request.kind)}{request.requestedPlan ? <> · <bdi>{snapshot.plans[request.requestedPlan as PlanType]?.name ?? request.requestedPlan}</bdi></> : null}</span></span>
                 <span className="flex items-center gap-2 text-xs text-ink-muted">
-                  <Badge size="sm" variant={request.state === "REVIEWED_DECLINED" ? "danger" : request.state === "PENDING_REVIEW" ? "warning" : "neutral"} dot>{t(REQUEST_STATE[request.state] ?? request.state)}</Badge>
+                  <DeskPill tone={request.state === "REVIEWED_DECLINED" ? "danger" : request.state === "PENDING_REVIEW" ? "warning" : "neutral"}>{t(REQUEST_STATE[request.state] ?? request.state)}</DeskPill>
+                  {request.createdAt ? <RelativeTime iso={request.createdAt} full={date(request.createdAt)} /> : null}
                   {request.effectiveAt ? <bdi>{date(request.effectiveAt)}</bdi> : null}
                 </span>
               </li>
@@ -477,6 +482,7 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
       {preview ? (
         <Modal
           title={t("Review plan change")}
+          tone={Object.values(preview.overages).some(Boolean) ? "amber" : "violet"}
           subtitle={<><bdi>{snapshot.plans[preview.currentPlan as PlanType]?.name ?? preview.currentPlan}</bdi> <span aria-hidden="true" className="inline-block rtl:rotate-180">→</span> <bdi>{snapshot.plans[preview.proposedPlan as PlanType]?.name ?? preview.proposedPlan}</bdi></>}
           icon={ArrowUpRight}
           size="md"
@@ -517,6 +523,7 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
         <Modal
           title={t("Pay by bank transfer")}
           icon={Building2}
+          tone="sky"
           size="sm"
           onClose={() => setBank(null)}
           dirty={Boolean(receiptRef.trim()) && busy !== "bank"}

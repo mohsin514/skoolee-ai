@@ -15,7 +15,7 @@
 import { useCountLabel, useIsSingular } from "@/components/locale/use-count-label";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag, minorUnits } from "@/lib/locale/package";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { AlertTriangle, Building2, CheckCircle2, GraduationCap, Receipt, School, TrendingUp, Users } from "lucide-react";
 import {
   Area,
@@ -31,7 +31,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Badge } from "@/components/ui/badge";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowIcon, deskRow } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
@@ -59,6 +60,8 @@ export function NetworkOverview({ data, onSelectCampus }: NetworkOverviewProps) 
   const singular = useIsSingular();
   const campuses: any[] = data?.campuses ?? [];
   const summary = data?.networkSummary ?? {};
+  // A group with many campuses gets the desks' type-to-narrow box over the scorecard.
+  const [scoreQuery, setScoreQuery] = useState("");
 
   const locale = useLocale();
   const tag = localeTag(locale);
@@ -93,6 +96,8 @@ export function NetworkOverview({ data, onSelectCampus }: NetworkOverviewProps) 
     // Recomputed when the loaded dashboard or the app language (month labels) changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, tag]);
+  const needle = scoreQuery.trim().toLocaleLowerCase();
+  const scoreboard = needle ? derived.leaderboard.filter((c) => `${c.name} ${c.city ?? ""}`.toLocaleLowerCase().includes(needle)) : derived.leaderboard;
 
   const open = (id: string) => {
     const full = campuses.find((c: any) => c.id === id);
@@ -156,17 +161,19 @@ export function NetworkOverview({ data, onSelectCampus }: NetworkOverviewProps) 
         >
           {derived.rows.length > 0 ? (
             <ul className="max-h-[300px] space-y-2 overflow-y-auto custom-scrollbar pe-1">
+              {/* Already urgency first: both posts vacant, then one vacancy, then fully staffed. */}
               {derived.coverage.map((campus) => (
                 <li key={campus.id}>
-                  <Button variant="outline" type="button" onClick={() => open(campus.id)} className="flex h-auto w-full items-center justify-between gap-3 py-2.5 text-start">
-                    <span className="min-w-0">
-                      <span className="block truncate text-xs font-bold text-ink-strong"><bdi>{campus.name}</bdi></span>
+                  <Button variant="ghost" type="button" onClick={() => open(campus.id)} data-tone={campus.hasAdmin && campus.hasPrincipal ? "success" : !campus.hasAdmin ? "danger" : "warning"} className={cn(deskRow, "flex h-auto w-full flex-wrap items-center justify-between gap-3 whitespace-normal text-start font-normal actionable-hover:bg-card actionable-hover:text-ink")}>
+                    <DeskRowIcon icon={campus.hasAdmin && campus.hasPrincipal ? CheckCircle2 : AlertTriangle} />
+                    <span className="min-w-[min(100%,9rem)] flex-1">
+                      <span className="block truncate text-sm font-bold text-ink-strong"><bdi>{campus.name}</bdi></span>
                       <span className="block text-2xs font-semibold text-ink-subtle">
                         <bdi>{campus.city || "—"}</bdi> · {count(campus.teachers, "teacher")}
                       </span>
                     </span>
                     {/* Icon + word, never colour alone. */}
-                    <span className="flex shrink-0 gap-1.5">
+                    <span className="flex shrink-0 flex-wrap gap-1.5">
                       <CoverageChip label={t("Admin")} filled={campus.hasAdmin} />
                       <CoverageChip label={t("Principal")} filled={campus.hasPrincipal} />
                     </span>
@@ -323,6 +330,12 @@ export function NetworkOverview({ data, onSelectCampus }: NetworkOverviewProps) 
 
       {derived.rows.length > 0 ? (
         <InsightCard icon={School} title={t("Campus scorecard")} subtitle={t("Every campus, side by side · reports shown as cards / exams")} delay={120}>
+          {derived.leaderboard.length > 8 ? (
+            <div className="mb-3 space-y-2">
+              <DeskQuickFilter value={scoreQuery} onChange={setScoreQuery} label={t("Search campuses")} />
+              <DeskFilterStatus shown={scoreboard.length} total={derived.leaderboard.length} onClear={() => setScoreQuery("")} />
+            </div>
+          ) : null}
           <Table containerClassName="overflow-x-auto custom-scrollbar" className="w-full min-w-[880px] text-start">
             <TableHeader>
               <TableRow>
@@ -333,7 +346,7 @@ export function NetworkOverview({ data, onSelectCampus }: NetworkOverviewProps) 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {derived.leaderboard.map((campus) => (
+              {scoreboard.map((campus) => (
                 <TableRow key={campus.id}>
                   <TableCell>
                     <p className="text-xs font-bold text-ink-strong"><bdi>{campus.name}</bdi></p>
@@ -369,10 +382,10 @@ function CoverageChip({ label, filled }: { label: string; filled: boolean }) {
   const t = useUiText();
   const Icon = filled ? CheckCircle2 : AlertTriangle;
   return (
-    <Badge variant={filled ? "success" : "warning"} size="sm" className="gap-1">
-      <Icon className="h-3 w-3" aria-hidden />
+    <DeskPill tone={filled ? "success" : "warning"}>
+      <Icon className="size-3.5" aria-hidden />
       {label}
       <span className="sr-only">{filled ? t("in post") : t("vacant")}</span>
-    </Badge>
+    </DeskPill>
   );
 }
