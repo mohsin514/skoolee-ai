@@ -14,7 +14,7 @@ import { assessmentFixture } from "./assessment-fixture";
 
 // SKO-408 R10 against the isolated database: forms, structural parity without difficulty claims, one form per candidate, sealed releases and exposure.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PG55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PG55438.");
 const raw = new PrismaClient();
 const schoolId = `frm408-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), subjectId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid`, accessVersion: 0 });

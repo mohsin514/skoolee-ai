@@ -12,7 +12,7 @@ import { translateUi } from "../../src/lib/locale/ui-messages";
 // branding follow the saved Arabic or Urdu display language, the active tab and keyboard switching still work,
 // the sidebar has no untranslated links, and the school's own name is shown verbatim.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.ACCOUNTANT_TEST_APP || "http://localhost:3107";
 const evidence = process.env.ACCOUNTANT_EVIDENCE_DIR || "/tmp/sko497-evidence";
 const db = new PrismaClient(), password = "SyntheticAccountant497!";

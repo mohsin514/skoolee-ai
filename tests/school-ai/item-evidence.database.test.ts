@@ -16,7 +16,7 @@ import { assessmentFixture } from "./assessment-fixture";
 // that lost marks; a flagged question blocks interpretation and practice; a re-review makes an
 // interpretation stale; an approved group becomes draft learning actions citing each learner's attempt.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `item-evidence-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), subjectId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid` });
 const admin = actor("CAMPUS_ADMIN");

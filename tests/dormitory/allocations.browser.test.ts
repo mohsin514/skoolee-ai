@@ -11,7 +11,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // once; moves keep continuous history and replay safely; capacity and out-of-service changes cannot
 // strand residents; residents carry minimal fields; other campuses and non-boarding roles see nothing.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.DORM_TEST_APP || "http://localhost:3107";
 const evidence = process.env.DORM_EVIDENCE_DIR || "/tmp/sko463-evidence";
 const db = new PrismaClient(), password = "SyntheticDorm463!";

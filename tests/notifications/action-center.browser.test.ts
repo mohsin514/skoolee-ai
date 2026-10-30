@@ -17,7 +17,7 @@ import { prisma as appPrisma } from "../../src/lib/db/prisma";
 // consolidated mentions. G41 routing: a teacher's leave goes to the academic lead (the principal) only; a
 // non-teaching staff member's leave goes to the campus operator only (§2.5).
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.NOTIF_TEST_APP || "http://localhost:3107";
 const evidence = process.env.NOTIF_EVIDENCE_DIR || "/tmp/sko416-evidence";
 const db = new PrismaClient(), password = "SyntheticInbox416!";

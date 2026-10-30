@@ -16,7 +16,7 @@ import { assessmentFixture } from "./assessment-fixture";
 // stale learning actions and family notices follow exactly once; a changed source makes the preview
 // stale with nothing written; an interrupted repair resumes only its unfinished steps.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `repair-${randomUUID()}`, campusId = randomUUID(), otherCampusId = randomUUID(), classId = randomUUID(), subjectId = randomUUID(), legacyExamId = randomUUID();
 const actor = (role: AuthUser["role"], campus = campusId): AuthUser => ({ userId: randomUUID(), schoolId, campusId: campus, role, email: `${randomUUID()}@example.invalid` });
 const marker = actor("CAMPUS_ADMIN"), lead = actor("PRINCIPAL"), outsider = actor("PRINCIPAL", otherCampusId), guardian = actor("PARENT");

@@ -12,7 +12,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // the same parcel cannot be opened twice and a retried save records once; corrections keep the original
 // values; reassignment leaves one live notification; other campuses and teachers see nothing; delete is refused.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.DESK_TEST_APP || "http://localhost:3107";
 const evidence = process.env.DESK_EVIDENCE_DIR || "/tmp/sko464-evidence";
 const db = new PrismaClient(), password = "SyntheticPost464!";
