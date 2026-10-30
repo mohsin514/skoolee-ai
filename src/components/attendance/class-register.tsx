@@ -15,7 +15,8 @@ import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { Users } from "lucide-react";
+import { AlertTriangle, CalendarX2, ClipboardCheck, GitCompareArrows, MessageSquareText, Users } from "lucide-react";
+import { DeskPill, DeskSection, deskRow, type DeskTone } from "@/components/ui/desk";
 
 // SKO-405: the class register. Unmarked is shown as its own state and nothing is assumed from it;
 // "Mark unmarked present" fills only the pupils nobody has marked. Submitting goes through a review of the
@@ -32,6 +33,7 @@ type Draft = { status: Status | null; arrivalTime: string; departureTime: string
 type Conflict = { studentId: string; name: string; current: string | null; yours: string; seen: string | null; markedBy: string | null };
 
 export const statusLabel = (ui: Ui, status: string | null) => status ? ({ PRESENT: ui("Present"), LATE: ui("Late"), PARTIAL: ui("Part day"), ABSENT: ui("Absent"), EXCUSED: ui("Excused absence"), LEAVE: ui("Leave"), UNMARKED: ui("Unmarked") } as Record<string, string>)[status] ?? status : ui("Unmarked");
+const pillTone: Record<string, DeskTone> = { UNMARKED: "warning", PRESENT: "success", LATE: "warning", PARTIAL: "info", ABSENT: "danger", EXCUSED: "brand", LEAVE: "warning" };
 const tone: Record<Status, string> = { PRESENT: "aria-checked:bg-status-success-surface aria-checked:text-status-success-text aria-checked:border-status-success-border", LATE: "aria-checked:bg-status-warning-surface aria-checked:text-status-warning-text aria-checked:border-status-warning-border", PARTIAL: "aria-checked:bg-status-info-surface aria-checked:text-status-info-text aria-checked:border-status-info-border", ABSENT: "aria-checked:bg-status-error-surface aria-checked:text-status-error-text aria-checked:border-status-error-border", EXCUSED: "aria-checked:bg-status-brand-surface aria-checked:text-primary aria-checked:border-status-brand-border", LEAVE: "aria-checked:bg-status-warning-surface aria-checked:text-status-warning-text aria-checked:border-status-warning-border" };
 
 export function ClassRegister({ classes, initialClassId }: { classes: { id: string; label: string }[]; initialClassId?: string }) {
@@ -96,7 +98,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
         <p>{data.regulator.schoolDay ? null : <>{ui("This day is a weekend in the regulator's calendar.")} </>}{data.regulator.confirmed ? null : ui("This code set is provisional until it is checked against the regulator's guidance.")}</p>
       </Alert> : null}
       <div className="flex flex-wrap gap-2 text-xs font-semibold tabular-nums" data-register-counts>
-        {["UNMARKED", ...STATUSES].map(key => <span key={key} className={cn("rounded-full border px-3 py-1", key === "UNMARKED" && counts.UNMARKED ? "border-status-warning-border bg-status-warning-surface text-status-warning-text" : "border-edge/30")} data-count={key}>{statusLabel(ui, key)}: <bdi>{counts[key] ?? 0}</bdi></span>)}
+        {["UNMARKED", ...STATUSES].map(key => <DeskPill key={key} tone={counts[key] ? pillTone[key] : "neutral"} data-count={key}>{statusLabel(ui, key)}: <bdi>{counts[key] ?? 0}</bdi></DeskPill>)}
       </div>
       {entries.length === 0 ? <EmptyState size="sm" icon={Users} title={ui("No pupils were enrolled in this class on that day.")} /> : <ul className="divide-y divide-edge/20" data-register-rows>
         {entries.map(entry => { const d = drafts[entry.studentId] ?? { status: null, arrivalTime: "", departureTime: "" }; return <li key={entry.studentId} className="flex flex-wrap items-center gap-3 py-2" data-register-row={entry.studentId} data-status={d.status ?? "UNMARKED"}>
@@ -127,30 +129,30 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
 function ReviewDialog({ ui, listNames, submitted, counts, unmarked, changed, className, date, saving, onClose, onConfirm }: { ui: Ui; listNames: (names: string[]) => ReactNode; submitted: boolean; counts: Record<string, number>; unmarked: Entry[]; changed: { name: string; from: string | null; to: string | null }[]; className: string; date: string; saving: boolean; onClose: () => void; onConfirm: (reason: string) => void }) {
   const [reason, setReason] = useState("");
   const blocked = !submitted && unmarked.length > 0;
-  return <Modal size="sm" title={submitted ? ui("Correct a submitted register") : ui("Review the register")} eyebrow={ui("Attendance")} subtitle={ui("{0} on {1}", [className, date])} onClose={onClose}>
+  return <Modal size="sm" icon={ClipboardCheck} tone={blocked ? "amber" : submitted ? "amber" : "emerald"} title={submitted ? ui("Correct a submitted register") : ui("Review the register")} eyebrow={ui("Attendance")} subtitle={ui("{0} on {1}", [className, date])} onClose={onClose}
+    footer={<div className="flex flex-wrap justify-end gap-2">
+        <Button variant="secondary" onClick={onClose}>{ui("Back to the register")}</Button>
+        <Button disabled={saving || blocked || (submitted && reason.trim().length < 5)} onClick={() => onConfirm(reason.trim())} data-confirm-register>{submitted ? ui("Save correction") : ui("Submit register")}</Button>
+      </div>}>
     <div className="space-y-3" data-register-review>
-      <ul className="grid grid-cols-2 gap-1 text-sm tabular-nums">{["UNMARKED", ...STATUSES].map(key => <li key={key} data-review-count={key}>{statusLabel(ui, key)}: <bdi>{counts[key] ?? 0}</bdi></li>)}</ul>
+      <ul className="flex flex-wrap gap-2 text-xs font-semibold tabular-nums">{["UNMARKED", ...STATUSES].map(key => <li key={key} data-review-count={key}><DeskPill tone={counts[key] ? pillTone[key] : "neutral"}>{statusLabel(ui, key)}: <bdi>{counts[key] ?? 0}</bdi></DeskPill></li>)}</ul>
       {blocked ? <Alert tone="warning" live="assertive" data-review-unmarked title={ui("These pupils are unmarked. Mark each one before submitting:")}><p>{listNames(unmarked.map(entry => entry.name))}</p></Alert> : null}
       {submitted ? <>
         <ul className="space-y-1 text-sm" data-review-changes>{changed.map(row => <li key={row.name}><bdi>{row.name}</bdi>: {statusLabel(ui, row.from)} → {statusLabel(ui, row.to)}</li>)}</ul>
         <FormField name="correction-reason" label={ui("Reason for the correction")} hint={ui("Kept with the record's history.")}><Textarea value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField>
       </> : null}
-      <div className="flex justify-end gap-2">
-        <Button variant="secondary" onClick={onClose}>{ui("Back to the register")}</Button>
-        <Button disabled={saving || blocked || (submitted && reason.trim().length < 5)} onClick={() => onConfirm(reason.trim())} data-confirm-register>{submitted ? ui("Save correction") : ui("Submit register")}</Button>
-      </div>
     </div>
   </Modal>;
 }
 
 function ConflictDialog({ ui, conflicts, saving, onClose, onKeepMine }: { ui: Ui; conflicts: Conflict[]; saving: boolean; onClose: () => void; onKeepMine: (ids: string[]) => void }) {
-  return <Modal size="sm" title={ui("Someone else changed these pupils")} eyebrow={ui("Attendance")} subtitle={ui("Your marks for them were not saved. Choose which to keep.")} onClose={onClose}>
-    <div className="space-y-3" data-register-conflicts>
-      <ul className="space-y-2 text-sm">{conflicts.map(row => <li key={row.studentId} data-conflict={row.studentId}><p className="font-bold"><bdi>{row.name}</bdi></p><p>{ui("Now: {0} (by {1}). Yours: {2}.", [statusLabel(ui, row.current), row.markedBy ?? ui("unknown"), statusLabel(ui, row.yours)])}</p></li>)}</ul>
-      <div className="flex justify-end gap-2">
+  return <Modal size="sm" icon={GitCompareArrows} tone="amber" title={ui("Someone else changed these pupils")} eyebrow={ui("Attendance")} subtitle={ui("Your marks for them were not saved. Choose which to keep.")} onClose={onClose}
+    footer={<div className="flex flex-wrap justify-end gap-2">
         <Button variant="secondary" onClick={onClose} data-keep-theirs>{ui("Keep their marks")}</Button>
         <Button disabled={saving} onClick={() => onKeepMine(conflicts.map(row => row.studentId))} data-keep-mine>{ui("Use my marks")}</Button>
-      </div>
+      </div>}>
+    <div className="space-y-3" data-register-conflicts>
+      <ul className="space-y-2 text-sm">{conflicts.map(row => <li key={row.studentId} data-conflict={row.studentId} data-tone="warning" className={deskRow}><p className="font-bold"><bdi>{row.name}</bdi></p><p className="text-ink-muted">{ui("Now: {0} (by {1}). Yours: {2}.", [statusLabel(ui, row.current), row.markedBy ?? ui("unknown"), statusLabel(ui, row.yours)])}</p></li>)}</ul>
     </div>
   </Modal>;
 }
@@ -182,25 +184,26 @@ export function AttendanceExceptions() {
   };
   return <div className="sk-panel space-y-4 p-5" data-attendance-exceptions>
     <h3 className="text-base font-bold text-ink-strong">{ui("Attendance exceptions")}</h3>
-    {error ? <p role="alert" className="rounded-xl border border-status-error-border bg-status-error-surface px-3 py-2 text-sm font-medium text-status-error-text">{error}</p> : null}
+    {error ? <Alert tone="danger">{error}</Alert> : null}
+    {!data && !error ? <SkeletonList rows={3} label={ui("Loading…")} /> : null}
     {data ? <>
-      <section data-queue-explanations><h4 className="text-sm font-semibold text-ink-strong">{ui("Explanations to decide ({0})", [String(data.explanations.length)])}</h4>
-        {data.explanations.length ? <ul className="divide-y divide-edge/20">{data.explanations.map(row => <li key={row.id} className="space-y-1 py-2" data-explanation={row.id} data-explanation-status={row.status}>
-          <p className="text-sm"><bdi>{row.studentName}</bdi> · <bdi>{row.className}</bdi> · <bdi>{formatDate(row.date)}</bdi> · {statusLabel(ui, row.currentStatus)}</p>
+      <DeskSection data-queue-explanations icon={MessageSquareText} tone={data.explanations.length ? "warning" : "success"} title={ui("Explanations to decide ({0})", [String(data.explanations.length)])}>
+        {data.explanations.length ? <ul className="space-y-2">{data.explanations.map(row => <li key={row.id} className={cn(deskRow, "space-y-1.5")} data-tone={row.status === "CLARIFICATION" ? "info" : "warning"} data-explanation={row.id} data-explanation-status={row.status}>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"><span className="font-semibold"><bdi>{row.studentName}</bdi></span> · <bdi>{row.className}</bdi> · <bdi>{formatDate(row.date)}</bdi> <DeskPill tone={pillTone[row.currentStatus] ?? "neutral"}>{statusLabel(ui, row.currentStatus)}</DeskPill></p>
           <p className="text-sm text-ink-muted">{ui("Family says: {0}", [row.reason])}</p>
-          <p className="text-xs">{ui("Asks to record: {0}", [statusLabel(ui, row.proposedStatus)])}{row.arrivalTime ? <> · <bdi>{row.arrivalTime}</bdi></> : null}{row.status === "CLARIFICATION" ? <> · {ui("Waiting for the family to clarify")}</> : null}</p>
-          <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => setDeciding({ id: row.id, action: "accept", version: row.version })} data-accept>{ui("Accept")}</Button><Button size="sm" variant="outline" onClick={() => setDeciding({ id: row.id, action: "clarify", version: row.version })} data-clarify>{ui("Ask for clarification")}</Button><Button size="sm" variant="outline" onClick={() => setDeciding({ id: row.id, action: "reject", version: row.version })} data-reject>{ui("Do not accept")}</Button></div>
+          <p className="text-xs text-ink-muted">{ui("Asks to record: {0}", [statusLabel(ui, row.proposedStatus)])}{row.arrivalTime ? <> · <bdi>{row.arrivalTime}</bdi></> : null}{row.status === "CLARIFICATION" ? <> · {ui("Waiting for the family to clarify")}</> : null}</p>
+          <div className="flex flex-wrap gap-2 pt-1"><Button size="sm" onClick={() => setDeciding({ id: row.id, action: "accept", version: row.version })} data-accept>{ui("Accept")}</Button><Button size="sm" variant="outline" onClick={() => setDeciding({ id: row.id, action: "clarify", version: row.version })} data-clarify>{ui("Ask for clarification")}</Button><Button size="sm" variant="outline" onClick={() => setDeciding({ id: row.id, action: "reject", version: row.version })} data-reject>{ui("Do not accept")}</Button></div>
         </li>)}</ul> : <p className="text-sm text-ink-muted">{ui("Nothing waiting.")}</p>}
-      </section>
-      <section data-queue-absences><h4 className="text-sm font-semibold text-ink-strong">{ui("Absences with no explanation ({0})", [String(data.unexplainedAbsences.length)])}</h4>
-        <ul className="text-sm">{data.unexplainedAbsences.map(row => <li key={row.attendanceId} data-unexplained={row.attendanceId}><bdi>{row.studentName}</bdi> · <bdi>{row.className}</bdi> · <bdi>{formatDate(row.date)}</bdi></li>)}</ul>
-      </section>
-      <section data-queue-open><h4 className="text-sm font-semibold text-ink-strong">{ui("Registers not submitted ({0})", [String(data.openRegisters.length)])}</h4></section>
+      </DeskSection>
+      <DeskSection data-queue-absences icon={CalendarX2} tone={data.unexplainedAbsences.length ? "danger" : "success"} title={ui("Absences with no explanation ({0})", [String(data.unexplainedAbsences.length)])}>
+        {data.unexplainedAbsences.length ? <ul className="space-y-2 text-sm">{data.unexplainedAbsences.map(row => <li key={row.attendanceId} data-unexplained={row.attendanceId} data-tone="danger" className={cn(deskRow, "flex flex-wrap items-center gap-x-2 gap-y-1")}><span className="font-semibold"><bdi>{row.studentName}</bdi></span> · <bdi>{row.className}</bdi> · <bdi>{formatDate(row.date)}</bdi></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("Nothing waiting.")}</p>}
+      </DeskSection>
+      <DeskSection data-queue-open icon={AlertTriangle} tone={data.openRegisters.length ? "warning" : "success"} title={ui("Registers not submitted ({0})", [String(data.openRegisters.length)])} />
     </> : null}
-    {deciding ? <Modal size="sm" title={deciding.action === "accept" ? ui("Accept the explanation") : deciding.action === "reject" ? ui("Do not accept the explanation") : ui("Ask for clarification")} eyebrow={ui("Attendance")} subtitle={deciding.action === "accept" ? ui("The day's mark is corrected and the change is kept in its history.") : ui("The day's mark stays as it is.")} onClose={() => setDeciding(null)}>
+    {deciding ? <Modal size="sm" icon={deciding.action === "accept" ? ClipboardCheck : deciding.action === "reject" ? CalendarX2 : MessageSquareText} tone={deciding.action === "accept" ? "emerald" : deciding.action === "reject" ? "rose" : "sky"} title={deciding.action === "accept" ? ui("Accept the explanation") : deciding.action === "reject" ? ui("Do not accept the explanation") : ui("Ask for clarification")} eyebrow={ui("Attendance")} subtitle={deciding.action === "accept" ? ui("The day's mark is corrected and the change is kept in its history.") : ui("The day's mark stays as it is.")} onClose={() => setDeciding(null)}
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setDeciding(null)}>{ui("Cancel")}</Button><Button disabled={busy || deciding.action !== "accept" && note.trim().length < 2} onClick={() => void decide()} data-confirm-decision>{ui("Confirm")}</Button></div>}>
       <div className="space-y-3" data-decide-dialog>
         <FormField name="decision-note" label={deciding.action === "accept" ? ui("Note (optional)") : ui("Message to the family")}><Textarea value={note} maxLength={500} onChange={event => setNote(event.target.value)} /></FormField>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setDeciding(null)}>{ui("Cancel")}</Button><Button disabled={busy || deciding.action !== "accept" && note.trim().length < 2} onClick={() => void decide()} data-confirm-decision>{ui("Confirm")}</Button></div>
       </div>
     </Modal> : null}
   </div>;
@@ -241,7 +244,7 @@ export function GuardianAttendanceExplanations({ studentId }: { studentId: strin
     </li>; })}</ul>
     {open ? <Modal size="sm" title={ui("Explain this day")} eyebrow={ui("Attendance")} subtitle={ui("The school reviews your explanation before the record changes.")} onClose={() => setOpen(null)}>
       <div className="space-y-3" data-explain-dialog>
-        {error ? <p role="alert" className="rounded-xl border border-status-error-border bg-status-error-surface px-3 py-2 text-xs font-medium text-status-error-text">{error}</p> : null}
+        {error ? <Alert tone="danger" compact>{error}</Alert> : null}
         <FormField name="explain-kind" label={ui("What happened")}><Select value={form.proposedStatus} onChange={event => setForm({ ...form, proposedStatus: event.target.value })}><option value="EXCUSED">{ui("My child was absent for a reason")}</option><option value="LATE">{ui("My child arrived late")}</option></Select></FormField>
         {form.proposedStatus === "LATE" ? <FormField name="explain-time" label={ui("Arrival time")}><Input type="time" value={form.arrivalTime} onChange={event => setForm({ ...form, arrivalTime: event.target.value })} /></FormField> : null}
         <FormField name="explain-reason" label={ui("Explanation")}><Textarea value={form.reason} maxLength={1000} onChange={event => setForm({ ...form, reason: event.target.value })} /></FormField>
