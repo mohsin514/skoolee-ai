@@ -12,17 +12,17 @@ export async function GET(req: NextRequest) {
     const user = await requireAuthUser({ allowSuspended: true });
     const id = req.nextUrl.searchParams.get("intentId");
     if (!id) throw new ApiError("Checkout reference is required.", 400);
-    const intent = await prisma.onboardingCheckoutIntent.findFirst({
-      where: { id, schoolId: user.schoolId },
-    });
-    if (!intent) throw new ApiError("Checkout was not found.", 404);
-
+    // SKAI-157: refuse a non-purchaser before any lookup, so found/not-found never leaks to them.
     if (!user.onboardingComplete) await runWithTenantContext(setupTenantContext(user), () => assertSetupPurchaser(user));
     // After setup the institution authority's own subscription right decides (G6): the owner flag alone is never
     // enough (an ADMIN owner inside a school group is a campus operator).
     else if (!canPurchaseSubscription(user)) {
       throw new ApiError("Subscription purchasing is not delegated to this account.", 403);
     }
+    const intent = await prisma.onboardingCheckoutIntent.findFirst({
+      where: { id, schoolId: user.schoolId },
+    });
+    if (!intent) throw new ApiError("Checkout was not found.", 404);
     if (intent.userId !== user.userId && !canPurchaseSubscription(user)) {
       throw new ApiError("This checkout belongs to another buyer.", 403);
     }
