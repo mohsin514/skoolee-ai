@@ -9,7 +9,7 @@ import { Menu } from "@/components/ui/menu";
 import { toast } from "@/components/ui/toast";
 import { useUiText } from "@/components/locale/LocaleProvider";
 
-type Preview = { id: string; label: string; count: number; version: string; blocked: boolean };
+type Preview = { id: string; label: string; count: number; version: string; blocked: boolean; message?: string };
 
 type DeleteProps = {
   endpoint: string; record: { id: string; campusId?: string }; label: string; onDeleted: () => void;
@@ -79,7 +79,7 @@ export function ReviewedDeleteDialog({ endpoint, record, label, onDeleted, onCan
       detail={<div className="space-y-3">
         {detail}
         {preparing ? <p role="status">{ui("Checking current permissions and record…")}</p> : null}
-        {preview?.blocked ? <p role="alert">{ui("Related records or history prevent deletion. Keep this record and review its dependencies.")}</p> : null}
+        {preview?.blocked ? <p role="alert">{preview.message ?? ui("Related records or history prevent deletion. Keep this record and review its dependencies.")}</p> : null}
         {error ? <p role="alert">{error}</p> : null}
         {!preparing && !preview ? <Button variant="outline" onClick={prepare}>{ui("Review again")}</Button> : null}
       </div>} />

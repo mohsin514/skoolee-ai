@@ -185,7 +185,10 @@ async function target(tx: TxClient, kind: OperationDeleteKind, id: string, campu
     case "dormitory/rooms": {
       const record = await tx.dormRoom.findFirst({ where, include: { _count: { select: { allocations: true, students: true } } } });
       if (!record) throw new ApiError("Record not found", 404);
-      return { record, label: record.number, blocked: record._count.allocations + record._count.students, remove: async () => {
+      const stays = record._count.allocations;
+      // SKAI-1281: allocation history is the boarding audit trail, so a used room is kept and taken out of service instead.
+      const blockedMessage = stays ? `This room has ${stays} allocation record${stays === 1 ? "" : "s"} in its history and cannot be deleted. Mark it out of service instead.` : undefined;
+      return { record, label: record.number, blocked: stays + record._count.students, blockedMessage, remove: async () => {
         await tx.dormRoom.delete({ where: { id } });
       } };
     }
@@ -248,7 +251,7 @@ export async function operationDelete(user: AuthUser, kind: OperationDeleteKind,
   const permissionModule = operationDeleteModules[kind];
   if (kind === "students/documents") assertStaffRole(user);
   else if (!(permissionModule === "library" ? canManageLibrary(user) : permissionModule === "accounts" || permissionModule === "fees" ? canManageFinance(user) : canManageCampusOps(user))) throw new ApiError("Insufficient permissions", 403);
-  if (!input.preview && !/^[a-f0-9]{64}$/.test(input.version ?? "")) throw new ApiError("Review the record before confirming deletion.", 428);
+  const reviewed = input.preview || /^[a-f0-9]{64}$/.test(input.version ?? "");
   let cleanupKey: string | undefined;
   const result = await schoolAiTransaction(user, async tx => {
     // Permissions, account state and campus are re-read inside the same
@@ -257,15 +260,18 @@ export async function operationDelete(user: AuthUser, kind: OperationDeleteKind,
     const campus = await tx.campus.findFirst({ where: { id: input.campusId, schoolId: user.schoolId } });
     if (!campus || user.role !== "SUPER_ADMIN" && user.campusId !== campus.id) throw new ApiError("Insufficient permissions", 403);
     const receiptId = createHash("sha256").update(JSON.stringify(["confirmed-delete-v1", user.schoolId, campus.id, user.userId, kind, input.id, input.version])).digest("hex");
-    if (!input.preview && await tx.auditLog.findFirst({ where: { id: receiptId, schoolId: user.schoolId, campusId: campus.id, userId: user.userId } })) {
+    if (reviewed && !input.preview && await tx.auditLog.findFirst({ where: { id: receiptId, schoolId: user.schoolId, campusId: campus.id, userId: user.userId } })) {
       return { success: true, data: { id: input.id }, replayed: true };
     }
     if ((kind === "academic/rooms" || kind === "academic/calendar") && !input.preview) await lockTimetableCampus(tx, user.schoolId, campus.id, true);
     const selected = await target(tx, kind, input.id, campus.id, user.schoolId, user);
     const version = deletionVersion(selected.record);
-    if (input.preview) return { success: true, preview: { id: input.id, label: selected.label, count: 1, version, blocked: selected.blocked > 0 } };
+    const blockedMessage = "blockedMessage" in selected && selected.blockedMessage ? selected.blockedMessage : "Related records or history prevent deletion. Keep this record and review its dependencies.";
+    if (input.preview) return { success: true, preview: { id: input.id, label: selected.label, count: 1, version, blocked: selected.blocked > 0, dependents: selected.blocked, ...(selected.blocked ? { message: blockedMessage } : {}) } };
+    // SKAI-1281: a record with history is refused with 409 even without a review token, so no client can skip the guard.
+    if (selected.blocked) throw new ApiError(blockedMessage, 409);
+    if (!reviewed) throw new ApiError("Review the record before confirming deletion.", 428);
     if (input.version !== version) throw new ApiError("This record changed. Review it again before deleting.", 409);
-    if (selected.blocked) throw new ApiError("Related records or history prevent deletion. Keep this record and review its dependencies.", 409);
     await selected.remove();
     if ("cleanupKey" in selected) cleanupKey = selected.cleanupKey;
     // Same transaction: no deletion without a retry receipt, no receipt for a

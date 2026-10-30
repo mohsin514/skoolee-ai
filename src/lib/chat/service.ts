@@ -895,10 +895,18 @@ export async function editMessage(
     throw new ApiError(`Messages are limited to ${MAX_MESSAGE_LENGTH} characters`, 400);
   }
 
-  const updated = await prisma.chatMessage.update({
-    where: { id: messageId },
-    data: { body: next, editedAt: new Date() },
-    include: messageInclude,
+  const updated = await prisma.$transaction(async (tx) => {
+    const edited = await tx.chatMessage.update({
+      where: { id: messageId },
+      data: { body: next, editedAt: new Date() },
+      include: messageInclude,
+    });
+    // SKAI-1291: when the latest message is edited, the inbox preview follows it.
+    await tx.conversation.updateMany({
+      where: { id: row.id, lastMessageAt: edited.createdAt, lastMessageSenderId: user.userId },
+      data: { lastMessagePreview: preview(next, edited.kind) },
+    });
+    return edited;
   });
 
   const view = await serialiseMessage(updated);

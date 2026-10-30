@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { returnIssue } from "@/lib/library/desk";
 
 export async function GET(req: NextRequest) {
   try {
@@ -94,27 +95,7 @@ export async function PATCH(req: NextRequest) {
     const { id } = body;
     if (!id) throw new ApiError("id is required", 400);
 
-    const existing = await prisma.bookIssue.findFirst({
-      where: { id, book: { campus: { schoolId: user.schoolId } } },
-    });
-    if (!existing) throw new ApiError("Issue not found", 404);
-    if (existing.returnedAt) throw new ApiError("Book already returned", 409);
-    // SKO-436: loans of a barcoded copy are returned at the lending desk, which also settles the
-    // copy, any fine and the reservation queue.
-    if (existing.copyId) throw new ApiError("Return this copy by scanning it at the lending desk.", 409);
-
-    const now = new Date();
-
-    const data = await prisma.$transaction(async (tx) => {
-      // One conditional update decides the return, so a repeated request cannot add a copy twice.
-      const closed = await tx.bookIssue.updateMany({ where: { id, returnedAt: null }, data: { returnedAt: now } });
-      if (!closed.count) throw new ApiError("Book already returned", 409);
-      await tx.book.update({
-        where: { id: existing.bookId },
-        data: { copiesAvailable: { increment: 1 } },
-      });
-      return tx.bookIssue.findUniqueOrThrow({ where: { id } });
-    });
+    const data = await returnIssue(user, String(id));
 
     return Response.json({ success: true, data });
   } catch (error) {
