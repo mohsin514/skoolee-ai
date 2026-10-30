@@ -11,8 +11,13 @@ const nextConfig: NextConfig = {
   // `next build` type-checks the whole repo by default, which needs ~12 GB of heap and
   // gets the Vercel build worker OOM-killed (SKAI-1295). Types are still enforced:
   // the required `typecheck` job in .github/workflows/pr-checks.yml runs `tsc --noEmit`.
+  // tsconfigPath stays as the scope for any build that does type-check: the root
+  // tsconfig also covers tests/, scripts/ and every local .next-app*/types folder;
+  // tsconfig.build.json narrows it to src (tests and scripts are checked by `tsc -p .`).
+  // One key only: a second `typescript` key silently replaced the first.
   typescript: {
     ignoreBuildErrors: true,
+    tsconfigPath: "tsconfig.build.json",
   },
   // Enable Turbopack for faster dev builds
   // (enabled via `next dev --turbopack`)
@@ -97,15 +102,6 @@ const nextConfig: NextConfig = {
         ],
       })),
     ];
-  },
-
-  // Type-check only the application during `next build`. The root tsconfig
-  // also covers tests/, scripts/ and every local .next-app*/types folder,
-  // which pushed the build's type-check worker past the 8 GB Vercel
-  // container (SIGKILL, OOM). tsconfig.build.json extends it with src only;
-  // tests and scripts are still checked by the full `tsc -p .` locally.
-  typescript: {
-    tsconfigPath: "tsconfig.build.json",
   },
 
   // Ignore build-time errors for BullMQ / ioredis (server-only)
