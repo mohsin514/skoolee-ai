@@ -69,7 +69,7 @@
     "app:desktop:build": "tauri build",
     "app:icons": "tauri icon public/icon-1024.png",
     "test:report-versions": "node --import ./tests/support/server-only.mjs --import tsx --test tests/report-versions/version.test.ts",
-    "test:package-choice": "node --import tsx --test tests/checkout-intents/domain.test.ts && node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/checkout-intents/settlement-replay.test.mts",
+    "test:package-choice": "node --import ./tests/support/server-only.mjs --import tsx --test tests/checkout-intents/domain.test.ts && node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/checkout-intents/settlement-replay.test.mts",
     "test:onboarding": "node --import tsx --test tests/onboarding/setup-state.test.ts tests/onboarding/launch-plan.test.ts",
     "test:onboarding:launch": "playwright test --config tests/onboarding/launch-guide.config.ts",
     "test:onboarding:db": "node --import tsx --test tests/onboarding/setup.database.test.ts",
