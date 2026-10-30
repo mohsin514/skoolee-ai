@@ -1,6 +1,6 @@
 # AI Workflows capability coverage (generated — do not edit)
 
-Total capabilities: **890**; connected: **148**.
+Total capabilities: **890**; connected: **149**.
 
 Risk: ACCESS_GRANT 57 · APPROVAL_DECISION 72 · COMMUNICATION 40 · CREATE 229 · DESTRUCTIVE 79 · FINANCIAL 59 · PUBLISH 29 · READ 49 · UPDATE 276
 
@@ -14,9 +14,9 @@ Idempotent: no 260 · unknown 50 · versioned 1 · yes 579
 |---|---|---|
 | APP_OWNER | 66 | 14 |
 | SUPER_ADMIN | 671 | 18 |
-| ADMIN | 707 | 88 |
-| CAMPUS_ADMIN | 660 | 86 |
-| PRINCIPAL | 390 | 22 |
+| ADMIN | 707 | 89 |
+| CAMPUS_ADMIN | 660 | 87 |
+| PRINCIPAL | 390 | 23 |
 | TEACHER | 249 | 24 |
 | ACCOUNTANT | 140 | 27 |
 | LIBRARIAN | 104 | 20 |
@@ -28,7 +28,7 @@ Idempotent: no 260 · unknown 50 · versioned 1 · yes 579
 
 | Cluster | Capabilities | Connected |
 |---|---|---|
-| C1 Academic structure | 77 | 11 |
+| C1 Academic structure | 77 | 12 |
 | C2 People, staff and access | 67 | 13 |
 | C3 Students, admissions and family | 94 | 21 |
 | C4 Teaching and assessment | 110 | 20 |
