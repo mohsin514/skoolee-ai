@@ -15,6 +15,13 @@ import { isStaffRole } from "@/lib/roles";
  * SKAI-1323: accept only a real YYYY-MM-DD calendar day. Impossible dates such as
  * 2026-02-30 must not be normalised into a neighbouring day.
  */
+/** A caller-supplied duration must be a finite positive number; NaN otherwise reached the database as a 500. */
+export function explicitDaysToTenths(value: unknown): number {
+  const days = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isFinite(days) || days <= 0) throw new ApiError("days must be a positive number of days", 400);
+  return Math.max(1, Math.round(days * 10));
+}
+
 function calendarDate(value: unknown): Date | null {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const date = new Date(`${value}T00:00:00Z`);
@@ -56,9 +63,7 @@ export async function applyLeave(user: AuthUser, body: Record<string, unknown>) 
     );
   }
 
-  const days = body.days !== undefined
-    ? Math.max(1, Math.round(Number(body.days) * 10))
-    : rangeTenths(start, end);
+  const days = body.days !== undefined ? explicitDaysToTenths(body.days) : rangeTenths(start, end);
 
   const request = await prisma.leaveRequest.create({
     data: {
