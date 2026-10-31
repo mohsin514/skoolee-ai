@@ -57,6 +57,7 @@ export function AssessmentStudio({ records, locale, onRefresh, subjects = [], ca
   const [message, setMessage] = useState("");
   const [issues, setIssues] = useState<string[]>([]);
   const idempotencyKey = useRef<string | null>(null);
+  const paperGenerationKey = useRef<{ key: string; fingerprint: string } | null>(null);
   const readonly = !canCreate || (!!selected && selected.status !== "DRAFT");
   const curricula = records.filter((record) => record.kind === "CURRICULUM");
   const approvedCurricula = curricula.filter((record) => record.status === "APPROVED");
@@ -135,19 +136,37 @@ export function AssessmentStudio({ records, locale, onRefresh, subjects = [], ca
     const controller = new AbortController();
     generationAbort.current = controller;
     setCancellable(true);
+    // SKAI-1374: one key per identical request. A cut stream keeps it so the retry replays, never re-dispatches.
+    const requestBody = { curriculumId: paper.curriculumId, curriculumVersion: paper.curriculumVersion, blueprint: paper.blueprint, language: paper.language, coverageSection: paper.coverageSection, lockedQuestions: paper.questions.filter((question) => question.locked) };
+    const fingerprint = JSON.stringify(requestBody);
+    if (paperGenerationKey.current?.fingerprint !== fingerprint) paperGenerationKey.current = { key: uid(), fingerprint };
+    const key = paperGenerationKey.current.key;
+    let started = false, settled = false;
+    const recoverUnsettled = async () => {
+      try {
+        const response = await fetch(`/api/school-ai/generate-paper?key=${encodeURIComponent(key)}`, { cache: "no-store" });
+        const payload = response.ok ? await response.json() : null;
+        if (payload?.paper) { paperGenerationKey.current = null; settled = true; changePaper({ ...paperDataSchema.parse(payload.paper), coverageSection: paper.coverageSection, resources: paper.resources }); setMessage(t.draftOnly); return; }
+      } catch { /* the receipt is unknown; the key is kept for a safe retry */ }
+      setMessage(controller.signal.aborted ? t.generationCancelled : t.failure);
+    };
     try {
-      const response = await fetch("/api/school-ai/generate-paper/stream", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ idempotencyKey: crypto.randomUUID(), curriculumId: paper.curriculumId, curriculumVersion: paper.curriculumVersion, blueprint: paper.blueprint, language: paper.language, coverageSection: paper.coverageSection, lockedQuestions: paper.questions.filter((question) => question.locked) }) });
+      const response = await fetch("/api/school-ai/generate-paper/stream", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ idempotencyKey: key, ...requestBody }) });
       if (!response.ok || !response.body) { const payload = await response.json().catch(() => ({})); throw new Error(payload.code === "AI_QUOTA_EXHAUSTED" ? aiCopy.AI_QUOTA_EXHAUSTED : payload.code === "AI_SENSITIVE_CONTENT_BLOCKED" ? aiCopy.AI_SENSITIVE_CONTENT_BLOCKED : payload.code === "CURRICULUM_PACK_NOT_ACTIVE" ? [aiCopy.CURRICULUM_PACK_NOT_ACTIVE, ...(Array.isArray(payload.details) ? payload.details.filter((item: unknown) => typeof item === "string").slice(0, 3) : [])].join(" ") : errorMessage(payload, t.failure)); }
-      let produced = 0, settled = false;
+      started = true;
+      let produced = 0;
       for await (const frame of decodeFrames(response.body)) {
         if (frame.type === "stage") setMessage(t.generatingProgress.replace("{0}", String(frame.produced)).replace("{1}", String(frame.requested)));
         else if (frame.type === "item") { produced++; setMessage(t.generatingProgress.replace("{0}", String(produced)).replace("{1}", String(paper.blueprint.sections.reduce((sum, section) => sum + section.questionCount, 0)))); }
-        else if (frame.type === "complete") { settled = true; const result = paperDataSchema.parse(frame.paper); changePaper({ ...result, coverageSection: paper.coverageSection, resources: paper.resources }); setMessage(t.draftOnly); }
-        else if (frame.type === "cancelled") { settled = true; setMessage(t.generationCancelled); }
-        else if (frame.type === "error") { settled = true; setMessage(frame.reason === "PROVIDER_UNAVAILABLE" ? prototypeCopy(locale).liveUnavailable : t.failure); }
+        else if (frame.type === "complete") { settled = true; paperGenerationKey.current = null; const result = paperDataSchema.parse(frame.paper); changePaper({ ...result, coverageSection: paper.coverageSection, resources: paper.resources }); setMessage(t.draftOnly); }
+        else if (frame.type === "cancelled") { settled = true; paperGenerationKey.current = null; setMessage(t.generationCancelled); }
+        else if (frame.type === "error") { settled = true; paperGenerationKey.current = null; setMessage(frame.reason === "PROVIDER_UNAVAILABLE" ? prototypeCopy(locale).liveUnavailable : t.failure); }
       }
-      if (!settled) setMessage(t.failure);
-    } catch (error) { setMessage(controller.signal.aborted ? t.generationCancelled : error instanceof Error ? error.message : t.failure); }
+      if (!settled) await recoverUnsettled();
+    } catch (error) {
+      if (started && !settled) await recoverUnsettled();
+      else setMessage(controller.signal.aborted ? t.generationCancelled : error instanceof Error ? error.message : t.failure);
+    }
     finally { generationAbort.current = null; setCancellable(false); setBusy(false); }
   };
   const readiness = () => {
