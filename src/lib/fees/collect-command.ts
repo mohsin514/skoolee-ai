@@ -191,6 +191,14 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
     }, { timeout: 20000 });
     return outcome(recorded.payment, recorded.credit, false);
   } catch (error) {
+    // SKAI-1312: identical retries queue behind the invoice row lock. A waiter whose transaction expires
+    // (P2028) or conflicts (P2034) may find that the winner has already committed. Answer with that
+    // receipt; otherwise ask the caller to retry, instead of a server error for a payment that went through.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2028" || error.code === "P2034")) {
+      const winner = await replay();
+      if (winner) return winner;
+      throw conflict("This payment is already being recorded. Check the receipt list before retrying.", "PAYMENT_IN_PROGRESS");
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       const target = JSON.stringify(error.meta ?? {});
       // A concurrent retry with the same key committed first: answer with its receipt.
