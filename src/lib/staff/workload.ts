@@ -16,7 +16,8 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const parseDay = (value: string | null, label: string) => {
   if (!value || !DAY.test(value)) throw new ApiError(`${label} must be a date (YYYY-MM-DD).`, 400);
   const date = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime())) throw new ApiError(`${label} is not a real date.`, 400);
+  // SKAI-1341: Date silently rolls 2026-02-30 into March, so the calendar parts must round-trip.
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) throw new ApiError(`${label} is not a real date.`, 400);
   return date;
 };
 const isoDay = (date: Date) => date.toISOString().slice(0, 10);
