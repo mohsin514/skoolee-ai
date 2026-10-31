@@ -384,6 +384,8 @@ function SlotEditorModal({
   const [freeTeachers, setFreeTeachers] = useState<TeacherOption[]>([]);
   const [freeRooms, setFreeRooms] = useState<RoomOption[]>([]);
   const [loadingAvail, setLoadingAvail] = useState(true);
+  // A failed lookup is not "no free teachers or rooms" (SKAI-1390): it is shown with a retry, and the current selections stay.
+  const [availFailed, setAvailFailed] = useState(false), [availNonce, setAvailNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -392,17 +394,18 @@ function SlotEditorModal({
     fetch(
       `/api/academic/availability?context=timetable&day=${slot.dayOfWeek}&period=${slot.periodNumber}&excludeTimetableId=${activeTimetableId}${q}`
     )
-      .then((r) => r.json())
-      .then((j) => {
-        if (!cancelled && j.success) {
-          setFreeTeachers(j.data.teachers || []);
-          setFreeRooms(j.data.rooms || []);
-        }
+      .then(async (r) => {
+        const j = await r.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!r.ok || !j.success) throw new Error("availability");
+        setFreeTeachers(j.data.teachers || []);
+        setFreeRooms(j.data.rooms || []);
+        setAvailFailed(false);
       })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) setAvailFailed(true); })
       .finally(() => { if (!cancelled) setLoadingAvail(false); });
     return () => { cancelled = true; };
-  }, [slot, activeTimetableId, campusId]);
+  }, [slot, activeTimetableId, campusId, availNonce]);
 
   const dayName = ui(DAYS.find((d) => d.num === slot.dayOfWeek)?.full || "");
 
@@ -506,7 +509,13 @@ function SlotEditorModal({
                     <option key={t.id} value={t.id}>{t.fullName}</option>
                   ))}
                 </SystemSelect>
-                {!loadingAvail && freeTeachers.length === 0 && (
+                {!loadingAvail && availFailed && (
+                  <p role="alert" className="mt-1 text-xs font-medium text-status-error-text">
+                    {ui("Availability could not be loaded. Your current selections are kept.")}{" "}
+                    <Button variant="ghost" size="sm" onClick={() => { setLoadingAvail(true); setAvailNonce((n) => n + 1); }}>{ui("Try again")}</Button>
+                  </p>
+                )}
+                {!loadingAvail && !availFailed && freeTeachers.length === 0 && (
                   <p className="mt-1 text-xs font-medium text-status-warning-text">{ui("No free teachers for this slot.")}</p>
                 )}
               </div>
@@ -527,7 +536,7 @@ function SlotEditorModal({
                     </option>
                   ))}
                 </SystemSelect>
-                {!loadingAvail && freeRooms.length === 0 && (
+                {!loadingAvail && !availFailed && freeRooms.length === 0 && (
                   <p className="mt-1 text-xs font-medium text-status-warning-text">{ui("No free rooms for this slot.")}</p>
                 )}
               </div>
