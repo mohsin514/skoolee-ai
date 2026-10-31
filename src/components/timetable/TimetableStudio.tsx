@@ -510,7 +510,7 @@ function SlotEditorModal({
                   ))}
                 </SystemSelect>
                 {!loadingAvail && availFailed && (
-                  <p role="alert" className="mt-1 text-xs font-medium text-status-danger-text">
+                  <p role="alert" className="mt-1 text-xs font-medium text-status-error-text">
                     {ui("Availability could not be loaded. Your current selections are kept.")}{" "}
                     <Button variant="ghost" size="sm" onClick={() => { setLoadingAvail(true); setAvailNonce((n) => n + 1); }}>{ui("Try again")}</Button>
                   </p>
