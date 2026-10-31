@@ -299,7 +299,10 @@ const studentSelect = { id: true, admissionNo: true, fullName: true, campusId: t
 
 export async function listStudents(caller: Caller, params: URLSearchParams) {
   return runWithTenantContext({ schoolId: caller.schoolId }, async () => {
-    const limit = Math.min(Math.max(Number(params.get("limit") ?? V1.pagination.defaultLimit) || V1.pagination.defaultLimit, 1), V1.pagination.maxLimit);
+    // SKAI-1337: the frozen contract takes whole-number limits; anything else is a 400, not a silent clamp.
+    const rawLimit = params.get("limit");
+    if (rawLimit !== null && !/^[1-9]\d*$/.test(rawLimit)) throw new PublicError(400, "VALIDATION_FAILED", "limit must be a positive whole number.");
+    const limit = Math.min(rawLimit === null ? V1.pagination.defaultLimit : Number(rawLimit), V1.pagination.maxLimit);
     const campusId = params.get("campusId");
     if (campusId && !caller.campusIds.includes(campusId)) throw new PublicError(404, "NOT_FOUND", "Campus not found.");
     const cursor = params.get("cursor");
