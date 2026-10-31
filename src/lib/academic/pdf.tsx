@@ -355,7 +355,9 @@ export function ReportCardDocument({ payload, logoUrl }: { payload: ReportPayloa
   const t = labelsFor(payload);
   const uae = uaeOf(payload);
   const f = (n: number) => new Intl.NumberFormat(localeTag(locale)).format(n);
-  const state = (value: string) => value === "APPROVED" ? (locale.language === "ar" ? "معتمد" : locale.language === "ur" ? "منظور شدہ" : "Approved") : t[value as keyof typeof t] || value;
+  // Words outside the report catalog: the bilingual print pairs English with Arabic like every other label.
+  const word = (en: string, ar: string, ur: string) => uae ? `${en} · ${ar}` : locale.language === "ar" ? ar : locale.language === "ur" ? ur : en;
+  const state = (value: string) => value === "APPROVED" ? word("Approved", "معتمد", "منظور شدہ") : t[value as keyof typeof t] || value;
   const student = reportCard.student;
   const exam = reportCard.exam;
   const campus = reportCard.campus as any;
@@ -403,9 +405,9 @@ export function ReportCardDocument({ payload, logoUrl }: { payload: ReportPayloa
             <Text style={styles.subline}>
               {student.rollNo ? `${t.roll}: ${student.rollNo} · ` : ""}{classLabel(payload)}
             </Text>
-            <Text style={styles.subline}>{locale.language === "ar" ? "النسخة" : locale.language === "ur" ? "نسخہ" : "Version"} {payload.versionInfo.number}</Text>
+            <Text style={styles.subline}>{word("Version", "النسخة", "نسخہ")} {payload.versionInfo.number}</Text>
             <Text style={[styles.subline, { direction: "ltr" }]}>{payload.versionInfo.documentIdentity}</Text>
-            {payload.versionInfo.correctionReason && <Text style={styles.subline}>{locale.language === "ar" ? "تصحيح:" : locale.language === "ur" ? "تصحیح:" : "Correction:"} {payload.versionInfo.correctionReason}</Text>}
+            {payload.versionInfo.correctionReason && <Text style={styles.subline}>{word("Correction:", "تصحيح:", "تصحیح:")} {payload.versionInfo.correctionReason}</Text>}
             <Text style={styles.subline}>{t.generated}</Text>
             <Text style={[styles.subline, { direction: "ltr" }]}>{new Intl.DateTimeFormat(localeTag(locale), { timeZone: locale.timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(reportCard.generatedAt))}</Text>
             <Text style={styles.subline}>{new Intl.DateTimeFormat(localeTag(locale), { timeZone: locale.timezone, dateStyle: "long" }).format(new Date(reportCard.generatedAt))}</Text>
