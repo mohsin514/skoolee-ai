@@ -4,6 +4,7 @@ import { privateDownloadResponse } from "@/lib/storage/private-download";
 import { NextRequest } from "next/server";
 import { studentScope } from "@/lib/auth/policy";
 import { prisma } from "@/lib/db/prisma";
+import { Prisma } from "@prisma/client";
 import { writeAuditEvent } from "@/lib/audit-events";
 import {
   ApiError,
@@ -105,6 +106,8 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.studentDocument.findFirst({ where: { studentId: student.id, fileKey }, select: { id: true, kind: true, fileName: true, uploadedAt: true } });
     if (existing) return Response.json({ success: true, data: existing, replayed: true }, { status: 200 });
 
+    // SKAI-1396: two same-key requests can both pass the check above; the unique (studentId, fileKey)
+    // index picks one winner, and the loser replays the winner's row without a second timeline or audit write.
     const document = await prisma.$transaction(async (tx) => {
       const created = await tx.studentDocument.create({
         data: {
@@ -126,8 +129,14 @@ export async function POST(req: NextRequest) {
       });
       await writeAuditEvent(tx, user, { table: "student_documents", recordId: created.id, action: "CREATE", campusId: student.campusId, after: { studentId: student.id, kind: created.kind } });
       return created;
+    }).catch(async (error: unknown) => {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+      const winner = await prisma.studentDocument.findFirst({ where: { studentId: student.id, fileKey }, select: { id: true, kind: true, fileName: true, uploadedAt: true } });
+      if (!winner) throw error;
+      return { replayed: true as const, winner };
     });
 
+    if ("replayed" in document) return Response.json({ success: true, data: document.winner, replayed: true }, { status: 200 });
     return Response.json({ success: true, data: document }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[students/documents] POST failed");
