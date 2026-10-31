@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { isFamily, studentScope } from "@/lib/auth/policy";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
-import { applyEnrollment, assertPlacementTarget, assertRegistrar, canPlaceAcrossCampuses, dateOnly, enrollmentHistoryWhere, enrollmentImpact, readPupil } from "@/lib/students/enrollment";
+import { applyEnrollment, applyReadmission, assertPlacementTarget, assertRegistrar, canPlaceAcrossCampuses, dateOnly, enrollmentHistoryWhere, enrollmentImpact, readPupil } from "@/lib/students/enrollment";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -76,6 +76,11 @@ export async function POST(req: NextRequest) {
     const rollNo = String(body.rollNo || "").trim();
     const reason = String(body.reason || "").trim();
     if (!rollNo || !reason || reason.length > 1000) throw new ApiError("Roll number and a reason (up to 1000 characters) are required", 400);
+    // SKAI-1387: explicit re-admission of a withdrawn pupil. It runs before enrollmentImpact, which needs a live pupil.
+    if (body.action === "readmit") {
+      const result = await prisma.$transaction(tx => applyReadmission(tx, { studentId: id, targetClassId, rollNo, effectiveDate, actorId: user.userId, reason }), { isolationLevel: "Serializable" });
+      return Response.json(result, { status: 201 });
+    }
     const impact = await enrollmentImpact(prisma, id, fromId, targetClassId, effectiveDate, true);
     const seats = await assertPlacementTarget(prisma, user, impact.pupil, impact.target);
     if (body.action === "preview") return Response.json({ preserved: impact.preserved, guardianAccess: impact.guardianAccess, capacity: impact.capacity, targetOccupancy: seats.occupied, targetCapacity: seats.capacity, policy: impact.policy });

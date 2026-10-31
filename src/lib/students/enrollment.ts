@@ -136,3 +136,32 @@ export async function applyWithdrawal(tx: TxClient, input: { studentId: string; 
   await tx.auditLog.create({ data: { tableName: "student_enrollments", recordId: impact.from.id, userId: input.actorId, oldValue: { status: "ACTIVE" }, newValue: { status: outcome, effectiveDate: input.effectiveDate.toISOString(), reason: input.reason, preserved: impact.preserved } } });
   return impact;
 }
+
+/**
+ * SKAI-1387: re-admits a withdrawn pupil into a live class at the campus they left. Reopens placement,
+ * the student login and the timeline; graduated or transferred pupils are not re-admitted here.
+ */
+export async function applyReadmission(tx: TxClient, input: { studentId: string; targetClassId: string; rollNo: string; effectiveDate: Date; actorId: string; reason: string }) {
+  const pupil = await tx.student.findFirst({ where: { id: input.studentId, archivedAt: { not: null }, consolidatedIntoId: null } });
+  if (!pupil) throw new ApiError("Only an archived pupil can be re-admitted.", 409);
+  if (await tx.studentEnrollment.findFirst({ where: { studentId: pupil.id, endDate: null, status: "ACTIVE" }, select: { id: true } })) throw new ApiError("This pupil already has an open placement.", 409);
+  const last = await tx.studentEnrollment.findFirst({ where: { studentId: pupil.id, endDate: { not: null } }, orderBy: { endDate: "desc" } });
+  if (!last?.endDate || last.status !== "WITHDRAWN") throw new ApiError("Only a withdrawn pupil can be re-admitted. Graduated or transferred pupils are placed through enrolment.", 409);
+  if (input.effectiveDate < last.endDate || input.effectiveDate > new Date()) throw new ApiError("Re-admission must fall between the withdrawal date and today.", 409);
+  const target = await tx.class.findFirst({ where: { id: input.targetClassId, status: "ACTIVE", archivedAt: null, campusId: last.campusId }, include: { campus: true } });
+  if (!target || target.campus.archivedAt || target.campus.pausedAt) throw new ApiError("Choose an active class on the pupil's former campus.", 409);
+  const seats = await classSeats(tx, target);
+  if (seats.capacity != null && seats.occupied + 1 > seats.capacity) throw new ApiError(`The class is full (${seats.occupied} of ${seats.capacity} seats).`, 409);
+  if (await tx.student.findFirst({ where: { id: { not: pupil.id }, campusId: target.campusId, rollNo: input.rollNo, archivedAt: null }, select: { id: true } })) throw new ApiError("This roll number already belongs to a pupil in the campus.", 409);
+  const enrollment = await tx.studentEnrollment.create({ data: {
+    id: randomUUID(), studentId: pupil.id, campusId: target.campusId, classId: target.id,
+    campusName: target.campus.name, className: [target.name, target.section].filter(Boolean).join(" "),
+    curriculum: target.campus.board || "Unspecified", academicYear: target.academicYear, rollNo: input.rollNo, startDate: input.effectiveDate, origin: "READMITTED",
+  } });
+  await tx.$executeRaw`SELECT set_config('app.enrollment_reviewed', ${pupil.id}, true)`;
+  await tx.student.update({ where: { id: pupil.id }, data: { archivedAt: null, archiveReason: null, status: "active", classId: target.id, campusId: target.campusId, rollNo: input.rollNo } });
+  if (pupil.studentUserId) await tx.user.updateMany({ where: { id: pupil.studentUserId, role: "STUDENT" }, data: { isActive: true, accessVersion: { increment: 1 } } });
+  await tx.studentTimelineEvent.create({ data: { studentId: pupil.id, kind: "READMITTED", title: "Re-admitted", detail: JSON.stringify({ enrollmentId: enrollment.id, effectiveDate: input.effectiveDate.toISOString().slice(0, 10), reason: input.reason }), actorId: input.actorId } });
+  await tx.auditLog.create({ data: { tableName: "student_enrollments", recordId: enrollment.id, userId: input.actorId, oldValue: { status: "WITHDRAWN" }, newValue: { status: "ACTIVE", readmittedFrom: last.id, reason: input.reason } } });
+  return { enrollment };
+}
