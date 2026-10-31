@@ -22,6 +22,9 @@ import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
+// Matches the School.status values documented in prisma/schema.prisma.
+const SCHOOL_STATUSES = ["TRIAL", "ACTIVE", "SUSPENDED", "DELETED"];
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requirePlatformOwner();
@@ -30,10 +33,11 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const { page: requestedPage, limit } = ownerPagination(searchParams);
     const search = searchParams.get("search")?.trim() || "";
-    const status = searchParams.get("status") || "";
+    const status = (searchParams.get("status") || "").trim().toUpperCase();
     const plan = searchParams.get("plan") || "";
 
     const where: any = {};
+    if (status && !SCHOOL_STATUSES.includes(status)) throw new ApiError("Unknown status", 400);
     if (status) where.status = status;
     if (plan && !["FREE", "BASIC", "PRO", "ENTERPRISE"].includes(plan)) throw new ApiError("Unknown plan", 400);
     if (plan) where.plan = plan;
