@@ -45,6 +45,8 @@ export function deriveJobStatus(steps: readonly StepSummary[]): JobStatus {
   if (steps.some(step => step.status === "WAITING_CONFIRM")) return "WAITING_CONFIRM";
   if (steps.some(step => ["PENDING", "READY", "RUNNING"].includes(step.status))) return "RUNNING";
   if (steps.some(step => step.status === "WAITING_HANDOFF")) return "WAITING_HANDOFF";
+  // SKAI-1378: a failed step is never a successful completion, even when other steps finished.
+  if (steps.some(step => step.status === "FAILED" || step.status === "FAILED_UNVERIFIED")) return "FAILED";
   return "COMPLETED";
 }
 
