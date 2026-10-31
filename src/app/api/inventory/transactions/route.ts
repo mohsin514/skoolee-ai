@@ -59,6 +59,8 @@ export async function POST(req: NextRequest) {
     if (!itemId || !storeId || !kind) throw new ApiError("itemId, storeId and kind required", 400);
     if (!VALID_KINDS.includes(kind)) throw new ApiError("Invalid kind", 400);
     if (!quantity || quantity <= 0 || !Number.isInteger(quantity)) throw new ApiError("quantity must be a positive whole number", 400);
+    // SKAI-1347: a unit price is a cost, so it can never be negative.
+    if (unitPrice !== undefined && unitPrice !== null && (typeof unitPrice !== "number" || !Number.isFinite(unitPrice) || unitPrice < 0)) throw new ApiError("unitPrice must be a non-negative number", 400);
     if (idempotencyKey !== undefined && (typeof idempotencyKey !== "string" || !/^[A-Za-z0-9_-]{8,80}$/.test(idempotencyKey))) throw new ApiError("Invalid idempotency key", 400);
     // SKO-435: a retried movement with the same key is the same movement.
     if (idempotencyKey) {
