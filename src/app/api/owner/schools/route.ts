@@ -143,6 +143,14 @@ export async function POST(req: NextRequest) {
 
     const body = await parseBody(req, jsonObjectBody);
 
+    // Text identity fields must arrive as JSON strings; numbers would otherwise be silently stringified.
+    for (const key of ["schoolName", "city", "ownerName", "campusName"] as const) {
+      const value = body[key];
+      if (value !== undefined && value !== null && typeof value !== "string") {
+        throw new ApiError(`${key} must be text`, 400);
+      }
+    }
+
     const schoolName = String(body.schoolName || "").trim();
     const city = String(body.city || "").trim();
     const contactEmail = String(body.contactEmail || "").trim().toLowerCase();
