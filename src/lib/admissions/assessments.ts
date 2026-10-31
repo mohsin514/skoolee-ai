@@ -72,6 +72,14 @@ export async function actOnAssessment({ db, user, campusId, application, officeN
       const staff = await db.user.findFirst({ where: { id: staffId, schoolId: user.schoolId, isActive: true, role: { notIn: ["STUDENT", "PARENT"] }, OR: [{ campusId }, { role: "SUPER_ADMIN" }] }, select: { id: true } });
       if (!staff) throw new ApiError("Choose an active staff member in this campus to run it.", 400);
     }
+    // SKAI-1349: the same interviewer or room cannot be double-booked for overlapping times.
+    const end = scheduledAt.getTime() + durationMin * 60_000;
+    const candidates = await db.admissionAssessment.findMany({
+      where: { schoolId: user.schoolId, status: "SCHEDULED", scheduledAt: { gt: new Date(scheduledAt.getTime() - 480 * 60_000), lt: new Date(end) } },
+      select: { scheduledAt: true, durationMin: true, staffId: true, location: true },
+    });
+    const clash = candidates.some((other) => other.scheduledAt.getTime() < end && other.scheduledAt.getTime() + other.durationMin * 60_000 > scheduledAt.getTime() && ((staffId !== null && other.staffId === staffId) || (location !== null && other.location === location)));
+    if (clash) throw new ApiError("That staff member or room is already booked for an overlapping time.", 409);
     const booking = await db.admissionAssessment.create({ data: { schoolId: user.schoolId, applicationId: application.id, kind, scheduledAt, durationMin, location, staffId, createdById: user.userId } });
     await db.admissionApplicationEvent.create({ data: { ...event, kind: "ASSESSMENT_SCHEDULED", familyMessage: body.familyMessage ? String(body.familyMessage).trim().slice(0, 2000) || null : null, detail: { assessmentId: booking.id, kind, scheduledAt: scheduledAt.toISOString() } } });
     return booking;
