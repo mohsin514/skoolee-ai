@@ -39,6 +39,11 @@ const COLUMNS: { header: string; get: (s: any) => unknown }[] = [
   { header: "Guardian Email", get: (s) => s.guardianEmail },
   { header: "Address", get: (s) => s.address },
   { header: "City", get: (s) => s.city },
+  // SKAI-1344: official identifiers so regulator returns can be reconciled without name/DOB matching.
+  { header: "Admission No", get: (s) => s.admissionNo },
+  { header: "Nationality", get: (s) => s.nationality },
+  { header: "Emirates ID", get: (s) => s.emiratesId },
+  { header: "eSIS / MOE ID", get: (s) => s.regulatorId },
 ];
 
 // SKO-451: a whole-roster export is background work; admission keeps one school's exports from starving the
