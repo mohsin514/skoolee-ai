@@ -369,6 +369,13 @@ export async function PATCH(req: NextRequest) {
       if (updates[key] === undefined) continue;
       try { data[key] = parse(updates[key]); } catch (error) { throw new ApiError((error as Error).message, 400); }
     }
+    // SKAI-1342: one active pupil per regulator ID and Emirates ID within the school. Archived pupils do not hold it.
+    const identifierClash = [["regulatorId", data.regulatorId], ["emiratesId", data.emiratesId]] as const;
+    for (const [key, value] of identifierClash) {
+      if (typeof value !== "string" || !value) continue;
+      const clash = await prisma.student.findFirst({ where: { schoolId: user.schoolId, id: { not: id }, archivedAt: null, [key]: value }, select: { id: true } });
+      if (clash) throw new ApiError(key === "regulatorId" ? "This eSIS / MOE ID already belongs to another pupil in this school." : "This Emirates ID already belongs to another pupil in this school.", 409);
+    }
     const regulatorChange = regulatorAuditChange(existing, data);
     // Gender is required on a pupil record, so a blank value keeps the stored one.
     if (updates.gender) data.gender = updates.gender;
