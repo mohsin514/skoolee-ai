@@ -26,8 +26,12 @@ import { assertCategoryCurrent, parseCategoryInput } from "@/lib/students/catego
 const TX_OPTIONS = { maxWait: 20_000, timeout: 60_000 };
 const DUPLICATE = "A category with this name already exists in this campus";
 
-async function assertNameFree(campusId: string, name: string, exceptId?: string) {
-  const clash = await prisma.studentCategory.findFirst({
+async function lockCampusNames(tx: Pick<typeof prisma, "$queryRaw">, campusId: string) {
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${campusId}, 0))`;
+}
+
+async function assertNameFree(db: Pick<typeof prisma, "studentCategory">, campusId: string, name: string, exceptId?: string) {
+  const clash = await db.studentCategory.findFirst({
     where: { campusId, name: { equals: name, mode: "insensitive" }, ...(exceptId ? { id: { not: exceptId } } : {}) },
     select: { id: true },
   });
@@ -65,9 +69,10 @@ export async function POST(req: NextRequest) {
     const body = await parseBody(req, jsonObjectBody);
     const input = parseCategoryInput(body, false) as { name: string; description: string | null; isActive: boolean };
     const campusId = await resolveCampusId(user, body.campusId || null);
-    await assertNameFree(campusId, input.name);
-
     const category = await prisma.$transaction(async (tx) => {
+      // SKAI-1343: serialise name checks per campus so concurrent case-variant creates cannot both pass.
+      await lockCampusNames(tx, campusId);
+      await assertNameFree(tx, campusId, input.name);
       const row = await tx.studentCategory.create({
         data: { schoolId: user.schoolId, campusId, ...input },
         include: { _count: { select: { students: true, feeDiscounts: true } } },
@@ -99,9 +104,11 @@ export async function PATCH(req: NextRequest) {
     });
     if (!existing) throw new ApiError("Category not found", 404);
     assertCategoryCurrent(body.expected, existing);
-    if (data.name !== undefined) await assertNameFree(existing.campusId, data.name, existing.id);
-
     const category = await prisma.$transaction(async (tx) => {
+      if (data.name !== undefined) {
+        await lockCampusNames(tx, existing.campusId);
+        await assertNameFree(tx, existing.campusId, data.name, existing.id);
+      }
       const row = await tx.studentCategory.update({
         where: { id: existing.id },
         data,
