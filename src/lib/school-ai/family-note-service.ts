@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
 import { prisma } from "@/lib/db/prisma";
+import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
 import { ApiError } from "@/lib/api/scope";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { examReviewSchema, responsesSchema } from "./exam";
@@ -42,7 +43,8 @@ export async function familyNoteGates(tx: TxClient, assignment: { schoolId: stri
 }
 
 async function guardiansOf(tx: TxClient, schoolId: string, studentIds: readonly string[]) {
-  const rows = await tx.guardianRelationship.findMany({ where: { schoolId, studentId: { in: [...studentIds] }, status: "ACTIVE", guardianUserId: { not: null }, OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }] }, select: { studentId: true, guardian: { select: { preferredLanguage: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+  // Same predicate as the family result-note read, so a note is only delivered to a guardian who can read it.
+  const rows = await tx.guardianRelationship.findMany({ where: { studentId: { in: [...studentIds] }, guardianUserId: { not: null }, ...liveGuardianRelationshipWhere(null, "learningRecords", new Date(), schoolId) }, select: { studentId: true, guardian: { select: { preferredLanguage: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
   const first = new Map<string, string | null>();
   for (const row of rows) if (!first.has(row.studentId)) first.set(row.studentId, row.guardian?.preferredLanguage ?? null);
   return first;
