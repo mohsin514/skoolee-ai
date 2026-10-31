@@ -38,6 +38,14 @@ export async function PATCH(req: NextRequest) {
       "cnic", "gender", "qualification", "specialization", "experience",
       "address", "city", "province", "postalCode", "emergencyContact", "emergencyPhone",
     ] as const;
+    // Same rule as teacher onboarding: 7 to 15 digits, or blank to clear.
+    if (updates.emergencyPhone) {
+      const digits = String(updates.emergencyPhone).match(/\d/g)?.length ?? 0;
+      const validShape = /^\+?[\d\s().-]+$/.test(String(updates.emergencyPhone).trim());
+      if (!validShape || digits < 7 || digits > 15) {
+        throw new ApiError("Enter a phone number with 7 to 15 digits", 400);
+      }
+    }
     for (const field of optionalStringFields) {
       if (updates[field] !== undefined) {
         data[field] = updates[field] ? String(updates[field]).trim() : null;
