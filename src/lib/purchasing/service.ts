@@ -31,6 +31,8 @@ const STAFF = [...OPS, "PRINCIPAL", "ACCOUNTANT", "LIBRARIAN", "TEACHER", "RECEP
 /** Decides on the request's own campus: a campus operator pinned there, or SA break-glass. */
 const decidesFor = (user: AuthUser, campusId: string) => user.role === "SUPER_ADMIN" || (isCampusOperator(user) && user.campusId === campusId);
 const text = (min: number, max: number) => z.string().trim().min(min).max(max);
+// SKAI-1348: money columns are 32-bit integers; larger values crash persistence instead of failing validation.
+const INT32_MAX = 2_147_483_647;
 const day = z.iso.date();
 const key = z.string().regex(/^[A-Za-z0-9_-]{8,80}$/u, "Invalid idempotency key");
 
@@ -60,7 +62,7 @@ export async function budgetPosition(db: TxClient, budgetId: string) {
 
 export async function createBudget(user: AuthUser, raw: unknown) {
   assert(OPS.includes(user.role), "Only school leaders set budgets.");
-  const input = parse(z.object({ costCenter: text(2, 80), period: text(4, 20), amount: z.number().int().min(0), currency: z.string().regex(/^[A-Z]{3}$/u), approvalLimit: z.number().int().min(0) }).strict(), raw);
+  const input = parse(z.object({ costCenter: text(2, 80), period: text(4, 20), amount: z.number().int().min(0).max(INT32_MAX), currency: z.string().regex(/^[A-Z]{3}$/u), approvalLimit: z.number().int().min(0).max(INT32_MAX) }).strict(), raw);
   return prisma.purchaseBudget.create({ data: { ...input, schoolId: user.schoolId, campusId: campusOf(user), createdById: user.userId } });
 }
 
@@ -76,6 +78,7 @@ export async function saveRequest(user: AuthUser, raw: unknown, id?: string, ver
     if (input.supplierId && !(await tx.supplier.findFirst({ where: { id: input.supplierId, campusId }, select: { id: true } }))) throw new ApiError("Supplier not found", 404);
     for (const l of input.lines) if (l.itemId && !(await tx.item.findFirst({ where: { id: l.itemId, campusId }, select: { id: true } }))) throw new ApiError("Item not found", 404);
     const total = totalOf(input.lines);
+    if (total > INT32_MAX) throw new ApiError("The order total is too large to record.", 400);
     if (!id) {
       const count = await tx.purchaseRequest.count({ where: { campusId } });
       return tx.purchaseRequest.create({ data: { schoolId: user.schoolId, campusId, budgetId: budget.id, poNumber: `PO-${String(count + 101)}`, title: input.title, supplierId: input.supplierId ?? null, quoteRef: input.quoteRef ?? null, lines: input.lines, received: input.lines.map(() => 0), total, requestedById: user.userId, history: [{ at: new Date().toISOString(), by: user.userId, action: "CREATED", total }] } });
