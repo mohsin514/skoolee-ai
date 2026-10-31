@@ -74,10 +74,20 @@ async function ownConnection(user: AuthUser, id: string, mode: "write" | "read" 
   return c;
 }
 
+/** Overlap windows are whole minutes between 0 and one day; anything else is rejected rather than coerced. */
+export function overlapMinutesOf(value: unknown): number {
+  if (value === undefined || value === null) return 60;
+  const minutes = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1440) {
+    throw new ApiError("overlapMinutes must be a whole number of minutes from 0 to 1440", 400);
+  }
+  return minutes;
+}
+
 export async function rotateKey(user: AuthUser, body: Record<string, unknown>) {
   const c = await ownConnection(user, String(body.id ?? ""));
   if (c.status === "REVOKED") throw new ApiError("This connection is revoked.", 409);
-  const overlap = Math.max(0, Math.min(1440, Number(body.overlapMinutes ?? 60)));
+  const overlap = overlapMinutesOf(body.overlapMinutes);
   const key = newKey(), until = new Date(Date.now() + overlap * 60_000);
   await prisma.$transaction([
     prisma.integrationCredential.updateMany({ where: { connectionId: c.id, status: "ACTIVE", OR: [{ expiresAt: null }, { expiresAt: { gt: until } }] }, data: overlap ? { expiresAt: until } : { status: "REVOKED", revokedAt: new Date() } }),
@@ -89,7 +99,7 @@ export async function rotateKey(user: AuthUser, body: Record<string, unknown>) {
 export async function rotateSigningSecret(user: AuthUser, body: Record<string, unknown>) {
   const c = await ownConnection(user, String(body.id ?? ""));
   if (!c.webhookUrl || !c.signingSecret) throw new ApiError("This connection has no webhook.", 409);
-  const overlap = Math.max(0, Math.min(1440, Number(body.overlapMinutes ?? 60)));
+  const overlap = overlapMinutesOf(body.overlapMinutes);
   const secret = newSigningSecret();
   await prisma.integrationConnection.update({ where: { id: c.id }, data: { signingSecret: protectSecret(secret), previousSigningSecret: overlap ? c.signingSecret : null, previousSecretUntil: overlap ? new Date(Date.now() + overlap * 60_000) : null } });
   return { id: c.id, signingSecret: secret };
