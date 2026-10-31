@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from "node:async_hooks";
+import { referenceTransaction, type ReferenceClient } from "./reference-transaction";
 import { AccessDenied } from "@/lib/auth/policy";
 import type { TenantContext } from "./tenant-context";
 import { Prisma, PrismaClient } from "@prisma/client";
@@ -78,9 +78,6 @@ const SHARED_DEFAULT_DELEGATES = new Set(["notificationTemplate", "promptTemplat
  * nested writes (`{ students: { create: … } }`) can be stamped too. Built
  * from the generated DMMF rather than hand-maintained.
  */
-type ReferenceClient = Record<string, { findFirst: (args: unknown) => Promise<unknown> }>;
-declare global { var __skooleeReferenceTransaction: AsyncLocalStorage<ReferenceClient> | undefined; }
-const referenceTransaction = globalThis.__skooleeReferenceTransaction ??= new AsyncLocalStorage<ReferenceClient>();
 const checkedRelations = new Set<string>();
 const listRelations = new Set<string>();
 const relationTargets = new Map<string, string>();

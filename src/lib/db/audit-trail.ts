@@ -16,6 +16,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { Prisma } from "@prisma/client";
 import { getTenantContext, resolveTenantFromRequest, runWithTenantContext, type TenantContext } from "./tenant-context";
 import { TENANT_MODELS } from "./tenant-models";
+import { referenceTransaction } from "./reference-transaction";
 
 const SINGLE_OPERATIONS = new Set(["create", "update", "upsert", "delete"]);
 const BULK_OPERATIONS = new Set(["createMany", "createManyAndReturn", "updateMany", "updateManyAndReturn", "deleteMany"]);
@@ -182,8 +183,10 @@ export async function auditedOperation({ delegate, operation, args, query, clien
       ipAddress: await actorIp(),
     };
 
+    // SKAI-1358: inside a transaction the row must join it, or it cannot see the uncommitted parent rows.
+    const writer = (referenceTransaction.getStore() ?? client) as AuditClient;
     const written = await runWithTenantContext({ schoolId, userId: context.userId }, () =>
-      client.auditLog.create({ data: row, select: { id: true } })
+      writer.auditLog.create({ data: row, select: { id: true } })
     );
     if (single && recordId) remember(schoolId, recordId, written.id);
   } catch (error) {
