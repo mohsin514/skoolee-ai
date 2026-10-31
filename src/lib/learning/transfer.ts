@@ -250,7 +250,8 @@ export async function createBridge(user: AuthUser, raw: unknown) {
 
 /** Export of the reviewed mapping only. Consent and the caller's access are checked on every download. */
 export async function exportTransfer(user: AuthUser, caseId: string) {
-  assertStaff(user);
+  // Principals keep export for academic oversight; a substituted foreign case ID then reaches the tenant-scoped 404.
+  assertStaff(user, "read");
   return schoolAiTransaction(user, async tx => {
     const row = await loadCase(tx, user, caseId);
     requireRights(row, "objectives");
