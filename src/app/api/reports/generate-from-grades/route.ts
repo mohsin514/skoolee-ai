@@ -63,7 +63,8 @@ export async function GET(req: NextRequest) {
       } catch {}
     }
 
-    return NextResponse.json({ reportCard: { ...reportCard, subjectBreakdown } });
+    // SKAI-1338: no final report card means null, not an empty card with a fabricated breakdown.
+    return NextResponse.json({ reportCard: reportCard ? { ...reportCard, subjectBreakdown } : null });
   } catch (error: any) {
     console.error("Generate-from-grades GET error:", error);
     return NextResponse.json({ error: error?.message || "Internal server error" }, { status: 500 });
