@@ -212,6 +212,8 @@ export async function PATCH(req: NextRequest) {
       });
       if (!student) throw new ApiError("Archived student not found", 404);
       if (!student.archivedAt) return Response.json({ success: true, restored: false, alreadyActive: true });
+      // SKAI-1387: a withdrawn pupil is re-admitted through enrolment, which reinstates placement and login.
+      if ((await withdrawnPupilIds([id])).size) throw new ApiError(WITHDRAWN_RESTORE_MESSAGE, 409);
       const rollNo = nextRoll ?? student.rollNo, admissionNo = nextAdmission ?? student.admissionNo;
       const [campus, cls, rollConflict, admissionConflict] = await Promise.all([
         prisma.campus.findFirst({ where: { id: student.campusId, archivedAt: null, ...(user.schoolId ? { schoolId: user.schoolId } : {}) }, select: { id: true } }),
@@ -270,6 +272,7 @@ export async function PATCH(req: NextRequest) {
 
       if (status === "active") {
         const restoring = owned.filter((student) => student.archivedAt || student.status === "archived");
+        if ((await withdrawnPupilIds(restoring.map((student) => student.id))).size) throw new ApiError(WITHDRAWN_RESTORE_MESSAGE, 409);
         const rollKeys = new Set<string>();
         const admissionKeys = new Set<string>();
         for (const student of restoring) {
@@ -586,4 +589,17 @@ export async function DELETE(req: NextRequest) {
   } catch (error) {
     return errorResponse(error, "[students] DELETE failed");
   }
+}
+
+const WITHDRAWN_RESTORE_MESSAGE = "This pupil was withdrawn. Re-admit them through enrolment so their placement and login are reinstated.";
+
+/** SKAI-1387: pupils whose enrolment ended and has no open ACTIVE enrolment again. Generic restore must not reopen them. */
+async function withdrawnPupilIds(ids: string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set();
+  const [ended, open] = await Promise.all([
+    prisma.studentEnrollment.findMany({ where: { studentId: { in: ids }, endDate: { not: null } }, select: { studentId: true } }),
+    prisma.studentEnrollment.findMany({ where: { studentId: { in: ids }, endDate: null, status: "ACTIVE" }, select: { studentId: true } }),
+  ]);
+  const reopened = new Set(open.map((row) => row.studentId));
+  return new Set(ended.map((row) => row.studentId).filter((studentId) => !reopened.has(studentId)));
 }
