@@ -13,7 +13,13 @@ export async function GET(req: NextRequest) {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
-    const limit = Math.min(Number(searchParams.get("limit")) || 20, 50);
+    const rawLimit = searchParams.get("limit");
+    const requestedLimit = rawLimit ? Number(rawLimit) : 20;
+    // A non-positive or fractional limit must fail loudly: silently coercing it made an unread inbox look empty.
+    if (!Number.isInteger(requestedLimit) || requestedLimit < 1) {
+      return Response.json({ error: "limit must be a positive integer" }, { status: 400 });
+    }
+    const limit = Math.min(requestedLimit, 50);
     const cursor = searchParams.get("cursor") || undefined;
     const unreadOnly = searchParams.get("unreadOnly") === "true";
     const view = (VIEWS as readonly string[]).includes(searchParams.get("view") ?? "") ? (searchParams.get("view") as InboxView) : "all";
