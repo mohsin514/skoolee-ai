@@ -1646,6 +1646,7 @@ model StudentDocument {
 
   @@index([studentId])
   @@index([schoolId])
+  @@unique([studentId, fileKey])
   @@map("student_documents")
 }
 
