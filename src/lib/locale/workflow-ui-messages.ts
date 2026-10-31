@@ -1,5 +1,8 @@
 /** Static interface copy only. Authored names, comments and identifiers bypass this catalog. */
 const entries: [string, string, string][] = [
+["Try again", "حاول مرة أخرى", "دوبارہ کوشش کریں"],
+["Certificate templates could not be loaded. Your approved templates are not affected; try again.", "تعذّر تحميل قوالب الشهادات. القوالب المعتمدة لم تتأثر؛ حاول مرة أخرى.", "سرٹیفکیٹ سانچے لوڈ نہیں ہو سکے۔ منظور شدہ سانچے متاثر نہیں ہوئے؛ دوبارہ کوشش کریں۔"],
+["Pupil search could not be completed. Try again.", "تعذّر إكمال البحث عن التلميذ. حاول مرة أخرى.", "طالب علم کی تلاش مکمل نہیں ہو سکی۔ دوبارہ کوشش کریں۔"],
 ["UAE report-card template", "قالب بطاقة التقرير الإماراتي", "متحدہ عرب امارات کا رپورٹ کارڈ سانچہ"],
 ["Prints Arabic Language and Islamic Education as mandatory subjects, with English and Arabic side by side. Applies to report cards generated after you change it.", "يطبع اللغة العربية والتربية الإسلامية كمواد إلزامية، مع الإنجليزية والعربية جنبًا إلى جنب. يسري على بطاقات التقارير المُنشأة بعد التغيير.", "عربی زبان اور اسلامیات کو لازمی مضامین کے طور پر، انگریزی اور عربی ساتھ ساتھ چھاپتا ہے۔ تبدیلی کے بعد تیار ہونے والے رپورٹ کارڈز پر لاگو ہوتا ہے۔"],
 ["UAE report-card template turned on", "تم تفعيل قالب بطاقة التقرير الإماراتي", "متحدہ عرب امارات کا رپورٹ کارڈ سانچہ فعال کر دیا گیا"],

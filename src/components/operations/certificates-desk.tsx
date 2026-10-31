@@ -63,14 +63,17 @@ export function CertificatesDesk({ showTemplates = true, hideHeader = false, com
   const [tab, setTab] = useState<"documents" | "templates">("documents");
   const [templates, setTemplates] = useState<Template[]>([]), [canApprove, setCanApprove] = useState(false);
   // "Issue certificate" from the header waits for the template list, so it never reports "none approved" mid-load.
-  const [templatesLoaded, setTemplatesLoaded] = useState(false);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false), [templatesFailed, setTemplatesFailed] = useState(false);
   useEffect(() => { onIssueAvailabilityChange?.(templatesLoaded && templates.some(template => template.currentVersion > 0)); }, [templatesLoaded, templates, onIssueAvailabilityChange]);
+  // A failed load keeps the templates we already have and says so; it is never mistaken for "no templates approved".
   const loadTemplates = useCallback(async () => {
     try {
       const response = await fetch("/api/front-desk/certificates", { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
-      if (response.ok && json.success) { setTemplates(json.data); setCanApprove(Boolean(json.canApprove)); }
-    } finally { setTemplatesLoaded(true); }
+      if (response.ok && json.success) { setTemplates(json.data); setCanApprove(Boolean(json.canApprove)); setTemplatesFailed(false); }
+      else setTemplatesFailed(true);
+    } catch { setTemplatesFailed(true); }
+    finally { setTemplatesLoaded(true); }
   }, []);
   useEffect(() => { const timer = setTimeout(() => void loadTemplates(), 0); return () => clearTimeout(timer); }, [loadTemplates]);
   const templatesOn = showTemplates && tab === "templates";
@@ -83,11 +86,11 @@ export function CertificatesDesk({ showTemplates = true, hideHeader = false, com
       {hideHeader ? <span /> : <PanelTitle icon={FileText} title={ui(templatesOn ? "Certificate templates" : "Certificates and ID cards")} />}
       {showTemplates ? <Button variant="outline" size="sm" onClick={() => setTab(templatesOn ? "documents" : "templates")}>{ui(templatesOn ? "Back to documents" : "Templates")}</Button> : null}
     </div>}
-    {templatesOn ? <TemplatesTab templates={templates} canApprove={canApprove} onChanged={() => void loadTemplates()} /> : <DocumentsTab templates={templates} canApprove={canApprove} command={documentsCommand} commandReady={templatesLoaded} showTemplates={showTemplates} />}
+    {templatesOn ? <TemplatesTab templates={templates} canApprove={canApprove} onChanged={() => void loadTemplates()} /> : <DocumentsTab templates={templates} canApprove={canApprove} command={documentsCommand} commandReady={templatesLoaded} showTemplates={showTemplates} templatesFailed={templatesFailed} onRetryTemplates={() => void loadTemplates()} />}
   </div>;
 }
 
-function DocumentsTab({ templates, canApprove, command, commandReady = true, showTemplates }: { templates: Template[]; canApprove: boolean; command?: PanelCommand | null; commandReady?: boolean; showTemplates: boolean }) {
+function DocumentsTab({ templates, canApprove, command, commandReady = true, showTemplates, templatesFailed = false, onRetryTemplates }: { templates: Template[]; canApprove: boolean; command?: PanelCommand | null; commandReady?: boolean; showTemplates: boolean; templatesFailed?: boolean; onRetryTemplates?: () => void }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
   const [rows, setRows] = useState<Issue[]>([]), [status, setStatus] = useState(""), [q, setQ] = useState("");
@@ -148,7 +151,8 @@ function DocumentsTab({ templates, canApprove, command, commandReady = true, sho
       </div>
       {command !== undefined ? null : approved.length ? <Button onClick={() => setIssueOpen({})}><Plus className="size-4" aria-hidden="true" />{ui("Issue certificate")}</Button> : <Tooltip content={ui("Approve a template first.")}><span tabIndex={0} className="inline-flex"><Button disabled><Plus className="size-4" aria-hidden="true" />{ui("Issue certificate")}</Button></span></Tooltip>}
     </div>
-    {!approved.length ? <Alert tone="warning" live="off" data-no-approved-template>{ui(showTemplates ? "No template is approved yet. Create one under Templates and approve it before documents can be issued." : "No template is approved yet. Your campus admin approves certificate templates before documents can be issued.")}</Alert> : null}
+    {templatesFailed ? <Alert tone="danger" data-certificate-templates-error actions={<Button variant="outline" size="sm" onClick={onRetryTemplates}>{ui("Try again")}</Button>}>{ui("Certificate templates could not be loaded. Your approved templates are not affected; try again.")}</Alert> : null}
+    {!approved.length && !templatesFailed ? <Alert tone="warning" live="off" data-no-approved-template>{ui(showTemplates ? "No template is approved yet. Create one under Templates and approve it before documents can be issued." : "No template is approved yet. Your campus admin approves certificate templates before documents can be issued.")}</Alert> : null}
     {rows.length && !status ? <DeskStats data-certificate-counts>
       <StatTile index={0} icon={Hourglass} tone={tally("PENDING_APPROVAL") ? "warning" : "neutral"} value={tally("PENDING_APPROVAL")} label={ui("Waiting for approval")} onSelect={tally("PENDING_APPROVAL") || focus === "PENDING_APPROVAL" ? () => toggle("PENDING_APPROVAL") : undefined} selected={focus === "PENDING_APPROVAL"} />
       <StatTile index={1} icon={Award} tone="success" value={tally("ISSUED")} label={ui("Issued")} onSelect={tally("ISSUED") || focus === "ISSUED" ? () => toggle("ISSUED") : undefined} selected={focus === "ISSUED"} />
@@ -194,11 +198,16 @@ function IssueDialog({ templates, reissue, onClose, onDone }: { templates: Templ
     apply: (values) => { setTemplateId(String(values.templateId ?? "")); setQuery(String(values.query ?? values.studentId ?? "")); setReason(String(values.reason ?? "")); },
   });
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
+  const [searchFailed, setSearchFailed] = useState(false), [searchNonce, setSearchNonce] = useState(0);
   useEffect(() => {
     if (reissue || query.trim().length < 2) return;
-    const timer = setTimeout(() => void fetch(`/api/front-desk/certificates?students=${encodeURIComponent(query.trim())}`, { cache: "no-store" }).then(r => r.json()).then(json => json.success && setMatches(json.data)).catch(() => undefined), 250);
+    const timer = setTimeout(() => {
+      fetch(`/api/front-desk/certificates?students=${encodeURIComponent(query.trim())}`, { cache: "no-store" })
+        .then(async r => { const json = await r.json().catch(() => ({})); if (!r.ok || !json.success) throw new Error("search"); setMatches(json.data); setSearchFailed(false); })
+        .catch(() => { setMatches([]); setSearchFailed(true); });
+    }, 250);
     return () => clearTimeout(timer);
-  }, [query, reissue]);
+  }, [query, reissue, searchNonce]);
   useEffect(() => {
     if (!student || !templateId) return;
     let cancelled = false;
@@ -231,7 +240,8 @@ function IssueDialog({ templates, reissue, onClose, onDone }: { templates: Templ
       {reissue ? <p className="text-sm">{ui("Pupil")}: <bdi className="font-semibold text-ink-strong">{reissue.student.fullName}</bdi> · <bdi dir="ltr">{reissue.student.rollNo}</bdi></p> : <>
         <FormField name="issue-student" label={ui("Find the pupil (name, roll or admission number)")}><Input value={query} onChange={event => { setQuery(event.target.value); setStudent(null); setPreview(null); }} /></FormField>
         {!student && matches.length ? <ul className="max-h-48 space-y-1 overflow-y-auto" aria-label={ui("Matching pupils")}>{matches.map(match => <li key={match.id}><Button variant="choice" className="w-full justify-start text-start" onClick={() => setStudent(match)} data-student-option={match.rollNo}><bdi className="font-semibold text-ink-strong">{match.fullName}</bdi>&nbsp;· <bdi dir="ltr">{match.rollNo}</bdi>{match.admissionNo ? <>&nbsp;· <bdi dir="ltr">{match.admissionNo}</bdi></> : null}&nbsp;· <bdi>{match.className}</bdi></Button></li>)}</ul> : null}
-        {!student && query.trim().length >= 2 && !matches.length ? <p className="text-xs text-ink-muted">{ui("No pupil in this campus matches.")}</p> : null}
+        {!student && searchFailed && query.trim().length >= 2 ? <Alert tone="danger" compact data-pupil-search-error actions={<Button variant="outline" size="sm" onClick={() => setSearchNonce(n => n + 1)}>{ui("Try again")}</Button>}>{ui("Pupil search could not be completed. Try again.")}</Alert> : null}
+        {!student && !searchFailed && query.trim().length >= 2 && !matches.length ? <p className="text-xs text-ink-muted">{ui("No pupil in this campus matches.")}</p> : null}
         {student ? <p className="text-sm" data-chosen-student>{ui("Pupil")}: <bdi className="font-semibold text-ink-strong">{student.fullName}</bdi> · <bdi dir="ltr">{student.rollNo}</bdi>{student.className ? <> · <bdi>{student.className}</bdi></> : null}</p> : null}
       </>}
       {preview ? <DeskSection title={ui("Preview")} icon={Eye} tone={preview.missing.length ? "danger" : "brand"} aria-label={ui("Preview")} data-issue-preview action={<DeskPill tone="brand">{ui("Template version {0}", [preview.templateVersion])}</DeskPill>}>
