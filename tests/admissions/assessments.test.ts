@@ -27,6 +27,7 @@ const matches = (row: Row, where: Row = {}): boolean => Object.entries(where).ev
 function table(rows: Row[]) {
   return {
     rows,
+    findMany: async ({ where }: Row) => rows.filter(row => row.schoolId === where.schoolId && (where.status === undefined || row.status === where.status)),
     findFirst: async ({ where, orderBy }: Row) => {
       const found = rows.filter(row => matches(row, where));
       if (orderBy) { const [[key, dir]] = Object.entries(orderBy) as [string, string][]; found.sort((a, b) => (a[key] - b[key]) * (dir === "asc" ? 1 : -1)); }
@@ -62,6 +63,14 @@ test("books an interview and records it on the history", async () => {
   assert.equal(booking.kind, "INTERVIEW");
   assert.equal(booking.schoolId, "school-a");
   assert.equal(db.admissionApplicationEvent.rows[0].kind, "ASSESSMENT_SCHEDULED");
+});
+
+test("a second booking cannot take the same staff member or room over an overlapping time", async () => {
+  const sameStart = new Date(future());
+  await actOnAssessment(ctx(app("UNDER_REVIEW")), "schedule-assessment", { kind: "INTERVIEW", scheduledAt: sameStart, durationMin: 60, staffId: "t-1", location: "Synthetic Room 9" });
+  await assert.rejects(actOnAssessment(ctx(app("UNDER_REVIEW")), "schedule-assessment", { kind: "INTERVIEW", scheduledAt: sameStart, durationMin: 30, staffId: "t-1" }), { status: 409 });
+  await assert.rejects(actOnAssessment(ctx(app("UNDER_REVIEW")), "schedule-assessment", { kind: "INTERVIEW", scheduledAt: sameStart, durationMin: 30, location: "Synthetic Room 9" }), { status: 409 });
+  await actOnAssessment(ctx(app("UNDER_REVIEW")), "schedule-assessment", { kind: "INTERVIEW", scheduledAt: new Date(sameStart.getTime() + 120 * 60_000), durationMin: 30, staffId: "t-1", location: "Synthetic Room 9" });
 });
 
 test("refuses bookings outside the deciding stages, past dates, bad kinds and durations", async () => {
