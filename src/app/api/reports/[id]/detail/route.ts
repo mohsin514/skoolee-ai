@@ -111,14 +111,20 @@ export async function GET(
   }
 
   if (marks.length > 0) {
-    subjectBreakdown = marks.map((mark) => ({
-      subjectId: mark.subject.id,
-      subjectName: mark.subject.name,
-      totalMarks: mark.subject.totalMarks,
-      obtainedMarks: mark.marksObtained,
-      percentage: mark.subject.totalMarks > 0 ? Math.round((mark.marksObtained / mark.subject.totalMarks) * 100) : 0,
-      grade: mark.grade || gradeForMark(mark.marksObtained, mark.subject.totalMarks),
-    }));
+    // An absent or exempt paper is not a failed zero: keep the flags and drop the numeric grade (matches report-cards.ts).
+    subjectBreakdown = marks.map((mark) => {
+      const notAssessed = mark.isAbsent || mark.isExempt;
+      return {
+        subjectId: mark.subject.id,
+        subjectName: mark.subject.name,
+        totalMarks: mark.subject.totalMarks,
+        obtainedMarks: mark.marksObtained,
+        isAbsent: mark.isAbsent,
+        isExempt: mark.isExempt,
+        percentage: notAssessed ? null : mark.subject.totalMarks > 0 ? Math.round((mark.marksObtained / mark.subject.totalMarks) * 100) : 0,
+        grade: mark.isAbsent ? "ABS" : mark.isExempt ? "EX" : mark.grade || gradeForMark(mark.marksObtained, mark.subject.totalMarks),
+      };
+    });
   }
 
   return Response.json({
