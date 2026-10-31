@@ -114,7 +114,10 @@ export function AssessmentRepairPanel({ examId }: { examId: string }) {
         <span className="rounded bg-muted px-2 py-0.5 text-xs font-bold">{ui(STATUS_LABEL[repair.status] ?? repair.status)}</span>
       </div>
       <p className="text-xs text-ink-muted"><bdi>{repair.reason}</bdi></p>
-      <ImpactMap counts={repair.impact.counts} rows={repair.impact.rows} compact />
+      <details className="min-w-0 rounded-xl border border-border p-2" data-repair-impact>
+        <summary className="cursor-pointer text-xs font-semibold">{ui("Affected records")}</summary>
+        <div className="mt-2"><ImpactMap counts={repair.impact.counts} rows={repair.impact.rows} /></div>
+      </details>
       {repair.receipt.length ? <ol className="space-y-1" aria-label={ui("Repair receipt")} data-repair-receipt>{repair.plan.map(step => { const entry = repair.receipt.find(row => row.key === step.key); return <li key={step.key} className="flex flex-wrap gap-2 text-xs" data-step={step.key} data-step-status={entry?.status ?? "WAITING"}>
         <span className="font-semibold">{ui(STEP_LABEL[step.type])}</span><span>{entry ? (entry.status === "APPLIED" ? ui("Applied") : ui("Failed")) : ui("Waiting")}</span>{entry ? <bdi className="text-ink-muted" dir={entry.status === "APPLIED" && (step.type === "RESULT" || step.type === "MARK") ? "ltr" : undefined}>{entry.status === "FAILED" ? entry.detail : stepOutcome(step)}</bdi> : null}</li>; })}</ol> : null}
       <div className="flex flex-wrap gap-2">
@@ -132,6 +135,7 @@ export function AssessmentRepairPanel({ examId }: { examId: string }) {
       confirmLabel={ui("Apply repair")} cancelLabel={ui("Cancel")}
       detail={confirming ? <div className="space-y-2 text-sm">
         <ul className="list-disc ps-4">{(["RESULT", "MARK", "REPORT", "ACTION_STALE", "NOTICE"] as const).map(type => { const count = confirming.plan.filter(step => step.type === type).length; return count ? <li key={type}>{ui(STEP_LABEL[type])}: {number(count)}</li> : null; })}</ul>
+        <ImpactMap counts={confirming.impact.counts} rows={confirming.impact.rows} />
         <p>{ui("Notices to {0} people", [number(recipients(confirming))])}:</p>
         <ul className="list-disc ps-4">{confirming.impact.rows.filter(row => row.kind === "NOTICE" && row.group === "CHANGED").map(row => <li key={row.studentId ?? row.label}><bdi>{row.label}</bdi>{row.note ? <> · {ui("Guardians")}: <bdi>{row.note}</bdi></> : null}</li>)}</ul>
         <p className="font-semibold">{ui("Family explanation")}: <bdi className="font-normal">{confirming.publicExplanation}</bdi></p>
@@ -152,12 +156,12 @@ export function AssessmentRepairPanel({ examId }: { examId: string }) {
 }
 
 /** The accessible impact list: counts first, then every record by group with its before and after. */
-function ImpactMap({ counts, rows, compact = false }: { counts: Record<Group, number>; rows: ImpactRow[]; compact?: boolean }) {
+function ImpactMap({ counts, rows }: { counts: Record<Group, number>; rows: ImpactRow[] }) {
   const ui = useUiText();
   const { number } = useLocaleFormat();
   return <div className="min-w-0 space-y-2" data-impact-map>
     <ul className="flex flex-wrap gap-2" aria-label={ui("Impact summary")}>{GROUPS.map(group => <li key={group} className="rounded-lg bg-muted px-2 py-1 text-xs font-semibold" data-impact-count={group}>{ui(GROUP_LABEL[group])}: {number(counts[group] ?? 0)}</li>)}</ul>
-    {(compact ? [] : GROUPS).map(group => { const list = rows.filter(row => row.group === group); return list.length ? <section key={group} aria-label={ui(GROUP_LABEL[group])} className="min-w-0" data-impact-group={group}>
+    {GROUPS.map(group => { const list = rows.filter(row => row.group === group); return list.length ? <section key={group} aria-label={ui(GROUP_LABEL[group])} className="min-w-0" data-impact-group={group}>
       <h4 className="text-sm font-bold">{ui(GROUP_LABEL[group])} ({number(list.length)})</h4>
       <ul className="divide-y divide-border rounded-xl border border-border">{list.map((row, index) => <li key={`${row.kind}-${row.recordId ?? index}-${row.studentId ?? ""}`} className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 p-2 text-sm" data-impact-kind={row.kind}>
         <span className="min-w-0"><span className="font-semibold">{ui(KIND_LABEL[row.kind] ?? row.kind)}</span> · <bdi>{row.label}</bdi>{row.note ? <span className="block text-xs text-ink-muted [overflow-wrap:anywhere]"><bdi>{ui(row.note)}</bdi></span> : null}</span>
