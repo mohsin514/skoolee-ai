@@ -2,7 +2,7 @@ import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { createBankAccount } from "@/lib/accounts/bank-account-command";
+import { createBankAccount, parseOpeningBalance } from "@/lib/accounts/bank-account-command";
 import {
   ApiError,
   assertModuleRead,
@@ -83,11 +83,7 @@ export async function PATCH(req: NextRequest) {
           bankName: body.bankName !== undefined ? (String(body.bankName).trim() || null) : undefined,
           accountNumber: body.accountNumber !== undefined ? (String(body.accountNumber).trim() || null) : undefined,
           openingBalance: body.openingBalance !== undefined
-            ? (() => {
-                const v = Number(body.openingBalance);
-                if (!Number.isSafeInteger(v)) throw new ApiError("Opening balance must be an integer in minor units", 400);
-                return v;
-              })()
+            ? parseOpeningBalance(body.openingBalance)
             : undefined,
           isActive: typeof body.isActive === "boolean" ? body.isActive : undefined,
         },
