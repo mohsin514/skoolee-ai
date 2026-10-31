@@ -46,6 +46,8 @@ async function record(user: AuthUser, deviceId: string, op: Op, status: string, 
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       const prior = await prisma.offlineOperation.findFirstOrThrow({ where: { schoolId: user.schoolId, operationId: op.operationId } });
+      // SKAI-1339: a race that lands on another account's operation reveals nothing about it.
+      if (prior.userId !== user.userId) return { operationId: op.operationId, status: "INVALID", message: "This change belongs to another account." };
       return { operationId: op.operationId, status: prior.status, message: prior.message, server: prior.serverValue, repeated: true };
     }
     throw error;
