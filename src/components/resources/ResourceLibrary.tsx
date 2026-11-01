@@ -52,7 +52,7 @@ const fileHref = (id: string, version?: number) => `/api/resources/${id}/file${v
  * `adding`/`onAddingChange` let a page put "Add resource" in its PageHeader (the screen's primary,
  * §4.4b); without them the library shows its own button.
  */
-export function ResourceLibrary({ audience, adding: addingProp, onAddingChange, onAvailabilityChange }: { audience: "staff" | "learner" | "guardian"; adding?: boolean; onAddingChange?: (adding: boolean) => void; onAvailabilityChange?: (available: boolean) => void }) {
+export function ResourceLibrary({ audience, studentId, adding: addingProp, onAddingChange, onAvailabilityChange }: { audience: "staff" | "learner" | "guardian"; studentId?: string; adding?: boolean; onAddingChange?: (adding: boolean) => void; onAvailabilityChange?: (available: boolean) => void }) {
   const { language } = useLocale();
   const t = getResourceCopy(language);
   const rtl = language === "ar" || language === "ur";
@@ -77,13 +77,13 @@ export function ResourceLibrary({ audience, adding: addingProp, onAddingChange, 
     const version = ++sequence.current;
     setLoadFailed(null);
     try {
-      const params = new URLSearchParams(Object.entries({ classId, viewAs, q }).filter(([, value]) => value));
+      const params = new URLSearchParams(Object.entries({ classId, viewAs, q, studentId }).filter(([, value]) => value) as [string, string][]);
       const data = await checkedJson(await readRequest(`/api/resources?${params}`));
       if (version !== sequence.current) return;
       setView(data);
       if (data.classId && !classId) setClassId(data.classId);
     } catch (failure) { if (version === sequence.current) { setLoadFailed(requestFailure(failure)); } }
-  }, [classId, viewAs, q]);
+  }, [classId, viewAs, q, studentId]);
   useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
 
   async function run(work: () => Promise<unknown>) {
