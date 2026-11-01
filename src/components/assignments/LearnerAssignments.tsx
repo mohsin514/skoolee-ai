@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, ExternalLink, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -39,7 +40,10 @@ export function LearnerAssignments({ audience }: { audience: "learner" | "guardi
   const params = useSearchParams(), requested = params.get("open"), fromToday = params.get("from") === "today";
   const [missing, setMissing] = useState(false), linked = useRef(false);
   const load = useCallback(async () => setItems((await call("/api/assignments")).assignments), []);
-  useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
+  // SKAI-1501: a failed first load is its own state with a localized Retry, not a dead-end banner.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const firstLoad = useCallback(() => { setLoadFailed(false); load().catch(() => setLoadFailed(true)); }, [load]);
+  useEffect(() => { firstLoad(); }, [firstLoad]);
   useEffect(() => {
     if (!items || !requested || linked.current) return;
     linked.current = true;
@@ -47,6 +51,7 @@ export function LearnerAssignments({ audience }: { audience: "learner" | "guardi
     if (match) setSelected(`${match.id}:${match.studentId}`); else setMissing(true);
   }, [items, requested]);
 
+  if (!items && loadFailed) return <div dir={rtl ? "rtl" : "ltr"} className="sk-panel"><ErrorState title={t.errorTitle} description={t.failed} retryLabel={t.retry} onRetry={firstLoad} /></div>;
   if (!items) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3"><Banner status={status} />{!status && <SkeletonList rows={3} label={t.loading} />}</div>;
   const current = items.find(item => `${item.id}:${item.studentId}` === selected);
   if (current) return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-4">
