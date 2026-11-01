@@ -14,6 +14,7 @@
     "test:enrollment-paging": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/students/enrollment-history-paging.test.ts",
     "test:payroll-employee-merge": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/payroll/employee-mapping-merge.test.ts",
     "test:exam-date-sheet-load": "node --import ./tests/support/server-only.mjs --import tsx --test tests/timetable/exam-date-sheet-load.test.ts",
+    "test:composer-send-gate": "node --import ./tests/support/server-only.mjs --import tsx --test tests/chat/composer-send-gate.test.ts",
     "test:inventory-names": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/inventory/name-validation.test.ts",
     "test:portfolio-share-replay": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/portfolio/share-replay.database.test.ts",
     "test:class-grades-scope": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/reports/class-grades-pdf-scope.database.test.ts",

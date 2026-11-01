@@ -137,10 +137,22 @@ function AssignSet({ language, busy, onAssign, rosterPaperId }: { language: Stud
   const [startsAt, setStartsAt] = useState(() => localInput(new Date(Date.now() + 3_600_000)));
   const [endsAt, setEndsAt] = useState(() => localInput(new Date(Date.now() + 2 * 3_600_000)));
   const [key] = useState(() => crypto.randomUUID());
-  useEffect(() => { void fetch(`/api/school-ai/exams?paperId=${encodeURIComponent(rosterPaperId)}`, { cache: "no-store" }).then(response => response.json()).then(payload => setStudents(payload.students ?? [])).catch(() => setStudents([])); }, [rosterPaperId]);
+  // SKAI-1525: a failed roster is its own state with Try again; only a successful response can be "no candidates".
+  // Title, times and still-valid choices are untouched by a retry; a stale response for another paper is ignored.
+  const [rosterFailed, setRosterFailed] = useState(false), [rosterAttempt, setRosterAttempt] = useState(0);
+  useEffect(() => {
+    let live = true;
+    setRosterFailed(false);
+    void fetch(`/api/school-ai/exams?paperId=${encodeURIComponent(rosterPaperId)}`, { cache: "no-store" })
+      .then(async response => { const payload = await response.json(); if (!response.ok || !Array.isArray(payload.students)) throw new Error("roster"); return payload.students; })
+      .then((list: Array<{ id: string; fullName: string; rollNo: string | null }>) => { if (!live) return; setStudents(list); setChosen(previous => previous.filter(id => list.some(student => student.id === id))); })
+      .catch(() => { if (live) setRosterFailed(true); });
+    return () => { live = false; };
+  }, [rosterPaperId, rosterAttempt]);
   return <section aria-labelledby="assign-set" className="sk-panel space-y-3 p-4" data-assign-set>
     <h3 id="assign-set" className="font-semibold">{t.assignTitle}</h3>
     <p className="text-sm text-ink-subtle">{t.assignHint}</p>
+    {rosterFailed ? <Alert tone="danger" compact data-assign-roster-error>{t.rosterFailed} <Button variant="ghost" type="button" className="text-xs font-bold" onClick={() => setRosterAttempt(value => value + 1)}>{t.retry}</Button></Alert> : null}
     <div className="grid gap-3 sm:grid-cols-3">
       <label className="grid gap-1 text-sm font-semibold">{t.title}<Input value={title} maxLength={160} onChange={event => setTitle(event.target.value)} /></label>
       <label className="grid gap-1 text-sm font-semibold">{t.startsAt}<Input type="datetime-local" value={startsAt} onChange={event => setStartsAt(event.target.value)} /></label>
