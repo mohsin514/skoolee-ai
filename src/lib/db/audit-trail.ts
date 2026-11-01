@@ -156,9 +156,12 @@ export async function auditedOperation({ delegate, operation, args, query, clien
   if (!context) return query(args); // the guard refuses this query anyway
 
   const input = (args ?? {}) as Record<string, unknown>;
+  // SKAI-1443: read the prior row inside the caller's transaction. A lookup on the pool while a transaction
+  // holds its connection needs a second connection, and under a small pool the transactions wait on each other.
+  const reader = (referenceTransaction.getStore() ?? client) as AuditClient;
   const before =
     single && operation !== "create"
-      ? await client[delegate].findUnique({ where: input.where }).catch(() => null)
+      ? await reader[delegate].findUnique({ where: input.where }).catch(() => null)
       : null;
 
   const result = await inFlight.run(true, () => query(args));
