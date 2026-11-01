@@ -132,6 +132,8 @@ function Work({ t, language, item, reload, setStatus, onReceipt }: { t: Assignme
   const [upload, setUpload] = useState<Upload>(item.draft?.file ? { state: item.draft.file.ready ? "uploaded" : "failed", file: null, name: item.draft.file.name, sha256: item.draft.file.sha256 } : { state: "idle", file: null, name: null, sha256: null });
   const [phase, setPhase] = useState<"idle" | "submitting" | "failed">("idle");
   const fileInput = useRef<HTMLInputElement>(null);
+  // SKAI-1442: keep the submit key in memory too, so a retry replays even when storage is unavailable.
+  const submitKeyRef = useRef<string | null>(null);
   const post = (body: Record<string, unknown>) => call(`/api/assignments/${item.id}`, body);
   const accept = item.allowedTypes.map(g => ACCEPT[g]).filter(Boolean).join(",");
 
@@ -151,13 +153,14 @@ function Work({ t, language, item, reload, setStatus, onReceipt }: { t: Assignme
   }
   async function submit() {
     // One key per intended submission, kept across retries and reloads until a receipt arrives.
-    const idempotencyKey = store.get(submitKey) ?? `s-${crypto.randomUUID()}`;
+    const idempotencyKey = store.get(submitKey) ?? submitKeyRef.current ?? `s-${crypto.randomUUID()}`;
+    submitKeyRef.current = idempotencyKey;
     store.set(submitKey, idempotencyKey);
     setPhase("submitting"); setStatus(null);
     try {
       if (saved !== "server") await saveServer();
       const { result } = await post({ op: "submit", idempotencyKey });
-      store.remove(submitKey); store.remove(draftKey);
+      store.remove(submitKey); submitKeyRef.current = null; store.remove(draftKey);
       onReceipt(result); setPhase("idle");
       await reload();
     } catch (error) {
