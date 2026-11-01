@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { Tooltip } from "@/components/ui/tooltip";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -228,6 +229,8 @@ function MarksEntry({
   const [draft, setDraft] = useState<Record<string, number>>({});
   const [subjectId, setSubjectId] = useState("");
   const [loading, setLoading] = useState(true);
+  // SKAI-1546: a failed marks load is its own state, never "No students in this class".
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [locked, setLocked] = useState(false);
   /** The class's pass mark as a percentage, from Grading Rules (§82). It was
@@ -240,14 +243,14 @@ function MarksEntry({
     setLoading(true);
     try {
       const [res, cfg] = await Promise.all([
-        fetch(`/api/marks?examId=${exam.id}`).then((r) => r.json()),
+        fetch(`/api/marks?examId=${exam.id}`).then((r) => (r.ok ? r.json() : { success: false })),
         fetch(
           `/api/grade-config?classId=${encodeURIComponent(exam.classId)}&academicYear=${exam.academicYear}`,
         )
           .then((r) => r.json())
           .catch(() => null),
       ]);
-      if (!res.success) throw new Error(res.error || "Could not load marks");
+      if (!res.success || !Array.isArray(res.students) || !Array.isArray(res.subjects)) throw new Error("Could not load marks");
       if (cfg?.config?.passingPercentage != null) setPassPct(cfg.config.passingPercentage);
       setStudents(res.students ?? []);
       setSubjects(res.subjects ?? []);
@@ -260,8 +263,10 @@ function MarksEntry({
       setSaved(map);
       setDraft({});
       setSubjectId((cur) => cur || res.subjects?.[0]?.id || "");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not load marks");
+      setLoadFailed(false);
+    } catch {
+      // The sheet already on screen (if any) stays; only the failure is reported.
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -401,6 +406,17 @@ function MarksEntry({
     );
   }
 
+  if (loadFailed && students.length === 0) {
+    return (
+      <ErrorState
+        title={tr("Could not load marks")}
+        description={tr("Check your connection and try again.")}
+        retryLabel={tr("Try again")}
+        onRetry={() => void load()}
+      />
+    );
+  }
+
   if (students.length === 0) {
     return (
       <EmptyState
@@ -425,6 +441,11 @@ function MarksEntry({
 
   return (
     <div className="space-y-4">
+      {loadFailed ? (
+        <Alert tone="danger" compact live="polite">
+          {tr("Could not load marks")} <Button type="button" variant="link" size="sm" onClick={() => void load()}>{tr("Try again")}</Button>
+        </Alert>
+      ) : null}
       {locked ? (
         <Alert tone="warning" compact live="off">
           {tr("This exam is locked. Marks are read-only until it is unlocked.")}
