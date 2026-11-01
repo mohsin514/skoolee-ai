@@ -406,6 +406,10 @@ async function completeChat({
       if (error instanceof PIILeakError) throw error;
       // A cancelled request is not a provider outage: never retry it against a fallback.
       if (signal?.aborted) throw new GenerationCancelledError();
+      // SKAI-866: one structured, secret-free line per provider failure so operators can alert on
+      // quota, rejected credentials and rate limiting separately (component/reason/provider only).
+      const reason = classifyProviderFailure(error);
+      if (reason !== "OTHER") console.error(JSON.stringify({ component: "ai-provider", reason, provider }));
       if (provider === "openai" && isOpenAIQuotaExhausted(error)) {
         // A quota failure is actionable and should never be collapsed into a
         // generic provider outage or retried against an unexpected fallback.
@@ -419,6 +423,18 @@ async function completeChat({
   throw new Error(
     `AI provider request failed. ${failures.join(" | ")}`
   );
+}
+
+export type ProviderFailureReason = "QUOTA_EXHAUSTED" | "CREDENTIAL_REJECTED" | "RATE_LIMITED" | "OTHER";
+
+/** SKAI-866: the operator-actionable class of a provider error; never inspects or returns the message. */
+export function classifyProviderFailure(error: unknown): ProviderFailureReason {
+  if (isOpenAIQuotaExhausted(error)) return "QUOTA_EXHAUSTED";
+  if (!error || typeof error !== "object") return "OTHER";
+  const status = (error as { status?: unknown }).status;
+  if (status === 401 || status === 403) return "CREDENTIAL_REJECTED";
+  if (status === 429) return "RATE_LIMITED";
+  return "OTHER";
 }
 
 export function isOpenAIQuotaExhausted(error: unknown) {
