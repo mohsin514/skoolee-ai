@@ -271,6 +271,11 @@ export async function POST(request: NextRequest) {
       ["C", incoming.gradeC],
       ["D", incoming.gradeD],
     ];
+    // SKAI-211: same 0–100 range the academic model enforces; A+ at 150% would be unreachable.
+    const outside = ladder.find(([, start]) => start < 0 || start > 100);
+    if (outside) {
+      return NextResponse.json({ error: `Grade ${outside[0]} must start between 0% and 100%.` }, { status: 400 });
+    }
     for (let i = 1; i < ladder.length; i++) {
       if (ladder[i][1] >= ladder[i - 1][1]) {
         return NextResponse.json(
