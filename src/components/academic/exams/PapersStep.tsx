@@ -53,9 +53,10 @@ export function PapersStep({ sessionId, onChanged }: { sessionId: string; onChan
   const load = useCallback(async () => {
     const response = await fetch(`/api/academic/exam-sessions/${encodeURIComponent(sessionId)}/paper-slots`, { cache: "no-store" }).catch(() => null);
     const payload = response ? await response.json().catch(() => ({})) : {};
-    if (!response?.ok) { setFailed(typeof payload.error === "string" ? payload.error : t.failed); return; }
+    // SKAI-1541: a failure (or a payload without slots) keeps any list already on screen and offers Retry.
+    if (!response?.ok || !Array.isArray(payload?.data?.slots)) { setFailed(typeof payload.error === "string" ? payload.error : t.loadFailed); return; }
     setFailed(null); setData(payload.data);
-  }, [sessionId, t.failed]);
+  }, [sessionId, t.loadFailed]);
   useEffect(() => { void load(); }, [load]);
 
   const send = async (key: string, url: string, method: "POST" | "PATCH", body: unknown, success: (result: unknown) => string) => {
@@ -69,7 +70,8 @@ export function PapersStep({ sessionId, onChanged }: { sessionId: string; onChan
     return true;
   };
 
-  if (failed) return <TaskFeedback kind="error" title={t.failed}><p>{failed}</p></TaskFeedback>;
+  const retry = <Button type="button" variant="outline" size="sm" onClick={() => void load()}>{t.retry}</Button>;
+  if (failed && !data) return <TaskFeedback kind="error" title={t.loadFailed} action={retry}><p>{failed}</p></TaskFeedback>;
   if (!data) return <TaskLoading label={t.stepTitle} />;
   const canRequest = data.office && data.scheduledRows > 0 && (data.unlinkedRows > 0 || data.slots.length === 0);
 
@@ -83,6 +85,7 @@ export function PapersStep({ sessionId, onChanged }: { sessionId: string; onChan
         {data.slots.length ? <Badge variant="secondary">{fillStudioCopy(t.progress, [number(data.progress.sealed), number(data.progress.slots)])}</Badge> : null}
       </header>
       {notice ? <Alert tone={notice.tone} compact live="polite">{notice.text}</Alert> : null}
+      {failed ? <Alert tone="danger" compact live="polite"><span>{t.loadFailed} {failed !== t.loadFailed ? failed : null}</span> {retry}</Alert> : null}
       {data.scheduledRows === 0 ? <Alert tone="info" compact>{t.noDatesheet}</Alert> : null}
       {canRequest ? <div className="flex flex-wrap items-end gap-3">
         <FormField name="paperDeadline" label={t.deadlineLabel} hint={t.deadlineHint} className="w-56">
