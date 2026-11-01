@@ -323,23 +323,33 @@ const ResultInput = z.object({ rows: z.array(z.object({ providerEmployeeId: text
 export async function recordProviderResult(user: AuthUser, submissionId: string, raw: unknown) {
   await canPrepare(user);
   const input = parse(ResultInput, raw), campusId = campusOf(user);
-  const submission = await prisma.payrollSubmission.findFirst({ where: { id: submissionId, campusId } });
-  assert(!!submission, "Submission not found", 404);
-  const rows = (submission.rows as Row[]).map((r) => ({ ...r }));
-  const ignored: string[] = [];
-  for (const result of input.rows) {
-    const row = rows.find((r) => r.providerEmployeeId === result.providerEmployeeId);
-    assert(!!row, `${result.providerEmployeeId} is not in submission ${submission.reference}.`, 400);
-    assert(result.outcome === "ACCEPTED" || !!result.reason, "A rejected row needs the provider's reason.", 400);
-    if (row.outcome === "ACCEPTED") { if (result.outcome !== "ACCEPTED") ignored.push(result.providerEmployeeId); continue; }
-    row.outcome = result.outcome;
-    row.reason = result.reason;
+  // Compare-and-swap on the rows and history the result was built from: a concurrent callback for another
+  // employee changes them, so this result is rebuilt from the fresh snapshot instead of overwriting it.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const submission = await prisma.payrollSubmission.findFirst({ where: { id: submissionId, campusId } });
+    assert(!!submission, "Submission not found", 404);
+    const rows = (submission.rows as Row[]).map((r) => ({ ...r }));
+    const ignored: string[] = [];
+    for (const result of input.rows) {
+      const row = rows.find((r) => r.providerEmployeeId === result.providerEmployeeId);
+      assert(!!row, `${result.providerEmployeeId} is not in submission ${submission.reference}.`, 400);
+      assert(result.outcome === "ACCEPTED" || !!result.reason, "A rejected row needs the provider's reason.", 400);
+      if (row.outcome === "ACCEPTED") { if (result.outcome !== "ACCEPTED") ignored.push(result.providerEmployeeId); continue; }
+      row.outcome = result.outcome;
+      row.reason = result.reason;
+    }
+    const accepted = rows.filter((r) => r.outcome === "ACCEPTED").length, rejected = rows.filter((r) => r.outcome === "REJECTED").length;
+    const status = accepted === rows.length ? "ACKNOWLEDGED" : rejected === rows.length ? "REJECTED" : "PARTIAL";
+    const swapped = await prisma.payrollSubmission.updateMany({
+      where: { id: submission.id, rows: { equals: submission.rows as Prisma.InputJsonValue }, history: { equals: submission.history as Prisma.InputJsonValue } },
+      data: { rows: json(rows), status, acknowledgedAt: submission.acknowledgedAt ?? new Date(), history: push(submission.history, { event: "RESULT", accepted, rejected, acknowledgement: input.acknowledgement ?? null, ignoredChangesToAccepted: ignored, by: user.userId }) },
+    });
+    if (swapped.count === 0) continue;
+    const updated = await prisma.payrollSubmission.findUniqueOrThrow({ where: { id: submission.id } });
+    await writeAuditEvent(prisma, user, { table: "payroll_submissions", recordId: submission.id, action: "UPDATE", campusId, before: { status: submission.status }, after: { status, accepted, rejected } });
+    return { submission: updated, ignored };
   }
-  const accepted = rows.filter((r) => r.outcome === "ACCEPTED").length, rejected = rows.filter((r) => r.outcome === "REJECTED").length;
-  const status = accepted === rows.length ? "ACKNOWLEDGED" : rejected === rows.length ? "REJECTED" : "PARTIAL";
-  const updated = await prisma.payrollSubmission.update({ where: { id: submission.id }, data: { rows: json(rows), status, acknowledgedAt: submission.acknowledgedAt ?? new Date(), history: push(submission.history, { event: "RESULT", accepted, rejected, acknowledgement: input.acknowledgement ?? null, ignoredChangesToAccepted: ignored, by: user.userId }) } });
-  await writeAuditEvent(prisma, user, { table: "payroll_submissions", recordId: submission.id, action: "UPDATE", campusId, before: { status: submission.status }, after: { status, accepted, rejected } });
-  return { submission: updated, ignored };
+  throw new Error("Payroll submission changed while recording the provider result. Try again.");
 }
 
 /** Rejected rows of a submission become a correction version that covers only them. */
