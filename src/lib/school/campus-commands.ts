@@ -84,7 +84,6 @@ export function validateCampusInput(input: CampusCreateFields) {
  */
 export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid: ValidCampusFields): Promise<Campus> {
   const schoolId = String(user.schoolId);
-  await assertPlanCapacity({ schoolId, metric: "campuses" });
 
   const finalRegId = (valid.regId || `BR-${Math.random().toString(36).substring(2, 6).toUpperCase()}`).toUpperCase();
 
@@ -98,7 +97,11 @@ export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid
 
   let newCampus;
   try {
-    newCampus = await prisma.campus.create({
+    // Lock the school row so two concurrent creates cannot both read the same campus usage and pass the plan limit.
+    newCampus = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`;
+      await assertPlanCapacity({ schoolId, metric: "campuses", client: tx });
+      return tx.campus.create({
       data: {
         name: valid.name,
         regId: finalRegId,
@@ -113,6 +116,7 @@ export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid
         principalName: valid.principalName,
         board: valid.board || defaultBoardFor(await schoolCountry(schoolId)),
       }
+      });
     });
   } catch (error) {
     if ((error as { code?: string })?.code === "P2002") {
