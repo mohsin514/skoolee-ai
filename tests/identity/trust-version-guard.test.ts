@@ -5,7 +5,7 @@ type Row = { id: string; schoolId: string; issuer: string; clientId: string; cli
 const rows = new Map<string, Row>();
 const events: string[] = [];
 // Runs once, right after a read, to model another request committing in between.
-let afterRead: (() => Promise<void>) | null = null;
+let afterRead: (() => Promise<unknown>) | null = null;
 
 function matches(row: Row, where: Record<string, unknown>) {
   return Object.entries(where).every(([k, v]) => (row as unknown as Record<string, unknown>)[k] === v);
