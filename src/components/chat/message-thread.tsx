@@ -299,10 +299,10 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     <MenuItem
                       icon={MessageSquareDashed}
                       label={detail.isArchived ? ui("Unarchive") : ui("Archive")}
-                      onClick={() => {
-                        setPreference(detail.id, { isArchived: !detail.isArchived });
+                      onClick={async () => {
                         setMenuOpen(false);
-                        closeConversation();
+                        // SKAI-1542: the thread closes only once the server has archived it.
+                        if (await setPreference(detail.id, { isArchived: !detail.isArchived })) closeConversation();
                       }}
                     />
                     {detail.kind !== "DIRECT" && (
