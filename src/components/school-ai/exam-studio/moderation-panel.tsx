@@ -40,6 +40,10 @@ export function ModerationPanel({ slotId, onDone }: { slotId: string; onDone?: (
   const [notice, setNotice] = useState<string | null>(null);
   const [comments, setComments] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  // SKAI-1559: a 409 means the paper changed meanwhile. Actions stay blocked until the current version is reloaded;
+  // typed comments are kept as a draft.
+  const [stale, setStale] = useState(false);
+  const reloadCurrent = async () => { await load(); setStale(false); setError(null); };
   const load = useCallback(async () => {
     const response = await fetch(`/api/academic/paper-slots/${encodeURIComponent(slotId)}/moderation`, { cache: "no-store" }).catch(() => null);
     const payload = response ? await response.json().catch(() => ({})) : {};
@@ -57,6 +61,7 @@ export function ModerationPanel({ slotId, onDone }: { slotId: string; onDone?: (
     const response = await fetch(`/api/academic/paper-slots/${encodeURIComponent(slotId)}/moderation`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paperVersion: view.paperVersion, decision, comments: list }) }).catch(() => null);
     const payload = response ? await response.json().catch(() => ({})) : {};
     setBusy(false);
+    if (response?.status === 409) setStale(true);
     if (!response?.ok) { setError(typeof payload.error === "string" ? payload.error : t.failed); return; }
     setNotice(decision === "SIGNED" ? t.signed : t.returned); setComments({});
     await load(); onDone?.();
@@ -68,6 +73,7 @@ export function ModerationPanel({ slotId, onDone }: { slotId: string; onDone?: (
     try {
       const response = await fetch(`/api/academic/paper-slots/${encodeURIComponent(slotId)}/seal`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paperVersion: view.paperVersion }) });
       const payload = await response.json();
+      if (response.status === 409) setStale(true);
       if (!response.ok) { setError(typeof payload.error === "string" ? payload.error : t.failed); return; }
       await load(); onDone?.();
     } catch { setError(t.failed); } finally { setBusy(false); }
@@ -79,7 +85,7 @@ export function ModerationPanel({ slotId, onDone }: { slotId: string; onDone?: (
   return <div className="space-y-4" data-moderation-panel>
     {view.sealedAt ? <Alert tone="success" compact>{fillStudioCopy(t.sealedOn, [date(view.sealedAt)])}</Alert> : null}
     {notice ? <Alert tone="success" compact live="polite">{notice}</Alert> : null}
-    {error ? <Alert tone="danger" compact live="polite">{error}</Alert> : null}
+    {error ? <Alert tone="danger" compact live="polite"><span>{error}</span>{stale ? <> <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void reloadCurrent()} data-moderation="reload">{t.reloadCurrent}</Button></> : null}</Alert> : null}
     <section aria-labelledby="conformance-title" className="space-y-2">
       <h3 id="conformance-title" className="text-sm font-bold">{t.reportTitle}{view.contentHashPrefix ? <span className="ms-2 font-mono text-xs font-normal text-ink-subtle"><bdi dir="ltr">#{view.contentHashPrefix}</bdi></span> : null}</h3>
       <ul className="grid gap-1.5 sm:grid-cols-2">
@@ -109,8 +115,8 @@ export function ModerationPanel({ slotId, onDone }: { slotId: string; onDone?: (
     {view.canDecide ? <div className="space-y-3">
       <FormField name="comment-general" label={t.overallComment}><Textarea rows={2} dir="auto" value={comments.general ?? ""} maxLength={2000} onChange={event => { const value = event.currentTarget.value; setComments(current => ({ ...current, general: value })); }} /></FormField>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" loading={busy} disabled={busy || view.blocking.length > 0} onClick={() => void decide("SIGNED")} data-moderation="sign">{t.sign}</Button>
-        <Button type="button" variant="outline" disabled={busy} onClick={() => void decide("RETURNED")} data-moderation="return">{t.returnPaper}</Button>
+        <Button type="button" loading={busy} disabled={busy || stale || view.blocking.length > 0} onClick={() => void decide("SIGNED")} data-moderation="sign">{t.sign}</Button>
+        <Button type="button" variant="outline" disabled={busy || stale} onClick={() => void decide("RETURNED")} data-moderation="return">{t.returnPaper}</Button>
       </div>
     </div> : null}
     {view.history.length ? <section aria-labelledby="mod-history" className="space-y-1 text-xs text-ink-muted">
@@ -119,7 +125,7 @@ export function ModerationPanel({ slotId, onDone }: { slotId: string; onDone?: (
     </section> : null}
     {view.canSeal ? <section className="space-y-2 rounded-xl border border-border-subtle p-3" data-delegated-seal>
       <p className="text-sm">{t.sealIntro}</p>
-      <Button type="button" loading={busy} disabled={busy} onClick={() => void seal()}>{t.sealConfirm}</Button>
+      <Button type="button" loading={busy} disabled={busy || stale} onClick={() => void seal()}>{t.sealConfirm}</Button>
     </section> : null}
   </div>;
 }
