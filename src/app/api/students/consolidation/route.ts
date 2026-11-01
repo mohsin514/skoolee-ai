@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { createHash } from "node:crypto";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError, assertPermission, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, assertPermission, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
+import type { AuthUser } from "@/lib/auth";
 import { Prisma } from "@prisma/client";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { parseBody } from "@/lib/api/validate";
@@ -10,8 +11,9 @@ import { jsonObjectBody } from "@/lib/validators/route-bodies";
 // Consolidation keeps both immutable IDs and all source foreign keys. A source
 // with academic/financial obligations needs case-by-case reconciliation rather
 // than a destructive mass-reparent. This restriction is visible in the preview.
-async function preview(tx: TxClient, sourceId: string, targetId: string) {
-  const pupils = await tx.student.findMany({ where: { id: { in: [sourceId, targetId] } } });
+// SKAI-1469: both pupils must sit inside the actor's school and campus scope; anything else is "not found".
+async function preview(tx: TxClient, user: AuthUser, sourceId: string, targetId: string) {
+  const pupils = await tx.student.findMany({ where: { id: { in: [sourceId, targetId] }, schoolId: user.schoolId, ...scopedCampusWhere(user, user.campusId) } });
   const source = pupils.find(p => p.id === sourceId), target = pupils.find(p => p.id === targetId);
   if (!source || !target || sourceId === targetId) throw new ApiError("Choose two distinct pupils in this institution", 404);
   const counts: Record<string, number> = {};
@@ -43,10 +45,10 @@ export async function POST(req: NextRequest) {
     await assertPermission(user, "students", "delete");
     const body = await parseBody(req, jsonObjectBody);
     const sourceId = String(body.sourceId || ""), targetId = String(body.targetId || "");
-    if (body.action === "preview") return Response.json(await preview(prisma, sourceId, targetId));
+    if (body.action === "preview") return Response.json(await preview(prisma, user, sourceId, targetId));
     if (body.action !== "confirm" || body.verifiedSourceId !== sourceId || body.verifiedTargetId !== targetId || String(body.reason || "").trim().length < 10) throw new ApiError("Verify both permanent IDs and record a reason of at least 10 characters", 400);
     const result = await prisma.$transaction(async tx => {
-      const report = await preview(tx, sourceId, targetId);
+      const report = await preview(tx, user, sourceId, targetId);
       if (report.blockers.length) throw new ApiError(report.blockers.join(" "), 409);
       if (body.token !== report.token) throw new ApiError("Dependencies changed. Preview consolidation again.", 409);
       await tx.studentEnrollment.updateMany({ where: { studentId: sourceId, status: "ACTIVE", endDate: null }, data: { status: "CONSOLIDATED" } });
