@@ -73,7 +73,7 @@ export async function writeAcademicCycle(user: AuthUser, campusId: string, body:
     let overrideReasons: string[] = [];
     if (action === "end") {
       const report = await getYearClosureReport(campusId, target.academicYear, tx);
-      if (!report.canClose) { if (body.force !== true) throw new ApiError(report.blockingReasons.join(" "), 409); if (!leadsAcademics) throw new ApiError("Only the principal can close a year with outstanding work", 403); overrideReasons = report.blockingReasons; }
+      if (!report.canClose) { if (body.force !== true) throw new ApiError(report.blockingReasons.join(" "), 409); if (!leadsAcademics) throw new ApiError("Only the principal can close a year with outstanding work", 403); if (typeof body.reason !== "string" || body.reason.trim().length < 10) throw new ApiError("Give a reason of at least 10 characters to close a year with outstanding work.", 400); overrideReasons = report.blockingReasons; }
     }
     if (["pause", "end"].includes(action)) {
       const classes = await tx.class.findMany({ where: { ...scope, academicYear: target.academicYear }, select: { id: true } });
