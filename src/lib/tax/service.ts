@@ -188,12 +188,13 @@ export async function approve(user: AuthUser, id: string, reason?: string | null
 
 /** Scheduled activations whose date has come become active; an older one for the same campuses is superseded. */
 export async function activateDue(schoolId: string, now = new Date()) {
-  const due = await prisma.taxActivation.findMany({ where: { schoolId, status: "SCHEDULED", effectiveFrom: { lte: now } }, orderBy: { effectiveFrom: "asc" } });
+  // SKAI-1474: same-date activations resolve by creation order, newest last, so exactly one stays ACTIVE.
+  const due = await prisma.taxActivation.findMany({ where: { schoolId, status: "SCHEDULED", effectiveFrom: { lte: now } }, orderBy: [{ effectiveFrom: "asc" }, { createdAt: "asc" }, { id: "asc" }] });
   for (const a of due) {
     await prisma.$transaction(async tx => {
       const claimed = await tx.taxActivation.updateMany({ where: { id: a.id, status: "SCHEDULED" }, data: { status: "ACTIVE" } });
       if (!claimed.count) return;
-      await tx.taxActivation.updateMany({ where: { schoolId, status: "ACTIVE", id: { not: a.id }, campusIds: { hasSome: a.campusIds }, effectiveFrom: { lt: a.effectiveFrom! } }, data: { status: "SUPERSEDED" } });
+      await tx.taxActivation.updateMany({ where: { schoolId, status: "ACTIVE", id: { not: a.id }, campusIds: { hasSome: a.campusIds }, OR: [{ effectiveFrom: { lt: a.effectiveFrom! } }, { effectiveFrom: a.effectiveFrom!, createdAt: { lte: a.createdAt } }] }, data: { status: "SUPERSEDED" } });
     });
   }
   return due.length;
@@ -201,7 +202,7 @@ export async function activateDue(schoolId: string, now = new Date()) {
 
 /** The activation that applies to an invoice: approved, covering the campus, latest effective date on or before it. */
 export async function activationFor(db: TxClient | typeof prisma, schoolId: string, campusId: string, invoiceDate: Date) {
-  return db.taxActivation.findFirst({ where: { schoolId, campusIds: { has: campusId }, status: { in: ["SCHEDULED", "ACTIVE", "SUPERSEDED"] }, effectiveFrom: { lte: invoiceDate } }, orderBy: { effectiveFrom: "desc" } });
+  return db.taxActivation.findFirst({ where: { schoolId, campusIds: { has: campusId }, status: { in: ["SCHEDULED", "ACTIVE", "SUPERSEDED"] }, effectiveFrom: { lte: invoiceDate } }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }] });
 }
 
 // ─── Issuing ─────────────────────────────────────────────────────────────

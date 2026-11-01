@@ -293,7 +293,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
 
       const receiptRows = Array.isArray(receipt?.rows) ? receipt.rows as Array<Record<string, unknown>> : [];
-      const studentIds = receiptRows.flatMap((row) => typeof row.studentId === "string" ? [row.studentId] : []);
+      // SKAI-1483: commit receipts store the pupil under result.studentId; older rows used a top-level studentId.
+      const studentIds = [...new Set(receiptRows.flatMap((row) => {
+        const id = (row as { result?: { studentId?: unknown } }).result?.studentId ?? row.studentId;
+        return typeof id === "string" && id ? [id] : [];
+      }))];
       const students = studentIds.length ? await prisma.student.findMany({ where: { id: { in: studentIds }, schoolId: user.schoolId, campusId: batch.campusId }, select: { id: true, fullName: true, rollNo: true, _count: { select: { attendance: true, invoices: true, marks: true, reportCards: true, examSeats: true, payments: true, guardianRelationships: true, classHistory: true, enrollments: true, enrollmentProposals: true, corrections: true, documents: true } } } }) : [];
       const dependencies = students.flatMap((student) => {
         const count = student._count;
