@@ -141,7 +141,7 @@ async function familyView(application: AdmissionApplication & { formVersion: { d
   const missing = answerProblems(definition, answers, uploaded, true).filter(problem => problem.message.endsWith("required.")).map(problem => problem.key);
   return {
     reference: application.reference, stage: FAMILY_STAGE[application.status] ?? "RECEIVED", editable: FAMILY_EDITABLE.includes(application.status),
-    schoolName: school?.name ?? "", campusName: campus?.name ?? "", formVersion: application.formVersion.version, definition, answers,
+    schoolName: school?.name ?? "", campusName: campus?.name ?? "", formVersion: application.formVersion.version, version: application.version, definition, answers,
     documents, missing, messages: events.map(event => ({ message: event.familyMessage, at: event.createdAt })), submittedAt: application.submittedAt,
     offerExpiresAt: application.status === "OFFERED" ? application.offerExpiresAt : null,
   };
@@ -177,7 +177,11 @@ export function saveApplication(reference: string, resumeKey: string, body: Reco
     const answers = keepVisible(definition, (body.answers ?? {}) as Answers);
     const problems = answerProblems(definition, answers, [], false);
     if (problems.length) throw problemsError(problems);
-    const updated = await prisma.admissionApplication.update({ where: { id: application.id }, data: { answers: answers as Prisma.InputJsonValue, childName: String(identityValues(definition, answers).childName ?? ""), version: { increment: 1 } }, include: { formVersion: true } });
+    // SKAI-1389: a family device that saves from an older view is refused (the view carries the version).
+    if (body.version !== undefined && Number(body.version) !== application.version) throw new ApiError("This application changed in another window. Reload to see the latest before saving.", 409);
+    const written = await prisma.admissionApplication.updateMany({ where: { id: application.id, version: application.version }, data: { answers: answers as Prisma.InputJsonValue, childName: String(identityValues(definition, answers).childName ?? ""), version: { increment: 1 } } });
+    if (written.count !== 1) throw new ApiError("This application changed in another window. Reload to see the latest before saving.", 409);
+    const updated = await prisma.admissionApplication.findUniqueOrThrow({ where: { id: application.id }, include: { formVersion: true } });
     return familyView(updated);
   });
 }
@@ -439,8 +443,12 @@ export async function staffSaveAnswers(user: AuthUser, campusId: string, body: R
     const answers = keepVisible(definition, (body.answers ?? {}) as Answers);
     const problems = answerProblems(definition, answers, [], false);
     if (problems.length) throw problemsError(problems);
+    // SKAI-1389: a save made from an older view is refused, and the write itself is conditional on that version.
+    if (body.version !== undefined && Number(body.version) !== application.version) throw new ApiError("This application changed since you opened it. Reload to see the latest before saving.", 409);
     const nextVersion = application.version + 1;
-    const updated = await db.admissionApplication.update({ where: { id: application.id }, data: { answers: answers as Prisma.InputJsonValue, childName: String(identityValues(definition, answers).childName ?? ""), version: nextVersion } });
+    const written = await db.admissionApplication.updateMany({ where: { id: application.id, version: application.version }, data: { answers: answers as Prisma.InputJsonValue, childName: String(identityValues(definition, answers).childName ?? ""), version: nextVersion } });
+    if (written.count !== 1) throw new ApiError("This application changed since you opened it. Reload to see the latest before saving.", 409);
+    const updated = await db.admissionApplication.findUniqueOrThrow({ where: { id: application.id } });
     await db.admissionApplicationEvent.create({ data: { schoolId: user.schoolId, applicationId: application.id, kind: "ANSWERS_UPDATED", actorId: user.userId, detail: { fromVersion: application.version, toVersion: nextVersion } } });
     const { resumeKeyHash: _key, ...data } = updated;
     return data;
