@@ -465,16 +465,23 @@ export async function PATCH(req: NextRequest) {
         select: { id: true, siblingGroupId: true },
       });
       if (!ref) throw new ApiError("Sibling student not found", 404);
-      if (!ref.siblingGroupId) {
-        const opened = await prisma.student.update({
-          where: { id: ref.id },
-          data: { siblingGroupId: randomUUID() },
-          select: { siblingGroupId: true },
+      // Open the reference's group only while it is still unset, so two concurrent links cannot
+      // each write their own group. A loser re-reads the group the winner committed.
+      let groupId = ref.siblingGroupId;
+      if (!groupId) {
+        const opened = randomUUID();
+        const claimed = await prisma.student.updateMany({
+          where: { id: ref.id, siblingGroupId: null },
+          data: { siblingGroupId: opened },
         });
-        data.siblingGroupId = opened.siblingGroupId;
-      } else {
-        data.siblingGroupId = ref.siblingGroupId;
+        if (claimed.count) {
+          groupId = opened;
+        } else {
+          const winner = await prisma.student.findFirst({ where: { id: ref.id }, select: { siblingGroupId: true } });
+          groupId = winner?.siblingGroupId ?? null;
+        }
       }
+      data.siblingGroupId = groupId;
     } else if (updates.siblingGroupId !== undefined) {
       data.siblingGroupId = updates.siblingGroupId || null;
     }
