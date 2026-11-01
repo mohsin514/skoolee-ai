@@ -245,7 +245,9 @@ async function loadSuperAdminDashboardData() {
           orderBy: { createdAt: "desc" },
         },
         // Governance charts need dates and grades, not learner/guardian identities or full rosters.
+        // SKAI-1496: only on-roll pupils, matching the roster and the campus headline.
         students: {
+          where: ON_ROLL,
           select: {
             enrollmentDate: true,
             reportCards: {
@@ -259,7 +261,7 @@ async function loadSuperAdminDashboardData() {
           select: {
             users: { where: { isActive: true, role: { in: ["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] } } },
             classes: true,
-            students: true,
+            students: { where: ON_ROLL },
             subjects: true,
             exams: true,
             reportCards: true,
