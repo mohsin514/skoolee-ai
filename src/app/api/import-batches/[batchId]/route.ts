@@ -223,11 +223,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
         if (locked.count !== 1) throw new ApiError("Another request already committed or expired this batch", 409);
         const matched = selected.filter((row) => row.proposal?.matchedInvoiceId);
         const unmatched = selected.filter((row) => !row.proposal?.matchedInvoiceId);
+        // Store the stable bank account id so the period guard can find this statement.
+        const bankAccount = await tx.bankAccount.findFirst({ where: { schoolId: user.schoolId, campusId: batch.campusId, name: String(metadata.accountName) }, select: { id: true } });
         const reconciliation = await tx.bankReconciliation.create({ data: {
           schoolId: user.schoolId,
           campusId: batch.campusId,
           importDate: new Date(),
-          bankAccount: String(metadata.accountName),
+          bankAccount: bankAccount?.id ?? null,
           statementPeriodFrom: new Date(`${metadata.statementFrom}T00:00:00.000Z`),
           statementPeriodTo: new Date(`${metadata.statementTo}T00:00:00.000Z`),
           totalTransactions: selected.length,

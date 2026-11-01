@@ -238,12 +238,14 @@ export async function processBankImport(
       }
     }
 
+    // Store the stable bank account id so the period guard can find this statement.
+    const bankAccount = await db.bankAccount.findFirst({ where: { schoolId: user.schoolId, campusId, name: parsed.data.accountName }, select: { id: true } });
     const reconciliation = await db.bankReconciliation.create({
       data: {
         schoolId: user.schoolId,
         campusId,
         importDate: new Date(),
-        bankAccount: parsed.data.accountName,
+        bankAccount: bankAccount?.id ?? null,
         statementPeriodFrom: new Date(parsed.data.statementFrom),
         statementPeriodTo: new Date(parsed.data.statementTo),
         totalTransactions: transactions.length,

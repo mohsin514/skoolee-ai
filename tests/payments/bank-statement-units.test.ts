@@ -16,6 +16,7 @@ let reconciliation: { reconciliationDetailsJson: { matchedInvoiceId: string; amo
 const prisma = {
   invoice: { findMany: async () => invoices },
   bankTransactionKey: { findMany: async () => [] },
+  bankAccount: { findFirst: async () => ({ id: "bank-acct-1" }) },
   bankReconciliation: { create: async ({ data }: { data: typeof reconciliation }) => { reconciliation = data; return { id: "rec-1" }; } },
 };
 class ApiError extends Error { constructor(message: string, readonly status = 400) { super(message); } }

@@ -42,8 +42,12 @@ export async function GET(req: NextRequest) {
     const rows = await prisma.bankReconciliation.findMany({ where: { schoolId: user.schoolId, campusId }, orderBy: { createdAt: "desc" }, take: 30 });
     const audits = await prisma.auditLog.findMany({ where: { schoolId: user.schoolId, tableName: "bank_reconciliation_posting", recordId: { in: rows.map(r => r.id) } }, select: { recordId: true, newValue: true } });
     const postings = new Map(audits.map(a => [a.recordId, a.newValue as { posted?: Posted[]; exceptions?: Exception[] }]));
+    // Statements now store the bank account id; show its name to readers.
+    const accountIds = [...new Set(rows.map(r => r.bankAccount).filter((id): id is string => Boolean(id)))];
+    const accounts = accountIds.length ? await prisma.bankAccount.findMany({ where: { schoolId: user.schoolId, id: { in: accountIds } }, select: { id: true, name: true } }) : [];
+    const accountNames = new Map(accounts.map(a => [a.id, a.name]));
     return Response.json({ success: true, data: rows.map(rec => ({
-      id: rec.id, status: rec.status, bankAccount: rec.bankAccount, from: rec.statementPeriodFrom?.toISOString().slice(0, 10) ?? null, to: rec.statementPeriodTo?.toISOString().slice(0, 10) ?? null,
+      id: rec.id, status: rec.status, bankAccount: rec.bankAccount ? accountNames.get(rec.bankAccount) ?? null : null, from: rec.statementPeriodFrom?.toISOString().slice(0, 10) ?? null, to: rec.statementPeriodTo?.toISOString().slice(0, 10) ?? null,
       matched: storedRows(rec.reconciliationDetailsJson), unmatched: storedRows(rec.unmatchedJson),
       posting: postings.get(rec.id) ?? null, report: report(rec, postings.get(rec.id) ?? null),
     })) }, { headers: { "Cache-Control": "private, no-store" } });

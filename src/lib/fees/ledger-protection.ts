@@ -20,7 +20,7 @@ export async function deleteUnreconciledManualLedgerEntry(user: AuthUser, id: st
     if (entry.paymentId || entry.payrollLineId) throw new ApiError("Reverse the originating payment or payroll posting instead", 409);
     if (entry.reversalOfId || entry.reversedBy) throw new ApiError("Corrected entries and their corrections stay in the ledger for audit", 409);
     if (entry.bankAccountId) {
-      const reconciliations = await db.bankReconciliation.findMany({ where: { schoolId: user.schoolId, campusId: entry.campusId, bankAccount: entry.bankAccountId, status: "reconciled", statementPeriodFrom: { lte: entry.date }, statementPeriodTo: { gte: new Date(entry.date.toISOString().slice(0, 10) + "T00:00:00.000Z") } }, take: 501, select: { reconciliationDetailsJson: true } });
+      const reconciliations = await db.bankReconciliation.findMany({ where: { schoolId: user.schoolId, campusId: entry.campusId, bankAccount: entry.bankAccountId, status: { in: ["posted", "reconciled"] }, statementPeriodFrom: { lte: entry.date }, statementPeriodTo: { gte: new Date(entry.date.toISOString().slice(0, 10) + "T00:00:00.000Z") } }, take: 501, select: { reconciliationDetailsJson: true } });
       if (reconciliations.length > 500 || reconciliations.some(row => {
         const details = row.reconciliationDetailsJson as { rows?: Array<{ ledgerId?: string }> } | null;
         return details && Array.isArray(details.rows) && details.rows.some(line => line.ledgerId === entry.id);
@@ -33,7 +33,7 @@ export async function deleteUnreconciledManualLedgerEntry(user: AuthUser, id: st
 
 export async function assertBankPeriodOpen(db: TxClient, schoolId: string, campusId: string, bankAccountId: string, date: Date) {
   const day = new Date(date.toISOString().slice(0, 10) + "T00:00:00.000Z");
-  const closed = await db.bankReconciliation.findFirst({ where: { schoolId, campusId, bankAccount: bankAccountId, status: "reconciled", statementPeriodFrom: { lte: day }, statementPeriodTo: { gte: day } }, select: { id: true } });
+  const closed = await db.bankReconciliation.findFirst({ where: { schoolId, campusId, bankAccount: bankAccountId, status: { in: ["posted", "reconciled"] }, statementPeriodFrom: { lte: day }, statementPeriodTo: { gte: day } }, select: { id: true } });
   if (closed) throw new SchoolAiError("This bank statement period is reconciled. Use an open accounting period.", 409, "FINANCE_PERIOD_CLOSED");
 }
 
