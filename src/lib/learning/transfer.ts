@@ -260,6 +260,9 @@ export async function exportTransfer(user: AuthUser, caseId: string) {
   // Principals keep export for academic oversight; a substituted foreign case ID then reaches the tenant-scoped 404.
   assertStaff(user, "read");
   return schoolAiTransaction(user, async tx => {
+    // SKAI-1582: exports of one case run one at a time, so each reads the downloads its predecessor appended
+    // and every successful download keeps its own audit entry and ordinal.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`learning-transfer-export:${user.schoolId}:${caseId}`}))`;
     const row = await loadCase(tx, user, caseId);
     requireRights(row, "objectives");
     const evidence = (row.evidence as Evidence).objectives;
