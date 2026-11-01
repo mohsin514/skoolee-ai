@@ -62,8 +62,13 @@ export function FamilyDigestReview({ classes }: { classes: { id: string; label: 
   const act = async (body: Record<string, unknown>, done: string) => {
     if (!digest) return;
     setBusy(true);
-    try { const result = await call(`/api/digests/${digest.id}`, "PATCH", { ...body, knownVersion: digest.version }); toast.success(body.action === "send" ? ui("Sent to {0} guardians.", [String(result.delivered)]) : ui(done)); await refresh(digest.id); return true; }
-    catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); if (digest) await refresh(digest.id); return false; } finally { setBusy(false); }
+    // SKAI-1455: a confirmed PATCH stays confirmed; a failed follow-up refresh is reported on its own.
+    let result: { delivered?: number };
+    try { result = await call(`/api/digests/${digest.id}`, "PATCH", { ...body, knownVersion: digest.version }); }
+    catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); await refresh(digest.id).catch(() => undefined); setBusy(false); return false; }
+    toast.success(body.action === "send" ? ui("Sent to {0} guardians.", [String(result.delivered)]) : ui(done));
+    try { await refresh(digest.id); } catch { toast.error(ui("Saved, but the latest version could not be loaded. Refresh the update to see it.")); } finally { setBusy(false); }
+    return true;
   };
   const openEdit = (entry: Entry) => { setEditing(entry); setDraft({ texts: Object.fromEntries(entry.content.statements.map(s => [s.id, s.edited ? s.text : statementText(ui, s)])), removed: [], step: entry.content.nextStep ? { ...entry.content.nextStep, minutes: String(entry.content.nextStep.minutes) } : null, skipped: entry.skipped }); };
   const saveEdit = async () => {
