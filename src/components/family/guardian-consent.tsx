@@ -66,12 +66,16 @@ export function GuardianConsentForm({ studentId }: { studentId: string }) {
   const { data, failure, load } = useJson<View>(`/api/family/consent?studentId=${encodeURIComponent(studentId)}`);
   const [choices, setChoices] = useState<Partial<Record<Purpose, boolean>>>({});
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
+  // SKAI-1548: a synchronous guard, so a double click or key repeat cannot post twice before busy renders.
+  const inFlight = useRef(false);
 
   if (failure) return <ErrorState title={ui("Consent could not be loaded")} error={failure} onRetry={load} />;
   if (!data) return <SkeletonList rows={3} />;
   const complete = data.purposes.every(p => typeof choices[p] === "boolean");
 
   const submit = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true); setError("");
     try {
       const response = await fetch("/api/family/consent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId, choices, noticeVersion: data.noticeVersion, language }) });
@@ -80,7 +84,7 @@ export function GuardianConsentForm({ studentId }: { studentId: string }) {
       toast.success(ui("Consent saved. Receipt {0}", [json.data.receiptCode]));
       setChoices({});
       await load();
-    } catch (failed) { setError(ui(failed instanceof Error ? failed.message : "Your answer was not saved.")); } finally { setBusy(false); }
+    } catch (failed) { setError(ui(failed instanceof Error ? failed.message : "Your answer was not saved.")); } finally { inFlight.current = false; setBusy(false); }
   };
 
   return (

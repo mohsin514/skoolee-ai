@@ -66,10 +66,27 @@ export async function guardianConsentView(user: AuthUser, studentId: string) {
 }
 
 /** Record a new answer. Only a verified, current guardian of the child may answer, for themselves only. */
+/** SKAI-1548: a repeat of the same answer within this window is the same submission, not a new one. */
+export const CONSENT_REPLAY_WINDOW_MS = 60_000;
+const sameChoices = (a: unknown, b: Record<string, boolean>) => {
+  const left = (a ?? {}) as Record<string, unknown>;
+  const keys = new Set([...Object.keys(left), ...Object.keys(b)]);
+  return [...keys].every(key => left[key] === b[key]);
+};
+export function isConsentReplay(previous: { choices: unknown; noticeVersion: string; language: string; createdAt: Date } | null, input: { choices: Record<string, boolean>; language: string }, noticeVersion: string, now = new Date()) {
+  return Boolean(previous && previous.noticeVersion === noticeVersion && previous.language === input.language
+    && now.getTime() - previous.createdAt.getTime() < CONSENT_REPLAY_WINDOW_MS && sameChoices(previous.choices, input.choices));
+}
+
 export async function recordGuardianConsent(user: AuthUser, body: Record<string, unknown>) {
   const input = parseConsentBody(body);
   const link = await guardianLink(user, input.studentId);
   return schoolAiTransaction(user, async tx => {
+    // One guardian answering for one child is serialised, so two in-flight copies of one submission
+    // cannot both insert: the second sees the first and returns its receipt.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`guardian-consent:${user.schoolId}:${input.studentId}:${user.userId}`}))`;
+    const previous = await tx.guardianConsent.findFirst({ where: { schoolId: user.schoolId, studentId: input.studentId, guardianUserId: user.userId }, orderBy: { createdAt: "desc" } });
+    if (previous && isConsentReplay(previous, input, CONSENT_NOTICE_VERSION)) return publicRow(previous);
     const row = await tx.guardianConsent.create({ data: {
       schoolId: user.schoolId, campusId: link.campusId, studentId: input.studentId, guardianUserId: user.userId,
       relationshipId: link.id, guardianName: link.fullName, choices: input.choices,
