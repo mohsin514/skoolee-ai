@@ -9,8 +9,14 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
-import { parseBody } from "@/lib/api/validate";
+import { parseBody, parseWith } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { requiredText } from "@/lib/validators/fields";
+import { z } from "zod";
+
+// Names are trimmed, bounded text; a number, object or blank name is a 400 before any database call.
+const supplierName = z.object({ name: requiredText("Name", { max: 120 }) });
+const optionalSupplierName = z.object({ name: requiredText("Name", { max: 120 }).optional() });
 
 export const runtime = "nodejs";
 
@@ -38,9 +44,8 @@ export async function POST(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { name, phone, email, address } = body;
-
-    if (!name) throw new ApiError("name required", 400);
+    const { phone, email, address } = body;
+    const { name } = parseWith(supplierName, body);
 
     const supplier = await prisma.supplier.create({
       data: {
@@ -65,8 +70,8 @@ export async function PATCH(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { id, name, phone, email, address } = body;
-
+    const { id, phone, email, address } = body;
+    const { name } = parseWith(optionalSupplierName, body);
     if (!id) throw new ApiError("id required", 400);
 
     const supplier = await prisma.supplier.findFirst({ where: { id, campusId } });
