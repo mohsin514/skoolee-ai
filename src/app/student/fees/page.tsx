@@ -50,6 +50,9 @@ export default function FeesPage() {
           invoice.currency,
         ]);
       }
+      // SKAI-1653: this file holds one currency. Say so when the ledger has others, rather than look complete.
+      const others = (json.data?.currencies ?? [] as string[]).filter((code: string) => code !== json.data?.currency);
+      if (others.length) rows.push([tr("Other currencies not included in this file"), others.join(", ")]);
       // A byte-order mark so spreadsheet apps read Arabic and Urdu names as UTF-8.
       const blob = new Blob(["﻿" + rows.map((row) => row.map(csvCell).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
