@@ -10,10 +10,12 @@ export const runtime = "nodejs";
 // child's own permissions. Retired capability-token parameters never change this signed-in scope.
 export async function GET(req: NextRequest) {
   try {
+    // A missing, expired or disabled session is an authentication failure (401), not a permission one.
+    const user = await getAuthUser();
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     return await withParentScope(req, async scope => {
-      const user = await getAuthUser();
       const data = await familyInbox({
-        guardianUserId: user?.userId ?? null,
+        guardianUserId: user.userId,
         schoolId: scope.schoolId,
         children: scope.children,
         singleStudentId: null,
