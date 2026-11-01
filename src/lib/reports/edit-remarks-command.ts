@@ -62,6 +62,13 @@ export async function updateReportCardCommand(user: AuthUser, id: string, data: 
         if (current.id !== data.versionId) throw new ApiError("This version changed. Reload before requesting correction.", 409);
         if (!data.reviewerNote?.trim()) throw new ApiError("Add a private correction note", 400);
       }
+      if (editing && data.expectedRemarks) {
+        const current = await tx.reportCard.findUniqueOrThrow({ where: { id }, select: { remarksEn: true, remarksUr: true, remarksAr: true } });
+        const same = (a: string | null | undefined, b: string | null | undefined) => (a ?? "") === (b ?? "");
+        const expected = data.expectedRemarks;
+        if (!same(current.remarksEn, expected.remarksEn) || !same(current.remarksUr, expected.remarksUr) || (expected.remarksAr !== undefined && !same(current.remarksAr, expected.remarksAr)))
+          throw new ApiError("Someone saved newer remarks for this report. Reload to review them before saving.", 409);
+      }
       await tx.reportCard.update({
         where: { id },
         data: {
