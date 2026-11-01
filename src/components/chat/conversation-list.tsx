@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { systemEventText } from "@/lib/chat/system-event-text";
 import { localeTag } from "@/lib/locale/package";
 
 type Ui = ReturnType<typeof useUiText>;
@@ -251,6 +252,7 @@ function ConversationRow({
             {sentByMe && <span className="text-ink-subtle">{ui("You:")} </span>}
             {c.lastMessagePreview && MEDIA_PREVIEWS.has(c.lastMessagePreview)
               ? ui(c.lastMessagePreview)
+              : c.lastMessagePreview && c.lastMessageSenderId === null ? <bdi>{systemEventText(c.lastMessagePreview, ui)}</bdi>
               : c.lastMessagePreview || c.subtitle ? <bdi>{c.lastMessagePreview || c.subtitle}</bdi> : ui("No messages yet")}
           </span>
 
