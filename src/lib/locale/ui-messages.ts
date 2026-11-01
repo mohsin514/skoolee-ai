@@ -17,6 +17,9 @@ import { arabicTeacherAllocationUi, urduTeacherAllocationUi } from "./teacher-al
  * role-ux package entry for the same key never changes a reviewed meaning (P9-01; tests/locale/catalog-conflicts.test.ts).
  */
 export const arabicReviewedUi: Record<string, string> = {
+  "This view could not refresh. Try again to see the latest version.": "تعذّر تحديث هذا العرض. حاول مجدداً لرؤية أحدث نسخة.",
+  "Your session has ended. Sign in again to see the latest version.": "انتهت جلستك. سجّل الدخول مجدداً لرؤية أحدث نسخة.",
+  "You no longer have access to this update.": "لم تعد تملك صلاحية الوصول إلى هذا التحديث.",
   "This setup record will be removed from future fee calculations. Issued invoices and recorded payments are kept. Records still in use cannot be deleted.": "سيُزال سجل الإعداد من حسابات الرسوم المستقبلية. تبقى الفواتير الصادرة والمدفوعات المسجلة محفوظة. لا يمكن حذف السجلات المستخدمة.",
   "The holiday will be removed. Those dates may become available for classes and exams. Existing schedules are kept.": "ستُزال العطلة. قد تصبح هذه التواريخ متاحة للدروس والامتحانات. تبقى الجداول الحالية محفوظة.",
   "This document will be removed from the record. Other documents and unsaved work are kept.": "سيُزال هذا المستند من السجل. تبقى المستندات الأخرى والعمل غير المحفوظ.",
@@ -424,6 +427,9 @@ export const arabicUi: Record<string, string> = { ...arabicRoleUxUi, ...arabicCa
 
 /** The reviewed Urdu catalog; same precedence rule as `arabicReviewedUi`. */
 export const urduReviewedUi: Record<string, string> = {
+  "This view could not refresh. Try again to see the latest version.": "یہ صفحہ تازہ نہیں ہو سکا۔ تازہ ترین ورژن دیکھنے کے لیے دوبارہ کوشش کریں۔",
+  "Your session has ended. Sign in again to see the latest version.": "آپ کا سیشن ختم ہو گیا ہے۔ تازہ ترین ورژن دیکھنے کے لیے دوبارہ سائن ان کریں۔",
+  "You no longer have access to this update.": "اب آپ کو اس اپ ڈیٹ تک رسائی حاصل نہیں ہے۔",
   "This setup record will be removed from future fee calculations. Issued invoices and recorded payments are kept. Records still in use cannot be deleted.": "یہ ترتیب آئندہ فیس کے حساب سے ہٹا دی جائے گی۔ جاری شدہ رسیدیں اور درج شدہ ادائیگیاں محفوظ رہیں گی۔ زیر استعمال ریکارڈ حذف نہیں کیے جا سکتے۔",
   "The holiday will be removed. Those dates may become available for classes and exams. Existing schedules are kept.": "تعطیل ہٹا دی جائے گی۔ ان تاریخوں پر کلاسیں اور امتحانات مقرر کیے جا سکیں گے۔ موجودہ شیڈول برقرار رہیں گے۔",
   "This document will be removed from the record. Other documents and unsaved work are kept.": "یہ دستاویز ریکارڈ سے ہٹا دی جائے گی۔ دوسری دستاویزات اور غیر محفوظ کام برقرار رہیں گے۔",

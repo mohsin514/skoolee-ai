@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useFetch } from "@/hooks";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DeskPill, DeskRowIcon, deskRow } from "@/components/ui/desk";
 import { Eye, Newspaper, PenLine, Sprout, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { runDigestAction } from "@/lib/family/digest-action";
 
 // SKO-423. Teacher side: a class's weekly update, one child at a time. Each statement comes from released
 // evidence and keeps its source; wording can be edited, nothing can be invented; at most one home activity
@@ -44,9 +45,10 @@ const monday = () => { const d = new Date(), iso = d.getDay() || 7; d.setDate(d.
 async function call(url: string, method: string, body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved.");
+  if (!response.ok || !json.success) throw Object.assign(new Error(json.error || "The change was not saved."), { status: response.status });
   return json.data;
 }
+const failureStatus = (error: unknown) => (error as { status?: number }).status;
 
 export function FamilyDigestReview({ classes }: { classes: { id: string; label: string }[] }) {
   const ui = useUiText();
@@ -56,14 +58,34 @@ export function FamilyDigestReview({ classes }: { classes: { id: string; label: 
   const [draft, setDraft] = useState<{ texts: Record<string, string>; removed: string[]; step: { objective: string; minutes: string; materials: string; alternative: string } | null; skipped: boolean }>({ texts: {}, removed: [], step: null, skipped: false });
   const [scheduleAt, setScheduleAt] = useState("");
   const [confirmSend, setConfirmSend] = useState(false);
+  // SKAI-1455: a failed re-read after a committed change only marks the view stale; actions wait until it is retried.
+  const [stale, setStale] = useState<{ status?: number } | null>(null);
+  const inFlight = useRef(false);
   const refresh = useCallback(async (id: string) => setDigest(await call(`/api/digests/${id}`, "GET")), []);
   const prepare = async () => { setBusy(true); try { const d = await call("/api/digests", "POST", { classId, week }); await refresh(d.id); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
-  useEffect(() => { setDigest(null); }, [classId, week]);
+  useEffect(() => { setDigest(null); setStale(null); }, [classId, week]);
   const act = async (body: Record<string, unknown>, done: string) => {
-    if (!digest) return;
+    if (!digest || inFlight.current) return false;
+    inFlight.current = true;
     setBusy(true);
-    try { const result = await call(`/api/digests/${digest.id}`, "PATCH", { ...body, knownVersion: digest.version }); toast.success(body.action === "send" ? ui("Sent to {0} guardians.", [String(result.delivered)]) : ui(done)); await refresh(digest.id); return true; }
-    catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); if (digest) await refresh(digest.id); return false; } finally { setBusy(false); }
+    const id = digest.id;
+    try {
+      const outcome = await runDigestAction({
+        mutate: () => call(`/api/digests/${id}`, "PATCH", { ...body, knownVersion: digest.version }),
+        refresh: async () => { try { await refresh(id); setStale(null); } catch (e) { setStale({ status: failureStatus(e) }); throw e; } },
+      });
+      if (!outcome.committed) { toast.error(ui(outcome.message)); return false; }
+      // Committed: report it as saved whatever the re-read did. A sent update must not be offered again on this view.
+      toast.success(body.action === "send" ? ui("Sent to {0} guardians.", [String(outcome.result.delivered)]) : ui(done));
+      if (body.action === "send") setDigest(current => current ? { ...current, status: "SENT" } : current);
+      return true;
+    } finally { inFlight.current = false; setBusy(false); }
+  };
+  const retryRead = async () => {
+    if (!digest || inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    try { await refresh(digest.id); setStale(null); } catch (e) { setStale({ status: failureStatus(e) }); } finally { inFlight.current = false; setBusy(false); }
   };
   const openEdit = (entry: Entry) => { setEditing(entry); setDraft({ texts: Object.fromEntries(entry.content.statements.map(s => [s.id, s.edited ? s.text : statementText(ui, s)])), removed: [], step: entry.content.nextStep ? { ...entry.content.nextStep, minutes: String(entry.content.nextStep.minutes) } : null, skipped: entry.skipped }); };
   const saveEdit = async () => {
@@ -84,15 +106,19 @@ export function FamilyDigestReview({ classes }: { classes: { id: string; label: 
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-ink-strong" data-digest-state><DeskPill tone={digest.status === "SENT" ? "success" : digest.status === "DRAFT" ? "warning" : digest.status === "CANCELLED" ? "neutral" : "info"}>{statusLabel(ui, digest.status)}</DeskPill> {ui("Version {0}", [String(digest.version)])}{digest.scheduledFor && digest.status === "SCHEDULED" ? <> · <bdi>{dateTime(digest.scheduledFor)}</bdi></> : null}{digest.sentAt ? <> · <bdi>{dateTime(digest.sentAt)}</bdi></> : null}</p>
       <ul className="space-y-2">{digest.entries.map(entry => <li key={entry.id} data-tone={entry.status === "BLOCKED" ? "danger" : entry.skipped ? "muted" : undefined} className={cn(deskRow, "space-y-1.5")} data-digest-entry={entry.studentId} data-digest-skipped={String(entry.skipped)} data-digest-entry-status={entry.status}>
         <div className="flex flex-wrap items-center justify-between gap-2"><p className="flex min-w-0 flex-wrap items-center gap-2 text-sm font-semibold text-ink-strong"><DeskRowIcon icon={UserRound} /><bdi className="min-w-0 truncate">{entry.studentName}</bdi>{entry.skipped ? <DeskPill tone="neutral">{entry.content.noEvidence ? ui("Left out — nothing released this week") : ui("Left out")}</DeskPill> : null}{entry.status === "BLOCKED" ? <DeskPill tone="danger">{ui("Not sent — a source changed after approval")}</DeskPill> : null}</p>
-          <div className="flex flex-wrap gap-1">{digest.status !== "SENT" ? <Button size="sm" variant="outline" onClick={() => openEdit(entry)} data-digest-edit>{ui("Edit")}</Button> : null}<Button size="sm" variant="secondary" onClick={() => setPreview(entry)} data-digest-preview>{ui("Family view")}</Button></div></div>
+          <div className="flex flex-wrap gap-1">{digest.status !== "SENT" ? <Button size="sm" variant="outline" disabled={stale !== null} onClick={() => openEdit(entry)} data-digest-edit>{ui("Edit")}</Button> : null}<Button size="sm" variant="secondary" onClick={() => setPreview(entry)} data-digest-preview>{ui("Family view")}</Button></div></div>
         {!entry.skipped ? <ul className="ms-4 list-disc text-xs text-ink-muted">{entry.content.statements.map(s => <li key={s.id}>{statementText(ui, s)}</li>)}{entry.content.nextStep ? <li>{ui("Home activity: {0}", [entry.content.nextStep.objective])}</li> : null}</ul> : null}
       </li>)}</ul>
+      {stale ? <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-(--radius-control) border border-border-subtle p-3 text-sm" data-digest-stale data-digest-stale-status={stale.status ?? ""}>
+        <p className="min-w-0 text-ink-strong">{ui(stale.status === 401 ? "Your session has ended. Sign in again to see the latest version." : stale.status === 403 ? "You no longer have access to this update." : "This view could not refresh. Try again to see the latest version.")}</p>
+        {stale.status === 401 || stale.status === 403 ? null : <Button size="sm" variant="outline" disabled={busy} onClick={() => void retryRead()} data-digest-retry>{ui("Try again")}</Button>}
+      </div> : null}
       <div className="flex flex-wrap items-end justify-end gap-2">
-        {digest.status === "DRAFT" ? <Button disabled={busy} onClick={() => void act({ action: "approve" }, "Approved for sending.")} data-digest-approve>{ui("Approve version {0}", [String(digest.version)])}</Button> : null}
+        {digest.status === "DRAFT" ? <Button disabled={busy || stale !== null} onClick={() => void act({ action: "approve" }, "Approved for sending.")} data-digest-approve>{ui("Approve version {0}", [String(digest.version)])}</Button> : null}
         {approved ? <>
           <FormField name="digest-at" label={ui("Send at")}><Input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)} /></FormField>
-          <Button variant="outline" disabled={busy || !scheduleAt} onClick={() => void act({ action: "schedule", at: new Date(scheduleAt).toISOString() }, "Scheduled.")} data-digest-schedule>{ui("Schedule")}</Button>
-          <Button disabled={busy} onClick={() => setConfirmSend(true)} data-digest-send>{ui("Send now")}</Button>
+          <Button variant="outline" disabled={busy || stale !== null || !scheduleAt} onClick={() => void act({ action: "schedule", at: new Date(scheduleAt).toISOString() }, "Scheduled.")} data-digest-schedule>{ui("Schedule")}</Button>
+          <Button disabled={busy || stale !== null} onClick={() => setConfirmSend(true)} data-digest-send>{ui("Send now")}</Button>
         </> : null}
       </div>
     </> : null}

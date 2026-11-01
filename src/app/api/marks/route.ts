@@ -123,10 +123,11 @@ export async function GET(req: NextRequest) {
   const studentTotals = new Map<string, { obtained: number; total: number }>();
 
   for (const mark of marks) {
+    // Exempt papers are not attempted, so they leave the averages like absent ones (SKAI-1433).
     // A paper nobody sat is not a score of zero. Counting it as one would
-    // report a class average that no pupil actually achieved, so absent rows
-    // are left out of both the numerator and the denominator.
-    if (mark.isAbsent) continue;
+    // report a class average that no pupil actually achieved, so absent and
+    // exempt rows are left out of both the numerator and the denominator.
+    if (mark.isAbsent || mark.isExempt) continue;
 
     const subjectTotal = subjectTotals.get(mark.subjectId) || { obtained: 0, total: 0, count: 0 };
     subjectTotal.obtained += mark.marksObtained;
