@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { mock, test } from "node:test";
 
 type Row = { id: string; date: Date };
@@ -87,4 +88,10 @@ test("following the cursor reaches every historical row once", async () => {
   } while (cursor);
   assert.equal(seen.length, 205);
   assert.equal(new Set(seen).size, 205);
+});
+
+// SKAI-171: class history has a deterministic order even when two placements start on the same day.
+test("class history orders same-day placements deterministically", () => {
+  const source = readFileSync("src/lib/students/enrollment.ts", "utf8");
+  assert.match(source, /enrollments: \{ orderBy: \[\{ startDate: "desc" \}, \{ endDate: \{ sort: "desc", nulls: "first" \} \}, \{ id: "desc" \}\]/);
 });

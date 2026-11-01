@@ -53,7 +53,8 @@ export async function readPupil(user: AuthUser, id: string) {
     id: true, admissionNo: true, fullName: true, campusId: true, classId: true, rollNo: true, status: true,
     profileImageUrl: true, category: { select: { name: true } }, group: { select: { name: true } },
     consolidatedIntoId: true,
-    enrollments: { orderBy: { startDate: "desc" }, include: { _count: { select: { attendance: { where: history.attendance }, invoices: { where: history.invoices }, reports: { where: history.reports } } } } },
+    // SKAI-171: same-day placements (corrections, readmission) need a fixed order: open placement first, then latest end, then id.
+    enrollments: { orderBy: [{ startDate: "desc" }, { endDate: { sort: "desc", nulls: "first" } }, { id: "desc" }], include: { _count: { select: { attendance: { where: history.attendance }, invoices: { where: history.invoices }, reports: { where: history.reports } } } } },
   } });
   if (!pupil) throw new ApiError("Pupil not found", 404);
   return pupil;
@@ -84,10 +85,17 @@ export async function enrollmentImpact(tx: TxClient, studentId: string, fromId: 
     guardianAccess: "Existing explicit guardian links remain unchanged. The pupil login follows a campus transfer and must sign in again; no guardian is linked by name.",
     capacity: "Capacity is checked against the target class limit when the change is previewed, saved and confirmed.", policy: "ONE_ENROLLMENT_PER_PUPIL; end date is exclusive" };
 }
+/** SKAI-172: a placement's roll number must be free among the target campus's current pupils (same rule as readmission). */
+export async function assertRollNoFree(tx: TxClient, studentId: string, campusId: string, rollNo: string) {
+  if (await tx.student.findFirst({ where: { id: { not: studentId }, campusId, rollNo: rollNo.trim(), archivedAt: null }, select: { id: true } })) {
+    throw new ApiError("This roll number already belongs to a pupil in the campus. Choose another roll number.", 409);
+  }
+}
 export async function applyEnrollment(tx: TxClient, input: { studentId: string; fromId: string; targetClassId: string; effectiveDate: Date; rollNo: string; actorId: string; reason: string }) {
   const impact = await enrollmentImpact(tx, input.studentId, input.fromId, input.targetClassId, input.effectiveDate);
   const { pupil, from, target } = impact;
   if (!input.rollNo.trim()) throw new ApiError("Roll number is required", 400);
+  await assertRollNoFree(tx, pupil.id, target.campusId, input.rollNo);
   await tx.studentEnrollment.update({ where: { id: from.id }, data: { endDate: input.effectiveDate, status: "ENDED" } });
   const enrollment = await tx.studentEnrollment.create({ data: {
     id: randomUUID(), studentId: pupil.id, campusId: target.campusId, classId: target.id,
