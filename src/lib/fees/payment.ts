@@ -1,4 +1,5 @@
 import { capturePaymentReceipt } from "./receipt";
+import { paymentAcademicYear } from "./payment-year";
 import { type TxClient } from "@/lib/db/prisma";
 // ─── Payment recording (single source for collecting fees) ──
 // Used by POST /api/fees/collect, POST /api/fees/payment, and the SafePay
@@ -120,7 +121,8 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
   let credit = 0;
   if (newCredit > 0) {
     credit = newCredit;
-    const toYear = year + 1;
+    const academicYear = await paymentAcademicYear(tx, invoice, input.paymentDate);
+    const toYear = academicYear + 1;
     const existing = await tx.feeCarryForward.findUnique({
       where: { studentId_toAcademicYear: { studentId: input.studentId, toAcademicYear: toYear } },
     });
@@ -136,7 +138,7 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
           schoolId: invoice.schoolId,
           campusId: input.campusId,
           studentId: input.studentId,
-          fromAcademicYear: year,
+          fromAcademicYear: academicYear,
           toAcademicYear: toYear,
           balance: -credit,
           currency: invoice.currency,
