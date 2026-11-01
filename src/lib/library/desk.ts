@@ -4,6 +4,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, canManageLibrary } from "@/lib/api/scope";
 import { isCampusOperator } from "@/lib/auth/institution";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { DEFAULT_RULES, dueDate, finePreview, type LoanRules } from "./rules";
 
 /**
@@ -41,12 +42,38 @@ const PolicyInput = z.object({
   currency: z.string().trim().regex(/^[A-Z]{3}$/u), closures: z.array(day).max(400).default([]),
 }).strict();
 
-/** Rules are versioned: saving adds a version; loans keep the version they were issued under. */
+const RULE_KEYS = ["loanDays", "maxLoans", "maxRenewals", "graceDays", "finePerDay", "fineCap", "lostCharge", "holdDays", "currency"] as const;
+const RULES_CHANGED = "These library rules changed while you were saving. Reload them, then save again.";
+
+/** Whether a stored version already holds these rules, so saving them again is a replay. */
+const sameRules = (stored: Record<(typeof RULE_KEYS)[number], number | string> & { closures: unknown }, input: z.infer<typeof PolicyInput>, closures: string[]) =>
+  RULE_KEYS.every((key) => stored[key] === input[key]) && JSON.stringify(stored.closures) === JSON.stringify(closures);
+
+/**
+ * Rules are versioned: saving adds a version, and loans keep the version they were issued under. A payload identical to
+ * the current version replays it. The version is allocated under a lock per campus, so racing saves never collide on the
+ * unique key. A save that did not read the version a racing save committed gets a 409, and a unique violation is mapped to
+ * the same 409. The audit row is written in the same transaction, so only committed versions are audited.
+ */
 export async function saveRules(user: AuthUser, raw: unknown) {
   assertDesk(user);
   const input = parse(PolicyInput, raw), campusId = campusOf(user);
-  const latest = await currentRules(prisma, user.schoolId, campusId);
-  return prisma.libraryLoanPolicy.create({ data: { ...input, closures: [...new Set(input.closures)].sort(), schoolId: user.schoolId, campusId, version: latest.version + 1, createdById: user.userId } });
+  const closures = [...new Set(input.closures)].sort();
+  const seen = await prisma.libraryLoanPolicy.findFirst({ where: { schoolId: user.schoolId, campusId }, orderBy: { version: "desc" }, select: { version: true } });
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${campusId}:library-loan-policy`}, 0))`;
+      const last = await tx.libraryLoanPolicy.findFirst({ where: { schoolId: user.schoolId, campusId }, orderBy: { version: "desc" } });
+      if (last && sameRules(last, input, closures)) return last;
+      if ((last?.version ?? 0) !== (seen?.version ?? 0)) throw new ApiError(RULES_CHANGED, 409);
+      const policy = await tx.libraryLoanPolicy.create({ data: { ...input, closures, schoolId: user.schoolId, campusId, version: (last?.version ?? 0) + 1, createdById: user.userId } });
+      await writeAuditEvent(tx, user, { table: "library_loan_policies", recordId: policy.id, action: "CREATE", campusId, after: { version: policy.version, currency: policy.currency } });
+      return policy;
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ApiError(RULES_CHANGED, 409);
+    throw error;
+  }
 }
 
 /** Register physical copies. Existing titles without copies get one per counted copy first. */
@@ -196,7 +223,10 @@ export async function renewLoan(user: AuthUser, raw: unknown) {
     const rules = (loan.policySnapshot as LoanRules | null) ?? (await currentRules(tx, user.schoolId, campusOf(user)));
     if (loan.renewals >= rules.maxRenewals) throw new ApiError(`This loan has used its ${rules.maxRenewals} renewals.`, 409);
     if (await tx.bookReservation.count({ where: { bookId: loan.bookId, status: "WAITING" } })) throw new ApiError("Another reader is waiting for this title, so it cannot be renewed.", 409);
-    return tx.bookIssue.update({ where: { id: loan.id }, data: { dueAt: dueDate(loan.dueAt > new Date() ? loan.dueAt : new Date(), rules), renewals: { increment: 1 } } });
+    // SKAI-1643: claim the renewal count we read, so two desks renewing at once extend the loan once.
+    const claimed = await tx.bookIssue.updateMany({ where: { id: loan.id, schoolId: user.schoolId, returnedAt: null, renewals: loan.renewals }, data: { dueAt: dueDate(loan.dueAt > new Date() ? loan.dueAt : new Date(), rules), renewals: loan.renewals + 1 } });
+    if (claimed.count !== 1) throw new ApiError("This loan was just renewed or returned. Refresh to see its new due date.", 409);
+    return tx.bookIssue.findUniqueOrThrow({ where: { id: loan.id } });
   });
 }
 

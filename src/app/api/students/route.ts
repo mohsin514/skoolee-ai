@@ -5,7 +5,7 @@ import { NextRequest } from "next/server";
 import { randomUUID } from "crypto";
 import { Prisma, type Student } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { applyEnrollment } from "@/lib/students/enrollment";
+import { applyEnrollment, classSeats } from "@/lib/students/enrollment";
 import {
   ApiError,
   assertPermission,
@@ -21,6 +21,7 @@ import {
 import { notify } from "@/lib/notifications/in-app";
 import { studentProfileUpdateSchema } from "@/lib/students/profile-update";
 import { parseEmiratesId, parseNationality, parseRegulatorId, regulatorAuditChange } from "@/lib/identity/regulator-ids";
+import { rosterSearchWhere, rosterStatusWhere } from "@/lib/students/roster-status";
 
 function asDate(value: string | null) {
   if (!value) return null;
@@ -143,19 +144,10 @@ export async function GET(req: NextRequest) {
         },
       },
       ...(classId ? { classId } : {}),
-      ...(archivedOnly
-        ? { status: { in: ["inactive", "archived", "transferred", "graduated", "consolidated"] } }
-        : { status: { notIn: ["inactive", "archived", "transferred", "graduated", "consolidated"] } }),
+      ...rosterStatusWhere(archivedOnly),
       ...(search
         ? {
-            OR: [
-              { id: { contains: search, mode: "insensitive" as const } },
-              { admissionNo: { contains: search, mode: "insensitive" as const } },
-              { fullName: { contains: search, mode: "insensitive" as const } },
-              { rollNo: { contains: search, mode: "insensitive" as const } },
-              { guardianName: { contains: search, mode: "insensitive" as const } },
-              { guardianPhone: { contains: search, mode: "insensitive" as const } },
-            ],
+            ...rosterSearchWhere(search),
           }
         : {}),
     };
@@ -217,11 +209,14 @@ export async function PATCH(req: NextRequest) {
       const rollNo = nextRoll ?? student.rollNo, admissionNo = nextAdmission ?? student.admissionNo;
       const [campus, cls, rollConflict, admissionConflict] = await Promise.all([
         prisma.campus.findFirst({ where: { id: student.campusId, archivedAt: null, ...(user.schoolId ? { schoolId: user.schoolId } : {}) }, select: { id: true } }),
-        prisma.class.findFirst({ where: { id: student.classId, campusId: student.campusId, archivedAt: null }, select: { id: true } }),
+        prisma.class.findFirst({ where: { id: student.classId, campusId: student.campusId, archivedAt: null }, select: { id: true, capacity: true } }),
         prisma.student.findFirst({ where: { id: { not: id }, campusId: student.campusId, rollNo, archivedAt: null }, select: { id: true, fullName: true } }),
         admissionNo ? prisma.student.findFirst({ where: { id: { not: id }, schoolId: user.schoolId, admissionNo, archivedAt: null }, select: { id: true, fullName: true } }) : Promise.resolve(null),
       ]);
       if (!campus || !cls) throw new ApiError("Restore requires an active campus and class", 409);
+      // SKAI-175: a restored pupil takes a seat again, so the class must have one free.
+      const seats = await classSeats(prisma, cls);
+      if (seats.capacity != null && seats.occupied + 1 > seats.capacity) throw new ApiError(`The pupil's class is full (${seats.occupied} of ${seats.capacity} seats). Raise its capacity or move the pupil before restoring.`, 409);
       if (rollConflict || admissionConflict) {
         return Response.json({ error: "Restore conflict: the roll number or admission number is now in use. Assign a new current identifier before restoring; historical documents keep their original values.", conflict: { rollNo: Boolean(rollConflict), admissionNo: Boolean(admissionConflict) } }, { status: 409 });
       }
@@ -275,6 +270,7 @@ export async function PATCH(req: NextRequest) {
         if ((await withdrawnPupilIds(restoring.map((student) => student.id))).size) throw new ApiError(WITHDRAWN_RESTORE_MESSAGE, 409);
         const rollKeys = new Set<string>();
         const admissionKeys = new Set<string>();
+        const incoming = new Map<string, { capacity: number | null; count: number }>();
         for (const student of restoring) {
           const rollKey = `${student.campusId}:${student.rollNo}`;
           if (rollKeys.has(rollKey)) throw new ApiError("Restore conflict: selected students share a roll number. Assign distinct current identifiers and retry.", 409);
@@ -285,12 +281,18 @@ export async function PATCH(req: NextRequest) {
             admissionKeys.add(admissionKey);
           }
           const [cls, rollConflict, admissionConflict] = await Promise.all([
-            prisma.class.findFirst({ where: { id: student.classId, campusId: student.campusId, archivedAt: null }, select: { id: true } }),
+            prisma.class.findFirst({ where: { id: student.classId, campusId: student.campusId, archivedAt: null }, select: { id: true, capacity: true } }),
             prisma.student.findFirst({ where: { id: { notIn: ids }, campusId: student.campusId, rollNo: student.rollNo, archivedAt: null }, select: { id: true } }),
             student.admissionNo ? prisma.student.findFirst({ where: { id: { notIn: ids }, schoolId: student.schoolId, admissionNo: student.admissionNo, archivedAt: null }, select: { id: true } }) : Promise.resolve(null),
           ]);
           if (!cls) throw new ApiError("Restore requires an active class. Resolve the class assignment and retry.", 409);
+          incoming.set(cls.id, { capacity: cls.capacity, count: (incoming.get(cls.id)?.count ?? 0) + 1 });
           if (rollConflict || admissionConflict) throw new ApiError("Restore conflict: a roll number or admission number is in use. Assign new current identifiers and retry; historical documents keep their original values.", 409);
+        }
+        // SKAI-175: every restored pupil takes a seat; the whole selection must fit each class.
+        for (const [classId, want] of incoming) {
+          const seats = await classSeats(prisma, { id: classId, capacity: want.capacity });
+          if (seats.capacity != null && seats.occupied + want.count > seats.capacity) throw new ApiError(`A class has ${seats.free} free seat(s) for ${want.count} restored pupil(s). Raise its capacity or restore fewer; nobody was restored.`, 409);
         }
       }
 
@@ -315,6 +317,8 @@ export async function PATCH(req: NextRequest) {
             newValue: status === "archived" ? { archived: true, reason: archiveReason } : { archived: false },
             userId: user.userId,
           })) });
+          // SKAI-1528: an administrative archive is a lifecycle milestone; written with the state change, once per flip.
+          if (status === "archived") await tx.studentTimelineEvent.createMany({ data: changingIds.map((studentId) => ({ schoolId: user.schoolId, studentId, kind: "ARCHIVED", title: "Archived", detail: JSON.stringify({ reason: archiveReason }), actorId: user.userId })) });
         }
         return { count: changed.count, changingIds };
       });
@@ -581,8 +585,15 @@ export async function DELETE(req: NextRequest) {
     if (existing.archivedAt) return Response.json({ success: true, archived: true, alreadyArchived: true, dependencies: impact });
     const { reason } = await req.json().catch(() => ({}));
     const archiveReason = typeof reason === "string" && reason.trim() ? reason.trim().slice(0, 500) : "Administrative archive";
-    await prisma.student.update({ where: { id }, data: { status: "archived", archivedAt: new Date(), archiveReason } });
-    await prisma.auditLog.create({ data: { tableName: "student", recordId: id, oldValue: { archived: false }, newValue: { archived: true, reason: archiveReason, dependencies: impact }, userId: user.userId } });
+    // SKAI-1528: archive, audit and the ARCHIVED timeline milestone commit together, and only for the request that flips the pupil.
+    const flipped = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.student.updateMany({ where: { id, archivedAt: null }, data: { status: "archived", archivedAt: new Date(), archiveReason } });
+      if (claimed.count !== 1) return false;
+      await tx.auditLog.create({ data: { tableName: "student", recordId: id, oldValue: { archived: false }, newValue: { archived: true, reason: archiveReason, dependencies: impact }, userId: user.userId } });
+      await tx.studentTimelineEvent.create({ data: { schoolId: user.schoolId, studentId: id, kind: "ARCHIVED", title: "Archived", detail: JSON.stringify({ reason: archiveReason }), actorId: user.userId } });
+      return true;
+    });
+    if (!flipped) return Response.json({ success: true, archived: true, alreadyArchived: true, dependencies: impact });
     notify("STUDENT_DELETED", {
       schoolId: user.schoolId,
       campusId: existing.campusId,

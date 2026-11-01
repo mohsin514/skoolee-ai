@@ -80,3 +80,21 @@ test("class grade calculation excludes archived and withdrawn pupils", () => {
   const fn = source.slice(source.indexOf("export async function calculateWeightedGradeForClass"));
   assert.match(fn.slice(0, 600), /where: \{ classId, campusId, archivedAt: null, status: "active" \}/);
 });
+
+// SKAI-213: report-card subject percentages use the configured rounding rule and bands, not Math.round and defaults.
+test("report detail percentages follow the configured rounding and bands", () => {
+  const route = readFileSync("src/app/api/reports/[id]/detail/route.ts", "utf8");
+  assert.doesNotMatch(route, /Math\.round\(\(mark\.marksObtained/);
+  assert.match(route, /roundConfigured\(\(mark\.marksObtained \/ mark\.subject\.totalMarks\) \* 100, rounding\)/);
+  assert.match(route, /gradeForMark\(mark\.marksObtained, mark\.subject\.totalMarks, rules\?\.thresholds\)/);
+});
+
+// SKAI-214: the gradebook calculation route checks class and pupil campus before calculating.
+test("calculated-grades scopes class and pupil to the caller's campus", () => {
+  const route = readFileSync("src/app/api/calculated-grades/route.ts", "utf8");
+  const classCheck = route.indexOf("prisma.class.findFirst({ where: { id: classId, campusId: session.campusId }");
+  const pupilCheck = route.indexOf("prisma.student.findFirst({ where: { id: studentId, campusId: session.campusId }");
+  assert.ok(classCheck > 0 && pupilCheck > classCheck);
+  assert.ok(pupilCheck < route.indexOf("calculateWeightedGrade(studentId"));
+  assert.ok(classCheck < route.indexOf("calculateWeightedGradeForClass(classId"));
+});

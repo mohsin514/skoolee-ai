@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return runUnscoped("ai-credit-reset cron: cross-tenant credit rollover", async () => {
+  return runUnscoped("ai-credit-reset cron: cross-tenant monthly credit expiry", async () => {
     const now = new Date();
     const resetKey = creditResetMonthKey(now);
 
