@@ -256,18 +256,22 @@ export function RidersPlanner() {
 
 export function TripsPlanner() {
   const ui = useUiText();
-  const [date, setDate] = useState(todayLocal()), [data, setData] = useState<{ trips: TripRow[] } | null>(null), [open, setOpen] = useState<string | null>(null), [busy, setBusy] = useState(false);
-  const [routes, setRoutes] = useState<{ id: string; title: string; vehicles: { vehicle: { id: string; number: string; active: boolean } }[] }[]>([]), [staff, setStaff] = useState<{ id: string; fullName: string }[]>([]);
+  const [date, setDate] = useState(todayLocal()), [open, setOpen] = useState<string | null>(null), [busy, setBusy] = useState(false);
+  // SKAI-1449: each read is its own request. A failure shows its own error state with retry, never an empty list;
+  // useFetch keeps only the response for the latest URL, so an older date's response cannot overwrite a newer one.
+  const trips = useFetch<{ trips: TripRow[] }>(`/api/transport/trips?date=${date}`, { immediate: !open });
+  const routeList = useFetch<{ id: string; title: string; vehicles: { vehicle: { id: string; number: string; active: boolean } }[] }[]>("/api/transport/routes", { collection: true });
+  const staffList = useFetch<{ id: string; fullName: string }[]>("/api/transport/trips?view=staff", { collection: true });
+  const routes = routeList.data ?? [], staff = staffList.data ?? [];
   const [form, setForm] = useState({ routeId: "", vehicleId: "", direction: "PM", attendantId: "", label: "" });
-  const load = useCallback(() => call(`/api/transport/trips?date=${date}`).then(setData).catch(() => setData({ trips: [] })), [date]);
-  useEffect(() => { if (!open) void load(); }, [load, open]);
-  useEffect(() => { call("/api/transport/routes").then(setRoutes).catch(() => setRoutes([])); call("/api/transport/trips?view=staff").then(setStaff).catch(() => setStaff([])); }, []);
   const route = useMemo(() => routes.find(r => r.id === form.routeId), [routes, form.routeId]);
   if (open) return <TripView tripId={open} onBack={() => setOpen(null)} />;
-  const publish = async () => { setBusy(true); try { const r = await call("/api/transport/trips", "POST", { action: "publish", serviceDate: date, ...form }); toast.success(ui(r.exceptions ? "Trip published with an exception to resolve." : "Trip published. Its manifest is now fixed; later changes are amendments.")); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
+  const publish = async () => { setBusy(true); try { const r = await call("/api/transport/trips", "POST", { action: "publish", serviceDate: date, ...form }); toast.success(ui(r.exceptions ? "Trip published with an exception to resolve." : "Trip published. Its manifest is now fixed; later changes are amendments.")); await trips.refetch(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
   return <div className="min-w-0 space-y-4" data-trips-planner>
     <FormField name="tp-date" label={ui("Day")}><Input type="date" value={date} onChange={e => setDate(e.target.value)} dir="ltr" data-trips-date /></FormField>
     <div className="grid gap-2 rounded-xl border p-3 sm:grid-cols-2" data-trip-publish>
+      {routeList.failure ? <div className="sm:col-span-2"><ErrorState error={routeList.failure} onRetry={routeList.refetch} variant="panel" /></div> : null}
+      {staffList.failure ? <div className="sm:col-span-2"><ErrorState error={staffList.failure} onRetry={staffList.refetch} variant="panel" /></div> : null}
       <FormField name="tp-route" label={ui("Route")}><Select value={form.routeId} onChange={e => setForm({ ...form, routeId: e.target.value, vehicleId: "" })} data-publish-route><option value="">{ui("Choose")}</option>{routes.map(r => <option key={r.id} value={r.id}>{r.title}</option>)}</Select></FormField>
       <FormField name="tp-vehicle" label={ui("Vehicle")}><Select value={form.vehicleId} onChange={e => setForm({ ...form, vehicleId: e.target.value })} data-publish-vehicle><option value="">{ui("Choose")}</option>{(route?.vehicles ?? []).filter(v => v.vehicle.active).map(v => <option key={v.vehicle.id} value={v.vehicle.id}>{v.vehicle.number}</option>)}</Select></FormField>
       <FormField name="tp-dir" label={ui("Run")}><Select value={form.direction} onChange={e => setForm({ ...form, direction: e.target.value })} data-publish-direction><option value="AM">{ui("Morning run")}</option><option value="PM">{ui("Afternoon run")}</option></Select></FormField>
@@ -275,7 +279,9 @@ export function TripsPlanner() {
       <FormField name="tp-label" label={ui("Trip label (optional)")}><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="North · PM-12" dir="auto" data-publish-label /></FormField>
       <div className="flex items-end justify-end"><Button disabled={busy || !form.routeId || !form.vehicleId || !form.attendantId} onClick={() => void publish()} data-publish>{ui("Publish trip")}</Button></div>
     </div>
-    {data?.trips.length ? <TripList rows={data.trips} onOpen={setOpen} /> : <p className="text-sm text-ink-muted">{ui("No trips for this day.")}</p>}
+    {trips.failure ? <ErrorState error={trips.failure} onRetry={trips.refetch} variant="panel" />
+      : trips.data?.trips.length ? <TripList rows={trips.data.trips} onOpen={setOpen} />
+      : trips.data ? <p className="text-sm text-ink-muted">{ui("No trips for this day.")}</p> : null}
   </div>;
 }
 
