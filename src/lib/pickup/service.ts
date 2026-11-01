@@ -214,7 +214,9 @@ export async function decideException(user: AuthUser, body: Record<string, unkno
     const check = await tx.pickupCheck.findFirst({ where: { id: String(body.checkId ?? ""), schoolId: user.schoolId } });
     if (!check) throw new ApiError("Pickup check not found", 404);
     const restriction = await activeRestriction(tx, user.schoolId, check.studentId);
-    if (!(isLead(user) && sameCampus(user, check.campusId)) && restriction?.leadUserId !== user.userId) throw new ApiError("Only the designated pickup lead can decide this.", 403);
+    // SKAI-1440: revalidate at decision time. Only an active campus leader on this campus may approve or deny, even when named as lead.
+    const actor = await tx.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, isActive: true }, select: { id: true } });
+    if (!actor || !(isLead(user) && sameCampus(user, check.campusId))) throw new ApiError("Only the designated pickup lead can decide this.", 403);
     if (check.exceptionStatus !== "REQUESTED") throw new ApiError("No exception is waiting for a decision.", 409);
     const decision = String(body.decision ?? ""), note = text(body.note, 500);
     if (!["approve", "deny"].includes(decision) || !note) throw new ApiError("Record the decision and why.", 400);
@@ -245,7 +247,13 @@ export async function addRestriction(user: AuthUser, body: Record<string, unknow
   const instruction = text(body.instruction, 300);
   if (!instruction) throw new ApiError("Write what gate staff should do.", 400);
   return schoolAiTransaction(user, async tx => {
-    const row = await tx.pickupRestriction.create({ data: { schoolId: user.schoolId, campusId: student.campusId, studentId: student.id, kind, instruction, reason: text(body.reason, 1000) || null, leadUserId: body.leadUserId ? String(body.leadUserId) : user.userId, endsAt: body.endsAt ? new Date(String(body.endsAt)) : null, createdById: user.userId } });
+    // SKAI-1440: a designated lead must be an active campus leader on the pupil's campus; students and other roles are refused.
+    const leadUserId = body.leadUserId ? String(body.leadUserId) : user.userId;
+    if (body.leadUserId) {
+      const lead = await tx.user.findFirst({ where: { id: leadUserId, schoolId: user.schoolId, campusId: student.campusId, isActive: true, role: { in: ["CAMPUS_ADMIN", "ADMIN"] } }, select: { id: true } });
+      if (!lead) throw new ApiError("Choose an active campus leader on this campus as the pickup lead.", 400);
+    }
+    const row = await tx.pickupRestriction.create({ data: { schoolId: user.schoolId, campusId: student.campusId, studentId: student.id, kind, instruction, reason: text(body.reason, 1000) || null, leadUserId, endsAt: body.endsAt ? new Date(String(body.endsAt)) : null, createdById: user.userId } });
     await event(tx, user.schoolId, student.id, "RESTRICTION_ADDED", user.userId, { kind });
     return row;
   });
