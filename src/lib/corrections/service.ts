@@ -1,3 +1,4 @@
+import { paymentAcademicYear } from "@/lib/fees/payment-year";
 import { lockInvoiceGeneration } from "@/lib/fees/invoice-generation";
 import { assertBankPeriodOpen } from "@/lib/fees/ledger-protection";
 import { loadWorkspacePermissionSnapshot, assertWorkspacePermission } from "@/lib/school-ai/access";
@@ -104,7 +105,8 @@ async function source(tx: TxClient, user: AuthUser, kind: Kind, id: string) {
     const invoices = await tx.invoice.findMany({ where: { id: { in: [...allocations.keys()] }, ...campusScope(user), studentId: payment.studentId } });
     if (invoices.length !== allocations.size || invoices.some(i => i.currency !== payment.currency))
         throw new ApiError("Payment allocations need reconciliation", 409);
-    const carry = await tx.feeCarryForward.findUnique({ where: { studentId_toAcademicYear: { studentId: payment.studentId, toAcademicYear: payment.paymentDate.getFullYear() + 1 } } });
+    const carryYear = (await paymentAcademicYear(tx, payment.invoice, payment.paymentDate)) + 1;
+    const carry = await tx.feeCarryForward.findUnique({ where: { studentId_toAcademicYear: { studentId: payment.studentId, toAcademicYear: carryYear } } });
     const snapshot = { ledger: payment.ledgerEntry ? { id: payment.ledgerEntry.id, amount: payment.ledgerEntry.amount, currency: payment.ledgerEntry.currency, accountId: payment.ledgerEntry.accountId, bankAccountId: payment.ledgerEntry.bankAccountId } : null, amount: payment.amount + reversals.reduce((n, r) => n + r.amount, 0), currency: payment.currency, receiptNo: payment.receiptNo, allocations: [...allocations].map(([invoiceId, minor]) => ({ invoiceId, minor })), unappliedMinor: credit,
         invoices: invoices.map(i => ({ id: i.id, total: i.totalAmount, paid: i.totalAmountPaid, balance: i.balanceDue, status: i.status, currency: i.currency })), carry: carry ? { id: carry.id, balance: carry.balance, currency: carry.currency } : null };
     return { kind, row: payment, label: `${payment.student.fullName} · ${payment.receiptNo ?? payment.id}`, version: contentHash(snapshot), snapshot };
