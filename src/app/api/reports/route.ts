@@ -29,6 +29,10 @@ function canManageReports(role: string) {
 }
 const LEAD_ACTIONS = new Set(["approve", "review", "publish"]);
 
+function teachesClass(cls: { classTeacherId: string | null; subjects: { teacherId: string | null }[] }, userId: string) {
+  return cls.classTeacherId === userId || cls.subjects.some(subject => subject.teacherId === userId);
+}
+
 async function getScopedExam(examId: string, user: NonNullable<Awaited<ReturnType<typeof getAuthUser>>>) {
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
@@ -51,6 +55,12 @@ async function getScopedExam(examId: string, user: NonNullable<Awaited<ReturnTyp
   }
   if (exam.campus.schoolId !== user.schoolId) {
     const error = new Error("Exam is outside your school");
+    (error as Error & { status?: number }).status = 403;
+    throw error;
+  }
+  // Teachers read a class's report cards only when they lead it or teach one of its subjects.
+  if (user.role === "TEACHER" && !teachesClass(exam.class, user.userId)) {
+    const error = new Error("Exam is outside your classes");
     (error as Error & { status?: number }).status = 403;
     throw error;
   }
