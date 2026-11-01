@@ -183,12 +183,20 @@ function WithdrawSlot({ t, busy, onClose, onSave }: { t: StudioSlotsCopy; busy: 
 function SealSheet({ t, slot, busy, onClose, onSeal }: { t: StudioSlotsCopy; slot: SlotView; busy: boolean; onClose: () => void; onSeal: (paperVersion: number, reason: string) => void }) {
   const [facts, setFacts] = useState<{ paperVersion: number; prefix: string | null; moderator: string | null } | null>(null);
   const [reason, setReason] = useState("");
+  // SKAI-1549: a failed or malformed moderation load is its own state with a Retry, not a silently blocked button.
+  const [factsFailed, setFactsFailed] = useState(false), [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    let live = true;
+    setFactsFailed(false);
     void fetch(`/api/academic/paper-slots/${encodeURIComponent(slot.id)}/moderation`, { cache: "no-store" }).then(response => (response.ok ? response.json() : null)).then(payload => {
-      if (payload?.data) setFacts({ paperVersion: payload.data.paperVersion, prefix: payload.data.contentHashPrefix, moderator: slot.moderatorName });
-    }).catch(() => undefined);
-  }, [slot.id, slot.moderatorName]);
-  return <Modal icon={Stamp} tone="emerald" title={fillStudioCopy(t.sealTitle, [`${slot.subjectName} · ${slot.gradeName}`])} subtitle={t.sealIntro} onClose={onClose} footer={<ModalActions busy={busy} actionLabel={t.sealConfirm} cancelLabel={t.cancel} onCancel={onClose} onAction={() => facts && onSeal(facts.paperVersion, reason.trim())} blockedReason={facts ? null : t.sealConfirm} />}>
+      if (!live) return;
+      if (typeof payload?.data?.paperVersion !== "number") { setFactsFailed(true); return; }
+      setFacts({ paperVersion: payload.data.paperVersion, prefix: payload.data.contentHashPrefix, moderator: slot.moderatorName });
+    }).catch(() => { if (live) setFactsFailed(true); });
+    return () => { live = false; };
+  }, [slot.id, slot.moderatorName, attempt]);
+  return <Modal icon={Stamp} tone="emerald" title={fillStudioCopy(t.sealTitle, [`${slot.subjectName} · ${slot.gradeName}`])} subtitle={t.sealIntro} onClose={onClose} footer={<ModalActions busy={busy} actionLabel={t.sealConfirm} cancelLabel={t.cancel} onCancel={onClose} onAction={() => facts && onSeal(facts.paperVersion, reason.trim())} blockedReason={facts ? null : factsFailed ? t.loadFailed : t.sealConfirm} />}>
+    {factsFailed && !facts ? <Alert tone="danger" compact live="polite"><span>{t.loadFailed}</span> <Button type="button" variant="outline" size="sm" onClick={() => setAttempt(n => n + 1)}>{t.retry}</Button></Alert> : null}
     <dl className="grid gap-2 text-sm" data-seal-sheet>
       {facts ? <>
         <div><dt className="sr-only">{t.sealVersion}</dt><dd>{fillStudioCopy(t.sealVersion, [String(facts.paperVersion)])}</dd></div>
