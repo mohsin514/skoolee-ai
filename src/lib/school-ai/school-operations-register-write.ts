@@ -19,6 +19,8 @@ export async function writeObservedAttendance(user: AuthUser, input: { campusId:
     const cls = await tx.class.findFirst({ where: { id: input.classId, schoolId: user.schoolId, campusId: input.campusId, ...(user.role === "TEACHER" ? { OR: [{ classTeacherId: user.userId }, { subjects: { some: { teacherId: user.userId } } }] } : {}) }, select: { id: true } });
     if (!cls) throw new ApiError("Class not found or no longer assigned to you", 404);
     const entries = input.copyFrom ? await tx.attendance.findMany({ where: { schoolId: user.schoolId, campusId: input.campusId, classId: cls.id, date: new Date(`${operationDate.parse(input.copyFrom)}T00:00:00Z`) }, select: { studentId: true, status: true } }) : input.entries;
+    // SKAI-1547: an empty source register is not a successful copy; nothing is written or audited.
+    if (input.copyFrom && !entries?.length) throw new ApiError("There is no attendance on that date to copy. Mark the register for that day first, or choose another date.", 409);
     const proposal = attendanceProposalSchema.parse({ operation: "attendance.record_register", classId: cls.id, date: input.date, entries, observationConfirmed: true });
     const preview = await previewAttendance(user, { id: "manual-register", version: 1, campusId: input.campusId, data: { proposal } as unknown as Prisma.JsonValue }, tx);
     const previous = await tx.attendance.findMany({ where: { schoolId: user.schoolId, id: { in: preview.entries.flatMap(row => row.attendanceId ? [row.attendanceId] : []) } }, select: { id: true, notes: true } });
