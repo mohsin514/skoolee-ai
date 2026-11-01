@@ -253,13 +253,15 @@ export async function operationDelete(user: AuthUser, kind: OperationDeleteKind,
   else if (!(permissionModule === "library" ? canManageLibrary(user) : permissionModule === "accounts" || permissionModule === "fees" ? canManageFinance(user) : canManageCampusOps(user))) throw new ApiError("Insufficient permissions", 403);
   const reviewed = input.preview || /^[a-f0-9]{64}$/.test(input.version ?? "");
   let cleanupKey: string | undefined;
+  // Deterministic per request: concurrent identical deletes share one receipt id.
+  const receiptId = createHash("sha256").update(JSON.stringify(["confirmed-delete-v1", user.schoolId, input.campusId, user.userId, kind, input.id, input.version])).digest("hex");
+  const replayReceipt = () => schoolAiTransaction(user, tx => tx.auditLog.findFirst({ where: { id: receiptId, schoolId: user.schoolId, campusId: input.campusId, userId: user.userId } }));
   const result = await schoolAiTransaction(user, async tx => {
     // Permissions, account state and campus are re-read inside the same
     // serializable transaction as the version and dependency checks.
     await authorizeAssignment(tx, user, permissionModule, "delete");
     const campus = await tx.campus.findFirst({ where: { id: input.campusId, schoolId: user.schoolId } });
     if (!campus || user.role !== "SUPER_ADMIN" && user.campusId !== campus.id) throw new ApiError("Insufficient permissions", 403);
-    const receiptId = createHash("sha256").update(JSON.stringify(["confirmed-delete-v1", user.schoolId, campus.id, user.userId, kind, input.id, input.version])).digest("hex");
     if (reviewed && !input.preview && await tx.auditLog.findFirst({ where: { id: receiptId, schoolId: user.schoolId, campusId: campus.id, userId: user.userId } })) {
       return { success: true, data: { id: input.id }, replayed: true };
     }
@@ -272,12 +274,20 @@ export async function operationDelete(user: AuthUser, kind: OperationDeleteKind,
     if (selected.blocked) throw new ApiError(blockedMessage, 409);
     if (!reviewed) throw new ApiError("Review the record before confirming deletion.", 428);
     if (input.version !== version) throw new ApiError("This record changed. Review it again before deleting.", 409);
+    // Receipt before deletion: a concurrent identical request blocks on this
+    // primary key until the first commit, then fails with a unique violation
+    // instead of deleting a second time. Same transaction: no deletion without
+    // a receipt, no receipt for a rolled-back deletion. Metadata only.
+    await tx.auditLog.create({ data: { id: receiptId, schoolId: user.schoolId, campusId: campus.id, userId: user.userId, tableName: operationDeleteAuditTables[kind] ?? kind, recordId: input.id, oldValue: { action: "DELETE", version, ...Object.fromEntries(Object.entries(selected.record).filter(([key, value]) => ["currency", "amount", "balance", "openingBalance", "isActive", "type", "value", "fromAcademicYear", "toAcademicYear", "academicYear", "feeGroupId", "feeTypeId", "studentId", "classId", "discountId"].includes(key) && (value === null || ["string", "number", "boolean"].includes(typeof value)))) } } });
     await selected.remove();
     if ("cleanupKey" in selected) cleanupKey = selected.cleanupKey;
-    // Same transaction: no deletion without a retry receipt, no receipt for a
-    // rolled-back deletion. Metadata only; no names, contact details or drafts.
-    await tx.auditLog.create({ data: { id: receiptId, schoolId: user.schoolId, campusId: campus.id, userId: user.userId, tableName: operationDeleteAuditTables[kind] ?? kind, recordId: input.id, oldValue: { action: "DELETE", version, ...Object.fromEntries(Object.entries(selected.record).filter(([key, value]) => ["currency", "amount", "balance", "openingBalance", "isActive", "type", "value", "fromAcademicYear", "toAcademicYear", "academicYear", "feeGroupId", "feeTypeId", "studentId", "classId", "discountId"].includes(key) && (value === null || ["string", "number", "boolean"].includes(typeof value)))) } } });
     return { success: true, data: { id: input.id }, replayed: false };
+  }).catch(async error => {
+    // The losing concurrent request: the winner's receipt is now committed.
+    if (reviewed && !input.preview && (error as { code?: unknown } | null)?.code === "P2002" && await replayReceipt()) {
+      return { success: true, data: { id: input.id }, replayed: true };
+    }
+    throw error;
   });
   // Preserve the private-document storage boundary: only remove the object
   // after metadata/timeline/receipt commit. Failed cleanup cannot restore access.
