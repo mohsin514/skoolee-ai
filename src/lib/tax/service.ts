@@ -178,21 +178,38 @@ export async function approve(user: AuthUser, id: string, reason?: string | null
 }
 
 /** Scheduled activations whose date has come become active; an older one for the same campuses is superseded. */
+/**
+ * Winner between two activations for the same campus and effective date: the later package version, then the id.
+ * Both activateDue and activationFor use this order, so the activation that goes ACTIVE is the one invoices resolve to.
+ */
+const sameDateOrder = (a: { packageVersion: number; id: string }, b: { packageVersion: number; id: string }) =>
+  a.packageVersion - b.packageVersion || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
 export async function activateDue(schoolId: string, now = new Date()) {
-  const due = await prisma.taxActivation.findMany({ where: { schoolId, status: "SCHEDULED", effectiveFrom: { lte: now } }, orderBy: { effectiveFrom: "asc" } });
+  const due = await prisma.taxActivation.findMany({ where: { schoolId, status: "SCHEDULED", effectiveFrom: { lte: now } }, orderBy: [{ effectiveFrom: "asc" }, { packageVersion: "asc" }, { id: "asc" }] });
   for (const a of due) {
     await prisma.$transaction(async tx => {
+      // SKAI-1474: one activation at a time per school, so two same-date activations cannot each see no rival.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`tax-activation:${schoolId}`}))`;
       const claimed = await tx.taxActivation.updateMany({ where: { id: a.id, status: "SCHEDULED" }, data: { status: "ACTIVE" } });
       if (!claimed.count) return;
-      await tx.taxActivation.updateMany({ where: { schoolId, status: "ACTIVE", id: { not: a.id }, campusIds: { hasSome: a.campusIds }, effectiveFrom: { lt: a.effectiveFrom! } }, data: { status: "SUPERSEDED" } });
+      // An ACTIVE rival that wins the same-date order keeps the campus, so this activation is the one superseded.
+      const rivals = await tx.taxActivation.findMany({ where: { schoolId, status: "ACTIVE", id: { not: a.id }, campusIds: { hasSome: a.campusIds }, effectiveFrom: { gte: a.effectiveFrom! } }, select: { id: true, packageVersion: true, effectiveFrom: true } });
+      const beaten = rivals.some(rival => rival.effectiveFrom!.getTime() > a.effectiveFrom!.getTime() || sameDateOrder(rival, a) > 0);
+      if (beaten) {
+        await tx.taxActivation.update({ where: { id: a.id }, data: { status: "SUPERSEDED" } });
+        return;
+      }
+      await tx.taxActivation.updateMany({ where: { schoolId, status: "ACTIVE", id: { not: a.id }, campusIds: { hasSome: a.campusIds }, effectiveFrom: { lte: a.effectiveFrom! } }, data: { status: "SUPERSEDED" } });
     });
   }
   return due.length;
 }
 
-/** The activation that applies to an invoice: approved, covering the campus, latest effective date on or before it. */
+/** The activation that applies to an invoice: approved, covering the campus, latest effective date on or before it, then the same-date winner. */
 export async function activationFor(db: TxClient | typeof prisma, schoolId: string, campusId: string, invoiceDate: Date) {
-  return db.taxActivation.findFirst({ where: { schoolId, campusIds: { has: campusId }, status: { in: ["SCHEDULED", "ACTIVE", "SUPERSEDED"] }, effectiveFrom: { lte: invoiceDate } }, orderBy: { effectiveFrom: "desc" } });
+  const candidates = await db.taxActivation.findMany({ where: { schoolId, campusIds: { has: campusId }, status: { in: ["SCHEDULED", "ACTIVE", "SUPERSEDED"] }, effectiveFrom: { lte: invoiceDate } }, orderBy: [{ effectiveFrom: "desc" }, { packageVersion: "desc" }, { id: "desc" }], take: 50 });
+  return candidates[0] ?? null;
 }
 
 // ─── Issuing ─────────────────────────────────────────────────────────────
