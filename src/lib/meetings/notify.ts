@@ -37,7 +37,14 @@ export async function notifyConflicts(bookingIds: string[], actorId: string | nu
 export async function remind(booking: { id: string; schoolId: string; campusId: string; guardianUserId: string; teacherId: string }) {
   const claimed = await prisma.meetingBooking.updateMany({ where: { id: booking.id, remindedAt: null, status: "CONFIRMED" }, data: { remindedAt: new Date() } });
   if (!claimed.count) return false;
-  await send("MEETING_REMINDER_FAMILY", booking, [booking.guardianUserId]);
-  await send("MEETING_REMINDER", booking, [booking.teacherId]);
+  try {
+    await deliverNotification("MEETING_REMINDER_FAMILY", { ...booking, recipientIds: [booking.guardianUserId] });
+    await deliverNotification("MEETING_REMINDER", { ...booking, recipientIds: [booking.teacherId] });
+  } catch (error) {
+    // SKAI-1406: a failed delivery releases the claim so the next cron run retries instead of dropping the reminder.
+    await prisma.meetingBooking.updateMany({ where: { id: booking.id, remindedAt: { not: null } }, data: { remindedAt: null } });
+    console.error("[meetings] MEETING_REMINDER failed", error);
+    return false;
+  }
   return true;
 }
