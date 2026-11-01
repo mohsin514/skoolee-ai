@@ -311,13 +311,17 @@ export async function closeService(user: AuthUser, serviceId: string, raw: unkno
     const next = new Date(`${input.nextDueOn}T00:00:00Z`);
     // All three writes commit together, so a failed close cannot leave the job DONE with no next job.
     await prisma.$transaction(async (tx) => {
-      await tx.assetService.update({ where: { id: serviceId }, data: { status: "DONE", work: input.work, completedOn: new Date(), nextDueOn: next, completedById: user.userId } });
+      // SKAI-1463: the job is closed only if it is still SCHEDULED. A concurrent completion waits on the row, then
+      // matches nothing and rolls back, so exactly one next job is created per completed job.
+      const closed = await tx.assetService.updateMany({ where: { id: serviceId, schoolId: user.schoolId, status: "SCHEDULED" }, data: { status: "DONE", work: input.work, completedOn: new Date(), nextDueOn: next, completedById: user.userId } });
+      if (closed.count !== 1) throw new ApiError("This job was already completed. Reload the maintenance list.", 409);
       await tx.assetService.create({ data: { schoolId: user.schoolId, assetId: job.assetId, dueOn: next } });
       await tx.schoolAsset.update({ where: { id: job.assetId }, data: { nextServiceOn: next } });
     });
   } else {
     if (!input.reason) throw new ApiError("Give a reason for cancelling.", 400);
-    await prisma.assetService.update({ where: { id: serviceId }, data: { status: "CANCELLED", cancelReason: input.reason } });
+    const cancelled = await prisma.assetService.updateMany({ where: { id: serviceId, schoolId: user.schoolId, status: "SCHEDULED" }, data: { status: "CANCELLED", cancelReason: input.reason } });
+    if (cancelled.count !== 1) throw new ApiError("This job is no longer open. Reload the maintenance list.", 409);
   }
   return prisma.assetService.findUnique({ where: { id: serviceId } });
 }
