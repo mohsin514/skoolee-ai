@@ -37,7 +37,7 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
   const { dateTime } = useLocaleFormat();
   const [queue, setQueue] = useState<Queue | null>(null), [error, setError] = useState(""), [loading, setLoading] = useState(false);
   const [live, setLive] = useState(false), [type, setType] = useState(""), [owner, setOwner] = useState(""), [showSnoozed, setShowSnoozed] = useState(false), [showResolved, setShowResolved] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set()), [staff, setStaff] = useState<Staff[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set()), [staff, setStaff] = useState<Staff[]>([]), [staffFailed, setStaffFailed] = useState(false);
   // Counters are filters (desk kit): a tile narrows the list below it; pressing it again shows everything.
   const [focus, setFocus] = useState<Focus | null>(null), [query, setQuery] = useState("");
   const [snoozing, setSnoozing] = useState<Item[] | null>(null), [historyFor, setHistoryFor] = useState<Item | null>(null), [assignTo, setAssignTo] = useState("");
@@ -59,7 +59,17 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
   // Live mode re-checks every source every two minutes; snapshot mode only on request.
   useEffect(() => { if (!live) return; const timer = setInterval(() => void load(), 120_000); return () => clearInterval(timer); }, [live, load]);
-  useEffect(() => { void fetch(`/api/principal/queue?${scope}&staff=1`, { cache: "no-store" }).then(r => r.json()).then(json => json.success && setStaff(json.data)).catch(() => undefined); }, [scope]);
+  // SKAI-1468: a failed staff load is an error with Retry, never an empty assignee list.
+  const loadStaff = useCallback(async () => {
+    setStaffFailed(false);
+    try {
+      const response = await fetch(`/api/principal/queue?${scope}&staff=1`, { cache: "no-store" });
+      const json = await response.json();
+      if (!response.ok || !json.success || !Array.isArray(json.data)) throw new Error("staff");
+      setStaff(json.data);
+    } catch { setStaffFailed(true); }
+  }, [scope]);
+  useEffect(() => { void loadStaff(); }, [loadStaff]);
 
   const send = async (body: Record<string, unknown>, message: string) => {
     const response = await fetch("/api/principal/queue", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campusId, ...body }) });
@@ -118,6 +128,7 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
     {selected.size ? <div className="flex flex-wrap items-end gap-2 rounded-xl bg-primary/5 p-3" data-bulk-bar>
       <span className="text-xs font-bold">{ui("{0} selected", [selected.size])}</span>
       <FormField name="queue-bulk-assignee" label={ui("Assign to")}><Select value={assignTo} onChange={event => setAssignTo(event.target.value)}><option value="">{ui("Choose a person")}</option>{staff.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></FormField>
+      {staffFailed ? <Alert tone="danger" compact data-staff-load-error>{ui("The staff list could not be loaded.")} <Button variant="ghost" type="button" className="text-xs font-bold" onClick={() => void loadStaff()}>{ui("Retry")}</Button></Alert> : null}
       <Button size="sm" disabled={!assignTo} onClick={() => void send({ action: "assign", keys: [...selected], assigneeId: assignTo }, "Owner assigned.")}><UserPlus className="size-3.5" aria-hidden />{ui("Assign")}</Button>
       <Button size="sm" variant="secondary" onClick={() => setSnoozing((queue?.items ?? []).filter(item => selected.has(item.key)))}><AlarmClock className="size-3.5" aria-hidden />{ui("Snooze")}</Button>
     </div> : null}
