@@ -135,6 +135,8 @@ export async function decideRequest(user: AuthUser, id: string, raw: unknown) {
       }
       if (input.decision === "APPROVE") {
         assert(r.total <= budget.approvalLimit || SENIOR.includes(user.role), "This order is above the approval limit; a senior administrator must approve it.");
+        // Serialize capacity claims per budget: a concurrent approval waits here and then sees this commitment.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`purchase-budget:${r.budgetId}`}))`;
         const pos = await budgetPosition(tx, r.budgetId);
         if (r.total > pos.available) throw new ApiError(`${r.total - pos.available} ${budget.currency} above available budget`, 409);
       } else if (!input.reason) throw new ApiError("Give a reason for returning the request.", 400);
