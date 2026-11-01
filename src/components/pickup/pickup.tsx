@@ -20,7 +20,6 @@ import { usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
-import { ErrorState } from "@/components/ui/error-state";
 
 // SKO-438: authorized pickup. Families name who collects, how the school checks identity, and a window;
 // the code shown is single-use and holds no child details. At the gate, a valid code is only the start:
