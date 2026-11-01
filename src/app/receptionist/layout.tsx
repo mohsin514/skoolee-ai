@@ -1,6 +1,6 @@
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import type { Metadata } from "next";
-import { requirePageSession } from "@/lib/auth/require-page-session";
+import { redirectIfSuspended, requirePageSession } from "@/lib/auth/require-page-session";
 import { getDisplayLocale } from "@/lib/locale/display";
 
 // §7.3: this route segment had no layout, so it inherited the site-wide default
@@ -15,5 +15,6 @@ export default async function ReceptionistLayout({ children }: { children: React
   // The page below is a client component that fetches its own data, so this is
   // the only server-side check that a session still exists.
   const user = await requirePageSession();
+  redirectIfSuspended(user);
   return <LocaleProvider initialLocale={await getDisplayLocale(user)}>{children}</LocaleProvider>;
 }

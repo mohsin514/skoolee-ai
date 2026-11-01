@@ -57,6 +57,20 @@ export function effectiveSettings(input: { baseMinutes: number; type: Assessment
 }
 
 /** Plans ending within the review window (or already past it but still active) need a coordinator decision. */
+/** SKAI-1487: an ACTIVE plan is only current inside its window; before it is upcoming, after it is expired. */
+export type PlanPhase = "CURRENT" | "UPCOMING" | "EXPIRED" | "SUPERSEDED" | "REVOKED";
+export function planPhase(plan: Pick<PlanRow, "status" | "validFrom" | "validUntil">, at: Date): PlanPhase {
+  if (plan.status !== "ACTIVE") return plan.status as PlanPhase;
+  if (day(at) < day(plan.validFrom)) return "UPCOMING";
+  if (day(at) > day(plan.validUntil)) return "EXPIRED";
+  return "CURRENT";
+}
+/** The same UTC-day window planCovers enforces, as a query filter. */
+export function currentWindowWhere(at: Date) {
+  const start = new Date(`${day(at)}T00:00:00.000Z`);
+  return { status: "ACTIVE", validFrom: { lt: new Date(start.getTime() + 86_400_000) }, validUntil: { gte: start } };
+}
+
 export function needsReview(plan: Pick<PlanRow, "status" | "validUntil">, now: Date, windowDays = 14) {
   return plan.status === "ACTIVE" && plan.validUntil.getTime() < now.getTime() + windowDays * 86_400_000;
 }

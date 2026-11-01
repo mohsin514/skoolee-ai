@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { Panel, StepEmpty } from "@/components/academic/exams/shared";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 import { Input as SystemInput } from "@/components/ui/input";
+import { approvalBody, remarkBody } from "@/lib/reports/approval-request";
 
 /**
  * Turning a marked exam into report cards families can read (§81).
@@ -59,6 +60,8 @@ interface ReportCard {
   remarksEn?: string | null;
   remarksUr?: string | null;
   remarksApproved?: boolean;
+  /** The current report version; approval names its ID. */
+  review?: { id: string } | null;
   deliveryStatus?: string | null;
   student?: { fullName?: string; rollNo?: string } | null;
 }
@@ -220,37 +223,62 @@ function LegacyReportCardsPanel({
     }
   };
 
-  const approveOne = async (card: ReportCard, silent = false) => {
+  /** Saves a remark as an edit. The save makes a new current version, which the approval must name. */
+  const persistRemark = async (cardId: string, text: string) => {
+    const res = await fetch(`/api/reports/${cardId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(remarkBody(text)),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not save the remark");
+  };
+
+  /** The exam's cards with their current versions, read after any save so approval names the version on screen. */
+  const fetchReportCards = async (): Promise<ReportCard[]> => {
+    const sp = new URLSearchParams({ examId: exam.id });
+    if (campusId) sp.set("campusId", campusId);
+    const data = await fetch(`/api/reports?${sp}`).then((r) => r.json());
+    const next: ReportCard[] = data.reportCards ?? [];
+    setCards(next);
+    return next;
+  };
+
+  /** Approves one card's named version. The server refuses it if the version moved since it was read. */
+  const sendApproval = async (cardId: string, versionId: string | undefined) => {
+    if (!versionId) throw new Error(tr("Reload the report cards, then approve the current version"));
+    const res = await fetch(`/api/reports/${cardId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(approvalBody(versionId)),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not approve");
+  };
+
+  const approveOne = async (card: ReportCard) => {
     const text = (remarks[card.id] ?? card.remarksEn ?? "").trim();
     if (!text) {
-      if (!silent) toast.error(tr("Write a remark before approving it"));
+      toast.error(tr("Write a remark before approving it"));
       return false;
     }
-    if (!silent) setBusy(`approve-${card.id}`);
+    setBusy(`approve-${card.id}`);
     try {
-      const res = await fetch(`/api/reports/${card.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ remarksEn: text, approve: true }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not approve");
-      setCards((prev) =>
-        prev.map((c) =>
-          c.id === card.id ? { ...c, remarksEn: text, remarksApproved: true } : c,
-        ),
-      );
-      if (!silent) toast.success(tr("Remark approved"));
+      if (text !== (card.remarksEn ?? "").trim()) await persistRemark(card.id, text);
+      const current = await fetchReportCards();
+      await sendApproval(card.id, current.find((c) => c.id === card.id)?.review?.id);
+      await fetchReportCards();
+      toast.success(tr("Remark approved"));
       return true;
     } catch (e) {
-      if (!silent) toast.error(tr(e instanceof Error ? e.message : "Could not approve"));
+      toast.error(tr(e instanceof Error ? e.message : "Could not approve"));
       return false;
     } finally {
-      if (!silent) setBusy(null);
+      setBusy(null);
     }
   };
 
-  /** Approve every card that already carries a remark, one request each. */
+  /** Approve every card that already carries a remark. Each card is approved on its own current version. */
   const approveAll = async () => {
     const pending = cards.filter(
       (c) => !c.remarksApproved && (remarks[c.id] ?? c.remarksEn ?? "").trim(),
@@ -260,10 +288,28 @@ function LegacyReportCardsPanel({
       return;
     }
     setBusy("approve-all");
+    const unsaved = new Set<string>();
+    for (const card of pending) {
+      const text = (remarks[card.id] ?? card.remarksEn ?? "").trim();
+      if (text === (card.remarksEn ?? "").trim()) continue;
+      try {
+        await persistRemark(card.id, text);
+      } catch {
+        unsaved.add(card.id);
+      }
+    }
+    const current = await fetchReportCards();
     let ok = 0;
     for (const card of pending) {
-      if (await approveOne(card, true)) ok += 1;
+      if (unsaved.has(card.id)) continue;
+      try {
+        await sendApproval(card.id, current.find((c) => c.id === card.id)?.review?.id);
+        ok += 1;
+      } catch {
+        // Counted as not approved; the card stays in the queue for another try.
+      }
     }
+    await fetchReportCards();
     setBusy(null);
     toast.success(tr("Approved remarks: {0}", [ok]));
     onChanged?.();
