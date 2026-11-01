@@ -38,7 +38,8 @@ export function PracticeSessionPanel() {
   const [error, setError] = useState<string | null>(null);
   const [moveTo, setMoveTo] = useState<Record<string, string>>({});
   const load = useCallback(async () => {
-    try { setSets((await call("/api/school-ai/practice-sessions")).sets); } catch (e) { setError(ui((e as Error).message)); }
+    // A refresh failure keeps the sets already on screen; the error gets its own retry (SKAI-1417).
+    try { setSets((await call("/api/school-ai/practice-sessions")).sets); setError(null); } catch (e) { setError(ui((e as Error).message)); }
   }, [ui]);
   useEffect(() => { void load(); }, [load]);
   const act = async (action: string, data: unknown = {}, sessionId = session?.id) => {
@@ -47,7 +48,12 @@ export function PracticeSessionPanel() {
       setError(null); return result;
     } catch (e) { setError(ui((e as Error).message)); return null; }
   };
-  if (!sets) return error ? <p role="alert" className="text-sm text-status-error-text">{error}</p> : null;
+  if (!sets) return error ? (
+    <div className="space-y-2">
+      <p role="alert" className="text-sm text-status-error-text">{error}</p>
+      <Button size="sm" variant="outline" onClick={() => void load()}>{ui("Try again")}</Button>
+    </div>
+  ) : <div className="h-16 animate-pulse rounded-xl bg-surface-muted" aria-hidden="true" />;
   if (!sets.length && !session) return <p className="text-sm text-ink-subtle">{ui("No practice is assigned. Open your approved resources or ask your teacher.")}</p>;
 
   if (session) {
