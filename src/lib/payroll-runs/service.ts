@@ -63,16 +63,34 @@ const PolicyInput = z.object({
   leaveYearStartMonth: z.number().int().min(1).max(12), rounding: z.enum(["HALF_UP", "DOWN"]), requireSeparation: z.boolean().default(true),
 }).strict();
 
+/**
+ * Takes a transaction-scoped lock on one version line (a campus's policies, or one provider code on a
+ * campus). Concurrent saves queue here, so each reads the latest committed version before it allocates.
+ */
+async function lockVersionLine(tx: TxClient, key: string) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+}
+
+/** A save that loses a race anyway gets a controlled, retryable answer, never a raw constraint error. */
+function versionConflict(error: unknown): never {
+  if ((error as { code?: string }).code === "P2002") throw new ApiError("Another version was saved for this campus first. Review the latest version and save again.", 409);
+  throw error;
+}
+
 /** Policies are versioned and never edited; a change is the next version from its effective date. */
 export async function savePolicy(user: AuthUser, raw: unknown) {
   await canApprove(user);
   const input = parse(PolicyInput, raw), campusId = campusOf(user);
+  const data = { ...input, effectiveFrom: new Date(`${input.effectiveFrom}T00:00:00Z`) };
   return prisma.$transaction(async (tx) => {
-    const last = await tx.payrollPolicy.findFirst({ where: { campusId }, orderBy: { version: "desc" }, select: { version: true } });
-    const policy = await tx.payrollPolicy.create({ data: { ...input, effectiveFrom: new Date(`${input.effectiveFrom}T00:00:00Z`), schoolId: user.schoolId, campusId, version: (last?.version ?? 0) + 1, createdById: user.userId } });
+    await lockVersionLine(tx, `payroll-policy:${campusId}`);
+    const last = await tx.payrollPolicy.findFirst({ where: { campusId }, orderBy: { version: "desc" } });
+    // A replay of the latest version's content returns it; nothing new is versioned or audited.
+    if (last && Object.entries(data).every(([key, value]) => JSON.stringify(last[key as keyof typeof last]) === JSON.stringify(value))) return last;
+    const policy = await tx.payrollPolicy.create({ data: { ...data, schoolId: user.schoolId, campusId, version: (last?.version ?? 0) + 1, createdById: user.userId } });
     await writeAuditEvent(tx, user, { table: "payroll_policies", recordId: policy.id, action: "CREATE", campusId, after: { version: policy.version, currency: policy.currency, effectiveFrom: input.effectiveFrom, packageLabel: policy.packageLabel } });
     return policy;
-  });
+  }).catch(versionConflict);
 }
 
 const ProviderInput = z.object({
@@ -87,11 +105,13 @@ export async function saveProvider(user: AuthUser, raw: unknown) {
   const input = parse(ProviderInput, raw), campusId = campusOf(user);
   assert(input.columns.some((c) => c.field === "providerEmployeeId") && input.columns.some((c) => c.field === "net"), "The mapping must export the provider employee id and net pay.", 400);
   return prisma.$transaction(async (tx) => {
-    const last = await tx.payrollProvider.findFirst({ where: { campusId, code: input.code }, orderBy: { version: "desc" }, select: { version: true } });
+    await lockVersionLine(tx, `payroll-provider:${campusId}:${input.code}`);
+    const last = await tx.payrollProvider.findFirst({ where: { campusId, code: input.code }, orderBy: { version: "desc" } });
+    if (last && last.name === input.name && JSON.stringify(last.currencies) === JSON.stringify(input.currencies) && JSON.stringify(last.columns) === JSON.stringify(input.columns)) return last;
     const provider = await tx.payrollProvider.create({ data: { ...input, columns: json(input.columns), schoolId: user.schoolId, campusId, version: (last?.version ?? 0) + 1, createdById: user.userId } });
     await writeAuditEvent(tx, user, { table: "payroll_providers", recordId: provider.id, action: "CREATE", campusId, after: { code: provider.code, version: provider.version, currencies: input.currencies.join(",") } });
     return provider;
-  });
+  }).catch(versionConflict);
 }
 
 const SERIALISATION_RETRIES = 3;
