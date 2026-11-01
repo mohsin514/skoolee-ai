@@ -11,7 +11,8 @@ import { Modal, ModalActions } from "@/components/ui/modal";
 import { Menu, type MenuItem } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { localParts, zonedInstant } from "@/lib/meetings/time";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert } from "@/components/ui/alert";
 import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow, deskTimeline, type DeskTone } from "@/components/ui/desk";
@@ -173,11 +174,13 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
 
 function SnoozeDialog({ items, onClose, onSave }: { items: Item[]; onClose: () => void; onSave: (until: string, reason: string) => Promise<void> }) {
   const ui = useUiText();
-  const [until, setUntil] = useState(() => { const tomorrow = new Date(Date.now() + 86_400_000); tomorrow.setHours(8, 0, 0, 0); return new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); }), [reason, setReason] = useState(""), [error, setError] = useState(""), [busy, setBusy] = useState(false);
+  // SKAI-1467: the return time is the campus clock's, not the device's, so every seat stores one instant.
+  const { timezone } = useLocale();
+  const [until, setUntil] = useState(() => `${localParts(new Date(Date.now() + 86_400_000), timezone).date}T08:00`), [reason, setReason] = useState(""), [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const save = async () => {
     if (reason.trim().length < 5) { setError(ui("Say why you are snoozing (5–300 characters).")); return; }
     setError(""); setBusy(true);
-    try { await onSave(new Date(until).toISOString(), reason.trim()); } finally { setBusy(false); }
+    try { const [day, time] = until.split("T"); await onSave(zonedInstant(day, time, timezone).toISOString(), reason.trim()); } finally { setBusy(false); }
   };
   return <Modal
     title={items.length === 1 ? ui("Snooze this item") : ui("Snooze {0} items", [items.length])}
@@ -192,7 +195,7 @@ function SnoozeDialog({ items, onClose, onSave }: { items: Item[]; onClose: () =
   >
     <form className="space-y-3" data-snooze-dialog onSubmit={(event) => { event.preventDefault(); void save(); }}>
       {error ? <Alert tone="danger" compact>{error}</Alert> : null}
-      <FormField name="snooze-until" label={ui("Return on")}><Input type="datetime-local" value={until} onChange={event => setUntil(event.target.value)} /></FormField>
+      <FormField name="snooze-until" label={`${ui("Return on")} (${timezone})`}><Input type="datetime-local" value={until} onChange={event => setUntil(event.target.value)} /></FormField>
       <FormField name="snooze-reason" label={ui("Reason")}><Input value={reason} maxLength={300} onChange={event => setReason(event.target.value)} /></FormField>
     </form>
   </Modal>;
