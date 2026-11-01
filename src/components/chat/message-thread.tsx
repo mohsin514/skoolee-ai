@@ -43,6 +43,7 @@ import { systemEventText } from "@/lib/chat/system-event-text";
 import { localeTag } from "@/lib/locale/package";
 import { fill } from "./chat-text";
 import { ErrorState } from "@/components/ui/error-state";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 
 type Ui = ReturnType<typeof useUiText>;
 
@@ -107,6 +108,8 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
 
   const [replyTo, setReplyTo] = useState<ChatMessageView | null>(null);
   const [editing, setEditing] = useState<ChatMessageView | null>(null);
+  // SKAI-1584: withdrawing hides the message for everyone and cannot be undone, so it is confirmed first.
+  const [withdrawing, setWithdrawing] = useState<ChatMessageView | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
 
@@ -417,7 +420,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                         showAvatar={detail.kind !== "DIRECT" && !isMine}
                         onReply={() => setReplyTo(message)}
                         onEdit={() => setEditing(message)}
-                        onDelete={() => deleteMessage(message.id)}
+                        onDelete={() => setWithdrawing(message)}
                         canModerate={detail.canModerate}
                         language={locale.language}
                         tag={tag}
@@ -471,6 +474,21 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           }}
         />
       </div>
+      <ConfirmAction
+        open={withdrawing !== null}
+        tone="danger"
+        title={ui("Withdraw this message?")}
+        description={ui("It is hidden for everyone in this conversation and cannot be restored.")}
+        detail={withdrawing?.body ? <p className="line-clamp-3 text-sm" data-withdraw-preview><bdi>{withdrawing.body}</bdi></p> : null}
+        confirmLabel={ui("Withdraw")}
+        cancelLabel={ui("Cancel")}
+        onCancel={() => setWithdrawing(null)}
+        onConfirm={async () => {
+          const target = withdrawing;
+          setWithdrawing(null);
+          if (target) await deleteMessage(target.id);
+        }}
+      />
     </MotionConfig>
   );
 }
