@@ -6,7 +6,7 @@ type Invite = { schoolId: string; role: string; status: string };
 
 let teachers: Teacher[] = [];
 let invites: Invite[] = [];
-let plan = "FREE";
+const plan = "FREE";
 let maxTeachers = 2;
 
 const db = {
