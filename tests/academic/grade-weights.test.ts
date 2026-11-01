@@ -80,3 +80,11 @@ test("class grade calculation excludes archived and withdrawn pupils", () => {
   const fn = source.slice(source.indexOf("export async function calculateWeightedGradeForClass"));
   assert.match(fn.slice(0, 600), /where: \{ classId, campusId, archivedAt: null, status: "active" \}/);
 });
+
+// SKAI-213: report-card subject percentages use the configured rounding rule and bands, not Math.round and defaults.
+test("report detail percentages follow the configured rounding and bands", () => {
+  const route = readFileSync("src/app/api/reports/[id]/detail/route.ts", "utf8");
+  assert.doesNotMatch(route, /Math\.round\(\(mark\.marksObtained/);
+  assert.match(route, /roundConfigured\(\(mark\.marksObtained \/ mark\.subject\.totalMarks\) \* 100, rounding\)/);
+  assert.match(route, /gradeForMark\(mark\.marksObtained, mark\.subject\.totalMarks, rules\?\.thresholds\)/);
+});
