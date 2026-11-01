@@ -203,5 +203,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     return Response.json({ success: true, status: finalStatus, effectiveAt: effectiveFrom.toISOString(), ...(finalStatus === "INVITED" ? { invitationUrl: `${appUrl}/parent-invitations` } : {}) });
-  } catch (error) { return errorResponse(error, "Failed to update guardian access"); }
+  } catch (error) {
+    // A concurrent apply of the same preview committed first; the interval constraint rejects this one.
+    if ((String(error) + JSON.stringify(error)).includes("guardian_access_versions_no_overlap")) {
+      return Response.json({ error: "Access changed while this change was being applied. Review the latest permissions again." }, { status: 409 });
+    }
+    return errorResponse(error, "Failed to update guardian access");
+  }
 }

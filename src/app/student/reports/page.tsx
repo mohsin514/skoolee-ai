@@ -100,6 +100,8 @@ function ReportCard({ report, index }: { report: any; index: number }) {
   };
   const status = (report.status || "Draft") as string;
   const released = isReleased(status);
+  // The approved remark in the card's own language, matching the guardian Results view.
+  const remarks = report.language === "ar" ? report.remarksAr : report.language === "ur" ? report.remarksUr : report.remarksEn;
 
   const scoreColor = pct >= 80 ? "bg-status-success-text" : pct >= 60 ? "bg-status-warning-text" : "bg-status-error-text";
   const scoreText = pct >= 80 ? "text-status-success-text" : pct >= 60 ? "text-status-warning-text" : "text-status-error-text";
@@ -146,12 +148,12 @@ function ReportCard({ report, index }: { report: any; index: number }) {
         </div>
         <p className="text-xs text-ink-muted" dir="auto">{report.language === "ar" ? "النسخة المنشورة" : report.language === "ur" ? "شائع شدہ نسخہ" : "Published version"} <bdi className="font-semibold text-ink">v{report.version}</bdi></p>
         {report.correctionReason && <Alert tone="info" compact live="off" dir="auto">{report.language === "ar" ? "تصحيح:" : report.language === "ur" ? "تصحیح:" : "Correction:"} {report.correctionReason}</Alert>}
-        {report.remarksEn ? (
+        {remarks ? (
           <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-3">
             <p className="sk-eyebrow mb-1">
               {ui("Teacher remarks")}
             </p>
-            <p className="text-sm leading-relaxed text-ink" dir="auto">{report.remarksEn}</p>
+            <p className="text-sm leading-relaxed text-ink" dir="auto">{remarks}</p>
           </div>
         ) : (
           <p className="text-xs text-ink-subtle">{ui("No remarks provided.")}</p>
