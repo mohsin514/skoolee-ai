@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { MonitorCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { OutcomeFeedbackList } from "@/components/school-ai/outcome-feedback";
 import type { OutcomeFeedback } from "@/lib/school-ai/recovery";
@@ -15,14 +16,25 @@ export function FamilyExamResults({ studentId }: { studentId: string | null }) {
   const { language } = useLocale();
   const { date } = useLocaleFormat();
   const [results, setResults] = useState<Result[] | null>(null);
+  // SKAI-1521: a failed load is its own state with Retry; only a successful empty list hides the section.
+  const [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
-    setResults(null);
+    setResults(null); setFailed(false);
     void fetch(`/api/parent/exam-results${studentId ? `?studentId=${encodeURIComponent(studentId)}` : ""}`, { cache: "no-store" })
-      .then(async response => { const payload = await response.json().catch(() => ({})); if (live) setResults(response.ok && Array.isArray(payload.data) ? payload.data : []); })
-      .catch(() => { if (live) setResults([]); });
+      .then(async response => {
+        const payload = await response.json().catch(() => ({}));
+        if (!live) return;
+        if (response.ok && Array.isArray(payload.data)) setResults(payload.data); else setFailed(true);
+      })
+      .catch(() => { if (live) setFailed(true); });
     return () => { live = false; };
-  }, [studentId]);
+  }, [studentId, attempt]);
+  if (failed) return <section aria-labelledby="family-exam-results" className="sk-panel space-y-3 p-4" data-family-exam-results-error>
+    <h2 id="family-exam-results" className="flex items-center gap-2 text-base font-bold text-ink-strong"><MonitorCheck aria-hidden="true" className="size-4" />{ui("Online exam results")}</h2>
+    <p role="alert" className="text-sm text-status-error-text">{ui("Online exam results could not be loaded. Try again.")}</p>
+    <Button size="sm" variant="outline" onClick={() => setAttempt(value => value + 1)}>{ui("Try again")}</Button>
+  </section>;
   if (!results?.length) return null;
   const n = (value: number) => new Intl.NumberFormat(language, { maximumFractionDigits: 2 }).format(value);
   return <section aria-labelledby="family-exam-results" className="sk-panel space-y-3 p-4" data-family-exam-results>
