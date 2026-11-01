@@ -18,17 +18,19 @@ export default function ParentFeesPage() {
   const tr = useUiText();
   const { money } = useLocaleFormat();
   const { data, error, refetch, selectedStudentId } = useParentData();
-  const [summary, setSummary] = useState<{ outstanding: number; currency: string | null; fullName: string } | null>(null);
+  const [summary, setSummary] = useState<{ outstanding: number; currency: string | null; fullName: string; forStudent: string } | null>(null);
 
   if (error && !data) return <ParentErrorState error={error} onRetry={refetch} />;
   if (!data) return <ParentListSkeleton />;
   const studentId = selectedStudentId ?? undefined;
   // Until the statement reports back there is no balance to state, so the
   // header must not claim "All fees cleared" while the invoices still load.
-  const status = summary === null
+  // SKAI-1464: a summary belongs to the child it was loaded for, so a sibling switch never shows the previous balance.
+  const current = summary && summary.forStudent === (studentId ?? "default") ? summary : null;
+  const status = current === null
     ? null
-    : summary.outstanding
-      ? <Badge variant="warning" dot><bdi>{money(summary.outstanding, summary.currency ?? undefined)}</bdi> · {tr("Outstanding")}</Badge>
+    : current.outstanding
+      ? <Badge variant="warning" dot><bdi>{money(current.outstanding, current.currency ?? undefined)}</bdi> · {tr("Outstanding")}</Badge>
       : <Badge variant="success" dot>{tr("All fees cleared")}</Badge>;
   return (
     <ParentPage
@@ -37,7 +39,7 @@ export default function ParentFeesPage() {
       description={tr("Invoices, payments and receipts for {0}.", [`\u2068${data.student.fullName}\u2069`])}
       status={status}
     >
-      <FamilyFeeStatement key={studentId ?? "default"} studentId={studentId} onSummary={setSummary} />
+      <FamilyFeeStatement key={studentId ?? "default"} studentId={studentId} onSummary={next => setSummary(next && { ...next, forStudent: studentId ?? "default" })} />
     </ParentPage>
   );
 }

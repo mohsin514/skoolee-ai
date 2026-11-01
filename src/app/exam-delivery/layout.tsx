@@ -1,7 +1,7 @@
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { RoleFrame } from "@/components/role-dashboard/RoleFrame";
 import { prisma } from "@/lib/db/prisma";
-import { requirePageSession } from "@/lib/auth/require-page-session";
+import { redirectIfSuspended, requirePageSession } from "@/lib/auth/require-page-session";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { redirect } from "next/navigation";
 import { dashboardPathForRole } from "@/lib/roles";
@@ -15,6 +15,7 @@ export default async function ExamDeliveryLayout({ children }: { children: React
   // a campus operator while the campus has no principal (`academicLead`, the same predicate as the registry leaf and
   // the exam routes). Everyone else goes home, never to a dead-end notice inside the frame. A failed seat read fails closed.
   const user = await requirePageSession();
+  redirectIfSuspended(user);
   const academicLead = await canLeadAcademics(user).catch(() => false);
   if (!academicLead) redirect(dashboardPathForRole(user.role));
   // Campus logo, else school logo: what the console's own sidebar shows (dashboard.ts). Read on the server so

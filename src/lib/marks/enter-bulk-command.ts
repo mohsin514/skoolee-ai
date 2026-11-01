@@ -25,6 +25,14 @@ export interface EnterBulkMarksInput {
   ipAddress: string | null;
 }
 
+/** The cell as the marks sheet shows it: ABSENT, EXEMPT, the score, or empty when there is no row yet. */
+function cellToken(mark: { marksObtained: number; isAbsent?: boolean; isExempt?: boolean } | undefined) {
+  if (!mark) return "";
+  if (mark.isAbsent) return "ABSENT";
+  if (mark.isExempt) return "EXEMPT";
+  return String(mark.marksObtained);
+}
+
 function markSnapshot(mark: { marksObtained: number; isAbsent?: boolean; isExempt?: boolean; grade: string | null; enteredBy: string | null }) {
   return {
     marksObtained: mark.marksObtained,
@@ -116,7 +124,9 @@ export async function enterBulkMarks(user: AuthUser, input: EnterBulkMarksInput)
         const key = `${entry.studentId}:${entry.subjectId}`;
         const actual = existingByKey.get(key);
         const expected = expectedMarks[key];
-        if ((actual ? String(actual.marksObtained) : "") !== String(expected ?? "")) throw new Error("RECORD_CHANGED");
+        // SKAI-1438: the whole cell state, so an ABSENT or EXEMPT baseline matches its row and a score-zero
+        // baseline does not match a row that became EXEMPT.
+        if (cellToken(actual) !== String(expected ?? "")) throw new Error("RECORD_CHANGED");
       }
     }
     let changed = 0;
