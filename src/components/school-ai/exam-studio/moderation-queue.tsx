@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FileCheck2 } from "lucide-react";
 import { DeskPill, DeskRowIcon, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/ui/error-state";
 import { Modal } from "@/components/ui/modal";
+import { failureForStatus, RequestFailure, requestFailure } from "@/lib/http/request-state";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
 import { studioSlotsCopy } from "@/lib/school-ai/exam-studio-copy-slots";
@@ -21,16 +23,48 @@ export function ModerationQueue() {
   const { language } = useLocale();
   const t = studioSlotsCopy(language);
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
-  const [slots, setSlots] = useState<SlotView[]>([]);
+  // SKAI-1456: loading, failed and loaded are separate. A failed read is never an empty queue; a refresh that fails
+  // keeps the last loaded papers on screen. `null` slots means nothing has loaded yet.
+  const [slots, setSlots] = useState<SlotView[] | null>(null);
+  const [failure, setFailure] = useState<RequestFailure | null>(null);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<SlotView | null>(null);
+  const sequence = useRef(0);
   const load = useCallback(async () => {
-    const payload = await fetch("/api/school-ai/paper-slots/mine", { cache: "no-store" }).then(response => (response.ok ? response.json() : null)).catch(() => null);
-    setSlots(payload ? (payload.slots as SlotView[]).filter(slot => slot.moderatorUserId === payload.viewerId && ["READY_FOR_REVIEW", "NEEDS_CORRECTION", "MODERATED", "SEALED", "CHANGED_AFTER_APPROVAL"].includes(slot.status)) : []);
+    const request = ++sequence.current;
+    setLoading(true);
+    try {
+      const response = await fetch("/api/school-ai/paper-slots/mine", { cache: "no-store" });
+      if (!response.ok) throw new RequestFailure(failureForStatus(response.status), response.status);
+      const payload = await response.json().catch(() => { throw new RequestFailure("server", response.status); });
+      if (!Array.isArray(payload?.slots)) throw new RequestFailure("server", response.status);
+      if (request !== sequence.current) return;
+      setSlots((payload.slots as SlotView[]).filter(slot => slot.moderatorUserId === payload.viewerId && ["READY_FOR_REVIEW", "NEEDS_CORRECTION", "MODERATED", "SEALED", "CHANGED_AFTER_APPROVAL"].includes(slot.status)));
+      setFailure(null);
+    } catch (error) {
+      if (request === sequence.current) setFailure(requestFailure(error));
+    } finally {
+      if (request === sequence.current) setLoading(false);
+    }
   }, []);
   useEffect(() => { void load(); }, [load]);
-  if (!slots.length) return null;
+  // A denied role has no moderation queue to show; it is not an error for them.
+  if (failure?.kind === "denied") return null;
+  if (slots === null) {
+    if (!failure) return <p role="status" className="text-sm text-ink-muted">{t.moderateLoading}</p>;
+    return <section id="moderation-queue" className="sk-panel scroll-mt-24 space-y-3 p-4 sm:p-5" aria-labelledby="moderation-queue-title" data-moderation-queue data-queue-state="failed">
+      <h2 id="moderation-queue-title" className="flex items-center gap-2 text-lg font-bold"><FileCheck2 aria-hidden="true" className="size-5 text-primary" />{t.moderateTitle}</h2>
+      <ErrorState error={failure} onRetry={load} variant="panel" />
+    </section>;
+  }
+  // A successful empty list is a valid state with nothing to show, as before.
+  if (!slots.length && !failure) return null;
   return <section id="moderation-queue" className="sk-panel scroll-mt-24 space-y-3 p-4 sm:p-5" aria-labelledby="moderation-queue-title" data-moderation-queue>
     <h2 id="moderation-queue-title" className="flex items-center gap-2 text-lg font-bold"><FileCheck2 aria-hidden="true" className="size-5 text-primary" />{t.moderateTitle}</h2>
+    {failure ? <div role="alert" data-queue-refresh-failed className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-3 text-sm">
+      <p>{t.moderateRefreshFailed}</p>
+      <Button type="button" size="sm" variant="outline" disabled={loading} onClick={() => void load()}>{t.moderateRetry}</Button>
+    </div> : null}
     <ul className="grid gap-2 md:grid-cols-2">
       {urgencyFirst(slots, slot => SLOT_RANK[slot.status] ?? 9).map(slot => <li key={slot.id} data-tone={SLOT_TONE[slot.status] ?? "neutral"} className={`${deskRow} flex flex-wrap items-center justify-between gap-3`}>
         <DeskRowIcon icon={FileCheck2} />
