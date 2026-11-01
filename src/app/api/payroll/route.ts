@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { parsePayrollPeriod } from "@/lib/payroll-period";
 import {
   ApiError,
   assertPermission,
@@ -23,11 +24,7 @@ export async function GET(req: NextRequest) {
     await assertPermission(user, "payroll", "view");
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
-    const month = parseInt(searchParams.get("month") ?? "", 10);
-    const year = parseInt(searchParams.get("year") ?? "", 10);
-
-    if (!Number.isFinite(month) || month < 1 || month > 12) throw new ApiError("month must be 1-12", 400);
-    if (!Number.isFinite(year) || year < 2000 || year > 2100) throw new ApiError("year must be 2000-2100", 400);
+    const { month, year } = parsePayrollPeriod(searchParams.get("month"), searchParams.get("year"));
 
     const run = await prisma.payrollRun.findUnique({
       where: { campusId_month_year: { campusId, month, year } },
