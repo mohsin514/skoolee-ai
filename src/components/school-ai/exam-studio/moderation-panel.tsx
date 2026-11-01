@@ -43,8 +43,9 @@ export function ModerationPanel({ slotId, onDone }: { slotId: string; onDone?: (
   const load = useCallback(async () => {
     const response = await fetch(`/api/academic/paper-slots/${encodeURIComponent(slotId)}/moderation`, { cache: "no-store" }).catch(() => null);
     const payload = response ? await response.json().catch(() => ({})) : {};
-    if (!response?.ok) { setError(typeof payload.error === "string" ? payload.error : t.failed); return; }
-    setView(payload.data);
+    // SKAI-1556: a payload without the paper is a failure too; a loaded view stays on a failed refresh.
+    if (!response?.ok || typeof payload?.data?.paperVersion !== "number") { setError(typeof payload.error === "string" ? payload.error : t.loadFailed); return; }
+    setError(null); setView(payload.data);
   }, [slotId, t.failed]);
   useEffect(() => { void load(); }, [load]);
 
@@ -72,7 +73,7 @@ export function ModerationPanel({ slotId, onDone }: { slotId: string; onDone?: (
     } catch { setError(t.failed); } finally { setBusy(false); }
   };
 
-  if (error && !view) return <Alert tone="danger" compact>{error}</Alert>;
+  if (error && !view) return <Alert tone="danger" compact><span>{error}</span> <Button type="button" variant="outline" size="sm" onClick={() => void load()}>{t.retry}</Button></Alert>;
   if (!view) return <TaskLoading label={t.moderate} />;
   const latest = view.history[0];
   return <div className="space-y-4" data-moderation-panel>
