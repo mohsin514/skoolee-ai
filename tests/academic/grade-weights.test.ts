@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { summarizeWeightImpact, validateCategoryWeights, weightTotal, describeWeightProblem } from "../../src/lib/academic/grade-weights";
 import { defaultWeightConfig, overallFromExamResults, type WeightedExamResult } from "../../src/lib/academic/grade-calculator";
@@ -64,4 +65,11 @@ test("summarizes the impact of a weight change per student", () => {
     ],
   );
   assert.deepEqual(impact, { students: 4, changed: 2, gradeChanged: 2, newlyFailing: 1, newlyPassing: 1, largestShift: 17, skipped: 1 });
+});
+
+// SKAI-211: the grade-config route rejects boundaries outside 0–100, matching the academic model.
+test("grade boundaries outside 0-100 are rejected on save", () => {
+  const route = readFileSync("src/app/api/grade-config/route.ts", "utf8");
+  assert.match(route, /ladder\.find\(\(\[, start\]\) => start < 0 \|\| start > 100\)/);
+  assert.ok(route.indexOf("ladder.find(") < route.indexOf("Each grade must start lower"));
 });
