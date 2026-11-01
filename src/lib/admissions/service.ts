@@ -476,6 +476,9 @@ export async function convertApplication(user: AuthUser, campusId: string, body:
     const [locked] = await db.$queryRaw<{ id: string }[]>`SELECT id FROM admission_applications WHERE id = ${id} AND campus_id = ${campusId} AND school_id = ${user.schoolId} FOR UPDATE`;
     const application = locked ? await db.admissionApplication.findUnique({ where: { id }, include: { formVersion: true } }) : null;
     if (!application) throw new ApiError("Application not found", 404);
+    // SKAI-1425: conversions for the same child are serialised by the campus lock, taken before the duplicate check.
+    // A competing request waits, then sees the first pupil on the duplicate check and must link it rather than create another.
+    await db.$queryRaw`SELECT id FROM campuses WHERE id = ${campusId} AND school_id = ${user.schoolId} FOR UPDATE`;
     if (application.status === "ENROLLED" && application.convertedStudentId) {
       const student = await db.student.findUniqueOrThrow({ where: { id: application.convertedStudentId }, select: { id: true, fullName: true, rollNo: true, admissionNo: true } });
       return { application, student, replayed: true };
@@ -506,7 +509,6 @@ export async function convertApplication(user: AuthUser, campusId: string, body:
         if (occupied + 1 > cls.capacity) throw new ApiError(`The class is full (${occupied} of ${cls.capacity} seats). Choose another class.`, 409);
       }
       const rollNo = text(body.rollNo, "Roll number", 1, 32);
-      await db.$queryRaw`SELECT id FROM campuses WHERE id = ${campusId} AND school_id = ${user.schoolId} FOR UPDATE`;
       const clash = await db.$queryRaw<{ id: string }[]>`SELECT id FROM students WHERE school_id = ${user.schoolId} AND campus_id = ${campusId} AND archived_at IS NULL AND lower(btrim(roll_no)) = ${rollNo.toLocaleLowerCase("en")} LIMIT 1`;
       if (clash.length) throw new ApiError("This roll number already belongs to a pupil in the campus.", 409);
       await assertPlanCapacity({ schoolId: user.schoolId, metric: "students", increment: 1 });
