@@ -329,6 +329,10 @@ export async function PATCH(req: NextRequest) {
     }
 
     const { id, ...updates } = studentProfileUpdateSchema.parse(body);
+    // SKAI-1576: an unknown status is a 400 before anything is saved, matching the bulk path.
+    if (updates.status && !STUDENT_STATUSES.includes(updates.status)) {
+      throw new ApiError(`status must be one of: ${STUDENT_STATUSES.join(", ")}`, 400);
+    }
 
     const existing = await prisma.student.findFirst({
       where: {
