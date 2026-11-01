@@ -178,7 +178,13 @@ export function Portfolio({ studentId, addRequest, hideAdd = false }: { studentI
 export function TeacherPortfolio() {
   const ui = useUiText();
   const [learners, setLearners] = useState<{ id: string; name: string; className: string; toReview: number }[] | null>(null), [selected, setSelected] = useState("");
-  useEffect(() => { void call("/api/portfolio?view=learners").then(rows => { setLearners(rows); setSelected(s => s || rows.find((r: { toReview: number }) => r.toReview)?.id || rows[0]?.id || ""); }).catch(() => setLearners([])); }, []);
+  const [loadError, setLoadError] = useState("");
+  const loadLearners = useCallback(() => {
+    setLoadError("");
+    void call("/api/portfolio?view=learners").then(rows => { setLearners(rows); setSelected(s => s || rows.find((r: { toReview: number }) => r.toReview)?.id || rows[0]?.id || ""); }).catch(e => setLoadError(ui(e instanceof Error ? e.message : "The learners could not be loaded.")));
+  }, [ui]);
+  useEffect(() => { loadLearners(); }, [loadLearners]);
+  if (loadError) return <ErrorState description={loadError} onRetry={loadLearners} retryLabel={ui("Try again")} />;
   if (!learners) return <SkeletonList rows={3} label={ui("Loading the portfolio…")} />;
   if (!learners.length) return <p className="rounded-xl border border-dashed p-4 text-sm text-ink-muted">{ui("No learners in your classes yet.")}</p>;
   return <div className="space-y-3"><FormField name="pf-learner" label={ui("Learner")}><Select value={selected} onChange={e => setSelected(e.target.value)} data-pf-learner>{learners.map(l => <option key={l.id} value={l.id}>{l.name} · {l.className}{l.toReview ? ` · ${ui("{0} to review", [String(l.toReview)])}` : ""}</option>)}</Select></FormField>{selected ? <Portfolio key={selected} studentId={selected} /> : null}</div>;
@@ -189,7 +195,13 @@ export function FamilyPortfolio({ studentId }: { studentId: string | null }) {
   const ui = useUiText();
   const { date } = useLocaleFormat();
   const [shares, setShares] = useState<{ id: string; title: string; expiresAt: string }[] | null>(null), [open, setOpen] = useState<{ id: string; title: string; student: string; entries: Entry[]; withdrawn: number } | null>(null), [error, setError] = useState("");
-  useEffect(() => { void call(`/api/portfolio?view=shares${studentId ? `&studentId=${encodeURIComponent(studentId)}` : ""}`).then(setShares).catch(() => setShares([])); }, [studentId]);
+  const [sharesError, setSharesError] = useState(""), [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    setSharesError("");
+    void call(`/api/portfolio?view=shares${studentId ? `&studentId=${encodeURIComponent(studentId)}` : ""}`).then(setShares).catch(e => setSharesError(ui(e instanceof Error ? e.message : "Shared progress could not be loaded.")));
+  }, [studentId, ui, attempt]);
+  // A failed request is shown with a retry, not mistaken for "nothing shared".
+  if (sharesError) return <section className="sk-panel p-4 sm:p-5" data-family-portfolio><ErrorState description={sharesError} onRetry={() => setAttempt(a => a + 1)} retryLabel={ui("Try again")} /></section>;
   const view = async (id: string) => { setError(""); try { setOpen(await call(`/api/portfolio?share=${encodeURIComponent(id)}`)); } catch (e) { setError(ui(e instanceof Error ? e.message : "This collection is not shared with your account.")); } };
   if (!shares?.length) return null;
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-family-portfolio>
