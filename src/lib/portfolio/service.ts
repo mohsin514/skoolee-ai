@@ -195,6 +195,9 @@ export async function portfolio(user: AuthUser, studentId: string | null) {
     guardians: guardians.map(g => ({ id: g.guardianUserId!, name: g.fullName })) };
 }
 
+/** How long an identical share request from the same sender is replayed rather than created again. */
+const SHARE_REPLAY_MS = 10 * 60_000;
+
 export async function createShare(user: AuthUser, body: Record<string, unknown>) {
   return schoolAiTransaction(user, async tx => {
     const { student, role } = await studentFor(user, String(body.studentId ?? ""), tx);
@@ -207,7 +210,14 @@ export async function createShare(user: AuthUser, body: Record<string, unknown>)
     if (ok !== entryIds.length) throw new ApiError("Only entries approved for families can be shared.", 409);
     const days = Number(body.days ?? 30);
     if (!Number.isInteger(days) || days < 1 || days > 180) throw new ApiError("Share for 1 to 180 days.", 400);
-    return tx.portfolioShare.create({ data: { schoolId: user.schoolId, studentId: student.id, guardianUserId, title: text(body.title, 120) || "Learning progress", entryIds, expiresAt: new Date(Date.now() + days * 86_400_000), createdById: user.userId } });
+    const title = text(body.title, 120) || "Learning progress";
+    // A retried request (lost response) or a double tap repeats the same share: replay the live one it created.
+    // The request is serializable, so two racing submits cannot both insert; the loser retries and finds the winner.
+    const wanted = JSON.stringify([...entryIds].sort());
+    const recent = await tx.portfolioShare.findMany({ where: { schoolId: user.schoolId, studentId: student.id, guardianUserId, createdById: user.userId, revokedAt: null, createdAt: { gte: new Date(Date.now() - SHARE_REPLAY_MS) } }, orderBy: { createdAt: "desc" }, take: 10 });
+    const replay = recent.find(s => s.title === title && JSON.stringify([...s.entryIds].sort()) === wanted);
+    if (replay) return replay;
+    return tx.portfolioShare.create({ data: { schoolId: user.schoolId, studentId: student.id, guardianUserId, title, entryIds, expiresAt: new Date(Date.now() + days * 86_400_000), createdById: user.userId } });
   });
 }
 
