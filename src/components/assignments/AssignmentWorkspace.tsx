@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { Download, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -20,7 +21,7 @@ type Summary = { id: string; title: string; status: Status; currentVersion: numb
 type ListView = { classId: string; classes: { id: string; name: string; section: string | null }[]; subjects: { id: string; name: string }[]; assignments: Summary[] };
 type StaffFeedback = (NonNullable<Feedback> & { status: "DRAFT" | "RETURNED"; gradebookTransfer: string }) | null;
 type QueueRow = { studentId: string; name: string; rollNo: string; enrolled: boolean; inAudience: boolean; status: string; effectiveDueAt: string | null; extension: { dueLocal: string; reason: string } | null; versions: (Receipt & { feedback: StaffFeedback })[] };
-type Draft = { id: string; title: string; subjectId: string | null; instructions: string; status: Status; submissionMode: "ONLINE" | "PAPER" | "BOTH"; allowedTypes: string[]; opensLocal: string | null; dueLocal: string | null; latePolicy: "ACCEPT_FLAGGED" | "REFUSE"; resubmission: "NEVER" | "AFTER_RETURN"; rubric: Criterion[]; resourceIds: string[]; currentVersion: number | null; updatedAt: string };
+type Draft = { id: string; classId?: string; title: string; subjectId: string | null; instructions: string; status: Status; submissionMode: "ONLINE" | "PAPER" | "BOTH"; allowedTypes: string[]; opensLocal: string | null; dueLocal: string | null; latePolicy: "ACCEPT_FLAGGED" | "REFUSE"; resubmission: "NEVER" | "AFTER_RETURN"; rubric: Criterion[]; resourceIds: string[]; currentVersion: number | null; updatedAt: string };
 type Detail = { assignment: Draft; release: { version: number; dueAt: string; dueLocal: string; timezone: string; rubricVersion: number; audience: string[] } | null; versions: { version: number; releasedAt: string; rubricVersion: number; dueLocal: string; timezone: string; audience: string[] }[]; rubrics: { version: number; criteria: Criterion[]; totalPoints: number }[]; queue: QueueRow[]; resources: { id: string; title: string }[]; newLearners: number };
 type Plan = { issues: string[]; timezone: string; dueAt: string | null; dueLocal: string | null; totalPoints: number; nextVersion: number; rubricVersion: number; rubricChanged: boolean; audience: { id: string; name: string; rollNo: string }[]; impact: { earlierSubmissions: number }; policy: { submissionMode: Draft["submissionMode"]; allowedTypes: string[]; latePolicy: Draft["latePolicy"]; resubmission: Draft["resubmission"] } };
 type Filter = "ALL" | "DRAFT" | "RELEASED" | "NEEDS_FEEDBACK" | "RETURNED" | "CLOSED";
@@ -45,6 +46,9 @@ export function AssignmentWorkspace({ createRequest, hideCreateButton = false }:
   const [busy, setBusy] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   useEffect(() => { if (createRequest) { setSelected(null); setEditing("new"); } }, [createRequest]);
+  // SKAI-1481: ?assignment=<id> (e.g. from a lesson plan) opens that assignment in its own class.
+  const requested = useSearchParams().get("assignment");
+  useEffect(() => { if (requested && /^[\w-]{1,64}$/.test(requested)) setSelected(requested); }, [requested]);
 
   const loadList = useCallback(async () => {
     const data = await call(`/api/assignments${classId ? `?classId=${encodeURIComponent(classId)}` : ""}`);
@@ -53,6 +57,7 @@ export function AssignmentWorkspace({ createRequest, hideCreateButton = false }:
   }, [classId]);
   const loadDetail = useCallback(async (id: string) => setDetail(await call(`/api/assignments/${id}`)), []);
   useEffect(() => { setLoadFailed(false); loadList().catch(() => setLoadFailed(true)); }, [loadList]);
+  useEffect(() => { if (detail?.assignment.classId && view && detail.assignment.classId !== view.classId) setClassId(detail.assignment.classId); }, [detail, view]);
   useEffect(() => { if (selected) loadDetail(selected).catch(error => setStatus({ tone: "error", text: error.status === 404 ? t.notAvailable : error.message })); else setDetail(null); }, [selected, loadDetail, t.notAvailable]);
 
   async function run(work: () => Promise<unknown>, done = t.saved) {
