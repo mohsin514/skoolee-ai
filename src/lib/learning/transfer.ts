@@ -95,6 +95,9 @@ export async function importTransfer(user: AuthUser, raw: unknown) {
     const student = await learner(tx, user, input.studentId);
     const hash = sourceHash(input.source);
     const key = { schoolId: user.schoolId, studentId: student.id, sourceInstitution: input.source.institution, sourceLearnerRef: input.source.learnerRef };
+    // SKAI-1558: imports for one learner and source are serialised, so two identical first imports
+    // cannot both try to create the case; the second finds it and replays instead of failing.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`learning-transfer:${key.schoolId}:${key.studentId}:${key.sourceInstitution}:${key.sourceLearnerRef}`}))`;
     const existing = await tx.learningTransferCase.findUnique({ where: { schoolId_studentId_sourceInstitution_sourceLearnerRef: key } });
     const data = { sourceCurriculumId: input.source.curriculumId, sourceCurriculumName: input.source.curriculumName, sourceVersion: input.source.version, sourceLanguage: input.source.language || null, sourceHash: hash, evidence: json({ objectives: input.source.objectives }) };
     if (existing?.sourceHash === hash) return { id: existing.id, replayed: true, stale: false };
