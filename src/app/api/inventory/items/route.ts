@@ -11,8 +11,14 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
-import { parseBody } from "@/lib/api/validate";
+import { parseBody, parseWith } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { requiredText } from "@/lib/validators/fields";
+import { z } from "zod";
+
+// Names are trimmed, bounded text; a number, object or blank name is a 400 before any database call.
+const itemName = z.object({ name: requiredText("Name", { max: 120 }) });
+const optionalItemName = z.object({ name: requiredText("Name", { max: 120 }).optional() });
 
 export const runtime = "nodejs";
 
@@ -45,9 +51,8 @@ export async function POST(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { name, unit, categoryId } = body;
-
-    if (!name) throw new ApiError("name required", 400);
+    const { unit, categoryId } = body;
+    const { name } = parseWith(itemName, body);
 
     if (categoryId) {
       const category = await prisma.itemCategory.findFirst({ where: { id: categoryId, campusId } });
@@ -72,8 +77,8 @@ export async function PATCH(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { id, name, unit, categoryId } = body;
-
+    const { id, unit, categoryId } = body;
+    const { name } = parseWith(optionalItemName, body);
     if (!id) throw new ApiError("id required", 400);
 
     const item = await prisma.item.findFirst({ where: { id, campusId } });
