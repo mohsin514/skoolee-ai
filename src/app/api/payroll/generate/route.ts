@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
-import { computePayrollLine, proRateFactor, unpaidLeaveDeductionForMonth } from "@/lib/payroll";
+import { computePayrollLine, employmentFactor, unpaidLeaveDeductionForMonth } from "@/lib/payroll";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -100,12 +100,19 @@ async function collectStaff(campusId: string, role?: string) {
       staffProfile: { select: { basicSalary: true, allowancesJson: true, deductionsJson: true } },
     },
   });
-  return staff.filter((s) => s.staffProfile && s.staffProfile.basicSalary > 0);
+  const paid = staff.filter((s) => s.staffProfile && s.staffProfile.basicSalary > 0);
+  // SKAI-1421: the leaving date is kept on the payroll employee record, not on the user.
+  const leavers = await prisma.payrollEmployee.findMany({ where: { campusId, userId: { in: paid.map((s) => s.id) } }, select: { userId: true, leavingDate: true } });
+  const leavingByUser = new Map(leavers.map((row) => [row.userId, row.leavingDate]));
+  return paid.map((s) => ({ ...s, leavingDate: leavingByUser.get(s.id) ?? null }));
 }
 
 async function buildLines(campusId: string, month: number, year: number, staff: any[]) {
   const lines = [];
   for (const s of staff) {
+    // Staff outside their employment period in this month get no line, so they are never overpaid.
+    const factor = employmentFactor(s.joiningDate, s.leavingDate, month, year);
+    if (factor === 0) continue;
     const gross = s.staffProfile.basicSalary + sumAllowances(s.staffProfile.allowancesJson);
     const { deduction } = await unpaidLeaveDeductionForMonth(
       campusId,
@@ -119,7 +126,7 @@ async function buildLines(campusId: string, month: number, year: number, staff: 
       s.staffProfile.basicSalary,
       s.staffProfile.allowancesJson,
       s.staffProfile.deductionsJson,
-      proRateFactor(s.joiningDate, month, year),
+      factor,
       deduction
     );
     lines.push({
