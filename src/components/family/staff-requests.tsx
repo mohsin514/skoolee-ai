@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { readApiError } from "@/lib/api/envelope-client";
+import { instantFromLocal, toLocalInput } from "@/lib/family/trip-local-time";
 
 // SKO-421 staff side. Leave requests are decided here and never mark the register. Trip notices are
 // published as versions; a revision says whether it is a material change (fresh answers needed) and what
@@ -76,7 +77,7 @@ export function TripsDesk() {
   const { data: trips, failure, isLoading, refetch: load } = useFetch<TripRow[]>("/api/trips", {collection:true});
   const classList = useFetch<{ id: string; name: string; section: string | null }[]>("/api/classes", {collection:true});
   const classes = classList.data ?? [];
-  const [roster, setRoster] = useState<Roster | null>(null), [editing, setEditing] = useState<{ mode: "create" | "revise"; tripId?: string; knownVersion?: number } | null>(null);
+  const [roster, setRoster] = useState<Roster | null>(null), [editing, setEditing] = useState<{ mode: "create" | "revise"; tripId?: string; knownVersion?: number; original?: Partial<Record<"departAt" | "returnAt" | "respondBy", { input: string; iso: string }>> } | null>(null);
   // A new notice starts in the school's own currency, never a hard-coded one (R7).
   const { currency: schoolCurrency } = useLocale();
   const blankTerms: typeof emptyTerms = { ...emptyTerms, costCurrency: schoolCurrency };
@@ -89,7 +90,8 @@ export function TripsDesk() {
   const save = async () => {
     setBusy(true); setError("");
     try {
-      const terms = { ...form, departAt: new Date(form.departAt).toISOString(), returnAt: new Date(form.returnAt).toISOString(), respondBy: new Date(form.respondBy).toISOString(), costAmount: Number(form.costAmount) };
+      const original = editing?.original;
+      const terms = { ...form, departAt: instantFromLocal(form.departAt, original?.departAt), returnAt: instantFromLocal(form.returnAt, original?.returnAt), respondBy: instantFromLocal(form.respondBy, original?.respondBy), costAmount: Number(form.costAmount) };
       if (editing?.mode === "create") await send("/api/trips", "POST", { ...terms, classIds: classId ? [classId] : [] });
       else await send("/api/trips", "PATCH", { id: editing!.tripId, action: "revise", ...terms, knownVersion: editing!.knownVersion, material, changeNote });
       toast.success(ui("Trip notice published")); setEditing(null); void load(); if (editing?.tripId) void openRoster(editing.tripId);
@@ -110,7 +112,8 @@ export function TripsDesk() {
       <div className="space-y-3" data-trip-roster-dialog>
         <div className="flex flex-wrap gap-2">{["GRANTED", "PARTIAL", "PENDING", "DECLINED"].map(k => <DeskPill key={k} tone={standingTone(k)}><span>{standing(ui, k)}: <span className="tabular-nums">{roster.counts[k] ?? 0}</span></span></DeskPill>)}</div>
         <ul className="divide-y divide-edge/20">{roster.rows.map(row => <li key={row.studentId} className="py-2 text-sm" data-roster-row={row.studentId} data-roster-status={row.status}><span className="font-semibold text-ink-strong"><bdi>{row.name}</bdi></span> <DeskPill tone={standingTone(row.status)}>{standing(ui, row.status)}</DeskPill>{row.history.length ? <span className="block text-xs text-ink-muted">{row.history.map((h, i) => <span key={i}>{i ? " · " : ""}<bdi>{h.guardian ?? ""}</bdi> · {ui("Version {0}", [String(h.version)])} · {({ GRANTED: ui("Permission given"), DECLINED: ui("Permission refused"), WITHDRAWN: ui("Permission withdrawn") } as Record<string, string>)[h.choice] ?? h.choice}</span>)}</span> : null}</li>)}</ul>
-        {roster.trip.status === "OPEN" ? <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => { const v = roster.versions.at(-1) as Record<string, string | number>; const local = (iso: string | number) => new Date(String(iso)).toISOString().slice(0, 16); setForm({ title: String(v.title), destination: String(v.destination), departAt: local(v.departAt), returnAt: local(v.returnAt), respondBy: local(v.respondBy), costAmount: String(v.costAmount), costCurrency: String(v.costCurrency), contact: String(v.contact), instructions: String(v.instructions), consentKind: String(v.consentKind), signatoryRule: String(v.signatoryRule) }); setMaterial(true); setChangeNote(""); setEditing({ mode: "revise", tripId: roster.trip.id, knownVersion: roster.trip.currentVersion }); setRoster(null); }} data-revise-trip>{ui("Change the terms")}</Button></div> : null}
+        {roster.trip.status === "OPEN" ? <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => { const v = roster.versions.at(-1) as Record<string, string | number>; const local = (iso: string | number) => toLocalInput(String(iso));
+const stored = (key: "departAt" | "returnAt" | "respondBy") => ({ input: local(v[key]), iso: String(v[key]) }); setForm({ title: String(v.title), destination: String(v.destination), departAt: local(v.departAt), returnAt: local(v.returnAt), respondBy: local(v.respondBy), costAmount: String(v.costAmount), costCurrency: String(v.costCurrency), contact: String(v.contact), instructions: String(v.instructions), consentKind: String(v.consentKind), signatoryRule: String(v.signatoryRule) }); setMaterial(true); setChangeNote(""); setEditing({ mode: "revise", tripId: roster.trip.id, knownVersion: roster.trip.currentVersion, original: { departAt: stored("departAt"), returnAt: stored("returnAt"), respondBy: stored("respondBy") } }); setRoster(null); }} data-revise-trip>{ui("Change the terms")}</Button></div> : null}
       </div>
     </Modal> : null}
     {editing ? <Modal size="lg" icon={editing.mode === "create" ? Bus : PenLine} tone={editing.mode === "create" ? "violet" : "amber"} title={editing.mode === "create" ? ui("New trip notice") : ui("Change the trip terms")} eyebrow={ui("Trip permission")} subtitle={ui("Publish a trip notice to ask families for permission.")} onClose={() => setEditing(null)}
