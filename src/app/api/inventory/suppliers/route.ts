@@ -10,6 +10,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
+import { supplierSchema } from "@/lib/validators/operations";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
@@ -38,9 +39,7 @@ export async function POST(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { name, phone, email, address } = body;
-
-    if (!name) throw new ApiError("name required", 400);
+    const { name, phone, email, address } = supplierSchema.parse(body);
 
     const supplier = await prisma.supplier.create({
       data: {
@@ -65,7 +64,8 @@ export async function PATCH(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { id, name, phone, email, address } = body;
+    const { id } = body;
+    const { name, phone, email, address } = supplierSchema.partial().parse(body);
 
     if (!id) throw new ApiError("id required", 400);
 

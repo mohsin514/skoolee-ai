@@ -10,6 +10,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
+import { itemCategorySchema } from "@/lib/validators/operations";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
@@ -39,9 +40,7 @@ export async function POST(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { name } = body;
-
-    if (!name) throw new ApiError("name required", 400);
+    const { name } = itemCategorySchema.parse(body);
 
     const existing = await prisma.itemCategory.findFirst({
       where: { campusId, name },
@@ -65,7 +64,8 @@ export async function PATCH(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { id, name } = body;
+    const { id } = body;
+    const { name } = itemCategorySchema.partial().parse(body);
 
     if (!id) throw new ApiError("id required", 400);
 

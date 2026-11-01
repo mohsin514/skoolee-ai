@@ -10,6 +10,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
+import { itemStoreSchema } from "@/lib/validators/operations";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
@@ -38,9 +39,7 @@ export async function POST(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { name } = body;
-
-    if (!name) throw new ApiError("name required", 400);
+    const { name } = itemStoreSchema.parse(body);
 
     const existing = await prisma.itemStore.findFirst({ where: { campusId, name } });
     if (existing) throw new ApiError("Store with this name already exists", 409);
@@ -62,7 +61,8 @@ export async function PATCH(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { id, name } = body;
+    const { id } = body;
+    const { name } = itemStoreSchema.partial().parse(body);
 
     if (!id) throw new ApiError("id required", 400);
 
