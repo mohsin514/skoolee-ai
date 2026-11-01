@@ -151,6 +151,11 @@ export async function recordRehearsal(user: AuthUser, raw: unknown) {
     const student = await tx.student.findFirst({ where: { schoolId: user.schoolId, studentUserId: user.userId, archivedAt: null }, select: { id: true } });
     const plan = student ? await tx.accommodationPlan.findFirst({ where: { id: planId, schoolId: user.schoolId, studentId: student.id, status: "ACTIVE" } }) : null;
     if (!plan || !student) throw new ApiError("Plan not found.", 404);
+    // SKAI-1451: one current rehearsal per plan. The plan row lock serialises concurrent confirmations, so a lost
+    // response, a retry or a double click finds the original record and replays it instead of creating another.
+    await tx.$queryRaw`SELECT id FROM accommodation_plans WHERE id = ${plan.id} AND school_id = ${user.schoolId} FOR UPDATE`;
+    const existing = await tx.accommodationRehearsal.findFirst({ where: { planId: plan.id, schoolId: user.schoolId, studentId: student.id }, orderBy: { completedAt: "asc" } });
+    if (existing) return existing;
     const settings = effectiveSettings({ baseMinutes, type: "PRACTICE", at: new Date(), plan: { ...plan, assessmentTypes: [...plan.assessmentTypes, "PRACTICE"] } });
     return tx.accommodationRehearsal.create({ data: { schoolId: user.schoolId, planId: plan.id, studentId: student.id, settings: { ...settings, instructions: undefined } as never } });
   });

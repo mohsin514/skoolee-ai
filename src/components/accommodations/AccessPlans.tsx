@@ -195,7 +195,7 @@ export function LearnerAccess() {
         <p className="text-sm text-ink-muted">{t.practiceHelp}</p>
         <div className={`rounded-lg border p-4 ${plan.capabilities.largeText ? "text-2xl" : "text-base"} ${plan.capabilities.highContrast ? "bg-black text-white" : "bg-surface-subtle"}`}>{t.sample}</div>
         <p className="text-sm">{plan.rehearsedAt ? fillAccess(t.rehearsed, { date: date(plan.rehearsedAt, true) }) : t.notRehearsed}</p>
-        <Button type="button" onClick={async () => { setStatus(null); try { await call("/api/accommodations", { op: "rehearse", planId: plan.id, baseMinutes: sample?.baseMinutes || 45 }); await load(); setStatus({ tone: "ok", text: t.saved }); } catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); } }}>{t.works}</Button>
+        <Button type="button" disabled={!!plan.rehearsedAt} onClick={async () => { if (plan.rehearsedAt) return; setStatus(null); try { await call("/api/accommodations", { op: "rehearse", planId: plan.id, baseMinutes: sample?.baseMinutes || 45 }); await load(); setStatus({ tone: "ok", text: t.saved }); } catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); } }}>{t.works}</Button>
       </DeskSection>
     </>}
   </div>;
