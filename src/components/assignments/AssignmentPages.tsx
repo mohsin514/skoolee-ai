@@ -22,7 +22,7 @@ export function TeacherAssignmentsPage() {
       description={t.homeworkSummary}
       primaryAction={{ id: "create-homework", label: t.createHomework, icon: Plus, onClick: () => setCreateRequest((n) => n + 1) }}
     >
-      <AssignmentWorkspace createRequest={createRequest} hideCreateButton />
+      <Suspense fallback={null}><AssignmentWorkspace createRequest={createRequest} hideCreateButton /></Suspense>
     </TeacherPage>
   );
 }
