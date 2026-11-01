@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 
 // SKO-410 screens: coordinator plans, teacher/invigilator adjustments and the learner practice check.
-type Plan = { id: string; version: number; validFrom: string; validUntil: string; assessmentTypes: Array<"EXAM" | "ASSIGNMENT" | "PRACTICE">; extraMinutes: number; extraPercent: number; breakMinutes: number; capabilities: Capabilities; instructions: string; approvedAt: string; status?: "ACTIVE" | "SUPERSEDED" | "REVOKED"; endReason?: string | null; supportRecords?: number; rehearsals?: number; rehearsedAt?: string | null };
+type Plan = { id: string; version: number; validFrom: string; validUntil: string; assessmentTypes: Array<"EXAM" | "ASSIGNMENT" | "PRACTICE">; extraMinutes: number; extraPercent: number; breakMinutes: number; capabilities: Capabilities; instructions: string; approvedAt: string; status?: "ACTIVE" | "SUPERSEDED" | "REVOKED"; phase?: "CURRENT" | "UPCOMING" | "EXPIRED" | "SUPERSEDED" | "REVOKED"; endReason?: string | null; supportRecords?: number; rehearsals?: number; rehearsedAt?: string | null };
 type Student = { id: string; fullName: string; rollNo: string; plans: Plan[] };
 type Coordinator = { classId: string | null; classes: Array<{ id: string; name: string; section: string | null }>; students: Student[]; review: Array<{ planId: string; studentId: string; fullName: string; validUntil: string; expired: boolean }> };
 
@@ -64,7 +64,8 @@ export function CoordinatorAccess() {
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
   if (!view) return <div dir={rtl ? "rtl" : "ltr"}>{status?.tone === "error" ? <ErrorState description={status.text} onRetry={() => { setStatus(null); return load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }} /> : <SkeletonList rows={3} label={t.loading} />}</div>;
   const reviewIds = new Set(view.review.map(row => row.studentId));
-  const hasPlan = (student: Student) => student.plans.some(plan => plan.status === "ACTIVE");
+  // SKAI-1487: only a plan inside its window counts as current; expired and upcoming ones are labelled.
+  const hasPlan = (student: Student) => student.plans.some(plan => plan.status === "ACTIVE" && (plan.phase ?? "CURRENT") === "CURRENT");
   const needle = query.trim().toLocaleLowerCase();
   const students = urgencyFirst(view.students.filter(student => (show === "" || (show === "review" ? reviewIds.has(student.id) : show === "active" ? hasPlan(student) : !hasPlan(student))) && (!needle || `${student.fullName} ${student.rollNo}`.toLocaleLowerCase().includes(needle))), student => reviewIds.has(student.id) ? 0 : 1);
   const tiles = [{ key: "active", label: t.active, icon: ShieldCheck, tone: "success", value: view.students.filter(hasPlan).length }, { key: "none", label: ui("No plan"), icon: CircleDashed, tone: "neutral", value: view.students.filter(student => !hasPlan(student)).length }, { key: "review", label: t.review, icon: CalendarClock, tone: view.review.length ? "warning" : "neutral", value: view.review.length }] as const;
@@ -84,7 +85,7 @@ export function CoordinatorAccess() {
       return <li key={student.id} data-tone={reviewIds.has(student.id) ? "warning" : active ? "success" : "muted"} className={deskRow}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <DeskRowIcon icon={active ? ShieldCheck : CircleDashed} />
-          <div className="min-w-0 flex-1 basis-48"><p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong"><span dir="auto">{student.fullName}</span>{active ? <DeskPill tone="success">{t.statuses.ACTIVE}</DeskPill> : null}</p>
+          <div className="min-w-0 flex-1 basis-48"><p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong"><span dir="auto">{student.fullName}</span>{active ? (active.phase === "EXPIRED" ? <DeskPill tone="warning">{ui("Expired")}</DeskPill> : active.phase === "UPCOMING" ? <DeskPill tone="neutral">{ui("Upcoming")}</DeskPill> : <DeskPill tone="success">{t.statuses.ACTIVE}</DeskPill>) : null}</p>
             {active ? <p className="text-xs text-ink-subtle">{t.active} · {t.version} {active.version} · {t.validity} {date(active.validFrom)} – {date(active.validUntil)} · {active.assessmentTypes.map(type => t.types[type]).join(", ")}</p> : <p className="text-xs text-ink-subtle">{t.none}</p>}
           </div>
           <Button type="button" variant="outline" onClick={() => setEditing(editing?.id === student.id ? null : student)}>{active ? t.editPlan : t.newPlan}</Button>

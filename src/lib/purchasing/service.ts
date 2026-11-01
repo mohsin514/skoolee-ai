@@ -80,6 +80,8 @@ export async function saveRequest(user: AuthUser, raw: unknown, id?: string, ver
     const total = totalOf(input.lines);
     if (total > INT32_MAX) throw new ApiError("The order total is too large to record.", 400);
     if (!id) {
+      // SKAI-1465: serialise PO numbering per campus so two drafts saved at once never share a number.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`purchase-po:${campusId}`}))`;
       const count = await tx.purchaseRequest.count({ where: { campusId } });
       return tx.purchaseRequest.create({ data: { schoolId: user.schoolId, campusId, budgetId: budget.id, poNumber: `PO-${String(count + 101)}`, title: input.title, supplierId: input.supplierId ?? null, quoteRef: input.quoteRef ?? null, lines: input.lines, received: input.lines.map(() => 0), total, requestedById: user.userId, history: [{ at: new Date().toISOString(), by: user.userId, action: "CREATED", total }] } });
     }

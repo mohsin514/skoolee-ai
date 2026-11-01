@@ -209,14 +209,14 @@ test("unreturned feedback and gradebook requests never reach learners or familie
   const s = await school();
   const id = await released(s);
   const receipt = await submitText(s.learner, id, "My answer", BEFORE);
-  await saveFeedback(s.teacher, id, { submissionVersionId: receipt.id, scores: scores(1, 1), comment: "Private marking note", requestGradebookTransfer: true });
+  const draft = await saveFeedback(s.teacher, id, { submissionVersionId: receipt.id, scores: scores(1, 1), comment: "Private marking note", requestGradebookTransfer: true });
   assert.equal((await learnerView(s.learner, id)).versions[0].feedback, null);
   const family = (await listAssignments(s.guardian, {}, BEFORE)).assignments as unknown as { versions: { feedback: unknown; text: string }[] }[];
   assert.equal(family.length, 1);
   assert.equal(family[0].versions[0].feedback, null);
   assert.equal(family[0].versions[0].text, "", "families see status, not the work itself");
   assert.doesNotMatch(JSON.stringify(await listAssignments(s.guardian, {}, BEFORE)), /Private marking note|gradebook/i);
-  await returnFeedback(s.teacher, id, { submissionVersionId: receipt.id, scores: scores(3, 5), comment: "Returned comment", requestGradebookTransfer: true }, BEFORE);
+  await returnFeedback(s.teacher, id, { submissionVersionId: receipt.id, scores: scores(3, 5), comment: "Returned comment", requestGradebookTransfer: true, expectedUpdatedAt: draft.updatedAt.toISOString() }, BEFORE);
   const returned = JSON.stringify(await listAssignments(s.guardian, {}, BEFORE));
   assert.match(returned, /Returned comment/);
   assert.doesNotMatch(returned, /gradebook|REQUESTED/i, "a transfer request stays with staff");

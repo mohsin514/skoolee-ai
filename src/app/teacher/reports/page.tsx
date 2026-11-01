@@ -246,7 +246,7 @@ export default function ReportsPage() {
     try {
       const res = await fetch(`/api/reports/${selectedReportCard.id}/remarks`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ remarksEn: remarks.en || null, remarksUr: remarks.ur || null }),
+        body: JSON.stringify({ remarksEn: remarks.en || null, remarksUr: remarks.ur || null, expectedRemarks: { remarksEn: selectedReportCard.remarksEn ?? null, remarksUr: selectedReportCard.remarksUr ?? null } }),
       });
       const text = await res.text();
       const result = JSON.parse(text);

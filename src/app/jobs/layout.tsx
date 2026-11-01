@@ -1,7 +1,7 @@
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { RoleFrame } from "@/components/role-dashboard/RoleFrame";
 import { prisma } from "@/lib/db/prisma";
-import { requirePageSession } from "@/lib/auth/require-page-session";
+import { redirectIfSuspended, requirePageSession } from "@/lib/auth/require-page-session";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { redirect } from "next/navigation";
 import { dashboardPathForRole } from "@/lib/roles";
@@ -12,6 +12,7 @@ export const metadata: Metadata = { title: "Background jobs" };
 export default async function JobsLayout({ children }: { children: React.ReactNode }) {
   // Background job progress, reached from a toast's "View progress" action; framed in the caller's console.
   const user = await requirePageSession();
+  redirectIfSuspended(user);
   // Families and the platform operator have no place here; the proxy sends them home first (G44).
   if (user.role === "PARENT" || user.role === "STUDENT" || user.role === "APP_OWNER") redirect(dashboardPathForRole(user.role));
   // Campus logo, else school logo: what the console's own sidebar shows (dashboard.ts). Read on the server so

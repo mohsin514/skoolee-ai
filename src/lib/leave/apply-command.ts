@@ -57,7 +57,8 @@ export async function applyLeave(user: AuthUser, body: Record<string, unknown>) 
 
   // SKAI-1408: the overlap check and the insert run under a per-person lock, so two tabs cannot both pass the check.
   const request = await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${user.userId}, 0))`;
+    // SKAI-1533: pg_advisory_xact_lock returns void, which $queryRaw cannot deserialise; $executeRaw runs it for the lock only.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${user.userId}, 0))`;
     const overlap = await findOverlappingLeave(tx, campusId, user.userId, start, end);
     if (overlap) {
       throw new ApiError(
