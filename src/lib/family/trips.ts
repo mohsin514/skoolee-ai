@@ -79,7 +79,18 @@ export async function reviseTrip(user: AuthUser, tripId: string, body: Record<st
 
 export async function cancelTrip(user: AuthUser, tripId: string) {
   staffOnly(user);
-  return schoolAiTransaction(user, async tx => { const trip = await lockTrip(tx, user, tripId); if (trip.status !== "OPEN") throw new ApiError("This trip was already cancelled.", 409); return tx.trip.update({ where: { id: tripId }, data: { status: "CANCELLED" } }); });
+  return schoolAiTransaction(user, async tx => {
+    const trip = await lockTrip(tx, user, tripId);
+    if (trip.status !== "OPEN") throw new ApiError("This trip was already cancelled.", 409);
+    // SKAI-1563: the linked TRIP activity ends with its trip, and its live places end too (terminal, never pending consent).
+    const linked = await tx.activity.findUnique({ where: { tripId } });
+    if (linked?.status === "PUBLISHED") {
+      await tx.activity.update({ where: { id: linked.id }, data: { status: "CANCELLED" } });
+      const live = await tx.activityPlace.findMany({ where: { activityId: linked.id, status: { in: ["WAITLIST", "OFFERED", "RESERVED", "CONFIRMED"] } } });
+      for (const p of live) await tx.activityPlace.update({ where: { id: p.id }, data: { status: "CANCELLED", cancelledAt: new Date(), cancelledById: user.userId, cancelReason: "Trip cancelled by the school", offerExpiresAt: null, refundState: p.feeStatus === "PAID" ? "NEEDED" : null, version: { increment: 1 } } });
+    }
+    return tx.trip.update({ where: { id: tripId }, data: { status: "CANCELLED" } });
+  });
 }
 
 async function lockTrip(tx: TxClient, user: AuthUser, tripId: string) {
