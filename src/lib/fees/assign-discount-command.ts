@@ -2,6 +2,7 @@ import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError } from "@/lib/api/scope";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
 
 /**
  * Give a named discount to one pupil (POST /api/fees/discount-assignments), extracted so the route and the AI
@@ -12,15 +13,19 @@ export async function assignDiscount(user: AuthUser, body: Record<string, unknow
   if (!body.discountId || !body.studentId) throw new ApiError("discountId and studentId required", 400);
   const discountId = String(body.discountId), studentId = String(body.studentId);
 
+  // Campus-pinned staff may assign only within their own campus; institution administrators see the whole school.
+  const campusPin = !isInstitutionAuthority(user) && user.campusId ? { campusId: user.campusId } : {};
+
   const discount = await prisma.feeDiscount.findFirst({
-    where: { id: discountId, campus: { schoolId: user.schoolId } },
+    where: { id: discountId, ...campusPin, campus: { schoolId: user.schoolId } },
   });
   if (!discount) throw new ApiError("Discount not found", 404);
 
   const student = await prisma.student.findFirst({
-    where: { id: studentId, campus: { schoolId: user.schoolId } },
+    where: { id: studentId, ...campusPin, campus: { schoolId: user.schoolId } },
   });
   if (!student) throw new ApiError("Student not found", 404);
+  if (student.campusId !== discount.campusId) throw new ApiError("The discount and the student belong to different campuses.", 409);
 
   const existing = await prisma.feeDiscountAssignment.findUnique({
     where: { discountId_studentId: { discountId, studentId } },
