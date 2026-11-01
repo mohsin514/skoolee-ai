@@ -11,11 +11,14 @@ export function tenthsToDays(tenths: number): number {
   return tenths / 10;
 }
 
+// SKAI-1409: leave dates are calendar days stored at UTC midnight; local-time setHours shifts them outside UTC.
+export function utcDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
 export function rangeTenths(from: Date, to: Date): number {
-  const start = new Date(from);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(to);
-  end.setHours(0, 0, 0, 0);
+  const start = utcDay(from);
+  const end = utcDay(to);
   const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
   return Math.max(1, days * 10);
 }

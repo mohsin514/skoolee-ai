@@ -1,7 +1,7 @@
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, resolveCampusId } from "@/lib/api/scope";
-import { rangeTenths } from "@/lib/leave";
+import { rangeTenths, utcDay } from "@/lib/leave";
 import { notify } from "@/lib/notifications/in-app";
 import { isStaffRole } from "@/lib/roles";
 
@@ -42,10 +42,8 @@ export async function applyLeave(user: AuthUser, body: Record<string, unknown>) 
   if (!fromDate) throw new ApiError("Valid fromDate is required", 400);
   if (!toDate) throw new ApiError("Valid toDate is required", 400);
 
-  const start = new Date(fromDate);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(toDate);
-  end.setHours(0, 0, 0, 0);
+  const start = utcDay(fromDate);
+  const end = utcDay(toDate);
   if (end < start) throw new ApiError("toDate cannot be before fromDate", 400);
 
   const leaveType = await prisma.leaveType.findFirst({
