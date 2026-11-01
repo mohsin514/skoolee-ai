@@ -143,8 +143,18 @@ async function handleNotification(req: NextRequest) {
 
       // Fee payment — settle the OnlinePaymentOrder idempotently
       if (kind === "FEE" && orderRef) {
+        // SKAI-863: only a completed payment for the order's own amount settles a fee. Cancelled and
+        // failed callbacks share this block and must never record a payment.
+        if (event !== "order.completed") return Response.json({ success: true, settled: false });
         const order = await prisma.onlinePaymentOrder.findUnique({ where: { orderRef } });
         if (order && order.status !== "COMPLETED") {
+          // The order stores paisa; SafePay may report the same minor units or whole rupees.
+          const paid = parsePaidAmount(data.amount ?? data.order?.amount);
+          const expected = order.amount;
+          if (paid == null || (Math.round(paid) !== expected && Math.round(paid * 100) !== expected)) {
+            console.error("[safepay/notification] fee amount not verifiable; payment not recorded", { orderId: order.id });
+            return Response.json({ error: "Amount mismatch" }, { status: 400 });
+          }
           // Now that the owning school is known, settle inside its scope so
           // the guard constrains every write below.
           await runWithTenantContext({ schoolId: order.schoolId }, () =>
