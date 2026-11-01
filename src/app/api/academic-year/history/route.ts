@@ -48,8 +48,9 @@ export async function GET(req: NextRequest) {
         orderBy: { rollNo: "asc" },
       });
 
-      const classInfo = await prisma.class.findUnique({
-        where: { id: classId },
+      // The class must belong to the resolved campus; a foreign class id returns no metadata.
+      const classInfo = await prisma.class.findFirst({
+        where: { id: classId, campusId },
         select: {
           id: true,
           name: true,
