@@ -47,7 +47,9 @@ const newSigningSecret = () => `whsec_${randomBytes(24).toString("base64url")}`;
 
 export async function createConnection(user: AuthUser, body: Record<string, unknown>) {
   admin(user);
-  const name = text(body.name, 120);
+  // SKAI-1360: a name must be text within 120 characters; numbers and longer values are refused, not coerced or cut.
+  if (typeof body.name !== "string" || body.name.trim().length > 120) throw new ApiError("The connection name must be text of up to 120 characters.", 400);
+  const name = body.name.trim();
   if (name.length < 3) throw new ApiError("Name the connection after the system it connects.", 400);
   const campusIds = list(body.campusIds), scopes = list(body.scopes), topics = list(body.topics);
   if (!campusIds.length) throw new ApiError("Choose at least one campus this connection may see.", 400);
