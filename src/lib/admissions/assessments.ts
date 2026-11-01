@@ -72,6 +72,10 @@ export async function actOnAssessment({ db, user, campusId, application, officeN
       const staff = await db.user.findFirst({ where: { id: staffId, schoolId: user.schoolId, isActive: true, role: { notIn: ["STUDENT", "PARENT"] }, OR: [{ campusId }, { role: "SUPER_ADMIN" }] }, select: { id: true } });
       if (!staff) throw new ApiError("Choose an active staff member in this campus to run it.", 400);
     }
+    // SKAI-1422: a retry of the same booking after a lost response replays the original. The application row is locked
+    // by the caller, so two retries cannot both pass this check.
+    const original = await db.admissionAssessment.findFirst({ where: { schoolId: user.schoolId, applicationId: application.id, status: "SCHEDULED", kind, scheduledAt, durationMin, staffId, location } });
+    if (original) return original;
     // SKAI-1349: the same interviewer or room cannot be double-booked for overlapping times.
     const end = scheduledAt.getTime() + durationMin * 60_000;
     const candidates = await db.admissionAssessment.findMany({
