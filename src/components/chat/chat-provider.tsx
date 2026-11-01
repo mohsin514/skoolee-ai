@@ -53,6 +53,9 @@ interface ChatContextValue {
   unreadTotal: number;
   isConnected: boolean;
   isLoadingList: boolean;
+  /** SKAI-1530: the list could not be loaded; the cached list (if any) stays and retryList reloads it. */
+  listFailed: boolean;
+  retryList: () => void;
 
   filter: ConversationFilter;
   setFilter: (filter: ConversationFilter) => void;
@@ -156,6 +159,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoadingList, setIsLoadingList] = useState(true);
+  const [listFailed, setListFailed] = useState(false);
 
   const [filter, setFilter] = useState<ConversationFilter>("all");
   const [search, setSearch] = useState("");
@@ -231,16 +235,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (search.trim()) params.set("q", search.trim());
 
       const res = await fetch(`/api/chat/conversations?${params}`);
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`conversations ${res.status}`);
 
       const json = await res.json();
-      if (json.success) setConversations(json.conversations);
+      if (!json.success || !Array.isArray(json.conversations)) throw new Error("conversations payload");
+      setConversations(json.conversations);
+      setListFailed(false);
     } catch {
-      // Offline; the list on screen stays valid until the network returns.
+      // Offline or failed: keep the list on screen and say so, never pretend the inbox is empty.
+      setListFailed(true);
     } finally {
       setIsLoadingList(false);
     }
   }, [filter, search]);
+
+  const retryList = useCallback(() => { setIsLoadingList(true); void loadConversations(); }, [loadConversations]);
 
   const loadUnread = useCallback(async () => {
     try {
@@ -770,6 +779,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       unreadTotal,
       isConnected,
       isLoadingList,
+      listFailed,
+      retryList,
       filter,
       setFilter,
       search,
@@ -808,6 +819,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       unreadTotal,
       isConnected,
       isLoadingList,
+      listFailed,
+      retryList,
       filter,
       search,
       activeId,
