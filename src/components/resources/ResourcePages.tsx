@@ -7,6 +7,7 @@ import { StudentPage } from "@/components/student/student-page";
 import { ParentPage } from "@/components/parent/parent-page";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { ResourceLibrary } from "./ResourceLibrary";
+import { useParentData } from "@/app/parent/parent-data-context";
 import { getResourceCopy } from "./resource-copy";
 import { TeacherStudyDesk } from "@/components/study/study-assistant";
 
@@ -19,7 +20,9 @@ export function StudentResourcesPage() {
 }
 export function ParentResourcesPage() {
   const t = useCopy();
-  return <ParentPage icon={FolderOpen} title={t.title} description={t.guardianSummary}><ResourceLibrary audience="guardian" /></ParentPage>;
+  // SKAI-1524: the list follows the child selected in the parent shell.
+  const { selectedStudentId } = useParentData();
+  return <ParentPage icon={FolderOpen} title={t.title} description={t.guardianSummary}><ResourceLibrary key={selectedStudentId ?? "all"} audience="guardian" studentId={selectedStudentId ?? undefined} /></ParentPage>;
 }
 export function TeacherResourcesPage() {
   const t = useCopy();
