@@ -81,17 +81,40 @@ const ProviderInput = z.object({
   columns: z.array(z.object({ header: text(1, 60), field: z.enum(EXPORT_FIELDS as [ExportField, ...ExportField[]]) }).strict()).min(2).max(20),
 }).strict();
 
-/** A provider mapping version is immutable; saving the same code creates the next version. */
+const PROVIDER_CHANGED = "This mapping changed while you were saving. Reload it, then save again.";
+
+/** Column pairs compared by value: Postgres jsonb does not keep the key order the payload was sent in. */
+const columnPairs = (columns: unknown) => (columns as { header: string; field: string }[]).map((c) => `${c.header}\u0000${c.field}`).join("\u0001");
+
+/** Whether a stored version already holds this payload, so saving it again is a replay. */
+const sameMapping = (stored: { name: string; currencies: string[]; columns: unknown }, input: z.infer<typeof ProviderInput>) =>
+  stored.name === input.name && stored.currencies.join(",") === input.currencies.join(",") && columnPairs(stored.columns) === columnPairs(input.columns);
+
+/**
+ * A provider mapping version is immutable. Saving the same code creates the next version, and a payload identical to
+ * the current version replays it. The version is allocated under a lock per campus and code, so racing saves never
+ * collide on the unique key. A save that did not read the version a racing save committed gets a 409, and a raw
+ * unique-constraint error is never returned. The audit row is written in the same transaction, so only committed versions are audited.
+ */
 export async function saveProvider(user: AuthUser, raw: unknown) {
   await canApprove(user);
   const input = parse(ProviderInput, raw), campusId = campusOf(user);
   assert(input.columns.some((c) => c.field === "providerEmployeeId") && input.columns.some((c) => c.field === "net"), "The mapping must export the provider employee id and net pay.", 400);
-  return prisma.$transaction(async (tx) => {
-    const last = await tx.payrollProvider.findFirst({ where: { campusId, code: input.code }, orderBy: { version: "desc" }, select: { version: true } });
-    const provider = await tx.payrollProvider.create({ data: { ...input, columns: json(input.columns), schoolId: user.schoolId, campusId, version: (last?.version ?? 0) + 1, createdById: user.userId } });
-    await writeAuditEvent(tx, user, { table: "payroll_providers", recordId: provider.id, action: "CREATE", campusId, after: { code: provider.code, version: provider.version, currencies: input.currencies.join(",") } });
-    return provider;
-  });
+  const seen = await prisma.payrollProvider.findFirst({ where: { campusId, code: input.code }, orderBy: { version: "desc" }, select: { version: true } });
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${campusId}:${input.code}`}, 0))`;
+      const last = await tx.payrollProvider.findFirst({ where: { campusId, code: input.code }, orderBy: { version: "desc" } });
+      if (last && sameMapping(last, input)) return last;
+      if ((last?.version ?? 0) !== (seen?.version ?? 0)) throw new ApiError(PROVIDER_CHANGED, 409);
+      const provider = await tx.payrollProvider.create({ data: { ...input, columns: json(input.columns), schoolId: user.schoolId, campusId, version: (last?.version ?? 0) + 1, createdById: user.userId } });
+      await writeAuditEvent(tx, user, { table: "payroll_providers", recordId: provider.id, action: "CREATE", campusId, after: { code: provider.code, version: provider.version, currencies: input.currencies.join(",") } });
+      return provider;
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ApiError(PROVIDER_CHANGED, 409);
+    throw error;
+  }
 }
 
 const SERIALISATION_RETRIES = 3;
