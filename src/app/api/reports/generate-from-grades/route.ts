@@ -147,28 +147,23 @@ export async function POST(req: NextRequest) {
 
     const examId = finalExam.id;
     const writes = grades.map((grade) => {
-      const shared = {
+      const marks = {
         totalMarks,
         obtainedMarks: grade.subjectBreakdown.reduce((s, sb) => s + sb.obtainedMarks, 0),
         percentage: grade.overallPercentage,
         grade: grade.overallGrade,
         rank: (grade as any).rank || 0,
-        status: "PUBLISHED" as const,
-        remarksEn: null,
-        remarksUr: null,
-        remarksApproved: false,
-        isSent: false,
-        deliveryStatus: "PENDING",
         generatedAt: now,
       };
-      return { shared, studentId: grade.studentId, existingId: existingMap.get(grade.studentId) };
+      return { marks, studentId: grade.studentId, existingId: existingMap.get(grade.studentId) };
     });
 
     await prisma.$transaction(async (tx) => {
-      for (const { shared, studentId, existingId } of writes) {
+      for (const { marks, studentId, existingId } of writes) {
+        // Regeneration refreshes marks only: authored remarks, approval and delivery history are kept.
         const card = existingId
-          ? await tx.reportCard.update({ where: { id: existingId }, data: shared })
-          : await tx.reportCard.create({ data: { ...shared, campusId: user.campusId!, examId, studentId } });
+          ? await tx.reportCard.update({ where: { id: existingId }, data: marks })
+          : await tx.reportCard.create({ data: { ...marks, status: "PUBLISHED", remarksEn: null, remarksUr: null, remarksApproved: false, isSent: false, deliveryStatus: "PENDING", campusId: user.campusId!, examId, studentId } });
         await writeAuditEvent(tx, user, {
           table: "report_cards", recordId: card.id, action: existingId ? "UPDATE" : "CREATE", campusId: card.campusId,
           after: { examId, studentId, status: card.status, totalMarks: card.totalMarks, obtainedMarks: card.obtainedMarks, percentage: card.percentage, grade: card.grade, rank: card.rank },
