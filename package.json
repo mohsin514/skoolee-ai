@@ -13,6 +13,7 @@
     "test:fee-structures": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/structure-year.test.ts",
     "test:enrollment-paging": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/students/enrollment-history-paging.test.ts",
     "test:payroll-employee-merge": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/payroll/employee-mapping-merge.test.ts",
+    "test:inventory-names": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/inventory/name-validation.test.ts",
     "test:payroll-terminated-eligibility": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/payroll/terminated-staff-eligibility.test.ts",
     "test:fee-due": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/next-due.test.ts",
     "test:password-reset": "node --import tsx --test tests/password-reset/*.test.ts",
