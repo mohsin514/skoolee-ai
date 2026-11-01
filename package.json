@@ -13,7 +13,10 @@
     "test:fee-structures": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/structure-year.test.ts",
     "test:enrollment-paging": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/students/enrollment-history-paging.test.ts",
     "test:payroll-employee-merge": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/payroll/employee-mapping-merge.test.ts",
+<<<<<<< HEAD
     "test:marks-scan-reversal": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/marks-scan/reversal-exempt-state.database.test.ts",
+=======
+>>>>>>> origin/SKAI-1436-marks-import-exempt-state
     "test:portfolio-share-replay": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/portfolio/share-replay.database.test.ts",
     "test:class-grades-scope": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/reports/class-grades-pdf-scope.database.test.ts",
     "test:bank-statement-dates": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/bank-statement-dates.test.ts",
@@ -119,7 +122,8 @@
     "test:login": "node --import ./tests/support/server-only.mjs --import tsx --test tests/login/*.test.ts",
     "test:adoption-mode": "node --import ./tests/support/server-only.mjs --import tsx --test tests/readiness/checks.test.ts",
     "test:safepay": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/payments/safepay-webhook.test.ts tests/payments/safepay-simulate-plan.test.ts",
-    "test:bank-units": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/payments/bank-statement-units.test.ts"
+    "test:bank-units": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/payments/bank-statement-units.test.ts",
+    "test:marks-scan-reversal": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/marks-scan/reversal-exempt-state.database.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
