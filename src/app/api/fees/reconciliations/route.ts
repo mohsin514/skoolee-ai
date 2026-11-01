@@ -6,6 +6,7 @@ import { recordPayment } from "@/lib/fees/payment";
 import { conservationReport } from "@/lib/fees/bank-reconciliation";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { isRealDate } from "@/lib/validators/fields";
 
 // SKO-432: a committed bank statement is posted as payments in one reviewed step. Each matched row
 // becomes one payment keyed to its bank transaction, so a replay posts nothing twice; rows whose
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
       const posted: Posted[] = [], exceptions: Exception[] = [];
       for (const row of storedRows(current.reconciliationDetailsJson)) {
         const invoice = row.matchedInvoiceId ? await tx.invoice.findFirst({ where: { id: row.matchedInvoiceId, schoolId: user.schoolId, campusId: current.campusId }, select: { id: true, studentId: true, status: true, balanceDue: true } }) : null;
-        if (row.amountMinor <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)) { exceptions.push({ rowNumber: row.rowNumber, amountMinor: Math.max(0, row.amountMinor), reason: "This row has no valid amount or date. The money stays unallocated for review." }); continue; }
+        if (row.amountMinor <= 0 || !isRealDate(row.date)) { exceptions.push({ rowNumber: row.rowNumber, amountMinor: Math.max(0, row.amountMinor), reason: "This row has no valid amount or date. The money stays unallocated for review." }); continue; }
         if (!invoice || invoice.status === "CANCELLED" || invoice.balanceDue <= 0) { exceptions.push({ rowNumber: row.rowNumber, amountMinor: row.amountMinor, reason: "The matched invoice is no longer payable. The money stays unallocated for review." }); continue; }
         const result = await recordPayment(tx, { campusId: current.campusId, invoiceId: invoice.id, studentId: invoice.studentId, amount: row.amountMinor, paymentDate: new Date(`${row.date}T00:00:00.000Z`), paymentMethod: "BANK", referenceNumber: row.rowKey ? `BANK-${row.rowKey.slice(0, 24)}` : `BANK-${current.id.slice(0, 8)}-${row.rowNumber}`, note: `Bank statement row ${row.rowNumber}: ${row.description}`.slice(0, 300), recordedBy: user.userId });
         posted.push({ rowNumber: row.rowNumber, paymentId: result.payment.id, receiptNo: result.receiptNo, allocated: row.amountMinor - result.credit, credited: result.credit });
