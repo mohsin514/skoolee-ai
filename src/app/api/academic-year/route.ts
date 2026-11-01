@@ -12,6 +12,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { getYearClosureReport } from "@/lib/academic/year-closure";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -89,6 +90,11 @@ export async function POST(req: NextRequest) {
           );
         }
       }
+      // A forced close overrides outstanding checklist items, so the academic lead must say why on the server too.
+      const overrideReason = !closure.canClose ? String(body.reason ?? "").trim() : "";
+      if (!closure.canClose && overrideReason.length < 10) {
+        throw new ApiError("Give a reason of at least 10 characters to close a year with outstanding work.", 400);
+      }
 
       const classes = await prisma.class.findMany({
         where: { campusId, academicYear, status: "ACTIVE" },
@@ -152,6 +158,12 @@ export async function POST(req: NextRequest) {
           await tx.class.update({
             where: { id: cls.id },
             data: { status: "COMPLETED" },
+          });
+        }
+        if (!closure.canClose) {
+          await writeAuditEvent(tx, user, {
+            table: "academic_years", recordId: `${campusId}:${academicYear}`, action: "UPDATE", campusId,
+            after: { status: "CLOSED", forced: true, overrideReason: overrideReason.slice(0, 1000), overrideReasons: closure.blockingReasons.join(" ").slice(0, 1000) },
           });
         }
       });
