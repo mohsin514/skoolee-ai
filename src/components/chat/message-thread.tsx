@@ -676,15 +676,24 @@ function MessageBubble({
                 <ul className={cn("space-y-1.5", message.body && "mt-2")}>
                   {message.attachments.map((a) =>
                     a.contentType.startsWith("image/") && a.url ? (
-                      <li key={a.id}>
-                        {/* Presigned S3 URLs are not a configured next/image
-                            host, and they expire — a plain img avoids both. */}
-                        <img
-                          src={a.url}
-                          alt={a.fileName}
-                          loading="lazy"
-                          className="max-h-72 w-auto rounded-xl shadow-md"
-                        />
+                      <li key={a.id} className="space-y-1">
+                        {/* SKAI-1588: the image opens the original, and a visible Download link names the file, so
+                            keyboard and touch users can reach it like any other attachment. */}
+                        <a href={a.url} target="_blank" rel="noreferrer" aria-label={ui("Open {0}", [a.fileName])} className="block w-fit rounded-xl" data-attachment-open>
+                          {/* Presigned S3 URLs are not a configured next/image
+                              host, and they expire — a plain img avoids both. */}
+                          <img
+                            src={a.url}
+                            alt={a.fileName}
+                            loading="lazy"
+                            className="max-h-72 w-auto rounded-xl shadow-md"
+                          />
+                        </a>
+                        <a href={a.url} download={a.fileName} target="_blank" rel="noreferrer" aria-label={ui("Download {0}", [a.fileName])} className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-2xs font-bold", isMine ? "text-white hover:bg-white/15" : "text-primary hover:bg-brand-50")} data-attachment-download>
+                          <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <bdi className="max-w-[14rem] truncate">{a.fileName}</bdi>
+                          <span className="opacity-70">{formatSize(a.sizeBytes)}</span>
+                        </a>
                       </li>
                     ) : (
                       <li key={a.id}>
