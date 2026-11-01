@@ -82,7 +82,8 @@ interface ChatContextValue {
   discardMessage: (clientKey: string) => void;
   /** When the thread was last brought in line with stored history (after load or reconnect). */
   lastSyncedAt: string | null;
-  editMessage: (messageId: string, body: string) => Promise<void>;
+  /** Resolves false when the edit was not saved, so the composer can keep the draft (SKAI-1583). */
+  editMessage: (messageId: string, body: string) => Promise<boolean>;
   deleteMessage: (messageId: string) => Promise<void>;
 
   startDirect: (userId: string) => Promise<string | null>;
@@ -658,13 +659,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ body }),
-    });
-    if (!res.ok) {
-      setError(await readError(res, "Could not edit that message"));
-      return;
+    }).catch(() => null);
+    if (!res?.ok) {
+      setError(res ? await readError(res, "Could not edit that message") : "Could not edit that message");
+      return false;
     }
-    const json = await res.json();
+    const json = await res.json().catch(() => null);
+    if (!json?.message) {
+      setError("Could not edit that message");
+      return false;
+    }
     setMessages((prev) => prev.map((m) => (m.id === messageId ? json.message : m)));
+    return true;
   }, []);
 
   const deleteMessage = useCallback(async (messageId: string) => {

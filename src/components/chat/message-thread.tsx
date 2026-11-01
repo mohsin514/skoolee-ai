@@ -464,8 +464,10 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           editing={editing}
           onClearEditing={() => setEditing(null)}
           onSubmitEdit={async (body) => {
-            if (editing) await editMessage(editing.id, body);
-            setEditing(null);
+            // A failed save keeps edit mode open so the draft can be retried or cancelled.
+            const saved = editing ? await editMessage(editing.id, body) : true;
+            if (saved) setEditing(null);
+            return saved;
           }}
         />
       </div>

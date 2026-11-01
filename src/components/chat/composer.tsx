@@ -28,7 +28,7 @@ interface ComposerProps {
   onClearReply: () => void;
   editing: ChatMessageView | null;
   onClearEditing: () => void;
-  onSubmitEdit: (body: string) => Promise<void>;
+  onSubmitEdit: (body: string) => Promise<boolean>;
 }
 
 interface PendingFile {
@@ -166,7 +166,8 @@ export function Composer({
     setIsSending(true);
     try {
       if (editing) {
-        await onSubmitEdit(body);
+        // SKAI-1583: an unsaved edit keeps its text in the composer for a retry.
+        if (!(await onSubmitEdit(body))) return;
       } else {
         // A failed send stays in the thread with its own Retry/Discard, so the composer can clear.
         await sendMessage({ body, replyToId: replyTo?.id, attachments, urgent: canMarkUrgent && urgent });
