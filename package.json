@@ -13,6 +13,7 @@
     "test:fee-structures": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/structure-year.test.ts",
     "test:staff-removal:db": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/staff/staff-removal.database.test.ts",
     "test:fee-due": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/next-due.test.ts",
+    "test:rollover-capacity": "node --test-force-exit --import ./tests/support/server-only.mjs --import tsx --test tests/academic/rollover-capacity.database.test.ts",
     "test:family-statement": "node --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/fees/family-statement.test.ts",
     "test:password-reset": "node --import tsx --test tests/password-reset/*.test.ts",
     "test:teaching-mode": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/teaching-mode.test.ts",
