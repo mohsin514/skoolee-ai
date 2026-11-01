@@ -757,19 +757,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     fetch(`/api/chat/conversations/${activeId}/typing`, { method: "POST" }).catch(() => {});
   }, [activeId]);
 
+  // SKAI-1540: a failed directory load rejects, so the dialog can show an error and Retry
+  // instead of "0 people you can reach".
   const searchDirectory = useCallback(async (query: string) => {
-    try {
-      const params = new URLSearchParams({ limit: "50" });
-      if (query.trim()) params.set("q", query.trim());
+    const params = new URLSearchParams({ limit: "50" });
+    if (query.trim()) params.set("q", query.trim());
 
-      const res = await fetch(`/api/chat/directory?${params}`);
-      if (!res.ok) return [];
+    const res = await fetch(`/api/chat/directory?${params}`);
+    if (!res.ok) throw new Error(`directory ${res.status}`);
 
-      const json = await res.json();
-      return (json.contacts ?? []) as DirectoryContact[];
-    } catch {
-      return [];
-    }
+    const json = await res.json();
+    if (!Array.isArray(json?.contacts)) throw new Error("directory payload");
+    return json.contacts as DirectoryContact[];
   }, []);
 
   const value = useMemo<ChatContextValue>(
