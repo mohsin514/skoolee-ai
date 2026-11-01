@@ -4,6 +4,7 @@
 // ===========================================
 
 import { z } from "zod";
+import { isRealDate } from "./fields";
 
 // ─── DIAGRAM 2: Registration Flow ─────────────────────────
 
@@ -413,11 +414,18 @@ export const paymentSchema = z.object({
 });
 
 // Bank import
-export const bankImportSchema = z.object({
-  accountName: z.string().min(1),
-  statementFrom: z.string().min(1),
-  statementTo: z.string().min(1),
-});
+// A statement period names real calendar dates (2026-11-31 is refused, not rolled into December), and it runs forward.
+const statementDate = z.string().refine(isRealDate, "Use a real calendar date (YYYY-MM-DD).");
+export const bankImportSchema = z
+  .object({
+    accountName: z.string().min(1),
+    statementFrom: statementDate,
+    statementTo: statementDate,
+  })
+  .refine((v) => v.statementFrom <= v.statementTo, {
+    message: "The statement must end on or after its start date.",
+    path: ["statementTo"],
+  });
 
 // ─── Type exports ──────────────────────────────────────────
 export type SchoolGroupFormData = z.infer<typeof schoolGroupSchema>;
