@@ -1,6 +1,7 @@
 "use client";
 import { chatUnreadBadge } from "./chat-styles";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -60,6 +61,8 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
     activeId,
     openConversation,
     isLoadingList,
+    listFailed,
+    retryList,
     isConnected,
     unreadTotal,
   } = useChat();
@@ -146,9 +149,14 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
 
         {/* ── Rows ── */}
         <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2">
+          {listFailed ? (
+            <div className="px-2 pb-2">
+              <ErrorState title={ui("Couldn't load conversations")} description={conversations.length ? ui("Showing the last list we loaded.") : ui("Check your connection and try again.")} retryLabel={ui("Try again")} onRetry={retryList} />
+            </div>
+          ) : null}
           {isLoadingList ? (
             <ListSkeleton />
-          ) : conversations.length === 0 ? (
+          ) : listFailed && conversations.length === 0 ? null : conversations.length === 0 ? (
             <EmptyList filter={filter} onNewChat={onNewChat} />
           ) : (
             <ul className="space-y-1">
