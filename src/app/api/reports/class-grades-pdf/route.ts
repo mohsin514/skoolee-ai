@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
     return new Response(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/pdf",
+        "Cache-Control": "private, no-store", // SKAI-744: pupil grades and family finance PDFs never sit in a shared or browser cache
         "Content-Disposition": `attachment; filename="final-grades-${className || "class"}.pdf"`,
       },
     });

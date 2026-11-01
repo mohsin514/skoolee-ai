@@ -4,6 +4,7 @@ import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
 import { prisma } from "@/lib/db/prisma";
 import { bankImportSchema } from "@/lib/validators/schemas";
+import { isRealDate } from "@/lib/validators/fields";
 import {
   ApiError,
   errorResponse,
@@ -131,6 +132,10 @@ export async function processBankImport(
         };
       })
       .filter((t) => t.amount > 0);
+
+    // Every row that would be imported must name a real calendar date; nothing is written when one does not.
+    const badRow = transactions.find((t) => !isRealDate(t.date));
+    if (badRow) throw new ApiError(`Row ${badRow.rowNumber} has no real calendar date (YYYY-MM-DD). Fix it and import again.`, 400);
 
     const pendingInvoices = await db.invoice.findMany({
       where: {

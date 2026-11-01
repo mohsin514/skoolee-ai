@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { isFamily, studentScope } from "@/lib/auth/policy";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
-import { applyEnrollment, applyReadmission, assertPlacementTarget, assertRegistrar, canPlaceAcrossCampuses, dateOnly, enrollmentHistoryWhere, enrollmentImpact, readPupil } from "@/lib/students/enrollment";
+import { applyEnrollment, applyReadmission, assertPlacementTarget, assertRegistrar, assertRollNoFree, canPlaceAcrossCampuses, dateOnly, enrollmentHistoryWhere, enrollmentImpact, readPupil } from "@/lib/students/enrollment";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -99,6 +99,8 @@ export async function POST(req: NextRequest) {
     }
     const impact = await enrollmentImpact(prisma, id, fromId, targetClassId, effectiveDate, true);
     const seats = await assertPlacementTarget(prisma, user, impact.pupil, impact.target);
+    // SKAI-172: surface a roll-number clash at preview/propose, not only when the move is confirmed.
+    await assertRollNoFree(prisma, id, impact.target.campusId, rollNo);
     if (body.action === "preview") return Response.json({ preserved: impact.preserved, guardianAccess: impact.guardianAccess, capacity: impact.capacity, targetOccupancy: seats.occupied, targetCapacity: seats.capacity, policy: impact.policy });
     if (body.action !== "propose") throw new ApiError("Unknown action", 400);
     // SKAI-170: one open proposal per current enrollment, so a double submit or retry cannot queue two moves.
