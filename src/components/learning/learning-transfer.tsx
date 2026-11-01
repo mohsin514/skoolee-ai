@@ -156,7 +156,7 @@ function TransferCase({ id, onChanged }: { id: string; onChanged: () => Promise<
         <div className="grid gap-1 text-sm font-semibold"><label htmlFor={`${fid}-review`}>{ui("Review date")}</label><Input id={`${fid}-review`} type="date" value={reviewDate} onChange={event => setReviewDate(event.target.value)} /></div>
         <Button disabled={busy || !reviewDate} onClick={() => void act("bridge", { caseId: id, version: detail.version, reviewDate })}>{ui("Create bridge plan")}</Button>
       </div> : null}
-      <Button size="sm" variant="outline" disabled={busy} onClick={() => setExporting(true)}>{ui("Download reviewed mapping")}</Button>
+      <Button size="sm" variant="outline" disabled={busy || !reviewed} onClick={() => setExporting(true)}>{ui("Download reviewed mapping")}</Button>
     </>}
     {error ? <Alert compact tone="danger">{error}</Alert> : null}
     <ConfirmAction open={exporting} busy={busy} tone="primary" title={ui("Download the reviewed mapping?")}

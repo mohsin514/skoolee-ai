@@ -255,8 +255,12 @@ export async function exportTransfer(user: AuthUser, caseId: string) {
   return schoolAiTransaction(user, async tx => {
     const row = await loadCase(tx, user, caseId);
     requireRights(row, "objectives");
-    const mappings = await tx.learningTransferMapping.findMany({ where: { caseId: row.id, schoolId: user.schoolId, decision: { in: ["ACCEPTED", "NOT_COMPARABLE"] }, stale: false } });
     const evidence = (row.evidence as Evidence).objectives;
+    const current = await tx.learningTransferMapping.findMany({ where: { caseId: row.id, schoolId: user.schoolId, stale: false } });
+    // Same bar as the UI: every objective reviewed and current, and at least one mapping to export.
+    const complete = evidence.length > 0 && evidence.every(o => current.some(m => m.sourceObjectiveId === o.id && m.decision !== "PROPOSED"));
+    const mappings = current.filter(m => m.decision === "ACCEPTED" || m.decision === "NOT_COMPARABLE");
+    if (!complete || mappings.length === 0) throw new ApiError("Review every objective before downloading the mapping.", 409);
     const downloads = [...(row.downloads as { at: string; byId: string }[]), { at: new Date().toISOString(), byId: user.userId }];
     await tx.learningTransferCase.update({ where: { id: row.id }, data: { downloads: json(downloads) } });
     await writeAuditEvent(tx, user, { table: "learning_transfer_cases", recordId: row.id, action: "UPDATE", campusId: row.campusId, after: { exported: true, download: downloads.length } });
