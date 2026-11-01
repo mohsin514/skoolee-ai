@@ -175,7 +175,13 @@ export async function dispatchDigest(schoolId: string, digestId: string, now = n
       }
       await tx.familyDigestEntry.update({ where: { id: entry.id }, data: { status: "SENT", reason: null } });
     }
-    await tx.familyDigest.update({ where: { id: digestId }, data: { status: "SENT", sentAt: now } });
+    // SKAI-1403: a blocked entry must stay correctable. Reopen the digest for review instead of marking it SENT;
+    // deliveries already made are kept, so a later approved resend only reaches guardians not yet sent to.
+    if (blocked > 0) {
+      await tx.familyDigest.update({ where: { id: digestId }, data: { status: "DRAFT", approvedVersion: null, approvedById: null, approvedAt: null, scheduledFor: null } });
+    } else {
+      await tx.familyDigest.update({ where: { id: digestId }, data: { status: "SENT", sentAt: now } });
+    }
     return { created, blocked };
   });
 }
