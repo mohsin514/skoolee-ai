@@ -10,6 +10,8 @@ import { applyEnrollment, applyReadmission, assertPlacementTarget, assertRegistr
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
+const PAGE_SIZE = 100;
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
@@ -29,12 +31,26 @@ export async function GET(req: NextRequest) {
     if (enrollmentId) {
       if (!pupil.enrollments.some(e => e.id === enrollmentId)) throw new ApiError("Enrollment not found", 404);
       const history = enrollmentHistoryWhere(user);
-      const [attendance, invoices, reports] = await Promise.all([
-        prisma.attendance.findMany({ where: { studentId: id, enrollmentId, ...history.attendance }, select: { id: true, date: true, status: true }, orderBy: { date: "desc" }, take: 100 }),
-        prisma.invoice.findMany({ where: { studentId: id, enrollmentId, ...history.invoices }, select: { id: true, invoiceNumber: true, invoiceDate: true, currency: true, balanceDue: true }, orderBy: { invoiceDate: "desc" }, take: 100 }),
-        prisma.reportCard.findMany({ where: { studentId: id, enrollmentId, ...history.reports }, select: { id: true, generatedAt: true, status: true, exam: { select: { title: true } } }, take: 100 }),
+      // SKAI-1503: each collection is paged by keyset (id tie-break) with its own cursor and total, so older rows stay reachable.
+      const cursor = (name: string) => req.nextUrl.searchParams.get(name) || undefined;
+      const page = <T extends { id: string }>(rows: T[]) => {
+        const hasMore = rows.length > PAGE_SIZE;
+        const items = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
+        return { items, nextCursor: hasMore ? items[items.length - 1].id : null };
+      };
+      const after = (value?: string) => (value ? { cursor: { id: value }, skip: 1 } : {});
+      const [attendanceRows, invoiceRows, reportRows, attendanceTotal, invoiceTotal, reportTotal] = await Promise.all([
+        prisma.attendance.findMany({ where: { studentId: id, enrollmentId, ...history.attendance }, select: { id: true, date: true, status: true }, orderBy: [{ date: "desc" }, { id: "desc" }], take: PAGE_SIZE + 1, ...after(cursor("attendanceCursor")) }),
+        prisma.invoice.findMany({ where: { studentId: id, enrollmentId, ...history.invoices }, select: { id: true, invoiceNumber: true, invoiceDate: true, currency: true, balanceDue: true }, orderBy: [{ invoiceDate: "desc" }, { id: "desc" }], take: PAGE_SIZE + 1, ...after(cursor("invoiceCursor")) }),
+        prisma.reportCard.findMany({ where: { studentId: id, enrollmentId, ...history.reports }, select: { id: true, generatedAt: true, status: true, exam: { select: { title: true } } }, orderBy: [{ generatedAt: "desc" }, { id: "desc" }], take: PAGE_SIZE + 1, ...after(cursor("reportCursor")) }),
+        prisma.attendance.count({ where: { studentId: id, enrollmentId, ...history.attendance } }),
+        prisma.invoice.count({ where: { studentId: id, enrollmentId, ...history.invoices } }),
+        prisma.reportCard.count({ where: { studentId: id, enrollmentId, ...history.reports } }),
       ]);
-      return Response.json({ attendance, invoices, reports, limit: 100 }, { headers: { "Cache-Control": "private, no-store" } });
+      const attendance = page(attendanceRows);
+      const invoices = page(invoiceRows);
+      const reports = page(reportRows);
+      return Response.json({ attendance: attendance.items, invoices: invoices.items, reports: reports.items, nextCursors: { attendance: attendance.nextCursor, invoices: invoices.nextCursor, reports: reports.nextCursor }, totals: { attendance: attendanceTotal, invoices: invoiceTotal, reports: reportTotal }, limit: PAGE_SIZE }, { headers: { "Cache-Control": "private, no-store" } });
     }
     const [proposals, classes, documents] = !canManage ? [[], [], []] : await Promise.all([
       prisma.enrollmentProposal.findMany({ where: { studentId: id }, orderBy: { createdAt: "desc" } }),
