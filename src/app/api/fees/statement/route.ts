@@ -89,9 +89,11 @@ export async function GET(req: NextRequest) {
       resolved = resolveStudentFees(lines, discounts, carry?.balance ?? 0);
     }
 
-    // Invoice history
+    // Invoice history for the selected academic year (calendar boundaries, UTC). `allYears=true` returns every year.
+    const allYears = searchParams.get("allYears") === "true";
+    const yearWindow = allYears ? {} : { invoiceDate: { gte: new Date(Date.UTC(year, 0, 1)), lt: new Date(Date.UTC(year + 1, 0, 1)) } };
     const invoices = await prisma.invoice.findMany({
-      where: { studentId: student.id, currency },
+      where: { studentId: student.id, currency, ...yearWindow },
       orderBy: { invoiceDate: "desc" },
       include: {
         payments: { orderBy: { paymentDate: "desc" } },
