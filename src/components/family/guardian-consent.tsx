@@ -149,7 +149,7 @@ export function ConsentStatusPanel() {
   if (failure) return <ErrorState title={ui("Consent could not be loaded")} error={failure} onRetry={load} />;
   if (!data) return <SkeletonList rows={4} />;
   if (!data.length) return <EmptyState icon={ShieldCheck} title={ui("No active pupils")} description={ui("Consent appears here once pupils are enrolled and guardians are linked.")} />;
-  const counts = (["CURRENT", "PARTIAL", "MISSING"] as State[]).map(state => [state, data.filter(row => row.state === state).length] as const);
+  const counts = (["CURRENT", "PARTIAL", "OUTDATED", "MISSING"] as State[]).map(state => [state, data.filter(row => row.state === state).length] as const);
   return (
     <div className="space-y-4">
       {/* Each counter filters the table to that standing; pressing it again shows every pupil. */}
