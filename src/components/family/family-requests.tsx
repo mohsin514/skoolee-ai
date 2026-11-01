@@ -169,6 +169,9 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) { setError(ui(json.error || "Your answer was not recorded.")); if (response.status === 409) void load(); return; }
       setReceipt(json.data.receiptCode); clearReview(); void load();
+    } catch {
+      // SKAI-1518: a network rejection is "not recorded"; the review and its idempotency key stay for a safe retry.
+      setError(ui("Your answer was not recorded."));
     } finally { setBusy(false); }
   };
   if (loadFailed) return <section className="sk-panel p-5" data-guardian-trips><ErrorState error={loadFailed} onRetry={load} /></section>;
