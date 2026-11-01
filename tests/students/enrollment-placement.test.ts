@@ -62,3 +62,11 @@ test("transfer roll numbers must be free in the target campus", async () => {
   await assertRollNoFree(tx, "mover", "campus-b", "12"); // another campus
   assert.match(readFileSync("src/app/api/students/enrollments/route.ts", "utf8"), /assertRollNoFree\(prisma, id, impact\.target\.campusId, rollNo\)/);
 });
+
+// SKAI-175: restoring archived pupils (single and bulk) respects the class's seat limit.
+test("restore checks class capacity before un-archiving", () => {
+  const route = readFileSync("src/app/api/students/route.ts", "utf8");
+  assert.match(route, /const seats = await classSeats\(prisma, cls\);\n\s+if \(seats\.capacity != null && seats\.occupied \+ 1 > seats\.capacity\)/);
+  assert.match(route, /seats\.occupied \+ want\.count > seats\.capacity/);
+  assert.ok(route.indexOf("classSeats(prisma, cls)") < route.indexOf("FOR UPDATE`;\n        const current"));
+});

@@ -80,6 +80,8 @@ export async function saveRequest(user: AuthUser, raw: unknown, id?: string, ver
     const total = totalOf(input.lines);
     if (total > INT32_MAX) throw new ApiError("The order total is too large to record.", 400);
     if (!id) {
+      // SKAI-1465: serialise PO numbering per campus so two drafts saved at once never share a number.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`purchase-po:${campusId}`}))`;
       const count = await tx.purchaseRequest.count({ where: { campusId } });
       return tx.purchaseRequest.create({ data: { schoolId: user.schoolId, campusId, budgetId: budget.id, poNumber: `PO-${String(count + 101)}`, title: input.title, supplierId: input.supplierId ?? null, quoteRef: input.quoteRef ?? null, lines: input.lines, received: input.lines.map(() => 0), total, requestedById: user.userId, history: [{ at: new Date().toISOString(), by: user.userId, action: "CREATED", total }] } });
     }
@@ -311,13 +313,17 @@ export async function closeService(user: AuthUser, serviceId: string, raw: unkno
     const next = new Date(`${input.nextDueOn}T00:00:00Z`);
     // All three writes commit together, so a failed close cannot leave the job DONE with no next job.
     await prisma.$transaction(async (tx) => {
-      await tx.assetService.update({ where: { id: serviceId }, data: { status: "DONE", work: input.work, completedOn: new Date(), nextDueOn: next, completedById: user.userId } });
+      // SKAI-1463: the job is closed only if it is still SCHEDULED. A concurrent completion waits on the row, then
+      // matches nothing and rolls back, so exactly one next job is created per completed job.
+      const closed = await tx.assetService.updateMany({ where: { id: serviceId, schoolId: user.schoolId, status: "SCHEDULED" }, data: { status: "DONE", work: input.work, completedOn: new Date(), nextDueOn: next, completedById: user.userId } });
+      if (closed.count !== 1) throw new ApiError("This job was already completed. Reload the maintenance list.", 409);
       await tx.assetService.create({ data: { schoolId: user.schoolId, assetId: job.assetId, dueOn: next } });
       await tx.schoolAsset.update({ where: { id: job.assetId }, data: { nextServiceOn: next } });
     });
   } else {
     if (!input.reason) throw new ApiError("Give a reason for cancelling.", 400);
-    await prisma.assetService.update({ where: { id: serviceId }, data: { status: "CANCELLED", cancelReason: input.reason } });
+    const cancelled = await prisma.assetService.updateMany({ where: { id: serviceId, schoolId: user.schoolId, status: "SCHEDULED" }, data: { status: "CANCELLED", cancelReason: input.reason } });
+    if (cancelled.count !== 1) throw new ApiError("This job is no longer open. Reload the maintenance list.", 409);
   }
   return prisma.assetService.findUnique({ where: { id: serviceId } });
 }
