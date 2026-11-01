@@ -29,7 +29,7 @@ type Ui = ReturnType<typeof useUiText>;
 async function call(url: string, method = "GET", body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved.");
+  if (!response.ok || !json.success) throw Object.assign(new Error(json.error || "The change was not saved."), { status: response.status });
   return json.data;
 }
 const statusLabel = (ui: Ui, s: string) => ({ WAITLIST: ui("On the waitlist"), OFFERED: ui("Place offered"), RESERVED: ui("Place reserved · conditional"), CONFIRMED: ui("Confirmed"), DECLINED: ui("Declined"), EXPIRED: ui("Offer expired"), CANCELLED: ui("Cancelled") } as Record<string, string>)[s] ?? s;
@@ -47,13 +47,16 @@ type FamilyActivity = { id: string; kind: string; title: string; description: st
 export function FamilyActivities({ studentId }: { studentId: string }) {
   const ui = useUiText();
   const { dateTime, money } = useLocaleFormat();
-  const [data, setData] = useState<{ child: { name: string }; activities: FamilyActivity[] } | null>(null), [denied, setDenied] = useState(false), [busy, setBusy] = useState(false), [review, setReview] = useState<FamilyActivity | null>(null);
+  const [data, setData] = useState<{ child: { name: string }; activities: FamilyActivity[] } | null>(null), [denied, setDenied] = useState(false), [failed, setFailed] = useState(false), [busy, setBusy] = useState(false), [review, setReview] = useState<FamilyActivity | null>(null);
   // Giving up a place cannot be undone by the family (the next family may take it), so it is confirmed first (role-ux R3).
   const [releasing, setReleasing] = useState<{ kind: "withdraw" | "decline"; activity: FamilyActivity } | null>(null);
-  const load = useCallback(async () => { try { setData(await call(`/api/family/activities?studentId=${encodeURIComponent(studentId)}`)); } catch { setDenied(true); } }, [studentId]);
+  // SKAI-1379: only an authorization or missing-record answer hides the panel; other failures can be retried.
+  const load = useCallback(async () => { try { setData(await call(`/api/family/activities?studentId=${encodeURIComponent(studentId)}`)); setFailed(false); } catch (error) { const status = (error as { status?: number }).status; if (status === 401 || status === 403 || status === 404) setDenied(true); else setFailed(true); } }, [studentId]);
   useEffect(() => { void load(); }, [load]);
   const run = async (body: Record<string, unknown>, done: string) => { setBusy(true); try { const r = await call("/api/family/activities", "POST", body); toast.success(ui(done)); await load(); return r; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); await load(); return null; } finally { setBusy(false); } };
-  if (denied || !data) return null;
+  if (denied) return null;
+  if (!data && failed) return <section className="sk-panel p-4 sm:p-5" data-family-activities><ErrorState title={ui("Clubs, sports and trips could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void load()} /></section>;
+  if (!data) return null;
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-family-activities>
     <header><h3 className="text-base font-bold">{ui("Clubs, sports and trips")}</h3><p className="text-xs text-ink-muted">{ui("A place is confirmed only when its consent and fee rules are complete.")}</p></header>
     {!data.activities.length ? <EmptyState size="sm" icon={CalendarDays} title={ui("No activities published for this age group yet.")} description={ui("A place is confirmed only when its consent and fee rules are complete.")} /> : <ul className="space-y-2.5">{urgencyFirst(data.activities, a => a.place?.status === "OFFERED" ? 0 : a.place?.status === "RESERVED" ? 1 : a.place ? 3 : 2).map(a => <li key={a.id} className="sk-desk-row" data-tone={a.place?.status === "OFFERED" ? "warning" : a.place?.status === "CONFIRMED" ? "success" : undefined} data-activity={a.id} data-activity-place={a.place?.status ?? "NONE"}>
