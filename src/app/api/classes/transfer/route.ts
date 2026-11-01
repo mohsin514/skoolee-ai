@@ -2,7 +2,7 @@ import { retryDatabaseTransaction } from "@/lib/school-ai/transaction";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
-import { applyEnrollment, assertRegistrar, dateOnly, enrollmentImpact } from "@/lib/students/enrollment";
+import { applyEnrollment, assertRegistrar, classSeats, dateOnly, enrollmentImpact } from "@/lib/students/enrollment";
 import { authorizeAssignment } from "@/lib/api/teacher-assignments";
 
 // SKO-462: the safe transition for an occupied section. Every enrolled pupil moves to another
@@ -68,6 +68,13 @@ export async function POST(req: NextRequest) {
       // Serialise transfers out of this section; a concurrent retry waits and then finds it empty.
       await tx.$queryRaw`SELECT id FROM classes WHERE id = ${preview.from.id} FOR UPDATE`;
       const remaining = await tx.student.findMany({ where: { classId: preview.from.id, archivedAt: null, status: "active" }, select: { id: true } });
+      // SKAI-203: seats may have filled, or capacity dropped, since the preview; recheck under the transaction.
+      const target = await tx.class.findUniqueOrThrow({ where: { id: preview.to.id }, select: { capacity: true, archivedAt: true, status: true } });
+      if (target.archivedAt || target.status !== "ACTIVE") throw new ApiError("Students can only move to an active section.", 409);
+      const seats = await classSeats(tx, { id: preview.to.id, capacity: target.capacity });
+      if (seats.capacity != null && seats.occupied + remaining.length > seats.capacity) {
+        throw new ApiError(`${label(preview.to)} now has ${seats.free} free seat(s) for ${remaining.length} student(s). Raise its capacity first; nobody was moved.`, 409);
+      }
       let moved = 0;
       for (const student of remaining) {
         const row = preview.ready.find(entry => entry.id === student.id);
