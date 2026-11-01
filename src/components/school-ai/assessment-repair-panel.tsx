@@ -46,7 +46,13 @@ export function AssessmentRepairPanel({ examId }: { examId: string }) {
   const [confirming, setConfirming] = useState<Repair | null>(null);
   // F16 / R3: a rejection records its reason in a dialog (was window.prompt).
   const [rejecting, setRejecting] = useState<Repair | null>(null);
-  const load = useCallback(async () => { const response = await fetch(api, { cache: "no-store" }).catch(() => null); if (response?.ok) setData(await response.json()); }, [api]);
+  // A failed initial load is shown with a retry, not hidden (SKAI-1380). Non-2xx and malformed payloads count as failures.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const load = useCallback(async () => {
+    const response = await fetch(api, { cache: "no-store" }).catch(() => null);
+    const payload = response?.ok ? await response.json().catch(() => null) : null;
+    if (payload) { setData(payload); setLoadFailed(false); } else setLoadFailed(true);
+  }, [api]);
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
   const question = data?.questions.find(entry => entry.id === questionId);
   const correction = useMemo(() => {
@@ -56,7 +62,11 @@ export function AssessmentRepairPanel({ examId }: { examId: string }) {
     const value = Number(numeric.value), tolerance = Number(numeric.tolerance);
     return numeric.value !== "" && Number.isFinite(value) && Number.isFinite(tolerance) ? { questionId, numericKey: { value, tolerance } } : null;
   }, [question, questionId, single, multiple, numeric]);
-  if (!data) return null;
+  if (!data) return loadFailed ? <section aria-labelledby="repair-title" className="sk-panel min-w-0 space-y-3 p-4" data-repair-panel-error>
+    <h3 id="repair-title" className="font-semibold">{ui("Repair a released question")}</h3>
+    <p role="alert" className="text-sm text-status-error-text">{ui("Repairs could not be loaded for this exam. Nothing has changed; try again.")}</p>
+    <Button size="sm" variant="outline" onClick={() => void load()}>{ui("Try again")}</Button>
+  </section> : null;
   if (!data.released) return null;
   const post = async (action: string, body: unknown) => {
     setBusy(true); setError("");
