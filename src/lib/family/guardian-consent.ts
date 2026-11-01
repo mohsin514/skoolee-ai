@@ -49,11 +49,15 @@ async function guardianLink(user: AuthUser, studentId: string) {
 }
 
 /** The guardian's own view: the notice to show and their answers for this child, newest first. */
+export const CONSENT_HISTORY_LIMIT = 500;
+
 export async function guardianConsentView(user: AuthUser, studentId: string) {
   await guardianLink(user, studentId);
   const rows = await prisma.guardianConsent.findMany({
     where: { schoolId: user.schoolId, studentId, guardianUserId: user.userId },
-    orderBy: { createdAt: "desc" }, take: 10,
+    // SKAI-1569: the page promises every answer on record, so the full history is returned (one guardian,
+    // one child: a short list; the cap only guards against runaway data).
+    orderBy: { createdAt: "desc" }, take: CONSENT_HISTORY_LIMIT,
   });
   const latest = rows[0] ?? null;
   return {
