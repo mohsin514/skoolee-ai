@@ -67,8 +67,11 @@ test("all twenty-eight shared setup operations delete only the reviewed record a
     const p = await preview(user, kind, id); assert.equal(p.blocked, false, kind); assert.equal(p.count, 1);
     const responses = await Promise.all([1, 2, 3].map(() => remove(user, kind, id, p.version)));
     assert.equal(responses.filter(r => "replayed" in r && !r.replayed).length, 1, kind);
-    const receipts = await db.auditLog.findMany({ where: { schoolId, recordId: id, tableName: operationDeleteAuditTables[kind] ?? kind } });
-    assert.equal(receipts.length, 1);
+    // The audit-trail extension also writes one generic row per delete (uuid id);
+    // the retry receipt is the deterministic 64-hex id. Exactly one of each.
+    const all = await db.auditLog.findMany({ where: { schoolId, recordId: id, tableName: operationDeleteAuditTables[kind] ?? kind } });
+    const receipts = all.filter(row => /^[a-f0-9]{64}$/.test(row.id));
+    assert.equal(receipts.length, 1, kind);
     assert.ok(receipts[0].oldValue, "Audit history must classify this as DELETE");
     assert.equal(receipts[0].newValue, null);
   }
@@ -118,7 +121,9 @@ test("student and staff documents recheck review, related-record scope, and comm
     assert.equal(p.label, row.fileName);
     await assert.rejects(() => preview(librarian, kind, row.id), { status: 403 });
     await Promise.all([remove(lead, kind, row.id, p.version), remove(lead, kind, row.id, p.version)]);
-    assert.equal(await db.auditLog.count({ where: { schoolId, recordId: row.id } }), 1);
+    // Count the retry receipts only; the audit-trail extension adds its own generic rows.
+    const receipts = (await db.auditLog.findMany({ where: { schoolId, recordId: row.id } })).filter(item => /^[a-f0-9]{64}$/.test(item.id));
+    assert.equal(receipts.length, 1, kind);
   }
   assert.equal(await db.studentTimelineEvent.count({ where: { schoolId, studentId: pupil.id, title: "Document removed" } }), 1);
   const invalid = await db.studentDocument.create({ data: { schoolId, studentId: pupil.id, kind: "OTHER", fileName: "Invalid scoped key.pdf", fileKey: `student-docs/${campusB}/${pupil.id}/synthetic.pdf` } });
