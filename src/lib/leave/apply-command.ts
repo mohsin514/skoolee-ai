@@ -53,29 +53,32 @@ export async function applyLeave(user: AuthUser, body: Record<string, unknown>) 
 
   // Overlapping-request guard: any non-terminal request for the same user
   // whose date range intersects this one is a conflict.
-  const overlap = await findOverlappingLeave(campusId, user.userId, start, end);
-  if (overlap) {
-    throw new ApiError(
-      `This overlaps your existing ${overlap.status.toLowerCase()} ${overlap.leaveType.name} leave (${overlap.fromDate.toISOString().slice(0, 10)} → ${overlap.toDate.toISOString().slice(0, 10)})`,
-      409
-    );
-  }
-
   const days = body.days !== undefined ? explicitDaysToTenths(body.days) : rangeTenths(start, end);
 
-  const request = await prisma.leaveRequest.create({
-    data: {
-      // SKAI-1400: the school is part of every leave row (required, with a foreign key to schools).
-      schoolId: user.schoolId,
-      campusId,
-      userId: user.userId,
-      leaveTypeId,
-      fromDate: start,
-      toDate: end,
-      days,
-      reason: body.reason ? String(body.reason).trim().slice(0, 2000) || null : null,
-      attachmentKey: body.attachmentKey ? String(body.attachmentKey) : null,
-    },
+  // SKAI-1408: the overlap check and the insert run under a per-person lock, so two tabs cannot both pass the check.
+  const request = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${user.userId}, 0))`;
+    const overlap = await findOverlappingLeave(tx, campusId, user.userId, start, end);
+    if (overlap) {
+      throw new ApiError(
+        `This overlaps your existing ${overlap.status.toLowerCase()} ${overlap.leaveType.name} leave (${overlap.fromDate.toISOString().slice(0, 10)} → ${overlap.toDate.toISOString().slice(0, 10)})`,
+        409
+      );
+    }
+    return tx.leaveRequest.create({
+      data: {
+        // SKAI-1400: the school is part of every leave row (required, with a foreign key to schools).
+        schoolId: user.schoolId,
+        campusId,
+        userId: user.userId,
+        leaveTypeId,
+        fromDate: start,
+        toDate: end,
+        days,
+        reason: body.reason ? String(body.reason).trim().slice(0, 2000) || null : null,
+        attachmentKey: body.attachmentKey ? String(body.attachmentKey) : null,
+      },
+    });
   });
 
   notify("LEAVE_APPLIED", {
@@ -93,8 +96,8 @@ export async function applyLeave(user: AuthUser, body: Record<string, unknown>) 
 }
 
 /** The route's overlap rule: a PENDING or APPROVED request of this person whose range intersects [start, end]. */
-export function findOverlappingLeave(campusId: string, userId: string, start: Date, end: Date) {
-  return prisma.leaveRequest.findFirst({
+export function findOverlappingLeave(db: Pick<typeof prisma, "leaveRequest">, campusId: string, userId: string, start: Date, end: Date) {
+  return db.leaveRequest.findFirst({
     where: {
       campusId,
       userId,
