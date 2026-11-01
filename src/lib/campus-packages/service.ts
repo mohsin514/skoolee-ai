@@ -239,7 +239,12 @@ export async function decideOrder(user: AuthUser, id: string, raw: unknown) {
   const { action, note } = parse(z.object({ action: z.enum(["CANCEL", "RELEASE", "REJECT", "SERVE"]), note: text(3, 300).optional() }).strict(), raw);
   const order = await prisma.canteenOrder.findFirst({ where: { id, schoolId: user.schoolId } });
   assert(!!order, "Order not found", 404);
-  if (action === "CANCEL") { assert(order.orderedById === user.userId, "Only the guardian who ordered can cancel."); assert(["PLACED", "HOLD"].includes(order.status), "This order can no longer be cancelled.", 409); }
+  // SKAI-1462: a guardian may cancel only before the campus-local service date; that day is already served.
+  if (action === "CANCEL") {
+    assert(order.orderedById === user.userId, "Only the guardian who ordered can cancel."); assert(["PLACED", "HOLD"].includes(order.status), "This order can no longer be cancelled.", 409);
+    const item = await prisma.canteenItem.findUniqueOrThrow({ where: { id: order.itemId }, select: { serviceDate: true } });
+    assert(item.serviceDate > await campusToday(order.schoolId, order.campusId), "This meal's service date has arrived; it can no longer be cancelled.", 409);
+  }
   else if (action === "SERVE") { await operator(user, "CANTEEN", "MANAGER"); assert(order.status === "PLACED", "Only a placed order is served.", 409); }
   else { await operator(user, "CANTEEN", "DIETARY_LEAD"); assert(order.status === "HOLD", "Only a held order is checked.", 409); assert(!!note, "Record what was checked.", 400); }
   return prisma.$transaction(async (tx) => {

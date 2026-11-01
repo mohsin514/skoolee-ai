@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       prisma.invoice.findMany({
         where: { currency, campusId: { in: campusIds } },
         select: {
-          enrollment: true, studentId: true, totalAmount: true, totalAmountPaid: true, balanceDue: true, status: true,
+          enrollment: true, studentId: true, totalAmount: true, totalAmountPaid: true, balanceDue: true, status: true, dueDate: true,
           student: { select: { class: { select: { id: true, name: true, section: true } } } },
         },
       }),
@@ -58,6 +58,9 @@ export async function GET(req: NextRequest) {
       totalOverdue: number;
     }>();
 
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
     for (const inv of invoices) {
       const key = inv.enrollment?.classId || inv.student.class.id;
       const cls = classMap.get(key) ?? {
@@ -70,7 +73,9 @@ export async function GET(req: NextRequest) {
       cls.studentIds.add(inv.studentId);
       cls.totalDue += inv.totalAmount;
       cls.totalPaid += inv.totalAmountPaid;
-      if (inv.status === "PENDING" || inv.status === "OVERDUE") {
+      // Only balances past their due date are overdue; PENDING/PARTIAL invoices due later are still due.
+      const isPastDue = inv.dueDate < startOfToday;
+      if (inv.status === "OVERDUE" || ((inv.status === "PENDING" || inv.status === "PARTIAL") && isPastDue)) {
         cls.totalOverdue += inv.balanceDue;
       }
       classMap.set(key, cls);
