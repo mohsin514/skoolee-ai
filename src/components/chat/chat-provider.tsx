@@ -63,6 +63,9 @@ interface ChatContextValue {
   detail: ConversationDetail | null;
   messages: ChatMessageView[];
   isLoadingThread: boolean;
+  /** SKAI-1432: the thread could not be loaded (network failure); retryThread reloads it. */
+  threadFailed: boolean;
+  retryThread: () => void;
   hasOlder: boolean;
 
   openConversation: (id: string) => void;
@@ -161,6 +164,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [messages, setMessages] = useState<ChatMessageView[]>([]);
   const [isLoadingThread, setIsLoadingThread] = useState(false);
+  const [threadFailed, setThreadFailed] = useState(false);
+  const [threadAttempt, setThreadAttempt] = useState(0);
   const [olderCursor, setOlderCursor] = useState<string | null>(null);
 
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
@@ -290,6 +295,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setTypingUsers([]);
   }, []);
 
+  const retryThread = useCallback(() => setThreadAttempt((attempt) => attempt + 1), []);
+
   const closeConversation = useCallback(() => {
     setActiveId(null);
     setDetail(null);
@@ -302,6 +309,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false;
     setIsLoadingThread(true);
+    setThreadFailed(false);
     setMessages([]);
     setDetail(null);
 
@@ -334,6 +342,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setMessages(messagesJson.messages ?? []);
         setLastSyncedAt(new Date().toISOString());
         setOlderCursor(messagesJson.nextCursor ?? null);
+      } catch {
+        // SKAI-1432: a rejected fetch (offline, connection reset) shows an inline error with retry. List and unread state are left as they were.
+        if (!cancelled) setThreadFailed(true);
       } finally {
         if (!cancelled) setIsLoadingThread(false);
       }
@@ -342,7 +353,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [activeId]);
+  }, [activeId, threadAttempt]);
 
   // Clearing the badge is a side effect of having the thread open, so it also
   // fires when a message arrives while the reader is already looking at it.
@@ -767,6 +778,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       detail,
       messages,
       isLoadingThread,
+      threadFailed,
+      retryThread,
       hasOlder: olderCursor !== null,
       openConversation,
       closeConversation,
@@ -801,6 +814,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       detail,
       messages,
       isLoadingThread,
+      threadFailed,
+      retryThread,
       olderCursor,
       openConversation,
       closeConversation,

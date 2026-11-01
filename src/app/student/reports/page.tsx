@@ -91,7 +91,9 @@ function ReportCard({ report, index }: { report: any; index: number }) {
   const download = async () => {
     setDownloading(true);
     try {
-      await downloadReportCardPdf(report.id, `${(report.exam?.title || "report-card").replace(/[^a-z0-9]+/gi, "-")}.pdf`);
+      // SKAI-1489: an Arabic/Urdu-only title has no ASCII letters; fall back instead of "-.pdf".
+      const slug = (report.exam?.title ?? "").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
+      await downloadReportCardPdf(report.id, `${slug ? `report-card-${slug}` : "report-card"}.pdf`);
     } catch {
       toast.error(ui("Could not download this report card. Please try again."));
     } finally {
