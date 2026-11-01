@@ -148,12 +148,13 @@ function ReportCard({ report, index }: { report: any; index: number }) {
         </div>
         <p className="text-xs text-ink-muted" dir="auto">{report.language === "ar" ? "النسخة المنشورة" : report.language === "ur" ? "شائع شدہ نسخہ" : "Published version"} <bdi className="font-semibold text-ink">v{report.version}</bdi></p>
         {report.correctionReason && <Alert tone="info" compact live="off" dir="auto">{report.language === "ar" ? "تصحيح:" : report.language === "ur" ? "تصحیح:" : "Correction:"} {report.correctionReason}</Alert>}
-        {report.remarksEn ? (
+        {/* SKAI-1553: show the remark in the report's own language, as Parent Results does. */}
+        {reportRemarks(report) ? (
           <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-3">
             <p className="sk-eyebrow mb-1">
               {ui("Teacher remarks")}
             </p>
-            <p className="text-sm leading-relaxed text-ink" dir="auto">{report.remarksEn}</p>
+            <p className="text-sm leading-relaxed text-ink" dir="auto">{reportRemarks(report)}</p>
           </div>
         ) : (
           <p className="text-xs text-ink-subtle">{ui("No remarks provided.")}</p>
@@ -169,3 +170,7 @@ function ReportCard({ report, index }: { report: any; index: number }) {
   );
 }
 
+function reportRemarks(report: { language?: string | null; remarksEn?: string | null; remarksAr?: string | null; remarksUr?: string | null }) {
+  const own = report.language === "ar" ? report.remarksAr : report.language === "ur" ? report.remarksUr : report.remarksEn;
+  return own || report.remarksEn || report.remarksAr || report.remarksUr || "";
+}
