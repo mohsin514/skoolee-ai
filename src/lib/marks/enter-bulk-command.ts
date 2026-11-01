@@ -4,6 +4,7 @@ import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { gradeForMark, isLockedStatus, thresholdsForClass } from "@/lib/academic/report-cards";
 import { notify } from "@/lib/notifications/in-app";
+import { markBaseline } from "@/lib/marks/baseline";
 
 /**
  * Saving a marks sheet (POST /api/marks), shared by the marks route and the AI Workflows
@@ -20,7 +21,7 @@ export interface BulkMarkEntry { studentId: string; subjectId: string; marksObta
 export interface EnterBulkMarksInput {
   examId: string;
   entries: BulkMarkEntry[];
-  /** `{ "studentId:subjectId": previousMarks }` the client saw; a difference is RECORD_CHANGED. */
+  /** `{ "studentId:subjectId": baseline }` the client saw, encoded by markBaseline; a difference is RECORD_CHANGED. */
   expectedMarks?: unknown;
   ipAddress: string | null;
 }
@@ -115,7 +116,7 @@ export async function enterBulkMarks(user: AuthUser, input: EnterBulkMarksInput)
         const key = `${entry.studentId}:${entry.subjectId}`;
         const actual = existingByKey.get(key);
         const expected = expectedMarks[key];
-        if ((actual ? String(actual.marksObtained) : "") !== String(expected ?? "")) throw new Error("RECORD_CHANGED");
+        if (markBaseline(actual) !== String(expected ?? "")) throw new Error("RECORD_CHANGED");
       }
     }
     let changed = 0;
