@@ -107,6 +107,23 @@ test("a signed fee confirmation settles once; a replay records no second payment
   assert.equal(h.payments.length, 1, "replayed notification must not pay twice");
 });
 
+// SKAI-863: failed or cancelled fee callbacks, and a wrong amount, never record a payment.
+test("a signed failed or cancelled fee callback records no payment", async () => {
+  for (const event of ["order.failed", "order.cancelled"]) {
+    const res = await post(signed({ ...fee, event }));
+    assert.equal(res.status, 200);
+    assert.equal(h.payments.length, 0, `${event} must not pay`);
+    assert.equal(h.orders.get("SKLFEE-1")!.status, "PENDING");
+  }
+});
+
+test("a signed fee confirmation for a different amount records no payment", async () => {
+  const res = await post(signed({ ...fee, data: { ...fee.data, amount: 900 } }));
+  assert.equal(res.status, 400);
+  assert.equal(h.payments.length, 0);
+  assert.equal(h.orders.get("SKLFEE-1")!.status, "PENDING");
+});
+
 test("a signed plan purchase activates once; the replay is reported as a duplicate", async () => {
   const plan = { event: "order.completed", data: { order_ref: "SKL-CHG-1", amount: 5000, metadata: { schoolId: "school-a", plan: "BASIC", billingPeriod: "monthly" } } };
   const body = signed(plan);
