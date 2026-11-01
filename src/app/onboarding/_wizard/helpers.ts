@@ -15,6 +15,7 @@ export const TIMEZONES = [
   { value: "Asia/Karachi", label: "Pakistan — Asia/Karachi (PKT)" },
   { value: "Asia/Dubai", label: "UAE — Asia/Dubai (GST)" },
   { value: "Asia/Riyadh", label: "Saudi Arabia — Asia/Riyadh (AST)" },
+  { value: "Asia/Kuwait", label: "Kuwait — Asia/Kuwait (AST)" },
   { value: "Asia/Kolkata", label: "India — Asia/Kolkata (IST)" },
   { value: "Asia/Dhaka", label: "Bangladesh — Asia/Dhaka (BST)" },
   { value: "Asia/Kabul", label: "Afghanistan — Asia/Kabul (AFT)" },
@@ -37,6 +38,18 @@ export const emptyCampus = (): CampusForm => ({
 });
 
 /** Featured zones first, then every IANA zone the browser knows, so a school anywhere can pick its own. */
+/** SKAI-891: the zone a school's chosen country implies; null when the country spans zones or is not listed. */
+const COUNTRY_TIMEZONES: Record<string, string> = { PK: "Asia/Karachi", SA: "Asia/Riyadh", AE: "Asia/Dubai", KW: "Asia/Kuwait", IN: "Asia/Kolkata", BD: "Asia/Dhaka", AF: "Asia/Kabul", GB: "Europe/London" };
+export function timezoneForCountry(country: string | null | undefined): string | null {
+  return COUNTRY_TIMEZONES[(country || "").trim().toUpperCase()] ?? null;
+}
+
+/** Opening zone for a new setup: the browser's zone if offered, else the country's, else UTC — never a silent Asia/Karachi. */
+export function initialTimezone(detected: string | undefined, country: string | null | undefined, offered: string[]): string {
+  if (detected && offered.includes(detected)) return detected;
+  return timezoneForCountry(country) ?? "UTC";
+}
+
 export function timezoneOptions(): { value: string; label: string }[] {
   let all: string[] = [];
   try { all = (Intl as unknown as { supportedValuesOf?(key: string): string[] }).supportedValuesOf?.("timeZone") ?? []; } catch { all = []; }
