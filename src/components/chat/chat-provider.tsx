@@ -234,7 +234,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // ─── Conversation list ─────────────────────────────────────────
 
+  // SKAI-1595: the list on screen belongs to one filter + search. A new query shows loading, and if it fails the
+  // old query's rows are cleared rather than shown as results for the new one.
+  const listQueryRef = useRef<string | null>(null);
   const loadConversations = useCallback(async () => {
+    const query = `${filter}|${search.trim()}`;
+    const sameQuery = listQueryRef.current === query;
+    if (!sameQuery) setIsLoadingList(true);
     try {
       const params = new URLSearchParams({ filter });
       if (search.trim()) params.set("q", search.trim());
@@ -245,9 +251,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const json = await res.json();
       if (!json.success || !Array.isArray(json.conversations)) throw new Error("conversations payload");
       setConversations(json.conversations);
+      listQueryRef.current = query;
       setListFailed(false);
     } catch {
-      // Offline or failed: keep the list on screen and say so, never pretend the inbox is empty.
+      // Offline or failed: keep the same query's list on screen and say so, never pretend the inbox is empty.
+      if (!sameQuery) { setConversations([]); listQueryRef.current = null; }
       setListFailed(true);
     } finally {
       setIsLoadingList(false);
