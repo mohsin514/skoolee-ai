@@ -214,12 +214,16 @@ export function saveAnswers(user: AuthUser, key: string, raw: unknown) {
   });
 }
 
+const DEFER_RETRY_WINDOW_MS = 10_000;
+
 /** "Not now": the sheet stays resumable and the first-login prompt backs off. */
 export function deferSheet(user: AuthUser, key: string) {
   return inTenant(user, async () => {
     const definition = definitionFor(user, key);
     const response = await loadResponse(user, definition, user.campusId);
     if (response.status === "APPLYING" || response.status === "READY") return response;
+    // SKAI-1372: a retry of the same "Not now" (client or network) within the window is one choice, not another deferral.
+    if (response.status === "DEFERRED" && Date.now() - response.updatedAt.getTime() < DEFER_RETRY_WINDOW_MS) return response;
     return prisma.aiSetupResponse.update({ where: { id: response.id }, data: { status: "DEFERRED", deferrals: { increment: 1 } } });
   });
 }
