@@ -268,9 +268,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // ─── Open thread ───────────────────────────────────────────────
 
   const markRead = useCallback(async (id: string) => {
+    // SKAI-1404: clear the badge only once the server has confirmed the thread is read.
     try {
-      await fetch(`/api/chat/conversations/${id}/read`, { method: "POST" });
-    } catch {}
+      const res = await fetch(`/api/chat/conversations/${id}/read`, { method: "POST" });
+      if (!res.ok) return;
+    } catch {
+      return;
+    }
 
     setConversations((prev) =>
       prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
@@ -317,7 +321,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
 
         const detailJson = await detailRes.json();
-        const messagesJson = messagesRes.ok ? await messagesRes.json() : { messages: [] };
+        // SKAI-1404: a failed message load is an error, not an empty thread.
+        if (!messagesRes.ok) {
+          setError(await readError(messagesRes, "Messages could not be loaded. Try again."));
+          return;
+        }
+        const messagesJson = await messagesRes.json();
 
         if (cancelled) return;
 
