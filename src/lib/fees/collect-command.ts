@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, resolveCampusId } from "@/lib/api/scope";
 import { recordPayment } from "@/lib/fees/payment";
 import { DELIVERY_POLICY_KIND, resolveDeliveryPolicy } from "@/lib/school-ai/delivery-policy";
@@ -49,8 +49,9 @@ function calendarDate(value: unknown): Date | null {
  * REQUIRED). The platform default is NOT_REQUIRED. Used by the hand-off (to target someone other than the
  * requester) and here (so the requester cannot post the hand-off they asked for).
  */
-export async function moneySeparationRequired(user: Pick<AuthUser, "schoolId">, campusId: string | null) {
-  const approved = await prisma.schoolAiRevision.findFirst({
+// SKAI-1443: reads take the caller's client, so the collection can run them inside its own transaction.
+export async function moneySeparationRequired(user: Pick<AuthUser, "schoolId">, campusId: string | null, db: Pick<TxClient, "schoolAiRevision"> = prisma) {
+  const approved = await db.schoolAiRevision.findFirst({
     where: { schoolId: user.schoolId, campusId, status: "APPROVED", record: { schoolId: user.schoolId, kind: DELIVERY_POLICY_KIND } },
     orderBy: [{ createdAt: "desc" }, { version: "desc" }],
     select: { recordId: true, version: true, data: true },
@@ -62,23 +63,23 @@ export async function moneySeparationRequired(user: Pick<AuthUser, "schoolId">, 
  * AI-prepared collections still waiting on this invoice: OPEN or CLAIMED, not expired, made by the
  * `fees.collect_payment` capability, and not already posted (a payment already carries the hand-off).
  */
-export async function openPreparedCollections(schoolId: string, invoiceId: string, now = new Date()) {
-  const handoffs = await prisma.aiWorkflowHandoff.findMany({
+export async function openPreparedCollections(schoolId: string, invoiceId: string, now = new Date(), db: Pick<TxClient, "aiWorkflowHandoff" | "aiWorkflowStep" | "payment"> = prisma) {
+  const handoffs = await db.aiWorkflowHandoff.findMany({
     where: { schoolId, kind: "DOMAIN_SCREEN", status: { in: ["OPEN", "CLAIMED"] }, expiresAt: { gt: now }, prefill: { path: ["invoiceId"], equals: invoiceId } },
     select: { id: true, stepId: true, campusId: true, status: true, targetRoles: true, originUserId: true, claimedById: true, claimExpiresAt: true },
   });
   if (!handoffs.length) return [];
   const [steps, posted] = await Promise.all([
-    prisma.aiWorkflowStep.findMany({ where: { schoolId, id: { in: handoffs.map(row => row.stepId) }, capabilityKey: COLLECT_CAPABILITY }, select: { id: true } }),
-    prisma.payment.findMany({ where: { schoolId, workflowHandoffId: { in: handoffs.map(row => row.id) } }, select: { workflowHandoffId: true } }),
+    db.aiWorkflowStep.findMany({ where: { schoolId, id: { in: handoffs.map(row => row.stepId) }, capabilityKey: COLLECT_CAPABILITY }, select: { id: true } }),
+    db.payment.findMany({ where: { schoolId, workflowHandoffId: { in: handoffs.map(row => row.id) } }, select: { workflowHandoffId: true } }),
   ]);
   const collect = new Set(steps.map(step => step.id)), done = new Set(posted.map(row => row.workflowHandoffId));
   return handoffs.filter(row => collect.has(row.stepId) && !done.has(row.id));
 }
 
 /** The prepared collection this request may post, or a 409 saying why it may not. */
-async function bindHandoff(user: AuthUser, invoiceId: string, campusId: string, handoffId: string | null) {
-  const prepared = await openPreparedCollections(user.schoolId, invoiceId);
+async function bindHandoff(db: TxClient, user: AuthUser, invoiceId: string, campusId: string, handoffId: string | null) {
+  const prepared = await openPreparedCollections(user.schoolId, invoiceId, new Date(), db);
   if (!handoffId) {
     if (prepared.length) throw conflict("A prepared collection exists for this invoice. Open it from AI Workflows to record this payment, so it is posted only once.", "PREPARED_COLLECTION_OPEN");
     return null;
@@ -91,7 +92,7 @@ async function bindHandoff(user: AuthUser, invoiceId: string, campusId: string, 
       ? conflict("Another person is handling this prepared collection.", "HANDOFF_LEASED")
       : conflict("Claim this prepared collection from AI Workflows before recording it.", "HANDOFF_NOT_CLAIMED");
   }
-  if (handoff.originUserId === user.userId && await moneySeparationRequired(user, campusId)) {
+  if (handoff.originUserId === user.userId && await moneySeparationRequired(user, campusId, db)) {
     throw conflict("School policy requires another authorised person to record a collection you asked for.", "HANDOFF_SEPARATION");
   }
   return handoff.id;
@@ -152,22 +153,30 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
   const referenceNumber = (body.referenceNumber ?? null) as string | null, note = (body.note ?? null) as string | null;
   const requestHash = createHash("sha256").update(JSON.stringify({ invoiceId: invoice.id, studentId: invoice.studentId, amount, fineAmount, discountAmount, paymentDate: paymentDate.toISOString().slice(0, 10), paymentMethod, referenceNumber, note })).digest("hex");
   const outcome = (payment: CollectPayment, credit: number, replayed: boolean): CollectOutcome => ({ invoice, payment, credit, replayed, campusId, amount });
-  const replay = async () => {
-    const previous = await prisma.payment.findFirst({ where: { schoolId: user.schoolId, recordedBy: user.userId, idempotencyKey } });
+  // Same-key retries are serialised below, so a replay is read inside the transaction that posts the payment.
+  const replay = async (db: Pick<TxClient, "payment" | "paymentAllocation"> = prisma) => {
+    const previous = await db.payment.findFirst({ where: { schoolId: user.schoolId, recordedBy: user.userId, idempotencyKey } });
     if (!previous) return null;
     if (previous.requestHash !== requestHash) throw Object.assign(new ApiError("This payment key was already used for a different payment. Check the existing receipt before recording again.", 409), { code: "IDEMPOTENCY_CONFLICT" });
-    const allocation = await prisma.paymentAllocation.findFirst({ where: { paymentId: previous.id }, select: { credit: true } });
+    const allocation = await db.paymentAllocation.findFirst({ where: { paymentId: previous.id }, select: { credit: true } });
     return outcome(previous, allocation?.credit ?? 0, true);
   };
   const earlier = await replay();
   if (earlier) return earlier;
 
-  // RT6: a prepared collection for this invoice is posted only through its own hand-off, and only once.
-  const workflowHandoffId = await bindHandoff(user, invoice.id, campusId, typeof body.workflowHandoffId === "string" && body.workflowHandoffId ? body.workflowHandoffId : null);
-
   try {
-    // The payment, allocation, ledger entry, hand-off link and audit record commit together or not at all.
-    const recorded = await prisma.$transaction(async (tx) => {
+    // SKAI-1443: the replay check, hand-off binding, payment, allocation, ledger, hand-off link and audit record run
+    // in one transaction on one connection. Same-key retries queue on the advisory lock, so the first commits and
+    // the rest replay its receipt, instead of each holding a connection while it waits for the unique index.
+    return await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${user.schoolId}:${user.userId}:${idempotencyKey}`}))`;
+      const winner = await replay(tx);
+      if (winner) return winner;
+
+      // RT6: a prepared collection for this invoice is posted only through its own hand-off, and only once.
+      const workflowHandoffId = await bindHandoff(tx, user, invoice.id, campusId, typeof body.workflowHandoffId === "string" && body.workflowHandoffId ? body.workflowHandoffId : null);
+      // Payments are immutable once issued, so the hand-off is written on create; the unique (school, hand-off)
+      // index refuses a second payment from the same hand-off and rolls this transaction back.
       const result = await recordPayment(tx, {
         campusId,
         invoiceId: invoice.id,
@@ -182,23 +191,12 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
         recordedBy: user.userId,
         idempotencyKey,
         requestHash,
-        // Payments are immutable once issued, so the hand-off is written on create; the unique (school, hand-off)
-        // index refuses a second payment from the same hand-off and rolls this transaction back.
         workflowHandoffId,
       });
       await tx.auditLog.create({ data: { tableName: "payment", recordId: result.payment.id, newValue: { invoiceId: invoice.id, amount, fineAmount: result.payment.fineAmount, discountAmount: result.payment.discountAmount, receiptNo: result.receiptNo, credit: result.credit, ...(workflowHandoffId ? { workflowHandoffId } : {}) }, userId: user.userId } });
-      return result;
+      return outcome(result.payment, result.credit, false);
     }, { timeout: 20000 });
-    return outcome(recorded.payment, recorded.credit, false);
   } catch (error) {
-    // SKAI-1312: identical retries queue behind the invoice row lock. A waiter whose transaction expires
-    // (P2028) or conflicts (P2034) may find that the winner has already committed. Answer with that
-    // receipt; otherwise ask the caller to retry, instead of a server error for a payment that went through.
-    if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2028" || error.code === "P2034")) {
-      const winner = await replay();
-      if (winner) return winner;
-      throw conflict("This payment is already being recorded. Check the receipt list before retrying.", "PAYMENT_IN_PROGRESS");
-    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       const target = JSON.stringify(error.meta ?? {});
       // A concurrent retry with the same key committed first: answer with its receipt.
@@ -206,8 +204,6 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
         const winner = await replay();
         if (winner) return winner;
       }
-      // SKAI-1310: the same campus, date and reference number already exist on another payment.
-      if (/reference/i.test(target)) throw conflict("A payment with this reference number already exists for this campus and date.", "DUPLICATE_REFERENCE");
       if (/workflow_?handoff/i.test(target)) throw conflict("This prepared collection was already recorded. Check its receipt before recording again.", "HANDOFF_ALREADY_POSTED");
     }
     throw error;
