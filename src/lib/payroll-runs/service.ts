@@ -162,11 +162,20 @@ const rulesOf = (p: { id: string; version: number; packageLabel: string; currenc
 const amounts = (value: unknown) => Object.entries((value && typeof value === "object" ? value : {}) as Record<string, unknown>).map(([name, raw]) => ({ name, amount: Math.round(Number(raw)) })).filter((a) => Number.isFinite(a.amount) && a.amount !== 0);
 
 /** Everything a calculation reads, frozen. The hash covers inputs, policy and provider mapping. */
+/** Paid for a period when employed in it. Deactivation alone does not end pay: a recorded last working day does (SKAI-1505). */
+export function employedInPeriod(person: { isActive: boolean; joining: string | null; leaving: string | null }, start: string, end: string) {
+  if (person.joining && person.joining > end) return false;
+  if (person.leaving && person.leaving < start) return false;
+  return person.isActive || person.leaving !== null;
+}
+
 async function collectInputs(db: TxClient, campusId: string, year: number, month: number, policy: PolicyRules, provider: { id: string; code: string }, scope: string[]) {
   const start = periodStart(year, month), end = periodEnd(year, month);
   const staff = await db.user.findMany({
-    where: { campusId, isActive: true, role: { in: [...STAFF_ROLES] }, ...(scope.length ? { id: { in: scope } } : {}), staffProfile: { basicSalary: { gt: 0 } } },
-    select: { id: true, fullName: true, role: true, joiningDate: true, staffProfile: { select: { basicSalary: true, allowancesJson: true, deductionsJson: true, updatedAt: true } } },
+    // SKAI-1505: a deactivated member is still paid for the periods before a recorded last working day, so the
+    // active filter is applied per person below, after the leaving date is known.
+    where: { campusId, role: { in: [...STAFF_ROLES] }, ...(scope.length ? { id: { in: scope } } : {}), staffProfile: { basicSalary: { gt: 0 } } },
+    select: { id: true, fullName: true, role: true, isActive: true, joiningDate: true, staffProfile: { select: { basicSalary: true, allowancesJson: true, deductionsJson: true, updatedAt: true } } },
     orderBy: { id: "asc" },
   });
   const ids = staff.map((s) => s.id);
@@ -182,7 +191,7 @@ async function collectInputs(db: TxClient, campusId: string, year: number, month
     const emp = employees.find((e) => e.userId === s.id);
     const leaving = iso(emp?.leavingDate);
     const joining = iso(s.joiningDate);
-    if ((joining && joining > end) || (leaving && leaving < start)) continue; // not employed in this period
+    if (!employedInPeriod({ isActive: s.isActive, joining, leaving }, start, end)) continue;
     const allowed: Record<string, number> = {};
     for (const a of allocations.filter((a) => !a.userId && a.role === s.role)) allowed[a.leaveTypeId] = a.days;
     for (const a of allocations.filter((a) => a.userId === s.id)) allowed[a.leaveTypeId] = a.days; // per-person row wins
