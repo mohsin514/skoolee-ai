@@ -53,7 +53,8 @@ export async function readPupil(user: AuthUser, id: string) {
     id: true, admissionNo: true, fullName: true, campusId: true, classId: true, rollNo: true, status: true,
     profileImageUrl: true, category: { select: { name: true } }, group: { select: { name: true } },
     consolidatedIntoId: true,
-    enrollments: { orderBy: { startDate: "desc" }, include: { _count: { select: { attendance: { where: history.attendance }, invoices: { where: history.invoices }, reports: { where: history.reports } } } } },
+    // SKAI-171: same-day placements (corrections, readmission) need a fixed order: open placement first, then latest end, then id.
+    enrollments: { orderBy: [{ startDate: "desc" }, { endDate: { sort: "desc", nulls: "first" } }, { id: "desc" }], include: { _count: { select: { attendance: { where: history.attendance }, invoices: { where: history.invoices }, reports: { where: history.reports } } } } },
   } });
   if (!pupil) throw new ApiError("Pupil not found", 404);
   return pupil;
