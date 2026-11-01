@@ -20,6 +20,7 @@ import { usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
+import { ErrorState } from "@/components/ui/error-state";
 
 // SKO-438: authorized pickup. Families name who collects, how the school checks identity, and a window;
 // the code shown is single-use and holds no child details. At the gate, a valid code is only the start:
@@ -31,7 +32,7 @@ const methodLabel = (ui: Ui, m: string) => ({ PHOTO_ID: ui("Photo ID"), SCHOOL_P
 async function call(url: string, method = "GET", body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(json.error || "Permission cannot be verified. Keep the student supervised and contact the pickup lead.");
+  if (!response.ok || !json.success) throw Object.assign(new Error(json.error || "Permission cannot be verified. Keep the student supervised and contact the pickup lead."), { status: response.status });
   return json.data;
 }
 const todayLocal = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10); };
@@ -46,7 +47,7 @@ type Item = { id: string; recipientName: string; recipientRelation: string; idMe
 export function FamilyPickups({ studentId, addRequest, hideAdd = false }: { studentId: string; addRequest?: number; hideAdd?: boolean }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
-  const [data, setData] = useState<{ timezone: string; items: Item[] } | null>(null), [denied, setDenied] = useState(false), [busy, setBusy] = useState(false);
+  const [data, setData] = useState<{ timezone: string; items: Item[] } | null>(null), [denied, setDenied] = useState(false), [failed, setFailed] = useState(false), [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ recipientName: "", recipientRelation: "", idMethod: "PHOTO_ID", idLast4: "", date: todayLocal(), from: "14:00", until: "16:00" }), [code, setCode] = useState<{ code: string; qr: string } | null>(null), [open, setOpen] = useState(false);
   const [withdrawing, setWithdrawing] = useState<Item | null>(null), [filterText, setFilterText] = useState("");
   // Only a change after mount opens the form, so a remount (child switch) never reopens it.
@@ -56,10 +57,12 @@ export function FamilyPickups({ studentId, addRequest, hideAdd = false }: { stud
     lastAddRequest.current = addRequest;
     setOpen(true);
   }, [addRequest]);
-  const load = useCallback(async () => { try { setData(await call(`/api/pickup?studentId=${encodeURIComponent(studentId)}`)); setDenied(false); } catch { setDenied(true); } }, [studentId]);
+  // SKAI-1379: only an authorization or missing-record answer hides the panel; other failures can be retried.
+  const load = useCallback(async () => { try { setData(await call(`/api/pickup?studentId=${encodeURIComponent(studentId)}`)); setDenied(false); setFailed(false); } catch (error) { const status = (error as { status?: number }).status; if (status === 401 || status === 403 || status === 404) setDenied(true); else setFailed(true); } }, [studentId]);
   useEffect(() => { void load(); }, [load]);
   const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
   if (denied) return null;
+  if (!data && failed) return <section className="sk-panel p-4 sm:p-5" data-family-pickup><ErrorState title={ui("Pickup authorizations could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void load()} /></section>;
   if (!data) return null;
   const needle = filterText.trim().toLowerCase();
   const items = urgencyFirst(data.items.filter(i => !needle || `${i.recipientName} ${i.recipientRelation}`.toLowerCase().includes(needle)), i => i.status === "ACTIVE" ? 0 : 1);
