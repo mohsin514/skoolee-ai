@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError } from "@/lib/api/scope";
 import { isCampusOperator, isInstitutionAuthority } from "@/lib/auth/institution";
-import { prisma, type TxClient } from "@/lib/db/prisma";
+import { prisma, tenantTransaction, type TxClient } from "@/lib/db/prisma";
 import { z } from "zod";
 import { auditTablesFor } from "@/lib/audit-categories";
 
@@ -112,10 +112,14 @@ function csvCell(value: string | null | undefined): string {
  * export is itself an audit event keyed by the client's retry key, so a lost
  * response and a retry produce one receipt.
  */
-export async function exportAuditHistory(user: AuthUser, raw: unknown, assertExport: (user: AuthUser) => Promise<unknown>, db: TxClient = prisma, now = new Date()) {
+export async function exportAuditHistory(user: AuthUser, raw: unknown, assertExport: (user: AuthUser) => Promise<unknown>, db: TxClient = prisma, now = new Date()): Promise<{ csv: string; rows: number; truncated: boolean; filename: string }> {
+  // SKAI-1587: the replay check and the receipt write share one transaction and one lock per requestKey,
+  // so simultaneous requests with the same key export once and leave exactly one receipt.
+  if (db === prisma) return tenantTransaction(tx => exportAuditHistory(user, raw, assertExport, tx, now), { timeout: 30_000 });
   const input = auditExportQuery.parse(raw);
   const scope = auditHistoryScope(user, input.campusId);
   await assertExport(user);
+  await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`audit-export:${user.schoolId}:${user.userId}:${input.requestKey}`}))`;
   const filters = { tableName: input.tableName ?? null, campusId: input.campusId ?? null, from: input.from ?? null, to: input.to ?? null };
   // SKAI-1065: a retry with the same requestKey replays the stored export byte for byte.
   const previous = await db.auditLog.findFirst({ where: { AND: [scope, { tableName: EXPORT_RECEIPT_TABLE, recordId: input.requestKey, userId: user.userId }] }, select: { id: true, newValue: true } });
