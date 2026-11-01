@@ -47,3 +47,13 @@ export async function requirePageSession(): Promise<AuthUser> {
 
   redirect(safePath ? `/login?redirect=${encodeURIComponent(safePath)}` : "/login");
 }
+
+/**
+ * A standalone workspace must not keep rendering after its school is suspended. `getAuthUser()` reads the school's
+ * status from the database on every call, so a token minted while the school was ACTIVE still gets the live answer
+ * here. Platform operators stay able to restore schools, matching the proxy. Billing, account and recovery routes do
+ * not use this helper.
+ */
+export function redirectIfSuspended(user: AuthUser): void {
+  if (user.role !== "APP_OWNER" && user.schoolStatus === "SUSPENDED") redirect("/subscription-suspended");
+}

@@ -1,7 +1,7 @@
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { RoleFrame } from "@/components/role-dashboard/RoleFrame";
 import { prisma } from "@/lib/db/prisma";
-import { requirePageSession } from "@/lib/auth/require-page-session";
+import { redirectIfSuspended, requirePageSession } from "@/lib/auth/require-page-session";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { redirect } from "next/navigation";
 import { dashboardPathForRole } from "@/lib/roles";
@@ -9,6 +9,7 @@ import { dashboardPathForRole } from "@/lib/roles";
 export default async function CurriculumLayout({ children }: { children: React.ReactNode }) {
   // The objective map for academic leaders, framed in the caller's console. Teachers use their own map.
   const user = await requirePageSession();
+  redirectIfSuspended(user);
   if (user.role === "TEACHER") redirect("/teacher/curriculum");
   if (!["PRINCIPAL", "CAMPUS_ADMIN", "ADMIN"].includes(user.role)) redirect(dashboardPathForRole(user.role));
   // Campus logo, else school logo: what the console's own sidebar shows (dashboard.ts). Read on the server so
