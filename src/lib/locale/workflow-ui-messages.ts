@@ -4,7 +4,7 @@ const entries: [string, string, string][] = [
 ["Repairs could not be loaded for this exam. Nothing has changed; try again.", "تعذّر تحميل إصلاحات هذا الامتحان. لم يتغير شيء؛ حاول مرة أخرى.", "اس امتحان کی اصلاحات لوڈ نہیں ہو سکیں۔ کچھ تبدیل نہیں ہوا؛ دوبارہ کوشش کریں۔"],
 ["Marks progress could not be checked.", "تعذّر التحقق من تقدم الدرجات.", "مارکس کی پیش رفت چیک نہیں ہو سکی۔"],
 ["Absences could not be loaded. Nothing has changed; try again.", "تعذّر تحميل حالات الغياب. لم يتغير شيء؛ حاول مرة أخرى.", "غیر حاضریاں لوڈ نہیں ہو سکیں۔ کچھ تبدیل نہیں ہوا؛ دوبارہ کوشش کریں۔"],
-["Try again", "حاول مرة أخرى", "دوبارہ کوشش کریں"],
+["Try again", "حاول مرة أخرى", "دوبارہ کوشش کریں"], ["Couldn't load your language settings.", "تعذّر تحميل إعدادات اللغة.", "آپ کی زبان کی ترتیبات لوڈ نہیں ہو سکیں۔"],
 ["Certificate templates could not be loaded. Your approved templates are not affected; try again.", "تعذّر تحميل قوالب الشهادات. القوالب المعتمدة لم تتأثر؛ حاول مرة أخرى.", "سرٹیفکیٹ سانچے لوڈ نہیں ہو سکے۔ منظور شدہ سانچے متاثر نہیں ہوئے؛ دوبارہ کوشش کریں۔"],
 ["Pupil search could not be completed. Try again.", "تعذّر إكمال البحث عن التلميذ. حاول مرة أخرى.", "طالب علم کی تلاش مکمل نہیں ہو سکی۔ دوبارہ کوشش کریں۔"],
 ["UAE report-card template", "قالب بطاقة التقرير الإماراتي", "متحدہ عرب امارات کا رپورٹ کارڈ سانچہ"],
