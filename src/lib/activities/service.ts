@@ -107,6 +107,8 @@ async function syncRequirements(tx: TxClient, activity: Act) {
 /** Why this learner cannot take a place, or null. */
 async function blockerFor(db: TxClient, activity: Act, student: { id: string; classId: string | null; campusId: string }) {
   if (activity.status !== "PUBLISHED") return "This activity was cancelled.";
+  // SKAI-1563: a linked trip that was cancelled (also covers trips cancelled before the activity was cascaded) takes no bookings.
+  if (activity.tripId && (await db.trip.findUnique({ where: { id: activity.tripId }, select: { status: true } }))?.status !== "OPEN") return "This trip was cancelled.";
   if (activity.endsAt <= new Date()) return "This activity has finished.";
   if (student.campusId !== activity.campusId) return "This activity is for another campus.";
   if (activity.classIds.length && (!student.classId || !activity.classIds.includes(student.classId))) return "This activity is not open to this learner's class.";
@@ -239,7 +241,8 @@ export async function recordFee(user: AuthUser, body: Record<string, unknown>) {
 // ─── Reading ─────────────────────────────────────────────────────────────
 
 const requirements = (activity: Act, place: { feeStatus: string; status: string }, consent: string | undefined) => ({
-  consent: activity.tripId ? (consent ?? "PENDING") : "NOT_REQUIRED",
+  // SKAI-1563: an ended activity (cancelled with its trip) has no consent left to give.
+  consent: activity.tripId && activity.status === "PUBLISHED" ? (consent ?? "PENDING") : "NOT_REQUIRED",
   fee: activity.costAmount === 0 ? "NOT_REQUIRED" : place.feeStatus,
 });
 
@@ -247,7 +250,8 @@ const requirements = (activity: Act, place: { feeStatus: string; status: string 
 export async function familyActivities(user: AuthUser, studentId: string) {
   const student = await familyChild(user, studentId);
   const now = new Date();
-  const activities = await prisma.activity.findMany({ where: { schoolId: user.schoolId, campusId: student.campusId, status: "PUBLISHED", endsAt: { gt: now } }, orderBy: { startsAt: "asc" }, take: 50 });
+  // SKAI-1563: a cancelled activity stays visible only to a child who has a place on it, so the family sees the terminal state.
+  const activities = await prisma.activity.findMany({ where: { schoolId: user.schoolId, campusId: student.campusId, endsAt: { gt: now }, OR: [{ status: "PUBLISHED" }, { status: "CANCELLED", places: { some: { studentId: student.id } } }] }, orderBy: { startsAt: "asc" }, take: 50 });
   for (const a of activities) await prisma.$transaction(async tx => { await settle(tx as TxClient, a); await syncRequirements(tx as TxClient, a); });
   const places = await prisma.activityPlace.findMany({ where: { schoolId: user.schoolId, studentId: student.id, activityId: { in: activities.map(a => a.id) } } });
   const counts = await prisma.activityPlace.groupBy({ by: ["activityId"], where: { activityId: { in: activities.map(a => a.id) }, status: { in: HOLDING } }, _count: { _all: true } });
