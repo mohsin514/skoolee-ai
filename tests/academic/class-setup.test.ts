@@ -70,3 +70,13 @@ test("every new class-setup string has Arabic and Urdu", () => {
     assert.ok(reviewedTranslation(en, "ur"), en);
   }
 });
+
+// SKAI-202: rollover capacity edits share the class-setup rule instead of a looser 0–500 check.
+test("rollover capacity edits use the shared capacity rule", () => {
+  const source = readFileSync("src/lib/academic/rollover.ts", "utf8");
+  const fn = source.slice(source.indexOf("export async function setClassCapacity"), source.indexOf("type Row = Awaited"));
+  assert.match(fn, /parseClassCapacity\(rawCapacity\)/);
+  assert.match(fn, /assertCapacityFitsEnrolled\(capacity/);
+  assert.match(fn, /schoolId: user\.schoolId/);
+  assert.doesNotMatch(fn, /500/);
+});
