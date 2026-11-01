@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   errorResponse,
+  canManageCampusOps,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
@@ -23,11 +24,17 @@ export async function GET(req: NextRequest) {
     const date = sp.get("date");
     const month = sp.get("month");
     const rawUserId = sp.get("userId");
-    const userId = rawUserId === "self" ? user.userId : rawUserId;
+    const requestedUserId = rawUserId === "self" ? user.userId : rawUserId;
 
-    if (user.role === "TEACHER" && userId && userId !== user.userId) {
+    // Teachers only ever read their own record, even when userId is omitted or spoofed.
+    // Campus-wide staff attendance is restricted to campus operators; families and
+    // other roles are denied outright.
+    if (user.role === "TEACHER") {
+      if (requestedUserId && requestedUserId !== user.userId) throw new ApiError("Forbidden", 403);
+    } else if (!canManageCampusOps(user)) {
       throw new ApiError("Forbidden", 403);
     }
+    const userId = user.role === "TEACHER" ? user.userId : requestedUserId;
 
     if (userId) {
       const where: any = { userId, campusId };
