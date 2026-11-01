@@ -19,7 +19,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 type Status = "DRAFT" | "RELEASED" | "CLOSED";
 type Summary = { id: string; title: string; status: Status; currentVersion: number | null; dueLocal: string | null; dueAt: string | null; timezone: string | null; rubricVersion: number | null; recipients: number; counts: { submitted: number; needsFeedback: number; late: number; returned: number } };
 type ListView = { classId: string; classes: { id: string; name: string; section: string | null }[]; subjects: { id: string; name: string }[]; assignments: Summary[] };
-type StaffFeedback = (NonNullable<Feedback> & { status: "DRAFT" | "RETURNED"; gradebookTransfer: string }) | null;
+type StaffFeedback = (NonNullable<Feedback> & { status: "DRAFT" | "RETURNED"; gradebookTransfer: string; updatedAt?: string }) | null;
 type QueueRow = { studentId: string; name: string; rollNo: string; enrolled: boolean; inAudience: boolean; status: string; effectiveDueAt: string | null; extension: { dueLocal: string; reason: string } | null; versions: (Receipt & { feedback: StaffFeedback })[] };
 type Draft = { id: string; classId?: string; title: string; subjectId: string | null; instructions: string; status: Status; submissionMode: "ONLINE" | "PAPER" | "BOTH"; allowedTypes: string[]; opensLocal: string | null; dueLocal: string | null; latePolicy: "ACCEPT_FLAGGED" | "REFUSE"; resubmission: "NEVER" | "AFTER_RETURN"; rubric: Criterion[]; resourceIds: string[]; currentVersion: number | null; updatedAt: string };
 type Detail = { assignment: Draft; release: { version: number; dueAt: string; dueLocal: string; timezone: string; rubricVersion: number; audience: string[] } | null; versions: { version: number; releasedAt: string; rubricVersion: number; dueLocal: string; timezone: string; audience: string[] }[]; rubrics: { version: number; criteria: Criterion[]; totalPoints: number }[]; queue: QueueRow[]; resources: { id: string; title: string }[]; newLearners: number };
@@ -256,7 +256,7 @@ function Marking({ t, language, assignmentId, timezone, row, rubrics, busy, run,
   const total = scores.reduce((n, s) => n + (s.points ?? 0), 0), max = criteria.reduce((n, c) => n + c.maxPoints, 0);
   const returned = version?.feedback?.status === "RETURNED";
   const post = (body: Record<string, unknown>) => call(`/api/assignments/${assignmentId}`, body);
-  const feedbackBody = { submissionVersionId: version?.id, scores, comment, requestGradebookTransfer: gradebook };
+  const feedbackBody = { submissionVersionId: version?.id, scores, comment, requestGradebookTransfer: gradebook, expectedUpdatedAt: version?.feedback?.updatedAt ?? null };
   const switchTo = (id: string) => {
     const next = row.versions.find(v => v.id === id)!, nextCriteria = rubrics.find(r => r.version === next.rubricVersion)?.criteria ?? [];
     setVersionId(id); setComment(next.feedback?.comment ?? ""); setGradebook(next.feedback?.gradebookTransfer === "REQUESTED");
