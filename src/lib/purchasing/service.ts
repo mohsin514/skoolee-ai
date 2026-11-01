@@ -210,11 +210,17 @@ export async function returnToSupplier(user: AuthUser, id: string, raw: unknown)
   assert(OPS.includes(user.role) || ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"].includes(user.role), "Only store or office staff record returns.");
   const input = parse(z.object({ line: z.number().int().min(0), quantity: z.number().int().min(1), storeId: z.string().min(1).max(120).optional(), reason: text(5, 300), idempotencyKey: key }).strict(), raw);
   return prisma.$transaction(async (tx) => {
-    if (await tx.itemTransaction.findFirst({ where: { schoolId: user.schoolId, idempotencyKey: input.idempotencyKey }, select: { id: true } })) return { replayed: true };
     const r = await tx.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId, ...campusFilter(user) } });
     if (!r) throw new ApiError("Request not found", 404);
     const lines = r.lines as Line[], received = [...(r.received as number[])];
     const line = lines[input.line];
+    // SKAI-1434: a replay must be the same return. A reused key with any other line, store, quantity or reason is a conflict.
+    const prior = await tx.itemTransaction.findFirst({ where: { schoolId: user.schoolId, idempotencyKey: input.idempotencyKey }, select: { campusId: true, itemId: true, storeId: true, quantity: true, kind: true, note: true } });
+    if (prior) {
+      const sameReturn = prior.kind === "ISSUE" && prior.campusId === r.campusId && !!line?.itemId && prior.itemId === line.itemId && prior.storeId === input.storeId && prior.quantity === input.quantity && prior.note === `${r.poNumber} returned to supplier: ${input.reason}`;
+      if (!sameReturn) throw new ApiError("This idempotency key was already used for a different return.", 409);
+      return { replayed: true };
+    }
     if (!line || (received[input.line] ?? 0) < input.quantity) throw new ApiError("You can only return what was received.", 409);
     if (line.itemId) {
       if (!input.storeId) throw new ApiError("Choose the store the goods leave from.", 400);
