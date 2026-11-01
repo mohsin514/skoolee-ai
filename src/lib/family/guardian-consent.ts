@@ -18,6 +18,14 @@ export type ConsentPurpose = typeof CONSENT_PURPOSES[number];
 export type ConsentLanguage = "en" | "ar" | "ur";
 export type ConsentState = "CURRENT" | "OUTDATED" | "MISSING";
 
+/** SKAI-1573: a pupil with no current answer but an earlier one is OUTDATED, never "no answer yet". */
+export function pupilConsentState(states: ConsentState[]): ConsentState | "PARTIAL" {
+  const current = states.filter(state => state === "CURRENT").length;
+  if (states.length && current === states.length) return "CURRENT";
+  if (current) return "PARTIAL";
+  return states.includes("OUTDATED") ? "OUTDATED" : "MISSING";
+}
+
 type ConsentRow = { id: string; guardianUserId: string; guardianName: string; choices: Prisma.JsonValue; noticeVersion: string; language: string; receiptCode: string; createdAt: Date };
 const receipt = () => `GC-${randomBytes(4).toString("hex").toUpperCase()}`;
 const publicRow = (row: ConsentRow) => ({ id: row.id, guardianName: row.guardianName, choices: row.choices as Record<ConsentPurpose, boolean>, noticeVersion: row.noticeVersion, language: row.language, receiptCode: row.receiptCode, at: row.createdAt.toISOString() });
@@ -126,11 +134,10 @@ export async function campusConsentStatus(user: AuthUser, params: { campusId?: s
       const state: ConsentState = row ? (row.noticeVersion === CONSENT_NOTICE_VERSION ? "CURRENT" : "OUTDATED") : "MISSING";
       return { name: link.fullName, state, consent: row ? publicRow(row) : null };
     });
-    const answered = guardians.filter(g => g.state === "CURRENT").length;
     return {
       studentId: student.id, fullName: student.fullName, rollNo: student.rollNo,
       className: [student.class?.name, student.class?.section].filter(Boolean).join(" "),
-      state: (guardians.length && answered === guardians.length ? "CURRENT" : answered ? "PARTIAL" : "MISSING") as ConsentState | "PARTIAL",
+      state: pupilConsentState(guardians.map(g => g.state)),
       guardians,
     };
   });
