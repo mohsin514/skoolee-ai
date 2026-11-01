@@ -217,10 +217,15 @@ export function GuardianAttendanceExplanations({ studentId }: { studentId: strin
   const { date: formatDate } = useLocaleFormat();
   const [rows, setRows] = useState<GuardianRow[] | null>(null), [open, setOpen] = useState<GuardianRow | null>(null);
   const [form, setForm] = useState({ reason: "", proposedStatus: "EXCUSED", arrivalTime: "" }), [error, setError] = useState(""), [busy, setBusy] = useState(false);
+  // A failed load is not "no absences" (SKAI-1418): it is shown with a retry, and rows already loaded are kept.
+  const [loadFailed, setLoadFailed] = useState(false);
   const load = useCallback(async () => {
-    const response = await fetch(`/api/parent/attendance?studentId=${encodeURIComponent(studentId)}`, { cache: "no-store" });
-    const json = await response.json().catch(() => ({}));
-    setRows(response.ok && json.success ? json.data : []);
+    try {
+      const response = await fetch(`/api/parent/attendance?studentId=${encodeURIComponent(studentId)}`, { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.success) { setLoadFailed(true); return; }
+      setRows(json.data); setLoadFailed(false);
+    } catch { setLoadFailed(true); }
   }, [studentId]);
   useEffect(() => { void load(); }, [load]);
   const explanationLabel = (status: string) => ({ PENDING: ui("Waiting for the school"), CLARIFICATION: ui("The school asked for more detail"), ACCEPTED: ui("Accepted"), REJECTED: ui("Not accepted") } as Record<string, string>)[status] ?? status;
@@ -234,6 +239,10 @@ export function GuardianAttendanceExplanations({ studentId }: { studentId: strin
       toast.success(ui("Explanation sent to the school")); setOpen(null); setForm({ reason: "", proposedStatus: "EXCUSED", arrivalTime: "" }); await load();
     } catch (failure) { setError(ui(failure instanceof Error ? failure.message : "The explanation was not sent.")); } finally { setBusy(false); }
   };
+  if (loadFailed && !rows?.length) return <div className="sk-panel space-y-3 p-5" data-guardian-absences-error>
+    <h3 className="text-base font-bold text-ink-strong">{ui("Absences and late arrivals")}</h3>
+    <Alert tone="danger" compact actions={<Button variant="outline" size="sm" onClick={() => void load()}>{ui("Try again")}</Button>}>{ui("Absences could not be loaded. Nothing has changed; try again.")}</Alert>
+  </div>;
   if (!rows || !rows.length) return null;
   return <div className="sk-panel space-y-3 p-5" data-guardian-absences>
     <h3 className="text-base font-bold text-ink-strong">{ui("Absences and late arrivals")}</h3>
