@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { requirePageSession } from "@/lib/auth/require-page-session";
+import { redirectIfSuspended, requirePageSession } from "@/lib/auth/require-page-session";
 import { dashboardPathForRole } from "@/lib/roles";
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { getDisplayLocale } from "@/lib/locale/display";
@@ -19,6 +19,7 @@ export default async function ParentLayout({ children }: { children: React.React
   // links are retired, D14; `/parent` left the proxy's PUBLIC_PATHS with them). The proxy's role guard
   // (G44) keeps every other role out; this gate turns a signed-out or revoked visitor away before render.
   const user = await requirePageSession();
+  redirectIfSuspended(user);
   // Defence in depth behind the proxy's role guard (G44): only the console's own role renders it; anyone
   // else goes to their own home (outside any try/catch — redirect() throws).
   if (user.role !== "PARENT") redirect(dashboardPathForRole(user.role));

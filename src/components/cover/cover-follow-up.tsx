@@ -4,7 +4,8 @@ import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
-import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { localParts } from "@/lib/meetings/time";
 import { ErrorState } from "@/components/ui/error-state";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -21,13 +22,15 @@ import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/
 type Covered = { id: string; date: string; startTime: string; endTime: string; className: string; subjectName: string; substitute: string; originalTeacher: string; handoverReady: boolean; acknowledged: boolean; outcome: string | null };
 type Recovery = { id: string; date: string; className: string; subjectName: string; source: string; status: string; owner: string; dueDate: string | null };
 type Uncovered = { slotId: string; startTime: string; endTime: string; className: string; subject: string | null; absentTeacher: string | null };
-const todayText = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10); };
+// SKAI-1472: "today" is the campus school date, not the leader's device date.
+const todayText = (timezone: string) => localParts(new Date(), timezone).date;
 
 export function CoverFollowUp({ campusId }: { campusId?: string }) {
   const ui = useUiText();
   const { date: formatDate } = useLocaleFormat();
   const scope = campusId ? `campusId=${encodeURIComponent(campusId)}&` : "";
-  const [day, setDay] = useState(todayText()), [busy, setBusy] = useState(false), [error, setError] = useState<RequestFailure | null>(null);
+  const { timezone } = useLocale();
+  const [day, setDay] = useState(() => todayText(timezone)), [busy, setBusy] = useState(false), [error, setError] = useState<RequestFailure | null>(null);
   const sequence = useRef(0);
   const [focus, setFocus] = useState<"" | "covered" | "uncovered" | "recoveries">("");
   const toggle = (next: typeof focus) => setFocus(f => f === next ? "" : next);
