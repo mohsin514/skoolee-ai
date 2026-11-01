@@ -97,9 +97,16 @@ export async function testConnection(user: AuthUser, id: string, origin: string)
   if (!/^https:\/\//.test(callback) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(callback)) problems.push("The callback URL must be HTTPS.");
   if (!c.clientId) problems.push("The client id (audience) is missing.");
   const ok = problems.length === 0;
-  await prisma.identityConnection.update({ where: { id: c.id }, data: { discovery: d.ok ? (d.discovery as unknown as Prisma.InputJsonValue) : Prisma.DbNull, lastTestResult: ok ? "OK" : problems.join(" "), ...(ok ? { lastTestedAt: new Date(), status: c.status === "ENABLED" ? "ENABLED" : "TESTED" } : { status: c.status === "ENABLED" ? "ENABLED" : "DRAFT" }) } });
+  // SKAI-1545: the result applies only to the settings this test read. A trust change that landed meanwhile wins.
+  const tested = await prisma.identityConnection.updateMany({ where: { ...trustWhere(c) }, data: { discovery: d.ok ? (d.discovery as unknown as Prisma.InputJsonValue) : Prisma.DbNull, lastTestResult: ok ? "OK" : problems.join(" "), ...(ok ? { lastTestedAt: new Date(), status: c.status === "ENABLED" ? "ENABLED" : "TESTED" } : { status: c.status === "ENABLED" ? "ENABLED" : "DRAFT" }) } });
+  if (tested.count !== 1) throw new ApiError("The sign-in settings changed while this test ran. Reload and test the current settings.", 409);
   await event(user.schoolId, "CONNECTION_TESTED", user.userId, c.id, { ok, problems });
   return { ok, problems, callback, audience: c.clientId, issuer: c.issuer };
+}
+
+/** The trust settings a test or an enable was decided on. Any change to them makes a compare-and-set miss. */
+function trustWhere(c: { id: string; schoolId: string; issuer: string; clientId: string; clientSecret: string | null }) {
+  return { id: c.id, schoolId: c.schoolId, issuer: c.issuer, clientId: c.clientId, clientSecret: c.clientSecret };
 }
 
 export async function setConnectionStatus(user: AuthUser, body: Record<string, unknown>) {
@@ -113,7 +120,10 @@ export async function setConnectionStatus(user: AuthUser, body: Record<string, u
   const status = String(body.status ?? "");
   if (!["ENABLED", "DISABLED"].includes(status)) throw new ApiError("Enable or disable the connection.", 400);
   if (status === "ENABLED" && (emergency || !c.lastTestedAt || c.status === "DRAFT")) throw new ApiError("Test the connection successfully before enabling it.", 409);
-  await prisma.identityConnection.update({ where: { id: c.id }, data: { status } });
+  // SKAI-1545: enabling only applies if the trust settings and the passing test are still the ones read above.
+  // A concurrent trust change makes this count 0, so the loser is told to reload rather than enabling untested settings.
+  const applied = await prisma.identityConnection.updateMany({ where: { ...trustWhere(c), lastTestedAt: c.lastTestedAt }, data: { status } });
+  if (applied.count !== 1) throw new ApiError("The sign-in settings changed before this save. Reload and test the current settings before enabling.", 409);
   await event(user.schoolId, emergency ? "EMERGENCY_DISABLE" : status === "ENABLED" ? "CONNECTION_ENABLED" : "CONNECTION_DISABLED", user.userId, c.id, { reason: text(body.reason, 300) });
   return { id: c.id, status };
 }
