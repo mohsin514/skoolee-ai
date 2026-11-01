@@ -232,9 +232,14 @@ export async function returnToSupplier(user: AuthUser, id: string, raw: unknown)
   assert(OPS.includes(user.role) || ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"].includes(user.role), "Only store or office staff record returns.");
   const input = parse(z.object({ line: z.number().int().min(0), quantity: z.number().int().min(1), storeId: z.string().min(1).max(120).optional(), reason: text(5, 300), idempotencyKey: key }).strict(), raw);
   return prisma.$transaction(async (tx) => {
-    if (await tx.itemTransaction.findFirst({ where: { schoolId: user.schoolId, idempotencyKey: input.idempotencyKey }, select: { id: true } })) return { replayed: true };
     const r = await tx.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId } });
     if (!r) throw new ApiError("Request not found", 404);
+    // The return is recorded in the request's own history, so replay detection works for service lines too.
+    const prior = (r.history as Array<{ action?: string; idempotencyKey?: string; line?: number; quantity?: number }>).find(h => h.action === "RETURNED_TO_SUPPLIER" && h.idempotencyKey === input.idempotencyKey);
+    if (prior) {
+      if (prior.line !== input.line || prior.quantity !== input.quantity) throw new ApiError("This idempotency key was used for a different return.", 409);
+      return { replayed: true, remaining: (r.lines as Line[]).map((l, i) => l.quantity - ((r.received as number[])[i] ?? 0)) };
+    }
     const lines = r.lines as Line[], received = [...(r.received as number[])];
     const line = lines[input.line];
     if (!line || (received[input.line] ?? 0) < input.quantity) throw new ApiError("You can only return what was received.", 409);
@@ -245,7 +250,7 @@ export async function returnToSupplier(user: AuthUser, id: string, raw: unknown)
       await tx.itemTransaction.create({ data: { schoolId: user.schoolId, campusId: r.campusId, itemId: line.itemId, storeId: input.storeId, kind: "ISSUE", quantity: input.quantity, unitPrice: line.unitPrice, supplierId: r.supplierId, note: `${r.poNumber} returned to supplier: ${input.reason}`, idempotencyKey: input.idempotencyKey } });
     }
     received[input.line] -= input.quantity;
-    const done = await tx.purchaseRequest.updateMany({ where: { id, version: r.version }, data: { received, status: "PARTIALLY_RECEIVED", version: { increment: 1 }, history: push(r.history, { by: user.userId, action: "RETURNED_TO_SUPPLIER", line: input.line, quantity: input.quantity, reason: input.reason }) } });
+    const done = await tx.purchaseRequest.updateMany({ where: { id, version: r.version }, data: { received, status: "PARTIALLY_RECEIVED", version: { increment: 1 }, history: push(r.history, { by: user.userId, action: "RETURNED_TO_SUPPLIER", line: input.line, quantity: input.quantity, reason: input.reason, idempotencyKey: input.idempotencyKey }) } });
     if (!done.count) throw new ApiError("Another change was saved first.", 409);
     return { replayed: false, remaining: lines.map((l, i) => l.quantity - (received[i] ?? 0)) };
   });
