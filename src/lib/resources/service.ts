@@ -48,12 +48,13 @@ async function authorResource(tx: TxClient, user: AuthUser, resourceId: string) 
 }
 
 /** Classes a learner or guardian may read from, with the audiences that reach them. */
-async function learnerReach(tx: TxClient, user: AuthUser): Promise<{ classIds: string[]; audiences: ResourceAudience[] }> {
+/** SKAI-1524: `studentId` narrows a guardian's list to the selected child; it can only narrow, never widen, their scope. */
+async function learnerReach(tx: TxClient, user: AuthUser, studentId?: string): Promise<{ classIds: string[]; audiences: ResourceAudience[] }> {
   if (user.role === "STUDENT") {
     const own = await tx.student.findMany({ where: { schoolId: user.schoolId, studentUserId: user.userId, archivedAt: null }, select: { classId: true } });
     return { classIds: own.map(row => row.classId), audiences: LEARNER_AUDIENCES };
   }
-  const children = await tx.student.findMany({ where: { AND: [studentScope(user, "learningRecords"), { archivedAt: null }] }, select: { classId: true } });
+  const children = await tx.student.findMany({ where: { AND: [studentScope(user, "learningRecords"), { archivedAt: null }, ...(studentId ? [{ id: studentId }] : [])] }, select: { classId: true } });
   return { classIds: [...new Set(children.map(row => row.classId))], audiences: GUARDIAN_AUDIENCES };
 }
 
@@ -63,7 +64,7 @@ const versionView = (version: { version: number; fileName: string | null; conten
 });
 
 // ─── Reading ──────────────────────────────────────────────────────
-export const listInput = z.object({ classId: z.string().min(1).optional(), viewAs: z.enum(["CLASS", "GUARDIANS"]).optional(), q: z.string().trim().max(120).optional() }).strict();
+export const listInput = z.object({ classId: z.string().min(1).optional(), viewAs: z.enum(["CLASS", "GUARDIANS"]).optional(), q: z.string().trim().max(120).optional(), studentId: z.string().min(1).max(120).optional() }).strict();
 
 export async function listResources(user: AuthUser, raw: unknown) {
   const input = listInput.parse(raw);
@@ -76,7 +77,7 @@ export async function listResources(user: AuthUser, raw: unknown) {
       return rows.map(row => ({ id: row.id, title: row.title, kind: row.kind, classId: row.classId, language: row.language, version: row.publishedVersion, current: versionView(versions.find(v => v.resourceId === row.id)!) }));
     };
     if (isLearner(user)) {
-      const reach = await learnerReach(tx, user);
+      const reach = await learnerReach(tx, user, user.role === "PARENT" ? input.studentId : undefined);
       return { mode: "learner" as const, resources: await learnerView(reach.classIds, reach.audiences), classes: [] };
     }
     const scope = await authorClassIds(tx, user);

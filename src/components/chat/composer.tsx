@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check, ImageIcon, Loader2, Lock, Paperclip, Send, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChat, type SendAttachment } from "./chat-provider";
+import { sendGate } from "./send-gate";
 import type { ChatMessageView } from "@/lib/chat/types";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -159,7 +160,8 @@ export function Composer({
       .filter((a): a is SendAttachment => Boolean(a));
 
     if (!body && attachments.length === 0) return;
-    if (files.some((f) => !f.uploaded && !f.error)) return; // still uploading
+    // Enter and the Send button share this guard: a failed or still-uploading file never sends silently.
+    if (!sendGate({ text: body, files, isSending: false, editing: Boolean(editing) }).canSend) return;
 
     setIsSending(true);
     try {
@@ -179,9 +181,8 @@ export function Composer({
     }
   }
 
-  const uploading = files.some((f) => !f.uploaded && !f.error);
-  const canSend =
-    (value.trim().length > 0 || files.some((f) => f.uploaded)) && !uploading && !isSending;
+  const gate = sendGate({ text: value, files, isSending, editing: Boolean(editing) });
+  const canSend = gate.canSend;
   const remaining = MAX_LENGTH - value.length;
 
   return (
@@ -233,6 +234,11 @@ export function Composer({
       </AnimatePresence>
 
       <AnimatePresence initial={false}>
+        {gate.blockedBy === "failed" && (
+          <p role="status" className="mb-2 text-2xs font-bold text-rose-600">
+            {fill(ui("Retry or remove {0} to send. Your message draft is still here."), [gate.failedNames.join(", ")])}
+          </p>
+        )}
         {files.length > 0 && (
           <motion.ul
             initial={{ opacity: 0, height: 0 }}
