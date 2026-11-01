@@ -74,6 +74,8 @@ function ItemCard({ item, recordId, disabled, post }: { item: Item; recordId: st
   const ui = useUiText();
   const { number } = useLocaleFormat();
   const [responses, setResponses] = useState<Response[] | null>(null);
+  // SKAI-1577: a failed answer load is its own state; loaded answers and citations stay on a refresh failure.
+  const [responsesFailed, setResponsesFailed] = useState(false);
   const [cited, setCited] = useState<string[]>([]);
   const [mode, setMode] = useState<"none" | "HYPOTHESIS" | "FLAG">("none");
   const [statement, setStatement] = useState("");
@@ -81,7 +83,12 @@ function ItemCard({ item, recordId, disabled, post }: { item: Item; recordId: st
   const [category, setCategory] = useState("AMBIGUOUS");
   const openFlag = item.decisions.some((d) => d.kind === "FLAG" && d.status === "OPEN");
   const loadResponses = async () => {
-    try { setResponses((await call(`/api/school-ai/item-evidence?recordId=${encodeURIComponent(recordId)}&item=${encodeURIComponent(item.key)}`)).responses); } catch { setResponses([]); }
+    try {
+      const rows = (await call(`/api/school-ai/item-evidence?recordId=${encodeURIComponent(recordId)}&item=${encodeURIComponent(item.key)}`))?.responses;
+      if (!Array.isArray(rows)) throw new Error("answers did not load");
+      setResponses(rows);
+      setResponsesFailed(false);
+    } catch { setResponsesFailed(true); }
   };
   const lost = (r: Response) => r.state === "INCORRECT" || r.state === "PARTIAL";
   const c = item.counts;
@@ -104,9 +111,11 @@ function ItemCard({ item, recordId, disabled, post }: { item: Item; recordId: st
         {item.decisions.map((d) => <DecisionRow key={d.id} decision={d} responses={responses} post={post} disabled={disabled} />)}
 
         <Button type="button" variant="outline" size="sm" onClick={loadResponses}>{ui("Show the answers")}</Button>
+        {responsesFailed ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-status-warning-text" data-item-answers-failed><span>{ui("Answers could not load. Learner responses may exist.")}</span><Button type="button" variant="outline" size="sm" onClick={loadResponses}>{ui("Try again")}</Button></div> : null}
         {responses ? (
           <fieldset className="space-y-1">
             <legend className="font-semibold">{ui("Answers (cite the ones your interpretation rests on)")}</legend>
+            {responses.length === 0 ? <p className="text-xs text-ink-subtle" data-item-answers-empty>{ui("No answers are recorded for this question.")}</p> : null}
             {responses.map((r) => (
               <label key={`${r.studentId}:${r.attemptId}`} className="flex min-h-9 items-center gap-2">
                 <Checkbox disabled={!lost(r) || !r.attemptId} checked={!!r.attemptId && cited.includes(r.attemptId)} onChange={(e) => setCited((cur) => e.target.checked ? [...cur, r.attemptId!] : cur.filter((id) => id !== r.attemptId))} />
