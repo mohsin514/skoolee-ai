@@ -228,6 +228,10 @@ export async function createBridge(user: AuthUser, raw: unknown) {
       notComparable: mappings.filter(m => m.decision === "NOT_COMPARABLE").map(m => m.sourceObjectiveId),
       gaps, createdAt: new Date().toISOString(), createdById: user.userId,
     };
+    // SKAI-1554: claim the case before any learning action exists. A concurrent second submission loses
+    // here with a 409 and creates nothing, instead of leaving an orphan draft action behind.
+    const claimed = await tx.learningTransferCase.updateMany({ where: { id: row.id, schoolId: user.schoolId, version: input.version }, data: { version: { increment: 1 } } });
+    if (claimed.count !== 1) throw new ApiError("This transfer changed. Reload it.", 409);
     return { row, bridge, title: record.title };
   });
   // The learning action is drafted through its own owner (SKO-425), which checks the learner and staff again.
@@ -241,7 +245,7 @@ export async function createBridge(user: AuthUser, raw: unknown) {
     reviewDate: input.reviewDate,
   });
   return schoolAiTransaction(user, async tx => {
-    const updated = await tx.learningTransferCase.updateMany({ where: { id: prepared.row.id, schoolId: user.schoolId, version: input.version }, data: { bridge: json({ ...prepared.bridge, planId: plan.id }), bridgePlanId: plan.id, status: "PLANNED", version: { increment: 1 } } });
+    const updated = await tx.learningTransferCase.updateMany({ where: { id: prepared.row.id, schoolId: user.schoolId, version: input.version + 1 }, data: { bridge: json({ ...prepared.bridge, planId: plan.id }), bridgePlanId: plan.id, status: "PLANNED", version: { increment: 1 } } });
     if (updated.count !== 1) throw new ApiError("This transfer changed while planning. Reload it.", 409);
     await writeAuditEvent(tx, user, { table: "learning_transfer_cases", recordId: prepared.row.id, action: "UPDATE", campusId: prepared.row.campusId, after: { bridgePlanId: plan.id, confirmed: prepared.bridge.confirmed.length, gaps: prepared.bridge.gaps.length } });
     return { planId: plan.id, confirmed: prepared.bridge.confirmed.length, gaps: prepared.bridge.gaps.length };
