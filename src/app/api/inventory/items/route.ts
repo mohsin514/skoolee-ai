@@ -12,6 +12,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
+import { itemSchema } from "@/lib/validators/operations";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { name, unit, categoryId } = body;
+    const { name, unit, categoryId } = itemSchema.parse(body);
 
     if (!name) throw new ApiError("name required", 400);
 
@@ -72,7 +73,8 @@ export async function PATCH(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { id, name, unit, categoryId } = body;
+    const { id } = body;
+    const { name, unit, categoryId } = itemSchema.partial().parse(body);
 
     if (!id) throw new ApiError("id required", 400);
 

@@ -257,6 +257,9 @@ export async function PATCH(req: NextRequest) {
         throw new ApiError(`status must be one of: ${STUDENT_STATUSES.join(", ")}`, 400);
       }
       if (status === "archived") await assertPermission(user, "students", "delete");
+      // SKAI-1470: graduation closes the enrollment, deactivates the login and writes history; a bare status
+      // update does none of that, so it must go through the per-pupil withdrawal flow instead.
+      if (status === "graduated") throw new ApiError("Graduate each pupil through withdrawal so their enrollment and login are closed.", 409);
 
       // Scope first, then update only what came back — an id from another
       // campus is silently absent rather than quietly updated.

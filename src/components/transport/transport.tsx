@@ -48,7 +48,8 @@ const direction = (ui: Ui, d: string) => d === "AM" ? ui("Morning run") : ui("Af
 type Queued = { body: Record<string, unknown>; label: string };
 const QUEUE = "sk-transport-queue";
 const readQueue = (): Queued[] => { try { return JSON.parse(localStorage.getItem(QUEUE) || "[]"); } catch { return []; } };
-const writeQueue = (q: Queued[]) => { try { localStorage.setItem(QUEUE, JSON.stringify(q)); } catch { /* storage unavailable */ } };
+// SKAI-1452: report whether the queue reached device storage, so a failed write is never claimed as saved.
+const writeQueue = (q: Queued[]) => { try { localStorage.setItem(QUEUE, JSON.stringify(q)); return true; } catch { return false; } };
 
 // ─── Trip view (crew and coordinator) ────────────────────────────────────
 
@@ -92,7 +93,12 @@ export function TripView({ tripId, onBack }: { tripId: string; onBack?: () => vo
     setBusy(true);
     try { const r = await call("/api/transport/trips", "POST", full); toast.success(ui(r?.repeated ? "Already recorded." : done)); await load(); return true; }
     catch (e) {
-      if ((e as { status?: number }).status === undefined) { const next = [...readQueue(), { body: full, label }]; writeQueue(next); setQueue(next.filter(x => x.body.tripId === tripId)); toast.warning(ui("No connection. Saved on this device only — not yet confirmed by the server.")); return true; }
+      if ((e as { status?: number }).status === undefined) {
+        const next = [...readQueue(), { body: full, label }];
+        setQueue(next.filter(x => x.body.tripId === tripId));
+        if (!writeQueue(next)) { toast.error(ui("No connection, and this device could not store the change. It was not saved — try again when connected.")); return false; }
+        toast.warning(ui("No connection. Saved on this device only — not yet confirmed by the server.")); return true;
+      }
       toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); await load(); return false;
     } finally { setBusy(false); }
   };

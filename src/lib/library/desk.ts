@@ -207,6 +207,9 @@ export async function reserveTitle(user: AuthUser, raw: unknown) {
   const book = await prisma.book.findFirst({ where: { id: input.bookId, schoolId: user.schoolId, campusId } });
   if (!book) throw new ApiError("Book not found", 404);
   if (await prisma.bookCopy.count({ where: { bookId: book.id, status: "AVAILABLE" } })) throw new ApiError("A copy is on the shelf now; issue it instead of reserving.", 409);
+  // SKAI-1447: a queue entry needs an active member of this school and campus, as issuing does.
+  const member = await prisma.libraryMember.findFirst({ where: { id: input.memberId, schoolId: user.schoolId, campusId }, select: { id: true } });
+  if (!member) throw new ApiError("Library member not found", 404);
   if (await prisma.bookReservation.findFirst({ where: { bookId: book.id, memberId: input.memberId, status: { in: ["WAITING", "READY"] } }, select: { id: true } })) throw new ApiError("This reader is already in the queue for this title.", 409);
   const created = await prisma.bookReservation.create({ data: { schoolId: user.schoolId, campusId, bookId: book.id, memberId: input.memberId } });
   const position = await prisma.bookReservation.count({ where: { bookId: book.id, status: "WAITING", createdAt: { lte: created.createdAt } } });
