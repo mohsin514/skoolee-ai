@@ -154,6 +154,12 @@ export async function POST(req: NextRequest) {
             data: { status: "COMPLETED" },
           });
         }
+
+        // The academic cycle must end with its classes, or active-year gates stay open after "closed".
+        await tx.academicCycle.updateMany({
+          where: { campusId, academicYear, status: { not: "ENDED" } },
+          data: { status: "ENDED" },
+        });
       });
 
       notify("ACADEMIC_YEAR_CLOSED", {
