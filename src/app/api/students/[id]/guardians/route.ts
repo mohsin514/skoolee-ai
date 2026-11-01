@@ -125,8 +125,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : null;
       if (input.relationshipId && !relationship) throw new ApiError("Guardian relationship not found", 404);
       if (!relationship) {
+        // A retried preview reuses the unexpired draft instead of stacking another hidden draft behind it.
+        const reusable = await prisma.guardianRelationship.findFirst({
+          where: { schoolId: user.schoolId, studentId, status: "DRAFT", createdByUserId: user.userId, invitationExpiresAt: { gt: now }, email: { equals: input.email, mode: "insensitive" } },
+          include: { accessVersions: { orderBy: { effectiveFrom: "desc" } } },
+          orderBy: { createdAt: "desc" },
+        });
+        if (reusable) relationship = reusable;
+      }
+      if (!relationship) {
+        // Expired drafts are abandoned and no longer block a new preview.
         const duplicate = await prisma.guardianRelationship.findFirst({
-          where: { schoolId: user.schoolId, studentId, status: { not: "REVOKED" }, email: { equals: input.email, mode: "insensitive" } },
+          where: { schoolId: user.schoolId, studentId, status: { not: "REVOKED" }, NOT: { status: "DRAFT", invitationExpiresAt: { lte: now } }, email: { equals: input.email, mode: "insensitive" } },
           select: { id: true },
         });
         if (duplicate) throw new ApiError("This email already has a guardian relationship for the child. Edit that relationship instead.", 409);
