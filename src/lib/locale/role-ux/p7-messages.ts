@@ -53,6 +53,7 @@ const entries: readonly (readonly [string, string, string])[] = [
   ["Below pass", "دون النجاح", "پاس سے کم"],
   ["Best score", "أعلى درجة", "بہترین اسکور"],
   ["Book a meeting with {0}'s teachers. Times are in the school's timezone.", "احجز اجتماعاً مع معلمي {0}. الأوقات بتوقيت المدرسة.", "{0} کے اساتذہ کے ساتھ ملاقات بُک کریں۔ اوقات اسکول کے ٹائم زون کے مطابق ہیں۔"],
+  ["School timezone: {0}.", "توقيت المدرسة: {0}.", "اسکول کا ٹائم زون: {0}۔"],
   ["Book a slot", "احجز موعداً", "وقت بُک کریں"],
   ["Borrow reviewed questions from other schools or offer yours; your academic lead approves what is shared.", "استعر أسئلة مراجَعة من مدارس أخرى أو قدّم أسئلتك؛ ويوافق القائد الأكاديمي على ما يُشارَك.", "دوسرے اسکولوں کے جانچے ہوئے سوالات لیں یا اپنے پیش کریں؛ جو شیئر ہو اسے آپ کے تعلیمی سربراہ منظور کرتے ہیں۔"],
   ["Both dates count as leave days.", "يُحتسب التاريخان كأيام إجازة.", "دونوں تاریخیں چھٹی کے دن شمار ہوتی ہیں۔"],
