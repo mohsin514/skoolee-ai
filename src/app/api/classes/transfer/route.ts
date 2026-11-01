@@ -65,10 +65,13 @@ export async function POST(req: NextRequest) {
     if (preview.blocked.length) throw new ApiError(`${preview.blocked.length} student(s) cannot move on this date. Resolve them first; nobody was moved.`, 409);
     const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim().slice(0, 500) : `Section transfer to ${label(preview.to)}`;
     const result = await retryDatabaseTransaction(() => prisma.$transaction(async tx => {
-      // Serialise transfers out of this section; a concurrent retry waits and then finds it empty.
-      await tx.$queryRaw`SELECT id FROM classes WHERE id = ${preview.from.id} FOR UPDATE`;
+      // SKAI-1446: lock the source and the target together, always in id order, so transfers into the same
+      // target serialise and no two transfers can take the same seats. A concurrent transfer waits here, then
+      // recounts the target below and gets a deterministic 409 instead of overfilling it.
+      const [lockA, lockB] = [preview.from.id, preview.to.id].sort();
+      await tx.$queryRaw`SELECT id FROM classes WHERE id IN (${lockA}, ${lockB}) ORDER BY id FOR UPDATE`;
       const remaining = await tx.student.findMany({ where: { classId: preview.from.id, archivedAt: null, status: "active" }, select: { id: true } });
-      // SKAI-203: seats may have filled, or capacity dropped, since the preview; recheck under the transaction.
+      // SKAI-203 / SKAI-1446: seats may have filled, or capacity dropped, since the preview; recount under the lock.
       const target = await tx.class.findUniqueOrThrow({ where: { id: preview.to.id }, select: { capacity: true, archivedAt: true, status: true } });
       if (target.archivedAt || target.status !== "ACTIVE") throw new ApiError("Students can only move to an active section.", 409);
       const seats = await classSeats(tx, { id: preview.to.id, capacity: target.capacity });

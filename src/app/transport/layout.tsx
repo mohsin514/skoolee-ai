@@ -1,7 +1,7 @@
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { RoleFrame } from "@/components/role-dashboard/RoleFrame";
 import { prisma } from "@/lib/db/prisma";
-import { requirePageSession } from "@/lib/auth/require-page-session";
+import { redirectIfSuspended, requirePageSession } from "@/lib/auth/require-page-session";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { redirect } from "next/navigation";
 import { dashboardPathForRole } from "@/lib/roles";
@@ -9,6 +9,7 @@ import { dashboardPathForRole } from "@/lib/roles";
 export default async function TransportLayout({ children }: { children: React.ReactNode }) {
   // SKO-437: today's trip desk for crews, framed in the caller's console. Families see the journey under Pickup & transport.
   const user = await requirePageSession();
+  redirectIfSuspended(user);
   if (user.role === "PARENT") redirect("/parent/pickup");
   // Learners and the platform operator have no place here; the proxy sends them home first (G44).
   if (user.role === "STUDENT" || user.role === "APP_OWNER") redirect(dashboardPathForRole(user.role));
