@@ -9,9 +9,10 @@
 
 import { defaultLocale, minorUnits } from "@/lib/locale/package";
 import { fromMinor, GRADE_COLOR, GRADE_ORDER, RAMP_BRAND, STATUS } from "./palette";
+import { ARCHIVED_STUDENT_STATUSES } from "@/lib/students/roster-status";
 
 /** Matches the server's ON_ROLL filter, so counts agree with the headline. */
-const OFF_ROLL = new Set(["inactive", "archived", "transferred", "graduated"]);
+const OFF_ROLL = new Set(ARCHIVED_STUDENT_STATUSES);
 
 export function isOnRoll(student: any): boolean {
   return !OFF_ROLL.has(String(student?.status ?? "active").toLowerCase());
