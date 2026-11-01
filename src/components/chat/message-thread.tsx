@@ -406,6 +406,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                         canModerate={detail.canModerate}
                         language={locale.language}
                         tag={tag}
+                        timeZone={timeZone}
                         sendState={message.clientKey && message.id.startsWith("pending-") ? sendStates[message.clientKey] : undefined}
                         seen={isMine && !message.id.startsWith("pending-") && detail.members.some((m) => m.userId !== viewerId && m.lastReadAt !== null && m.lastReadAt >= message.createdAt)}
                         onRetry={() => message.clientKey && void retryMessage(message.clientKey)}
@@ -525,9 +526,11 @@ function MessageBubble({
   onDiscard,
   language,
   tag,
+  timeZone,
 }: {
   language: "en" | "ar" | "ur";
   tag: string;
+  timeZone: string;
   sendState?: SendState;
   seen: boolean;
   onRetry: () => void;
