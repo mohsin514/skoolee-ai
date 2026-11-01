@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { AuthUser } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
 import type { TxClient } from "@/lib/db/prisma";
 import { ApiError, canManageOperations } from "@/lib/api/scope";
 import { studentScope } from "@/lib/auth/policy";
@@ -47,12 +48,13 @@ async function authorResource(tx: TxClient, user: AuthUser, resourceId: string) 
 }
 
 /** Classes a learner or guardian may read from, with the audiences that reach them. */
-async function learnerReach(tx: TxClient, user: AuthUser): Promise<{ classIds: string[]; audiences: ResourceAudience[] }> {
+/** SKAI-1524: `studentId` narrows a guardian's list to the selected child; it can only narrow, never widen, their scope. */
+async function learnerReach(tx: TxClient, user: AuthUser, studentId?: string): Promise<{ classIds: string[]; audiences: ResourceAudience[] }> {
   if (user.role === "STUDENT") {
     const own = await tx.student.findMany({ where: { schoolId: user.schoolId, studentUserId: user.userId, archivedAt: null }, select: { classId: true } });
     return { classIds: own.map(row => row.classId), audiences: LEARNER_AUDIENCES };
   }
-  const children = await tx.student.findMany({ where: { AND: [studentScope(user, "learningRecords"), { archivedAt: null }] }, select: { classId: true } });
+  const children = await tx.student.findMany({ where: { AND: [studentScope(user, "learningRecords"), { archivedAt: null }, ...(studentId ? [{ id: studentId }] : [])] }, select: { classId: true } });
   return { classIds: [...new Set(children.map(row => row.classId))], audiences: GUARDIAN_AUDIENCES };
 }
 
@@ -62,7 +64,7 @@ const versionView = (version: { version: number; fileName: string | null; conten
 });
 
 // ─── Reading ──────────────────────────────────────────────────────
-export const listInput = z.object({ classId: z.string().min(1).optional(), viewAs: z.enum(["CLASS", "GUARDIANS"]).optional(), q: z.string().trim().max(120).optional() }).strict();
+export const listInput = z.object({ classId: z.string().min(1).optional(), viewAs: z.enum(["CLASS", "GUARDIANS"]).optional(), q: z.string().trim().max(120).optional(), studentId: z.string().min(1).max(120).optional() }).strict();
 
 export async function listResources(user: AuthUser, raw: unknown) {
   const input = listInput.parse(raw);
@@ -75,7 +77,7 @@ export async function listResources(user: AuthUser, raw: unknown) {
       return rows.map(row => ({ id: row.id, title: row.title, kind: row.kind, classId: row.classId, language: row.language, version: row.publishedVersion, current: versionView(versions.find(v => v.resourceId === row.id)!) }));
     };
     if (isLearner(user)) {
-      const reach = await learnerReach(tx, user);
+      const reach = await learnerReach(tx, user, user.role === "PARENT" ? input.studentId : undefined);
       return { mode: "learner" as const, resources: await learnerView(reach.classIds, reach.audiences), classes: [] };
     }
     const scope = await authorClassIds(tx, user);
@@ -163,6 +165,16 @@ export async function createResource(user: AuthUser, raw: unknown) {
   });
 }
 
+/**
+ * SKAI-1486: retirement is terminal. Every lifecycle write re-checks "not retired" in the same statement,
+ * so an action that read the resource before a concurrent retire cannot restore or change it.
+ */
+async function updateUnlessRetired(tx: TxClient, resourceId: string, data: Prisma.LearningResourceUpdateManyMutationInput) {
+  const claimed = await tx.learningResource.updateMany({ where: { id: resourceId, status: { not: "RETIRED" } }, data });
+  if (claimed.count !== 1) throw new ApiError("This resource was retired meanwhile. Refresh to see its current state.", 409);
+  return tx.learningResource.findUniqueOrThrow({ where: { id: resourceId } });
+}
+
 export const versionInput = z.object({ description: z.string().trim().min(10).max(2000), content, expectedLatest: z.number().int().positive() }).strict();
 /** Replacing content adds a version; earlier versions stay readable for pinned references. */
 export async function addResourceVersion(user: AuthUser, resourceId: string, raw: unknown) {
@@ -172,7 +184,7 @@ export async function addResourceVersion(user: AuthUser, resourceId: string, raw
     if (resource.status === "RETIRED") throw new ApiError("Restore is not supported; create a new resource instead.", 409);
     if (resource.latestVersion !== input.expectedLatest) throw new ApiError("Someone added a version meanwhile. Refresh and try again.", 409);
     const version = resource.latestVersion + 1;
-    await tx.learningResource.update({ where: { id: resource.id }, data: { latestVersion: version } });
+    await updateUnlessRetired(tx, resource.id, { latestVersion: version });
     const { uploadUrl } = await reserveVersion(tx, user, resource, version, input.description, input.content);
     return { version, uploadUrl };
   });
@@ -203,7 +215,7 @@ export async function publishResource(user: AuthUser, resourceId: string, raw: u
     if (!row.linkUrl && !row.uploadedAt) throw new ApiError("The file for this version is not uploaded yet.", 409);
     const sourceRights = input.sourceRights ?? resource.sourceRights;
     if (!sourceRights.trim()) throw new ApiError("Record where this material comes from and that it may be shared.", 400);
-    const updated = await tx.learningResource.update({ where: { id: resource.id }, data: { status: "PUBLISHED", publishedVersion: input.version, sourceRights } });
+    const updated = await updateUnlessRetired(tx, resource.id, { status: "PUBLISHED", publishedVersion: input.version, sourceRights });
     await tx.auditLog.create({ data: { schoolId: user.schoolId, campusId: resource.campusId, tableName: "learning_resources", recordId: resource.id, userId: user.userId, oldValue: { status: resource.status, version: resource.publishedVersion ?? 0 }, newValue: { status: "PUBLISHED", version: input.version } } });
     return updated;
   });
@@ -216,7 +228,7 @@ export async function linkResourceObjectives(user: AuthUser, resourceId: string,
   return schoolAiTransaction(user, async tx => {
     const resource = await authorResource(tx, user, resourceId);
     await assertObjectivesExist(tx, user, resource.classId, value);
-    return tx.learningResource.update({ where: { id: resource.id }, data: { objectives: value } });
+    return updateUnlessRetired(tx, resource.id, { objectives: value });
   });
 }
 
@@ -227,14 +239,18 @@ export async function changeAudience(user: AuthUser, resourceId: string, raw: un
   return schoolAiTransaction(user, async tx => {
     const resource = await authorResource(tx, user, resourceId);
     if (resource.kind === "ANSWER_KEY" && audience !== "STAFF") throw new ApiError("An answer key can only be shared with staff.", 400);
-    return tx.learningResource.update({ where: { id: resource.id }, data: { audience } });
+    if (resource.status === "RETIRED") throw new ApiError("This resource is retired.", 409);
+    return updateUnlessRetired(tx, resource.id, { audience });
   });
 }
 
 export async function retireResource(user: AuthUser, resourceId: string) {
   return schoolAiTransaction(user, async tx => {
     const resource = await authorResource(tx, user, resourceId);
-    const updated = await tx.learningResource.update({ where: { id: resource.id }, data: { status: "RETIRED", retiredAt: new Date() } });
+    // Retiring twice is a no-op with one audit entry.
+    const claimed = await tx.learningResource.updateMany({ where: { id: resource.id, status: { not: "RETIRED" } }, data: { status: "RETIRED", retiredAt: new Date() } });
+    if (claimed.count !== 1) return tx.learningResource.findUniqueOrThrow({ where: { id: resource.id } });
+    const updated = await tx.learningResource.findUniqueOrThrow({ where: { id: resource.id } });
     await tx.auditLog.create({ data: { schoolId: user.schoolId, campusId: resource.campusId, tableName: "learning_resources", recordId: resource.id, userId: user.userId, oldValue: { status: resource.status }, newValue: { status: "ARCHIVED" } } });
     return updated;
   });

@@ -5,6 +5,8 @@ import type { TxClient } from "@/lib/db/prisma";
 import { ApiError, canManageOperations } from "@/lib/api/scope";
 import { createAssignment } from "@/lib/assignments/service";
 import { schoolAiTransaction } from "./transaction";
+import { getLocalePackage } from "@/lib/locale/store";
+import { localParts } from "@/lib/meetings/time";
 import { getWorkspaceRecordInTransaction, updateWorkspaceRecordInTransaction } from "./repository";
 import { loadWorkspacePermissionSnapshot } from "./access";
 import { curriculumDataSchema } from "./assessment";
@@ -114,10 +116,12 @@ export async function setLessonGroups(user: AuthUser, raw: unknown) {
 const DeliveryInput = z.object({ curriculumId: z.string().min(1), planId: z.string().min(1), expectedVersion: z.number().int().min(0), status: z.enum(["TAUGHT", "NOT_TAUGHT"]), on: z.string().date(), reflection: z.string().trim().max(1000) }).strict();
 export async function recordLessonDelivery(user: AuthUser, raw: unknown) {
   const input = DeliveryInput.parse(raw);
-  if (input.on > new Date().toISOString().slice(0, 10)) throw new ApiError("Record a lesson on or after the day it happened.", 400);
   return schoolAiTransaction(user, async tx => {
     const { campusId, plan, state } = await load(user, input.curriculumId, input.planId, tx);
     assertOwner(user, plan);
+    // SKAI-1479: "today" is the plan campus's school date, not the UTC calendar date.
+    const { timezone } = await getLocalePackage(user.schoolId, campusId, new Date(), null, tx);
+    if (input.on > localParts(new Date(), timezone).date) throw new ApiError("Record a lesson on or after the day it happened.", 400);
     const delivery: Delivery = { status: input.status, on: input.on, reflection: input.reflection, recordedById: user.userId };
     const saved = await saveState(tx, user, { campusId, curriculumId: input.curriculumId, planId: input.planId }, state, input.expectedVersion, { delivery }, "DELIVERY", { status: input.status, on: input.on, reflection: input.reflection });
     return { version: saved.version, delivery };

@@ -1,7 +1,7 @@
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { RoleFrame } from "@/components/role-dashboard/RoleFrame";
 import { prisma } from "@/lib/db/prisma";
-import { requirePageSession } from "@/lib/auth/require-page-session";
+import { redirectIfSuspended, requirePageSession } from "@/lib/auth/require-page-session";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { redirect } from "next/navigation";
 import { dashboardPathForRole } from "@/lib/roles";
@@ -14,6 +14,7 @@ export default async function SearchLayout({ children }: { children: React.React
   // SKO-401: record search for the roles that look people up (campus admin, school admin, principal, reception), framed in
   // their console. The registry's `recordSearch` names those consoles (SPEC §6.3: others home, never an access notice).
   const user = await requirePageSession();
+  redirectIfSuspended(user);
   if (!ROLE_NAV[consoleForRole(user.role)]?.recordSearch) redirect(dashboardPathForRole(user.role));
   // Campus logo, else school logo: what the console's own sidebar shows (dashboard.ts). Read on the server so
   // the first paint has it (the session's `logoUrl` arrives only after the client's read); a failed read only costs the image.

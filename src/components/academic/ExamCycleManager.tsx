@@ -178,6 +178,7 @@ export function ExamCycleManager({
   const [exams, setExams] = useState<ExamItem[]>([]);
   const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
   const [meta, setMeta] = useState<Record<string, ExamMeta>>({});
+  const [metaFailed, setMetaFailed] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -249,7 +250,7 @@ export function ExamCycleManager({
 
   // `silent` refreshes skip the skeleton so background polling doesn't flicker.
   // R4: the first load failing is an inline ErrorState with retry; a quiet refresh failing keeps the board.
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false), [scheduleFailed, setScheduleFailed] = useState(false);
   const load = useCallback(
     async (silent = false) => {
       if (!silent) { setLoading(true); setLoadFailed(false); }
@@ -263,8 +264,9 @@ export function ExamCycleManager({
           fetch(`/api/exams?${qs}`).then((r) => r.json()),
           // Teachers have no datesheet stage, so skip that call for them.
           isTeacher
-            ? Promise.resolve({ data: [] })
-            : fetch(`/api/academic/exam-schedule?${qs}`).then((r) => r.json()),
+            ? Promise.resolve({ success: true, data: [] })
+            // SKAI-1522: a failed schedule source is reported, never read as an empty datesheet.
+            : fetch(`/api/academic/exam-schedule?${qs}`).then(async (r) => { const j = await r.json().catch(() => ({})); return r.ok && j.success && Array.isArray(j.data) ? j : { failed: true }; }).catch(() => ({ failed: true })),
         ]);
 
         if (!examsRes.success) throw new Error("load failed");
@@ -274,15 +276,19 @@ export function ExamCycleManager({
           ? all.filter((e) => (TEACHER_EXAM_TYPES as readonly string[]).includes(e.examType || ""))
           : all;
         setExams(list);
-        setScheduleRows((schedRes.data || []) as ScheduleRow[]);
+        if ("failed" in schedRes) setScheduleFailed(true);
+        else { setScheduleFailed(false); setScheduleRows((schedRes.data || []) as ScheduleRow[]); }
 
         const needMeta = list.filter((e) => e.status !== "DRAFT" && e.status !== "ACTIVE");
         const metas = await mapWithLimit(needMeta, 6, async (e) => {
           try {
-            const m = await fetch(`/api/marks?examId=${e.id}`).then((r) => r.json());
-            const subjects: { id: string }[] = m.subjects || [];
-            const students: { id: string }[] = m.students || [];
-            const marks: { studentId: string; subjectId: string }[] = m.marks || [];
+            const r = await fetch(`/api/marks?examId=${e.id}`);
+            const m = await r.json();
+            // SKAI-1523: a failed or malformed marks response is "progress unavailable", never zero progress.
+            if (!r.ok || !Array.isArray(m.subjects) || !Array.isArray(m.students) || !Array.isArray(m.marks)) throw new Error("marks");
+            const subjects: { id: string }[] = m.subjects;
+            const students: { id: string }[] = m.students;
+            const marks: { studentId: string; subjectId: string }[] = m.marks;
             const subjectIds = new Set(subjects.map((s) => s.id));
             const studentIds = new Set(students.map((s) => s.id));
             const pairs = new Set(
@@ -301,21 +307,13 @@ export function ExamCycleManager({
               } as ExamMeta,
             };
           } catch {
-            return {
-              id: e.id,
-              meta: {
-                subjectsCount: 0,
-                studentsCount: 0,
-                markedSubjects: 0,
-                enteredMarks: 0,
-                expectedMarks: 0,
-              } as ExamMeta,
-            };
+            return { id: e.id, meta: null };
           }
         });
         const metaMap: Record<string, ExamMeta> = {};
-        metas.forEach((x) => (metaMap[x.id] = x.meta));
+        metas.forEach((x) => { if (x.meta) metaMap[x.id] = x.meta; });
         setMeta(metaMap);
+        setMetaFailed(metas.filter((x) => !x.meta).map((x) => x.id));
       } catch {
         if (!silent) setLoadFailed(true);
       } finally {
@@ -1219,6 +1217,12 @@ export function ExamCycleManager({
       ) : null}
 
       {/* ── Views ── */}
+      {metaFailed.length > 0 && !loadFailed && !loading ? (
+        <Alert tone="danger" compact data-exam-progress-error>{ui("Marking progress could not be loaded for {0} exams. Their progress is not shown.", [metaFailed.length])} <Button variant="ghost" type="button" className="text-xs font-bold" onClick={() => void load(true)}>{ui("Try again")}</Button></Alert>
+      ) : null}
+      {scheduleFailed && !loadFailed && !loading ? (
+        <Alert tone="danger" compact data-exam-schedule-error>{ui("The exam date sheet could not be loaded, so scheduled papers are not shown.")} <Button variant="ghost" type="button" className="text-xs font-bold" onClick={() => void load(true)}>{ui("Try again")}</Button></Alert>
+      ) : null}
       {loadFailed && !loading ? (
         <ErrorState title={ui(isTeacher ? "Tests could not be loaded" : "Exams could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void load()} />
       ) : loading ? (

@@ -20,6 +20,7 @@ import { attendanceRuleFor } from "@/lib/attendance/rule";
 import { getActiveAcademicYear } from "@/lib/academic/cycle";
 import { announcementHistoryRestriction } from "@/lib/school-ai/announcement-history";
 import { rosterSummarySelect } from "@/lib/students/roster-summary";
+import { rosterStatusWhere } from "@/lib/students/roster-status";
 
 /**
  * Production strips server-action error messages ("userMessage suppressed internal error" on the client), so a
@@ -98,7 +99,8 @@ function formatPendingInvite(invite: { id: string; email: string; status: string
  * to, and grows every year the school operates. Same predicate the roster
  * endpoint uses, so the tile and the list can never drift apart.
  */
-const ON_ROLL = { status: { notIn: ["inactive", "archived", "transferred", "graduated"] } } satisfies Prisma.StudentWhereInput;
+// SKAI-1493: the roster's own off-roll set (consolidated identity aliases included).
+const ON_ROLL = rosterStatusWhere(false) satisfies Prisma.StudentWhereInput;
 
 /** The School AI guided-setup generation (`setup-generation-service.ts` FEATURE): questionnaire answers → drafts. */
 const SCHOOL_AI_SETUP_FEATURE = "SETUP_GENERATION_V1";
@@ -243,7 +245,9 @@ async function loadSuperAdminDashboardData() {
           orderBy: { createdAt: "desc" },
         },
         // Governance charts need dates and grades, not learner/guardian identities or full rosters.
+        // SKAI-1496: only on-roll pupils, matching the roster and the campus headline.
         students: {
+          where: ON_ROLL,
           select: {
             enrollmentDate: true,
             reportCards: {
@@ -257,7 +261,7 @@ async function loadSuperAdminDashboardData() {
           select: {
             users: { where: { isActive: true, role: { in: ["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] } } },
             classes: true,
-            students: true,
+            students: { where: ON_ROLL },
             subjects: true,
             exams: true,
             reportCards: true,
