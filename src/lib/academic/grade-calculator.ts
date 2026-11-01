@@ -366,8 +366,9 @@ export async function calculateWeightedGradeForClass(
   campusId: string,
   academicYear: number
 ) {
+  // SKAI-212: only current learners are ranked and reported; archived or withdrawn pupils keep their history but leave the class list.
   const students = await prisma.student.findMany({
-    where: { classId, campusId },
+    where: { classId, campusId, archivedAt: null, status: "active" },
     select: { id: true, fullName: true, rollNo: true },
     orderBy: { rollNo: "asc" },
   });

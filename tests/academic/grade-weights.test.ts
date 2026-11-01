@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { summarizeWeightImpact, validateCategoryWeights, weightTotal, describeWeightProblem } from "../../src/lib/academic/grade-weights";
 import { defaultWeightConfig, overallFromExamResults, type WeightedExamResult } from "../../src/lib/academic/grade-calculator";
@@ -64,4 +65,36 @@ test("summarizes the impact of a weight change per student", () => {
     ],
   );
   assert.deepEqual(impact, { students: 4, changed: 2, gradeChanged: 2, newlyFailing: 1, newlyPassing: 1, largestShift: 17, skipped: 1 });
+});
+
+// SKAI-211: the grade-config route rejects boundaries outside 0–100, matching the academic model.
+test("grade boundaries outside 0-100 are rejected on save", () => {
+  const route = readFileSync("src/app/api/grade-config/route.ts", "utf8");
+  assert.match(route, /ladder\.find\(\(\[, start\]\) => start < 0 \|\| start > 100\)/);
+  assert.ok(route.indexOf("ladder.find(") < route.indexOf("Each grade must start lower"));
+});
+
+// SKAI-212: class-wide grades (rankings, report cards, PDFs) cover current learners only.
+test("class grade calculation excludes archived and withdrawn pupils", () => {
+  const source = readFileSync("src/lib/academic/grade-calculator.ts", "utf8");
+  const fn = source.slice(source.indexOf("export async function calculateWeightedGradeForClass"));
+  assert.match(fn.slice(0, 600), /where: \{ classId, campusId, archivedAt: null, status: "active" \}/);
+});
+
+// SKAI-213: report-card subject percentages use the configured rounding rule and bands, not Math.round and defaults.
+test("report detail percentages follow the configured rounding and bands", () => {
+  const route = readFileSync("src/app/api/reports/[id]/detail/route.ts", "utf8");
+  assert.doesNotMatch(route, /Math\.round\(\(mark\.marksObtained/);
+  assert.match(route, /roundConfigured\(\(mark\.marksObtained \/ mark\.subject\.totalMarks\) \* 100, rounding\)/);
+  assert.match(route, /gradeForMark\(mark\.marksObtained, mark\.subject\.totalMarks, rules\?\.thresholds\)/);
+});
+
+// SKAI-214: the gradebook calculation route checks class and pupil campus before calculating.
+test("calculated-grades scopes class and pupil to the caller's campus", () => {
+  const route = readFileSync("src/app/api/calculated-grades/route.ts", "utf8");
+  const classCheck = route.indexOf("prisma.class.findFirst({ where: { id: classId, campusId: session.campusId }");
+  const pupilCheck = route.indexOf("prisma.student.findFirst({ where: { id: studentId, campusId: session.campusId }");
+  assert.ok(classCheck > 0 && pupilCheck > classCheck);
+  assert.ok(pupilCheck < route.indexOf("calculateWeightedGrade(studentId"));
+  assert.ok(classCheck < route.indexOf("calculateWeightedGradeForClass(classId"));
 });

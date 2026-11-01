@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db/prisma";
 import { assertModuleRead, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { calculateWeightedGrade, calculateWeightedGradeForClass } from "@/lib/academic/grade-calculator";
 
@@ -26,7 +27,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // SKAI-214: the class and pupil must both belong to the caller's campus, as weighted-result requires;
+    // otherwise a pupil id from another campus returned that pupil's name and calculation.
+    const cls = await prisma.class.findFirst({ where: { id: classId, campusId: session.campusId }, select: { id: true } });
+    if (!cls) return NextResponse.json({ error: "Class not found in your campus" }, { status: 404 });
     if (studentId) {
+      const pupil = await prisma.student.findFirst({ where: { id: studentId, campusId: session.campusId }, select: { id: true } });
+      if (!pupil) return NextResponse.json({ error: "Student not found in your campus" }, { status: 404 });
       const result = await calculateWeightedGrade(studentId, session.campusId, classId, academicYear);
       return NextResponse.json({ success: true, grade: result });
     }

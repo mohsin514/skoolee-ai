@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { assertPlacementTarget, canPlaceAcrossCampuses, classSeats } from "../../src/lib/students/enrollment";
+import { assertPlacementTarget, assertRollNoFree, canPlaceAcrossCampuses, classSeats } from "../../src/lib/students/enrollment";
 import type { AuthUser } from "../../src/lib/auth";
 import type { TxClient } from "../../src/lib/db/prisma";
 
@@ -38,4 +38,35 @@ test("SKAI-170: the routes re-check placement, refuse duplicate proposals and bo
   assert.match(route, /already has an open enrollment proposal/);
   assert.match(route, /canPlaceAcrossCampuses\(user\) \? \{\} : \{ campusId/);
   assert.match(readFileSync("src/app/api/classes/transfer/route.ts", "utf8"), /preview\.targetOccupancy \+ preview\.ready\.length > preview\.to\.capacity/);
+});
+
+// SKAI-203: the section move rechecks seats and target status inside the transaction, not only at preview.
+test("section transfer rechecks target capacity under the transaction", () => {
+  const source = readFileSync("src/app/api/classes/transfer/route.ts", "utf8");
+  const tx = source.slice(source.indexOf("prisma.$transaction(async tx"));
+  assert.match(tx, /classSeats\(tx, \{ id: preview\.to\.id, capacity: target\.capacity \}\)/);
+  assert.match(tx, /seats\.occupied \+ remaining\.length > seats\.capacity/);
+  assert.match(tx, /target\.status !== "ACTIVE"/);
+});
+
+// SKAI-172: a transfer's roll number must be free among the target campus's current pupils.
+test("transfer roll numbers must be free in the target campus", async () => {
+  const pupils = [
+    { id: "p1", campusId: "campus-a", rollNo: "12", archivedAt: null },
+    { id: "p2", campusId: "campus-a", rollNo: "7", archivedAt: new Date() },
+  ];
+  const tx = { student: { findFirst: async ({ where }: any) => pupils.find(p => p.id !== where.id.not && p.campusId === where.campusId && p.rollNo === where.rollNo && p.archivedAt === where.archivedAt) ?? null } } as unknown as TxClient;
+  await assert.rejects(assertRollNoFree(tx, "mover", "campus-a", " 12 "), { status: 409 });
+  await assertRollNoFree(tx, "p1", "campus-a", "12"); // keeping your own roll number
+  await assertRollNoFree(tx, "mover", "campus-a", "7"); // archived pupils free their roll number
+  await assertRollNoFree(tx, "mover", "campus-b", "12"); // another campus
+  assert.match(readFileSync("src/app/api/students/enrollments/route.ts", "utf8"), /assertRollNoFree\(prisma, id, impact\.target\.campusId, rollNo\)/);
+});
+
+// SKAI-175: restoring archived pupils (single and bulk) respects the class's seat limit.
+test("restore checks class capacity before un-archiving", () => {
+  const route = readFileSync("src/app/api/students/route.ts", "utf8");
+  assert.match(route, /const seats = await classSeats\(prisma, cls\);\n\s+if \(seats\.capacity != null && seats\.occupied \+ 1 > seats\.capacity\)/);
+  assert.match(route, /seats\.occupied \+ want\.count > seats\.capacity/);
+  assert.ok(route.indexOf("classSeats(prisma, cls)") < route.indexOf("FOR UPDATE`;\n        const current"));
 });

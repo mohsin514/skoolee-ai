@@ -22,8 +22,9 @@ export const ANNUAL_DISCOUNT = 0.2;
 export type BillingPeriod = "monthly" | "annual";
 
 /**
- * Credits reset to the plan allowance at renewal. Unused credits expire; the
- * reset job does not roll them forward. This policy is shared by pricing and
+ * Credits reset to the plan allowance at the start of each UTC calendar month
+ * (not at billing renewal). Unused credits expire; the reset job does not roll
+ * them forward. This policy is shared by pricing and
  * release validation so copy cannot promise rollover accidentally.
  */
 export const AI_CREDIT_POLICY = {
