@@ -40,6 +40,8 @@ function parse<T extends z.ZodTypeAny>(schema: T, raw: unknown): z.infer<T> {
   return result.data;
 }
 function campusOf(user: AuthUser) { if (!user.campusId) throw new ApiError("Choose a campus first.", 400); return user.campusId; }
+// SKAI-1431: every request, invoice and asset lookup is bound to the actor campus (school leaders still see their whole school).
+const campusFilter = (user: AuthUser) => (user.role === "SUPER_ADMIN" ? {} : { campusId: campusOf(user) });
 function assert(cond: boolean, message: string, status = 403): asserts cond { if (!cond) throw new ApiError(message, status); }
 const push = (history: Prisma.JsonValue, entry: Record<string, unknown>) => [...(Array.isArray(history) ? history : []), { at: new Date().toISOString(), ...entry }] as Prisma.InputJsonValue;
 
@@ -96,7 +98,7 @@ export async function saveRequest(user: AuthUser, raw: unknown, id?: string, ver
 /** Submit for approval, showing the budget position this request would leave. */
 export async function submitRequest(user: AuthUser, id: string, version: number) {
   return prisma.$transaction(async (tx) => {
-    const r = await tx.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId } });
+    const r = await tx.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId, ...campusFilter(user) } });
     if (!r) throw new ApiError("Request not found", 404);
     assert(r.requestedById === user.userId || OPS.includes(user.role), "Only the requester or a school leader can submit this request.");
     if (!["DRAFT", "RETURNED"].includes(r.status)) throw new ApiError("Only a draft or returned request can be submitted.", 409);
@@ -113,7 +115,7 @@ export async function decideRequest(user: AuthUser, id: string, raw: unknown) {
   let selfApproved = false;
   let campusOfRequest: string | null = null;
   const decided = await prisma.$transaction(async (tx) => {
-    const r = await tx.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId } });
+    const r = await tx.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId, ...campusFilter(user) } });
     if (!r) throw new ApiError("Request not found", 404);
     campusOfRequest = r.campusId;
     if (r.version !== input.version) throw new ApiError("The order changed since you opened it. Review the new amount.", 409);
@@ -165,7 +167,7 @@ export async function receiveGoods(user: AuthUser, id: string, raw: unknown) {
   return prisma.$transaction(async (tx) => {
     const prior = await tx.goodsReceipt.findFirst({ where: { requestId: id, idempotencyKey: input.idempotencyKey } });
     if (prior) return { receipt: prior, replayed: true };
-    const r = await tx.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId } });
+    const r = await tx.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId, ...campusFilter(user) } });
     if (!r) throw new ApiError("Request not found", 404);
     if (!["APPROVED", "PARTIALLY_RECEIVED"].includes(r.status)) throw new ApiError("Approve the order, then record delivery.", 409);
     const lines = r.lines as Line[], received = [...(r.received as number[])];
@@ -209,7 +211,7 @@ export async function returnToSupplier(user: AuthUser, id: string, raw: unknown)
   const input = parse(z.object({ line: z.number().int().min(0), quantity: z.number().int().min(1), storeId: z.string().min(1).max(120).optional(), reason: text(5, 300), idempotencyKey: key }).strict(), raw);
   return prisma.$transaction(async (tx) => {
     if (await tx.itemTransaction.findFirst({ where: { schoolId: user.schoolId, idempotencyKey: input.idempotencyKey }, select: { id: true } })) return { replayed: true };
-    const r = await tx.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId } });
+    const r = await tx.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId, ...campusFilter(user) } });
     if (!r) throw new ApiError("Request not found", 404);
     const lines = r.lines as Line[], received = [...(r.received as number[])];
     const line = lines[input.line];
@@ -231,7 +233,7 @@ export async function returnToSupplier(user: AuthUser, id: string, raw: unknown)
 export async function recordInvoice(user: AuthUser, id: string, raw: unknown) {
   assert(OPS.includes(user.role) || user.role === "ACCOUNTANT", "Only the office or accounts records supplier invoices.");
   const input = parse(z.object({ invoiceNo: text(2, 60), amount: z.number().int().min(0) }).strict(), raw);
-  const r = await prisma.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId } });
+  const r = await prisma.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId, ...campusFilter(user) } });
   if (!r) throw new ApiError("Request not found", 404);
   const receivedValue = (r.lines as Line[]).reduce((s, l, i) => s + l.unitPrice * (((r.received as number[])[i]) ?? 0), 0);
   const issues: { code: string; detail: string }[] = [];
@@ -245,7 +247,7 @@ export async function recordInvoice(user: AuthUser, id: string, raw: unknown) {
 export async function resolveInvoice(user: AuthUser, invoiceId: string, raw: unknown) {
   assert(OPS.includes(user.role), "Only a school leader resolves invoice reviews.");
   const input = parse(z.object({ resolution: text(5, 500), decision: z.enum(["ACCEPT", "REJECT"]) }).strict(), raw);
-  const done = await prisma.supplierInvoice.updateMany({ where: { id: invoiceId, schoolId: user.schoolId, status: "REVIEW" }, data: { status: input.decision === "ACCEPT" ? "ACCEPTED_WITH_VARIANCE" : "REJECTED", resolution: input.resolution, resolvedById: user.userId } });
+  const done = await prisma.supplierInvoice.updateMany({ where: { id: invoiceId, schoolId: user.schoolId, status: "REVIEW", ...campusFilter(user) }, data: { status: input.decision === "ACCEPT" ? "ACCEPTED_WITH_VARIANCE" : "REJECTED", resolution: input.resolution, resolvedById: user.userId } });
   if (!done.count) throw new ApiError("This invoice is not waiting for review.", 409);
   return { id: invoiceId };
 }
