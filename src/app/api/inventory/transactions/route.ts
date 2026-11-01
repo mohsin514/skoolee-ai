@@ -1,5 +1,6 @@
 import { parseUnitPrice } from "@/lib/inventory/unit-price";
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
@@ -83,45 +84,59 @@ export async function POST(req: NextRequest) {
     if (!store) throw new ApiError("Store not found", 404);
     if (supplierId && !supplier) throw new ApiError("Supplier not found", 404);
 
-    const transaction = await prisma.$transaction(async (tx) => {
-      if (kind === "RECEIVE" || kind === "RETURN") {
-        await tx.itemStock.upsert({
-          where: { itemId_storeId: { itemId, storeId } },
-          update: { quantity: { increment: quantity } },
-          create: { itemId, storeId, quantity },
-        });
-      } else if (kind === "SELL" || kind === "ISSUE") {
-        // SKO-435: one conditional decrement, so two concurrent issues of the last units cannot
-        // both succeed and stock can never go negative.
-        const taken = await tx.itemStock.updateMany({
-          where: { itemId, storeId, quantity: { gte: quantity } },
-          data: { quantity: { decrement: quantity } },
-        });
-        if (!taken.count) {
-          throw new ApiError("Insufficient stock quantity", 409);
+    let transaction;
+    try {
+      transaction = await prisma.$transaction(async (tx) => {
+        if (kind === "RECEIVE" || kind === "RETURN") {
+          await tx.itemStock.upsert({
+            where: { itemId_storeId: { itemId, storeId } },
+            update: { quantity: { increment: quantity } },
+            create: { itemId, storeId, quantity },
+          });
+        } else if (kind === "SELL" || kind === "ISSUE") {
+          // SKO-435: one conditional decrement, so two concurrent issues of the last units cannot
+          // both succeed and stock can never go negative.
+          const taken = await tx.itemStock.updateMany({
+            where: { itemId, storeId, quantity: { gte: quantity } },
+            data: { quantity: { decrement: quantity } },
+          });
+          if (!taken.count) {
+            throw new ApiError("Insufficient stock quantity", 409);
+          }
         }
-      }
 
-      return tx.itemTransaction.create({
-        data: {
-          campusId,
-          itemId,
-          storeId,
-          kind,
-          quantity,
-          unitPrice: unitPriceMinor,
-          supplierId: supplierId ?? null,
-          issuedToUserId: issuedToUserId ?? null,
-          note: note ?? null,
-          idempotencyKey: idempotencyKey ?? null,
-        },
-        include: {
-          item: true,
-          store: true,
-          supplier: true,
-        },
+        return tx.itemTransaction.create({
+          data: {
+            campusId,
+            itemId,
+            storeId,
+            kind,
+            quantity,
+            unitPrice: unitPriceMinor,
+            supplierId: supplierId ?? null,
+            issuedToUserId: issuedToUserId ?? null,
+            note: note ?? null,
+            idempotencyKey: idempotencyKey ?? null,
+          },
+          include: {
+            item: true,
+            store: true,
+            supplier: true,
+          },
+        });
       });
-    });
+    } catch (error) {
+      // SKAI-1345: a concurrent identical retry lost the unique (school, idempotency key) race and rolled back.
+      // Answer with the movement that committed, as the sequential replay does, instead of a server error.
+      const winner = idempotencyKey && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
+        ? await prisma.itemTransaction.findFirst({ where: { schoolId: user.schoolId, idempotencyKey }, include: { item: true, store: true, supplier: true } })
+        : null;
+      if (!winner) throw error;
+      if (winner.itemId !== itemId || winner.storeId !== storeId || winner.kind !== kind || winner.quantity !== quantity) {
+        throw new ApiError("This idempotency key was already used for a different stock movement.", 409);
+      }
+      return Response.json({ success: true, data: winner, replayed: true }, { status: 200 });
+    }
 
     return Response.json({ success: true, data: transaction }, { status: 201 });
   } catch (error) {
