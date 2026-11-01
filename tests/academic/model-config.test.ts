@@ -78,3 +78,23 @@ test("new curriculum setup copy is translated in Arabic and Urdu", () => {
     assert.notEqual(translateUi("Activation is blocked until every section subject is mapped exactly once. Use Add mapping to repair missing subjects.", language), "Activation is blocked until every section subject is mapped exactly once. Use Add mapping to repair missing subjects.");
   }
 });
+
+// SKAI-209: a long period that spans several later ones overlaps each of them, not only the next one.
+test("reports an overlap with any earlier period, not just the one before", () => {
+  const model = configuration();
+  model.terms = [
+    { id: "a", label: "Year", startDate: "2026-01-01", endDate: "2026-12-31", teachingWeeks: 40, reportingPeriod: true },
+    { id: "b", label: "Term 1", startDate: "2026-02-01", endDate: "2026-03-31", teachingWeeks: 8, reportingPeriod: true },
+    { id: "c", label: "Term 2", startDate: "2026-04-01", endDate: "2026-05-31", teachingWeeks: 8, reportingPeriod: true },
+  ];
+  const conflicts = validateAcademicModel(model, { effectiveFrom: "2026-01-01", effectiveTo: "2026-12-31", template: true })
+    .filter((problem) => problem.code === "period_conflict").map((problem) => problem.message);
+  assert.equal(conflicts.length, 2);
+  assert.match(conflicts[1], /Term 2 overlaps Year/);
+  const clean = configuration();
+  clean.terms = [
+    { id: "a", label: "Term 1", startDate: "2026-01-01", endDate: "2026-04-30", teachingWeeks: 16, reportingPeriod: true },
+    { id: "b", label: "Term 2", startDate: "2026-05-01", endDate: "2026-08-31", teachingWeeks: 16, reportingPeriod: true },
+  ];
+  assert.equal(validateAcademicModel(clean, { effectiveFrom: "2026-01-01", effectiveTo: "2026-12-31", template: true }).some((p) => p.code === "period_conflict"), false);
+});

@@ -182,6 +182,7 @@ export function validateAcademicModel(
   const terms = [...configuration.terms].sort((a, b) => a.startDate.localeCompare(b.startDate));
   if (!terms.length) fail("period_required", "Add at least one reporting period.", "#academic-model-periods", "Add at least one reporting period.");
   const labels = new Set<string>();
+  let latest: (typeof terms)[number] | undefined;
   for (let index = 0; index < terms.length; index += 1) {
     const term = terms[index];
     const start = Date.parse(`${term.startDate}T00:00:00Z`);
@@ -193,10 +194,13 @@ export function validateAcademicModel(
     }
     labels.add(term.label.trim().toLocaleLowerCase());
     if (!templateDatesMissing && (start < from || end > to)) fail("period_outside_effective", `${term.label} falls outside this version's effective dates.`, "#academic-model-periods", "{0} falls outside this version's effective dates.", [term.label]);
-    const previous = terms[index - 1];
+    // SKAI-209: compare with the latest-ending earlier period, not only the one before, so a long
+    // period that spans several later ones is still reported as an overlap.
+    const previous = latest;
     if (previous && term.startDate && previous.endDate && Date.parse(`${term.startDate}T00:00:00Z`) <= Date.parse(`${previous.endDate}T00:00:00Z`)) {
       fail("period_conflict", `${term.label} overlaps ${previous.label}. Change one period's dates before activation.`, "#academic-model-periods", "{0} overlaps {1}. Change one period's dates before activation.", [term.label, previous.label]);
     }
+    if (term.endDate && (!latest?.endDate || term.endDate > latest.endDate)) latest = term;
   }
   if (!options.template) {
     const selected = options.selectedClassIds ?? configuration.classIds;
