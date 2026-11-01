@@ -1,5 +1,7 @@
 /** Static interface copy only. Authored names, comments and identifiers bypass this catalog. */
 const entries: [string, string, string][] = [
+["Messages could not be loaded", "تعذّر تحميل الرسائل", "پیغامات لوڈ نہیں ہو سکے"],
+["Check your connection, then try again. Your conversations are unchanged.", "تحقّق من اتصالك ثم حاول مرة أخرى. تبقى محادثاتك كما هي.", "اپنا کنکشن چیک کریں، پھر دوبارہ کوشش کریں۔ آپ کی گفتگوئیں جوں کی توں ہیں۔"],
 ["The exam date sheet could not be loaded. Your child's exam dates are not affected; try again.", "تعذّر تحميل جدول مواعيد الامتحانات. مواعيد امتحانات طفلك لم تتأثر؛ حاول مرة أخرى.", "امتحان کی تاریخوں کا شیڈول لوڈ نہیں ہو سکا۔ آپ کے بچے کی امتحانی تاریخیں متاثر نہیں ہوئیں؛ دوبارہ کوشش کریں۔"],
 ["Repairs could not be loaded for this exam. Nothing has changed; try again.", "تعذّر تحميل إصلاحات هذا الامتحان. لم يتغير شيء؛ حاول مرة أخرى.", "اس امتحان کی اصلاحات لوڈ نہیں ہو سکیں۔ کچھ تبدیل نہیں ہوا؛ دوبارہ کوشش کریں۔"],
 ["Marks progress could not be checked.", "تعذّر التحقق من تقدم الدرجات.", "مارکس کی پیش رفت چیک نہیں ہو سکی۔"],
