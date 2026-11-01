@@ -26,10 +26,15 @@ export function ExceptionsDesk({ sessionId, onChanged }: { sessionId: string; on
   const [resolving, setResolving] = useState<Record<string, { decision: string; resolution: string }>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // A failed load is not an empty desk (SKAI-1380): it is shown with a retry, and any desk already loaded is kept.
+  const [loadFailed, setLoadFailed] = useState(false);
   const load = useCallback(async () => {
-    const response = await fetch(url, { cache: "no-store" });
-    const payload = await response.json().catch(() => ({}));
-    if (response.ok) setDesk(payload.data); else setError(typeof payload.error === "string" ? payload.error : "");
+    try {
+      const response = await fetch(url, { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok && payload.data) { setDesk(payload.data); setLoadFailed(false); }
+      else { setLoadFailed(true); setError(typeof payload.error === "string" ? payload.error : ""); }
+    } catch { setLoadFailed(true); }
   }, [url]);
   useEffect(() => { void load(); }, [load]);
   const send = async (path: string, method: string, body: unknown) => {
@@ -40,7 +45,11 @@ export function ExceptionsDesk({ sessionId, onChanged }: { sessionId: string; on
     if (!response.ok) { setError(typeof payload.error === "string" ? payload.error : ""); return false; }
     await load(); onChanged?.(); return true;
   };
-  if (!desk) return null;
+  if (!desk) return loadFailed ? <section aria-labelledby="exceptions-desk" className="sk-panel space-y-3 p-4" data-exceptions-desk-error>
+    <h3 id="exceptions-desk" className="text-base font-bold text-ink-strong">{t.exceptionsTitle}</h3>
+    <p role="alert" className="text-sm text-status-error-text">{t.exceptionsLoadError}</p>
+    <Button type="button" size="sm" variant="outline" onClick={() => void load()}>{t.exceptionsRetry}</Button>
+  </section> : null;
   const exam = desk.exams.find(row => row.id === form.examId);
   return <section aria-labelledby="exceptions-desk" className="sk-panel space-y-3 p-4" data-exceptions-desk>
     <h3 id="exceptions-desk" className="text-base font-bold text-ink-strong">{t.exceptionsTitle}</h3>
