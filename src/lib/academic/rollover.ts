@@ -6,6 +6,7 @@ import { calculateWeightedGrade } from "@/lib/academic/grade-calculator";
 import { getYearClosureReport } from "@/lib/academic/year-closure";
 import { notify } from "@/lib/notifications/in-app";
 import { calendarDateIn } from "@/lib/datetime";
+import { assertCapacityFitsEnrolled, parseClassCapacity } from "@/lib/academic/class-setup";
 import { getLocalePackage } from "@/lib/locale/store";
 
 /**
@@ -160,14 +161,18 @@ export async function decide(user: AuthUser, planId: string, version: number, ro
 
 export async function setClassCapacity(user: AuthUser, campusId: string, classId: string, capacity: number | null) {
   await assertRegistrar(user);
-  if (capacity !== null && (!Number.isInteger(capacity) || capacity < 0 || capacity > 500)) throw new ApiError("Capacity must be a whole number from 0 to 500", 400);
-  const cls = await prisma.class.findFirst({ where: { id: classId, campusId } });
-  if (!cls) throw new ApiError("Class not found", 404);
-  await prisma.$transaction([
-    prisma.class.update({ where: { id: classId }, data: { capacity } }),
-    prisma.auditLog.create({ data: { tableName: "classes", recordId: classId, userId: user.userId, oldValue: { capacity: cls.capacity }, newValue: { capacity } } }),
-  ]);
-  return { capacity };
+  // SKAI-1448: the class master's rule (SKAI-148): whole seats, never below the active learners in the class.
+  const seats = parseClassCapacity(capacity);
+  return prisma.$transaction(async tx => {
+    const cls = await tx.class.findFirst({ where: { id: classId, campusId } });
+    if (!cls) throw new ApiError("Class not found", 404);
+    // Writing first takes the class row lock, so a concurrent capacity edit waits and the count below sees its result.
+    await tx.class.update({ where: { id: classId }, data: { capacity: seats } });
+    const enrolled = await tx.student.count({ where: { schoolId: user.schoolId, campusId, classId, archivedAt: null, status: "active" } });
+    assertCapacityFitsEnrolled(seats, enrolled);
+    await tx.auditLog.create({ data: { tableName: "classes", recordId: classId, userId: user.userId, oldValue: { capacity: cls.capacity }, newValue: { capacity: seats } } });
+    return { capacity: seats };
+  });
 }
 
 type Row = Awaited<ReturnType<typeof prisma.rolloverDecision.findMany>>[number];
