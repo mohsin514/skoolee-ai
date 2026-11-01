@@ -21,7 +21,7 @@ import {
 import { notify } from "@/lib/notifications/in-app";
 import { studentProfileUpdateSchema } from "@/lib/students/profile-update";
 import { parseEmiratesId, parseNationality, parseRegulatorId, regulatorAuditChange } from "@/lib/identity/regulator-ids";
-import { rosterStatusWhere } from "@/lib/students/roster-status";
+import { rosterSearchWhere, rosterStatusWhere } from "@/lib/students/roster-status";
 
 function asDate(value: string | null) {
   if (!value) return null;
@@ -147,14 +147,7 @@ export async function GET(req: NextRequest) {
       ...rosterStatusWhere(archivedOnly),
       ...(search
         ? {
-            OR: [
-              { id: { contains: search, mode: "insensitive" as const } },
-              { admissionNo: { contains: search, mode: "insensitive" as const } },
-              { fullName: { contains: search, mode: "insensitive" as const } },
-              { rollNo: { contains: search, mode: "insensitive" as const } },
-              { guardianName: { contains: search, mode: "insensitive" as const } },
-              { guardianPhone: { contains: search, mode: "insensitive" as const } },
-            ],
+            ...rosterSearchWhere(search),
           }
         : {}),
     };
