@@ -39,7 +39,6 @@ async function processPdfJob(job: Job<BulkPdfJobData>) {
     }
 
     await generateReportCardsForLockedExam(examId);
-    await notifyReportCardsGenerated({ examId });
     const reportCards = await prisma.reportCard.findMany({
       where: { examId },
       select: { id: true },
@@ -57,6 +56,9 @@ async function processPdfJob(job: Job<BulkPdfJobData>) {
       await job.updateProgress(Math.round((generated / reportCards.length) * 100));
     }
 
+    // SKAI-737: staff hear "generated" only once every PDF is saved; a failed render retries
+    // instead of announcing cards that cannot be opened. The notice is idempotent per exam.
+    await notifyReportCardsGenerated({ examId });
     return { generated, total: reportCards.length };
 }
 
