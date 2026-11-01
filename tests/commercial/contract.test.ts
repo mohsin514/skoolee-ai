@@ -74,3 +74,17 @@ test("calendar-month reset expires unused credits without rolling them forward",
   assert.equal(resetCreditUsage(37), 0);
   assert.equal(resetCreditUsage(0), 0);
 });
+
+// SKAI-883: every surface describes one rule — usage resets each UTC calendar month and unused credits expire.
+test("credit expiry wording is the same on every surface", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { creditResetMonthKey, resetCreditUsage } = await import("../../src/lib/billing/credit-policy");
+  const read = (file: string) => readFileSync(file, "utf8");
+  assert.equal(resetCreditUsage(480), 0);
+  assert.equal(creditResetMonthKey(new Date("2026-12-31T23:59:59Z")), "2026-12");
+  assert.equal(creditResetMonthKey(new Date("2027-01-01T00:00:00Z")), "2027-01");
+  assert.doesNotMatch(read("src/config/plans.ts"), /at renewal/);
+  assert.doesNotMatch(read("src/app/api/cron/ai-credits-reset/route.ts"), /rollover/i);
+  assert.match(read("src/app/owner/page.tsx"), /Unused credits expire when usage resets at the start of each calendar month/);
+  assert.match(read("src/components/marketing/PricingPage.tsx"), /Unused AI credits expire at the calendar month reset\. Credits do not roll over\./);
+});
