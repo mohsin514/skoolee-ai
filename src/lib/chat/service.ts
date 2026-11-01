@@ -508,10 +508,9 @@ export async function createGroupConversation(
       ],
     });
 
+    await systemMessage(tx, user, conversation.id, `${user.fullName ?? "A member"} created this conversation`);
     return conversation;
   });
-
-  await systemMessage(user, created.id, `${user.fullName ?? "A member"} created this conversation`);
 
   const detail = await getConversation(user, created.id);
   await publishToUsers([...memberIds], {
@@ -837,11 +836,12 @@ async function notifyAbsentMembers(
 }
 
 /** Server-authored notice, e.g. "Ali added Sara". Never attributed to a person. */
-async function systemMessage(user: AuthUser, conversationId: string, body: string): Promise<void> {
-  await prisma.chatMessage.create({
+// SKAI-1581: the event is written in the same transaction as the membership change it records.
+async function systemMessage(db: TxClient, user: AuthUser, conversationId: string, body: string): Promise<void> {
+  await db.chatMessage.create({
     data: { conversationId, senderId: null, kind: "SYSTEM", body, schoolId: user.schoolId },
   });
-  await prisma.conversation.update({
+  await db.conversation.update({
     where: { id: conversationId },
     data: { lastMessageAt: new Date(), lastMessagePreview: body, lastMessageSenderId: null },
   });
@@ -1037,32 +1037,35 @@ export async function addMembers(
 
   await assertReachable(user, toAdd, settings);
 
-  // Anyone who left before is reinstated rather than duplicated — the unique
-  // key on (conversationId, userId) means a plain create would fail.
-  await prisma.conversationMember.updateMany({
-    where: { conversationId, userId: { in: toAdd } },
-    data: { leftAt: null, isArchived: false },
-  });
-
-  await prisma.conversationMember.createMany({
-    data: toAdd.map((id) => ({
-      conversationId,
-      userId: id,
-      memberRole: "MEMBER" as const,
-      schoolId: user.schoolId,
-    })),
-    skipDuplicates: true,
-  });
-
   const names = await prisma.user.findMany({
     where: { id: { in: toAdd } },
     select: { fullName: true },
   });
-  await systemMessage(
-    user,
-    conversationId,
-    `${user.fullName ?? "A member"} added ${names.map((n) => n.fullName).join(", ")}`
-  );
+  await inTenant(user, async (tx) => {
+    // Anyone who left before is reinstated rather than duplicated — the unique
+    // key on (conversationId, userId) means a plain create would fail.
+    await tx.conversationMember.updateMany({
+      where: { conversationId, userId: { in: toAdd } },
+      data: { leftAt: null, isArchived: false },
+    });
+
+    await tx.conversationMember.createMany({
+      data: toAdd.map((id) => ({
+        conversationId,
+        userId: id,
+        memberRole: "MEMBER" as const,
+        schoolId: user.schoolId,
+      })),
+      skipDuplicates: true,
+    });
+
+    await systemMessage(
+      tx,
+      user,
+      conversationId,
+      `${user.fullName ?? "A member"} added ${names.map((n) => n.fullName).join(", ")}`
+    );
+  });
 
   const detail = await getConversation(user, conversationId);
   await publishToUsers([...existing, ...toAdd], {
@@ -1089,21 +1092,24 @@ export async function removeMember(
     throw new ApiError("You cannot remove the other person from a direct conversation", 400);
   }
 
-  await prisma.conversationMember.updateMany({
-    where: { conversationId, userId: targetUserId, leftAt: null },
-    data: { leftAt: new Date(), unreadCount: 0 },
-  });
+  await inTenant(user, async (tx) => {
+    await tx.conversationMember.updateMany({
+      where: { conversationId, userId: targetUserId, leftAt: null },
+      data: { leftAt: new Date(), unreadCount: 0 },
+    });
 
-  if (row.kind !== "DIRECT") {
-    const target = row.members.find((m) => m.userId === targetUserId);
-    await systemMessage(
-      user,
-      conversationId,
-      isSelf
-        ? `${user.fullName ?? "A member"} left`
-        : `${user.fullName ?? "A moderator"} removed ${target?.user.fullName ?? "a member"}`
-    );
-  }
+    if (row.kind !== "DIRECT") {
+      const target = row.members.find((m) => m.userId === targetUserId);
+      await systemMessage(
+        tx,
+        user,
+        conversationId,
+        isSelf
+          ? `${user.fullName ?? "A member"} left`
+          : `${user.fullName ?? "A moderator"} removed ${target?.user.fullName ?? "a member"}`
+      );
+    }
+  });
 
   await publishToUsers(recipientIds(row), {
     type: "conversation",
