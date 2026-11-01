@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
+import { roundConfigured } from "@/lib/academic/model-config";
 import { calculateWeightedGrade, getOrCreateGradeWeightConfig, buildSubjectDistribution, gradeForMark, gradeForPercentage, type WeightConfig } from "@/lib/academic/grade-calculator";
 
 export const runtime = "nodejs";
@@ -111,6 +112,11 @@ export async function GET(
   }
 
   if (marks.length > 0) {
+    // SKAI-213: per-subject percentages and grades follow the school's rounding rule and bands, as the gradebook does.
+    const rules = weightConfig ?? (studentClassId
+      ? await getOrCreateGradeWeightConfig(reportCard.campusId, studentClassId, reportCard.exam.academicYear).catch(() => null)
+      : null);
+    const rounding = rules?.roundingRule ?? "WHOLE";
     // An absent or exempt paper is not a failed zero: keep the flags and drop the numeric grade (matches report-cards.ts).
     subjectBreakdown = marks.map((mark) => {
       const notAssessed = mark.isAbsent || mark.isExempt;
@@ -121,8 +127,8 @@ export async function GET(
         obtainedMarks: mark.marksObtained,
         isAbsent: mark.isAbsent,
         isExempt: mark.isExempt,
-        percentage: notAssessed ? null : mark.subject.totalMarks > 0 ? Math.round((mark.marksObtained / mark.subject.totalMarks) * 100) : 0,
-        grade: mark.isAbsent ? "ABS" : mark.isExempt ? "EX" : mark.grade || gradeForMark(mark.marksObtained, mark.subject.totalMarks),
+        percentage: notAssessed ? null : mark.subject.totalMarks > 0 ? roundConfigured((mark.marksObtained / mark.subject.totalMarks) * 100, rounding) : 0,
+        grade: mark.isAbsent ? "ABS" : mark.isExempt ? "EX" : mark.grade || gradeForMark(mark.marksObtained, mark.subject.totalMarks, rules?.thresholds),
       };
     });
   }
