@@ -163,6 +163,14 @@ export async function actOnItem(user: AuthUser, campusId: string, body: Record<s
         if (next !== item[field]) { changes[field] = { from: item[field], to: next }; data[field] = next; }
       }
       if (!Object.keys(changes).length) throw new ApiError("Nothing changed. Edit a value before saving the correction.", 400);
+      // SKAI-1555: a corrected reference obeys the same open-item uniqueness rule as a new entry,
+      // under the same per-campus lock, so a typo fix cannot create a second active record for one parcel.
+      if (data.referenceNo && !closed) {
+        await db.$queryRaw`SELECT id FROM campuses WHERE id = ${campusId} AND school_id = ${user.schoolId} FOR UPDATE`;
+        const open = await db.postalRecord.findMany({ where: { campusId, schoolId: user.schoolId, direction: item.direction, status: { notIn: CLOSED }, referenceNo: { not: null }, id: { not: id } }, select: { itemCode: true, referenceNo: true } });
+        const same = open.find(row => row.referenceNo && comparable(row.referenceNo) === comparable(data.referenceNo!));
+        if (same) throw new ApiError(`An open item with this reference is already recorded as ${same.itemCode}. Update that item instead.`, 409);
+      }
       const updated = await db.postalRecord.update({ where: { id }, data: { ...data, ...bump } });
       await db.postalEvent.create({ data: { ...event, kind: "CORRECTED", changes, note: reason } });
       return { updated, assignment: null };
