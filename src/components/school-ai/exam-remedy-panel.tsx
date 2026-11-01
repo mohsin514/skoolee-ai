@@ -37,9 +37,17 @@ export function ExamRemedyPanel({ examId, locale, canAuthorize, onApplied }: { e
   }, [api, manual, questionId]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const load = useCallback(async () => { const response = await fetch(api, { cache: "no-store" }); if (response.ok) setData(await response.json()); }, [api]);
+  // SKAI-1594: a failed load is shown with Try again; a refresh failure keeps the last loaded view.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const load = useCallback(async () => {
+    const response = await fetch(api, { cache: "no-store" }).catch(() => null);
+    const payload = response?.ok ? await response.json().catch(() => null) : null;
+    if (!Array.isArray(payload?.questions) || !Array.isArray(payload?.remedies)) { setLoadFailed(true); return; }
+    setData(payload); setLoadFailed(false);
+  }, [api]);
   useEffect(() => { void load(); }, [load]);
-  if (!data) return null;
+  const failure = loadFailed ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm" data-remedy-load-failed><span>{t.remedyLoadFailed}</span><Button type="button" size="sm" variant="outline" onClick={() => void load()}>{t.remedyRetry}</Button></div> : null;
+  if (!data) return failure ? <section aria-labelledby="remedy-title" className="sk-panel space-y-3 p-4" data-remedy-panel><h3 id="remedy-title" className="font-semibold">{t.remedyTitle}</h3>{failure}</section> : null;
   const objective = data.questions.filter(question => question.options.length > 0);
   const question = data.questions.find(entry => entry.id === questionId);
   const number = (value: number) => new Intl.NumberFormat(locale).format(value);
@@ -55,6 +63,7 @@ export function ExamRemedyPanel({ examId, locale, canAuthorize, onApplied }: { e
   return <section aria-labelledby="remedy-title" className="sk-panel space-y-3 p-4" data-remedy-panel>
     <h3 id="remedy-title" className="font-semibold">{t.remedyTitle}</h3>
     <p className="text-sm text-ink-subtle">{t.remedyHint}</p>
+    {failure}
     <div className="grid gap-3 sm:grid-cols-3">
       <label className="grid gap-1 text-sm font-semibold">{t.type}<Select aria-label={t.type} value={type} onChange={event => setType(event.target.value as Remedy["type"])}><option value="KEY_CORRECTION">{t.keyCorrection}</option><option value="ITEM_NEUTRALIZATION">{t.neutralize}</option><option value="RUBRIC_CORRECTION">{t.rubricCorrection}</option><option value="REGRADE">{t.regrade}</option></Select></label>
       <label className="grid gap-1 text-sm font-semibold">{t.itemLabel}<Select aria-label={t.itemLabel} value={questionId} onChange={event => { setQuestionId(event.target.value); setOption(""); }}><option value="">—</option>{(type === "KEY_CORRECTION" ? objective : data.questions).map(entry => <option key={entry.id} value={entry.id}>{fill(t.aboutQuestion, [number(entry.number)])}</option>)}</Select></label>
