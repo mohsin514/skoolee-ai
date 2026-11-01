@@ -5819,7 +5819,8 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
         ARCHIVED_STATUS_LABELS[s.status] || s.status,
         s.guardianName,
         s.guardianPhone,
-        String(s.updatedAt || s.createdAt || "").slice(0, 10),
+        // SKAI-1531: the departure date is when the pupil was archived, not the last edit.
+        String(s.archivedAt || "").slice(0, 10),
       ]),
     ]);
     toast.success(ui("{0} record(s) exported", [filtered.length]));
