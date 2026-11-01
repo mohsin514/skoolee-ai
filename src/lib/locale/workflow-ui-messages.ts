@@ -2,6 +2,7 @@
 const entries: [string, string, string][] = [
 ["The exam date sheet could not be loaded. Your child's exam dates are not affected; try again.", "تعذّر تحميل جدول مواعيد الامتحانات. مواعيد امتحانات طفلك لم تتأثر؛ حاول مرة أخرى.", "امتحان کی تاریخوں کا شیڈول لوڈ نہیں ہو سکا۔ آپ کے بچے کی امتحانی تاریخیں متاثر نہیں ہوئیں؛ دوبارہ کوشش کریں۔"],
 ["Repairs could not be loaded for this exam. Nothing has changed; try again.", "تعذّر تحميل إصلاحات هذا الامتحان. لم يتغير شيء؛ حاول مرة أخرى.", "اس امتحان کی اصلاحات لوڈ نہیں ہو سکیں۔ کچھ تبدیل نہیں ہوا؛ دوبارہ کوشش کریں۔"],
+["Marks progress could not be checked.", "تعذّر التحقق من تقدم الدرجات.", "مارکس کی پیش رفت چیک نہیں ہو سکی۔"],
 ["Try again", "حاول مرة أخرى", "دوبارہ کوشش کریں"],
 ["Certificate templates could not be loaded. Your approved templates are not affected; try again.", "تعذّر تحميل قوالب الشهادات. القوالب المعتمدة لم تتأثر؛ حاول مرة أخرى.", "سرٹیفکیٹ سانچے لوڈ نہیں ہو سکے۔ منظور شدہ سانچے متاثر نہیں ہوئے؛ دوبارہ کوشش کریں۔"],
 ["Pupil search could not be completed. Try again.", "تعذّر إكمال البحث عن التلميذ. حاول مرة أخرى.", "طالب علم کی تلاش مکمل نہیں ہو سکی۔ دوبارہ کوشش کریں۔"],

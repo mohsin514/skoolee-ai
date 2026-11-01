@@ -85,6 +85,8 @@ function LegacyReportCardsPanel({
   const [pendingStep, setPendingStep] = useState<"publish" | "send" | null>(null);
   const [cards, setCards] = useState<ReportCard[]>([]);
   const [progress, setProgress] = useState<{ entered: number; expected: number } | null>(null);
+  // SKAI-1382: a marks API error is a failed check with a retry, never "Checking how many marks are in…" forever.
+  const [progressFailed, setProgressFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   /** Unsaved remark text, keyed by report card id. */
@@ -112,12 +114,15 @@ function LegacyReportCardsPanel({
         isLocked
           ? fetch(`/api/reports?${sp}`).then((r) => r.json())
           : Promise.resolve({ success: true, reportCards: [] }),
-        fetch(`/api/marks?examId=${exam.id}`).then((r) => r.json()),
+        fetch(`/api/marks?examId=${exam.id}`).then((r) => (r.ok ? r.json() : { success: false })),
       ]);
 
       setCards(reportRes?.reportCards ?? []);
 
-      if (marksRes?.success) {
+      if (!marksRes?.success) {
+        setProgressFailed(true);
+      } else {
+        setProgressFailed(false);
         const students: unknown[] = marksRes.students ?? [];
         const subjects: { id: string }[] = marksRes.subjects ?? [];
         const subjectIds = new Set(subjects.map((s) => s.id));
@@ -129,6 +134,7 @@ function LegacyReportCardsPanel({
         setProgress({ entered: pairs.size, expected: students.length * subjects.length });
       }
     } catch {
+      setProgressFailed(true);
       toast.error(tr("Could not load report cards"));
     } finally {
       setLoading(false);
@@ -294,7 +300,9 @@ function LegacyReportCardsPanel({
         blurb: tr("Freezes every mark and creates one report card per pupil."),
         state: isLocked ? "done" : marksComplete ? "ready" : "blocked",
         reason: !progress
-          ? tr("Checking how many marks are in…")
+          ? progressFailed
+            ? tr("Marks progress could not be checked.")
+            : tr("Checking how many marks are in…")
           : progress.expected === 0
           ? tr("This class has no students or no subjects yet.")
           : marksComplete
@@ -446,6 +454,11 @@ function LegacyReportCardsPanel({
                       <AlertTriangle className="h-3 w-3 shrink-0" />
                     ) : null}
                     {step.reason}
+                    {step.key === "lock" && progressFailed && !progress ? (
+                      <Button type="button" size="sm" variant="outline" onClick={() => void load()}>
+                        {tr("Try again")}
+                      </Button>
+                    ) : null}
                   </p>
                 </div>
 
