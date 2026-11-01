@@ -4377,9 +4377,12 @@ model MedicationDose {
   dose          String
   actorId       String   @map("actor_id")
   note          String?
+  idempotencyKey String?  @map("idempotency_key")
   createdAt     DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, studentId])
+  // NULL keys never conflict, so existing rows and keyless submissions are unaffected.
+  @@unique([schoolId, idempotencyKey], map: "medication_doses_school_id_idempotency_key_key")
   @@map("medication_doses")
 }
 
