@@ -375,6 +375,8 @@ export const reportRemarkSchema = z.object({
   remarksAr: z.string().optional().nullable(),
   remarksEn: z.string().optional().nullable(),
   remarksUr: z.string().optional().nullable(),
+  // SKAI-1491: the remarks the editor loaded; a save against a newer draft is refused.
+  expectedRemarks: z.object({ remarksEn: z.string().nullable(), remarksUr: z.string().nullable(), remarksAr: z.string().nullable().optional() }).strict().optional(),
   approve: z.boolean().optional(),
 });
 
