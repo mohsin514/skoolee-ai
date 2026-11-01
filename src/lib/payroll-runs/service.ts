@@ -94,6 +94,20 @@ export async function saveProvider(user: AuthUser, raw: unknown) {
   });
 }
 
+const SERIALISATION_RETRIES = 3;
+
+/** Retries a serialisable transaction that lost a race (Postgres 40001 / Prisma P2034). */
+async function retrySerialisable<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await run();
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (code !== "P2034" || attempt >= SERIALISATION_RETRIES) throw error;
+    }
+  }
+}
+
 /** Provider employee ids and a last working day. Changing either makes approved runs stale. */
 export async function setEmployee(user: AuthUser, userId: string, raw: unknown) {
   await canPrepare(user);
@@ -101,10 +115,17 @@ export async function setEmployee(user: AuthUser, userId: string, raw: unknown) 
   const campusId = campusOf(user);
   const staff = await prisma.user.findFirst({ where: { id: userId, campusId }, select: { id: true } });
   assert(!!staff, "Staff member not found", 404);
-  const existing = await prisma.payrollEmployee.findUnique({ where: { schoolId_userId: { schoolId: user.schoolId, userId } } });
-  const providerIds = { ...((existing?.providerIds as Record<string, string>) ?? {}), ...(input.providerIds ?? {}) };
-  const leavingDate = input.leavingDate === undefined ? existing?.leavingDate ?? null : input.leavingDate ? new Date(`${input.leavingDate}T00:00:00Z`) : null;
-  const saved = await prisma.payrollEmployee.upsert({ where: { schoolId_userId: { schoolId: user.schoolId, userId } }, create: { schoolId: user.schoolId, campusId, userId, providerIds, leavingDate, updatedById: user.userId }, update: { providerIds, leavingDate, updatedById: user.userId } });
+  // SKAI-1504: the read and the write share one serialisable transaction, so a concurrent save of a
+  // disjoint provider key or the last working day cannot be overwritten by a stale snapshot.
+  // A losing concurrent write fails with a serialisation error and is retried against the fresh row.
+  const saved = await retrySerialisable(() => prisma.$transaction(async (tx) => {
+    const existing = await tx.payrollEmployee.findUnique({ where: { schoolId_userId: { schoolId: user.schoolId, userId } } });
+    const providerIds = { ...((existing?.providerIds as Record<string, string>) ?? {}), ...(input.providerIds ?? {}) };
+    // Only an explicit leavingDate is written; an omitted field keeps whatever a concurrent save stored.
+    const leavingDate = input.leavingDate === undefined ? existing?.leavingDate ?? null : input.leavingDate ? new Date(`${input.leavingDate}T00:00:00Z`) : null;
+    const data = input.leavingDate === undefined ? { providerIds, updatedById: user.userId } : { providerIds, leavingDate, updatedById: user.userId };
+    return tx.payrollEmployee.upsert({ where: { schoolId_userId: { schoolId: user.schoolId, userId } }, create: { schoolId: user.schoolId, campusId, userId, leavingDate, ...data }, update: data });
+  }, { isolationLevel: "Serializable" }));
   await invalidateApproved(campusId, "Employee payroll details changed");
   return saved;
 }
