@@ -12,12 +12,12 @@ import { authorizeAssignment } from "@/lib/api/teacher-assignments";
 
 type Blocked = { studentId: string; name: string; reason: string };
 
-async function plan(fromClassId: string, toClassId: string, effectiveDate: Date, campusScope: string | null) {
+async function plan(schoolId: string, fromClassId: string, toClassId: string, effectiveDate: Date, campusScope: string | null) {
   if (!fromClassId || !toClassId) throw new ApiError("Choose the section to move from and to.", 400);
   if (fromClassId === toClassId) throw new ApiError("Choose a different section to move the students to.", 400);
   const [from, to] = await Promise.all([
-    prisma.class.findFirst({ where: { id: fromClassId, ...(campusScope ? { campusId: campusScope } : {}) }, select: { id: true, name: true, section: true, campusId: true, academicYear: true, archivedAt: true } }),
-    prisma.class.findFirst({ where: { id: toClassId, ...(campusScope ? { campusId: campusScope } : {}) }, select: { id: true, name: true, section: true, campusId: true, academicYear: true, archivedAt: true, status: true, capacity: true } }),
+    prisma.class.findFirst({ where: { id: fromClassId, schoolId, ...(campusScope ? { campusId: campusScope } : {}) }, select: { id: true, name: true, section: true, campusId: true, academicYear: true, archivedAt: true } }),
+    prisma.class.findFirst({ where: { id: toClassId, schoolId, ...(campusScope ? { campusId: campusScope } : {}) }, select: { id: true, name: true, section: true, campusId: true, academicYear: true, archivedAt: true, status: true, capacity: true } }),
   ]);
   if (!from || !to) throw new ApiError("Section not found", 404);
   if (to.archivedAt || to.status !== "ACTIVE") throw new ApiError("Students can only move to an active section.", 409);
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     const campusScope = user.role === "SUPER_ADMIN" ? null : user.campusId ?? "";
     const archiveAfter = body.archiveAfter === true;
     if (archiveAfter) await authorizeAssignment(prisma, user, "students", "delete");
-    const preview = await plan(String(body.fromClassId ?? ""), String(body.toClassId ?? ""), effectiveDate, campusScope);
+    const preview = await plan(user.schoolId, String(body.fromClassId ?? ""), String(body.toClassId ?? ""), effectiveDate, campusScope);
     const summary = {
       from: { id: preview.from.id, label: label(preview.from) }, to: { id: preview.to.id, label: label(preview.to) },
       students: preview.ready.length + preview.blocked.length, ready: preview.ready.length, blocked: preview.blocked, targetOccupancy: preview.targetOccupancy, targetCapacity: preview.to.capacity,
@@ -67,6 +67,9 @@ export async function POST(req: NextRequest) {
     const result = await retryDatabaseTransaction(() => prisma.$transaction(async tx => {
       // Serialise transfers out of this section; a concurrent retry waits and then finds it empty.
       await tx.$queryRaw`SELECT id FROM classes WHERE id = ${preview.from.id} FOR UPDATE`;
+      // Re-verify ownership inside the transaction: the section must still belong to this school.
+      const owned = await tx.class.findFirst({ where: { id: preview.from.id, schoolId: user.schoolId }, select: { id: true } });
+      if (!owned) throw new ApiError("Section not found", 404);
       const remaining = await tx.student.findMany({ where: { classId: preview.from.id, archivedAt: null, status: "active" }, select: { id: true } });
       let moved = 0;
       for (const student of remaining) {
@@ -78,7 +81,7 @@ export async function POST(req: NextRequest) {
       }
       let archived = false;
       if (archiveAfter) {
-        const cls = await tx.class.findUniqueOrThrow({ where: { id: preview.from.id }, select: { archivedAt: true, status: true } });
+        const cls = await tx.class.findFirstOrThrow({ where: { id: preview.from.id, schoolId: user.schoolId }, select: { archivedAt: true, status: true } });
         if (!cls.archivedAt) {
           // The same archive the class DELETE performs: history kept, status COMPLETED, restorable.
           await tx.class.update({ where: { id: preview.from.id }, data: { archivedAt: new Date(), archiveReason: reason, archivePreviousStatus: cls.status, status: "COMPLETED" } });
