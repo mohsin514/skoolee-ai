@@ -141,7 +141,6 @@ export async function POST(req: NextRequest) {
 
     const existingUser = await prisma.user.findFirst({ where: { schoolId, email: { equals: email, mode: "insensitive" } }, select: { id: true } });
     if (existingUser) throw new ApiError("That email already has an account in this school", 409);
-    await assertSeatAvailable(schoolId, role);
 
     const tempPassword = String(body.password || "").trim() || generatePassword();
     if (tempPassword.length < 8) {
@@ -153,27 +152,33 @@ export async function POST(req: NextRequest) {
     // change; everyone else goes straight to their dashboard.
     const onboardingComplete = role !== "TEACHER";
 
-    const created = await prisma.user.create({
-      data: {
-        schoolId,
-        campusId,
-        email,
-        fullName,
-        phone,
-        password: hashed,
-        role,
-        isActive: true,
-        onboardingComplete,
-        mustChangePassword: true,
-      },
-      select: {
-        id: true,
-        fullName: true,
-        email: true,
-        role: true,
-        campus: { select: { id: true, name: true } },
-        school: { select: { id: true, name: true } },
-      },
+    // SKAI-1614: the seat count and the create run under one school row lock, so concurrent creates
+    // see each other's active and pending seats. The loser reads the committed count and gets a 402.
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`;
+      await assertSeatAvailable(schoolId, role, tx);
+      return tx.user.create({
+        data: {
+          schoolId,
+          campusId,
+          email,
+          fullName,
+          phone,
+          password: hashed,
+          role,
+          isActive: true,
+          onboardingComplete,
+          mustChangePassword: true,
+        },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          role: true,
+          campus: { select: { id: true, name: true } },
+          school: { select: { id: true, name: true } },
+        },
+      });
     });
 
     logSuperAdminAction({

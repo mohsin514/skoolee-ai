@@ -5,7 +5,7 @@
 // school and every account, so these helpers are the single place
 // where new credentials come into existence.
 // ─────────────────────────────────────────────────────────────────
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import { getSchoolPlanContract } from "@/config/commercial-contract";
 import type { PlanType } from "@/types";
@@ -96,10 +96,10 @@ export function normalizePlan(plan: unknown): PlanType {
  * Seat check for staff roles. Mirrors billing/entitlements.ts but counts
  * only what this endpoint can add, and treats ENTERPRISE (-1) as unlimited.
  */
-export async function assertSeatAvailable(schoolId: string, role: UserRole) {
+export async function assertSeatAvailable(schoolId: string, role: UserRole, db: TxClient = prisma) {
   if (role !== "TEACHER") return; // only teacher seats are metered
 
-  const school = await prisma.school.findUnique({
+  const school = await db.school.findUnique({
     where: { id: schoolId },
     select: { plan: true, commercialContract: true },
   });
@@ -109,8 +109,8 @@ export async function assertSeatAvailable(schoolId: string, role: UserRole) {
   if (limit < 0) return; // unlimited
 
   const [active, pending] = await Promise.all([
-    prisma.user.count({ where: { schoolId, role: "TEACHER", isActive: true } }),
-    prisma.staffInvitation.count({
+    db.user.count({ where: { schoolId, role: "TEACHER", isActive: true } }),
+    db.staffInvitation.count({
       where: { role: "TEACHER", status: "pending", campus: { schoolId } },
     }),
   ]);
