@@ -39,3 +39,12 @@ test("SKAI-170: the routes re-check placement, refuse duplicate proposals and bo
   assert.match(route, /canPlaceAcrossCampuses\(user\) \? \{\} : \{ campusId/);
   assert.match(readFileSync("src/app/api/classes/transfer/route.ts", "utf8"), /preview\.targetOccupancy \+ preview\.ready\.length > preview\.to\.capacity/);
 });
+
+// SKAI-203: the section move rechecks seats and target status inside the transaction, not only at preview.
+test("section transfer rechecks target capacity under the transaction", () => {
+  const source = readFileSync("src/app/api/classes/transfer/route.ts", "utf8");
+  const tx = source.slice(source.indexOf("prisma.$transaction(async tx"));
+  assert.match(tx, /classSeats\(tx, \{ id: preview\.to\.id, capacity: target\.capacity \}\)/);
+  assert.match(tx, /seats\.occupied \+ remaining\.length > seats\.capacity/);
+  assert.match(tx, /target\.status !== "ACTIVE"/);
+});
