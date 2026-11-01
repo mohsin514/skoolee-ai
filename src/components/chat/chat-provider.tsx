@@ -98,7 +98,7 @@ interface ChatContextValue {
   setPreference: (
     id: string,
     prefs: { isMuted?: boolean; isPinned?: boolean; isArchived?: boolean }
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   leaveConversation: (id: string) => Promise<void>;
 
   typingUsers: TypingUser[];
@@ -166,6 +166,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
+  // SKAI-1542: read by setPreference to roll an optimistic change back to the values before it.
+  const conversationsRef = useRef<ConversationView[]>([]);
+  const detailRef = useRef<ConversationDetail | null>(null);
+  useEffect(() => { conversationsRef.current = conversations; detailRef.current = detail; }, [conversations, detail]);
   const [messages, setMessages] = useState<ChatMessageView[]>([]);
   const [isLoadingThread, setIsLoadingThread] = useState(false);
   const [threadFailed, setThreadFailed] = useState(false);
@@ -717,18 +721,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const setPreference = useCallback(
     async (id: string, prefs: { isMuted?: boolean; isPinned?: boolean; isArchived?: boolean }) => {
-      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, ...prefs } : c)));
+      // SKAI-1542: the list and the open thread change together, and both roll back on any failure.
+      const keys = Object.keys(prefs) as (keyof typeof prefs)[];
+      const before: typeof prefs = {};
+      const listRow = conversationsRef.current.find((c) => c.id === id);
+      for (const key of keys) before[key] = (listRow ?? (detailRef.current?.id === id ? detailRef.current : undefined))?.[key];
+      const apply = (values: typeof prefs) => {
+        setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, ...values } : c)));
+        setDetail((prev) => (prev && prev.id === id ? { ...prev, ...values } : prev));
+      };
+      apply(prefs);
 
-      const res = await fetch(`/api/chat/conversations/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(prefs),
-      });
-
-      if (!res.ok) {
-        setError(await readError(res, "Could not update that conversation"));
+      let ok = false;
+      try {
+        const res = await fetch(`/api/chat/conversations/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(prefs),
+        });
+        ok = res.ok;
+        if (!ok) setError(await readError(res, "Could not update that conversation"));
+      } catch {
+        setError("Could not update that conversation");
       }
+      if (!ok) apply(before);
       await loadConversations();
+      return ok;
     },
     [loadConversations]
   );
