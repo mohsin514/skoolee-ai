@@ -14,6 +14,8 @@ import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 
 import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
+import { downloadPdfFile } from "@/lib/download";
+import { toast } from "@/components/ui/toast";
 
 // SKO-431: the family fee statement for one authorized child. Every figure comes from the server in one
 // currency; due states use the school's calendar; the reconciliation line shows the arithmetic.
@@ -124,7 +126,20 @@ function InvoiceCard({ invoice, focused, fmt, onPending, canPay }: { invoice: St
     {invoice.installments && <div className="mt-3 space-y-1"><p className="sk-eyebrow text-ink-subtle">{ui("Instalment plan")}</p><InstallmentSchedule installments={invoice.installments} currency={invoice.currency} /></div>}
     {(invoice.adjustments ?? []).length > 0 && <ul className="mt-3 space-y-1 text-xs" data-invoice-adjustments>{invoice.adjustments!.map(row => <li key={row.id} className="rounded-lg border border-status-info-border bg-status-info-surface px-3 py-1.5 tabular-nums" data-family-adjustment={row.status}>
       <span className="font-semibold">{row.kind === "REFUND" ? (row.status === "DISBURSED" ? ui("Refund paid: {0}", [fmt(row.amount)]) : ui("Refund approved: {0} — waiting to be paid out", [fmt(row.amount)])) : row.kind === "WAIVER" ? ui("Waiver: {0} less owed (not a cash refund)", [fmt(row.amount)]) : ui("Credit note: {0} less owed (not a cash refund)", [fmt(row.amount)])}</span> · <bdi>{row.publicExplanation}</bdi></li>)}</ul>}
-    {invoice.receipts.length > 0 && <ul className="mt-3 space-y-1 text-xs text-ink-muted" data-invoice-receipts>{invoice.receipts.map(receipt => <li key={receipt.id} className="flex flex-wrap items-center gap-x-2">{ui("Receipt")} <bdi dir="ltr">{receipt.receiptNo ?? "—"}</bdi> · <bdi>{fmt(receipt.amount)}</bdi> · {date(receipt.paymentDate)} · <a className="sk-link font-semibold text-primary" href={`/api/fees/payment-pdf?id=${encodeURIComponent(receipt.id)}`} data-receipt-download>{ui("Download receipt")}</a></li>)}</ul>}
+    {invoice.receipts.length > 0 && <ul className="mt-3 space-y-1 text-xs text-ink-muted" data-invoice-receipts>{invoice.receipts.map(receipt => <li key={receipt.id} className="flex flex-wrap items-center gap-x-2">{ui("Receipt")} <bdi dir="ltr">{receipt.receiptNo ?? "—"}</bdi> · <bdi>{fmt(receipt.amount)}</bdi> · {date(receipt.paymentDate)} · <ReceiptDownload id={receipt.id} receiptNo={receipt.receiptNo} /></li>)}</ul>}
     {canPay && invoice.balance > 0 && !["CANCELLED", "PAID"].includes(invoice.dueState) && <OnlinePayAction invoiceId={invoice.id} onPending={onPending} />}
   </div>;
+}
+
+/** SKAI-1473: download in place; a failed receipt request stays on the statement with a retryable message. */
+function ReceiptDownload({ id, receiptNo }: { id: string; receiptNo: string | null }) {
+  const ui = useUiText();
+  const [busy, setBusy] = useState(false);
+  const download = async () => {
+    setBusy(true);
+    try { await downloadPdfFile(`/api/fees/payment-pdf?id=${encodeURIComponent(id)}`, `receipt-${receiptNo || "payment"}.pdf`); }
+    catch { toast.error(ui("Failed to download PDF")); }
+    finally { setBusy(false); }
+  };
+  return <button type="button" className="sk-link font-semibold text-primary" disabled={busy} aria-busy={busy} onClick={() => void download()} data-receipt-download>{ui("Download receipt")}</button>;
 }

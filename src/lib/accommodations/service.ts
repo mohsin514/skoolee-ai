@@ -7,7 +7,7 @@ import { teacherClassIds } from "@/lib/chat/policy";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { paperDataSchema } from "@/lib/school-ai/assessment";
 import { examAccommodationsSchema } from "@/lib/school-ai/exam";
-import { ASSESSMENT_TYPES, capabilitiesSchema, effectiveSettings, needsReview, sensitiveInstructionIssue, type PlanRow } from "./plan";
+import { ASSESSMENT_TYPES, capabilitiesSchema, currentWindowWhere, effectiveSettings, needsReview, planPhase, sensitiveInstructionIssue, type PlanRow } from "./plan";
 
 // SKO-410 projections:
 //  - designated approvers (campus operations managers): full plans and restricted supporting records
@@ -41,7 +41,7 @@ export async function coordinatorView(user: AuthUser, raw: unknown) {
     const reviewStudents = await tx.student.findMany({ where: { schoolId: user.schoolId, id: { in: review.map(row => row.studentId) } }, select: { id: true, fullName: true } });
     return {
       classId: selected ?? null, classes,
-      students: students.map(student => ({ ...student, plans: plans.filter(plan => plan.studentId === student.id).map(plan => ({ ...operational(plan), status: plan.status, endedAt: plan.endedAt, endReason: plan.endReason, supportRecords: plan._count.supportRecords, rehearsals: plan._count.rehearsals })) })),
+      students: students.map(student => ({ ...student, plans: plans.filter(plan => plan.studentId === student.id).map(plan => ({ ...operational(plan), status: plan.status, phase: planPhase(plan, now), endedAt: plan.endedAt, endReason: plan.endReason, supportRecords: plan._count.supportRecords, rehearsals: plan._count.rehearsals })) })),
       review: review.filter(plan => needsReview(plan, now)).map(plan => ({ planId: plan.id, studentId: plan.studentId, fullName: reviewStudents.find(row => row.id === plan.studentId)?.fullName ?? "", validUntil: plan.validUntil, expired: plan.validUntil.toISOString().slice(0, 10) < now.toISOString().slice(0, 10) })),
     };
   });
@@ -113,7 +113,7 @@ export async function staffView(user: AuthUser) {
   return schoolAiTransaction(user, async tx => {
     const classIds = isApprover(user) ? null : await teacherClassIds(user.userId, tx);
     const students = await tx.student.findMany({ where: { schoolId: user.schoolId, archivedAt: null, ...(classIds ? { classId: { in: classIds } } : user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true, fullName: true, rollNo: true, classId: true } });
-    const plans = await tx.accommodationPlan.findMany({ where: { schoolId: user.schoolId, status: "ACTIVE", studentId: { in: students.map(row => row.id) } } });
+    const plans = await tx.accommodationPlan.findMany({ where: { schoolId: user.schoolId, ...currentWindowWhere(new Date()), studentId: { in: students.map(row => row.id) } } });
     return plans.map(plan => ({ student: students.find(row => row.id === plan.studentId)!, plan: operational(plan) })).sort((a, b) => a.student.rollNo.localeCompare(b.student.rollNo));
   });
 }
@@ -123,7 +123,7 @@ export async function learnerView(user: AuthUser) {
   if (user.role !== "STUDENT" && user.role !== "PARENT") throw new ApiError("Not available.", 403);
   return schoolAiTransaction(user, async tx => {
     const children = await tx.student.findMany({ where: { AND: [studentScope(user, "learningRecords"), { archivedAt: null }] }, select: { id: true, fullName: true, classId: true } });
-    const plans = await tx.accommodationPlan.findMany({ where: { schoolId: user.schoolId, status: "ACTIVE", studentId: { in: children.map(row => row.id) } } });
+    const plans = await tx.accommodationPlan.findMany({ where: { schoolId: user.schoolId, ...currentWindowWhere(new Date()), studentId: { in: children.map(row => row.id) } } });
     if (user.role === "PARENT") return { mode: "guardian" as const, children: children.map(child => { const plan = plans.find(row => row.studentId === child.id); return { fullName: child.fullName, plan: plan ? { validFrom: plan.validFrom, validUntil: plan.validUntil, assessmentTypes: plan.assessmentTypes, extraMinutes: plan.extraMinutes, extraPercent: plan.extraPercent, breakMinutes: plan.breakMinutes, capabilities: capabilitiesSchema.parse(plan.capabilities) } : null }; }) };
     const child = children[0];
     const plan = child ? plans.find(row => row.studentId === child.id) ?? null : null;
@@ -151,6 +151,11 @@ export async function recordRehearsal(user: AuthUser, raw: unknown) {
     const student = await tx.student.findFirst({ where: { schoolId: user.schoolId, studentUserId: user.userId, archivedAt: null }, select: { id: true } });
     const plan = student ? await tx.accommodationPlan.findFirst({ where: { id: planId, schoolId: user.schoolId, studentId: student.id, status: "ACTIVE" } }) : null;
     if (!plan || !student) throw new ApiError("Plan not found.", 404);
+    // SKAI-1451: one current rehearsal per plan. The plan row lock serialises concurrent confirmations, so a lost
+    // response, a retry or a double click finds the original record and replays it instead of creating another.
+    await tx.$queryRaw`SELECT id FROM accommodation_plans WHERE id = ${plan.id} AND school_id = ${user.schoolId} FOR UPDATE`;
+    const existing = await tx.accommodationRehearsal.findFirst({ where: { planId: plan.id, schoolId: user.schoolId, studentId: student.id }, orderBy: { completedAt: "asc" } });
+    if (existing) return existing;
     const settings = effectiveSettings({ baseMinutes, type: "PRACTICE", at: new Date(), plan: { ...plan, assessmentTypes: [...plan.assessmentTypes, "PRACTICE"] } });
     return tx.accommodationRehearsal.create({ data: { schoolId: user.schoolId, planId: plan.id, studentId: student.id, settings: { ...settings, instructions: undefined } as never } });
   });
