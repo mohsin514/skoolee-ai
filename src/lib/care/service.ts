@@ -648,9 +648,11 @@ export async function revokeEmergency(user: AuthUser, id: string) {
 export async function oversight(user: AuthUser, domainParam: string | null) {
   const domain = domainOf(domainParam);
   const m = await member(user, domain, ["LEAD"]);
+  // SKAI-1441: access logs carry no campus, so the lead sees only entries by staff of their own campus.
+  const campusStaff = await prisma.user.findMany({ where: { schoolId: user.schoolId, campusId: m.campusId }, select: { id: true } });
   const [grants, logs] = await Promise.all([
     prisma.emergencyAccess.findMany({ where: { schoolId: user.schoolId, campusId: m.campusId, domain }, orderBy: { createdAt: "desc" }, take: 50 }),
-    prisma.confidentialAccessLog.findMany({ where: { schoolId: user.schoolId, domain }, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.confidentialAccessLog.findMany({ where: { schoolId: user.schoolId, domain, actorId: { in: campusStaff.map(u => u.id) } }, orderBy: { createdAt: "desc" }, take: 100 }),
   ]);
   const people = await names(user.schoolId, [...grants.flatMap(g => [g.userId, g.reviewedById]), ...logs.map(l => l.actorId)]);
   const students = await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: [...new Set(grants.map(g => g.studentId))] } }, select: { id: true, fullName: true } });
