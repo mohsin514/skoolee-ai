@@ -92,7 +92,7 @@ const receiptView = (row: VersionRow) => ({
 const returnedFeedback = (row: VersionRow) => row.feedback?.status === "RETURNED"
   ? { criteria: row.feedback.criteria as Score[], comment: row.feedback.comment, totalPoints: row.feedback.totalPoints, returnedAt: row.feedback.returnedAt, rubricVersion: row.feedback.rubricVersion }
   : null;
-const staffFeedback = (row: VersionRow) => row.feedback ? { ...returnedFeedback(row), status: row.feedback.status, criteria: row.feedback.criteria as Score[], comment: row.feedback.comment, totalPoints: row.feedback.totalPoints, gradebookTransfer: row.feedback.gradebookTransfer } : null;
+const staffFeedback = (row: VersionRow) => row.feedback ? { ...returnedFeedback(row), status: row.feedback.status, criteria: row.feedback.criteria as Score[], comment: row.feedback.comment, totalPoints: row.feedback.totalPoints, gradebookTransfer: row.feedback.gradebookTransfer, updatedAt: row.feedback.updatedAt.toISOString() } : null;
 
 async function rubricsOf(tx: TxClient, user: AuthUser, assignmentId: string) {
   const rows = await tx.assignmentRubricVersion.findMany({ where: { schoolId: user.schoolId, assignmentId }, orderBy: { version: "asc" } });
@@ -531,6 +531,7 @@ export async function recordPaperSubmission(user: AuthUser, assignmentId: string
 export const feedbackInput = z.object({
   submissionVersionId: z.string().min(1), scores: z.array(scoreSchema).max(20), comment: z.string().trim().max(4000).default(""),
   requestGradebookTransfer: z.boolean().default(false),
+  expectedUpdatedAt: z.string().datetime().nullable().optional(),
 }).strict();
 export const returnInput = feedbackInput.extend({ allowRevision: z.boolean().default(false) }).strict();
 
@@ -544,6 +545,24 @@ async function markable(tx: TxClient, user: AuthUser, assignmentId: string, subm
 }
 
 /** A private marking draft against the submission's own rubric version. */
+/**
+ * SKAI-1484: marking drafts are optimistic-concurrency writes. The caller sends the draft's updatedAt it
+ * loaded (null when none existed); a different, missing or returned draft is a 409, never a silent overwrite.
+ */
+async function writeFeedback(tx: TxClient, user: AuthUser, version: { id: string; rubricVersion: number }, expected: string | null | undefined, data: Prisma.AssignmentFeedbackUncheckedUpdateInput, allowReturned: boolean) {
+  const stale = () => new ApiError("Someone else changed this marking. Reload to review their version before saving.", 409);
+  const existing = await tx.assignmentFeedback.findUnique({ where: { submissionVersionId: version.id }, select: { id: true, status: true, updatedAt: true } });
+  if (!existing) {
+    if (expected) throw stale();
+    return tx.assignmentFeedback.create({ data: { schoolId: user.schoolId, submissionVersionId: version.id, rubricVersion: version.rubricVersion, ...data } as Prisma.AssignmentFeedbackUncheckedCreateInput });
+  }
+  if (!allowReturned && existing.status === "RETURNED") throw new ApiError("This feedback was already returned and cannot be changed.", 409);
+  if (expected !== existing.updatedAt.toISOString()) throw stale();
+  const claimed = await tx.assignmentFeedback.updateMany({ where: { id: existing.id, updatedAt: existing.updatedAt }, data });
+  if (claimed.count !== 1) throw stale();
+  return tx.assignmentFeedback.findUniqueOrThrow({ where: { id: existing.id } });
+}
+
 export async function saveFeedback(user: AuthUser, assignmentId: string, raw: unknown) {
   const input = feedbackInput.parse(raw);
   return schoolAiTransaction(user, async tx => {
@@ -551,7 +570,7 @@ export async function saveFeedback(user: AuthUser, assignmentId: string, raw: un
     const issues = scoreIssues(criteria, input.scores, false);
     if (issues.length) throw new ApiError(issues.join(" "), 400);
     const data = { criteria: input.scores, comment: input.comment, totalPoints: input.scores.some(s => s.points !== null) ? scoreTotal(input.scores) : null, gradebookTransfer: input.requestGradebookTransfer ? "REQUESTED" : "NOT_REQUESTED", markerId: user.userId };
-    return tx.assignmentFeedback.upsert({ where: { submissionVersionId: version.id }, create: { schoolId: user.schoolId, submissionVersionId: version.id, rubricVersion: version.rubricVersion, ...data }, update: data });
+    return writeFeedback(tx, user, version, input.expectedUpdatedAt, data, false);
   });
 }
 
@@ -565,7 +584,7 @@ export async function returnFeedback(user: AuthUser, assignmentId: string, raw: 
     const release = await tx.assignmentVersion.findFirstOrThrow({ where: { schoolId: user.schoolId, assignmentId, version: assignment.currentVersion! } });
     if (input.allowRevision && release.resubmission === "NEVER") throw new ApiError("This assignment does not allow another version.", 409);
     const data = { criteria: input.scores, comment: input.comment, totalPoints: scoreTotal(input.scores), status: "RETURNED", returnedAt: now, gradebookTransfer: input.requestGradebookTransfer ? "REQUESTED" : "NOT_REQUESTED", markerId: user.userId };
-    const feedback = await tx.assignmentFeedback.upsert({ where: { submissionVersionId: version.id }, create: { schoolId: user.schoolId, submissionVersionId: version.id, rubricVersion: version.rubricVersion, ...data }, update: data });
+    const feedback = await writeFeedback(tx, user, version, input.expectedUpdatedAt, data, false);
     const submission = await tx.assignmentSubmission.findFirstOrThrow({ where: { id: version.submissionId, schoolId: user.schoolId } });
     if (submission.latestVersion === version.version) await tx.assignmentSubmission.update({ where: { id: submission.id }, data: { status: input.allowRevision ? "REOPENED" : "RETURNED" } });
     await audit(tx, user, assignment, { action: "RETURN", studentId: version.studentId, version: version.version, total: feedback.totalPoints ?? 0, reopened: input.allowRevision, gradebookTransfer: feedback.gradebookTransfer });

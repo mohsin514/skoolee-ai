@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { requirePageSession } from "@/lib/auth/require-page-session";
+import { redirectIfSuspended, requirePageSession } from "@/lib/auth/require-page-session";
 import { dashboardPathForRole } from "@/lib/roles";
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { getDisplayLocale } from "@/lib/locale/display";
@@ -17,6 +17,7 @@ export default async function TeacherLayout({ children }: { children: React.Reac
   // The shell and every page inside it are client components that fetch their
   // own data, so this is the only server-side check that a session still exists.
   const user = await requirePageSession();
+  redirectIfSuspended(user);
   // Defence in depth behind the proxy's role guard (G44): only the console's own role renders it; anyone
   // else goes to their own home (outside any try/catch — redirect() throws).
   if (user.role !== "TEACHER") redirect(dashboardPathForRole(user.role));
