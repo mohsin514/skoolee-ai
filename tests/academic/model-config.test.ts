@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   DEFAULT_ACADEMIC_MODEL,
   simulateAcademicResult,
   validateAcademicModel,
 } from "../../src/lib/academic/model-config";
-import { overallFromExamResults, type WeightConfig } from "../../src/lib/academic/grade-calculator";
+import { gradeForPercentage, overallFromExamResults, type WeightConfig } from "../../src/lib/academic/grade-calculator";
 import { translateUi } from "../../src/lib/locale/ui-messages";
 
 const configuration = () => structuredClone(DEFAULT_ACADEMIC_MODEL);
@@ -97,4 +98,12 @@ test("reports an overlap with any earlier period, not just the one before", () =
     { id: "b", label: "Term 2", startDate: "2026-05-01", endDate: "2026-08-31", teachingWeeks: 16, reportingPeriod: true },
   ];
   assert.equal(validateAcademicModel(clean, { effectiveFrom: "2026-01-01", effectiveTo: "2026-12-31", template: true }).some((p) => p.code === "period_conflict"), false);
+});
+
+// SKAI-210: letter grades come only from the configured bands; no hard-coded A+/A/B ladder remains elsewhere.
+test("there is one grade-band implementation", () => {
+  for (const file of ["src/lib/utils.ts", "src/lib/auth.ts"]) {
+    assert.doesNotMatch(readFileSync(file, "utf8"), /function calculateGrade|>= 90\) return "A\+"/, file);
+  }
+  assert.equal(gradeForPercentage(72, { aplus: 90, a: 80, b: 70, c: 60, d: 50, bands: [{ label: "Pass", minimum: 50 }, { label: "Fail", minimum: 0 }] } as never), "Pass");
 });
