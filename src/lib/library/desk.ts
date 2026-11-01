@@ -196,7 +196,10 @@ export async function renewLoan(user: AuthUser, raw: unknown) {
     const rules = (loan.policySnapshot as LoanRules | null) ?? (await currentRules(tx, user.schoolId, campusOf(user)));
     if (loan.renewals >= rules.maxRenewals) throw new ApiError(`This loan has used its ${rules.maxRenewals} renewals.`, 409);
     if (await tx.bookReservation.count({ where: { bookId: loan.bookId, status: "WAITING" } })) throw new ApiError("Another reader is waiting for this title, so it cannot be renewed.", 409);
-    return tx.bookIssue.update({ where: { id: loan.id }, data: { dueAt: dueDate(loan.dueAt > new Date() ? loan.dueAt : new Date(), rules), renewals: { increment: 1 } } });
+    // SKAI-1643: claim the renewal count we read, so two desks renewing at once extend the loan once.
+    const claimed = await tx.bookIssue.updateMany({ where: { id: loan.id, schoolId: user.schoolId, returnedAt: null, renewals: loan.renewals }, data: { dueAt: dueDate(loan.dueAt > new Date() ? loan.dueAt : new Date(), rules), renewals: loan.renewals + 1 } });
+    if (claimed.count !== 1) throw new ApiError("This loan was just renewed or returned. Refresh to see its new due date.", 409);
+    return tx.bookIssue.findUniqueOrThrow({ where: { id: loan.id } });
   });
 }
 
