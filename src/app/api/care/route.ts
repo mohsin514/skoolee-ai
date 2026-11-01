@@ -43,7 +43,10 @@ export async function POST(request: NextRequest) {
       case "care-plan": return ok(await care.saveCarePlan(user, body));
       case "instruction": return ok(await care.addInstruction(user, body), 201);
       case "end-instruction": return ok(await care.endInstruction(user, String(body.id ?? "")));
-      case "dose": return ok(await care.recordDose(user, body), 201);
+      case "dose": {
+        const r = await care.recordDose(user, body);
+        return ok({ id: r.id, replayed: r.replayed }, r.replayed ? 200 : 201);
+      }
       case "concern": {
         const r = await care.reportConcern(user, body);
         if (r.created) await notifyConcern(base(r.campusId));

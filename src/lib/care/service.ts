@@ -315,15 +315,30 @@ export async function recordDose(user: AuthUser, body: Record<string, unknown>) 
   const givenAt = when(body.givenAt, new Date());
   if (givenAt.getTime() > Date.now() + 5 * 60_000) throw new ApiError("The time given cannot be in the future.", 400);
   const dose = required(body.dose, 100, "Give the dose given.");
-  return schoolAiTransaction(user, async tx => {
+  // A client retry sends the same key. Without one, an identical administration (same instruction, time and dose) is still one dose.
+  const idempotencyKey = text(body.idempotencyKey, 128) || null;
+  const result = await schoolAiTransaction(user, async tx => {
     const ins = await tx.medicationInstruction.findFirst({ where: { id: String(body.instructionId ?? ""), schoolId: user.schoolId, campusId: m.campusId } });
     if (!ins) throw new ApiError("Instruction not found", 404);
     if (ins.endedAt || ins.validFrom > givenAt || ins.validUntil <= givenAt) throw new ApiError("There is no approved instruction in effect at that time. Do not give the medicine; contact the family and the authorizing professional.", 409);
     if (dose.replace(/\s+/g, " ").toLowerCase() !== ins.dose.replace(/\s+/g, " ").toLowerCase()) throw new ApiError(`The dose must match the approved instruction (${ins.dose}). The clinic cannot change a dose.`, 409);
-    const row = await tx.medicationDose.create({ data: { schoolId: user.schoolId, instructionId: ins.id, studentId: ins.studentId, givenAt, dose: ins.dose, actorId: user.userId, note: text(body.note, 500) || null } });
+    const existing = await tx.medicationDose.findFirst({ where: idempotencyKey ? { schoolId: user.schoolId, idempotencyKey } : { schoolId: user.schoolId, instructionId: ins.id, givenAt, dose: ins.dose } });
+    if (existing) {
+      if (existing.instructionId !== ins.id || existing.givenAt.getTime() !== givenAt.getTime()) throw new ApiError("This submission key was already used for a different administration.", 409);
+      return { id: existing.id, replayed: true };
+    }
+    const row = await tx.medicationDose.create({ data: { schoolId: user.schoolId, instructionId: ins.id, studentId: ins.studentId, givenAt, dose: ins.dose, actorId: user.userId, note: text(body.note, 500) || null, idempotencyKey } });
     await log(user, { domain: "CLINIC", recordType: "MEDICATION_DOSE", recordId: row.id, studentId: ins.studentId, action: "CREATE" }, tx);
-    return { id: row.id };
+    return { id: row.id, replayed: false };
+  }).catch(async error => {
+    // A concurrent identical submission committed the same key first; replay its dose.
+    if (idempotencyKey && (error as { code?: unknown } | null)?.code === "P2002") {
+      const kept = await schoolAiTransaction(user, tx => tx.medicationDose.findFirst({ where: { schoolId: user.schoolId, idempotencyKey } }));
+      if (kept) return { id: kept.id, replayed: true };
+    }
+    throw error;
   });
+  return result;
 }
 
 /** General staff at the student's campus see the summary the clinic wrote for them — nothing else. */
