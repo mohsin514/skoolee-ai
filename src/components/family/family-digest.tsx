@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { mondayOf } from "@/lib/family/week";
 import { useFetch } from "@/hooks";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -39,7 +40,6 @@ export function statementText(ui: Ui, s: Statement) {
   return s.text;
 }
 const statusLabel = (ui: Ui, status: string) => ({ DRAFT: ui("Draft — awaiting review"), APPROVED: ui("Approved"), SCHEDULED: ui("Scheduled"), SENT: ui("Sent"), CANCELLED: ui("Cancelled") } as Record<string, string>)[status] ?? status;
-const monday = () => { const d = new Date(), iso = d.getDay() || 7; d.setDate(d.getDate() - iso + 1); return d.toISOString().slice(0, 10); };
 
 async function call(url: string, method: string, body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
@@ -51,7 +51,7 @@ async function call(url: string, method: string, body?: Record<string, unknown>)
 export function FamilyDigestReview({ classes }: { classes: { id: string; label: string }[] }) {
   const ui = useUiText();
   const { date, dateTime } = useLocaleFormat();
-  const [classId, setClassId] = useState(classes[0]?.id ?? ""), [week, setWeek] = useState(monday());
+  const [classId, setClassId] = useState(classes[0]?.id ?? ""), [week, setWeek] = useState(mondayOf(new Date()));
   const [digest, setDigest] = useState<Digest | null>(null), [busy, setBusy] = useState(false), [editing, setEditing] = useState<Entry | null>(null), [preview, setPreview] = useState<Entry | null>(null);
   const [draft, setDraft] = useState<{ texts: Record<string, string>; removed: string[]; step: { objective: string; minutes: string; materials: string; alternative: string } | null; skipped: boolean }>({ texts: {}, removed: [], step: null, skipped: false });
   const [scheduleAt, setScheduleAt] = useState("");
