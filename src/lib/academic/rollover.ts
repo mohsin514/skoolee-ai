@@ -2,6 +2,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, assertPermission, canLeadAcademics, canManageOperations } from "@/lib/api/scope";
 import { applyEnrollment, applyWithdrawal, assertRegistrar, dateOnly } from "@/lib/students/enrollment";
+import { assertCapacityFitsEnrolled, parseClassCapacity } from "@/lib/academic/class-setup";
 import { calculateWeightedGrade } from "@/lib/academic/grade-calculator";
 import { getYearClosureReport } from "@/lib/academic/year-closure";
 import { notify } from "@/lib/notifications/in-app";
@@ -155,16 +156,18 @@ export async function decide(user: AuthUser, planId: string, version: number, ro
   });
 }
 
-export async function setClassCapacity(user: AuthUser, campusId: string, classId: string, capacity: number | null) {
+export async function setClassCapacity(user: AuthUser, campusId: string, classId: string, rawCapacity: unknown) {
   await assertRegistrar(user);
-  if (capacity !== null && (!Number.isInteger(capacity) || capacity < 0 || capacity > 500)) throw new ApiError("Capacity must be a whole number from 0 to 500", 400);
-  const cls = await prisma.class.findFirst({ where: { id: classId, campusId } });
-  if (!cls) throw new ApiError("Class not found", 404);
-  await prisma.$transaction([
-    prisma.class.update({ where: { id: classId }, data: { capacity } }),
-    prisma.auditLog.create({ data: { tableName: "classes", recordId: classId, userId: user.userId, oldValue: { capacity: cls.capacity }, newValue: { capacity } } }),
-  ]);
-  return { capacity };
+  // SKAI-202: rollover edits capacity under the same rule as class setup (1–200 or blank, never below enrolled).
+  const capacity = parseClassCapacity(rawCapacity);
+  return prisma.$transaction(async tx => {
+    const cls = await tx.class.findFirst({ where: { id: classId, campusId, schoolId: user.schoolId } });
+    if (!cls) throw new ApiError("Class not found", 404);
+    assertCapacityFitsEnrolled(capacity, await tx.student.count({ where: { schoolId: user.schoolId, classId, archivedAt: null, status: "active" } }));
+    await tx.class.update({ where: { id: classId }, data: { capacity } });
+    await tx.auditLog.create({ data: { tableName: "classes", recordId: classId, userId: user.userId, oldValue: { capacity: cls.capacity }, newValue: { capacity } } });
+    return { capacity };
+  });
 }
 
 type Row = Awaited<ReturnType<typeof prisma.rolloverDecision.findMany>>[number];
