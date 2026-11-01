@@ -88,7 +88,10 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
   useEffect(() => { setMinHoldDate(new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)); }, []);
 
   const load = useCallback(async () => setData(await call("/api/data-lifecycle")), []);
-  useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error.message })); }, [load]);
+  // SKAI-1477: an initial load failure keeps a Retry action that re-runs the overview in place.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const firstLoad = useCallback(() => { setLoadFailed(false); setStatus(null); load().catch(error => { setLoadFailed(true); setStatus({ tone: "error", text: error.message }); }); }, [load]);
+  useEffect(() => { firstLoad(); }, [firstLoad]);
 
   async function run(work: () => Promise<unknown>) {
     setBusy(true); setStatus(null);
@@ -139,7 +142,7 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
       <h2 id="data-lifecycle-heading" className="text-xl font-bold text-ink-strong">{t.title}</h2>
       <p className="mt-2 text-sm text-ink-muted">{t.intro}</p>
     </header>
-    {status && <Alert tone={status.tone === "error" ? "danger" : "success"} compact>{status.text}</Alert>}
+    {status && <Alert tone={status.tone === "error" ? "danger" : "success"} compact>{status.text}{!data && loadFailed ? <> <Button variant="ghost" type="button" className="text-xs font-bold" onClick={firstLoad} data-lifecycle-retry>{t.retry}</Button></> : null}</Alert>}
     {!data && !status && <SkeletonList rows={3} label={t.loading} />}
 
     {data?.admin && data.inventory && <section aria-labelledby="placement-heading" className="space-y-3">

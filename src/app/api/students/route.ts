@@ -21,6 +21,7 @@ import {
 import { notify } from "@/lib/notifications/in-app";
 import { studentProfileUpdateSchema } from "@/lib/students/profile-update";
 import { parseEmiratesId, parseNationality, parseRegulatorId, regulatorAuditChange } from "@/lib/identity/regulator-ids";
+import { rosterStatusWhere } from "@/lib/students/roster-status";
 
 function asDate(value: string | null) {
   if (!value) return null;
@@ -143,9 +144,7 @@ export async function GET(req: NextRequest) {
         },
       },
       ...(classId ? { classId } : {}),
-      ...(archivedOnly
-        ? { status: { in: ["inactive", "archived", "transferred", "graduated", "consolidated"] } }
-        : { status: { notIn: ["inactive", "archived", "transferred", "graduated", "consolidated"] } }),
+      ...rosterStatusWhere(archivedOnly),
       ...(search
         ? {
             OR: [

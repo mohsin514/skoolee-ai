@@ -42,6 +42,7 @@ import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
 import { fill } from "./chat-text";
 import { clockTimeIn, dayLabelIn } from "./message-time";
+import { ErrorState } from "@/components/ui/error-state";
 
 
 
@@ -67,6 +68,8 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
     detail,
     messages,
     isLoadingThread,
+    threadFailed,
+    retryThread,
     hasOlder,
     loadOlder,
     deleteMessage,
@@ -115,7 +118,19 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
     if (!isLoadingThread && detail) bottomRef.current?.scrollIntoView({ block: "end" });
   }, [detail?.id, isLoadingThread, detail]);
 
-  if (!detail) return <ThreadPlaceholder />;
+  // SKAI-1432: the thread is only set once both loads succeed, so a failed load leaves no detail. Show the error, not a blank view.
+  if (!detail) {
+    return threadFailed ? (
+      <ErrorState
+        title={ui("Messages could not be loaded")}
+        description={ui("Check your connection, then try again. Your conversations are unchanged.")}
+        onRetry={retryThread}
+        retryLabel={ui("Try again")}
+      />
+    ) : (
+      <ThreadPlaceholder />
+    );
+  }
 
   // Identity comes from the provider rather than a prop. Passed down, it
   // arrived a beat after the first paint, and every message — including the
