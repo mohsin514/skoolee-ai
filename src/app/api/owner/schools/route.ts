@@ -188,11 +188,15 @@ export async function POST(req: NextRequest) {
     const planDef = PLANS[plan];
     const status = body.status ? String(body.status).toUpperCase() : "TRIAL";
 
-    // Owner may override the plan's default AI credit allowance.
-    const aiCreditsLimit =
-      Number.isFinite(Number(body.aiCreditsLimit)) && Number(body.aiCreditsLimit) >= 0
-        ? Math.floor(Number(body.aiCreditsLimit))
-        : planDef.aiCredits;
+    // Owner may override the plan's default AI credit allowance. The column is a 32-bit integer,
+    // so fractional or out-of-range values are rejected rather than rounded or left to fail in the database.
+    const rawAiCredits = body.aiCreditsLimit;
+    const hasAiCredits = rawAiCredits !== undefined && rawAiCredits !== null && rawAiCredits !== "";
+    const aiCreditsValue = hasAiCredits ? Number(rawAiCredits) : planDef.aiCredits;
+    if (!Number.isInteger(aiCreditsValue) || aiCreditsValue < 0 || aiCreditsValue > 2147483647) {
+      throw new ApiError("AI credits must be a whole number between 0 and 2147483647", 400);
+    }
+    const aiCreditsLimit = aiCreditsValue;
 
     const schoolContact = contactEmail || ownerEmail;
     await assertEmailAvailable(ownerEmail);
