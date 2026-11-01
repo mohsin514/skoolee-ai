@@ -41,8 +41,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
 import { fill } from "./chat-text";
+import { clockTimeIn, dayLabelIn } from "./message-time";
 
-type Ui = ReturnType<typeof useUiText>;
 
 
 interface MessageThreadProps {
@@ -53,22 +53,6 @@ interface MessageThreadProps {
    */
   onBack?: () => void;
   backVisibility?: "always" | "mobile";
-}
-
-function dayLabel(iso: string, ui: Ui, tag: string) {
-  const date = new Date(iso);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-
-  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
-  if (sameDay(date, today)) return ui("Today");
-  if (sameDay(date, yesterday)) return ui("Yesterday");
-  return date.toLocaleDateString(tag, { day: "numeric", month: "long", year: "numeric" });
-}
-
-function clockTime(iso: string, tag?: string) {
-  return new Date(iso).toLocaleTimeString(tag, { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatSize(bytes: number) {
@@ -100,6 +84,8 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
   const ui = useUiText();
   const locale = useLocale();
   const tag = localeTag(locale);
+  // SKAI-1437: message days and clocks use the school locale timezone, not the device's.
+  const timeZone = locale.timezone;
 
   const [replyTo, setReplyTo] = useState<ChatMessageView | null>(null);
   const [editing, setEditing] = useState<ChatMessageView | null>(null);
@@ -356,7 +342,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
 
           {!isConnected && lastSyncedAt && (
             <Alert tone="warning" compact live="polite" className="mb-2 text-xs font-normal" data-chat-offline>
-              {fill(ui("Reconnecting. Showing messages up to {0}; anything sent meanwhile appears when the connection returns."), [clockTime(lastSyncedAt, tag)])}
+              {fill(ui("Reconnecting. Showing messages up to {0}; anything sent meanwhile appears when the connection returns."), [clockTimeIn(lastSyncedAt, tag, timeZone)])}
             </Alert>
           )}
           {isLoadingThread ? (
@@ -368,7 +354,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
               {messages.map((message, index) => {
                 const previous = messages[index - 1];
                 const showDay =
-                  !previous || dayLabel(previous.createdAt, ui, tag) !== dayLabel(message.createdAt, ui, tag);
+                  !previous || dayLabelIn(previous.createdAt, { ui, tag, timeZone }) !== dayLabelIn(message.createdAt, { ui, tag, timeZone });
 
                 // A pending message has no sender echoed back yet, so it is
                 // identified by its optimistic id instead.
@@ -384,7 +370,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
 
                 return (
                   <li key={message.id}>
-                    {showDay && <DaySeparator label={dayLabel(message.createdAt, ui, tag)} />}
+                    {showDay && <DaySeparator label={dayLabelIn(message.createdAt, { ui, tag, timeZone })} />}
 
                     {message.kind === "SYSTEM" ? (
                       <p className="py-2 text-center text-2xs font-medium tabular-nums text-ink-subtle">
@@ -428,7 +414,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           {detail.kind === "DIRECT" && counterpartRead && messages.length > 0 && (
             <p className="mt-2 flex items-center justify-end gap-1 pe-1 text-2xs font-medium tabular-nums text-ink-subtle">
               <CheckCheck className="h-3 w-3 text-primary" />
-              {fill(ui("Seen {0}"), [clockTime(counterpartRead, tag)])}
+              {fill(ui("Seen {0}"), [clockTimeIn(counterpartRead, tag, timeZone)])}
             </p>
           )}
 
@@ -684,7 +670,7 @@ function MessageBubble({
           >
             {message.isUrgent && <span className="rounded bg-white/25 px-1 font-semibold uppercase" data-urgent>{ui("Urgent")}</span>}
             {message.isEdited && !message.isDeleted && <span>{ui("edited")}</span>}
-            <bdi>{clockTime(message.createdAt, tag)}</bdi>
+            <bdi>{clockTimeIn(message.createdAt, tag, timeZone)}</bdi>
             {/* SKO-415: one tick only once the server has stored it; two only when a member has read it.
                 Never a delivery tick for something still on this device. */}
             {isMine &&
