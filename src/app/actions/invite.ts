@@ -247,10 +247,16 @@ export async function resendInvitation(inviteId: string) {
   const expiresAt = new Date();
   expiresAt.setHours(expiresAt.getHours() + 48);
 
-  const updatedInvite = await prisma.staffInvitation.update({
-    where: { id: invite.id, status: "pending", token: invite.token },
+  // SKAI-1624: claim the pending invite by its old token so exactly one concurrent resend (or a
+  // cancel) wins; the loser gets an actionable 409 instead of a raw record-not-found failure.
+  const claimed = await prisma.staffInvitation.updateMany({
+    where: { id: invite.id, campusId: invite.campusId, status: "pending", token: invite.token },
     data: { token, expiresAt },
   });
+  if (claimed.count !== 1) {
+    throw new ApiError("This invitation was just resent or cancelled. Refresh to see its latest status.", 409);
+  }
+  const updatedInvite = { email: invite.email, role: invite.role };
 
   try {
   await sendInviteEmail(

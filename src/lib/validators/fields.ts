@@ -412,7 +412,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * date-only string shifts the day backwards west of Greenwich, which is how a
  * date of birth could be stored as the day before the one that was picked.
  */
-function isRealDate(value: string): boolean {
+export function isRealDate(value: string): boolean {
   if (!ISO_DATE.test(value)) return false;
   const [y, m, d] = value.split("-").map(Number);
   const date = new Date(Date.UTC(y, m - 1, d));
