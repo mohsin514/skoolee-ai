@@ -74,7 +74,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
     setSaving(true);
     try {
       const rows = (options.reviewed ? entries.filter(entry => options.reviewed!.has(entry.studentId)) : changed).filter(entry => drafts[entry.studentId]?.status);
-      const response = await fetch("/api/attendance/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classId: data.class.id, date: data.date, submit: options.submit, reason: options.reason || undefined, entries: rows.map(entry => { const d = drafts[entry.studentId]; return { studentId: entry.studentId, status: d.status, knownStatus: entry.status, arrivalTime: d.arrivalTime || null, departureTime: d.departureTime || null, reviewedConflict: options.reviewed?.has(entry.studentId) || undefined }; }) }) });
+      const response = await fetch("/api/attendance/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classId: data.class.id, date: data.date, submit: options.submit, reason: options.reason || undefined, entries: rows.map(entry => { const d = drafts[entry.studentId]; return { studentId: entry.studentId, status: d.status, knownStatus: entry.status, knownVersion: entry.version, arrivalTime: d.arrivalTime || null, departureTime: d.departureTime || null, reviewedConflict: options.reviewed?.has(entry.studentId) || undefined }; }) }) });
       const json = await response.json().catch(() => ({}));
       if (response.status === 409 && json.data?.conflicts?.length) { setConflicts(json.data.conflicts); setReviewOpen(false); return; }
       if (!response.ok || !json.success) throw new Error(json.error || "The register was not saved.");

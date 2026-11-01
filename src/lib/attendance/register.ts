@@ -88,7 +88,7 @@ export async function registerView(user: AuthUser, classId: string, dateText: st
   return { class: { id: cls.id, name: [cls.name, cls.section].filter(Boolean).join(" "), academicYear: cls.academicYear }, date: dateText, register: register ? { status: register.status, submittedAt: register.submittedAt, version: register.version } : { status: "OPEN", submittedAt: null, version: 0 }, entries, counts, rule, regulator: regulatorView(school?.attendanceRegulator, date) };
 }
 
-type EntryInput = { studentId: string; status: Status; knownStatus: Status | null; arrivalTime?: string | null; departureTime?: string | null; note?: string | null; reviewedConflict?: boolean };
+type EntryInput = { studentId: string; status: Status; knownStatus: Status | null; knownVersion?: number | null; arrivalTime?: string | null; departureTime?: string | null; note?: string | null; reviewedConflict?: boolean };
 export type Conflict = { studentId: string; name: string; current: string | null; yours: string; seen: string | null; markedBy: string | null };
 
 /**
@@ -127,16 +127,21 @@ export async function saveRegister(user: AuthUser, body: Record<string, unknown>
     for (const entry of entries) {
       const row = current.get(entry.studentId);
       const now = (row?.status ?? null) as string | null;
-      if (now === entry.status && (row?.arrivalTime ?? null) === (entry.arrivalTime ?? null) && (row?.departureTime ?? null) === (entry.departureTime ?? null)) continue;
-      if (now !== (entry.knownStatus ?? null) && !entry.reviewedConflict) { conflicts.push({ studentId: entry.studentId, name: enrollment.get(entry.studentId)!.student.fullName, current: now, yours: entry.status, seen: entry.knownStatus ?? null, markedBy: row?.marker?.fullName ?? null }); continue; }
+      // SKAI-1410: a time-only correction is a change too, so it needs the same reason, history and conflict check.
+      const timesChanged = (row?.arrivalTime ?? null) !== (entry.arrivalTime ?? null) || (row?.departureTime ?? null) !== (entry.departureTime ?? null);
+      if (now === entry.status && !timesChanged) continue;
+      const stale = entry.knownVersion != null && entry.knownVersion !== (row?.version ?? 0);
+      if ((now !== (entry.knownStatus ?? null) || stale) && !entry.reviewedConflict) { conflicts.push({ studentId: entry.studentId, name: enrollment.get(entry.studentId)!.student.fullName, current: now, yours: entry.status, seen: entry.knownStatus ?? null, markedBy: row?.marker?.fullName ?? null }); continue; }
       if (row?.isLocked) throw new ApiError("This register is locked.", 409);
-      if (submitted && row && now !== entry.status && !reason) throw new ApiError("Changing a recorded mark is a correction. Give the reason.", 400);
+      if (submitted && row && (now !== entry.status || timesChanged) && !reason) throw new ApiError("Changing a recorded mark is a correction. Give the reason.", 400);
       // Changing your own mark in an open register is still marking; anything else is an edit.
-      if (row && now !== null && now !== entry.status && (submitted || row.markedBy !== user.userId)) await assertPermission(user, "attendance", "edit");
+      if (row && now !== null && (now !== entry.status || timesChanged) && (submitted || row.markedBy !== user.userId)) await assertPermission(user, "attendance", "edit");
       const data = { status: entry.status as AttendanceStatus, arrivalTime: entry.arrivalTime ?? null, departureTime: entry.departureTime ?? null, notes: entry.note?.trim() ? entry.note.trim().slice(0, 500) : row?.notes ?? null, markedBy: user.userId, markedAt: new Date() };
       if (row) {
         await db.attendance.update({ where: { id: row.id }, data: { ...data, version: { increment: 1 } } });
-        if (now !== entry.status) await db.attendanceEditHistory.create({ data: { schoolId: user.schoolId, attendanceId: row.id, oldStatus: now ?? "UNMARKED", newStatus: entry.status, editedBy: user.userId, reason: submitted ? reason : reason ?? null, source: submitted ? "CORRECTION" : "REGISTER" } });
+        // Field history: a time change is recorded even when the status stays the same.
+        const timeNote = timesChanged ? `Arrival ${row.arrivalTime ?? "–"} → ${entry.arrivalTime ?? "–"}; departure ${row.departureTime ?? "–"} → ${entry.departureTime ?? "–"}` : null;
+        if (now !== entry.status || timesChanged) await db.attendanceEditHistory.create({ data: { schoolId: user.schoolId, attendanceId: row.id, oldStatus: now ?? "UNMARKED", newStatus: entry.status, editedBy: user.userId, reason: [reason, timeNote].filter(Boolean).join(" · ") || null, source: submitted ? "CORRECTION" : "REGISTER" } });
         written.push(row.id);
       } else {
         const created = await db.attendance.create({ data: { ...data, schoolId: user.schoolId, campusId: cls.campusId, classId: cls.id, studentId: entry.studentId, date, enrollmentId: enrollment.get(entry.studentId)!.id } });
