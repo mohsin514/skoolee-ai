@@ -42,8 +42,8 @@ mock.module("@/lib/db/prisma", { namedExports: { prisma: { supplier: fakeModel("
 type Route = { POST: (req: Request) => Promise<Response>; PATCH: (req: Request) => Promise<Response> };
 let suppliers: Route, items: Route;
 before(async () => {
-  suppliers = await import("../../src/app/api/inventory/suppliers/route") as Route;
-  items = await import("../../src/app/api/inventory/items/route") as Route;
+  suppliers = await import("../../src/app/api/inventory/suppliers/route") as unknown as Route;
+  items = await import("../../src/app/api/inventory/items/route") as unknown as Route;
 });
 
 const post = (route: Route, body: unknown) => route.POST(new Request("http://localhost/api/inventory", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
