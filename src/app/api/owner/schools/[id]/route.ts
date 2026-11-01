@@ -117,10 +117,17 @@ export async function PATCH(
     if (updateData.dataRegion && updateData.dataRegion !== school.dataRegion) changedFields.push("dataRegion");
     if (updateData.attendanceRegulator && updateData.attendanceRegulator !== school.attendanceRegulator) changedFields.push("attendanceRegulator");
 
-    if (changedFields.length > 0) {
+    // SKAI-1366: one audit entry per changed field, so a batched update still shows region and regulator changes.
+    const auditActions: Record<string, string> = {
+      status: status === "SUSPENDED" ? "school_suspended" : "school_activated",
+      plan: "plan_changed",
+      dataRegion: "data_region_changed",
+      attendanceRegulator: "attendance_regulator_changed",
+    };
+    for (const field of changedFields) {
       await logSuperAdminAction({
         userId: user.userId,
-        action: status && status !== school.status ? (status === "SUSPENDED" ? "school_suspended" : "school_activated") : plan && plan !== school.plan ? "plan_changed" : changedFields.includes("dataRegion") ? "data_region_changed" : "attendance_regulator_changed",
+        action: auditActions[field],
         targetType: "school",
         targetId: id,
         targetName: school.name,
