@@ -15,6 +15,8 @@ import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { FolderOpen } from "lucide-react";
+import { downloadPdfFile } from "@/lib/download";
+import { Alert } from "@/components/ui/alert";
 
 // SKO-400: one library for staff authoring, staff previews, learners and families.
 type Kind = "HANDOUT" | "NOTES" | "ROUTINE" | "WORKSHEET" | "ANSWER_KEY" | "OTHER";
@@ -99,9 +101,19 @@ export function ResourceLibrary({ audience, studentId, adding: addingProp, onAdd
     const [unit, value] = bytes >= 1_048_576 ? ["megabyte", bytes / 1_048_576] : bytes >= 1024 ? ["kilobyte", bytes / 1024] : ["byte", bytes];
     return new Intl.NumberFormat(language, { style: "unit", unit, maximumFractionDigits: 1 }).format(value);
   };
+  const [downloading, setDownloading] = useState("");
+  const download = async (id: string, current: Version, version?: number) => {
+    const key = `${id}:${version ?? ""}`;
+    setDownloading(key); setDownloadError("");
+    try { await downloadPdfFile(fileHref(id, version), current.fileName || "resource"); }
+    catch { setDownloadError(t.downloadFailed); }
+    finally { setDownloading(""); }
+  };
   const openLink = (id: string, current: Version, version?: number) => current.link
     ? <a className="inline-flex items-center gap-1 text-sm font-semibold text-primary underline" href={fileHref(id, version)} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" aria-hidden />{t.open}</a>
-    : <a className="inline-flex items-center gap-1 text-sm font-semibold text-primary underline" href={fileHref(id, version)}><Download className="h-4 w-4" aria-hidden />{t.download}{current.fileName ? <span className="sr-only">: {current.fileName}</span> : null}</a>;
+    // SKAI-1527: download in place; a failed request stays on the page with a translated message, and the button retries.
+    : <button type="button" className="inline-flex items-center gap-1 text-sm font-semibold text-primary underline disabled:opacity-60" disabled={downloading === `${id}:${version ?? ""}`} aria-busy={downloading === `${id}:${version ?? ""}`} onClick={() => void download(id, current, version)}><Download className="h-4 w-4" aria-hidden />{t.download}{current.fileName ? <span className="sr-only">: {current.fileName}</span> : null}</button>;
+  const [downloadError, setDownloadError] = useState("");
 
   const learnerList = (items: LearnerItem[]) => items.length === 0
     ? <EmptyState size="sm" icon={FolderOpen} title={audience === "staff" ? t.empty : t.learnerEmpty} className="rounded-xl border border-dashed border-border-subtle" />
@@ -121,10 +133,12 @@ export function ResourceLibrary({ audience, studentId, adding: addingProp, onAdd
   </>;
   if (loadFailed && !view) return <div dir={rtl ? "rtl" : "ltr"} className="sk-panel"><ErrorState error={loadFailed} title={t.errorTitle} description={t.failed} retryLabel={t.retry} onRetry={load} /></div>;
   if (!view) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">{banner ?? <SkeletonList rows={3} label={t.loading} />}</div>;
-  if (view.mode === "learner") return frame(<div dir={rtl ? "rtl" : "ltr"} className="space-y-4">{banner}{search}{learnerList(view.resources)}</div>);
+  const downloadAlert = downloadError ? <Alert tone="danger" compact data-resource-download-error>{downloadError}</Alert> : null;
+  if (view.mode === "learner") return frame(<div dir={rtl ? "rtl" : "ltr"} className="space-y-4">{banner}{downloadAlert}{search}{learnerList(view.resources)}</div>);
   if (!view.classes.length) return frame(<EmptyState icon={FolderOpen} title={ui("No classes assigned yet")} description={ui("Resources become available when a school administrator assigns your classes.")} />);
 
   return frame(<div dir={rtl ? "rtl" : "ltr"} className="space-y-4">
+    {downloadAlert}
     <div className="grid gap-3 sm:grid-cols-3">
       <label className="grid gap-1 text-xs font-semibold">{t.class}<Select value={view.classId} onChange={event => { setClassId(event.target.value); setAdding(false); }}>
         {view.classes.map(klass => <option key={klass.id} value={klass.id}>{klass.name}{klass.section ? ` ${klass.section}` : ""}</option>)}</Select></label>
