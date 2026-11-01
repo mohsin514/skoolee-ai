@@ -80,6 +80,9 @@ export function GuardianConsentForm({ studentId }: { studentId: string }) {
     try {
       const response = await fetch("/api/family/consent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId, choices, noticeVersion: data.noticeVersion, language }) });
       const json = await response.json().catch(() => ({}));
+      // SKAI-1551: the notice changed under the parent. Answers given to the old notice are dropped and
+      // the current notice is loaded, so the next save is against the version they can now read.
+      if (response.status === 409) { setChoices({}); await load(); }
       if (!response.ok || !json.success) throw new Error(json.error || "Your answer was not saved.");
       toast.success(ui("Consent saved. Receipt {0}", [json.data.receiptCode]));
       setChoices({});
