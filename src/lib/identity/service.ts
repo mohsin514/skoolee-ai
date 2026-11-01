@@ -126,8 +126,13 @@ export async function addDomain(user: AuthUser, body: Record<string, unknown>) {
   const domain = text(body.domain, 200).toLowerCase();
   if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(domain)) throw new ApiError("Enter a domain like school.example.", 400);
   const token = `skoolee-verify=${randomBytes(12).toString("hex")}`;
-  const pending = ((c.pendingDomains as { domain: string; token: string }[]) ?? []).filter(p => p.domain !== domain).concat([{ domain, token }]);
-  await prisma.identityConnection.update({ where: { id: c.id }, data: { pendingDomains: pending as Prisma.InputJsonValue } });
+  // Read-modify-write under a per-connection lock so concurrent additions cannot overwrite each other.
+  await prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`identity-domains:${c.id}`}))`;
+    const fresh = await tx.identityConnection.findFirst({ where: { id: c.id, schoolId: user.schoolId }, select: { pendingDomains: true } });
+    const pending = ((fresh?.pendingDomains as { domain: string; token: string }[]) ?? []).filter(p => p.domain !== domain).concat([{ domain, token }]);
+    await tx.identityConnection.update({ where: { id: c.id }, data: { pendingDomains: pending as Prisma.InputJsonValue } });
+  });
   return { domain, record: `_skoolee-verify.${domain}`, token };
 }
 
@@ -143,8 +148,20 @@ export async function verifyDomain(user: AuthUser, body: Record<string, unknown>
   let found = testDomains.includes(domain);
   if (!found) { try { found = (await resolveTxt(`_skoolee-verify.${domain}`)).flat().includes(p.token); } catch { found = false; } }
   if (!found) throw new ApiError(`The TXT record _skoolee-verify.${domain} does not contain the token yet. DNS changes can take a while.`, 409);
-  await prisma.identityConnection.update({ where: { id: c.id }, data: { verifiedDomains: [...new Set([...c.verifiedDomains, domain])], pendingDomains: pending.filter(x => x.domain !== domain) as Prisma.InputJsonValue } });
-  await event(user.schoolId, "DOMAIN_VERIFIED", user.userId, c.id, { domain });
+  // Promote under the same lock, re-reading so a concurrent verification of another domain is preserved.
+  const promoted = await prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`identity-domains:${c.id}`}))`;
+    const fresh = await tx.identityConnection.findFirst({ where: { id: c.id, schoolId: user.schoolId }, select: { verifiedDomains: true, pendingDomains: true } });
+    const freshPending = ((fresh?.pendingDomains as { domain: string; token: string }[]) ?? []);
+    if (!freshPending.some(x => x.domain === domain && x.token === p.token)) {
+      // Already promoted by a concurrent call with the same token: replay is a no-op.
+      return fresh?.verifiedDomains.includes(domain) ? false : null;
+    }
+    await tx.identityConnection.update({ where: { id: c.id }, data: { verifiedDomains: [...new Set([...(fresh?.verifiedDomains ?? []), domain])], pendingDomains: freshPending.filter(x => x.domain !== domain) as Prisma.InputJsonValue } });
+    return true;
+  });
+  if (promoted === null) throw new ApiError("Add the domain first.", 404);
+  if (promoted) await event(user.schoolId, "DOMAIN_VERIFIED", user.userId, c.id, { domain });
   return { domain };
 }
 
@@ -208,18 +225,23 @@ export async function decideLink(user: AuthUser, body: Record<string, unknown>) 
   groupAdmin(user);
   const r = await prisma.identityLinkRequest.findFirst({ where: { id: String(body.id ?? ""), schoolId: user.schoolId, status: "PENDING" } });
   if (!r) throw new ApiError("Request not found", 404);
+  // Claim PENDING atomically: only the decision that flips the row commits, and it alone emits the audit event.
+  const claimed = (status: "REJECTED" | "LINKED") => ({ where: { id: r.id, status: "PENDING" as const }, data: { status, decidedById: user.userId, decidedAt: new Date() } });
+  const conflict = () => new ApiError("This request was already decided. Reload to see its current state.", 409);
   if (body.decision === "REJECT") {
-    await prisma.identityLinkRequest.update({ where: { id: r.id }, data: { status: "REJECTED", decidedById: user.userId, decidedAt: new Date() } });
+    const { count } = await prisma.identityLinkRequest.updateMany(claimed("REJECTED"));
+    if (!count) throw conflict();
     await event(user.schoolId, "LINK_REJECTED", user.userId, r.connectionId, { subject: r.subject });
     return { id: r.id, status: "REJECTED" };
   }
   const target = await prisma.user.findFirst({ where: { id: String(body.userId ?? ""), schoolId: user.schoolId, isActive: true, role: { notIn: ["APP_OWNER"] } }, select: { id: true } });
   if (!target) throw new ApiError("Choose an active account in this school.", 400);
   try {
-    await prisma.$transaction([
-      prisma.identityLink.create({ data: { schoolId: user.schoolId, connectionId: r.connectionId, subject: r.subject, userId: target.id, method: "ADMIN_DECISION", linkedById: user.userId } }),
-      prisma.identityLinkRequest.update({ where: { id: r.id }, data: { status: "LINKED", decidedById: user.userId, decidedAt: new Date() } }),
-    ]);
+    await prisma.$transaction(async tx => {
+      const { count } = await tx.identityLinkRequest.updateMany(claimed("LINKED"));
+      if (!count) throw conflict();
+      await tx.identityLink.create({ data: { schoolId: user.schoolId, connectionId: r.connectionId, subject: r.subject, userId: target.id, method: "ADMIN_DECISION", linkedById: user.userId } });
+    });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ApiError("That account is already linked to another identity for this provider.", 409);
     throw error;
@@ -267,7 +289,17 @@ export async function submitBatch(user: AuthUser, body: Record<string, unknown>)
     if (existing.payloadHash !== payloadHash) throw new ApiError("This batch id was already used with different rows. The source must send a new batch id.", 409);
     return { id: existing.id, replayed: true, status: existing.status };
   }
-  const batch = await prisma.rosterBatch.create({ data: { schoolId: user.schoolId, connectionId, campusId, externalBatchId, payloadHash, rows: rows as unknown as Prisma.InputJsonValue, submittedById: user.userId } });
+  let batch: Awaited<ReturnType<typeof prisma.rosterBatch.create>>;
+  try {
+    batch = await prisma.rosterBatch.create({ data: { schoolId: user.schoolId, connectionId, campusId, externalBatchId, payloadHash, rows: rows as unknown as Prisma.InputJsonValue, submittedById: user.userId } });
+  } catch (error) {
+    // A concurrent replay of the same batch id won the insert: answer from the stored row instead of failing.
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+    const raced = await prisma.rosterBatch.findUnique({ where: { connectionId_externalBatchId: { connectionId, externalBatchId } } });
+    if (!raced) throw new ApiError("This batch was being recorded. Send it again.", 409);
+    if (raced.payloadHash !== payloadHash) throw new ApiError("This batch id was already used with different rows. The source must send a new batch id.", 409);
+    return { id: raced.id, replayed: true, status: raced.status };
+  }
   const p = await computePreview(user.schoolId, c, campusId, rows);
   await prisma.rosterBatch.update({ where: { id: batch.id }, data: { preview: p.changes as unknown as Prisma.InputJsonValue, previewHash: p.hash } });
   return { id: batch.id, replayed: false, status: "DRY_RUN" };
