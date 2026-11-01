@@ -9,6 +9,7 @@ import { arabicSubjectSetupUi, urduSubjectSetupUi } from "./subject-setup-ui-mes
 import { arabicGradingModelUi, urduGradingModelUi } from "./grading-model-ui-messages";
 import { arabicCampusSetupUi, urduCampusSetupUi } from "./campus-setup-ui-messages";
 import { arabicSchoolBrandingUi, urduSchoolBrandingUi } from "./school-branding-ui-messages";
+import { arabicPortfolioLoadUi, urduPortfolioLoadUi } from "./portfolio-load-ui-messages";
 import { arabicAdmissionsLifecycleUi, urduAdmissionsLifecycleUi } from "./admissions-lifecycle-ui-messages";
 import { arabicClassSetupUi, urduClassSetupUi } from "./class-setup-ui-messages";
 import { arabicClassSyncUi, urduClassSyncUi } from "./class-sync-ui-messages";
@@ -421,7 +422,7 @@ export const arabicReviewedUi: Record<string, string> = {
 };
 
 /** Every Arabic UI key. The role re-architecture catalogs (§10.10) only fill gaps: reviewed entries win. */
-export const arabicUi: Record<string, string> = { ...arabicRoleUxUi, ...arabicCampusSetupUi, ...arabicReviewedUi, ...arabicSchoolBrandingUi, ...arabicAdmissionsLifecycleUi };
+export const arabicUi: Record<string, string> = { ...arabicRoleUxUi, ...arabicCampusSetupUi, ...arabicReviewedUi, ...arabicSchoolBrandingUi, ...arabicAdmissionsLifecycleUi, ...arabicPortfolioLoadUi };
 
 /** The reviewed Urdu catalog; same precedence rule as `arabicReviewedUi`. */
 export const urduReviewedUi: Record<string, string> = {
@@ -829,7 +830,7 @@ export const urduReviewedUi: Record<string, string> = {
 };
 
 /** Every Urdu UI key. The role re-architecture catalogs (§10.10) only fill gaps: reviewed entries win. */
-export const urduUi: Record<string, string> = { ...urduRoleUxUi, ...urduCampusSetupUi, ...urduReviewedUi, ...urduSchoolBrandingUi, ...urduAdmissionsLifecycleUi };
+export const urduUi: Record<string, string> = { ...urduRoleUxUi, ...urduCampusSetupUi, ...urduReviewedUi, ...urduSchoolBrandingUi, ...urduAdmissionsLifecycleUi, ...urduPortfolioLoadUi };
 
 const academicModelUi: Record<"ar" | "ur", Record<string, string>> = {
   ar: {
@@ -878,7 +879,7 @@ export function reviewedTranslation(source: string, language: "en" | "ar" | "ur"
   const catalog = language === "ar" ? arabicReviewedUi : urduReviewedUi;
   const workflow = language === "ar" ? arabicWorkflowUi : urduWorkflowUi;
   const navigation = language === "ar" ? arabicNavigationUi : urduNavigationUi;
-  return navigation[source] ?? catalog[source] ?? workflow[source] ?? academicModelUi[language][source] ?? academicModelUiExtra[language][source] ?? (language === "ar" ? arabicWhatsappUi : urduWhatsappUi)[source] ?? (language === "ar" ? arabicConsentUi : urduConsentUi)[source] ?? (language === "ar" ? arabicImportRehearsalUi : urduImportRehearsalUi)[source] ?? (language === "ar" ? arabicSubjectSetupUi : urduSubjectSetupUi)[source] ?? (language === "ar" ? arabicClassSetupUi : urduClassSetupUi)[source] ?? (language === "ar" ? arabicClassSyncUi : urduClassSyncUi)[source] ?? (language === "ar" ? arabicGradingModelUi : urduGradingModelUi)[source] ?? (language === "ar" ? arabicTeacherAllocationUi : urduTeacherAllocationUi)[source] ?? (language === "ar" ? arabicSchoolBrandingUi : urduSchoolBrandingUi)[source];
+  return navigation[source] ?? catalog[source] ?? workflow[source] ?? academicModelUi[language][source] ?? academicModelUiExtra[language][source] ?? (language === "ar" ? arabicWhatsappUi : urduWhatsappUi)[source] ?? (language === "ar" ? arabicConsentUi : urduConsentUi)[source] ?? (language === "ar" ? arabicImportRehearsalUi : urduImportRehearsalUi)[source] ?? (language === "ar" ? arabicSubjectSetupUi : urduSubjectSetupUi)[source] ?? (language === "ar" ? arabicClassSetupUi : urduClassSetupUi)[source] ?? (language === "ar" ? arabicClassSyncUi : urduClassSyncUi)[source] ?? (language === "ar" ? arabicGradingModelUi : urduGradingModelUi)[source] ?? (language === "ar" ? arabicTeacherAllocationUi : urduTeacherAllocationUi)[source] ?? (language === "ar" ? arabicSchoolBrandingUi : urduSchoolBrandingUi)[source] ?? (language === "ar" ? arabicPortfolioLoadUi : urduPortfolioLoadUi)[source];
 }
 
 const reportedMissing = new Set<string>();
