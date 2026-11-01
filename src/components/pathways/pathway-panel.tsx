@@ -77,7 +77,10 @@ export function PathwayPanel({ hideWhenEmpty = false }: { hideWhenEmpty?: boolea
   const flag = (key: string) => !!flags[key];
   const setFlag = (key: string) => (e: { target: { checked: boolean } }) => setFlags((m) => ({ ...m, [key]: e.target.checked }));
   const chosen = () => AUDIENCE_KEYS.filter((k) => flags[SHARE_FLAG[k]]);
-  if (hideWhenEmpty && (!view || (view.mode === "GUARDIAN" && !view.children.some((child) => child.plan.length > 0)))) return null;
+  // Hide while loading, or after a successful guardian view with no shared goals. A failed load must
+  // still reach the ErrorState below, so it is not hidden here.
+  if (hideWhenEmpty && !view && !error) return null;
+  if (hideWhenEmpty && view?.mode === "GUARDIAN" && !view.children.some((child) => child.plan.length > 0)) return null;
   if (!view) return error ? <ErrorState description={error} onRetry={() => void load()} retryLabel={ui("Try again")} /> : <section className="sk-panel p-4" aria-busy="true"><SkeletonList rows={3} label={ui("Loading permitted goals and verified opportunities…")} /></section>;
 
   const actionList = (goal: Goal, canComplete: boolean) => (
