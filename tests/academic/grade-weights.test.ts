@@ -73,3 +73,10 @@ test("grade boundaries outside 0-100 are rejected on save", () => {
   assert.match(route, /ladder\.find\(\(\[, start\]\) => start < 0 \|\| start > 100\)/);
   assert.ok(route.indexOf("ladder.find(") < route.indexOf("Each grade must start lower"));
 });
+
+// SKAI-212: class-wide grades (rankings, report cards, PDFs) cover current learners only.
+test("class grade calculation excludes archived and withdrawn pupils", () => {
+  const source = readFileSync("src/lib/academic/grade-calculator.ts", "utf8");
+  const fn = source.slice(source.indexOf("export async function calculateWeightedGradeForClass"));
+  assert.match(fn.slice(0, 600), /where: \{ classId, campusId, archivedAt: null, status: "active" \}/);
+});
