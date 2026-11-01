@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
+import { clientBaseline } from "@/lib/marks/baseline";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip } from "@/components/ui/tooltip";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -230,6 +231,8 @@ function MarksEntry({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [locked, setLocked] = useState(false);
+  /** SKAI-1616: draft cells whose server value changed while this teacher was editing. */
+  const [conflictKeys, setConflictKeys] = useState<string[]>([]);
   /** The class's pass mark as a percentage, from Grading Rules (§82). It was
    *  hard-coded to 50 here, so a school with a 40% pass mark saw its own
    *  pupils marked FAIL on this screen and PASS on the report card. */
@@ -260,8 +263,10 @@ function MarksEntry({
       setSaved(map);
       setDraft({});
       setSubjectId((cur) => cur || res.subjects?.[0]?.id || "");
+      return map;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not load marks");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -333,13 +338,34 @@ function MarksEntry({
         }));
       if (entries.length === 0) return;
 
+      // SKAI-1616: send the baseline of every cell being saved, so a save made over a newer
+      // server value is refused with 409 instead of silently overwriting it.
+      const expectedMarks = Object.fromEntries(
+        entries.map((e) => {
+          const key = `${e.studentId}:${e.subjectId}`;
+          return [key, clientBaseline(saved[key], ABSENT, EXEMPT)];
+        }),
+      );
       const res = await fetch("/api/marks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ examId: exam.id, entries }),
+        body: JSON.stringify({ examId: exam.id, entries, expectedMarks }),
       });
       const json = await res.json();
+      if (res.status === 409 && json.conflict) {
+        // Keep the teacher's draft, reload the server values, and mark the cells that changed.
+        const keptDraft = { ...draft };
+        const before = saved;
+        const fresh = await load();
+        if (fresh) {
+          setDraft(keptDraft);
+          setConflictKeys(Object.keys(keptDraft).filter((k) => before[k] !== fresh[k]));
+        }
+        toast.error(json.error);
+        return;
+      }
       if (!res.ok) throw new Error(json.error?.message || json.error || "Could not save");
+      setConflictKeys([]);
 
       setSaved((prev) => {
         const next = { ...prev };
@@ -428,6 +454,11 @@ function MarksEntry({
       {locked ? (
         <Alert tone="warning" compact live="off">
           {tr("This exam is locked. Marks are read-only until it is unlocked.")}
+        </Alert>
+      ) : null}
+      {conflictKeys.length > 0 ? (
+        <Alert tone="warning" compact live="polite">
+          {tr("{0} marks changed on the server while you were editing. Your draft is kept: check those cells, then save again.", [conflictKeys.length])}
         </Alert>
       ) : null}
 
