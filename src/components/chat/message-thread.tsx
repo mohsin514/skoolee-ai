@@ -39,6 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { systemEventText } from "@/lib/chat/system-event-text";
 import { localeTag } from "@/lib/locale/package";
 import { fill } from "./chat-text";
 import { ErrorState } from "@/components/ui/error-state";
@@ -404,7 +405,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     {message.kind === "SYSTEM" ? (
                       <p className="py-2 text-center text-2xs font-medium tabular-nums text-ink-subtle">
                         <span className="rounded-full bg-white/70 px-2.5 py-1 ring-1 ring-edge/25">
-                          {message.body}
+                          {systemEventText(message.body, ui)}
                         </span>
                       </p>
                     ) : (
