@@ -163,6 +163,8 @@ function ReportCard({ report, index }: { report: any; index: number }) {
           <Button variant="outline" size="sm" type="button" loading={downloading} onClick={() => void download()} data-report-download={report.id}>
             {downloading ? null : <Download aria-hidden="true" />}
             {ui("Download")}
+            {/* SKAI-1557: each button names its own report for screen readers. */}
+            <span className="sr-only">: <bdi>{report.exam?.title || ui("Report card")}</bdi></span>
           </Button>
         ) : null}
       </div>
