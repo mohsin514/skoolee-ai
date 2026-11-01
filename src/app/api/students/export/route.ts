@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/scope";
 import { requestSchool } from "@/lib/capacity/identity";
 import { withBackgroundAdmission } from "@/lib/capacity/admission";
+import { rosterStatusWhere } from "@/lib/students/roster-status";
 
 // GET /api/academic/students/export?classId=&search=&status=
 //
@@ -73,9 +74,7 @@ async function exportStudents(req: NextRequest) {
       ...scopedCampusWhere(user, campusId),
       class: { is: archivedOnly ? {} : { archivedAt: null } },
       ...(classId ? { classId } : {}),
-      ...(archivedOnly
-        ? { status: { in: ["inactive", "archived", "transferred", "graduated"] } }
-        : { status: { notIn: ["inactive", "archived", "transferred", "graduated"] } }),
+      ...rosterStatusWhere(archivedOnly),
       ...(search
         ? {
             OR: [
