@@ -97,7 +97,7 @@ export function RoleHeader({
   const notifRef = useRef<HTMLDivElement | null>(null);
   const notifTriggerRef = useRef<HTMLButtonElement | null>(null);
   const prevUnreadRef = useRef(0);
-  const { notifications: liveNotifications, unreadCount, refresh: refreshNotifications } = useNotifications();
+  const { notifications: liveNotifications, loaded: notificationsLoaded, unreadCount, refresh: refreshNotifications } = useNotifications();
   const seenNotifIds = useRef<Set<string> | null>(null);
   const displayName = (headerProfile?.fullName || session?.fullName || userName || "").split("@")[0].replace(/[._-]/g, " ").replace(/\s+/g, " ").trim() || "User";
   // The EN key re-translates after a language switch; the session label is already in the display language.
@@ -129,7 +129,7 @@ export function RoleHeader({
   // report the result of something the viewer just did (addendum 2026-10-22 §4). The bell keeps the full list.
   useEffect(() => {
     if (seenNotifIds.current === null) {
-      if (liveNotifications.length === 0) return;
+      if (!notificationsLoaded) return;
       seenNotifIds.current = new Set(liveNotifications.map((item) => item.id));
       return;
     }
@@ -144,7 +144,7 @@ export function RoleHeader({
     const title = newest.type && NOTIFICATION_FIXED_TITLE_KINDS.has(newest.type) ? t(newest.title) : newest.title;
     setArrival(t("New notification: {0}", [title]));
     // Reads the translator at the moment an item arrives; a language switch should not re-announce it.
-  }, [liveNotifications, touring]);
+  }, [liveNotifications, notificationsLoaded, touring]);
 
   // Header identity (name, photo). A failed read keeps the session name: no toast for a load (R4).
   useEffect(() => {

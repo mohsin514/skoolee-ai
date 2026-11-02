@@ -22,6 +22,8 @@ export function useNotifications() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
+  // True once the first fetch lands, so an empty inbox still counts as a baseline.
+  const [loaded, setLoaded] = useState(false);
   // Bumped to force a fresh EventSource after an outage. The browser
   // retries a dropped stream on its own, but once it gives up and lands
   // in CLOSED it never reopens — so live notifications would stay dead
@@ -38,6 +40,7 @@ export function useNotifications() {
       if (json.success) {
         setNotifications(json.notifications);
         setUnreadCount(json.unreadCount);
+        setLoaded(true);
       }
     } catch {}
   }, []);
@@ -147,6 +150,7 @@ export function useNotifications() {
     notifications,
     unreadCount,
     isConnected,
+    loaded,
     markAsRead,
     markAllAsRead,
     refresh: fetchNotifications,
