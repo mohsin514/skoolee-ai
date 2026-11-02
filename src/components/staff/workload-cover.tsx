@@ -54,8 +54,10 @@ export function WorkloadCover({ campusId }: { campusId?: string }) {
 
   const saveCapacity = async (row: Row, raw: string) => {
     const capacity = raw.trim() === "" ? null : Number(raw);
-    const response = await fetch("/api/staff/workload", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campusId, staffId: row.id, capacity }) });
+    const response = await fetch("/api/staff/workload", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campusId, staffId: row.id, capacity, expectedCapacity: row.capacity }) });
     const json = await response.json().catch(() => ({}));
+    // SKAI-1631: a stale edit keeps the typed value on screen and asks for a refresh instead of overwriting.
+    if (response.status === 409 && json.code === "CAPACITY_CONFLICT") { toast.error(ui("Someone else changed this capacity. Refresh the board to review it.")); return; }
     if (!response.ok || !json.success) { toast.error(ui(json.error || "Capacity was not saved.")); return; }
     toast.success(ui("Capacity saved for {0}.", [row.name])); void loadWeek(); void loadCover();
   };

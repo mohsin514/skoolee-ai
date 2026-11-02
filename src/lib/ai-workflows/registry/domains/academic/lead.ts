@@ -449,7 +449,7 @@ const WORKLOAD_CAPACITY = defineCapability<WorkloadInput>({
     let changed = 0;
     for (const row of rows) {
       if ((row.staffProfile?.contractedPeriodsPerWeek ?? null) === input.periodsPerWeek) continue;
-      await setCapacity(ctx.user, campusId, row.id, input.periodsPerWeek);
+      await setCapacity(ctx.user, campusId, row.id, input.periodsPerWeek, row.staffProfile?.contractedPeriodsPerWeek ?? null);
       changed += 1;
     }
     return write("staff.set_workload_capacity", rows.map(row => ({ model: "staffProfile", id: row.id })), { changes: changed, unchanged: rows.length - changed }, consoleLink(ctx, "timetable"), { periodsPerWeek: input.periodsPerWeek, ...(changed === 0 ? { reconciled: true } : {}) });
