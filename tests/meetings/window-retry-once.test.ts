@@ -29,7 +29,7 @@ function fakeTx(held: Array<() => void>) {
       },
       create: async ({ data }: { data: Omit<Win, "id"> & Record<string, unknown> }) => {
         await pause();
-        const row = { id: `mw-${++seq}`, status: "OPEN", ...data } as Win; // status defaults to OPEN in the database
+        const row = { id: `mw-${++seq}`, ...data, status: data.status ?? "OPEN" } as Win; // status defaults to OPEN in the database
         windows.push(row);
         return row;
       },
