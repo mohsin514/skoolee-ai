@@ -18,7 +18,7 @@ import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 type Entry = { id: string; kind: string; category: string | null; country: string | null; metaRateMicroUsd: number; marginMicroUsd: number; amountMicroUsd: number; reference: string | null; createdAt: string };
 const CATEGORY_LABEL: Record<string, string> = { UTILITY: "Utility", MARKETING: "Marketing", AUTHENTICATION: "Authentication", SERVICE: "Service" };
-type Usage = { enabled: boolean; provisioned: boolean; balanceMicroUsd: number; last30Days: { messages: number; spentMicroUsd: number }; entries: Entry[] };
+type Usage = { enabled: boolean; provisioned: boolean; balanceMicroUsd: number; lowCredit?: boolean; daysLeft?: number | null; last30Days: { messages: number; spentMicroUsd: number }; entries: Entry[] };
 
 export function ManagedSendingPanel() {
   const ui = useUiText();
@@ -48,6 +48,7 @@ export function ManagedSendingPanel() {
     </CardHeader>
     <CardContent className="space-y-4">
       {empty ? <Alert tone="danger" live="off">{ui("Credit is used up. WhatsApp messages are paused until Skoolee adds credit.")}</Alert> : null}
+      {!empty && data.lowCredit ? <Alert tone="warning" live="off">{data.daysLeft !== null && data.daysLeft !== undefined ? ui("Credit is running low: about {0} days left at the current pace. Ask Skoolee to add credit before messages pause.", [number(data.daysLeft, 0)]) : ui("Credit is running low. Ask Skoolee to add credit before messages pause.")}</Alert> : null}
       {/* SKAI-1277: status, credit and the last 30 days as the shared stat tiles. */}
       <DeskStats>
         <StatTile index={0} icon={Power} tone={data.enabled ? "success" : "neutral"} label={ui("Status")} value={<DeskPill tone={data.enabled ? "success" : "neutral"}>{data.enabled ? ui("On") : ui("Off")}</DeskPill>} />
