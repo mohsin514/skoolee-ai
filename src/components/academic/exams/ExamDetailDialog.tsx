@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { passingPercentageFrom } from "@/lib/academic/pass-mark";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -236,7 +237,8 @@ function MarksEntry({
   /** The class's pass mark as a percentage, from Grading Rules (§82). It was
    *  hard-coded to 50 here, so a school with a 40% pass mark saw its own
    *  pupils marked FAIL on this screen and PASS on the report card. */
-  const [passPct, setPassPct] = useState(50);
+  // SKAI-1619: null until the real rule loads; a failed load never falls back to 50.
+  const [passPct, setPassPct] = useState<number | null>(null);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
   const load = useCallback(async () => {
@@ -247,11 +249,11 @@ function MarksEntry({
         fetch(
           `/api/grade-config?classId=${encodeURIComponent(exam.classId)}&academicYear=${exam.academicYear}`,
         )
-          .then((r) => r.json())
+          .then((r) => (r.ok ? r.json() : null))
           .catch(() => null),
       ]);
       if (!res.success || !Array.isArray(res.students) || !Array.isArray(res.subjects)) throw new Error("Could not load marks");
-      if (cfg?.config?.passingPercentage != null) setPassPct(cfg.config.passingPercentage);
+      setPassPct(passingPercentageFrom(cfg));
       setStudents(res.students ?? []);
       setSubjects(res.subjects ?? []);
       setLocked(Boolean(res.exam?.isLocked));
@@ -374,14 +376,14 @@ function MarksEntry({
     const values = students
       .map((s) => valueFor(s.id))
       .filter((v): v is number => v !== undefined && v >= 0);
-    const pass = (subject.totalMarks * passPct) / 100;
+    const pass = passPct === null ? null : (subject.totalMarks * passPct) / 100;
     return {
       entered: students.filter((s) => valueFor(s.id) !== undefined).length,
       total: students.length,
       average: values.length
         ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10
         : 0,
-      passing: values.filter((v) => v >= pass).length,
+      passing: pass === null ? null : values.filter((v) => v >= pass).length,
       top: values.length ? Math.max(...values) : 0,
     };
   }, [students, subject, valueFor, passPct]);
@@ -444,6 +446,11 @@ function MarksEntry({
       {loadFailed ? (
         <Alert tone="danger" compact live="polite">
           {tr("Could not load marks")} <Button type="button" variant="link" size="sm" onClick={() => void load()}>{tr("Try again")}</Button>
+        </Alert>
+      ) : null}
+      {!loadFailed && passPct === null ? (
+        <Alert tone="warning" compact live="polite">
+          {tr("Could not load the pass mark, so Pass and Fail are hidden.")} <Button type="button" variant="link" size="sm" onClick={() => void load()}>{tr("Try again")}</Button>
         </Alert>
       ) : null}
       {locked ? (
@@ -511,7 +518,7 @@ function MarksEntry({
             {tr("Average")} <bdi dir="ltr" className="tabular-nums text-ink-strong">{stats.average}</bdi>
           </span>
           <span className="text-2xs font-bold text-ink-muted">
-            {tr("Passing")} <bdi dir="ltr" className="tabular-nums text-status-success-text">{stats.passing}</bdi>
+            {tr("Passing")} <bdi dir="ltr" className="tabular-nums text-status-success-text">{stats.passing ?? "—"}</bdi>
           </span>
           <span className="text-2xs font-bold text-ink-muted">
             {tr("Top")} <bdi dir="ltr" className="tabular-nums text-ink-strong">{stats.top}</bdi>
@@ -560,7 +567,7 @@ function MarksEntry({
                 value !== undefined && value >= 0 && subject.totalMarks > 0
                   ? Math.round((value / subject.totalMarks) * 100)
                   : null;
-              const pass = pct !== null && pct >= passPct;
+              const pass = pct !== null && passPct !== null && pct >= passPct;
               return (
                 <li
                   key={student.id}
@@ -657,7 +664,7 @@ function MarksEntry({
                       <Badge variant="info" size="sm">
                         <UiText>Exempt</UiText>
                       </Badge>
-                    ) : pct === null ? (
+                    ) : pct === null || passPct === null ? (
                       <span className="text-2xs font-bold text-ink-subtle">—</span>
                     ) : (
                       <Badge variant={pass ? "success" : "danger"} size="sm" dot>
