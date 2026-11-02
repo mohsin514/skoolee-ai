@@ -128,29 +128,36 @@ export default function ReportsPage() {
     [allCards],
   );
 
-  useEffect(() => {
+  // SKAI-1539: a failed deep-link load is its own state with a Retry; only HTTP 200 reportCard:null is "not ready".
+  const [deepLinkFailed, setDeepLinkFailed] = useState(false);
+  const openDeepLink = useCallback(async () => {
     const studentId = searchParams.get("studentId");
     const classId = searchParams.get("classId");
-    if (studentId && classId && data) {
-      (async () => {
-        try {
-          const rcRes = await fetch(`/api/reports/generate-from-grades?studentId=${studentId}&classId=${classId}&academicYear=${academicYear}`);
-          const rcBody = await rcRes.text();
-          const rcResult = JSON.parse(rcBody);
-          const reportCard = rcResult.reportCard || null;
-          if (reportCard) {
-            setSelectedReportCard({
-              ...reportCard,
-              student: { ...reportCard.student, class: reportCard.student?.class || {} },
-              subjectBreakdown: reportCard.subjectBreakdown || [],
-            });
-          } else {
-            toast.error(ui("This report card isn't ready yet. Your academic lead generates final grades and report cards."));
-          }
-        } catch { toast.error(ui("Could not open this report card. Please try again.")); }
-      })();
+    if (!studentId || !classId) return;
+    setDeepLinkFailed(false);
+    try {
+      const rcRes = await fetch(`/api/reports/generate-from-grades?studentId=${encodeURIComponent(studentId)}&classId=${encodeURIComponent(classId)}&academicYear=${academicYear}`);
+      if (!rcRes.ok) throw new Error(`report card ${rcRes.status}`);
+      const rcResult = await rcRes.json();
+      if (!rcResult || typeof rcResult !== "object" || !("reportCard" in rcResult)) throw new Error("report card payload");
+      const reportCard = rcResult.reportCard || null;
+      if (reportCard) {
+        setSelectedReportCard({
+          ...reportCard,
+          student: { ...reportCard.student, class: reportCard.student?.class || {} },
+          subjectBreakdown: reportCard.subjectBreakdown || [],
+        });
+      } else {
+        toast.error(ui("This report card isn't ready yet. Your academic lead generates final grades and report cards."));
+      }
+    } catch {
+      setDeepLinkFailed(true);
     }
-  }, [searchParams, data, academicYear, ui]);
+  }, [searchParams, academicYear, ui]);
+
+  useEffect(() => {
+    if (data) void openDeepLink();
+  }, [data, openDeepLink]);
 
   useEffect(() => {
     if (!data || selectedReportExamId) return;
@@ -279,6 +286,13 @@ export default function ReportsPage() {
       }]}
     >
       <div className="space-y-3">
+        {deepLinkFailed ? (
+          <ErrorState
+            title={ui("Could not open this report card. Please try again.")}
+            retryLabel={ui("Try again")}
+            onRetry={() => void openDeepLink()}
+          />
+        ) : null}
 
         {/* The test the AI drafts remarks for. */}
         <FormField

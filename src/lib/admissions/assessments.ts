@@ -39,11 +39,26 @@ export async function nextWaitlistRank(db: TxClient, schoolId: string, campusId:
   return (last._max.waitlistRank ?? 0) + 1;
 }
 
+/**
+ * SKAI-1420: waitlist positions are read and written under one campus row lock, held until the caller's
+ * transaction commits. A second decision waits, then reads the first one's committed position, so two
+ * decisions can never be given the same rank. Callers must already be inside a transaction.
+ */
+export async function lockCampusWaitlist(db: TxClient, schoolId: string, campusId: string) {
+  await db.$queryRaw`SELECT id FROM campuses WHERE id = ${campusId} AND school_id = ${schoolId} FOR UPDATE`;
+}
+
+export async function assignWaitlistRank(db: TxClient, schoolId: string, campusId: string) {
+  await lockCampusWaitlist(db, schoolId, campusId);
+  return nextWaitlistRank(db, schoolId, campusId);
+}
+
 /** Swap places with the neighbour above or below on the campus waitlist. */
 export async function moveOnWaitlist({ db, user, campusId, application }: Ctx, direction: unknown) {
   if (application.status !== "WAITLISTED" || application.waitlistRank === null) throw new ApiError("This application is not on the waitlist.", 409);
   if (direction !== "up" && direction !== "down") throw new ApiError("direction must be up or down", 400);
   const rank = application.waitlistRank;
+  await lockCampusWaitlist(db, user.schoolId, campusId);
   const neighbour = await db.admissionApplication.findFirst({
     where: { schoolId: user.schoolId, campusId, status: "WAITLISTED", id: { not: application.id }, waitlistRank: direction === "up" ? { lt: rank } : { gt: rank } },
     orderBy: { waitlistRank: direction === "up" ? "desc" : "asc" },
