@@ -66,6 +66,15 @@ export function ruleRate(records: AttendanceLike[], rule: AttendanceRule = DEFAU
   return counted.length ? Math.round((attended / counted.length) * 1000) / 10 : 0;
 }
 
+/** SKAI-1604: the same rule over grouped counts (status → rows), as whole percent; null when nothing counts. */
+export function groupedRuleRate(groups: Array<{ status: string; count: number }>, rule: AttendanceRule = DEFAULT_ATTENDANCE_RULE): number | null {
+  const counted = groups.filter((g) => !rule.excluded.includes(String(g.status)));
+  const total = counted.reduce((sum, g) => sum + g.count, 0);
+  if (!total) return null;
+  const attended = counted.filter((g) => rule.attended.includes(String(g.status))).reduce((sum, g) => sum + g.count, 0);
+  return Math.round((attended / total) * 100);
+}
+
 /** Below this, the family sees an "attendance at risk" warning. */
 export const ATTENDANCE_RISK_THRESHOLD = 75;
 
