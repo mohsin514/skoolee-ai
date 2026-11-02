@@ -152,12 +152,27 @@ async function reserveVersion(tx: TxClient, user: AuthUser, resource: { id: stri
   return { uploadUrl: await createPrivateUploadUrl(user, { kind: "resource", targetId: resource.id, storageKey, contentType: input.contentType, sizeBytes: input.sizeBytes, fileName: input.fileName }) };
 }
 
+const CREATE_REPLAY_WINDOW_MS = 2 * 60 * 1000;
+
 export async function createResource(user: AuthUser, raw: unknown) {
   const input = createInput.parse(raw);
   return schoolAiTransaction(user, async tx => {
     const klass = await assertAuthor(tx, user, input.classId);
     if (input.subjectId && !(await tx.subject.findFirst({ where: { id: input.subjectId, schoolId: user.schoolId, classId: klass.id }, select: { id: true } }))) throw new ApiError("Choose a subject of this class.", 400);
     if (input.objectives) await assertObjectivesExist(tx, user, klass.id, input.objectives);
+    // SKAI-624: a double-submitted create replays the author's recent identical draft instead of adding a second resource.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`learning-resource:${klass.id}:${user.userId}`}))`;
+    const recent = await tx.learningResource.findFirst({ where: { schoolId: user.schoolId, classId: klass.id, ownerId: user.userId, status: "DRAFT", latestVersion: 1, kind: input.kind, audience: input.audience, title: { equals: input.title, mode: "insensitive" }, createdAt: { gte: new Date(Date.now() - CREATE_REPLAY_WINDOW_MS) } } });
+    if (recent) {
+      const first = await tx.learningResourceVersion.findFirst({ where: { schoolId: user.schoolId, resourceId: recent.id, version: 1 } });
+      const sameContent = first && ("link" in input.content ? first.linkUrl === input.content.link : first.fileName === input.content.fileName && first.sizeBytes === input.content.sizeBytes);
+      if (sameContent) {
+        const uploadUrl = first.storageKey && !first.uploadedAt && !("link" in input.content)
+          ? await createPrivateUploadUrl(user, { kind: "resource", targetId: recent.id, storageKey: first.storageKey, contentType: input.content.contentType, sizeBytes: input.content.sizeBytes, fileName: input.content.fileName })
+          : null;
+        return { resource: recent, uploadUrl, replayed: true };
+      }
+    }
     const resource = await tx.learningResource.create({ data: { schoolId: user.schoolId, campusId: klass.campusId, classId: klass.id, subjectId: input.subjectId ?? null, title: input.title, kind: input.kind, audience: input.audience, language: input.language, sourceRights: input.sourceRights, objectives: input.objectives ?? undefined, ownerId: user.userId, latestVersion: 1 } });
     const { uploadUrl } = await reserveVersion(tx, user, resource, 1, input.description, input.content);
     await tx.auditLog.create({ data: { schoolId: user.schoolId, campusId: resource.campusId, tableName: "learning_resources", recordId: resource.id, userId: user.userId, newValue: { status: "DRAFT", version: 1 } } });
