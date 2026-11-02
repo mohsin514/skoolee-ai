@@ -340,7 +340,8 @@ export function Composer({
           onKeyDown={(e) => {
             // Enter sends; Shift+Enter starts a new line. The send button is
             // always shown because on touch keyboards Enter is a newline.
-            if (e.key === "Enter" && !e.shiftKey) {
+            // SKAI-1605: Enter during IME composition (Urdu phonetic, mobile predictive) commits the candidate only.
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) {
               e.preventDefault();
               submit();
             }
