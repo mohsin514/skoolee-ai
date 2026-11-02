@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { loadFamilyExamSheet } from "./exam-sheet-load";
 
 /** ISO weekday (1 = Monday … 7 = Sunday) → its short name in the viewer's language (R7: dates through Intl). */
 function weekdayName(isoDay: number, language: string): string {
@@ -115,12 +116,9 @@ export function ExamDateSheet({
     setLoadFailed(false);
     try {
       if (token) {
-        const res = await fetch(`/api/parent/exam-datesheet?token=${encodeURIComponent(token)}`);
-        const j = await res.json();
-        if (j.success && j.data) {
-          setExams(j.data.exams || []);
-          setSchedules(j.data.schedules || {});
-        }
+        const family = await loadFamilyExamSheet(token);
+        setExams(family.exams);
+        setSchedules(family.schedules);
       } else {
         const [exRes, calRes] = await Promise.all([
           fetch(`/api/exams${examsQuery}`),
