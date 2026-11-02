@@ -92,8 +92,10 @@ export async function GET(req: Request) {
     }
 
     const classPerfMap = new Map<string, { total: number; count: number }>();
+    // SKAI-1609: a report belongs to the class whose exam produced it, not the pupil's class today.
+    const examClass = new Map(exams.map((e) => [e.id, e.classId]));
     for (const r of reportCards) {
-      const classId = r.student.classId;
+      const classId = examClass.get(r.examId) ?? r.student.classId;
       const className = classMap.get(classId) || "Unknown";
       const prev = classPerfMap.get(className) || { total: 0, count: 0 };
       prev.total += r.percentage;
