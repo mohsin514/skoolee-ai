@@ -154,10 +154,12 @@ export async function PATCH(req: NextRequest) {
       select: PROFILE_SELECT,
     });
 
-    if (session.role === "STUDENT" && currentUser?.fullName && Object.keys(data).length > 0) {
+    // SKAI-1652: mirror the edit only onto the student record linked to this account (studentUserId is unique).
+    // Never match by name: namesakes in the same campus must keep their own identity, photo and contact details.
+    if (session.role === "STUDENT" && Object.keys(data).length > 0) {
       await prisma.student.updateMany({
         where: {
-          fullName: currentUser.fullName,
+          studentUserId: session.userId,
           campus: { schoolId: session.schoolId },
           ...(session.campusId ? { campusId: session.campusId } : {}),
         },
