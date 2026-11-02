@@ -67,7 +67,8 @@ export async function GET(req: Request) {
         by: ["status"],
         where: {
           ...(campusId ? { campusId } : { campus: { schoolId: user.schoolId } }),
-          date: { gte: new Date(academicYear, 0, 1) },
+          // SKAI-1607: the selected year is closed at both ends, like the exam and report-card filters.
+          date: { gte: new Date(Date.UTC(academicYear, 0, 1)), lt: new Date(Date.UTC(academicYear + 1, 0, 1)) },
         },
         _count: { _all: true },
       }),
