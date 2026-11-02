@@ -13,6 +13,7 @@
     "test:fee-structures": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/structure-year.test.ts",
     "test:enrollment-paging": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/students/enrollment-history-paging.test.ts",
     "test:payroll-employee-merge": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/payroll/employee-mapping-merge.test.ts",
+    "test:grace-dates": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/billing/grace-date-validation.test.ts",
     "test:marks-scan-reversal": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/marks-scan/reversal-exempt-state.database.test.ts",
     "test:composer-send-gate": "node --import ./tests/support/server-only.mjs --import tsx --test tests/chat/composer-send-gate.test.ts",
     "test:inventory-names": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/inventory/name-validation.test.ts",
