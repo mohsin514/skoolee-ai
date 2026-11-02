@@ -130,6 +130,8 @@ export async function issueCopy(user: AuthUser, raw: unknown) {
   return prisma.$transaction(async (tx) => {
     const member = await tx.libraryMember.findFirst({ where: { id: input.memberId, schoolId: user.schoolId, campusId } });
     if (!member) throw new ApiError("Member not found", 404);
+    // SKAI-1671: serialise issues per reader so two desks lending different copies cannot both pass the limit count.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`library-reader-loans:${member.id}`}))`;
     const copy = await tx.bookCopy.findFirst({ where: { schoolId: user.schoolId, campusId, barcode: input.barcode } });
     if (!copy) throw new ApiError("Copy not found", 404);
     const rules = await currentRules(tx, user.schoolId, campusId);
