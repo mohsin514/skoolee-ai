@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check, ImageIcon, Loader2, Lock, Paperclip, Send, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChat, type SendAttachment } from "./chat-provider";
+import { sendGate } from "./send-gate";
 import type { ChatMessageView } from "@/lib/chat/types";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,7 @@ interface ComposerProps {
   onClearReply: () => void;
   editing: ChatMessageView | null;
   onClearEditing: () => void;
-  onSubmitEdit: (body: string) => Promise<void>;
+  onSubmitEdit: (body: string) => Promise<boolean>;
 }
 
 interface PendingFile {
@@ -35,6 +36,9 @@ interface PendingFile {
   uploaded?: SendAttachment;
   error?: string;
 }
+
+/** The send gate reads only a file's name, upload result and error. */
+const gateFiles = (list: PendingFile[]) => list.map((f) => ({ name: f.file.name, uploaded: f.uploaded, error: f.error }));
 
 export function Composer({
   conversationId,
@@ -159,12 +163,14 @@ export function Composer({
       .filter((a): a is SendAttachment => Boolean(a));
 
     if (!body && attachments.length === 0) return;
-    if (files.some((f) => !f.uploaded && !f.error)) return; // still uploading
+    // Enter and the Send button share this guard: a failed or still-uploading file never sends silently.
+    if (!sendGate({ text: body, files: gateFiles(files), isSending: false, editing: Boolean(editing) }).canSend) return;
 
     setIsSending(true);
     try {
       if (editing) {
-        await onSubmitEdit(body);
+        // SKAI-1583: an unsaved edit keeps its text in the composer for a retry.
+        if (!(await onSubmitEdit(body))) return;
       } else {
         // A failed send stays in the thread with its own Retry/Discard, so the composer can clear.
         await sendMessage({ body, replyToId: replyTo?.id, attachments, urgent: canMarkUrgent && urgent });
@@ -179,9 +185,8 @@ export function Composer({
     }
   }
 
-  const uploading = files.some((f) => !f.uploaded && !f.error);
-  const canSend =
-    (value.trim().length > 0 || files.some((f) => f.uploaded)) && !uploading && !isSending;
+  const gate = sendGate({ text: value, files: gateFiles(files), isSending, editing: Boolean(editing) });
+  const canSend = gate.canSend;
   const remaining = MAX_LENGTH - value.length;
 
   return (
@@ -233,6 +238,11 @@ export function Composer({
       </AnimatePresence>
 
       <AnimatePresence initial={false}>
+        {gate.blockedBy === "failed" && (
+          <p role="status" className="mb-2 text-2xs font-bold text-rose-600">
+            {fill(ui("Retry or remove {0} to send. Your message draft is still here."), [gate.failedNames.join(", ")])}
+          </p>
+        )}
         {files.length > 0 && (
           <motion.ul
             initial={{ opacity: 0, height: 0 }}
@@ -333,7 +343,8 @@ export function Composer({
           onKeyDown={(e) => {
             // Enter sends; Shift+Enter starts a new line. The send button is
             // always shown because on touch keyboards Enter is a newline.
-            if (e.key === "Enter" && !e.shiftKey) {
+            // SKAI-1605: Enter during IME composition (Urdu phonetic, mobile predictive) commits the candidate only.
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) {
               e.preventDefault();
               submit();
             }

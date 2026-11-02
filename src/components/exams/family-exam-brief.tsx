@@ -30,8 +30,11 @@ export function FamilyExamBrief({ studentId }: { studentId: string | null }) {
   useEffect(() => { void load(); }, [load]);
   const acknowledge = async (versionId: string) => {
     setBusy(versionId); setError("");
-    const response = await fetch(`/api/parent/exam-brief${query}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ versionId }) });
-    setBusy("");
+    // SKAI-1519: a network rejection clears busy and shows the same retryable error as a refused request.
+    let response: Response;
+    try { response = await fetch(`/api/parent/exam-brief${query}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ versionId }) }); }
+    catch { setError(ui("Could not record your acknowledgement. Please try again.")); return; }
+    finally { setBusy(""); }
     if (!response.ok) { setError(ui("Could not record your acknowledgement. Please try again.")); return; }
     await load();
   };

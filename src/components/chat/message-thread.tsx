@@ -39,10 +39,12 @@ import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { systemEventText } from "@/lib/chat/system-event-text";
 import { localeTag } from "@/lib/locale/package";
 import { fill } from "./chat-text";
 import { clockTimeIn, dayLabelIn } from "./message-time";
 import { ErrorState } from "@/components/ui/error-state";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 
 
 
@@ -92,6 +94,8 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
 
   const [replyTo, setReplyTo] = useState<ChatMessageView | null>(null);
   const [editing, setEditing] = useState<ChatMessageView | null>(null);
+  // SKAI-1584: withdrawing hides the message for everyone and cannot be undone, so it is confirmed first.
+  const [withdrawing, setWithdrawing] = useState<ChatMessageView | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
 
@@ -285,10 +289,10 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     <MenuItem
                       icon={MessageSquareDashed}
                       label={detail.isArchived ? ui("Unarchive") : ui("Archive")}
-                      onClick={() => {
-                        setPreference(detail.id, { isArchived: !detail.isArchived });
+                      onClick={async () => {
                         setMenuOpen(false);
-                        closeConversation();
+                        // SKAI-1542: the thread closes only once the server has archived it.
+                        if (await setPreference(detail.id, { isArchived: !detail.isArchived })) closeConversation();
                       }}
                     />
                     {detail.kind !== "DIRECT" && (
@@ -390,7 +394,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     {message.kind === "SYSTEM" ? (
                       <p className="py-2 text-center text-2xs font-medium tabular-nums text-ink-subtle">
                         <span className="rounded-full bg-white/70 px-2.5 py-1 ring-1 ring-edge/25">
-                          {message.body}
+                          {systemEventText(message.body, ui)}
                         </span>
                       </p>
                     ) : (
@@ -402,7 +406,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                         showAvatar={detail.kind !== "DIRECT" && !isMine}
                         onReply={() => setReplyTo(message)}
                         onEdit={() => setEditing(message)}
-                        onDelete={() => deleteMessage(message.id)}
+                        onDelete={() => setWithdrawing(message)}
                         canModerate={detail.canModerate}
                         language={locale.language}
                         tag={tag}
@@ -450,11 +454,28 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           editing={editing}
           onClearEditing={() => setEditing(null)}
           onSubmitEdit={async (body) => {
-            if (editing) await editMessage(editing.id, body);
-            setEditing(null);
+            // A failed save keeps edit mode open so the draft can be retried or cancelled.
+            const saved = editing ? await editMessage(editing.id, body) : true;
+            if (saved) setEditing(null);
+            return saved;
           }}
         />
       </div>
+      <ConfirmAction
+        open={withdrawing !== null}
+        tone="danger"
+        title={ui("Withdraw this message?")}
+        description={ui("It is hidden for everyone in this conversation and cannot be restored.")}
+        detail={withdrawing?.body ? <p className="line-clamp-3 text-sm" data-withdraw-preview><bdi>{withdrawing.body}</bdi></p> : null}
+        confirmLabel={ui("Withdraw")}
+        cancelLabel={ui("Cancel")}
+        onCancel={() => setWithdrawing(null)}
+        onConfirm={async () => {
+          const target = withdrawing;
+          setWithdrawing(null);
+          if (target) await deleteMessage(target.id);
+        }}
+      />
     </MotionConfig>
   );
 }
@@ -644,15 +665,24 @@ function MessageBubble({
                 <ul className={cn("space-y-1.5", message.body && "mt-2")}>
                   {message.attachments.map((a) =>
                     a.contentType.startsWith("image/") && a.url ? (
-                      <li key={a.id}>
-                        {/* Presigned S3 URLs are not a configured next/image
-                            host, and they expire — a plain img avoids both. */}
-                        <img
-                          src={a.url}
-                          alt={a.fileName}
-                          loading="lazy"
-                          className="max-h-72 w-auto rounded-xl shadow-md"
-                        />
+                      <li key={a.id} className="space-y-1">
+                        {/* SKAI-1588: the image opens the original, and a visible Download link names the file, so
+                            keyboard and touch users can reach it like any other attachment. */}
+                        <a href={a.url} target="_blank" rel="noreferrer" aria-label={ui("Open {0}", [a.fileName])} className="block w-fit rounded-xl" data-attachment-open>
+                          {/* Presigned S3 URLs are not a configured next/image
+                              host, and they expire — a plain img avoids both. */}
+                          <img
+                            src={a.url}
+                            alt={a.fileName}
+                            loading="lazy"
+                            className="max-h-72 w-auto rounded-xl shadow-md"
+                          />
+                        </a>
+                        <a href={a.url} download={a.fileName} target="_blank" rel="noreferrer" aria-label={ui("Download {0}", [a.fileName])} className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-2xs font-bold", isMine ? "text-white hover:bg-white/15" : "text-primary hover:bg-brand-50")} data-attachment-download>
+                          <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <bdi className="max-w-[14rem] truncate">{a.fileName}</bdi>
+                          <span className="opacity-70">{formatSize(a.sizeBytes)}</span>
+                        </a>
                       </li>
                     ) : (
                       <li key={a.id}>
