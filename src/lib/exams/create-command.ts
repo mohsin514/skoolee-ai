@@ -31,6 +31,8 @@ export interface CreateExamInput {
   examType: string;
 }
 
+const REPLAY_WINDOW_MS = 2 * 60 * 1000;
+
 export const defaultExamType = (role: string) => (role === "TEACHER" ? "CLASS_TEST" : "MID_TERM");
 
 export async function createExamCommand(user: AuthUser, input: CreateExamInput) {
@@ -44,7 +46,7 @@ export async function createExamCommand(user: AuthUser, input: CreateExamInput) 
   });
   if (!cls) throw new ApiError("Class not found", 404);
 
-  const exam = await withExamSchedulingWrite(user, cls.campusId, "add", async (tx) => {
+  const { exam, replayed } = await withExamSchedulingWrite(user, cls.campusId, "add", async (tx) => {
     const currentClass = await tx.class.findFirst({ where: { id: cls.id, schoolId: user.schoolId, campusId: cls.campusId, status: "ACTIVE", archivedAt: null, academicYear: input.academicYear } });
     if (!currentClass) throw new ApiError("Class is not active in this academic year.", 409);
     // If teacher, verify they are assigned to this class
@@ -70,6 +72,13 @@ export async function createExamCommand(user: AuthUser, input: CreateExamInput) 
     if (["MID_TERM", "FINAL"].includes(examType)) {
       const duplicate = await tx.exam.findFirst({ where: { schoolId: user.schoolId, campusId: cls.campusId, classId: cls.id, academicYear: input.academicYear, examType, term: { equals: input.term, mode: "insensitive" } } });
       if (duplicate) throw new ApiError("This class already has this term exam. Edit its existing session.", 409);
+    } else {
+      // A double-clicked or retried quiz/class test returns the one just saved instead of a twin.
+      const recent = await tx.exam.findFirst({
+        where: { schoolId: user.schoolId, campusId: cls.campusId, classId: cls.id, academicYear: input.academicYear, examType, subjectId: input.subjectId || null, term: { equals: input.term, mode: "insensitive" }, title: { equals: input.title, mode: "insensitive" }, activatedAt: { gte: new Date(Date.now() - REPLAY_WINDOW_MS) } },
+        include: { class: { select: { id: true, name: true, section: true, academicYear: true } }, _count: { select: { marks: true, reportCards: true } } },
+      });
+      if (recent) return { exam: recent, replayed: true };
     }
     const subjectFilter = input.subjectId ? { id: input.subjectId } : {};
     const subjects = await tx.subject.findMany({
@@ -112,8 +121,9 @@ export async function createExamCommand(user: AuthUser, input: CreateExamInput) 
       table: "exams", recordId: created.id, action: "CREATE", campusId: created.campusId,
       after: { status: created.status, examType: created.examType, academicYear: created.academicYear, totalMarks: created.totalMarks },
     });
-    return created;
+    return { exam: created, replayed: false };
   }, true);
+  if (replayed) return exam;
 
   notify("EXAM_CREATED", {
     schoolId: user.schoolId,
