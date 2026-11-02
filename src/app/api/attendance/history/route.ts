@@ -44,15 +44,11 @@ export async function GET(req: NextRequest) {
       where: { classId, campusId },
     });
 
-    const studentIds = await prisma.student.findMany({
-      where: { classId, campusId },
-      select: { id: true },
-    });
-    const ids = studentIds.map((s) => s.id);
-
+    // SKAI-1620: a row belongs to the class it was taken in (as in the monthly report, SKAI-1407),
+    // so a pupil who moved here does not bring their earlier class's marks.
     const raw = await prisma.attendance.groupBy({
       by: ["date", "status"],
-      where: { campusId, studentId: { in: ids } },
+      where: { campusId, classId },
       _count: true,
       orderBy: { date: "desc" },
     });
