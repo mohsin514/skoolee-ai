@@ -16,6 +16,10 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowButton, DeskSection, DeskStats, RelativeTime, StatTile, deskTimeline, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+
+// SKAI-1677: datetime-local holds local wall time; build it from the instant in the browser's zone so an unchanged
+// value round-trips to the same deadline instead of shifting by the timezone offset.
+function toLocalInput(iso: string) { const d = new Date(iso); return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); }
 import { AlarmClock, CircleDot, Hourglass, LifeBuoy, ShieldAlert, UserX, Wrench } from "lucide-react";
 
 type DeskTab = "mine" | "new" | "queue";
@@ -78,7 +82,7 @@ export function ServiceDesk() {
   // SKAI-1657: a failed form-options lookup is shown with Retry; entered fields are kept.
   const [formFailed, setFormFailed] = useState(false), [formAttempt, setFormAttempt] = useState(0);
   useEffect(() => { if (tab !== "new") return; const t = setTimeout(() => { void call(`/api/service-desk?view=form&text=${encodeURIComponent(`${draft.title} ${draft.description}`)}`).then((f: Form) => { setForm(f); setFormFailed(false); if (f.suggestion && !draft.categoryId) setDraft(d => ({ ...d, categoryId: f.suggestion!.categoryId })); }).catch(() => setFormFailed(true)); }, 350); return () => clearTimeout(t); }, [tab, draft.title, draft.description, draft.categoryId, formAttempt]);
-  const openRequest = async (id: string) => { try { const d = await call(`/api/service-desk/${id}`); setOpen(d); setMessage(""); setReason(""); setWork(""); setAssignee(d.ownerId ?? ""); setPrio(d.priority); setDue(d.resolveDueAt ? new Date(d.resolveDueAt).toISOString().slice(0, 16) : ""); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "This request is outside your service scope.")); } };
+  const openRequest = async (id: string) => { try { const d = await call(`/api/service-desk/${id}`); setOpen(d); setMessage(""); setReason(""); setWork(""); setAssignee(d.ownerId ?? ""); setPrio(d.priority); setDue(d.resolveDueAt ? toLocalInput(d.resolveDueAt) : ""); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "This request is outside your service scope.")); } };
   const act = async (body: Record<string, unknown>, done: string) => {
     if (!open) return; setBusy(true);
     try { await call(`/api/service-desk/${open.id}`, "POST", { ...body, knownVersion: open.version }); toast.success(ui(done)); await openRequest(open.id); void loadMine(); void loadQueue(); }
@@ -167,7 +171,7 @@ export function ServiceDesk() {
             <FormField name="sd-priority" label={ui("Priority")}><Select value={prio} onChange={e => setPrio(e.target.value)}>{["LOW", "NORMAL", "HIGH", "URGENT"].map(p => <option key={p} value={p}>{priorityLabel(ui, p)}</option>)}</Select></FormField>
             <Button size="sm" variant="outline" disabled={busy || prio === open.priority || !reason.trim()} onClick={() => void act({ action: "priority", priority: prio, reason }, "Priority changed.")} data-sd-priority>{ui("Change priority")}</Button>
             <FormField name="sd-due" label={ui("Due")}><Input type="datetime-local" value={due} onChange={e => setDue(e.target.value)} /></FormField>
-            <Button size="sm" variant="outline" disabled={busy || !due || !reason.trim()} onClick={() => void act({ action: "due", resolveDueAt: new Date(due).toISOString(), reason }, "Due time changed.")} data-sd-due>{ui("Change due time")}</Button>
+            <Button size="sm" variant="outline" disabled={busy || !due || !reason.trim()} onClick={() => void act({ action: "due", resolveDueAt: open.resolveDueAt && due === toLocalInput(open.resolveDueAt) ? open.resolveDueAt : new Date(due).toISOString(), reason }, "Due time changed.")} data-sd-due>{ui("Change due time")}</Button>
             <Button size="sm" variant="secondary" disabled={busy || !reason.trim()} onClick={() => void act({ action: "block", reason }, "Marked as waiting.")} data-sd-block>{ui("Mark as waiting")}</Button>
           </div>
           <FormField name="sd-message" label={ui("Message")}><Textarea rows={2} value={message} onChange={e => setMessage(e.target.value)} /></FormField>
