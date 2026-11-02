@@ -5,6 +5,7 @@ import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { schoolSender } from "./connection";
 import { managedSender, reserve, settle, type Category } from "./managed";
 import { sendingAdapter, type SendResult } from "./graph";
+import { templatePayload, type TemplateSend } from "./utility-templates";
 
 interface WhatsAppMessage {
   to: string;
@@ -14,6 +15,8 @@ interface WhatsAppMessage {
   schoolId?: string;
   /** SKAI-1046: Meta pricing category, charged on managed sending. Defaults to UTILITY. */
   category?: Category;
+  /** SKAI-986: send this approved utility template instead of free text (works outside the 24-hour window). */
+  template?: TemplateSend;
 }
 
 /** The legacy platform number from env, kept for schools that use neither their own account nor the add-on. */
@@ -57,7 +60,7 @@ export async function sendWhatsAppMessage(message: WhatsAppMessage): Promise<Sen
         return result;
       });
     };
-    const text = await send({ to: message.to, type: "text", text: { body: message.text } });
+    const text = await send(message.template ? templatePayload(message.to, message.template) : { to: message.to, type: "text", text: { body: message.text } });
     if (!text.success || !message.pdfUrl) return text;
     const document = await send({
       to: message.to, type: "document",
