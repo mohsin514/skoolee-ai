@@ -102,7 +102,8 @@ export async function GET(req: NextRequest) {
 
       const historySummary = await prisma.studentClassHistory.groupBy({
         by: ["classId", "status"],
-        where: { campusId, academicYear },
+        // SKAI-1617: totals follow the same class visibility as the classes list.
+        where: { campusId, academicYear, ...(visible ? { classId: { in: visible } } : {}) },
         _count: true,
       });
 
