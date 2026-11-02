@@ -12,7 +12,7 @@ import { GuardianDigest } from "@/components/family/family-digest";
 import { FamilyCareMessages } from "@/components/care/care";
 import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 import { Alert } from "@/components/ui/alert";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +32,8 @@ export default function ParentHomePage() {
   const { data, loading, error, refetch, selectedStudentId, selectChild, noChildren, guardianName } = useParentData();
   const [topAction, setTopAction] = useState<InboxTopAction>(null);
   const [pendingInvitations, setPendingInvitations] = useState(0);
+  // SKAI-1666: a failed invitation lookup is shown with Retry and a direct link, never as "no invitations".
+  const [invitationsFailed, setInvitationsFailed] = useState(false), [invitationsAttempt, setInvitationsAttempt] = useState(0);
   const onTopAction = useCallback((action: InboxTopAction) => setTopAction(action), []);
 
   // M98: invitations still waiting for this account surface on Home, not only by email — including for a
@@ -39,11 +41,11 @@ export default function ParentHomePage() {
   useEffect(() => {
     let live = true;
     fetch("/api/parent/invitations", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((body) => { if (live && body?.success && Array.isArray(body.invitations)) setPendingInvitations(body.invitations.length); })
-      .catch(() => { /* the banner is optional */ });
+      .then(async (response) => { const body = await response.json().catch(() => null); if (!response.ok || !body?.success || !Array.isArray(body.invitations)) throw new Error("invitations failed"); return body; })
+      .then((body) => { if (live) { setInvitationsFailed(false); setPendingInvitations(body.invitations.length); } })
+      .catch(() => { if (live) setInvitationsFailed(true); });
     return () => { live = false; };
-  }, []);
+  }, [invitationsAttempt]);
 
   const invitationsBanner = pendingInvitations > 0 ? (
     <Alert
@@ -69,6 +71,11 @@ export default function ParentHomePage() {
       >
         {/* The header's primary already opens the invitations, so no banner repeats it here. */}
         <div className="space-y-4">
+          {invitationsFailed ? (
+            <Alert tone="warning" live="polite" data-invitations-failed actions={<><Button type="button" variant="outline" size="sm" onClick={() => setInvitationsAttempt((n) => n + 1)}>{ui("Try again")}</Button><Link href="/parent-invitations" className={buttonVariants({ variant: "ghost", size: "sm" })}>{ui("Review invitations")}</Link></>}>
+              {ui("We couldn't check for guardian invitations. Try again, or open your invitations directly.")}
+            </Alert>
+          ) : null}
           <EmptyState
             icon={Users}
             title={ui("No child is linked to your account yet")}
