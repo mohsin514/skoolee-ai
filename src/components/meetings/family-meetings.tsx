@@ -10,7 +10,8 @@ import { Modal } from "@/components/ui/modal";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { localeTag } from "@/lib/locale/package";
 import { cn } from "@/lib/utils";
 import { CalendarCheck, CalendarClock, CalendarX, CheckCircle2, TriangleAlert } from "lucide-react";
 import { ChoiceCard, arrowSelect } from "@/components/ui/choice-card";
@@ -36,6 +37,7 @@ const LIVE = ["CONFIRMED", "RESCHEDULE_NEEDED"];
 
 export function FamilyMeetings({ studentId }: { studentId: string }) {
   const ui = useUiText();
+  const clockTag = localeTag(useLocale());
   const { date } = useLocaleFormat();
   const [data, setData] = useState<Data | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const [teacherId, setTeacherId] = useState(""), [picked, setPicked] = useState<{ window: Window; slot: Slot } | null>(null);
@@ -48,7 +50,8 @@ export function FamilyMeetings({ studentId }: { studentId: string }) {
     catch (e) { setError(ui(e instanceof Error ? e.message : "Meetings could not be loaded.")); }
   }, [studentId, ui]);
   useEffect(() => { void load(); }, [load]);
-  const theirClock = (iso: string) => !data || !viewerZone || viewerZone === data.timezone ? null : new Intl.DateTimeFormat(undefined, { timeZone: viewerZone, weekday: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+  // SKAI-1608: the device-zone time follows the selected Skoolee locale, not the browser default.
+  const theirClock = (iso: string) => !data || !viewerZone || viewerZone === data.timezone ? null : new Intl.DateTimeFormat(clockTag, { timeZone: viewerZone, weekday: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
   const run = async (work: () => Promise<unknown>, done?: string) => { setBusy(true); try { await work(); if (done) toast.success(ui(done)); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); await load(); } finally { setBusy(false); } };
   const teacherName = (id: string) => data?.teachers.find(t => t.id === id)?.name ?? "";
 
