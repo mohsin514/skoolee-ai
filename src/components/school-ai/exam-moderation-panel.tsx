@@ -57,7 +57,11 @@ export function ExamModerationPanel({ examId }: { examId: string }) {
       if ((e as { status?: number }).status === 409) {
         await load();
         setError(`${ui((e as Error).message)} ${ui("The panel now shows the latest version. Review it before acting again.")}`);
-      } else setError(ui((e as Error).message));
+      } else {
+        setError(ui((e as Error).message));
+        // SKAI-1606: after a network failure the action may still have been saved; reconcile before the next try.
+        if (!(e as { status?: number }).status) await load();
+      }
       return false;
     }
   };

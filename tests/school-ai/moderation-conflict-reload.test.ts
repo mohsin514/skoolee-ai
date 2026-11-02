@@ -10,8 +10,8 @@ test("request errors carry their HTTP status", () => {
   assert.match(src, /throw Object\.assign\(new Error\(json\?\.error \|\| "Request failed"\), \{ status: response\?\.status \?\? 0 \}\)/);
 });
 
-test("a 409 reloads before reporting, other failures only report", () => {
-  assert.match(src, /if \(\(e as \{ status\?: number \}\)\.status === 409\) \{\n\s*await load\(\);\n\s*setError\(`\$\{ui\(\(e as Error\)\.message\)\} \$\{ui\("The panel now shows the latest version\. Review it before acting again\."\)\}`\);\n\s*\} else setError\(ui\(\(e as Error\)\.message\)\);/);
+test("a 409 reloads before reporting; other failures report (SKAI-1606 also reconciles network failures)", () => {
+  assert.match(src, /if \(\(e as \{ status\?: number \}\)\.status === 409\) \{\n\s*await load\(\);\n\s*setError\(`\$\{ui\(\(e as Error\)\.message\)\} \$\{ui\("The panel now shows the latest version\. Review it before acting again\."\)\}`\);\n\s*\} else \{\n\s*setError\(ui\(\(e as Error\)\.message\)\);/);
   assert.match(src, /return false;\n\s*\}\n\s*\};/, "a failed mutation never reports success");
 });
 
