@@ -5,7 +5,7 @@ import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-399. GET ?campusId=&weekStart=YYYY-MM-DD → per-teacher load for that week with its definition.
-// PATCH {campusId, staffId, capacity} → contracted periods per week (null = unknown), audited.
+// PATCH {campusId, staffId, capacity, expectedCapacity} → contracted periods per week (null = unknown), audited.
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
@@ -18,6 +18,6 @@ export async function PATCH(request: NextRequest) {
     const user = await requireAuthUser();
     const body = await parseBody(request, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
-    return Response.json({ success: true, data: await setCapacity(user, campusId, String(body.staffId ?? ""), body.capacity) });
+    return Response.json({ success: true, data: await setCapacity(user, campusId, String(body.staffId ?? ""), body.capacity, body.expectedCapacity) });
   } catch (error) { return errorResponse(error, "[staff/workload] PATCH failed"); }
 }
