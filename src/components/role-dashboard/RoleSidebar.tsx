@@ -122,6 +122,8 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
   const bottomItems = availableNavigation(allBottomItems.map(visible));
   const shortcuts = (mobileItems ? availableNavigation(mobileItems.map(visible)) : items.filter((entry): entry is RoleNavItem => !isNavGroup(entry))).slice(0, 4);
   const directory = searchNavigation<SidebarEntry>([...items, ...bottomItems], query);
+  // The Search records shortcut is part of the directory, so a query matching its label keeps it visible.
+  const recordMatch = recordSearch && (!query.trim() || t("Search records").toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   const tablet = useTabletRail();
   const rail = collapsed || tablet;
   const asideRef = useRef<HTMLElement>(null);
@@ -241,9 +243,9 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
           </FormField>
         </div>
         <nav aria-label={t("All navigation")} className="space-y-1 p-4">
-          {recordSearch && !query && <Link href="/search" className={cn(buttonVariants({ variant: "ghost" }), "w-full min-h-11 justify-start gap-3 px-3")} onClick={() => setMobileOpen(false)}><FileSearch aria-hidden="true" className="h-5 w-5 shrink-0" />{t("Search records")}</Link>}
+          {recordMatch && <Link href="/search" className={cn(buttonVariants({ variant: "ghost" }), "w-full min-h-11 justify-start gap-3 px-3")} onClick={() => setMobileOpen(false)}><FileSearch aria-hidden="true" className="h-5 w-5 shrink-0" />{t("Search records")}</Link>}
           {directory.map(entry => isNavGroup(entry) ? <section key={keyOf(entry)} className="space-y-1"><h3 className="px-3 pt-3 text-xs font-semibold text-ink-muted">{entry.label}</h3>{entry.children.map(item => <NavigationItem key={keyOf(item)} item={item} directory onNavigate={() => setMobileOpen(false)} />)}</section> : <NavigationItem key={keyOf(entry)} item={entry} directory onNavigate={() => setMobileOpen(false)} />)}
-          {!directory.length && <div className="space-y-3 p-3"><p role="status" className="text-sm text-ink-muted">{t("No available workspaces match your search.")}</p><Button variant="outline" onClick={() => { setQuery(""); searchRef.current?.focus(); }}>{t("Clear search")}</Button></div>}
+          {!directory.length && !recordMatch && <div className="space-y-3 p-3"><p role="status" className="text-sm text-ink-muted">{t("No available workspaces match your search.")}</p><Button variant="outline" onClick={() => { setQuery(""); searchRef.current?.focus(); }}>{t("Clear search")}</Button></div>}
         </nav>
         </div>
       </ModalSurface>}
