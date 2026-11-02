@@ -339,7 +339,7 @@ export async function PATCH(req: NextRequest) {
         id,
         ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? updates.campusId : user.campusId),
       },
-      select: { id: true, campusId: true, classId: true, status: true, emiratesId: true, nationality: true, regulatorId: true, categoryId: true },
+      select: { id: true, campusId: true, classId: true, status: true, archivedAt: true, emiratesId: true, nationality: true, regulatorId: true, categoryId: true },
     });
     if (!existing) throw new ApiError("Student not found", 404);
 
@@ -393,7 +393,18 @@ export async function PATCH(req: NextRequest) {
     // SKAI-164: "Not known" clears the blood type. It used to be ignored, so the profile's
     // save check saw the old value come back and reported an unconfirmed save.
     if (updates.bloodType !== undefined) data.bloodType = updates.bloodType || null;
-    if (updates.status && STUDENT_STATUSES.includes(updates.status)) data.status = updates.status;
+    if (updates.status && STUDENT_STATUSES.includes(updates.status)) {
+      // SKAI-1601: archiving here is the same lifecycle step as the bulk path: archivedAt and a reason are set,
+      // so the pupil leaves attendance and marks. Un-archiving must go through restore, which re-checks identifiers.
+      if (updates.status === "archived" && !existing.archivedAt) {
+        await assertPermission(user, "students", "delete");
+        data.archivedAt = new Date();
+        data.archiveReason = "Administrative archive";
+      } else if (existing.archivedAt && updates.status !== "archived") {
+        throw new ApiError("Restore this pupil first; restoring re-checks their roll and admission numbers.", 409);
+      }
+      data.status = updates.status;
+    }
     if (updates.dateOfBirth !== undefined) data.dateOfBirth = asDate(updates.dateOfBirth);
     let previousClassName = "";
     if (updates.classId && updates.classId !== existing.classId) {
