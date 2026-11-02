@@ -64,6 +64,7 @@ async function call(method: string, body: Record<string, unknown>) {
 export function PhoneCallLog({ hideHeader = false, command }: { hideHeader?: boolean; command?: PanelCommand | null } = {}) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
+  const [truncated, setTruncated] = useState(false);
   const [rows, setRows] = useState<Call[]>([]), [counts, setCounts] = useState({ open: 0, overdue: 0, unassigned: 0, mine: 0 });
   const [owners, setOwners] = useState<Owner[]>([]);
   const [view, setView] = useState("open"), [direction, setDirection] = useState(""), [q, setQ] = useState("");
@@ -83,7 +84,7 @@ export function PhoneCallLog({ hideHeader = false, command }: { hideHeader?: boo
       const response = await fetch(`/api/front-desk/phone-calls?${params}`, { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to the call log for this campus.") : json.error || ui("Calls could not be loaded."));
-      setRows(json.data); setCounts(json.counts);
+      setRows(json.data); setCounts(json.counts); setTruncated(Boolean(json.truncated));
       // Owner candidates come with the list (G40: campus admins incl. a single school's admin, and receptionists).
       if (Array.isArray(json.owners)) setOwners((json.owners as Owner[]).filter(person => !person.role || OWNER_ROLES.has(person.role)));
     } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("Calls could not be loaded.")); } finally { setLoading(false); }
@@ -94,6 +95,8 @@ export function PhoneCallLog({ hideHeader = false, command }: { hideHeader?: boo
     export: () => {
       if (loadError) return;
       if (!rows.length) { toast.info(ui("Nothing to export yet.")); return; }
+      // SKAI-1675: the list holds the newest 300; say so instead of exporting a silently partial file.
+      if (truncated) toast.warning(ui("Only the newest 300 records were exported. Narrow the filters to export older records."));
       downloadCSV(`phone-calls-${new Date().toISOString().slice(0, 10)}`, [
         ["Name", "Phone", "Direction", "Date", "Purpose", "Callback", "Callback due", "Callback owner", "Attempts"],
         ...rows.map(row => {

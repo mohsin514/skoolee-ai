@@ -55,6 +55,7 @@ async function call(method: string, body: Record<string, unknown>) {
 export function ComplaintsDesk({ hideHeader = false, command }: { hideHeader?: boolean; command?: PanelCommand | null } = {}) {
   const ui = useUiText();
   const { date: formatDate } = useLocaleFormat();
+  const [truncated, setTruncated] = useState(false);
   const [rows, setRows] = useState<Row[]>([]), [counts, setCounts] = useState({ active: 0, unassigned: 0, overdue: 0 }), [leader, setLeader] = useState(false);
   const [owners, setOwners] = useState<Owner[]>([]);
   const [status, setStatus] = useState("active"), [owner, setOwner] = useState(""), [q, setQ] = useState("");
@@ -75,7 +76,7 @@ export function ComplaintsDesk({ hideHeader = false, command }: { hideHeader?: b
       const response = await fetch(`/api/front-desk/complaints?${params}`, { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to complaints for this campus.") : json.error || ui("Complaints could not be loaded."));
-      setRows(json.data); setCounts(json.counts); setLeader(json.canSeeConfidential);
+      setRows(json.data); setCounts(json.counts); setLeader(json.canSeeConfidential); setTruncated(Boolean(json.truncated));
     } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("Complaints could not be loaded.")); } finally { setLoading(false); }
   }, [status, owner, q, ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
@@ -88,6 +89,8 @@ export function ComplaintsDesk({ hideHeader = false, command }: { hideHeader?: b
     export: () => {
       if (loadError) return;
       if (!rows.length) { toast.info(ui("Nothing to export yet.")); return; }
+      // SKAI-1675: the list holds the newest 300; say so instead of exporting a silently partial file.
+      if (truncated) toast.warning(ui("Only the newest 300 records were exported. Narrow the filters to export older records."));
       downloadCSV(`complaints-${todayText()}`, [
         ["Reference", "Category", "Complainant", "Confidential", "Status", "Received", "Owner", "Response due", "Past response date"],
         ...rows.map(row => [row.referenceCode, row.type, row.complainantName, row.confidential ? "Yes" : "No", STATUS_LABEL[row.status], row.date.slice(0, 10), row.owner?.fullName ?? "", row.dueDate?.slice(0, 10) ?? "", row.overdue ? "Yes" : "No"]),
