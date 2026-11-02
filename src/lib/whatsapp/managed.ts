@@ -67,6 +67,14 @@ export async function settle(schoolId: string, category: Category, price: NonNul
   await db.whatsAppUsageEntry.create({ data: { schoolId, kind: "MESSAGE", category, country: price.country, metaRateMicroUsd: BigInt(price.metaRate), marginMicroUsd: BigInt(price.margin), amountMicroUsd: BigInt(price.cost), providerMessageId: result.messageId ?? null } });
 }
 
+/** SKAI-988: below about a week of credit at the last 30 days' pace, or under USD 2, the school is warned. */
+export const LOW_CREDIT_MICRO_USD = 2_000_000;
+export const LOW_CREDIT_DAYS = 7;
+export function creditOutlook(balanceMicroUsd: number, spent30MicroUsd: number) {
+  const daysLeft = spent30MicroUsd > 0 ? Math.floor(balanceMicroUsd / (spent30MicroUsd / 30)) : null;
+  return { daysLeft, lowCredit: balanceMicroUsd > 0 && (balanceMicroUsd < LOW_CREDIT_MICRO_USD || (daysLeft !== null && daysLeft < LOW_CREDIT_DAYS)) };
+}
+
 export async function usage(user: AuthUser, db: Db = prisma) {
   requireWhatsAppAdmin(user);
   const [row, entries] = await Promise.all([
@@ -74,9 +82,11 @@ export async function usage(user: AuthUser, db: Db = prisma) {
     db.whatsAppUsageEntry.findMany({ where: { schoolId: user.schoolId }, orderBy: { createdAt: "desc" }, take: 50 }),
   ]);
   const since = new Date(Date.now() - 30 * 86_400_000), recent = entries.filter(e => e.kind === "MESSAGE" && e.createdAt >= since);
+  const spent30 = recent.reduce((sum, e) => sum + n(e.amountMicroUsd), 0);
   return {
+    ...(row?.enabled ? creditOutlook(n(row.balanceMicroUsd), spent30) : { daysLeft: null, lowCredit: false }),
     enabled: row?.enabled ?? false, provisioned: Boolean(row?.phoneNumberId), balanceMicroUsd: n(row?.balanceMicroUsd ?? 0),
-    last30Days: { messages: recent.length, spentMicroUsd: recent.reduce((sum, e) => sum + n(e.amountMicroUsd), 0) },
+    last30Days: { messages: recent.length, spentMicroUsd: spent30 },
     entries: entries.map(e => ({ id: e.id, kind: e.kind, category: e.category, country: e.country, metaRateMicroUsd: n(e.metaRateMicroUsd), marginMicroUsd: n(e.marginMicroUsd), amountMicroUsd: n(e.amountMicroUsd), reference: e.reference, createdAt: e.createdAt })),
   };
 }

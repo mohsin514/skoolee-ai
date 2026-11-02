@@ -28,6 +28,8 @@ export const whatsappUiEntries: readonly (readonly [string, string, string])[] =
   ["Skoolee-managed sending", "الإرسال المُدار من Skoolee", "Skoolee کے زیر انتظام ترسیل"],
   ["For schools that cannot complete Meta verification: Skoolee sends from a number reserved for your school. Each message is charged at Meta's rate plus a fixed fee from prepaid credit.", "للمدارس التي لا تستطيع إكمال التحقق من Meta: ترسل Skoolee من رقم مخصص لمدرستك. تُحتسب كل رسالة بسعر Meta مع رسوم ثابتة من الرصيد المدفوع مسبقًا.", "ان اسکولوں کے لیے جو Meta تصدیق مکمل نہیں کر سکتے: Skoolee آپ کے اسکول کے لیے مخصوص نمبر سے بھیجتا ہے۔ ہر پیغام Meta کے ریٹ اور ایک مقررہ فیس پر پیشگی کریڈٹ سے کٹتا ہے۔"],
   ["Credit is used up. WhatsApp messages are paused until Skoolee adds credit.", "نفد الرصيد. رسائل واتساب متوقفة حتى تضيف Skoolee رصيدًا.", "کریڈٹ ختم ہو گیا ہے۔ Skoolee کے کریڈٹ شامل کرنے تک واٹس ایپ پیغامات رکے ہوئے ہیں۔"],
+  ["Credit is running low: about {0} days left at the current pace. Ask Skoolee to add credit before messages pause.", "الرصيد ينخفض: يكفي نحو {0} يومًا بالمعدل الحالي. اطلب من Skoolee إضافة رصيد قبل توقف الرسائل.", "کریڈٹ کم ہو رہا ہے: موجودہ رفتار سے تقریباً {0} دن باقی ہیں۔ پیغامات رکنے سے پہلے Skoolee سے کریڈٹ شامل کرنے کو کہیں۔"],
+  ["Credit is running low. Ask Skoolee to add credit before messages pause.", "الرصيد ينخفض. اطلب من Skoolee إضافة رصيد قبل توقف الرسائل.", "کریڈٹ کم ہو رہا ہے۔ پیغامات رکنے سے پہلے Skoolee سے کریڈٹ شامل کرنے کو کہیں۔"],
   ["On", "مفعّل", "آن"],
   ["Off", "متوقف", "آف"],
   ["Credit left", "الرصيد المتبقي", "باقی کریڈٹ"],
