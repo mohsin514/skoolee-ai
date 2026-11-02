@@ -9,7 +9,7 @@ import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { resolveSourceActions } from "@/lib/notifications/actions";
 import { deliverNotification } from "@/lib/notifications/in-app";
-import { ASSESSMENT_ACTIONS, actOnAssessment, moveOnWaitlist, nextWaitlistRank, offerDeadline, offerLapsed } from "./assessments";
+import { ASSESSMENT_ACTIONS, actOnAssessment, assignWaitlistRank, moveOnWaitlist, offerDeadline, offerLapsed } from "./assessments";
 import { answerProblems, definitionProblems, foldName, identityKeysFor, identityValues, keepVisible, visibleDocuments, type Answers, type FormDefinition } from "./form-rules";
 
 // SKO-398: admission forms, family applications and the pipeline to enrollment.
@@ -393,7 +393,7 @@ export async function actOnApplication(user: AuthUser, campusId: string, body: R
     }
     // SKAI-1142: an offer may carry a respond-by date; joining the waitlist takes the next place, leaving it frees it.
     const offerExpiresAt = action === "offer" ? offerDeadline(body.offerExpiresAt) : application.offerExpiresAt;
-    const waitlistRank = transition.to === "WAITLISTED" ? await nextWaitlistRank(db, user.schoolId, campusId) : null;
+    const waitlistRank = transition.to === "WAITLISTED" ? await assignWaitlistRank(db, user.schoolId, campusId) : null;
     const updated = await db.admissionApplication.update({ where: { id }, data: { status: transition.to, intakeClassId, offerExpiresAt, waitlistRank, ...bump } });
     await db.admissionApplicationEvent.create({ data: { ...event, kind: action === "request-info" ? "INFO_REQUESTED" : action === "record-acceptance" ? "ACCEPTED" : action === "withdraw" ? "WITHDRAWN" : "STAGE", fromStatus: application.status, toStatus: transition.to, officeNote, familyMessage, detail: action === "offer" ? { intakeClassId, offerExpiresAt: offerExpiresAt?.toISOString() ?? null } : waitlistRank ? { waitlistRank } : undefined } });
     if (["REJECTED", "DECLINED", "WITHDRAWN"].includes(transition.to)) await resolveSourceActions({ schoolId: user.schoolId, sourceType: "application", sourceId: id, resolution: "CANCELLED" }, db);

@@ -13,6 +13,7 @@ function fakeDb() {
   const add = (data: Partial<Row>) => { const row = { id: `r${String(++seq).padStart(4, "0")}`, campusId: "campus-a", createdAt: new Date(Date.UTC(2026, 9, 1, 0, 0, seq)), oldValue: null, retentionUntil: null, ...data } as Row; rows.push(row); return row; };
   const matches = (where: { AND?: Array<Record<string, unknown>> }, row: Row) => (where.AND ?? []).every(c => (c.tableName === undefined || typeof c.tableName !== "string" || c.tableName === row.tableName) && (c.recordId === undefined || c.recordId === row.recordId));
   const db = {
+    $executeRaw: async () => 0,
     campus: { findMany: async () => [{ id: "campus-a", name: "A" }] },
     user: { findMany: async () => [{ id: "u1", fullName: "Admin One", role: "CAMPUS_ADMIN" }] },
     auditLog: {

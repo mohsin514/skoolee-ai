@@ -176,7 +176,9 @@ export async function answerOffer(user: AuthUser, body: Record<string, unknown>)
       await tx.activityPlace.update({ where: { id: place.id }, data: { status: "RESERVED", offerExpiresAt: null, version: { increment: 1 } } });
       await linkTrip(tx, activity, place.studentId);
       await syncRequirements(tx, activity);
-      return { status: "RESERVED", offered: [] as string[] };
+      // SKAI-1564: requirement sync may already confirm the place (free, no consent); report what was stored.
+      const after = await tx.activityPlace.findUniqueOrThrow({ where: { id: place.id }, select: { status: true } });
+      return { status: after.status, offered: [] as string[] };
     }
     await tx.activityPlace.update({ where: { id: place.id }, data: { status: "DECLINED", offerExpiresAt: null, version: { increment: 1 } } });
     return { status: "DECLINED", offered: await settle(tx, activity) };

@@ -95,6 +95,9 @@ export async function importTransfer(user: AuthUser, raw: unknown) {
     const student = await learner(tx, user, input.studentId);
     const hash = sourceHash(input.source);
     const key = { schoolId: user.schoolId, studentId: student.id, sourceInstitution: input.source.institution, sourceLearnerRef: input.source.learnerRef };
+    // SKAI-1558: imports for one learner and source are serialised, so two identical first imports
+    // cannot both try to create the case; the second finds it and replays instead of failing.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`learning-transfer:${key.schoolId}:${key.studentId}:${key.sourceInstitution}:${key.sourceLearnerRef}`}))`;
     const existing = await tx.learningTransferCase.findUnique({ where: { schoolId_studentId_sourceInstitution_sourceLearnerRef: key } });
     const data = { sourceCurriculumId: input.source.curriculumId, sourceCurriculumName: input.source.curriculumName, sourceVersion: input.source.version, sourceLanguage: input.source.language || null, sourceHash: hash, evidence: json({ objectives: input.source.objectives }) };
     if (existing?.sourceHash === hash) return { id: existing.id, replayed: true, stale: false };
@@ -228,6 +231,10 @@ export async function createBridge(user: AuthUser, raw: unknown) {
       notComparable: mappings.filter(m => m.decision === "NOT_COMPARABLE").map(m => m.sourceObjectiveId),
       gaps, createdAt: new Date().toISOString(), createdById: user.userId,
     };
+    // SKAI-1554: claim the case before any learning action exists. A concurrent second submission loses
+    // here with a 409 and creates nothing, instead of leaving an orphan draft action behind.
+    const claimed = await tx.learningTransferCase.updateMany({ where: { id: row.id, schoolId: user.schoolId, version: input.version }, data: { version: { increment: 1 } } });
+    if (claimed.count !== 1) throw new ApiError("This transfer changed. Reload it.", 409);
     return { row, bridge, title: record.title };
   });
   // The learning action is drafted through its own owner (SKO-425), which checks the learner and staff again.
@@ -241,7 +248,7 @@ export async function createBridge(user: AuthUser, raw: unknown) {
     reviewDate: input.reviewDate,
   });
   return schoolAiTransaction(user, async tx => {
-    const updated = await tx.learningTransferCase.updateMany({ where: { id: prepared.row.id, schoolId: user.schoolId, version: input.version }, data: { bridge: json({ ...prepared.bridge, planId: plan.id }), bridgePlanId: plan.id, status: "PLANNED", version: { increment: 1 } } });
+    const updated = await tx.learningTransferCase.updateMany({ where: { id: prepared.row.id, schoolId: user.schoolId, version: input.version + 1 }, data: { bridge: json({ ...prepared.bridge, planId: plan.id }), bridgePlanId: plan.id, status: "PLANNED", version: { increment: 1 } } });
     if (updated.count !== 1) throw new ApiError("This transfer changed while planning. Reload it.", 409);
     await writeAuditEvent(tx, user, { table: "learning_transfer_cases", recordId: prepared.row.id, action: "UPDATE", campusId: prepared.row.campusId, after: { bridgePlanId: plan.id, confirmed: prepared.bridge.confirmed.length, gaps: prepared.bridge.gaps.length } });
     return { planId: plan.id, confirmed: prepared.bridge.confirmed.length, gaps: prepared.bridge.gaps.length };
@@ -253,6 +260,9 @@ export async function exportTransfer(user: AuthUser, caseId: string) {
   // Principals keep export for academic oversight; a substituted foreign case ID then reaches the tenant-scoped 404.
   assertStaff(user, "read");
   return schoolAiTransaction(user, async tx => {
+    // SKAI-1582: exports of one case run one at a time, so each reads the downloads its predecessor appended
+    // and every successful download keeps its own audit entry and ordinal.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`learning-transfer-export:${user.schoolId}:${caseId}`}))`;
     const row = await loadCase(tx, user, caseId);
     requireRights(row, "objectives");
     const evidence = (row.evidence as Evidence).objectives;

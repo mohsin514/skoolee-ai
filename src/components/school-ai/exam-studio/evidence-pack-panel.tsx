@@ -25,11 +25,21 @@ export function EvidencePackPanel({ examId, language, canIncludeKeys }: { examId
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const when = (value: string) => new Intl.DateTimeFormat(language === "ar" ? "ar" : language === "ur" ? "ur-PK" : "en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
+  // SKAI-1570: a failed history read is its own state with a Retry, never "no packs"; a list already
+  // on screen stays when a refresh fails.
+  const [historyFailed, setHistoryFailed] = useState(false);
   const load = useCallback(async () => {
-    const response = await fetch(`/api/school-ai/exams/${encodeURIComponent(examId)}/evidence-pack`, { cache: "no-store" });
-    const payload = await response.json().catch(() => ({}));
-    // Without the export right the panel stays empty rather than failing the whole space.
-    setPacks(response.ok ? payload.packs as PackRow[] : []);
+    try {
+      const response = await fetch(`/api/school-ai/exams/${encodeURIComponent(examId)}/evidence-pack`, { cache: "no-store" });
+      const payload = await response.json().catch(() => null);
+      // Without the export right the panel stays empty rather than failing the whole space.
+      if (response.status === 403) { setPacks([]); setHistoryFailed(false); return; }
+      if (!response.ok || !Array.isArray(payload?.packs)) throw new Error("evidence history");
+      setPacks(payload.packs as PackRow[]);
+      setHistoryFailed(false);
+    } catch {
+      setHistoryFailed(true);
+    }
   }, [examId]);
   useEffect(() => { void load(); }, [load]);
 
@@ -69,7 +79,8 @@ export function EvidencePackPanel({ examId, language, canIncludeKeys }: { examId
       {message ? <TaskFeedback kind={message.tone} title={message.text} /> : null}
       <div className="space-y-2">
         <h4 className="text-sm font-semibold">{t.listTitle}</h4>
-        {packs === null ? null : packs.length === 0 ? <p className="text-sm text-ink-muted">{t.none}</p> : (
+        {historyFailed ? <p role="alert" className="flex flex-wrap items-center gap-2 text-sm text-status-error-text" data-evidence-history-failed><span>{t.historyFailed}</span><Button type="button" variant="outline" size="sm" onClick={() => void load()}>{t.retry}</Button></p> : null}
+        {packs === null ? null : packs.length === 0 && historyFailed ? null : packs.length === 0 ? <p className="text-sm text-ink-muted">{t.none}</p> : (
           <ul className="space-y-2">
             {packs.map(pack => (
               <li key={pack.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3 text-sm">

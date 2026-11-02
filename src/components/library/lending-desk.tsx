@@ -103,6 +103,12 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
       setError(ui("The action was saved, but the reader's loans could not be refreshed. Scan the card again."));
     }
   };
+  // SKAI-1597: after an issue or return the selected copy is re-read, so its badge matches the receipt.
+  // If it cannot be re-read it is cleared rather than left showing the old status.
+  const refreshCopy = async (barcode: string) => {
+    try { const found = await call(`/api/library/desk?code=${encodeURIComponent(barcode)}`); setCopy(found.kind === "MEMBER" ? null : found); }
+    catch { setCopy(null); }
+  };
   const money = (amount: number, currency: string) => `${number(amount)} ${currency}`;
   // "Renew" (PageHeader secondary, §4.4b): with a reader's loans on screen it moves to the first loan's Renew;
   // otherwise it asks for the reader's card first. Renewing stays one deliberate press per loan.
@@ -127,7 +133,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
         setCopy(found);
         if (member && found.copy.status !== "ON_LOAN") {
           const issued = await post("issue", { memberId: member.member.id, barcode: found.copy.barcode });
-          if (issued) { setMessage(ui("Copy {0} issued. Due {1}.", [found.copy.barcode, String(issued.dueAt).slice(0, 10)])); await refreshMember(); void load(); }
+          if (issued) { setMessage(ui("Copy {0} issued. Due {1}.", [found.copy.barcode, String(issued.dueAt).slice(0, 10)])); await Promise.all([refreshMember(), refreshCopy(found.copy.barcode)]); void load(); }
           else if (found.copy.status === "RESERVED_HOLD") setOverride(found.copy.barcode);
         }
       }
@@ -207,7 +213,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
           {override === copy.copy.barcode ? (
             <div className="flex flex-wrap items-end gap-2">
               <FormField name="desk-override" label={ui("Why release this held copy?")} className="min-w-0 flex-1 sm:min-w-[14rem]"><Input value={reasons.override ?? ""} onChange={(e) => setReasons((r) => ({ ...r, override: e.target.value }))} /></FormField>
-              <Button size="sm" variant="outline" onClick={async () => { const issued = await post("issue", { memberId: member!.member.id, barcode: copy.copy.barcode, overrideReason: reasons.override }); if (issued) { setOverride(null); setMessage(ui("Copy {0} issued. Due {1}.", [copy.copy.barcode, String(issued.dueAt).slice(0, 10)])); await refreshMember(); void load(); } }}>{ui("Issue anyway")}</Button>
+              <Button size="sm" variant="outline" onClick={async () => { const issued = await post("issue", { memberId: member!.member.id, barcode: copy.copy.barcode, overrideReason: reasons.override }); if (issued) { setOverride(null); setMessage(ui("Copy {0} issued. Due {1}.", [copy.copy.barcode, String(issued.dueAt).slice(0, 10)])); await Promise.all([refreshMember(), refreshCopy(copy.copy.barcode)]); void load(); } }}>{ui("Issue anyway")}</Button>
             </div>
           ) : null}
         </div>
@@ -215,7 +221,9 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
 
       <form className="sk-desk-section flex flex-wrap items-end gap-2" data-tour="library.lending.return" onSubmit={async (e) => {
         e.preventDefault();
-        const r = await post("return", { barcode: returnCode.trim(), condition });
+        const returned = returnCode.trim();
+        const r = await post("return", { barcode: returned, condition });
+        if (r && copy && copy.copy.barcode.toLowerCase() === returned.toLowerCase()) void refreshCopy(copy.copy.barcode);
         if (r) { setMessage(r.alreadyReturned ? ui("Already returned · no duplicate change") : ui(r.heldForNextReservation ? "Return recorded. The copy is now held for the next reservation." : "Return recorded; availability updated.") + (r.fine?.amount ? ` ${ui("Fine recorded: {0}", [money(r.fine.amount, r.fine.currency)])}` : "")); returnDraft.markSaved(); setReturnCode(""); setFine(null); void load(); if (member) await refreshMember(); }
         refocus();
       }}>

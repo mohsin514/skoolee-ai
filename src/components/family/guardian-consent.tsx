@@ -66,21 +66,28 @@ export function GuardianConsentForm({ studentId }: { studentId: string }) {
   const { data, failure, load } = useJson<View>(`/api/family/consent?studentId=${encodeURIComponent(studentId)}`);
   const [choices, setChoices] = useState<Partial<Record<Purpose, boolean>>>({});
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
+  // SKAI-1548: a synchronous guard, so a double click or key repeat cannot post twice before busy renders.
+  const inFlight = useRef(false);
 
   if (failure) return <ErrorState title={ui("Consent could not be loaded")} error={failure} onRetry={load} />;
   if (!data) return <SkeletonList rows={3} />;
   const complete = data.purposes.every(p => typeof choices[p] === "boolean");
 
   const submit = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true); setError("");
     try {
       const response = await fetch("/api/family/consent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId, choices, noticeVersion: data.noticeVersion, language }) });
       const json = await response.json().catch(() => ({}));
+      // SKAI-1551: the notice changed under the parent. Answers given to the old notice are dropped and
+      // the current notice is loaded, so the next save is against the version they can now read.
+      if (response.status === 409) { setChoices({}); await load(); }
       if (!response.ok || !json.success) throw new Error(json.error || "Your answer was not saved.");
       toast.success(ui("Consent saved. Receipt {0}", [json.data.receiptCode]));
       setChoices({});
       await load();
-    } catch (failed) { setError(ui(failed instanceof Error ? failed.message : "Your answer was not saved.")); } finally { setBusy(false); }
+    } catch (failed) { setError(ui(failed instanceof Error ? failed.message : "Your answer was not saved.")); } finally { inFlight.current = false; setBusy(false); }
   };
 
   return (
@@ -142,7 +149,7 @@ export function ConsentStatusPanel() {
   if (failure) return <ErrorState title={ui("Consent could not be loaded")} error={failure} onRetry={load} />;
   if (!data) return <SkeletonList rows={4} />;
   if (!data.length) return <EmptyState icon={ShieldCheck} title={ui("No active pupils")} description={ui("Consent appears here once pupils are enrolled and guardians are linked.")} />;
-  const counts = (["CURRENT", "PARTIAL", "MISSING"] as State[]).map(state => [state, data.filter(row => row.state === state).length] as const);
+  const counts = (["CURRENT", "PARTIAL", "OUTDATED", "MISSING"] as State[]).map(state => [state, data.filter(row => row.state === state).length] as const);
   return (
     <div className="space-y-4">
       {/* Each counter filters the table to that standing; pressing it again shows every pupil. */}

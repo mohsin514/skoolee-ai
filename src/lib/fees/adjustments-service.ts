@@ -49,10 +49,15 @@ export const SELF_APPROVAL_REASON_MIN = 10;
 /**
  * SKAI-1311: a reused idempotency key replays the earlier adjustment only when
  * the retry is the same request. A different invoice, payment, kind, amount or
- * reason must fail with 409, never return an unrelated adjustment as accepted.
+ * reason (category or text) must fail with 409, never return an unrelated adjustment as accepted.
  */
-function replayedAdjustment<T extends { kind: string; invoiceId: string; paymentId: string | null; amount: number; reasonCategory: string }>(previous: T, input: { kind: AdjustmentKind; invoiceId: string; paymentId?: string | null; amount: number; reasonCategory: string }) {
-  const same = previous.kind === input.kind && previous.invoiceId === input.invoiceId && (previous.paymentId ?? null) === (input.paymentId ?? null) && previous.amount === input.amount && previous.reasonCategory === input.reasonCategory;
+export function replayedAdjustment<T extends { kind: string; invoiceId: string; paymentId: string | null; amount: number; reasonCategory: string; reason: string; publicExplanation: string; privateNote: string | null }>(previous: T, input: { kind: AdjustmentKind; invoiceId: string; paymentId?: string | null; amount: number; reasonCategory: string; reason: string; publicExplanation: string; privateNote?: string | null }) {
+  // SKAI-1535: the audit reason and family-facing text are part of the request too,
+  // compared after the same normalisation they get when stored.
+  const same = previous.kind === input.kind && previous.invoiceId === input.invoiceId && (previous.paymentId ?? null) === (input.paymentId ?? null) && previous.amount === input.amount && previous.reasonCategory === input.reasonCategory
+    && previous.reason === input.reason.trim().slice(0, 2000)
+    && previous.publicExplanation === input.publicExplanation.trim().slice(0, 2000)
+    && (previous.privateNote ?? null) === (input.privateNote?.trim().slice(0, 4000) || null);
   if (!same) throw new ApiError("This idempotency key was already used for a different adjustment.", 409);
   return previous;
 }

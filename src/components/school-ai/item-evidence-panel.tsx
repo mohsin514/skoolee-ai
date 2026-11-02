@@ -37,7 +37,7 @@ const NONE_YET = "No reviewed answers yet.";
 async function call(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json" } }).catch(() => null);
   const json = await response?.json().catch(() => null);
-  if (!response?.ok) throw new Error(json?.error || "Request failed");
+  if (!response?.ok) throw Object.assign(new Error(json?.error || "Request failed"), { status: response?.status ?? 0 });
   return json.result;
 }
 
@@ -46,6 +46,9 @@ export function ItemEvidencePanel({ recordId, disabled }: { recordId: string; di
   const [data, setData] = useState<Evidence | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // SKAI-1578: a 409 means someone else changed this evidence; actions stay disabled until it is reloaded.
+  // ItemCards keep their keys across the reload, so a reviewer's unsaved reason and draft survive it.
+  const [stale, setStale] = useState(false);
   const load = useCallback(async () => {
     try { setData(await call(`/api/school-ai/item-evidence?recordId=${encodeURIComponent(recordId)}`)); setError(null); }
     catch (e) { setError(ui((e as Error).message)); }
@@ -53,8 +56,9 @@ export function ItemEvidencePanel({ recordId, disabled }: { recordId: string; di
   useEffect(() => { void load(); }, [load]);
   const post = async (body: object, success: string) => {
     try { const result = await call("/api/school-ai/item-evidence", { method: "POST", body: JSON.stringify(body) }); setNotice(ui(success)); setError(null); await load(); return result; }
-    catch (e) { setError(ui((e as Error).message)); setNotice(null); return null; }
+    catch (e) { setError(ui((e as Error).message)); setNotice(null); if ((e as { status?: number }).status === 409) setStale(true); return null; }
   };
+  const reload = async () => { await load(); setStale(false); setError(null); };
   if (!data) return <p role="status" className="text-sm text-ink-subtle">{error ?? ui("Loading question evidence…")}</p>;
   return (
     <section className="space-y-3" aria-labelledby="item-evidence-heading">
@@ -62,10 +66,11 @@ export function ItemEvidencePanel({ recordId, disabled }: { recordId: string; di
       <details className="text-sm text-ink-subtle"><summary className="cursor-pointer">{ui("How these numbers are calculated")}</summary><ul className="mt-2 list-disc space-y-1 ps-5">{data.rules.map((rule) => <li key={rule}>{ui(rule, [data.minSample])}</li>)}</ul></details>
       <div aria-live="polite">
         {error ? <p role="alert" className="text-sm font-semibold text-status-error-text">{error}</p> : null}
+        {stale ? <div className="flex flex-wrap items-center gap-2 text-sm" data-item-evidence-stale><span>{ui("This evidence changed. Reload it and review again before resubmitting.")}</span><Button type="button" size="sm" variant="outline" onClick={() => void reload()}>{ui("Reload current evidence")}</Button></div> : null}
         {notice ? <p role="status" className="text-sm font-semibold text-emerald-800">{notice}</p> : null}
       </div>
       {data.items.length === 0 ? <p className="text-sm">{ui("Question-level evidence is needed before suggesting skills to revisit.")}</p> : null}
-      {data.items.map((item) => <ItemCard key={item.key} item={item} recordId={recordId} disabled={disabled} post={post} />)}
+      {data.items.map((item) => <ItemCard key={item.key} item={item} recordId={recordId} disabled={disabled || stale} post={post} />)}
     </section>
   );
 }
@@ -74,6 +79,8 @@ function ItemCard({ item, recordId, disabled, post }: { item: Item; recordId: st
   const ui = useUiText();
   const { number } = useLocaleFormat();
   const [responses, setResponses] = useState<Response[] | null>(null);
+  // SKAI-1577: a failed answer load is its own state; loaded answers and citations stay on a refresh failure.
+  const [responsesFailed, setResponsesFailed] = useState(false);
   const [cited, setCited] = useState<string[]>([]);
   const [mode, setMode] = useState<"none" | "HYPOTHESIS" | "FLAG">("none");
   const [statement, setStatement] = useState("");
@@ -81,7 +88,12 @@ function ItemCard({ item, recordId, disabled, post }: { item: Item; recordId: st
   const [category, setCategory] = useState("AMBIGUOUS");
   const openFlag = item.decisions.some((d) => d.kind === "FLAG" && d.status === "OPEN");
   const loadResponses = async () => {
-    try { setResponses((await call(`/api/school-ai/item-evidence?recordId=${encodeURIComponent(recordId)}&item=${encodeURIComponent(item.key)}`)).responses); } catch { setResponses([]); }
+    try {
+      const rows = (await call(`/api/school-ai/item-evidence?recordId=${encodeURIComponent(recordId)}&item=${encodeURIComponent(item.key)}`))?.responses;
+      if (!Array.isArray(rows)) throw new Error("answers did not load");
+      setResponses(rows);
+      setResponsesFailed(false);
+    } catch { setResponsesFailed(true); }
   };
   const lost = (r: Response) => r.state === "INCORRECT" || r.state === "PARTIAL";
   const c = item.counts;
@@ -104,9 +116,11 @@ function ItemCard({ item, recordId, disabled, post }: { item: Item; recordId: st
         {item.decisions.map((d) => <DecisionRow key={d.id} decision={d} responses={responses} post={post} disabled={disabled} />)}
 
         <Button type="button" variant="outline" size="sm" onClick={loadResponses}>{ui("Show the answers")}</Button>
+        {responsesFailed ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-status-warning-text" data-item-answers-failed><span>{ui("Answers could not load. Learner responses may exist.")}</span><Button type="button" variant="outline" size="sm" onClick={loadResponses}>{ui("Try again")}</Button></div> : null}
         {responses ? (
           <fieldset className="space-y-1">
             <legend className="font-semibold">{ui("Answers (cite the ones your interpretation rests on)")}</legend>
+            {responses.length === 0 ? <p className="text-xs text-ink-subtle" data-item-answers-empty>{ui("No answers are recorded for this question.")}</p> : null}
             {responses.map((r) => (
               <label key={`${r.studentId}:${r.attemptId}`} className="flex min-h-9 items-center gap-2">
                 <Checkbox disabled={!lost(r) || !r.attemptId} checked={!!r.attemptId && cited.includes(r.attemptId)} onChange={(e) => setCited((cur) => e.target.checked ? [...cur, r.attemptId!] : cur.filter((id) => id !== r.attemptId))} />

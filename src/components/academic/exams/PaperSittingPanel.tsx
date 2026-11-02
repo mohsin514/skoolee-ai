@@ -52,6 +52,7 @@ export function PaperSittingPanel({ slotId }: { slotId: string }) {
     const response = await fetch(`/api/academic/paper-slots/${encodeURIComponent(slotId)}/sitting`, { cache: "no-store" }).catch(() => null);
     const payload = response ? await response.json().catch(() => ({})) : {};
     if (!response?.ok) { setNotice({ tone: "danger", text: typeof payload.error === "string" ? payload.error : t.failed }); return; }
+    if (!Array.isArray(payload.data?.sections)) { setNotice({ tone: "danger", text: t.failed }); return; }
     setView(payload.data);
     setAbsent(Object.fromEntries((payload.data as View).sections.map(section => [section.scheduleId, new Set(section.pupils.filter(pupil => pupil.attendance === "ABSENT").map(pupil => pupil.id))])));
   }, [slotId, t.failed]);
@@ -73,7 +74,11 @@ export function PaperSittingPanel({ slotId }: { slotId: string }) {
     await post("/api/academic/paper-scripts/scan", { code: value.trim() }, data => fillStudioCopy(t.scannedOne, [String(data.candidateNo ?? ""), String((data.student as { fullName?: string } | undefined)?.fullName ?? "")]));
   };
 
-  if (!view) return notice ? <Alert tone={notice.tone} compact>{notice.text}</Alert> : <TaskLoading label={t.sittingTitle} />;
+  // SKAI-1591: a failed first load keeps an in-place Retry, so the sitting can recover without closing the dialog.
+  if (!view) return notice ? <div className="space-y-3" data-paper-sitting-failed>
+    <Alert tone={notice.tone} compact live="assertive">{notice.text}</Alert>
+    <Button type="button" variant="outline" size="sm" onClick={() => { setNotice(null); void load(); }}>{t.retry}</Button>
+  </div> : <TaskLoading label={t.sittingTitle} />;
   return <div className="min-w-0 space-y-6" data-paper-sitting>
     {notice ? <Alert tone={notice.tone} compact live="polite">{notice.text}</Alert> : null}
     <section className="space-y-4 rounded-2xl border border-border-subtle bg-surface-subtle p-4 sm:p-5">
