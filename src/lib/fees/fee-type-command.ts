@@ -18,14 +18,30 @@ export async function createFeeType(user: AuthUser, body: Record<string, unknown
 
   if (!name || !code) throw new ApiError("name and code are required", 400);
 
-  const existing = await prisma.feeType.findUnique({ where: { campusId_code: { campusId, code } } });
-  if (existing) throw new ApiError("A fee type with this code already exists", 409);
+  // Normalised like the code: a blank description is no description, so "" and a missing value are the same request.
+  const wanted = { name, description: String(body.description ?? "").trim() || null };
+  const replayOrConflict = async () => {
+    const existing = await prisma.feeType.findUnique({ where: { campusId_code: { campusId, code } } });
+    if (!existing) return null;
+    // SKAI-1632: an identical request replays the committed row; a different payload is a controlled conflict.
+    if (existing.name === wanted.name && existing.description === wanted.description) return existing;
+    throw new ApiError("A fee type with this code already exists with different details", 409);
+  };
 
-  return prisma.$transaction(async (tx) => {
-    const created = await tx.feeType.create({
-      data: { campusId, name, code, description: (body.description as string | null | undefined) ?? null },
+  const existing = await replayOrConflict();
+  if (existing) return existing;
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const created = await tx.feeType.create({ data: { campusId, ...wanted, code } });
+      await writeAuditEvent(tx, user, { table: "fee_types", recordId: created.id, action: "CREATE", campusId });
+      return created;
     });
-    await writeAuditEvent(tx, user, { table: "fee_types", recordId: created.id, action: "CREATE", campusId });
-    return created;
-  });
+  } catch (error) {
+    // A concurrent identical create committed first: reload it instead of exposing the unique-constraint failure.
+    if ((error as { code?: string }).code !== "P2002") throw error;
+    const raced = await replayOrConflict();
+    if (raced) return raced;
+    throw error;
+  }
 }
