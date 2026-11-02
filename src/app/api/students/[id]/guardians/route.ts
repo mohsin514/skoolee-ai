@@ -45,6 +45,17 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 
+const EVENT_PAGE = 25;
+const EVENT_ORDER = [{ createdAt: "desc" as const }, { id: "desc" as const }];
+/** One page of access history: rows were read one past the page so the next cursor is known without a count. */
+function eventPage<T extends { id: string; actor: { fullName: string } }>(rows: T[]) {
+  const page = rows.slice(0, EVENT_PAGE);
+  return {
+    events: page.map(({ actor, ...event }) => ({ ...event, actorName: actor.fullName })),
+    eventsCursor: rows.length > EVENT_PAGE ? page[page.length - 1].id : null,
+  };
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAuthUser();
@@ -57,10 +68,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
     if (!student) throw new ApiError("Student not found", 404);
 
+    // SKAI-189: older access history pages by event cursor, newest first, within this child's relationship.
+    const historyFor = req.nextUrl.searchParams.get("events");
+    if (historyFor) {
+      const relation = await prisma.guardianRelationship.findFirst({ where: { id: historyFor, schoolId: user.schoolId, studentId }, select: { id: true } });
+      if (!relation) throw new ApiError("Guardian relationship not found", 404);
+      const before = req.nextUrl.searchParams.get("before");
+      const rows = await prisma.guardianAccessEvent.findMany({
+        where: { schoolId: user.schoolId, relationshipId: relation.id },
+        orderBy: EVENT_ORDER, take: EVENT_PAGE + 1,
+        ...(before ? { cursor: { id: before }, skip: 1 } : {}),
+        include: { actor: { select: { fullName: true } } },
+      });
+      return Response.json({ success: true, ...eventPage(rows) }, { headers: { "Cache-Control": "private, no-store" } });
+    }
+
     const [relationships, reviewQueue] = await Promise.all([
       prisma.guardianRelationship.findMany({
         where: { schoolId: user.schoolId, studentId },
-        include: { accessVersions: { orderBy: { effectiveFrom: "desc" } }, accessEvents: { orderBy: { createdAt: "desc" }, take: 25, include: { actor: { select: { fullName: true } } } } },
+        include: { accessVersions: { orderBy: { effectiveFrom: "desc" } }, accessEvents: { orderBy: EVENT_ORDER, take: EVENT_PAGE + 1, include: { actor: { select: { fullName: true } } } } },
         orderBy: { createdAt: "desc" },
       }),
       req.nextUrl.searchParams.get("review") === "1" ? prisma.guardianReviewQueue.findMany({
@@ -77,7 +103,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         permissions: relation.status === "ACTIVE" || relation.status === "INVITED"
           ? parseGuardianPermissions(activePermissionVersion(accessVersions, now)?.permissions ?? EMPTY_GUARDIAN_PERMISSIONS)
           : EMPTY_GUARDIAN_PERMISSIONS,
-        events: accessEvents.map(({ actor, ...event }) => ({ ...event, actorName: actor.fullName })),
+        ...eventPage(accessEvents),
       })),
       reviewQueue,
     }, { headers: { "Cache-Control": "private, no-store" } });
