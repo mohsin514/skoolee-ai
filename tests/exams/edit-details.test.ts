@@ -20,6 +20,7 @@ function load(opts: { role?: string; exam?: Partial<Exam> } = {}) {
   const exam: Exam = { id: "e-1", schoolId: "school-a", campusId: "campus-a", classId: "c-1", title: "Mid", term: "Term 1", examType: "MID_TERM", isLocked: false, status: "ACTIVE", ...opts.exam };
   const audits: any[] = [];
   const tx = {
+    $executeRaw: async () => 1,
     exam: {
       findFirst: async ({ where }: any) => (where.id === exam.id && where.schoolId === exam.schoolId ? { ...exam } : null),
       updateMany: async ({ where, data }: any) => {
@@ -48,6 +49,9 @@ function load(opts: { role?: string; exam?: Partial<Exam> } = {}) {
     "@/lib/validators/schemas": { examSchema: {}, examStatusSchema: { safeParse: () => ({ success: false, error: { flatten: () => ({ fieldErrors: {} }) } }) } },
     "@/lib/exams/create-command": {},
     "@/lib/exams/edit-details": editDetails,
+    "@/lib/api/validate": { parseBody: async (req: { json: () => Promise<unknown> }) => req.json() },
+    "@/lib/validators/route-bodies": { jsonObjectBody: {} },
+    "@/lib/academic/model-service": { resolveAcademicModelVersionForTerm: async () => "amv-1" },
     "@/lib/academic/exam-permissions": {
       canManageExamType: (role: string, type: string) => role !== "TEACHER" || type === "QUIZ" || type === "CLASS_TEST",
       isOfficeRole: () => true,
