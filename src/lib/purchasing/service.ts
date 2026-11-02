@@ -251,6 +251,13 @@ export async function returnToSupplier(user: AuthUser, id: string, raw: unknown)
       if (!taken.count) throw new ApiError("Insufficient stock quantity", 409);
       await tx.itemTransaction.create({ data: { schoolId: user.schoolId, campusId: r.campusId, itemId: line.itemId, storeId: input.storeId, kind: "ISSUE", quantity: input.quantity, unitPrice: line.unitPrice, supplierId: r.supplierId, note: `${r.poNumber} returned to supplier: ${input.reason}`, idempotencyKey: input.idempotencyKey } });
     }
+    // SKAI-1674: returned asset-tracked units leave the active register (newest tags first) with a return entry,
+    // so a later replacement receipt adds exactly the units that are physically at school.
+    if (line.asset) {
+      const active = await tx.schoolAsset.findMany({ where: { schoolId: user.schoolId, requestId: id, status: "ACTIVE", tag: { startsWith: `${r.poNumber}-L${input.line + 1}-` } }, orderBy: { tag: "desc" }, take: input.quantity });
+      if (active.length < input.quantity) throw new ApiError("Some returned units are no longer active in the asset register. Update those assets first.", 409);
+      for (const asset of active) await tx.schoolAsset.update({ where: { id: asset.id }, data: { status: "RETURNED", history: push(asset.history, { action: "RETURNED_TO_SUPPLIER", by: user.userId, reason: input.reason }) } });
+    }
     received[input.line] -= input.quantity;
     const done = await tx.purchaseRequest.updateMany({ where: { id, version: r.version }, data: { received, status: "PARTIALLY_RECEIVED", version: { increment: 1 }, history: push(r.history, { by: user.userId, action: "RETURNED_TO_SUPPLIER", line: input.line, quantity: input.quantity, reason: input.reason, idempotencyKey: input.idempotencyKey }) } });
     if (!done.count) throw new ApiError("Another change was saved first.", 409);
