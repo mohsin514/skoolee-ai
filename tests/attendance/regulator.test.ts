@@ -27,16 +27,15 @@ mock.module(src("lib/api/scope.ts"), {
     },
   },
 });
-mock.module(src("lib/db/prisma.ts"), {
-  namedExports: {
-    prisma: {
-      school: {
-        findUnique: async () => state.school,
-        update: async (args: { where: unknown; data: Record<string, unknown> }) => { state.updates.push(args); return {}; },
-      },
-    },
+const prismaMock = {
+  school: {
+    findUnique: async () => state.school,
+    update: async (args: { where: unknown; data: Record<string, unknown> }) => { state.updates.push(args); return {}; },
   },
-});
+  // SKAI-1629 wraps the update and its audit entries in one transaction.
+  $transaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn(prismaMock),
+};
+mock.module(src("lib/db/prisma.ts"), { namedExports: { prisma: prismaMock } });
 mock.module(src("lib/audit.ts"), { namedExports: { logSuperAdminAction: async (entry: Record<string, unknown>) => { state.audits.push(entry); } } });
 
 const patch = (body: unknown) => new Request("http://local/api/owner/schools/school-a", { method: "PATCH", body: JSON.stringify(body) }) as never;
