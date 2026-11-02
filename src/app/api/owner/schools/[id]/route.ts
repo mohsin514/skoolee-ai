@@ -106,11 +106,6 @@ export async function PATCH(
       throw new ApiError("No valid fields to update (plan, status, dataRegion or attendanceRegulator)", 400);
     }
 
-    await prisma.school.update({
-      where: { id },
-      data: updateData,
-    });
-
     const changedFields: string[] = [];
     if (plan && plan !== school.plan) changedFields.push("plan");
     if (status && status !== school.status) changedFields.push("status");
@@ -124,8 +119,11 @@ export async function PATCH(
       dataRegion: "data_region_changed",
       attendanceRegulator: "attendance_regulator_changed",
     };
-    for (const field of changedFields) {
-      await logSuperAdminAction({
+    // SKAI-1629: the change and its owner audit entries commit together; a failed audit rolls the change back.
+    await prisma.$transaction(async (tx) => {
+      await tx.school.update({ where: { id }, data: updateData });
+      for (const field of changedFields) {
+        await logSuperAdminAction({
         userId: user.userId,
         action: auditActions[field],
         targetType: "school",
@@ -133,8 +131,9 @@ export async function PATCH(
         targetName: school.name,
         oldValues: { plan: school.plan, status: school.status, dataRegion: school.dataRegion, attendanceRegulator: school.attendanceRegulator },
         newValues: { plan: plan || school.plan, status: status || school.status, dataRegion: updateData.dataRegion || school.dataRegion, attendanceRegulator: updateData.attendanceRegulator || school.attendanceRegulator },
-      }).catch(error => console.error("[owner/schools] audit write failed", error));
-    }
+        }, tx);
+      }
+    });
 
     return Response.json({
       success: true,
