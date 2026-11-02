@@ -19,6 +19,7 @@ import { CycleBadge } from "@/components/academic-year/CycleBadge";
 import { ScopeBadge, useShellSession } from "./ScopeBadge";
 import { HelpMenu } from "./HelpMenu";
 import { useNotifications } from "@/hooks/use-notifications";
+import { NOTIFICATION_FIXED_TITLE_KINDS } from "@/lib/notifications/links";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { playNotificationBell } from "@/lib/sounds/bell";
 import { Button } from "@/components/ui/button";
@@ -139,7 +140,9 @@ export function RoleHeader({
     const newest = fresh.find((item) => !item.isRead && (item as { category?: string }).category === "ACTION");
     if (!newest || touring || isModalOpen()) return;
     playNotificationBell();
-    setArrival(t("New notification: {0}", [newest.title]));
+    // Fixed interface titles are stored in English; translate them like the notification center does.
+    const title = newest.type && NOTIFICATION_FIXED_TITLE_KINDS.has(newest.type) ? t(newest.title) : newest.title;
+    setArrival(t("New notification: {0}", [title]));
     // Reads the translator at the moment an item arrives; a language switch should not re-announce it.
   }, [liveNotifications, touring]);
 
