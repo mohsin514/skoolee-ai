@@ -5,6 +5,7 @@ import { reviewQueue, approveVersions, reviewExam, publishExam } from "@/lib/aca
 import { assertModuleRead, assertPermission, canLeadAcademics } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { teachesExamClass } from "@/lib/academic/teaches-exam-class";
 import { getAuthUser } from "@/lib/auth";
 import { isCampusAdminRole } from "@/lib/roles";
 import { generateReportCardPdf } from "@/lib/academic/pdf";
@@ -83,6 +84,10 @@ export async function GET(req: NextRequest) {
     await assertModuleRead(user, "reports");
     await assertSchoolOperational(user.schoolId);
     const exam = await getScopedExam(examId, user);
+    // SKAI-1622: a teacher reads report cards (and guardian contacts) only for a class they teach.
+    if (user.role === "TEACHER" && !teachesExamClass(exam.class, user.userId)) {
+      return Response.json({ error: "You are not assigned to this class." }, { status: 403 });
+    }
 
     const [reportCards, analytics] = await Promise.all([
       prisma.reportCard.findMany({
@@ -107,7 +112,7 @@ export async function GET(req: NextRequest) {
     const editable = Boolean((await loadPermissionMap(user.schoolId, user.role)).get("reports")?.canEdit);
     // canReview = approve/review/publish (academic lead only); canDeliver = PDFs and queued sends (office).
     const leads = canManageReports(user.role) && await canLeadAcademics(user, exam.campusId);
-    return Response.json({ success: true, exam, canEdit: editable && (canManageReports(user.role) || user.role === "TEACHER" && (exam.class.classTeacherId === user.userId || exam.class.subjects.some(s => s.teacherId === user.userId))), reportCards: reportCards.map(r => ({ ...r, review: versions.find(v => v.reportCardId === r.id) })), analytics, canReview: leads && editable, canDeliver: canManageReports(user.role) && editable });
+    return Response.json({ success: true, exam, canEdit: editable && (canManageReports(user.role) || user.role === "TEACHER" && teachesExamClass(exam.class, user.userId)), reportCards: reportCards.map(r => ({ ...r, review: versions.find(v => v.reportCardId === r.id) })), analytics, canReview: leads && editable, canDeliver: canManageReports(user.role) && editable });
   } catch (error) {
     const status = (error as Error & { status?: number }).status || 500;
     return Response.json({ error: error instanceof Error ? error.message : "Failed to load reports" }, { status });

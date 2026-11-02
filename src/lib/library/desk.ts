@@ -82,6 +82,8 @@ export async function addCopies(user: AuthUser, raw: unknown) {
   const input = parse(z.object({ bookId: text(1, 120), barcodes: z.array(barcode).min(1).max(100) }).strict(), raw), campusId = campusOf(user);
   if (new Set(input.barcodes).size !== input.barcodes.length) throw new ApiError("Each barcode can be used once.", 400);
   return prisma.$transaction(async (tx) => {
+    // SKAI-1562: lock the title so two registrations cannot count the same unbarcoded copies twice.
+    await tx.$queryRaw`SELECT id FROM books WHERE id = ${input.bookId} AND school_id = ${user.schoolId} AND campus_id = ${campusId} FOR UPDATE`;
     const book = await tx.book.findFirst({ where: { id: input.bookId, schoolId: user.schoolId, campusId } });
     if (!book) throw new ApiError("Book not found", 404);
     const taken = await tx.bookCopy.findMany({ where: { campusId, barcode: { in: input.barcodes } }, select: { barcode: true } });
@@ -89,7 +91,10 @@ export async function addCopies(user: AuthUser, raw: unknown) {
     const existing = await tx.bookCopy.count({ where: { bookId: book.id } });
     await tx.bookCopy.createMany({ data: input.barcodes.map((code) => ({ schoolId: user.schoolId, campusId, bookId: book.id, barcode: code })) });
     // The title counters stay the single source the older screens read.
-    const add = existing === 0 ? Math.max(0, input.barcodes.length - book.copiesTotal) : input.barcodes.length;
+    // Counted copies that have no barcode yet absorb new barcodes first, whatever the batch size;
+    // only barcodes beyond them are new stock.
+    const unbarcoded = Math.max(0, book.copiesTotal - existing);
+    const add = Math.max(0, input.barcodes.length - unbarcoded);
     await tx.book.update({ where: { id: book.id }, data: { copiesTotal: { increment: add }, copiesAvailable: { increment: add } } });
     return tx.bookCopy.findMany({ where: { bookId: book.id }, orderBy: { barcode: "asc" } });
   });

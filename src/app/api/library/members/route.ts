@@ -24,7 +24,8 @@ export async function GET(req: NextRequest) {
       where: { campusId },
       include: {
         user: { select: { fullName: true, role: true } },
-        _count: { select: { issues: true } },
+        // SKAI-1625: Active Issues means open loans, the same rule as the lending desk.
+        _count: { select: { issues: { where: { returnedAt: null } } } },
       },
       orderBy: { createdAt: "desc" },
     });

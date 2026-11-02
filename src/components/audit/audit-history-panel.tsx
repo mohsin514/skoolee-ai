@@ -34,8 +34,8 @@ const CATEGORY_LABEL: Record<AuditCategory, string> = {
   student: "Students", class: "Classes", subject: "Subjects", invitation: "Invitations", marks: "Marks",
   integrity: "Exam observation reviews", fees: "Fees and payments", exports: "History exports",
 };
-const ACTION_LABEL: Record<string, string> = { CREATE: "Created", UPDATE: "Updated", DELETE: "Deleted" };
-const FIELD_LABEL: Record<string, string> = { version: "Version", reviewVersion: "Reviewed version", status: "Status", decision: "Review decision", isActive: "Active", published: "Published" };
+const ACTION_LABEL: Record<string, string> = { CREATE: "Created", UPDATE: "Updated", DELETE: "Deleted", GRANT: "Consent given", REVOKE: "Consent withdrawn" };
+const FIELD_LABEL: Record<string, string> = { version: "Version", reviewVersion: "Reviewed version", status: "Status", decision: "Review decision", isActive: "Active", published: "Published", consent: "Consent" };
 const ERROR_TEXT = {
   failure: "History could not be loaded. Refresh to retrieve the current authorized records.",
   denied: "History access changed. Protected entries have been cleared.",
