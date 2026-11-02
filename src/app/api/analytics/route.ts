@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db/prisma";
 import { assertModuleRead, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { gradeForPercentage } from "@/lib/academic/report-cards";
+import { groupedRuleRate } from "@/lib/attendance";
+import { attendanceRuleFor } from "@/lib/attendance/rule";
 
 export async function GET(req: Request) {
   try {
@@ -65,7 +67,8 @@ export async function GET(req: Request) {
         by: ["status"],
         where: {
           ...(campusId ? { campusId } : { campus: { schoolId: user.schoolId } }),
-          date: { gte: new Date(academicYear, 0, 1) },
+          // SKAI-1607: the selected year is closed at both ends, like the exam and report-card filters.
+          date: { gte: new Date(Date.UTC(academicYear, 0, 1)), lt: new Date(Date.UTC(academicYear + 1, 0, 1)) },
         },
         _count: { _all: true },
       }),
@@ -89,8 +92,10 @@ export async function GET(req: Request) {
     }
 
     const classPerfMap = new Map<string, { total: number; count: number }>();
+    // SKAI-1609: a report belongs to the class whose exam produced it, not the pupil's class today.
+    const examClass = new Map(exams.map((e) => [e.id, e.classId]));
     for (const r of reportCards) {
-      const classId = r.student.classId;
+      const classId = examClass.get(r.examId) ?? r.student.classId;
       const className = classMap.get(classId) || "Unknown";
       const prev = classPerfMap.get(className) || { total: 0, count: 0 };
       prev.total += r.percentage;
@@ -172,9 +177,8 @@ export async function GET(req: Request) {
           : null,
       }));
 
-    const totalAttendance = attendance.reduce((s, a) => s + a._count._all, 0);
-    const presentCount = attendance.find((a) => a.status === "PRESENT")?._count._all || 0;
-    const attendanceRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : null;
+    // SKAI-1604: the dashboard rate follows the school's published counting rule, like monthly and summary reports.
+    const attendanceRate = groupedRuleRate(attendance.map((a) => ({ status: String(a.status), count: a._count._all })), await attendanceRuleFor(user.schoolId));
 
     return Response.json({
       success: true,

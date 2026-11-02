@@ -45,6 +45,8 @@ export async function publishRule(user: AuthUser, body: Record<string, unknown>)
   if (!attended.includes("PRESENT") || attended.includes("ABSENT") || excluded.includes("ABSENT") || excluded.includes("PRESENT")) throw new ApiError("Present always counts as attended and absent always counts against attendance.", 400);
   const note = text(body.note, "Reason for the change", 5, 500);
   return schoolAiTransaction(user, async db => {
+    // SKAI-1571: serialize publications per school so two leaders never compute the same next version.
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`attendance-rule:${user.schoolId}`}))`;
     const latest = await db.attendanceRuleVersion.findFirst({ where: { schoolId: user.schoolId }, orderBy: { version: "desc" } });
     const current = latest ?? DEFAULT_ATTENDANCE_RULE;
     if (JSON.stringify([...current.attended].sort()) === JSON.stringify([...attended].sort()) && JSON.stringify([...current.excluded].sort()) === JSON.stringify([...excluded].sort())) throw new ApiError("This is already the rule in force.", 409);

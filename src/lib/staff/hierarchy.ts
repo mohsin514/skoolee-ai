@@ -521,6 +521,9 @@ export async function setStaffPosition(opts: {
           data: { userId, departmentId: after.departmentId, role: "MEMBER", isPrimary: true, startedAt: effectiveFrom },
         });
       }
+    } else if (has("primaryDepartmentId")) {
+      // SKAI-1567: "No department" clears the primary designation too; the membership itself stays.
+      await tx.departmentMember.updateMany({ where: { userId, isPrimary: true, endedAt: null }, data: { isPrimary: false } });
     }
 
     // Someone who has left holds no posts and no reports' lines should point

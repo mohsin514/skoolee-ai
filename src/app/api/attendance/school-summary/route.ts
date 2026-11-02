@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { ruleRate } from "@/lib/attendance";
 import { attendanceRuleFor } from "@/lib/attendance/rule";
+import { dayKey, expectedDays, unmarkedPupilDays } from "@/lib/attendance/period-unmarked";
 
 export async function GET(req: NextRequest) {
   try {
@@ -50,6 +51,9 @@ export async function GET(req: NextRequest) {
     const leave = records.filter(r => r.status === "LEAVE").length;
 
     const rule = await attendanceRuleFor(user.schoolId);
+    const keyed = records.map(r => ({ ...r, day: dayKey(r.date) }));
+    // SKAI-1537: unmarked counts pupil-days over the expected school days, in the same unit as marked.
+    const days = expectedDays(startDate, endDate, keyed.map(r => r.day));
     const classBreakdown = classCounts.map(cls => {
       const classRecords = records.filter(r => r.classId === cls.id);
       return {
@@ -60,7 +64,7 @@ export async function GET(req: NextRequest) {
         absent: classRecords.filter(r => r.status === "ABSENT").length,
         leave: classRecords.filter(r => r.status === "LEAVE").length,
         marked: classRecords.length,
-        unmarked: Math.max(0, cls._count.students - new Set(classRecords.map(r => r.studentId)).size),
+        unmarked: unmarkedPupilDays(cls._count.students, days, keyed.filter(r => r.classId === cls.id).map(r => ({ studentId: r.studentId, date: r.day }))),
         percentage: ruleRate(classRecords, rule),
       };
     });
@@ -77,6 +81,7 @@ export async function GET(req: NextRequest) {
       totalRecords: records.length,
       attendanceRate,
       daysTracked: uniqueDates.size,
+      schoolDays: days.size,
       classBreakdown,
     });
   } catch (error) {

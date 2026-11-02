@@ -22,6 +22,7 @@ const matches = (row: Record<string, unknown>, where: Record<string, unknown>) =
 });
 const consentTable = {
   findMany: async ({ where }: { where: Record<string, unknown> }) => { h.wheres.push(where); return h.consents.filter(r => matches(r, where)).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); },
+  findFirst: async ({ where }: { where: Record<string, unknown> }) => h.consents.filter(r => matches(r, where)).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null,
   create: async ({ data }: { data: Row }) => { const row = { ...data, id: `c${h.consents.length + 1}`, createdAt: new Date(Date.now() + h.consents.length) }; h.consents.push(row); return row; },
 };
 const prisma = {
@@ -34,7 +35,7 @@ const prisma = {
   campus: { findFirst: async ({ where }: { where: { id: string; schoolId: string } }) => h.campuses.find(c => c.id === where.id && c.schoolId === where.schoolId) ?? null },
 };
 mock.module(src("lib/db/prisma.ts"), { namedExports: { prisma } });
-mock.module(src("lib/school-ai/transaction.ts"), { namedExports: { schoolAiTransaction: async (_u: unknown, work: (tx: unknown) => unknown) => work({ guardianConsent: consentTable, auditLog: { create: async ({ data }: { data: Record<string, unknown> }) => { h.audits.push(data); } } }) } });
+mock.module(src("lib/school-ai/transaction.ts"), { namedExports: { schoolAiTransaction: async (_u: unknown, work: (tx: unknown) => unknown) => work({ $executeRaw: async () => 0, guardianConsent: consentTable, auditLog: { create: async ({ data }: { data: Record<string, unknown> }) => { h.audits.push(data); } } }) } });
 
 const svc = () => import("../../src/lib/family/guardian-consent");
 const user = (role: string, schoolId = "school-a", userId = "parent-1", campusId: string | null = "campus-a") => ({ userId, role, schoolId, campusId, email: "x@example.test" }) as never;

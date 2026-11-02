@@ -28,7 +28,7 @@ interface ComposerProps {
   onClearReply: () => void;
   editing: ChatMessageView | null;
   onClearEditing: () => void;
-  onSubmitEdit: (body: string) => Promise<void>;
+  onSubmitEdit: (body: string) => Promise<boolean>;
 }
 
 interface PendingFile {
@@ -169,7 +169,8 @@ export function Composer({
     setIsSending(true);
     try {
       if (editing) {
-        await onSubmitEdit(body);
+        // SKAI-1583: an unsaved edit keeps its text in the composer for a retry.
+        if (!(await onSubmitEdit(body))) return;
       } else {
         // A failed send stays in the thread with its own Retry/Discard, so the composer can clear.
         await sendMessage({ body, replyToId: replyTo?.id, attachments, urgent: canMarkUrgent && urgent });
@@ -342,7 +343,8 @@ export function Composer({
           onKeyDown={(e) => {
             // Enter sends; Shift+Enter starts a new line. The send button is
             // always shown because on touch keyboards Enter is a newline.
-            if (e.key === "Enter" && !e.shiftKey) {
+            // SKAI-1605: Enter during IME composition (Urdu phonetic, mobile predictive) commits the candidate only.
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) {
               e.preventDefault();
               submit();
             }
