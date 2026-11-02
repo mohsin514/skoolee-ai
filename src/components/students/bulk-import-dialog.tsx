@@ -44,6 +44,9 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
   const [analysis, setAnalysis] = useState<ReversalAnalysis | null>(null);
   const [confirmReverse, setConfirmReverse] = useState(false);
   const [unfinished, setUnfinished] = useState<Batch | null>(null);
+  // SKAI-1636: a failed lookup is its own state, never "no unfinished rehearsal".
+  const [recoveryFailed, setRecoveryFailed] = useState(false);
+  const [recoveryAttempt, setRecoveryAttempt] = useState(0);
   const rows = batch?.rows || [];
   const committed = !!batch && ["COMMITTED", "PARTIAL", "REVERSED"].includes(batch.state);
   const batchUrl = (id: string) => "/api/import-batches/" + id + (batch?.campusId ? "?campusId=" + encodeURIComponent(batch.campusId) : "");
@@ -52,12 +55,16 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
   useEffect(() => {
     if (!open || batch) return;
     let cancelled = false;
-    fetch("/api/import-batches?kind=STUDENT_ROSTER").then((response) => response.ok ? response.json() : null).then((result) => {
-      const staged = Array.isArray(result?.data) ? (result.data as Batch[]).find((item) => item.state === "STAGED") : undefined;
-      if (!cancelled) setUnfinished(staged || null);
-    }).catch(() => undefined);
+    fetch("/api/import-batches?kind=STUDENT_ROSTER").then((response) => {
+      if (!response.ok) throw new Error("recovery lookup failed");
+      return response.json();
+    }).then((result) => {
+      if (!Array.isArray(result?.data)) throw new Error("recovery lookup failed");
+      const staged = (result.data as Batch[]).find((item) => item.state === "STAGED");
+      if (!cancelled) { setRecoveryFailed(false); setUnfinished(staged || null); }
+    }).catch(() => { if (!cancelled) setRecoveryFailed(true); });
     return () => { cancelled = true; };
-  }, [open, batch]);
+  }, [open, batch, recoveryAttempt]);
   const reopen = async (id: string) => {
     setBusy(true);
     try {
@@ -210,6 +217,9 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
           {analysis.missing.length > 0 && <p className="mt-2">{t("Some pupil records are no longer available in this campus.")}</p>}
         </Alert>}
       </section> : <>
+        {!batch && recoveryFailed && <Alert tone="danger" compact live="polite" actions={<Button size="sm" variant="outline" disabled={busy} onClick={() => setRecoveryAttempt((n) => n + 1)}>{t("Try again")}</Button>}>
+          <p>{t("Unfinished rehearsals could not be checked. A staged import may still be waiting; try again before starting a new one.")}</p>
+        </Alert>}
         {!batch && unfinished && <Alert tone="info" live="polite" title={t("Unfinished rehearsal")} actions={<Button size="sm" variant="outline" disabled={busy} onClick={() => void reopen(unfinished.id)}>{t("Reopen rehearsal")}</Button>}>
           <p>{t("{0} was staged {1} and has not been committed.", [unfinished.sourceName || "CSV", unfinished.createdAt ? dateTime(unfinished.createdAt) : ""])}</p>
         </Alert>}
