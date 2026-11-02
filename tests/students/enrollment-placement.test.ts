@@ -6,7 +6,12 @@ import type { AuthUser } from "../../src/lib/auth";
 import type { TxClient } from "../../src/lib/db/prisma";
 
 // SKAI-170: placement rules for a single pupil's enrollment change.
-const seatsTx = (occupied: number) => ({ student: { count: async () => occupied } }) as unknown as TxClient;
+// Campuses a and b belong to school s1; campus-x belongs to another school (SKAI-1634).
+const SCHOOL_CAMPUSES: Record<string, string> = { "campus-a": "s1", "campus-b": "s1", "campus-x": "s2" };
+const seatsTx = (occupied: number) => ({
+  student: { count: async () => occupied },
+  campus: { findFirst: async ({ where }: { where: { id: string; schoolId: string } }) => (SCHOOL_CAMPUSES[where.id] === where.schoolId ? { id: where.id } : null) },
+}) as unknown as TxClient;
 const admin = { role: "CAMPUS_ADMIN", campusId: "campus-a", schoolId: "s1", userId: "u1" } as unknown as AuthUser;
 const superAdmin = { role: "SUPER_ADMIN", campusId: "campus-a", schoolId: "s1", userId: "u2" } as unknown as AuthUser;
 const current = { classId: "class-1", campusId: "campus-a" };
@@ -69,4 +74,15 @@ test("restore checks class capacity before un-archiving", () => {
   assert.match(route, /const seats = await classSeats\(prisma, cls\);\n\s+if \(seats\.capacity != null && seats\.occupied \+ 1 > seats\.capacity\)/);
   assert.match(route, /seats\.occupied \+ want\.count > seats\.capacity/);
   assert.ok(route.indexOf("classSeats(prisma, cls)") < route.indexOf("FOR UPDATE`;\n        const current"));
+});
+
+test("SKAI-1634: even a cross-campus authority cannot place a pupil in another school's class", async () => {
+  assert.equal(await status(() => assertPlacementTarget(seatsTx(0), superAdmin, current, { id: "class-x", campusId: "campus-x", capacity: null })), 404);
+  assert.equal(await status(() => assertPlacementTarget(seatsTx(0), admin, current, { id: "class-x", campusId: "campus-x", capacity: null })), 404);
+});
+
+test("SKAI-1634: the class chooser and confirmation lookups are scoped to the caller's school", () => {
+  const route = readFileSync("src/app/api/students/enrollments/route.ts", "utf8");
+  assert.match(route, /prisma\.class\.findMany\(\{ where: \{ schoolId: user\.schoolId, status: "ACTIVE"/);
+  assert.match(route, /tx\.class\.findFirst\(\{ where: \{ id: proposal\.targetClassId, schoolId: user\.schoolId \}/);
 });

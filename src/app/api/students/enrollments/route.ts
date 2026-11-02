@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
     const [proposals, classes, documents] = !canManage ? [[], [], []] : await Promise.all([
       prisma.enrollmentProposal.findMany({ where: { studentId: id }, orderBy: { createdAt: "desc" } }),
       // SKAI-170: a campus registrar is offered only its own campus's classes; seats come with each one.
-      prisma.class.findMany({ where: { status: "ACTIVE", archivedAt: null, ...(canPlaceAcrossCampuses(user) ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true, name: true, section: true, campusId: true, academicYear: true, capacity: true, campus: { select: { name: true } }, _count: { select: { students: { where: { archivedAt: null, status: "active" } } } } }, orderBy: [{ academicYear: "desc" }, { name: "asc" }, { section: "asc" }] }),
+      prisma.class.findMany({ where: { schoolId: user.schoolId, status: "ACTIVE", archivedAt: null, ...(canPlaceAcrossCampuses(user) ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true, name: true, section: true, campusId: true, academicYear: true, capacity: true, campus: { select: { name: true } }, _count: { select: { students: { where: { archivedAt: null, status: "active" } } } } }, orderBy: [{ academicYear: "desc" }, { name: "asc" }, { section: "asc" }] }),
       prisma.studentDocument.findMany({ where: { studentId: id }, select: { id: true, kind: true, fileName: true, uploadedAt: true } }),
     ]);
     // The timeline is served by /api/students/timeline (SKAI-166), the one scoped and paged reader.
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
         const pupil = await tx.student.findFirst({ where: { id, ...studentScope(user) } });
         if (!pupil) throw new ApiError("Pupil not found", 404);
         // SKAI-170: capacity and campus are re-checked at confirmation; seats may have filled since the proposal.
-        const target = await tx.class.findFirst({ where: { id: proposal.targetClassId }, select: { id: true, campusId: true, capacity: true } });
+        const target = await tx.class.findFirst({ where: { id: proposal.targetClassId, schoolId: user.schoolId }, select: { id: true, campusId: true, capacity: true } });
         if (!target) throw new ApiError("The target class is no longer available. Reload the pupil record.", 409);
         await assertPlacementTarget(tx, user, pupil, target);
         const result = await applyEnrollment(tx, { studentId: id, fromId: proposal.fromEnrollmentId, targetClassId: proposal.targetClassId, effectiveDate: proposal.effectiveDate, rollNo: proposal.rollNo, actorId: user.userId, reason: proposal.reason });

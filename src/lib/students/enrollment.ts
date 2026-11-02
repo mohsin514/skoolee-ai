@@ -30,6 +30,9 @@ export function canPlaceAcrossCampuses(user: AuthUser) {
  */
 export async function assertPlacementTarget(tx: TxClient, user: AuthUser, current: { classId: string; campusId: string }, target: { id: string; campusId: string; capacity: number | null }, incoming = 1) {
   if (target.id === current.classId) throw new ApiError("The pupil is already in this class. Choose a different class.", 409);
+  // SKAI-1634: cross-campus placement never crosses schools, whatever the caller's authority.
+  const ownCampus = await tx.campus.findFirst({ where: { id: target.campusId, schoolId: user.schoolId }, select: { id: true } });
+  if (!ownCampus) throw new ApiError("Class not found", 404);
   if (target.campusId !== current.campusId && !canPlaceAcrossCampuses(user)) throw new ApiError("That class is in another campus. Ask the school administrator to transfer the pupil.", 403);
   if (target.campusId !== user.campusId && !canPlaceAcrossCampuses(user)) throw new ApiError("That class is outside your campus.", 403);
   const seats = await classSeats(tx, target);
@@ -156,7 +159,7 @@ export async function applyReadmission(tx: TxClient, input: { studentId: string;
   const last = await tx.studentEnrollment.findFirst({ where: { studentId: pupil.id, endDate: { not: null } }, orderBy: { endDate: "desc" } });
   if (!last?.endDate || last.status !== "WITHDRAWN") throw new ApiError("Only a withdrawn pupil can be re-admitted. Graduated or transferred pupils are placed through enrolment.", 409);
   if (input.effectiveDate < last.endDate || input.effectiveDate > new Date()) throw new ApiError("Re-admission must fall between the withdrawal date and today.", 409);
-  const target = await tx.class.findFirst({ where: { id: input.targetClassId, status: "ACTIVE", archivedAt: null, campusId: last.campusId }, include: { campus: true } });
+  const target = await tx.class.findFirst({ where: { id: input.targetClassId, schoolId: pupil.schoolId, status: "ACTIVE", archivedAt: null, campusId: last.campusId }, include: { campus: true } });
   if (!target || target.campus.archivedAt || target.campus.pausedAt) throw new ApiError("Choose an active class on the pupil's former campus.", 409);
   const seats = await classSeats(tx, target);
   if (seats.capacity != null && seats.occupied + 1 > seats.capacity) throw new ApiError(`The class is full (${seats.occupied} of ${seats.capacity} seats).`, 409);
