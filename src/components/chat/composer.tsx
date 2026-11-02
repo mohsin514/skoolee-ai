@@ -37,6 +37,9 @@ interface PendingFile {
   error?: string;
 }
 
+/** The send gate reads only a file's name, upload result and error. */
+const gateFiles = (list: PendingFile[]) => list.map((f) => ({ name: f.file.name, uploaded: f.uploaded, error: f.error }));
+
 export function Composer({
   conversationId,
   canPost,
@@ -161,7 +164,7 @@ export function Composer({
 
     if (!body && attachments.length === 0) return;
     // Enter and the Send button share this guard: a failed or still-uploading file never sends silently.
-    if (!sendGate({ text: body, files, isSending: false, editing: Boolean(editing) }).canSend) return;
+    if (!sendGate({ text: body, files: gateFiles(files), isSending: false, editing: Boolean(editing) }).canSend) return;
 
     setIsSending(true);
     try {
@@ -181,7 +184,7 @@ export function Composer({
     }
   }
 
-  const gate = sendGate({ text: value, files, isSending, editing: Boolean(editing) });
+  const gate = sendGate({ text: value, files: gateFiles(files), isSending, editing: Boolean(editing) });
   const canSend = gate.canSend;
   const remaining = MAX_LENGTH - value.length;
 
