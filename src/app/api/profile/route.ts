@@ -141,18 +141,16 @@ export async function PATCH(req: NextRequest) {
       data.profileImageUrl = cleanProfileImage(body.profileImageUrl);
     }
 
-    if (data.profileImageUrl !== undefined) {
-      const prevImage = currentUser?.profileImageUrl ?? null;
-      if (isS3Key(prevImage) && prevImage !== data.profileImageUrl) {
-        void deleteFile(prevImage).catch(() => { });
-      }
-    }
+    // SKAI-1655: the replaced photo is removed only after the profile update commits, so a failed save keeps it.
+    const prevImage = currentUser?.profileImageUrl ?? null;
+    const replacedImage = data.profileImageUrl !== undefined && isS3Key(prevImage) && prevImage !== data.profileImageUrl ? prevImage : null;
 
     const user = await prisma.user.update({
       where: { id: session.userId },
       data,
       select: PROFILE_SELECT,
     });
+    if (replacedImage) void deleteFile(replacedImage).catch(() => { });
 
     // SKAI-1652: mirror the edit only onto the student record linked to this account (studentUserId is unique).
     // Never match by name: namesakes in the same campus must keep their own identity, photo and contact details.
