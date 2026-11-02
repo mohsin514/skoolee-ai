@@ -663,7 +663,7 @@ export function StudentsPanel({
   const noClassReason = "Create a class first. Students are admitted into a class.";
 
   /** M40: export every student matching the filters, from the server — not just the page on screen. */
-  const exportMatching = () => {
+  const exportMatching = async () => {
     const clientOnly = categoryFilter !== "all" || groupFilter !== "all" || onlyMissingGuardian || onlyNoLogin || (classFilter !== "all" && sectionFilter === "all");
     if (clientOnly || !onExport) {
       onExport?.(filtered);
@@ -672,7 +672,22 @@ export function StudentsPanel({
     const params = new URLSearchParams();
     if (searchQuery.trim()) params.set("search", searchQuery.trim());
     if (sectionFilter !== "all") params.set("classId", sectionFilter);
-    window.location.href = `/api/students/export?${params.toString()}`;
+    // SKAI-1639: fetch the file in place so a 429/403/500 never replaces the roster (and its filters) with raw JSON.
+    try {
+      const response = await fetch(`/api/students/export?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) {
+        const retryAfter = Number(response.headers.get("Retry-After")) || 0;
+        if (response.status === 429) toast.warning(ui("Another export is running for your school. Try again in {0} seconds.", [String(retryAfter || 30)]), { action: { label: ui("Try again"), onClick: () => void exportMatching() } });
+        else if (response.status === 401 || response.status === 403) toast.error(ui("You do not have permission to export this roster."));
+        else toast.error(ui("The roster export failed. Your filters are kept; try again."), { action: { label: ui("Try again"), onClick: () => void exportMatching() } });
+        return;
+      }
+      const name = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "")?.[1] || "students.csv";
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a"); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url);
+    } catch {
+      toast.error(ui("The roster export failed. Your filters are kept; try again."), { action: { label: ui("Try again"), onClick: () => void exportMatching() } });
+    }
   };
 
   if (students.length === 0) {
