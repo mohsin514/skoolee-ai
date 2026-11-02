@@ -282,6 +282,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
         if (!eligible || !reconciliation) throw new ApiError(analysis.dependencies.join(" "), 409);
         const reversedAt = new Date();
         const updated = await prisma.$transaction(async (tx) => {
+          // SKAI-1589: reversing is one state transition; a competing request finds the batch already claimed.
+          const claimed = await tx.importBatch.updateMany({ where: { id: batch.id, schoolId: user.schoolId, campusId: batch.campusId, state: { in: ["COMMITTED", "PARTIAL"] } }, data: { state: "REVERSED", reversedAt } });
+          if (!claimed.count) throw new ApiError("This batch was already reversed", 409);
           const changed = await tx.bankReconciliation.updateMany({ where: { id: reconciliation.id, schoolId: user.schoolId, campusId: batch.campusId, status: "pending" }, data: { status: "reversed" } });
           if (!changed.count) throw new ApiError("Reconciliation changed during reversal; recheck its dependencies", 409);
           const newReceipt = { ...(receipt || {}), reversal: { state: "REVERSED", reversedAt: reversedAt.toISOString(), actorId: user.userId, reconciliationId: reconciliation.id } };
@@ -311,9 +314,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
       if (!eligible) throw new ApiError(analysis.action, 409);
       const reversedAt = new Date();
       const updated = await prisma.$transaction(async (tx) => {
+        // SKAI-1589: reversing is one state transition; a competing request finds the batch already claimed.
+        const claimed = await tx.importBatch.updateMany({ where: { id: batch.id, schoolId: user.schoolId, campusId: batch.campusId, state: { in: ["COMMITTED", "PARTIAL"] } }, data: { state: "REVERSED", reversedAt } });
+        if (!claimed.count) throw new ApiError("This batch was already reversed", 409);
         const stillPresent = await tx.student.findMany({ where: { id: { in: studentIds }, schoolId: user.schoolId, campusId: batch.campusId }, select: { id: true, _count: { select: { attendance: true, invoices: true, marks: true, reportCards: true, examSeats: true, payments: true, guardianRelationships: true, classHistory: true, enrollments: true, enrollmentProposals: true, corrections: true, documents: true } } } });
         if (stillPresent.length !== studentIds.length || stillPresent.some((student) => Object.values(student._count).some((count) => count > 0))) throw new ApiError("Pupil dependencies changed during reversal; recheck before trying again", 409);
-        await tx.student.deleteMany({ where: { id: { in: studentIds }, schoolId: user.schoolId, campusId: batch.campusId } });
+        const deleted = await tx.student.deleteMany({ where: { id: { in: studentIds }, schoolId: user.schoolId, campusId: batch.campusId } });
+        if (deleted.count !== studentIds.length) throw new ApiError("Pupil dependencies changed during reversal; recheck before trying again", 409);
         const newReceipt = { ...(receipt || {}), reversal: { state: "REVERSED", reversedAt: reversedAt.toISOString(), actorId: user.userId, deletedStudentIds: studentIds } };
         const result = await tx.importBatch.update({ where: { id: batch.id }, data: { state: "REVERSED", reversedAt, receipt: newReceipt as Prisma.InputJsonValue } });
         await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "import_batch", recordId: batch.id, oldValue: { state: "COMMITTED" }, newValue: { action: "REVERSED", deletedStudentIds: studentIds }, userId: user.userId } });

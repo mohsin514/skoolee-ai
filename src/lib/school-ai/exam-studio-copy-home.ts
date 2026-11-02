@@ -7,6 +7,8 @@ import type { StudioCopyArea } from "./exam-studio-copy";
  */
 const en = {
   queueTitle: "Department approvals",
+  queueLoadFailed: "Department approvals could not load. Pending items may be hidden.",
+  queueRetry: "Try again",
   queueIntro: "Syllabi your department sent for approval, and big jumps on the Teaching Line.",
   queueEmpty: "Nothing is waiting for you.",
   syllabusMeta: "{0} outcomes · sent by {1}",
@@ -139,6 +141,8 @@ const en = {
 type Copy = typeof en;
 const ar: Copy = {
   queueTitle: "اعتمادات القسم",
+  queueLoadFailed: "تعذّر تحميل اعتمادات القسم. قد تكون هناك عناصر معلّقة غير ظاهرة.",
+  queueRetry: "حاول مرة أخرى",
   queueIntro: "مناهج أرسلها قسمك للاعتماد، وقفزات كبيرة على خط التدريس.",
   queueEmpty: "لا شيء بانتظارك.",
   syllabusMeta: "{0} من نواتج التعلم · أرسله {1}",
@@ -270,6 +274,8 @@ const ar: Copy = {
 };
 const ur: Copy = {
   queueTitle: "شعبہ کی منظوریاں",
+  queueLoadFailed: "شعبہ کی منظوریاں لوڈ نہیں ہو سکیں۔ زیر التوا اشیاء چھپی ہو سکتی ہیں۔",
+  queueRetry: "دوبارہ کوشش کریں",
   queueIntro: "آپ کے شعبہ کے بھیجے گئے نصاب، اور تدریسی لکیر پر بڑی چھلانگیں۔",
   queueEmpty: "آپ کے لیے کچھ زیرِ التوا نہیں۔",
   syllabusMeta: "{0} نتائج · بھیجنے والے {1}",

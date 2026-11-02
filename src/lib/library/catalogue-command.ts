@@ -74,6 +74,12 @@ export async function updateBook(user: AuthUser, body: Body) {
     if (!Number.isFinite(newTotal) || newTotal < 0) {
       throw new ApiError("copiesTotal must be a non-negative number", 400);
     }
+    // SKAI-1560: stock cannot drop below the copies that physically exist here: those out on loan,
+    // and the barcoded copies still in stock. Otherwise a return later pushes available above total.
+    const onLoan = Math.max(0, existing.copiesTotal - existing.copiesAvailable);
+    const tracked = await prisma.bookCopy.count({ where: { bookId: existing.id, schoolId: user.schoolId, status: { in: ["AVAILABLE", "ON_LOAN", "RESERVED_HOLD"] } } });
+    const floor = Math.max(onLoan, tracked);
+    if (newTotal < floor) throw new ApiError(`This title has ${floor} ${floor === 1 ? "copy" : "copies"} on loan or on the shelf with a barcode. The total cannot be lower than that.`, 409);
     const diff = newTotal - existing.copiesTotal;
     copiesAvailable = Math.max(0, existing.copiesAvailable + diff);
     copiesTotal = newTotal;

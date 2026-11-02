@@ -12,7 +12,7 @@ import {
 } from "@/lib/api/scope";
 import { requestSchool } from "@/lib/capacity/identity";
 import { withBackgroundAdmission } from "@/lib/capacity/admission";
-import { rosterStatusWhere } from "@/lib/students/roster-status";
+import { rosterSearchWhere, rosterStatusWhere } from "@/lib/students/roster-status";
 
 // GET /api/academic/students/export?classId=&search=&status=
 //
@@ -77,12 +77,7 @@ async function exportStudents(req: NextRequest) {
       ...rosterStatusWhere(archivedOnly),
       ...(search
         ? {
-            OR: [
-              { fullName: { contains: search, mode: "insensitive" as const } },
-              { rollNo: { contains: search, mode: "insensitive" as const } },
-              { guardianName: { contains: search, mode: "insensitive" as const } },
-              { guardianPhone: { contains: search, mode: "insensitive" as const } },
-            ],
+            ...rosterSearchWhere(search),
           }
         : {}),
     };
