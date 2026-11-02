@@ -105,6 +105,11 @@ export async function recordMapping(user: AuthUser, raw: unknown) {
       return record;
     };
     const from = await resolve(input.from); await resolve(input.to);
+    const pair = { schoolId: user.schoolId, fromRecordId: input.from.recordId, fromVersion: input.from.version, fromOutcomeId: input.from.outcomeId, toRecordId: input.to.recordId, toVersion: input.to.version, toOutcomeId: input.to.outcomeId };
+    // A retried or double-clicked decision returns the current one instead of logging it twice.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`curriculum-mapping:${JSON.stringify(pair)}`}))`;
+    const latest = await tx.curriculumObjectiveMapping.findFirst({ where: pair, orderBy: { createdAt: "desc" } });
+    if (latest && latest.relation === input.relation && latest.note === input.note) return latest;
     const row = await tx.curriculumObjectiveMapping.create({ data: { schoolId: user.schoolId, campusId: from.campusId!, fromRecordId: input.from.recordId, fromVersion: input.from.version, fromOutcomeId: input.from.outcomeId, toRecordId: input.to.recordId, toVersion: input.to.version, toOutcomeId: input.to.outcomeId, relation: input.relation, note: input.note, decidedById: user.userId } });
     await tx.auditLog.create({ data: { schoolId: user.schoolId, campusId: from.campusId, tableName: "curriculum_objective_mappings", recordId: row.id, userId: user.userId, newValue: { relation: input.relation, from: input.from, to: input.to } } });
     return row;
