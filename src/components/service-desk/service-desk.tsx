@@ -71,7 +71,9 @@ export function ServiceDesk() {
   const [draft, setDraft] = useState({ title: "", description: "", location: "", roomId: "", categoryId: "" }), [photo, setPhoto] = useState<{ data: string; contentType: string } | null>(null), [requestKey, setRequestKey] = useState(key);
   const [open, setOpen] = useState<Detail | null>(null), [message, setMessage] = useState(""), [reason, setReason] = useState(""), [assignee, setAssignee] = useState(""), [work, setWork] = useState(""), [due, setDue] = useState(""), [prio, setPrio] = useState("");
   const loadMine = useCallback(async () => { try { setMine(await call("/api/service-desk?view=mine")); setError(""); } catch (e) { setError(ui(e instanceof Error ? e.message : "Requests could not be loaded.")); } }, [ui]);
-  const loadQueue = useCallback(async () => { try { setQ(await call("/api/service-desk?view=queue")); } catch { setQ({ agent: false, requests: [] }); } }, []);
+  // SKAI-1656: a failed queue load is a recoverable error, not a loss of agent access; keep the tab and offer Retry.
+  const [queueFailed, setQueueFailed] = useState(false);
+  const loadQueue = useCallback(async () => { try { setQ(await call("/api/service-desk?view=queue")); setQueueFailed(false); } catch { setQueueFailed(true); } }, []);
   useEffect(() => { void loadMine(); void loadQueue(); }, [loadMine, loadQueue]);
   useEffect(() => { if (tab !== "new") return; const t = setTimeout(() => { void call(`/api/service-desk?view=form&text=${encodeURIComponent(`${draft.title} ${draft.description}`)}`).then((f: Form) => { setForm(f); if (f.suggestion && !draft.categoryId) setDraft(d => ({ ...d, categoryId: f.suggestion!.categoryId })); }).catch(() => undefined); }, 350); return () => clearTimeout(t); }, [tab, draft.title, draft.description, draft.categoryId]);
   const openRequest = async (id: string) => { try { const d = await call(`/api/service-desk/${id}`); setOpen(d); setMessage(""); setReason(""); setWork(""); setAssignee(d.ownerId ?? ""); setPrio(d.priority); setDue(d.resolveDueAt ? new Date(d.resolveDueAt).toISOString().slice(0, 16) : ""); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "This request is outside your service scope.")); } };
@@ -120,10 +122,11 @@ export function ServiceDesk() {
       icon={LifeBuoy}
       title="Service desk"
       description="Report repairs, access, supplies or questions. Each request gets a reference and an owner."
-      tabs={<ViewTabs ariaLabel="Service desk sections" value={tab === "queue" && !q?.agent ? "mine" : tab} onChange={(id) => setTab(id as DeskTab)} items={[{ id: "mine", label: "My requests" }, { id: "new", label: "New request" }, { id: "queue", label: "Service queue", hidden: !q?.agent }]} />}
+      tabs={<ViewTabs ariaLabel="Service desk sections" value={tab === "queue" && !q?.agent && !queueFailed ? "mine" : tab} onChange={(id) => setTab(id as DeskTab)} items={[{ id: "mine", label: "My requests" }, { id: "new", label: "New request" }, { id: "queue", label: "Service queue", hidden: !q?.agent && !queueFailed }]} />}
     />
 
     {tab === "mine" || (tab === "queue" && q && !q.agent) ? (error && !mine ? <ErrorState description={error} onRetry={() => void loadMine()} retryLabel={ui("Try again")} /> : mine ? board(mine, false) : <SkeletonList rows={3} label={ui("Loading assignments and latest updates.")} />) : null}
+    {tab === "queue" && queueFailed ? <div data-sd-queue-failed>{q ? <Alert tone="warning" compact live="polite" actions={<Button size="sm" variant="outline" onClick={() => void loadQueue()}>{ui("Try again")}</Button>}>{ui("The service queue could not be refreshed. Showing the last loaded list.")}</Alert> : <ErrorState description={ui("The service queue could not be loaded.")} onRetry={() => loadQueue()} retryLabel={ui("Try again")} />}</div> : null}
     {tab === "queue" && q ? <div className="space-y-3" data-sd-queue><p className="text-xs text-ink-muted">{ui("Unassigned and overdue requests are listed first.")}</p>{board(q.requests, true)}</div> : null}
     {tab === "new" ? <div className="min-w-0 space-y-3" data-sd-new>
       <Alert tone="warning" compact>{ui("Safety concerns follow the school's escalation procedure. Confidential or safeguarding concerns use the restricted workflow, not this desk.")}</Alert>
