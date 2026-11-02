@@ -15,6 +15,7 @@ import { assertSchoolAiTextProvider } from "./providers";
 import { parseModelJson } from "./intake";
 import { figureTextContext } from "./paper-figures";
 import { overlayTeachingLine } from "./teaching-progress-service";
+import { assertUnreleasedPaperTextAllowed } from "./provider-confidentiality";
 import { curriculumDataSchema, paperDataSchema, prepareGeneratedQuestions, validateBlueprint, validateCurriculumApproval, validatePaperApproval, type CurriculumData } from "./assessment";
 import { PAPER_GENERATION_FEATURE, PAPER_GENERATION_LEASE_MS, paperGenerationFingerprint, paperGenerationInputSchema, paperGenerationReplySchema, paperGenerationReplayState, unknownPaperGeneration, type PaperGenerationInput, type PaperGenerationReply, type PaperGenerationFailure } from "./paper-generation";
 
@@ -53,6 +54,8 @@ async function currentSource(user: AuthUser, curriculumId: string, version: numb
 async function begin(user: AuthUser, input: PaperGenerationInput, assertProvider: () => void): Promise<{ claim: Claim } | PaperGenerationReceipt> {
   return schoolAiTransaction(user, async tx => {
     const { record, curriculum, pin } = await currentSource(user, input.curriculumId, input.curriculumVersion, tx);
+    // Pinned items are existing paper text; regenerating around them sends that text to the provider.
+    if (input.lockedQuestions?.length) await assertUnreleasedPaperTextAllowed(user, record.campusId, tx);
     const requestHash = workspaceRequestHash({ input: paperGenerationFingerprint(inputWithoutKey(input)), role: user.role, campusId: record.campusId });
     await lockAndReconcileAICredits(user.schoolId, tx);
     const where = { schoolId: user.schoolId, actorId: user.userId, feature: PAPER_GENERATION_FEATURE, idempotencyKey: input.idempotencyKey };
