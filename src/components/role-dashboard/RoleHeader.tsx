@@ -94,6 +94,7 @@ export function RoleHeader({
   const [headerProfile, setHeaderProfile] = useState<EditableProfile | null>(null);
   const [arrival, setArrival] = useState("");
   const notifRef = useRef<HTMLDivElement | null>(null);
+  const notifTriggerRef = useRef<HTMLButtonElement | null>(null);
   const prevUnreadRef = useRef(0);
   const { notifications: liveNotifications, unreadCount, refresh: refreshNotifications } = useNotifications();
   const seenNotifIds = useRef<Set<string> | null>(null);
@@ -175,7 +176,8 @@ export function RoleHeader({
       setNotifOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setNotifOpen(false);
+      // SKAI-1658: Escape returns keyboard focus to the bell that opened the panel.
+      if (event.key === "Escape") { setNotifOpen(false); notifTriggerRef.current?.focus(); }
     };
 
     document.addEventListener("pointerdown", closeOnOutsideClick);
@@ -236,6 +238,7 @@ export function RoleHeader({
             <Tooltip content={t("View notifications")} describe={false}>
             <Button variant="outline" size="icon"
               type="button"
+              ref={notifTriggerRef}
               data-tour="shell.header.notifications"
               onClick={() => setNotifOpen((o) => !o)}
               className={cn(
