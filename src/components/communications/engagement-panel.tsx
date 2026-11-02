@@ -43,6 +43,8 @@ interface Communication {
   failedReason?: string | null;
   createdAt: string;
   sentAt?: string | null;
+  /** SKAI-864: the receipt-aware state; only "Delivered" and "Delivery unknown" add to the send status. */
+  delivery?: string;
   student?: { fullName: string; rollNo?: string | null; class?: { name: string; section?: string | null } | null } | null;
 }
 
@@ -57,6 +59,16 @@ const STATUS_META: Record<Filter, { label: string; variant: NonNullable<BadgePro
   PENDING: { label: "Pending", variant: "neutral", icon: Clock },
 };
 const STATUS_TONE: Record<string, DeskTone> = { SENT: "success", FAILED: "danger", NO_RECIPIENT: "warning", BLOCKED: "brand", PENDING: "neutral" };
+const DELIVERY_NOTE: Record<string, { label: string; tone: DeskTone }> = {
+  DELIVERED: { label: "Delivered", tone: "success" },
+  UNKNOWN: { label: "Delivery unknown", tone: "warning" },
+  FAILED: { label: "Not delivered", tone: "danger" },
+};
+function deliveryNote(item: Communication) {
+  // A receipt failure on a message we sent is news; a send failure already shows as "Failed".
+  if (item.delivery === "FAILED" && item.status === "FAILED") return null;
+  return item.delivery ? DELIVERY_NOTE[item.delivery] ?? null : null;
+}
 const FILTERS: Filter[] = ["ALL", "FAILED", "SENT", "NO_RECIPIENT", "BLOCKED", "PENDING"];
 
 const CHANNEL_META: Record<string, { label: string; icon: LucideIcon }> = {
@@ -295,7 +307,12 @@ export function EngagementPanel({ mode, hideActions = false, command }: Engageme
                         <TableCell>
                           <span className="inline-flex items-center gap-2 text-sm text-ink"><ChannelIcon aria-hidden="true" className="size-4 text-ink-subtle" />{ui(channel?.label ?? item.channel)}</span>
                         </TableCell>
-                        <TableCell><DeskPill tone={STATUS_TONE[item.status] ?? "neutral"}>{ui(meta.label)}</DeskPill></TableCell>
+                        <TableCell>
+                          <span className="inline-flex flex-wrap gap-1">
+                            <DeskPill tone={STATUS_TONE[item.status] ?? "neutral"}>{ui(meta.label)}</DeskPill>
+                            {deliveryNote(item) ? <DeskPill tone={deliveryNote(item)!.tone}>{ui(deliveryNote(item)!.label)}</DeskPill> : null}
+                          </span>
+                        </TableCell>
                         <TableCell className="min-w-40">
                           <p className="text-ink"><bdi>{item.recipientName || ui("Guardian")}</bdi></p>
                           <p className="break-all text-xs text-ink-subtle"><bdi>{item.recipient}</bdi></p>
@@ -334,12 +351,14 @@ function DeliveryCard({ item }: { item: Communication }) {
   const meta = STATUS_META[item.status as Filter] ?? STATUS_META.PENDING;
   const channel = CHANNEL_META[item.channel];
   const tone = STATUS_TONE[item.status] ?? "neutral";
+  const note = deliveryNote(item);
   return (
     <li data-tone={tone === "neutral" || tone === "success" ? undefined : tone} className={`${deskRow} space-y-2`}>
       <div className="flex min-w-0 flex-wrap items-start gap-3">
         <DeskRowIcon icon={channel?.icon ?? MessageCircle} />
         <p className="min-w-0 flex-1 font-semibold text-ink-strong">{ui(TEMPLATE_LABELS[item.templateKey] ?? humanize(item.templateKey))}</p>
         <DeskPill tone={tone}>{ui(meta.label)}</DeskPill>
+        {note ? <DeskPill tone={note.tone}>{ui(note.label)}</DeskPill> : null}
       </div>
       <p className="text-xs text-ink-subtle">
         <bdi>{item.student?.fullName ?? item.recipientName ?? ui("Guardian")}</bdi> · {ui(channel?.label ?? item.channel)} · <RelativeTime className="tabular-nums" iso={item.sentAt ?? item.createdAt} full={dateTime(item.sentAt ?? item.createdAt)} />

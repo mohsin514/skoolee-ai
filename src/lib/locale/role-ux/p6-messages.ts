@@ -265,6 +265,8 @@ const P6: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Sent", "تم الإرسال", "بھیجا گیا"],
   ["Failed", "فشل", "ناکام"],
   ["No contact", "لا توجد وسيلة تواصل", "رابطہ موجود نہیں"],
+  // SKAI-864: receipt-aware delivery state beside the send status.
+  ["Delivery unknown", "التسليم غير مؤكد", "ترسیل غیر یقینی"],
   ["Report card published", "نُشرت بطاقة التقرير", "رپورٹ کارڈ شائع ہو گیا"],
   ["Report card ready for review", "بطاقة التقرير جاهزة للمراجعة", "رپورٹ کارڈ جائزے کے لیے تیار"],
   // SKO-504: a teacher's one-sentence family note after results.

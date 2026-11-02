@@ -12,6 +12,7 @@ import { runNotificationAutomationSweep } from "@/lib/notifications/automation";
 import { announcementHistoryRestriction } from "@/lib/school-ai/announcement-history";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { deliveryState } from "@/lib/notifications/delivery-state";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,6 +73,7 @@ export async function GET(req: NextRequest) {
         },
         parent: { select: { fullName: true, email: true, phone: true } },
         campus: { select: { name: true } },
+        deliveryReceipts: { select: { state: true } },
       },
       orderBy: { createdAt: "desc" },
       take: 200,
@@ -86,7 +88,10 @@ export async function GET(req: NextRequest) {
     return Response.json({
       success: true,
       scope: academicOnly ? "academic" : "office",
-      communications,
+      communications: communications.map(({ deliveryReceipts, ...row }) => ({
+        ...row,
+        delivery: deliveryState({ ...row, receiptStates: deliveryReceipts.map((item) => item.state) }),
+      })),
       summary: summary.reduce<Record<string, number>>((acc, item) => {
         acc[item.status] = item._count._all;
         return acc;
