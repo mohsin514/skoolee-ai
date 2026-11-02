@@ -14,6 +14,7 @@ import { examSchema, examStatusSchema } from "@/lib/validators/schemas";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { assertPermission } from "@/lib/permissions";
 import { createExamCommand, defaultExamType } from "@/lib/exams/create-command";
+import { resolveAcademicModelVersionForTerm } from "@/lib/academic/model-service";
 import {
   canManageExamType,
   isOfficeRole,
@@ -70,7 +71,11 @@ async function editExamDetails(user: AuthUser, body: unknown) {
       if (clash) throw new ApiError("This class already has this term exam. Edit its existing session.", 409);
     }
     // Guarded on isLocked so a lock that lands between read and write still wins.
-    const result = await tx.exam.updateMany({ where: { id: current.id, schoolId: user.schoolId, isLocked: false }, data: diff.after });
+    // A new term must be a configured reporting period and re-links the exam to that period's model.
+    const termLink = diff.after.term !== undefined
+      ? { academicModelVersionId: await resolveAcademicModelVersionForTerm({ campusId: current.campusId, classId: current.classId, academicYear: current.academicYear, term: diff.after.term }, tx) }
+      : {};
+    const result = await tx.exam.updateMany({ where: { id: current.id, schoolId: user.schoolId, isLocked: false }, data: { ...diff.after, ...termLink } });
     if (result.count !== 1) throw new ApiError("Locked exams cannot be edited", 409);
     await writeAuditEvent(tx, user, { table: "exams", recordId: current.id, action: "UPDATE", campusId: current.campusId, before: diff.before, after: diff.after });
     return tx.exam.findFirst({ where: { id: current.id, schoolId: user.schoolId } });
