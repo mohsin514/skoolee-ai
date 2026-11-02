@@ -56,7 +56,16 @@ export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
     if (next.toString() !== params.toString()) window.history.pushState(null, "", `${pathname}?${next.toString()}${window.location.hash}`);
   }, [params, pathname]);
 
-  useEffect(() => { void fetch("/api/search?options=1", { cache: "no-store" }).then(r => (r.ok ? r.json() : null)).then(json => json?.success && setOptions(json.data)).catch(() => undefined); }, []);
+  // SKAI-1637: a failed options load is disclosed with a retry instead of silently dropping the filters.
+  const [optionsFailed, setOptionsFailed] = useState(false), [optionsAttempt, setOptionsAttempt] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/search?options=1", { cache: "no-store" }).then(r => (r.ok ? r.json() : null)).then(json => {
+      if (cancelled) return;
+      if (json?.success) { setOptions(json.data); setOptionsFailed(false); } else setOptionsFailed(true);
+    }).catch(() => { if (!cancelled) setOptionsFailed(true); });
+    return () => { cancelled = true; };
+  }, [optionsAttempt]);
   useEffect(() => {
     if (lastQuery.current !== state.q) {
       lastQuery.current = state.q;
@@ -140,6 +149,7 @@ export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
         {chips.map(chip => <Button key={chip.key} size="sm" variant="secondary" onClick={chip.clear} aria-label={ui("Remove filter {0}", [chip.text])}><bdi>{chip.text}</bdi><X className="size-3" aria-hidden="true" /></Button>)}
         <Button size="sm" variant="ghost" onClick={() => update({ types: null, status: null, year: null, class: null, campus: null })} data-search-clear>{ui("Clear filters")}</Button>
       </div> : null}
+      {optionsFailed ? <div data-search-options-failed><Alert tone="warning" compact live="polite" actions={<Button size="sm" variant="ghost" onClick={() => setOptionsAttempt(n => n + 1)}>{ui("Try again")}</Button>}>{ui("Campus, class and year filters could not be loaded, so results may cover more than you intend.")}</Alert></div> : null}
       {!loading && !error && data?.partial ? <div data-search-partial><Alert tone="warning" compact live="polite" actions={<Button size="sm" variant="ghost" onClick={() => setAttempt(n => n + 1)}>{ui("Retry")}</Button>}>{ui("Results are partial: {0} could not be searched just now.", [Object.entries(data.sources).filter(([, state]) => state === "failed").map(([type]) => typeLabel(ui, type)).join(", ")])}</Alert></div> : null}
       {/* Load failure (R4): inline, with a retry that really runs the search again; earlier results stay visible. */}
 
