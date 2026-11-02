@@ -11,6 +11,10 @@ import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 const TOPIC_STATUSES = ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"];
 
+function isTopicOrder(value: unknown) {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
 async function getScopedSubject(subjectId: string, userCampusId: string | null, schoolId: string) {
   const subject = await prisma.subject.findFirst({
     where: {
@@ -60,17 +64,28 @@ export async function POST(
     const title = String(body.title ?? "").trim();
     if (!title) throw new ApiError("Topic title is required", 400);
 
-    const count = await prisma.syllabusTopic.count({ where: { subjectId } });
-    const topic = await prisma.syllabusTopic.create({
-      data: {
-        subjectId,
-        title,
-        description: body.description ? String(body.description).trim() : null,
-        order: Number.isFinite(body.order) ? Number(body.order) : count,
-      },
+    if (body.order !== undefined && !isTopicOrder(body.order)) throw new ApiError("Topic order must be a whole number", 400);
+
+    // A retried or double-clicked add returns the topic already saved instead of a duplicate.
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`syllabus-topic:${subjectId}`}))`;
+      const existing = await tx.syllabusTopic.findFirst({
+        where: { subjectId, title: { equals: title, mode: "insensitive" } },
+      });
+      if (existing) return { topic: existing, created: false };
+      const count = await tx.syllabusTopic.count({ where: { subjectId } });
+      const topic = await tx.syllabusTopic.create({
+        data: {
+          subjectId,
+          title,
+          description: body.description ? String(body.description).trim() : null,
+          order: body.order !== undefined ? Number(body.order) : count,
+        },
+      });
+      return { topic, created: true };
     });
 
-    return Response.json({ success: true, data: topic }, { status: 201 });
+    return Response.json({ success: true, data: result.topic }, { status: result.created ? 201 : 200 });
   } catch (error) {
     return errorResponse(error, "[subjects/syllabus] POST failed");
   }
@@ -97,9 +112,15 @@ export async function PATCH(
     if (!existing) throw new ApiError("Topic not found", 404);
 
     const data: any = {};
-    if (body.title !== undefined) data.title = String(body.title).trim();
+    if (body.title !== undefined) {
+      data.title = String(body.title ?? "").trim();
+      if (!data.title) throw new ApiError("Topic title is required", 400);
+    }
     if (body.description !== undefined) data.description = body.description ? String(body.description).trim() : null;
-    if (body.order !== undefined) data.order = Number(body.order);
+    if (body.order !== undefined) {
+      if (!isTopicOrder(body.order)) throw new ApiError("Topic order must be a whole number", 400);
+      data.order = Number(body.order);
+    }
 
     if (body.status !== undefined) {
       if (!TOPIC_STATUSES.includes(body.status)) throw new ApiError("Invalid topic status", 400);
