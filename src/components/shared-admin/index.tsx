@@ -2762,16 +2762,20 @@ export function TeacherDetailModal({
   const ledClasses: any[] = staff?.ledClasses ?? teacher.ledClasses ?? [];
   const taughtSubjects: any[] = staff?.taughtSubjects ?? teacher.taughtSubjects ?? [];
 
+  // SKAI-1662: a failed load is shown with Retry instead of the empty-history copy, and uploads wait for a real load.
+  const [staffRecordsState, setStaffRecordsState] = useState<"loading" | "loaded" | "failed">("loading");
   const loadStaffRecords = useCallback(async () => {
     if (!isStaffAdmin) return;
     try {
       const res = await fetch(`/api/staff/profile?userId=${encodeURIComponent(teacher.id)}`);
       const json = await res.json();
-      if (!json.success) return;
+      if (!res.ok || !json.success) { setStaffRecordsState("failed"); return; }
       setStaff(json.data);
       setStaffDocs(json.data.staffDocuments || []);
       setStaffTimeline(json.data.staffTimelineEvents || []);
+      setStaffRecordsState("loaded");
     } catch {
+      setStaffRecordsState("failed");
     }
   }, [isStaffAdmin, teacher.id]);
 
@@ -3390,11 +3394,12 @@ export function TeacherDetailModal({
             </div>
           ) : null}
 
+          {staffRecordsState === "failed" ? <div className="mt-6" data-staff-records-failed><Alert tone="danger" compact live="assertive" actions={<SystemButton type="button" variant="secondary" size="sm" onClick={() => void loadStaffRecords()}>{ui("Try again")}</SystemButton>}>{ui("Staff documents and timeline could not be loaded. What is shown may be incomplete.")}</Alert></div> : null}
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div className="sk-panel p-5">
               <PanelTitle icon={FileText} title={ui("Documents")} />
               <div className="mt-4 space-y-2">
-                {staffDocs.length === 0 ? (
+                {staffDocs.length === 0 && staffRecordsState === "loaded" ? (
                   <EmptyInline text={ui("No documents uploaded yet.")} />
                 ) : (
                   staffDocs.map((doc) => (
@@ -3434,7 +3439,7 @@ export function TeacherDetailModal({
                       if (file) uploadStaffDoc(file);
                     }}
                   />
-                  <SystemButton type="button" variant="secondary" size="sm" loading={uploading} onClick={() => fileInput.current?.click()}>
+                  <SystemButton type="button" variant="secondary" size="sm" loading={uploading} disabled={staffRecordsState !== "loaded"} onClick={() => fileInput.current?.click()}>
                     {uploading ? null : <Upload aria-hidden="true" />}{uploading ? ui("Uploading\u2026") : ui("Upload document")}
                   </SystemButton>
                 </div>
@@ -3444,7 +3449,7 @@ export function TeacherDetailModal({
             <div className="sk-panel p-5">
               <PanelTitle icon={History} title={ui("Timeline")} />
               <div className="mt-4 space-y-2 max-h-80 overflow-y-auto custom-scrollbar pe-1">
-                {staffTimeline.length === 0 ? (
+                {staffTimeline.length === 0 && staffRecordsState === "loaded" ? (
                   <EmptyInline text={ui("No staff record events yet.")} />
                 ) : (
                   staffTimeline.map((event) => (
