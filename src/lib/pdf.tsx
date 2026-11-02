@@ -221,7 +221,7 @@ export async function generateClassGradesPdf(classId: string) {
   const rollNoMap = new Map(students.map((s) => [s.id, s.rollNo]));
 
   return renderToBuffer(
-    <Document language={locale.language}>
+    <Document language={locale.language} title={`${t("Final Grades")} — ${className}`} creator="SkooleeAI" producer="SkooleeAI">
       <Page size="A4" style={[styles.page,{fontFamily:`Receipt-${locale.language}`,direction:rtl?"rtl":"ltr",textAlign:rtl?"right":"left"}]}>
         <Header campus={cls.campus} />
         <Text style={styles.title}>{t("Final Grades")}</Text><Text style={{fontSize:12,marginBottom:8}}>{className}</Text><Text style={styles.muted}>{number(cls.academicYear)}</Text>
