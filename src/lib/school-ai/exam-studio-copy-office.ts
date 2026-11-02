@@ -23,7 +23,7 @@ const en = {
   exceptionsTitle: "Exceptions desk",
   exceptionsIntro: "Record absences, unfair means, exemptions and re-sit requests. An exam's report cards stay unpublished while any of its exceptions is open.",
   exceptionsEmpty: "No exceptions recorded.",
-  exceptionsLoadError: "The exceptions could not be loaded. Nothing has changed; try again.",
+  exceptionsLoadError: "Exceptions could not be loaded. Nothing has changed; try again.",
   exceptionsRetry: "Try again",
   exceptionExam: "Class",
   exceptionStudent: "Learner",
