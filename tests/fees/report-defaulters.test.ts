@@ -44,7 +44,7 @@ function fixture() {
     };
     return require(id);
   });
-  return { get: (query = "") => module.exports.GET(new Request(`http://qa.test/api/fees/reports/defaulters${query}`)), query: () => where, scope: () => currencyScope };
+  return { get: (query = "") => mod.exports.GET(new Request(`http://qa.test/api/fees/reports/defaulters${query}`)), query: () => where, scope: () => currencyScope };
 }
 
 test("USD locale with PKR invoices reports pending AND partly paid debts, excluding cancellations", async () => {
