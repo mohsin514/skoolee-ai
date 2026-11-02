@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db/prisma";
 import { assertModuleRead, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { gradeForPercentage } from "@/lib/academic/report-cards";
+import { groupedRuleRate } from "@/lib/attendance";
+import { attendanceRuleFor } from "@/lib/attendance/rule";
 
 export async function GET(req: Request) {
   try {
@@ -172,9 +174,8 @@ export async function GET(req: Request) {
           : null,
       }));
 
-    const totalAttendance = attendance.reduce((s, a) => s + a._count._all, 0);
-    const presentCount = attendance.find((a) => a.status === "PRESENT")?._count._all || 0;
-    const attendanceRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : null;
+    // SKAI-1604: the dashboard rate follows the school's published counting rule, like monthly and summary reports.
+    const attendanceRate = groupedRuleRate(attendance.map((a) => ({ status: String(a.status), count: a._count._all })), await attendanceRuleFor(user.schoolId));
 
     return Response.json({
       success: true,
