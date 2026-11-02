@@ -40,14 +40,26 @@ export function ExamModerationPanel({ examId }: { examId: string }) {
   const [sampleForm, setSampleForm] = useState({ method: "RANDOM", size: "5", threshold: "1", blind: true, reviewerId: "" });
   const base = `/api/school-ai/exams/${encodeURIComponent(examId)}/moderation`;
   const load = useCallback(async () => {
-    try { setData(await call(base)); setError(null); } catch (e) { setError(ui((e as Error).message)); }
+    try {
+      const result = await call(base);
+      // SKAI-1600: a body without the moderation lists is a failure, not an empty panel.
+      if (!Array.isArray(result?.corrections) || !Array.isArray(result?.appeals) || !Array.isArray(result?.samples)) throw new Error("Moderation could not load. Pending corrections and appeals may be hidden.");
+      setData(result); setError(null);
+    } catch (e) { setError(ui((e as Error).message)); }
   }, [base, ui]);
   useEffect(() => { void load(); }, [load]);
   const post = async (body: object, success: string) => {
     try { await call(base, { method: "POST", body: JSON.stringify(body) }); setNotice(ui(success)); setError(null); await load(); return true; }
     catch (e) { setError(ui((e as Error).message)); setNotice(null); return false; }
   };
-  if (!data) return <section className="sk-panel p-4"><p role="status" className="text-sm text-ink-subtle">{error ?? ui("Loading moderation…")}</p></section>;
+  // SKAI-1600: a failed first load keeps the section with Try again; a later refresh failure keeps the loaded data.
+  if (!data) return <section aria-labelledby="moderation-heading" className="sk-panel space-y-3 p-4" data-moderation-panel>
+    <h3 id="moderation-heading" className="font-semibold">{ui("Moderation and corrections")}</h3>
+    {error ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm" data-moderation-load-failed>
+      <span className="font-semibold text-status-error-text">{error}</span>
+      <Button type="button" size="sm" variant="outline" onClick={() => void load()}>{ui("Try again")}</Button>
+    </div> : <p role="status" className="text-sm text-ink-subtle">{ui("Loading moderation…")}</p>}
+  </section>;
   const n = (v: number | null) => (v == null ? "—" : number(v));
   return (
     <section aria-labelledby="moderation-heading" className="sk-panel space-y-4 p-4">
