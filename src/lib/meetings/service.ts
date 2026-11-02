@@ -85,7 +85,14 @@ export async function createWindow(user: AuthUser, body: Record<string, unknown>
   if (!cancellationPolicy) throw new ApiError("Explain how families can cancel or change a meeting.", 400);
   const timezone = await timezoneFor(user.schoolId, user.campusId ?? null);
   if (localDate < calendarDateIn(timezone)) throw new ApiError("Choose today or a later day.", 400);
-  return prisma.meetingWindow.create({ data: { schoolId: user.schoolId, campusId: user.campusId ?? "", teacherId: user.userId, localDate, startTime, endTime, timezone, slotMinutes, bufferMinutes, maxBookings, mode, location, cancellationPolicy, createdById: user.userId } });
+  // SKAI-1673: one open window per teacher, day and time. The teacher row lock serialises a retried or doubled create,
+  // so the second one finds the first window and replays it instead of offering every slot twice.
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.userId} FOR UPDATE`;
+    const existing = await tx.meetingWindow.findFirst({ where: { schoolId: user.schoolId, teacherId: user.userId, localDate, startTime, endTime, status: "OPEN" } });
+    if (existing) return existing;
+    return tx.meetingWindow.create({ data: { schoolId: user.schoolId, campusId: user.campusId ?? "", teacherId: user.userId, localDate, startTime, endTime, timezone, slotMinutes, bufferMinutes, maxBookings, mode, location, cancellationPolicy, createdById: user.userId } });
+  });
 }
 
 /** Withdraw a window; any live booking in it needs a new time and both sides are told (see ./notify). */
