@@ -117,6 +117,8 @@ export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
   const single = data?.types.length === 1 ? data.groups[0] : null;
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
+    // SKAI-1640: roving focus belongs to the result list; inputs and selects keep their native arrow keys.
+    if (!(event.target instanceof Node) || !listRef.current?.contains(event.target)) return;
     const links = [...(listRef.current?.querySelectorAll<HTMLAnchorElement>("[data-search-result]") ?? [])];
     if (!links.length) return;
     event.preventDefault();
