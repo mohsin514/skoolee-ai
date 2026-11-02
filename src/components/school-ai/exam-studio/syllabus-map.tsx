@@ -114,7 +114,7 @@ export function SyllabusMap({ language, subjectId, classId, subjectLabel, onChan
   if (state.kind !== "ready") return <SpaceStateRegion state={state} language={language}>{() => null}</SpaceStateRegion>;
   // SKO-500: no approved syllabus yet. A teacher (or manager) adds one here; a reader sees the empty state.
   if (!view!.curriculum) return view!.canMove
-    ? <SyllabusDrop key={`${subjectId}:${classId}`} language={language} subjectId={subjectId} classId={classId} subjectLabel={subjectLabel} onApproved={() => { void load(); onChanged?.(); }} />
+    ? <SyllabusDrop key={`${subjectId}:${classId}`} language={language} subjectId={subjectId} classId={classId} campusId={view!.subject.campusId} subjectName={view!.subject.name} subjectLabel={subjectLabel} onApproved={() => { void load(); onChanged?.(); }} />
     : <TaskFeedback kind="empty" title={t.noCurriculum}><p>{fillStudioCopy(t.noCurriculumHint, [subjectLabel])}</p></TaskFeedback>;
   const lineData = view!;
   const position = index >= 0 ? flat[index] : null;

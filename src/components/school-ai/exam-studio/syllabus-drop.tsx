@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileUp, ListChecks, ScanText, ShieldCheck } from "lucide-react";
+import { FileUp, Library, ListChecks, ScanText, ShieldCheck, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert } from "@/components/ui/alert";
 import { FormField } from "@/components/ui/form-field";
@@ -21,6 +22,7 @@ import type { AiWorkspaceRecord, SourceData as WorkspaceSourceData } from "@/lib
 import type { DocumentJob } from "@/lib/school-ai/document-jobs";
 import { SOURCE_POLL_DEADLINE_MS, SOURCE_POLL_LIMIT, sourceExtractionState } from "@/lib/school-ai/source-extraction-state";
 import { syllabusSourceIssue } from "@/lib/school-ai/syllabus-source";
+import { PhoneCaptureButton } from "../phone-capture";
 
 /**
  * SKO-500: the Syllabus Drop. Shown in place of the Syllabus Map while a class has no approved
@@ -33,7 +35,7 @@ type SourceData = WorkspaceSourceData & Record<string, unknown>;
 type Suggestion = { id: string; unit: string; title: string; code?: string; page: string; excerpt: string };
 type Proposal = { model: string; suggestions: Suggestion[] };
 type Rec<T> = Omit<AiWorkspaceRecord, "data"> & { data: T };
-type CurriculumData = { subjectId: string; classId: string; outcomes: Array<{ id: string; unit?: string }>; sources: Array<{ sourceRecordId?: string }> };
+type CurriculumData = { subjectId: string; classId: string; academicYear?: string; outcomes: Array<{ id: string; unit?: string }>; sources: Array<{ sourceRecordId?: string }> };
 type Step =
   | { kind: "loading" }
   | { kind: "drop" }
@@ -56,7 +58,7 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
-export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApproved }: { language: Language; subjectId: string; classId: string; subjectLabel: string; onApproved: () => void }) {
+export function SyllabusDrop({ language, subjectId, classId, campusId, subjectName, subjectLabel, onApproved }: { language: Language; subjectId: string; classId: string; campusId: string; subjectName: string; subjectLabel: string; onApproved: () => void }) {
   const t = studioSyllabusCopy(language);
   const mounted = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -73,6 +75,12 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
   const [rows, setRows] = useState<Record<string, { keep: boolean; title: string }>>({});
   const [year, setYear] = useState(academicYearNow);
   const [board, setBoard] = useState("");
+  // SKAI-772: reuse paths. The library is every other saved syllabus with text; "same as last year" is the
+  // source behind this subject's most recent approved syllabus from an earlier academic year.
+  const [library, setLibrary] = useState<Rec<SourceData>[]>([]);
+  const [libraryPick, setLibraryPick] = useState("");
+  const [lastYear, setLastYear] = useState<{ source: Rec<SourceData>; year: string } | null>(null);
+  const [phoneMissing, setPhoneMissing] = useState(false);
   const fail = useCallback((reason: unknown) => setError(reason instanceof Error && reason.message ? reason.message : t.failedStep), [t.failedStep]);
 
   const toDraft = useCallback(async (curriculum: Rec<CurriculumData>) => {
@@ -155,12 +163,19 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
       ]);
       if (!isActive()) return;
       const draft = curricula.records.filter(row => row.data.subjectId === subjectId && row.data.classId === classId && row.status !== "APPROVED" && row.data.sources?.some(source => source.sourceRecordId)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-      if (draft) { await toDraft(draft); return; }
+      if (draft) { await toDraft(draft); return true; }
       const source = sources.records.filter(row => row.data.documentKind === "syllabus" && row.data.subjectId === subjectId && row.data.classId === classId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-      if (source) { toSource(source); return; }
+      if (source) { toSource(source); return true; }
+      const reusable = sources.records.filter(row => row.data.documentKind === "syllabus" && !(row.data.subjectId === subjectId && row.data.classId === classId) && (row.data.extractedText.trim() || row.data.sourcePages?.some(page => page.text.trim())));
+      const subject = subjectName.trim().toLocaleLowerCase();
+      const previous = curricula.records.filter(row => row.status === "APPROVED" && row.data.academicYear && row.data.academicYear < academicYearNow() && row.title.toLocaleLowerCase().includes(subject)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .map(row => ({ source: reusable.find(item => row.data.sources?.some(link => link.sourceRecordId === item.id)), year: row.data.academicYear! })).find(row => row.source);
+      setLibrary(reusable); setLibraryPick(reusable[0]?.id ?? "");
+      setLastYear(previous?.source ? { source: previous.source, year: previous.year } : null);
       setStep({ kind: "drop" });
-    } catch { if (isActive()) setStep({ kind: "drop" }); }
-  }, [classId, subjectId, toDraft, toSource]);
+      return false;
+    } catch { if (isActive()) setStep({ kind: "drop" }); return false; }
+  }, [classId, subjectId, subjectName, toDraft, toSource]);
   useEffect(() => { let active = true; void resume(() => active); return () => { active = false; }; }, [resume]);
 
   const upload = async () => {
@@ -182,6 +197,22 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
       const result = await call<{ record: Rec<SourceData> }>("/api/school-ai/workspace", { method: "POST", body: JSON.stringify({ kind: "SOURCE", title: `${subjectLabel} — ${t.textLabel}`.slice(0, 180), idempotencyKey: key(), data: { extractedText: pasted.trim(), documentKind: "syllabus", fileName: "typed-syllabus.txt", mimeType: "text/plain", subjectId, classId, origin: "manual", extractionStatus: "manual" } }) });
       toSource(result.record);
     } catch (reason) { fail(reason); setStep({ kind: "drop" }); }
+  };
+
+  // A reused syllabus becomes this class's own source: its text and page structure are copied, then checked as usual.
+  const reuseSource = async (origin: Rec<SourceData>) => {
+    setError(null); setStep({ kind: "busy", label: t.uploading });
+    try {
+      const { extractedText, sourcePages, expectedPageCount, missingPages, structureReviewed, fileName } = origin.data;
+      const result = await call<{ record: Rec<SourceData> }>("/api/school-ai/workspace", { method: "POST", body: JSON.stringify({ kind: "SOURCE", title: `${subjectLabel} — ${origin.title}`.slice(0, 180), idempotencyKey: key(), data: { extractedText, ...(sourcePages?.length ? { sourcePages, expectedPageCount, missingPages, structureReviewed } : {}), documentKind: "syllabus", fileName: fileName || "reused-syllabus.txt", mimeType: "text/plain", subjectId, classId, origin: "manual", extractionStatus: "manual" } }) });
+      toSource(result.record);
+    } catch (reason) { fail(reason); setStep({ kind: "drop" }); }
+  };
+
+  const checkPhone = async () => {
+    setPhoneMissing(false); setStep({ kind: "loading" });
+    const found = await resume(() => mounted.current);
+    if (mounted.current && !found) setPhoneMissing(true);
   };
 
   const confirmText = async (source: Rec<SourceData>) => {
@@ -266,6 +297,26 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
             <Textarea rows={6} dir="auto" value={pasted} maxLength={80000} onChange={event => setPasted(event.currentTarget.value)} />
           </FormField>
           <Button type="button" variant="outline" onClick={() => void savePastedSource()} disabled={!pasted.trim()} data-drop-action="paste">{t.usePasted}</Button>
+        </div>
+        <div className="space-y-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+          <p className="flex items-center gap-2 text-sm font-semibold"><Smartphone aria-hidden="true" className="size-4 text-primary" />{t.phoneTitle}</p>
+          <div className="flex flex-wrap gap-2">
+            <PhoneCaptureButton scope={{ campusId, subjectId, classId, documentKind: "syllabus", language }} />
+            <Button type="button" variant="outline" onClick={() => void checkPhone()} data-drop-action="phone-check">{t.phoneCheck}</Button>
+          </div>
+          {phoneMissing ? <p role="status" className="text-sm text-ink-subtle">{t.phoneNone}</p> : null}
+        </div>
+        <div className="space-y-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+          <p className="flex items-center gap-2 text-sm font-semibold"><Library aria-hidden="true" className="size-4 text-primary" />{t.reuseTitle}</p>
+          {lastYear ? <Button type="button" variant="outline" onClick={() => void reuseSource(lastYear.source)} data-drop-action="last-year">{fillStudioCopy(t.lastYear, [lastYear.year])}</Button> : null}
+          {library.length ? <>
+            <FormField name="syllabusLibrary" label={t.libraryLabel} hint={t.libraryHint}>
+              <Select value={libraryPick} onChange={event => setLibraryPick(event.currentTarget.value)}>
+                {library.map(row => <option key={row.id} value={row.id}>{row.title}</option>)}
+              </Select>
+            </FormField>
+            <Button type="button" variant="outline" disabled={!libraryPick} onClick={() => { const row = library.find(item => item.id === libraryPick); if (row) void reuseSource(row); }} data-drop-action="library">{t.useLibrary}</Button>
+          </> : <p className="text-sm text-ink-subtle">{t.libraryEmpty}</p>}
         </div>
       </div>
     </> : null}
