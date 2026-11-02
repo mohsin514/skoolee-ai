@@ -64,14 +64,18 @@ export async function GET(request: NextRequest) {
       },
       select: { id: true, referenceCode: true, type: true, complainantName: true, confidential: true, status: true, date: true, dueDate: true, reopenedCount: true, version: true, owner: ownerSelect, createdAt: true },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-      take: 300,
+      // SKAI-1675: one past the cap tells the client the list (and so its export) is not complete.
+      take: 301,
     });
+    const truncated = rows.length > 300;
+    rows.splice(300);
     const active = rows.filter(row => row.status !== "RESOLVED");
     return Response.json({
       success: true,
       data: rows.map(row => ({ ...row, overdue: overdue(row, today) })),
       counts: { active: active.length, unassigned: active.filter(row => !row.owner).length, overdue: active.filter(row => overdue(row, today)).length },
       canSeeConfidential: isLeader(user),
+      truncated,
     });
   } catch (error) {
     return errorResponse(error, "[front-desk] complaints GET failed");

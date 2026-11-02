@@ -190,10 +190,14 @@ export async function listItems(user: AuthUser, campusId: string, filters: { vie
     ...(q ? { OR: [{ itemCode: { contains: q, mode: "insensitive" } }, { referenceNo: { contains: q, mode: "insensitive" } }, { fromName: { contains: q, mode: "insensitive" } }, { toName: { contains: q, mode: "insensitive" } }, { courier: { contains: q, mode: "insensitive" } }] } : {}),
   };
   const [rows, active] = await Promise.all([
-    prisma.postalRecord.findMany({ where, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 300, include: { owner: { select: { id: true, fullName: true } } } }),
+    // SKAI-1675: one past the cap tells the client the list (and so its export) is not complete.
+    prisma.postalRecord.findMany({ where, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 301, include: { owner: { select: { id: true, fullName: true } } } }),
     prisma.postalRecord.findMany({ where: { campusId, schoolId: user.schoolId, status: { notIn: CLOSED } }, select: { direction: true, status: true, ownerId: true } }),
   ]);
+  const truncated = rows.length > 300;
+  rows.splice(300);
   return {
+    truncated,
     // Owner candidates for the pickers (G40): campus admins and receptionists of this campus.
     owners: await ownerCandidates(user, campusId),
     data: rows.map(({ requestHash: _hash, idempotencyKey: _key, fileKey: _file, ...row }) => row),
