@@ -47,17 +47,21 @@ export async function POST(req: NextRequest) {
     const { phone, email, address } = body;
     const { name } = parseWith(supplierName, body);
 
-    const supplier = await prisma.supplier.create({
-      data: {
-        campusId,
-        name,
-        phone: phone ?? null,
-        email: email ?? null,
-        address: address ?? null,
-      },
+    // SKAI-1681: one supplier per name per campus. Under a per-campus lock, a retry with the same details replays the
+    // committed supplier (200); a different supplier with that name is a recoverable 409, like categories.
+    const details = { phone: phone ?? null, email: email ?? null, address: address ?? null };
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`inventory-supplier:${campusId}`}))`;
+      const existing = await tx.supplier.findFirst({ where: { campusId, name: { equals: name, mode: "insensitive" } } });
+      if (existing) {
+        const same = existing.phone === details.phone && existing.email === details.email && existing.address === details.address;
+        if (!same) throw new ApiError("A supplier with this name already exists", 409);
+        return { supplier: existing, replayed: true };
+      }
+      return { supplier: await tx.supplier.create({ data: { campusId, name, ...details } }), replayed: false };
     });
 
-    return Response.json({ success: true, data: supplier }, { status: 201 });
+    return Response.json({ success: true, data: result.supplier, replayed: result.replayed }, { status: result.replayed ? 200 : 201 });
   } catch (error) {
     return errorResponse(error, "[inventory/suppliers] POST failed");
   }
