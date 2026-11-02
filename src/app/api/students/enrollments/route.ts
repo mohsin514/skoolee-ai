@@ -104,12 +104,18 @@ export async function POST(req: NextRequest) {
     if (body.action === "preview") return Response.json({ preserved: impact.preserved, guardianAccess: impact.guardianAccess, capacity: impact.capacity, targetOccupancy: seats.occupied, targetCapacity: seats.capacity, policy: impact.policy });
     if (body.action !== "propose") throw new ApiError("Unknown action", 400);
     // SKAI-170: one open proposal per current enrollment, so a double submit or retry cannot queue two moves.
-    const open = await prisma.enrollmentProposal.findFirst({ where: { studentId: id, fromEnrollmentId: fromId, status: "PROPOSED" }, select: { id: true, targetClassId: true, effectiveDate: true } });
-    if (open) {
-      if (open.targetClassId === targetClassId && open.effectiveDate.valueOf() === effectiveDate.valueOf()) return Response.json({ proposal: open, replayed: true });
-      throw new ApiError("This pupil already has an open enrollment proposal. Confirm or review it first.", 409);
-    }
-    const proposal = await prisma.enrollmentProposal.create({ data: { studentId: id, campusId: impact.pupil.campusId, fromEnrollmentId: fromId, targetClassId, effectiveDate, rollNo, reason, createdBy: user.userId } });
-    return Response.json({ proposal }, { status: 201 });
+    // SKAI-1598: the open-proposal check and the create share a per-enrollment lock, so simultaneous
+    // submissions cannot both pass the check; the second replays or gets 409.
+    const outcome = await prisma.$transaction(async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`enrollment-proposal:${user.schoolId}:${id}:${fromId}`}))`;
+      const open = await tx.enrollmentProposal.findFirst({ where: { studentId: id, fromEnrollmentId: fromId, status: "PROPOSED" }, select: { id: true, targetClassId: true, effectiveDate: true } });
+      if (open) {
+        if (open.targetClassId === targetClassId && open.effectiveDate.valueOf() === effectiveDate.valueOf()) return { proposal: open, replayed: true as const };
+        throw new ApiError("This pupil already has an open enrollment proposal. Confirm or review it first.", 409);
+      }
+      return { proposal: await tx.enrollmentProposal.create({ data: { studentId: id, campusId: impact.pupil.campusId, fromEnrollmentId: fromId, targetClassId, effectiveDate, rollNo, reason, createdBy: user.userId } }), replayed: false as const };
+    });
+    if (outcome.replayed) return Response.json(outcome);
+    return Response.json({ proposal: outcome.proposal }, { status: 201 });
   } catch (error) { return errorResponse(error, "Enrollment transition could not be saved. Reload and review conflicting records."); }
 }

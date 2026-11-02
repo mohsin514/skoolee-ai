@@ -6,6 +6,8 @@ import type { StudioCopyArea } from "./exam-studio-copy";
 const en = {
   departmentTitle: "Department result reviews",
   departmentIntro: "Review learner appeals. A changed mark still needs an independent second approver.",
+  departmentLoadFailed: "Appeals could not load. Pending appeals may be missing.",
+  departmentRetry: "Retry",
   mapTitle: "Mistake Map",
   mapIntro: "Each row is a learning outcome and each column a learner, read from moderated marks only. Items under question stay out of the map.",
   mapEmpty: "No moderated scripts yet.",
@@ -62,6 +64,8 @@ type Copy = typeof en;
 const ar: Copy = {
   departmentTitle: "مراجعات نتائج القسم",
   departmentIntro: "راجع اعتراضات المتعلمين. تغيير الدرجة يتطلب موافقة مراجع ثانٍ مستقل.",
+  departmentLoadFailed: "تعذر تحميل الاعتراضات. قد تكون هناك اعتراضات معلقة غير ظاهرة.",
+  departmentRetry: "إعادة المحاولة",
   mapTitle: "خريطة الأخطاء",
   mapIntro: "كل صف ناتج تعلم وكل عمود متعلم، والقراءة من الدرجات المعتمدة فقط. الأسئلة المشكوك فيها تبقى خارج الخريطة.",
   mapEmpty: "لا توجد أوراق معتمدة بعد.",
@@ -117,6 +121,8 @@ const ar: Copy = {
 const ur: Copy = {
   departmentTitle: "شعبے کے نتائج پر نظر ثانی",
   departmentIntro: "طلبہ کی اپیلوں کا جائزہ لیں۔ نمبر کی تبدیلی کے لیے ایک دوسرے آزاد جائزہ کار کی منظوری ضروری ہے۔",
+  departmentLoadFailed: "اپیلیں لوڈ نہیں ہو سکیں۔ زیر التوا اپیلیں نظر سے رہ سکتی ہیں۔",
+  departmentRetry: "دوبارہ کوشش کریں",
   mapTitle: "غلطیوں کا نقشہ",
   mapIntro: "ہر قطار ایک تعلیمی ہدف اور ہر کالم ایک طالب علم ہے، صرف منظور شدہ نمبروں سے۔ مشکوک سوالات نقشے سے باہر رہتے ہیں۔",
   mapEmpty: "ابھی کوئی منظور شدہ پرچہ نہیں۔",

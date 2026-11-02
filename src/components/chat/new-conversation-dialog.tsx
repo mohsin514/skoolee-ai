@@ -16,6 +16,7 @@ import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { fill } from "./chat-text";
@@ -56,13 +57,17 @@ interface NewConversationDialogProps {
 }
 
 export function NewConversationDialog({ open, onClose }: NewConversationDialogProps) {
-  const { viewer, searchDirectory, startDirect, createGroup } = useChat();
+  const { viewer, searchDirectory, startDirect, createGroup, clearError } = useChat();
+  // SKAI-1599: a failed start is shown inside this dialog (the shared alert sits behind it), with Try again.
+  const [startFailed, setStartFailed] = useState<null | { retry: () => void }>(null);
   const ui = useUiText();
   const { language } = useLocale();
 
   const [query, setQuery] = useState("");
   const [contacts, setContacts] = useState<DirectoryContact[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [directoryFailed, setDirectoryFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [mode, setMode] = useState<"direct" | "group">("direct");
   const [selected, setSelected] = useState<DirectoryContact[]>([]);
   const [title, setTitle] = useState("");
@@ -97,10 +102,16 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
     setIsLoading(true);
 
     const timer = setTimeout(async () => {
-      const results = await searchDirectory(query);
-      if (!cancelled) {
-        setContacts(results);
-        setIsLoading(false);
+      try {
+        const results = await searchDirectory(query);
+        if (!cancelled) {
+          setContacts(results);
+          setDirectoryFailed(false);
+        }
+      } catch {
+        if (!cancelled) setDirectoryFailed(true);
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
     }, query ? 250 : 0);
 
@@ -108,7 +119,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [open, query, searchDirectory]);
+  }, [open, query, searchDirectory, attempt]);
 
   const grouped = useMemo(() => {
     // The endpoint already excludes the caller. Filtered again here so a stale
@@ -146,15 +157,18 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
     }
 
     setIsSubmitting(true);
+    setStartFailed(null);
     const id = await startDirect(contact.id);
     setIsSubmitting(false);
     if (id) onClose();
+    else { clearError(); setStartFailed({ retry: () => void choose(contact) }); }
   }
 
   async function submitGroup() {
     if (selected.length === 0 || !title.trim()) return;
 
     setIsSubmitting(true);
+    setStartFailed(null);
     const id = await createGroup({
       kind: "GROUP",
       title: title.trim(),
@@ -162,6 +176,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
     });
     setIsSubmitting(false);
     if (id) onClose();
+    else { clearError(); setStartFailed({ retry: () => void submitGroup() }); }
   }
 
   return (
@@ -211,7 +226,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                         {mode === "group" ? ui("New group") : ui("New conversation")}
                       </h2>
                       <p className="truncate text-2xs font-normal text-ink-muted">
-                        {total === 1 ? ui("{0} person you can reach", [total]) : ui("{0} people you can reach", [total])}
+                        {directoryFailed ? null : total === 1 ? ui("{0} person you can reach", [total]) : ui("{0} people you can reach", [total])}
                       </p>
                     </div>
                   </div>
@@ -362,6 +377,14 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                 <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain pb-5">
                   {isLoading ? (
                     <SkeletonList rows={5} className="px-5 py-4" label={ui("Loading your contacts")} />
+                  ) : directoryFailed ? (
+                    <ErrorState
+                      className="px-6 py-10"
+                      title={ui("Couldn't load your contacts")}
+                      description={ui("Check your connection and try again.")}
+                      retryLabel={ui("Try again")}
+                      onRetry={() => setAttempt((n) => n + 1)}
+                    />
                   ) : total === 0 ? (
                     <EmptyState
                       size="sm"
@@ -448,6 +471,13 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                   className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent"
                 />
               </div>
+
+              {startFailed ? (
+                <div role="alert" className="flex shrink-0 flex-wrap items-center gap-2 border-t border-edge/25 bg-status-error-surface px-5 py-3 text-sm text-status-error-text" data-new-conversation-failed>
+                  <span className="min-w-0 flex-1">{ui("Couldn't start the conversation. Your choices are kept, so you can try again.")}</span>
+                  <Button type="button" size="sm" variant="outline" disabled={isSubmitting} onClick={startFailed.retry}>{ui("Try again")}</Button>
+                </div>
+              ) : null}
 
               {mode === "group" && (
                 <footer className="shrink-0 border-t border-edge/25 bg-card px-5 py-4">

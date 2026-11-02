@@ -53,6 +53,9 @@ interface ChatContextValue {
   unreadTotal: number;
   isConnected: boolean;
   isLoadingList: boolean;
+  /** SKAI-1530: the list could not be loaded; the cached list (if any) stays and retryList reloads it. */
+  listFailed: boolean;
+  retryList: () => void;
 
   filter: ConversationFilter;
   setFilter: (filter: ConversationFilter) => void;
@@ -79,7 +82,8 @@ interface ChatContextValue {
   discardMessage: (clientKey: string) => void;
   /** When the thread was last brought in line with stored history (after load or reconnect). */
   lastSyncedAt: string | null;
-  editMessage: (messageId: string, body: string) => Promise<void>;
+  /** Resolves false when the edit was not saved, so the composer can keep the draft (SKAI-1583). */
+  editMessage: (messageId: string, body: string) => Promise<boolean>;
   deleteMessage: (messageId: string) => Promise<void>;
 
   startDirect: (userId: string) => Promise<string | null>;
@@ -95,7 +99,7 @@ interface ChatContextValue {
   setPreference: (
     id: string,
     prefs: { isMuted?: boolean; isPinned?: boolean; isArchived?: boolean }
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   leaveConversation: (id: string) => Promise<void>;
 
   typingUsers: TypingUser[];
@@ -156,12 +160,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoadingList, setIsLoadingList] = useState(true);
+  const [listFailed, setListFailed] = useState(false);
 
   const [filter, setFilter] = useState<ConversationFilter>("all");
   const [search, setSearch] = useState("");
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
+  // SKAI-1542: read by setPreference to roll an optimistic change back to the values before it.
+  const conversationsRef = useRef<ConversationView[]>([]);
+  const detailRef = useRef<ConversationDetail | null>(null);
+  useEffect(() => { conversationsRef.current = conversations; detailRef.current = detail; }, [conversations, detail]);
   const [messages, setMessages] = useState<ChatMessageView[]>([]);
   const [isLoadingThread, setIsLoadingThread] = useState(false);
   const [threadFailed, setThreadFailed] = useState(false);
@@ -225,22 +234,35 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // ─── Conversation list ─────────────────────────────────────────
 
+  // SKAI-1595: the list on screen belongs to one filter + search. A new query shows loading, and if it fails the
+  // old query's rows are cleared rather than shown as results for the new one.
+  const listQueryRef = useRef<string | null>(null);
   const loadConversations = useCallback(async () => {
+    const query = `${filter}|${search.trim()}`;
+    const sameQuery = listQueryRef.current === query;
+    if (!sameQuery) setIsLoadingList(true);
     try {
       const params = new URLSearchParams({ filter });
       if (search.trim()) params.set("q", search.trim());
 
       const res = await fetch(`/api/chat/conversations?${params}`);
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`conversations ${res.status}`);
 
       const json = await res.json();
-      if (json.success) setConversations(json.conversations);
+      if (!json.success || !Array.isArray(json.conversations)) throw new Error("conversations payload");
+      setConversations(json.conversations);
+      listQueryRef.current = query;
+      setListFailed(false);
     } catch {
-      // Offline; the list on screen stays valid until the network returns.
+      // Offline or failed: keep the same query's list on screen and say so, never pretend the inbox is empty.
+      if (!sameQuery) { setConversations([]); listQueryRef.current = null; }
+      setListFailed(true);
     } finally {
       setIsLoadingList(false);
     }
   }, [filter, search]);
+
+  const retryList = useCallback(() => { setIsLoadingList(true); void loadConversations(); }, [loadConversations]);
 
   const loadUnread = useCallback(async () => {
     try {
@@ -645,13 +667,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ body }),
-    });
-    if (!res.ok) {
-      setError(await readError(res, "Could not edit that message"));
-      return;
+    }).catch(() => null);
+    if (!res?.ok) {
+      setError(res ? await readError(res, "Could not edit that message") : "Could not edit that message");
+      return false;
     }
-    const json = await res.json();
+    const json = await res.json().catch(() => null);
+    if (!json?.message) {
+      setError("Could not edit that message");
+      return false;
+    }
     setMessages((prev) => prev.map((m) => (m.id === messageId ? json.message : m)));
+    return true;
   }, []);
 
   const deleteMessage = useCallback(async (messageId: string) => {
@@ -708,18 +735,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const setPreference = useCallback(
     async (id: string, prefs: { isMuted?: boolean; isPinned?: boolean; isArchived?: boolean }) => {
-      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, ...prefs } : c)));
+      // SKAI-1542: the list and the open thread change together, and both roll back on any failure.
+      const keys = Object.keys(prefs) as (keyof typeof prefs)[];
+      const before: typeof prefs = {};
+      const listRow = conversationsRef.current.find((c) => c.id === id);
+      for (const key of keys) before[key] = (listRow ?? (detailRef.current?.id === id ? detailRef.current : undefined))?.[key];
+      const apply = (values: typeof prefs) => {
+        setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, ...values } : c)));
+        setDetail((prev) => (prev && prev.id === id ? { ...prev, ...values } : prev));
+      };
+      apply(prefs);
 
-      const res = await fetch(`/api/chat/conversations/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(prefs),
-      });
-
-      if (!res.ok) {
-        setError(await readError(res, "Could not update that conversation"));
+      let ok = false;
+      try {
+        const res = await fetch(`/api/chat/conversations/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(prefs),
+        });
+        ok = res.ok;
+        if (!ok) setError(await readError(res, "Could not update that conversation"));
+      } catch {
+        setError("Could not update that conversation");
       }
+      if (!ok) apply(before);
       await loadConversations();
+      return ok;
     },
     [loadConversations]
   );
@@ -748,19 +789,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     fetch(`/api/chat/conversations/${activeId}/typing`, { method: "POST" }).catch(() => {});
   }, [activeId]);
 
+  // SKAI-1540: a failed directory load rejects, so the dialog can show an error and Retry
+  // instead of "0 people you can reach".
   const searchDirectory = useCallback(async (query: string) => {
-    try {
-      const params = new URLSearchParams({ limit: "50" });
-      if (query.trim()) params.set("q", query.trim());
+    const params = new URLSearchParams({ limit: "50" });
+    if (query.trim()) params.set("q", query.trim());
 
-      const res = await fetch(`/api/chat/directory?${params}`);
-      if (!res.ok) return [];
+    const res = await fetch(`/api/chat/directory?${params}`);
+    if (!res.ok) throw new Error(`directory ${res.status}`);
 
-      const json = await res.json();
-      return (json.contacts ?? []) as DirectoryContact[];
-    } catch {
-      return [];
-    }
+    const json = await res.json();
+    if (!Array.isArray(json?.contacts)) throw new Error("directory payload");
+    return json.contacts as DirectoryContact[];
   }, []);
 
   const value = useMemo<ChatContextValue>(
@@ -770,6 +810,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       unreadTotal,
       isConnected,
       isLoadingList,
+      listFailed,
+      retryList,
       filter,
       setFilter,
       search,
@@ -808,6 +850,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       unreadTotal,
       isConnected,
       isLoadingList,
+      listFailed,
+      retryList,
       filter,
       search,
       activeId,

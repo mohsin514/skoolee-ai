@@ -132,6 +132,8 @@ export default function ParentResultsPage() {
                       >
                         {downloading ? null : <Download aria-hidden="true" />}
                         {ui("Download")}
+                        {/* SKAI-1557: each button names its own report for screen readers. */}
+                        <span className="sr-only">: <bdi>{rc.examTitle}</bdi></span>
                       </Button>
                     )}
                   </div>

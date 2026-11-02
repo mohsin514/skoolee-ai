@@ -53,7 +53,10 @@ export function ExamReleasePanel({ recordId, locale, canApprove, disabled, onCha
   const [compare, setCompare] = useState<{ questionId: string; key: string; version: number; previous: CompareItem; candidate: CompareItem; differingFields: string[] } | null>(null);
   const [regenerating, setRegenerating] = useState<string | null>(null);
   const api = `/api/school-ai/workspace/${encodeURIComponent(recordId)}`;
-  const load = useCallback(async () => { const readiness = (await call(`${api}/rehearsal`)).readiness as Readiness; setView(readiness); onLoaded?.(readiness); }, [api, onLoaded]);
+  const load = useCallback(async () => { const readiness = (await call(`${api}/rehearsal`)).readiness as Readiness | undefined; if (!readiness || typeof readiness !== "object") throw new Error(t.failed); setView(readiness); onLoaded?.(readiness); }, [api, onLoaded, t.failed]);
+  // SKAI-1568: the first read can be retried in place; nothing is guessed while the desk is unavailable.
+  const [retrying, setRetrying] = useState(false);
+  const retryLoad = async () => { setRetrying(true); setStatus(null); try { await load(); } catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); } finally { setRetrying(false); } };
   useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
   const run = async (work: () => Promise<unknown>, reloadRecord = false) => {
     setBusy(true); setStatus(null);
@@ -61,7 +64,7 @@ export function ExamReleasePanel({ recordId, locale, canApprove, disabled, onCha
     catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); }
     finally { setBusy(false); }
   };
-  if (!view) return <section className="sk-panel p-5 text-sm">{status ? <p role="alert">{status.text}</p> : null}</section>;
+  if (!view) return <section className="sk-panel p-5 text-sm">{status ? <p role="alert" className="flex flex-wrap items-center gap-2"><span>{status.text}</span><Button type="button" variant="outline" size="sm" loading={retrying} disabled={retrying} onClick={() => void retryLoad()} data-release-retry>{t.retry}</Button></p> : null}</section>;
   const number = (id: string) => view.preview.questions.findIndex(question => question.id === id) + 1;
   const editable = view.status !== "APPROVED" && view.status !== "ARCHIVED" && !disabled;
   return <section aria-labelledby="release-panel-title" className="sk-panel space-y-4 p-5">

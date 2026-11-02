@@ -24,6 +24,7 @@ import { useNavigationAccess } from "@/components/nav/NavigationAccess";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Panel, StepEmpty } from "@/components/academic/exams/shared";
+import { ErrorState } from "@/components/ui/error-state";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 import { Input as SystemInput } from "@/components/ui/input";
 import { approvalBody, remarkBody } from "@/lib/reports/approval-request";
@@ -90,6 +91,8 @@ function LegacyReportCardsPanel({
   const [progress, setProgress] = useState<{ entered: number; expected: number } | null>(null);
   // SKAI-1382: a marks API error is a failed check with a retry, never "Checking how many marks are in…" forever.
   const [progressFailed, setProgressFailed] = useState(false);
+  // SKAI-1532: a reports API failure is its own state; cards already on screen stay.
+  const [cardsFailed, setCardsFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   /** Unsaved remark text, keyed by report card id. */
@@ -115,12 +118,19 @@ function LegacyReportCardsPanel({
       // start rather than appearing only once it stops mattering.
       const [reportRes, marksRes] = await Promise.all([
         isLocked
-          ? fetch(`/api/reports?${sp}`).then((r) => r.json())
+          ? fetch(`/api/reports?${sp}`)
+              .then((r) => (r.ok ? r.json() : { success: false }))
+              .catch(() => ({ success: false }))
           : Promise.resolve({ success: true, reportCards: [] }),
         fetch(`/api/marks?examId=${exam.id}`).then((r) => (r.ok ? r.json() : { success: false })),
       ]);
 
-      setCards(reportRes?.reportCards ?? []);
+      if (reportRes?.success !== false && Array.isArray(reportRes?.reportCards)) {
+        setCards(reportRes.reportCards);
+        setCardsFailed(false);
+      } else {
+        setCardsFailed(true);
+      }
 
       if (!marksRes?.success) {
         setProgressFailed(true);
@@ -569,7 +579,17 @@ function LegacyReportCardsPanel({
         }
         bodyClassName={cards.length ? "p-0" : undefined}
       >
-        {cards.length === 0 ? (
+        {cardsFailed ? (
+          <div className={cards.length ? "p-3" : undefined}>
+            <ErrorState
+              title={tr("Could not load report cards")}
+              description={cards.length ? tr("Showing the last list we loaded.") : tr("Check your connection and try again.")}
+              retryLabel={tr("Try again")}
+              onRetry={() => void load()}
+            />
+          </div>
+        ) : null}
+        {cardsFailed && cards.length === 0 ? null : cards.length === 0 ? (
           <StepEmpty
             icon={FileText}
             title={isLocked ? tr("No report cards yet") : tr("Nothing to show until the marks are locked")}

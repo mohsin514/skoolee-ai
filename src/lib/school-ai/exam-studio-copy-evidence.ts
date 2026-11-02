@@ -27,6 +27,8 @@ const en = {
   download: "Download ZIP",
   verifyHint: "Verify a download by unzipping it and comparing each file's SHA-256 with {0}, for example using {1}.",
   failed: "Producing the evidence pack failed. Try again.",
+  historyFailed: "Earlier evidence packs did not load.",
+  retry: "Try again",
 };
 type EvidenceCopy = typeof en;
 const ar: EvidenceCopy = {
@@ -53,6 +55,8 @@ const ar: EvidenceCopy = {
   download: "تنزيل ملف ZIP",
   verifyHint: "للتحقق من ملف مُنزَّل: فُكّ ضغطه وقارن بصمة SHA-256 لكل ملف بما في {0}، مثلًا باستخدام {1}.",
   failed: "تعذّر إنشاء حزمة الأدلة.",
+  historyFailed: "لم تُحمَّل حزم الأدلة السابقة.",
+  retry: "حاول مرة أخرى",
 };
 const ur: EvidenceCopy = {
   title: "شواہد کا پیکج",
@@ -78,6 +82,8 @@ const ur: EvidenceCopy = {
   download: "ZIP ڈاؤن لوڈ کریں",
   verifyHint: "ڈاؤن لوڈ جانچنے کے لیے اسے ان زِپ کریں اور ہر فائل کا SHA-256 {0} سے ملائیں، مثلاً {1} استعمال کر کے۔",
   failed: "شواہد کا پیکج نہیں بن سکا۔",
+  historyFailed: "پچھلے شواہد کے پیکج لوڈ نہیں ہوئے۔",
+  retry: "دوبارہ کوشش کریں",
 };
 
 export const STUDIO_EVIDENCE_COPY: StudioCopyArea<EvidenceCopy> = { area: "evidence", en, ar, ur };
