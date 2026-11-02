@@ -12,6 +12,7 @@ import { getSchoolPlanContract } from "@/config/commercial-contract";
 import { isSchoolOperational } from "@/lib/billing/entitlements";
 import { SUBSCRIPTION_PAUSED_MESSAGE } from "@/lib/billing/hub";
 import { sendEmailMessage } from "@/lib/email";
+import { utilityTemplateFor } from "@/lib/whatsapp/utility-templates";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
 import {
   defaultTemplateFor,
@@ -373,6 +374,7 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
           to: recipient,
           text: rendered.body,
           pdfUrl: input.attachmentUrl || undefined,
+          template: utilityTemplateFor(input.key, locale.language, context) ?? undefined,
         })
       : await sendEmailMessage({
           to: recipient,
