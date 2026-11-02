@@ -90,7 +90,9 @@ export function AuditHistoryPanel({ initialCampusId = "", lockCampus = false, ex
       const link = document.createElement("a"); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url);
       exportKey.current = null;
       setExportState("idle");
-      toast.success(t("Export downloaded. The export itself is recorded in this history."));
+      // SKAI-1633: a partial file is never reported as an ordinary success.
+      if (response.headers.get("X-Export-Truncated") === "true") toast.warning(t("Only the newest {0} entries were exported. Narrow the date range and export again for the rest.", [response.headers.get("X-Export-Rows") || "5000"]));
+      else toast.success(t("Export downloaded. The export itself is recorded in this history."));
       void load();
     } catch { setExportState("failed"); }
   }, [filter, load, t]);
