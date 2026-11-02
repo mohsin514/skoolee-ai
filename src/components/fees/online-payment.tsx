@@ -17,11 +17,16 @@ export function OnlinePayAction({ invoiceId, onPending }: { invoiceId: string; o
   const ui = useUiText();
   const [state, setState] = useState<{ availability: Availability; pending: { orderRef: string } | null } | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
+  // SKAI-1654: a failed availability lookup is shown with Retry, never as a missing Pay control.
+  const [lookupFailed, setLookupFailed] = useState(false), [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let active = true;
-    void fetch(`/api/fees/pay-online?invoiceId=${encodeURIComponent(invoiceId)}`, { cache: "no-store" }).then(r => r.json()).then(json => { if (active && json.success) setState({ availability: json.availability, pending: json.pending }); }).catch(() => undefined);
+    void fetch(`/api/fees/pay-online?invoiceId=${encodeURIComponent(invoiceId)}`, { cache: "no-store" })
+      .then(async r => { const json = await r.json().catch(() => null); if (!r.ok || !json?.success || !json.availability) throw new Error("lookup failed"); return json; })
+      .then(json => { if (active) { setLookupFailed(false); setState({ availability: json.availability, pending: json.pending }); } })
+      .catch(() => { if (active) setLookupFailed(true); });
     return () => { active = false; };
-  }, [invoiceId]);
+  }, [invoiceId, attempt]);
   const pay = async () => {
     setBusy(true); setError("");
     try {
@@ -33,6 +38,7 @@ export function OnlinePayAction({ invoiceId, onPending }: { invoiceId: string; o
       setError(json.error || ui("Could not start online payment"));
     } catch { setError(ui("Could not start online payment")); } finally { setBusy(false); }
   };
+  if (!state && lookupFailed) return <div data-online-pay-lookup-failed><Alert tone="warning" compact live="polite">{ui("Online payment options could not be checked.")}</Alert><Button size="sm" variant="outline" className="mt-2" onClick={() => { setLookupFailed(false); setAttempt(n => n + 1); }}><RefreshCw aria-hidden="true" className="h-4 w-4" />{ui("Try again")}</Button></div>;
   if (!state) return null;
   if (state.pending) return <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-xs font-medium text-status-warning-text" data-pay-state="pending"><Clock3 className="size-4 shrink-0" aria-hidden="true" /><span className="min-w-0 flex-1">{ui("A payment is waiting for confirmation. Please do not pay again yet.")}</span><Button variant="outline" size="sm" onClick={() => onPending(state.pending!.orderRef)}>{ui("Check status")}</Button></div>;
   if (!state.availability.available) return <p className="mt-4 rounded-xl bg-muted p-3 text-xs leading-relaxed text-ink-muted" data-pay-state="unavailable" data-pay-reason={state.availability.reason}>{state.availability.reason === "CURRENCY_UNSUPPORTED" ? ui("Online payment supports PKR invoices only. Please pay this invoice through the school's offline payment methods.") : ui("Online payment is not set up for this school yet. Please pay through the school's offline payment methods.")}</p>;
