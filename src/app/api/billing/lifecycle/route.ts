@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 
 const requestSchema = z.object({
   action: z.enum(["preview", "request-change", "cancel-preview", "cancel", "resume", "grace", "refund"]),
-  graceUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  // A real calendar date (month and day ranges, leap years) is checked here, before anything parses it into a Date.
+  graceUntil: z.iso.date().optional(),
   plan: z.string().optional(),
   billingPeriod: z.enum(["monthly", "annual"]).optional().default("monthly"),
   reason: z.string().trim().max(1000).optional(),
