@@ -320,7 +320,7 @@ function GroupsPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
 /* ── Master (priced lines) ─────────────────────────────── */
 
 function MasterPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProps) {
- const { money: formatPKR } = useLocaleFormat();
+ const { money: formatPKR, date: formatDate } = useLocaleFormat();
   const tr = useUiText();
   const [groups, setGroups] = useState<FeeGroupRow[]>([]);
   const [types, setTypes] = useState<FeeTypeRow[]>([]);
@@ -453,7 +453,7 @@ function MasterPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
                   <p className="text-sm font-bold text-ink-strong">{line.feeType?.name ?? tr("Unknown")}</p>
                   <p className="text-2xs font-bold text-ink-subtle mt-0.5">
                     {line.feeType?.code}
-                    {line.dueDate ? tr(" · due {0}", [new Date(line.dueDate).toLocaleDateString()]) : ""}
+                    {line.dueDate ? tr(" · due {0}", [formatDate(line.dueDate)]) : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

@@ -18,9 +18,10 @@ import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { localeTag } from "@/lib/locale/package";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
-import { UiText, useUiText } from "@/components/locale/LocaleProvider";
+import { UiText, useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
@@ -71,6 +72,7 @@ export function DatesheetBuilder({
   onChanged?: () => void;
 }) {
   const tr = useUiText();
+  const dateTag = localeTag(useLocale());
   const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
   const [periods, setPeriods] = useState<ExamPeriod[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -293,7 +295,7 @@ export function DatesheetBuilder({
 
             {days.map((date) => {
               const dt = new Date(date);
-              const label = dt.toLocaleDateString(undefined, {
+              const label = dt.toLocaleDateString(dateTag, {
                 weekday: "short",
                 day: "numeric",
                 month: "short",
@@ -405,6 +407,7 @@ function AssignmentPopover({
   onScheduled: () => void;
 }) {
   const tr = useUiText();
+  const dateTag = localeTag(useLocale());
   const [rooms, setRooms] = useState<any[]>([]);
   // §58: a paper can be split across rooms, so this is a set rather than one
   // id. Order matters — it is the order students are seated in, and the first
@@ -580,7 +583,7 @@ function AssignmentPopover({
         <div className="space-y-4">
           <div className="flex items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm font-bold text-ink-strong">
             <CalendarDays className="h-4 w-4 text-primary" />
-            {new Date(date).toLocaleDateString(undefined, {
+            {new Date(date).toLocaleDateString(dateTag, {
               weekday: "long",
               day: "numeric",
               month: "long",
