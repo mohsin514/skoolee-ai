@@ -62,6 +62,13 @@ async function editExamDetails(user: AuthUser, body: unknown) {
     }
     const diff = diffExamDetails(current, edit);
     if (!diff.changed) return current;
+    // One term exam per class, year and term holds on edit too, not only on create.
+    const nextType = edit.examType ?? current.examType, nextTerm = edit.term ?? current.term;
+    if (["MID_TERM", "FINAL"].includes(nextType) && (nextType !== current.examType || nextTerm.toLowerCase() !== current.term.toLowerCase())) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`term-exam:${current.classId}:${current.academicYear}`}))`;
+      const clash = await tx.exam.findFirst({ where: { schoolId: user.schoolId, classId: current.classId, academicYear: current.academicYear, examType: nextType, term: { equals: nextTerm, mode: "insensitive" }, id: { not: current.id } }, select: { id: true } });
+      if (clash) throw new ApiError("This class already has this term exam. Edit its existing session.", 409);
+    }
     // Guarded on isLocked so a lock that lands between read and write still wins.
     const result = await tx.exam.updateMany({ where: { id: current.id, schoolId: user.schoolId, isLocked: false }, data: diff.after });
     if (result.count !== 1) throw new ApiError("Locked exams cannot be edited", 409);
