@@ -5379,6 +5379,8 @@ function NewQueryModal({
     apply: (values) => setForm({ name: String(values.name ?? ""), phone: String(values.phone ?? ""), email: String(values.email ?? ""), classInterestedId: String(values.classInterestedId ?? ""), source: String(values.source ?? "WALK_IN"), note: String(values.note ?? "") }),
   });
   const dirty = Boolean(form.name || form.phone || form.email || form.note);
+  // SKAI-1668: one key per opened form, so a retry after a lost response replays instead of duplicating.
+  const [requestKey] = useState(() => crypto.randomUUID());
 
   // Group the flat class rows into their class groups (name + academic year)
   // so the dropdown lists each class once, not every section.
@@ -5397,7 +5399,7 @@ function NewQueryModal({
       const res = await fetch("/api/admission-queries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, classInterestedId: form.classInterestedId || null }),
+        body: JSON.stringify({ ...form, classInterestedId: form.classInterestedId || null, requestKey }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(apiErrorMessage(data.error, ui("The enquiry could not be saved. Please try again.")));
