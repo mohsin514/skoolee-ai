@@ -34,12 +34,24 @@ export function OfflineRegister({ classes }: { classes: { id: string; label: str
   const [bucket, setBucket] = useState<ReturnType<typeof load> | null>(null), [classId, setClassId] = useState(classes[0]?.id ?? ""), [date, setDate] = useState(todayLocal());
   const [busy, setBusy] = useState(false), [late, setLate] = useState<{ studentId: string; time: string } | null>(null), [resolving, setResolving] = useState<Op | null>(null), [authLost, setAuthLost] = useState(false);
   const caps = { offline: [ui("Mark attendance for a class you prepared on this device")], online: [ui("Submit the register"), ui("Corrections to a submitted register"), ui("Review family explanations"), ui("Grades and report cards"), ui("Fees and payments"), ui("Pickup"), ui("Assignments")] };
+  // SKAI-1520: a failed session lookup is an error with Retry, not an endless skeleton. The device bucket
+  // is read from local storage on success, so queued operations survive any number of retries.
+  const [sessionFailed, setSessionFailed] = useState(false);
+  const loadSession = useCallback(async () => {
+    setSessionFailed(false);
+    try {
+      const response = await fetch("/api/auth/session", { cache: "no-store" });
+      const j = await response.json();
+      if (!response.ok || !j?.user?.id || !j.user.schoolId) throw new Error("session");
+      setMe({ id: j.user.id, schoolId: j.user.schoolId }); setBucket(load(j.user.id, j.user.schoolId));
+    } catch { setSessionFailed(true); }
+  }, []);
   useEffect(() => {
-    fetch("/api/auth/session", { cache: "no-store" }).then(r => r.json()).then(j => { if (j.user) { setMe({ id: j.user.id, schoolId: j.user.schoolId }); setBucket(load(j.user.id, j.user.schoolId)); } }).catch(() => undefined);
+    void loadSession();
     const on = () => setOnline(navigator.onLine); on();
     window.addEventListener("online", on); window.addEventListener("offline", on);
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", on); };
-  }, []);
+  }, [loadSession]);
   const persist = useCallback((next: ReturnType<typeof load>) => { if (!me) return; save(me.id, me.schoolId, next); setBucket({ ...next }); }, [me]);
   const key = `${classId}:${date}`;
   const snap: Snapshot | undefined = bucket?.snapshots[key];
@@ -102,6 +114,7 @@ export function OfflineRegister({ classes }: { classes: { id: string; label: str
     } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); }
   };
   const opsHere = useMemo(() => new Map((bucket?.ops ?? []).filter(o => o.classId === classId && o.date === date).map(o => [o.studentId, o])), [bucket, classId, date]);
+  if ((!me || !bucket) && sessionFailed) return <Alert tone="danger" data-offline-session-error>{ui("The offline register could not be loaded. Check your connection and try again.")} <Button variant="ghost" type="button" className="text-xs font-bold" onClick={() => void loadSession()}>{ui("Try again")}</Button></Alert>;
   if (!me || !bucket) return <SkeletonList rows={4} label={ui("Loading the latest register…")} />;
   const count = pending(bucket), conflicts = bucket.ops.filter(o => o.state === "CONFLICT");
   return <section className="min-w-0 space-y-4" data-offline-register>

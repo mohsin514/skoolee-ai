@@ -85,6 +85,16 @@ export function Portfolio({ studentId, addRequest, hideAdd = false }: { studentI
   const openAddRef = useRef(openAdd);
   useEffect(() => { openAddRef.current = openAdd; });
   useEffect(() => { if (addRequest) void openAddRef.current(); }, [addRequest]);
+  // SKAI-1580: when a reload shows the entry under review moved on (another reviewer, or the learner), the open
+  // dialog switches to the latest version and blocks a decision until the reviewer confirms they read it.
+  // Typed comment and staff note are separate state, so they survive as unsaved text.
+  const [reviewStale, setReviewStale] = useState(false);
+  useEffect(() => {
+    if (!reviewing || !data) return;
+    const latest = data.entries.find(e => e.id === reviewing.id);
+    if (!latest) { setReviewing(null); return; }
+    if (latest.version !== reviewing.version) { setReviewing(latest); setReviewStale(true); }
+  }, [data, reviewing]);
 
   if (error) return <section data-portfolio><ErrorState description={error} onRetry={() => void load()} retryLabel={ui("Try again")} /></section>;
   if (!data) return <section className="sk-panel p-5" data-portfolio aria-busy="true"><SkeletonList rows={3} label={ui("Loading the portfolio…")} /></section>;
@@ -155,9 +165,10 @@ export function Portfolio({ studentId, addRequest, hideAdd = false }: { studentI
       </div>
     </Modal> : null}
 
-    {reviewing ? <Modal size="lg" title={ui("Review portfolio entry")} eyebrow={reviewing.title} subtitle={goalText(ui, reviewing.goal)} onClose={() => setReviewing(null)} icon={ClipboardCheck} tone="amber"
-      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" disabled={busy || !comment.trim()} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "review", entryId: reviewing.id, knownVersion: reviewing.version, decision: "changes", teacherComment: comment, staffNote: note }), "Revision requested.").then(ok => ok && setReviewing(null))} data-pf-changes>{ui("Request a revision")}</Button><Button disabled={busy || !reviewing.reflection} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "review", entryId: reviewing.id, knownVersion: reviewing.version, decision: "approve", teacherComment: comment, staffNote: note, familyVisible }), familyVisible ? "Reviewed. Approved for family sharing." : "Reviewed.").then(ok => ok && setReviewing(null))} data-pf-approve>{ui("Approve this reflection")}</Button></div>}>
+    {reviewing ? <Modal size="lg" title={ui("Review portfolio entry")} eyebrow={reviewing.title} subtitle={goalText(ui, reviewing.goal)} onClose={() => { setReviewing(null); setReviewStale(false); }} icon={ClipboardCheck} tone="amber"
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" disabled={busy || reviewStale || !comment.trim()} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "review", entryId: reviewing.id, knownVersion: reviewing.version, decision: "changes", teacherComment: comment, staffNote: note }), "Revision requested.").then(ok => ok && setReviewing(null))} data-pf-changes>{ui("Request a revision")}</Button><Button disabled={busy || reviewStale || !reviewing.reflection} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "review", entryId: reviewing.id, knownVersion: reviewing.version, decision: "approve", teacherComment: comment, staffNote: note, familyVisible }), familyVisible ? "Reviewed. Approved for family sharing." : "Reviewed.").then(ok => ok && setReviewing(null))} data-pf-approve>{ui("Approve this reflection")}</Button></div>}>
       <div className="space-y-3" data-pf-review-dialog>
+        {reviewStale ? <Alert tone="warning" compact live="polite"><span data-pf-review-stale>{ui("This entry changed while you were reviewing. Read the latest version below; your comment and note are kept but not saved.")}</span> <Button size="sm" variant="outline" onClick={() => setReviewStale(false)} data-pf-review-ack>{ui("I have read the latest version")}</Button></Alert> : null}
         <p className="text-sm"><span className="font-bold">{ui("Reflection")}:</span> <span dir="auto">{reviewing.reflection || ui("No reflection yet.")}</span></p>
         <FormField name="pf-comment" label={ui("Comment for the learner (and family, if shared)")}><Textarea rows={2} value={comment} onChange={e => setComment(e.target.value)} /></FormField>
         <FormField name="pf-note" label={ui("Staff note — never shown to learners or families")}><Textarea rows={2} value={note} onChange={e => setNote(e.target.value)} /></FormField>

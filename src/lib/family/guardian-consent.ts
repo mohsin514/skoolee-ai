@@ -18,6 +18,14 @@ export type ConsentPurpose = typeof CONSENT_PURPOSES[number];
 export type ConsentLanguage = "en" | "ar" | "ur";
 export type ConsentState = "CURRENT" | "OUTDATED" | "MISSING";
 
+/** SKAI-1573: a pupil with no current answer but an earlier one is OUTDATED, never "no answer yet". */
+export function pupilConsentState(states: ConsentState[]): ConsentState | "PARTIAL" {
+  const current = states.filter(state => state === "CURRENT").length;
+  if (states.length && current === states.length) return "CURRENT";
+  if (current) return "PARTIAL";
+  return states.includes("OUTDATED") ? "OUTDATED" : "MISSING";
+}
+
 type ConsentRow = { id: string; guardianUserId: string; guardianName: string; choices: Prisma.JsonValue; noticeVersion: string; language: string; receiptCode: string; createdAt: Date };
 const receipt = () => `GC-${randomBytes(4).toString("hex").toUpperCase()}`;
 const publicRow = (row: ConsentRow) => ({ id: row.id, guardianName: row.guardianName, choices: row.choices as Record<ConsentPurpose, boolean>, noticeVersion: row.noticeVersion, language: row.language, receiptCode: row.receiptCode, at: row.createdAt.toISOString() });
@@ -49,11 +57,15 @@ async function guardianLink(user: AuthUser, studentId: string) {
 }
 
 /** The guardian's own view: the notice to show and their answers for this child, newest first. */
+export const CONSENT_HISTORY_LIMIT = 500;
+
 export async function guardianConsentView(user: AuthUser, studentId: string) {
   await guardianLink(user, studentId);
   const rows = await prisma.guardianConsent.findMany({
     where: { schoolId: user.schoolId, studentId, guardianUserId: user.userId },
-    orderBy: { createdAt: "desc" }, take: 10,
+    // SKAI-1569: the page promises every answer on record, so the full history is returned (one guardian,
+    // one child: a short list; the cap only guards against runaway data).
+    orderBy: { createdAt: "desc" }, take: CONSENT_HISTORY_LIMIT,
   });
   const latest = rows[0] ?? null;
   return {
@@ -66,10 +78,27 @@ export async function guardianConsentView(user: AuthUser, studentId: string) {
 }
 
 /** Record a new answer. Only a verified, current guardian of the child may answer, for themselves only. */
+/** SKAI-1548: a repeat of the same answer within this window is the same submission, not a new one. */
+export const CONSENT_REPLAY_WINDOW_MS = 60_000;
+const sameChoices = (a: unknown, b: Record<string, boolean>) => {
+  const left = (a ?? {}) as Record<string, unknown>;
+  const keys = new Set([...Object.keys(left), ...Object.keys(b)]);
+  return [...keys].every(key => left[key] === b[key]);
+};
+export function isConsentReplay(previous: { choices: unknown; noticeVersion: string; language: string; createdAt: Date } | null, input: { choices: Record<string, boolean>; language: string }, noticeVersion: string, now = new Date()) {
+  return Boolean(previous && previous.noticeVersion === noticeVersion && previous.language === input.language
+    && now.getTime() - previous.createdAt.getTime() < CONSENT_REPLAY_WINDOW_MS && sameChoices(previous.choices, input.choices));
+}
+
 export async function recordGuardianConsent(user: AuthUser, body: Record<string, unknown>) {
   const input = parseConsentBody(body);
   const link = await guardianLink(user, input.studentId);
   return schoolAiTransaction(user, async tx => {
+    // One guardian answering for one child is serialised, so two in-flight copies of one submission
+    // cannot both insert: the second sees the first and returns its receipt.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`guardian-consent:${user.schoolId}:${input.studentId}:${user.userId}`}))`;
+    const previous = await tx.guardianConsent.findFirst({ where: { schoolId: user.schoolId, studentId: input.studentId, guardianUserId: user.userId }, orderBy: { createdAt: "desc" } });
+    if (previous && isConsentReplay(previous, input, CONSENT_NOTICE_VERSION)) return publicRow(previous);
     const row = await tx.guardianConsent.create({ data: {
       schoolId: user.schoolId, campusId: link.campusId, studentId: input.studentId, guardianUserId: user.userId,
       relationshipId: link.id, guardianName: link.fullName, choices: input.choices,
@@ -105,11 +134,10 @@ export async function campusConsentStatus(user: AuthUser, params: { campusId?: s
       const state: ConsentState = row ? (row.noticeVersion === CONSENT_NOTICE_VERSION ? "CURRENT" : "OUTDATED") : "MISSING";
       return { name: link.fullName, state, consent: row ? publicRow(row) : null };
     });
-    const answered = guardians.filter(g => g.state === "CURRENT").length;
     return {
       studentId: student.id, fullName: student.fullName, rollNo: student.rollNo,
       className: [student.class?.name, student.class?.section].filter(Boolean).join(" "),
-      state: (guardians.length && answered === guardians.length ? "CURRENT" : answered ? "PARTIAL" : "MISSING") as ConsentState | "PARTIAL",
+      state: pupilConsentState(guardians.map(g => g.state)),
       guardians,
     };
   });

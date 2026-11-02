@@ -21,7 +21,7 @@ import {
 import { notify } from "@/lib/notifications/in-app";
 import { studentProfileUpdateSchema } from "@/lib/students/profile-update";
 import { parseEmiratesId, parseNationality, parseRegulatorId, regulatorAuditChange } from "@/lib/identity/regulator-ids";
-import { rosterStatusWhere } from "@/lib/students/roster-status";
+import { rosterSearchWhere, rosterStatusWhere } from "@/lib/students/roster-status";
 
 function asDate(value: string | null) {
   if (!value) return null;
@@ -147,14 +147,7 @@ export async function GET(req: NextRequest) {
       ...rosterStatusWhere(archivedOnly),
       ...(search
         ? {
-            OR: [
-              { id: { contains: search, mode: "insensitive" as const } },
-              { admissionNo: { contains: search, mode: "insensitive" as const } },
-              { fullName: { contains: search, mode: "insensitive" as const } },
-              { rollNo: { contains: search, mode: "insensitive" as const } },
-              { guardianName: { contains: search, mode: "insensitive" as const } },
-              { guardianPhone: { contains: search, mode: "insensitive" as const } },
-            ],
+            ...rosterSearchWhere(search),
           }
         : {}),
     };
@@ -324,6 +317,8 @@ export async function PATCH(req: NextRequest) {
             newValue: status === "archived" ? { archived: true, reason: archiveReason } : { archived: false },
             userId: user.userId,
           })) });
+          // SKAI-1528: an administrative archive is a lifecycle milestone; written with the state change, once per flip.
+          if (status === "archived") await tx.studentTimelineEvent.createMany({ data: changingIds.map((studentId) => ({ schoolId: user.schoolId, studentId, kind: "ARCHIVED", title: "Archived", detail: JSON.stringify({ reason: archiveReason }), actorId: user.userId })) });
         }
         return { count: changed.count, changingIds };
       });
@@ -334,13 +329,17 @@ export async function PATCH(req: NextRequest) {
     }
 
     const { id, ...updates } = studentProfileUpdateSchema.parse(body);
+    // SKAI-1576: an unknown status is a 400 before anything is saved, matching the bulk path.
+    if (updates.status && !STUDENT_STATUSES.includes(updates.status)) {
+      throw new ApiError(`status must be one of: ${STUDENT_STATUSES.join(", ")}`, 400);
+    }
 
     const existing = await prisma.student.findFirst({
       where: {
         id,
         ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? updates.campusId : user.campusId),
       },
-      select: { id: true, campusId: true, classId: true, status: true, emiratesId: true, nationality: true, regulatorId: true, categoryId: true },
+      select: { id: true, campusId: true, classId: true, status: true, archivedAt: true, emiratesId: true, nationality: true, regulatorId: true, categoryId: true },
     });
     if (!existing) throw new ApiError("Student not found", 404);
 
@@ -394,7 +393,18 @@ export async function PATCH(req: NextRequest) {
     // SKAI-164: "Not known" clears the blood type. It used to be ignored, so the profile's
     // save check saw the old value come back and reported an unconfirmed save.
     if (updates.bloodType !== undefined) data.bloodType = updates.bloodType || null;
-    if (updates.status && STUDENT_STATUSES.includes(updates.status)) data.status = updates.status;
+    if (updates.status && STUDENT_STATUSES.includes(updates.status)) {
+      // SKAI-1601: archiving here is the same lifecycle step as the bulk path: archivedAt and a reason are set,
+      // so the pupil leaves attendance and marks. Un-archiving must go through restore, which re-checks identifiers.
+      if (updates.status === "archived" && !existing.archivedAt) {
+        await assertPermission(user, "students", "delete");
+        data.archivedAt = new Date();
+        data.archiveReason = "Administrative archive";
+      } else if (existing.archivedAt && updates.status !== "archived") {
+        throw new ApiError("Restore this pupil first; restoring re-checks their roll and admission numbers.", 409);
+      }
+      data.status = updates.status;
+    }
     if (updates.dateOfBirth !== undefined) data.dateOfBirth = asDate(updates.dateOfBirth);
     let previousClassName = "";
     if (updates.classId && updates.classId !== existing.classId) {
@@ -590,8 +600,15 @@ export async function DELETE(req: NextRequest) {
     if (existing.archivedAt) return Response.json({ success: true, archived: true, alreadyArchived: true, dependencies: impact });
     const { reason } = await req.json().catch(() => ({}));
     const archiveReason = typeof reason === "string" && reason.trim() ? reason.trim().slice(0, 500) : "Administrative archive";
-    await prisma.student.update({ where: { id }, data: { status: "archived", archivedAt: new Date(), archiveReason } });
-    await prisma.auditLog.create({ data: { tableName: "student", recordId: id, oldValue: { archived: false }, newValue: { archived: true, reason: archiveReason, dependencies: impact }, userId: user.userId } });
+    // SKAI-1528: archive, audit and the ARCHIVED timeline milestone commit together, and only for the request that flips the pupil.
+    const flipped = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.student.updateMany({ where: { id, archivedAt: null }, data: { status: "archived", archivedAt: new Date(), archiveReason } });
+      if (claimed.count !== 1) return false;
+      await tx.auditLog.create({ data: { tableName: "student", recordId: id, oldValue: { archived: false }, newValue: { archived: true, reason: archiveReason, dependencies: impact }, userId: user.userId } });
+      await tx.studentTimelineEvent.create({ data: { schoolId: user.schoolId, studentId: id, kind: "ARCHIVED", title: "Archived", detail: JSON.stringify({ reason: archiveReason }), actorId: user.userId } });
+      return true;
+    });
+    if (!flipped) return Response.json({ success: true, archived: true, alreadyArchived: true, dependencies: impact });
     notify("STUDENT_DELETED", {
       schoolId: user.schoolId,
       campusId: existing.campusId,
