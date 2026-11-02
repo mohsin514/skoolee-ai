@@ -63,12 +63,24 @@ export async function recordTimetableVersion(tx: TxClient, input: { schoolId: st
   return { version, changes, previous: latest };
 }
 
+/** Boards newest year first: the newest one with a version in force wins; the upcoming change is the
+ *  soonest scheduled version on that board or any newer one. With nothing in force, the newest board stands. */
+export function pickBoardInForce<B, V extends { effectiveFrom: Date }>(read: { board: B; inForce: V | null; upcoming: V | null }[]) {
+  const at = read.findIndex(entry => entry.inForce);
+  const chosen = read[at === -1 ? 0 : at];
+  const candidates = read.slice(0, at === -1 ? 1 : at + 1).map(entry => entry.upcoming).filter((v): v is V => Boolean(v));
+  const upcoming = candidates.sort((a, b) => a.effectiveFrom.getTime() - b.effectiveFrom.getTime())[0] ?? null;
+  return { timetable: chosen.board, inForce: chosen.inForce, upcoming };
+}
+
 /** The class's published timetable as people see it today: the version in force, and any scheduled change. */
 export async function publishedClassTimetable(classId: string) {
-  const timetable = await prisma.timetable.findFirst({ where: { classId, status: "PUBLISHED" }, orderBy: { academicYear: "desc" }, select: { id: true, schoolId: true, campusId: true, classId: true, class: { select: { name: true, section: true, campusId: true } } } });
-  if (!timetable) return null;
-  const today = await schoolToday(timetable.schoolId, timetable.campusId);
-  const { inForce, upcoming } = await versionsFor(timetable.id, today);
+  // SKAI-1626: a next-year board published early must not hide the board still in force.
+  const boards = await prisma.timetable.findMany({ where: { classId, status: "PUBLISHED" }, orderBy: { academicYear: "desc" }, select: { id: true, schoolId: true, campusId: true, classId: true, class: { select: { name: true, section: true, campusId: true } } } });
+  if (!boards.length) return null;
+  const today = await schoolToday(boards[0].schoolId, boards[0].campusId);
+  const read = await Promise.all(boards.map(async board => ({ board, ...(await versionsFor(board.id, today)) })));
+  const { timetable, inForce, upcoming } = pickBoardInForce(read);
   if (!inForce) return { timetable, version: null, upcoming: versionSummary(upcoming), slots: [] as SnapshotSlot[] };
   return { timetable, version: versionSummary(inForce), upcoming: versionSummary(upcoming), slots: slotsOf(inForce) };
 }
