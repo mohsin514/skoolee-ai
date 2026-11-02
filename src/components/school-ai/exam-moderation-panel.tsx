@@ -26,7 +26,7 @@ const OUTCOME_LABEL: Record<string, string> = { ORIGINAL_CONFIRMED: "Original co
 async function call(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json" } }).catch(() => null);
   const json = await response?.json().catch(() => null);
-  if (!response?.ok) throw new Error(json?.error || "Request failed");
+  if (!response?.ok) throw Object.assign(new Error(json?.error || "Request failed"), { status: response?.status ?? 0 });
   return json.result;
 }
 
@@ -50,7 +50,16 @@ export function ExamModerationPanel({ examId }: { examId: string }) {
   useEffect(() => { void load(); }, [load]);
   const post = async (body: object, success: string) => {
     try { await call(base, { method: "POST", body: JSON.stringify(body) }); setNotice(ui(success)); setError(null); await load(); return true; }
-    catch (e) { setError(ui((e as Error).message)); setNotice(null); return false; }
+    catch (e) {
+      setNotice(null);
+      // SKAI-1603: a 409 means another reviewer changed this item. Reload so the next action uses the current
+      // version instead of resubmitting the stale one; typed notes are kept by item id.
+      if ((e as { status?: number }).status === 409) {
+        await load();
+        setError(`${ui((e as Error).message)} ${ui("The panel now shows the latest version. Review it before acting again.")}`);
+      } else setError(ui((e as Error).message));
+      return false;
+    }
   };
   // SKAI-1600: a failed first load keeps the section with Try again; a later refresh failure keeps the loaded data.
   if (!data) return <section aria-labelledby="moderation-heading" className="sk-panel space-y-3 p-4" data-moderation-panel>
