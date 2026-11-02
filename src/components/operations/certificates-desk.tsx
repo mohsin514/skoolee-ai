@@ -93,6 +93,7 @@ export function CertificatesDesk({ showTemplates = true, hideHeader = false, com
 function DocumentsTab({ templates, canApprove, command, commandReady = true, showTemplates, templatesFailed = false, onRetryTemplates }: { templates: Template[]; canApprove: boolean; command?: PanelCommand | null; commandReady?: boolean; showTemplates: boolean; templatesFailed?: boolean; onRetryTemplates?: () => void }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
+  const [truncated, setTruncated] = useState(false);
   const [rows, setRows] = useState<Issue[]>([]), [status, setStatus] = useState(""), [q, setQ] = useState("");
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState("");
   const [issueOpen, setIssueOpen] = useState<{ reissue?: Issue } | null>(null), [deciding, setDeciding] = useState<{ issue: Issue; action: "approve" | "reject" | "revoke" } | null>(null);
@@ -109,7 +110,7 @@ function DocumentsTab({ templates, canApprove, command, commandReady = true, sho
       const response = await fetch(`/api/front-desk/certificates?${params}`, { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to certificates for this campus.") : json.error || ui("Documents could not be loaded."));
-      setRows(json.data);
+      setRows(json.data); setTruncated(Boolean(json.truncated));
     } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("Documents could not be loaded.")); } finally { setLoading(false); }
   }, [status, q, ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
@@ -136,6 +137,8 @@ function DocumentsTab({ templates, canApprove, command, commandReady = true, sho
     export: () => {
       if (loadError) return;
       if (!rows.length) { toast.info(ui("Nothing to export yet.")); return; }
+      // SKAI-1676: the history holds the newest 200; say so instead of exporting a silently partial file.
+      if (truncated) toast.warning(ui("Only the newest 200 documents were exported. Narrow the filters to export older documents."));
       const STATUS_EN: Record<Status, string> = { PENDING_APPROVAL: "Waiting for approval", ISSUED: "Issued", REJECTED: "Rejected", REVOKED: "Revoked", SUPERSEDED: "Replaced" };
       downloadCSV(`documents-${new Date().toISOString().slice(0, 10)}`, [
         ["Serial", "Document", "Kind", "Pupil", "Roll number", "Language", "Status", "Issued", "Requested by", "Approved by"],
