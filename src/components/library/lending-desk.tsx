@@ -94,6 +94,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
   useEffect(() => { void load(); return () => { overviewVersion.current++; }; }, [load]);
   const refocus = () => requestAnimationFrame(() => scanRef.current?.focus());
   const post = async (action: string, data: object) => { try { const r = await call("/api/library/desk", { method: "POST", body: JSON.stringify({ action, data }) }); setError(null); return r; } catch (e) { setError(ui((e as Error).message)); setMessage(null); return null; } };
+  // SKAI-1630: also called after a charge decision, so the selected reader never keeps a handed-off or waived charge.
   const refreshMember = async () => {
     if (!member) return;
     try { setMember(await call(`/api/library/desk?code=${encodeURIComponent(member.member.memberNo)}`)); }
@@ -245,8 +246,8 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
                 <p className="flex flex-wrap items-center gap-2 font-semibold"><Receipt aria-hidden="true" className="size-4 text-status-warning-text" />{ui(KIND_LABEL[c.kind] ?? c.kind)}<DeskPill tone={c.kind === "LOST" ? "danger" : "warning"}><bdi>{money(c.amount, c.currency)}</bdi></DeskPill></p>
                 <div className="flex flex-wrap items-end gap-2">
                   <FormField name={`ch-${c.id}`} label={ui("Reason")} className="min-w-0 flex-1 sm:min-w-[12rem]"><Input value={reasons[c.id] ?? ""} onChange={(e) => setReasons((r) => ({ ...r, [c.id]: e.target.value }))} /></FormField>
-                  {overview.canWaive ? <Button size="sm" variant="outline" onClick={async () => { if (await post("charge", { chargeId: c.id, decision: "WAIVE", reason: reasons[c.id] ?? "" })) { setMessage(ui("Charge waived; the reason and approver are recorded.")); void load(); } }}>{ui("Waive")}</Button> : <span className="text-xs text-ink-subtle">{ui("Your campus admin decides waivers; you can send the charge to the fees office.")}</span>}
-                  <Button size="sm" variant="outline" onClick={async () => { if (await post("charge", { chargeId: c.id, decision: "HAND_TO_FEES", reason: reasons[c.id] ?? "" })) { setMessage(ui("Charge handed to the fees office.")); void load(); } }}>{ui("Send to fees office")}</Button>
+                  {overview.canWaive ? <Button size="sm" variant="outline" onClick={async () => { if (await post("charge", { chargeId: c.id, decision: "WAIVE", reason: reasons[c.id] ?? "" })) { setMessage(ui("Charge waived; the reason and approver are recorded.")); void load(); void refreshMember(); } }}>{ui("Waive")}</Button> : <span className="text-xs text-ink-subtle">{ui("Your campus admin decides waivers; you can send the charge to the fees office.")}</span>}
+                  <Button size="sm" variant="outline" onClick={async () => { if (await post("charge", { chargeId: c.id, decision: "HAND_TO_FEES", reason: reasons[c.id] ?? "" })) { setMessage(ui("Charge handed to the fees office.")); void load(); void refreshMember(); } }}>{ui("Send to fees office")}</Button>
                 </div>
               </div>
             ))}
