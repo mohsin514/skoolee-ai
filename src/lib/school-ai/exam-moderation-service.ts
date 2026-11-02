@@ -112,12 +112,20 @@ export async function decideResultCorrection(user: AuthUser, assignmentId: strin
   return result;
 }
 
+/** A matching sample created by the same lead within this window is treated as a retry of that create. */
+export const SAMPLE_REPLAY_WINDOW_MS = 2 * 60 * 1000;
+
 /** Choose a second-marking sample by a recorded rule; the reviewer never second-marks their own scripts. */
 export async function createModerationSample(user: AuthUser, assignmentId: string, raw: unknown) {
   const input = parse(SampleInput, raw);
   return schoolAiTransaction(user, async (tx) => {
     const { assignment } = await scopedAssignment(user, assignmentId, tx);
     await staffExamAccess(user, assignment, "edit", tx);
+    // SKAI-1606: a retried create (lost response, double click) returns the sample it already made rather
+    // than drawing a second, differently randomised one. Creates by one lead on one exam run one at a time.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`moderation-sample:${user.schoolId}:${assignmentId}:${user.userId}`}))`;
+    const replay = await tx.schoolAiModerationSample.findFirst({ where: { schoolId: user.schoolId, assignmentId, createdById: user.userId, method: input.method, threshold: input.threshold, blind: input.blind, reviewerId: input.reviewerId, createdAt: { gte: new Date(Date.now() - SAMPLE_REPLAY_WINDOW_MS) } }, orderBy: { createdAt: "desc" } });
+    if (replay) return replay;
     // Reviewers must be able to open every sampled script, which teachers can only do for exams they
     // set themselves; second marking is therefore assigned to an academic lead on this campus.
     const reviewer = await tx.user.findFirst({ where: { id: input.reviewerId, schoolId: user.schoolId, campusId: assignment.campusId, isActive: true, role: { in: ["CAMPUS_ADMIN", "PRINCIPAL", "ADMIN", "SUPER_ADMIN"] } }, select: { id: true } });
