@@ -56,6 +56,8 @@ export function LearningActions({ mode = "author" }: { mode?: "author" | "review
     setCtx(json.data); setError("");
   }, [ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
+  // SKAI-1642: a queue link names its plan (?plan=<id>) so the missed check-in opens directly.
+  useEffect(() => { const plan = new URLSearchParams(window.location.search).get("plan"); if (plan) setOpen(plan); }, []);
 
   // R4/R5: a load failure is an inline ErrorState with retry; loading is a layout-shaped skeleton.
   if (error) return <section className="sk-panel p-5" data-learning-actions><ErrorState title={ui("Learning actions could not be loaded")} description={error} onRetry={() => void load()} retryLabel={ui("Retry")} /></section>;
