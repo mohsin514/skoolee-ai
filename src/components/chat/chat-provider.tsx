@@ -394,16 +394,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const loadOlder = useCallback(async () => {
     if (!activeId || !olderCursor) return;
 
-    try {
-      const res = await fetch(
-        `/api/chat/conversations/${activeId}/messages?limit=40&cursor=${olderCursor}`
-      );
-      if (!res.ok) return;
+    // SKAI-1586: a failed page rejects so the thread can show it and offer a retry; the cursor is kept.
+    const res = await fetch(
+      `/api/chat/conversations/${activeId}/messages?limit=40&cursor=${olderCursor}`
+    );
+    if (!res.ok) throw new Error("Earlier messages could not be loaded.");
 
-      const json = await res.json();
-      setMessages((prev) => [...(json.messages ?? []), ...prev]);
-      setOlderCursor(json.nextCursor ?? null);
-    } catch {}
+    const json = await res.json();
+    setMessages((prev) => [...(json.messages ?? []), ...prev]);
+    setOlderCursor(json.nextCursor ?? null);
   }, [activeId, olderCursor]);
 
   // ─── Live stream ───────────────────────────────────────────────

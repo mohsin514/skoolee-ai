@@ -207,9 +207,10 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       const [ttJson, classJson, teacherJson, periodJson, roomJson, calJson] = await Promise.all([
         ttRes.json(), classRes.json(), teacherRes.json(), periodRes.json(), roomRes.json(), calRes.json(),
       ]);
-      // SKAI-1423: an error response is a failed load, not empty setup; keep prior data and show Retry.
-      if (![ttRes, classRes, teacherRes, periodRes, roomRes, calRes].every(res => res.ok)) throw new Error("timetable load failed");
 
+      // SKAI-1423/1647: an error response or unsuccessful body is a failed load, not empty setup; keep prior data and show Retry.
+      if (![ttRes, classRes, teacherRes, periodRes, roomRes, calRes].every(res => res.ok)) throw new Error("timetable load failed");
+      if (![ttJson, periodJson, roomJson, calJson].every(json => json?.success)) throw new Error("timetable setup source failed");
       if (ttJson.success) setTimetables(ttJson.data);
       if (periodJson.success) setPeriodDefs(periodJson.data || []);
       if (roomJson.success) setRooms(roomJson.data || []);

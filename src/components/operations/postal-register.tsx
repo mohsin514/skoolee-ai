@@ -59,6 +59,7 @@ async function send(method: string, body: Record<string, unknown>) {
 export function PostalRegister({ hideHeader = false, command }: { hideHeader?: boolean; command?: PanelCommand | null } = {}) {
   const ui = useUiText();
   const { date: formatDate } = useLocaleFormat();
+  const [truncated, setTruncated] = useState(false);
   const [rows, setRows] = useState<Item[]>([]), [counts, setCounts] = useState({ awaitingCollection: 0, toDispatch: 0, inTransit: 0, unassigned: 0, mine: 0 });
   const [owners, setOwners] = useState<Owner[]>([]);
   const [view, setView] = useState("active"), [direction, setDirection] = useState(""), [q, setQ] = useState("");
@@ -78,7 +79,7 @@ export function PostalRegister({ hideHeader = false, command }: { hideHeader?: b
       const response = await fetch(`/api/front-desk/postal?${params}`, { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to the postal register for this campus.") : json.error || ui("Postal items could not be loaded."));
-      setRows(json.data); setCounts(json.counts);
+      setRows(json.data); setCounts(json.counts); setTruncated(Boolean(json.truncated));
       // Owner candidates come with the list (G40: campus admins incl. a single school's admin, and receptionists).
       if (Array.isArray(json.owners)) setOwners((json.owners as Owner[]).filter(person => !person.role || OWNER_ROLES.has(person.role)));
     } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("Postal items could not be loaded.")); } finally { setLoading(false); }
@@ -89,6 +90,8 @@ export function PostalRegister({ hideHeader = false, command }: { hideHeader?: b
     export: () => {
       if (loadError) return;
       if (!rows.length) { toast.info(ui("Nothing to export yet.")); return; }
+      // SKAI-1675: the list holds the newest 300; say so instead of exporting a silently partial file.
+      if (truncated) toast.warning(ui("Only the newest 300 records were exported. Narrow the filters to export older records."));
       const STATUS_EN: Record<Status, string> = { RECEIVED: "Awaiting an owner", ASSIGNED: "Awaiting collection", COLLECTED: "Collected", PREPARED: "To dispatch", DISPATCHED: "In transit", DELIVERED: "Delivered" };
       downloadCSV(`post-${todayText()}`, [
         ["Code", "Direction", "Date", "Sender", "Recipient", "Courier", "Reference", "Status", "Owner", "Handed to"],

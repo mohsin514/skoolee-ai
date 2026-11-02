@@ -581,7 +581,8 @@ export async function returnFeedback(user: AuthUser, assignmentId: string, raw: 
     const { assignment, version, criteria } = await markable(tx, user, assignmentId, input.submissionVersionId);
     const issues = scoreIssues(criteria, input.scores, true);
     if (issues.length) throw new ApiError(issues.join(" "), 400);
-    const release = await tx.assignmentVersion.findFirstOrThrow({ where: { schoolId: user.schoolId, assignmentId, version: assignment.currentVersion! } });
+    // SKAI-1645: revision rights follow the immutable release this work was submitted under, not the latest release.
+    const release = await tx.assignmentVersion.findFirstOrThrow({ where: { schoolId: user.schoolId, assignmentId, version: version.assignmentVersion } });
     if (input.allowRevision && release.resubmission === "NEVER") throw new ApiError("This assignment does not allow another version.", 409);
     const data = { criteria: input.scores, comment: input.comment, totalPoints: scoreTotal(input.scores), status: "RETURNED", returnedAt: now, gradebookTransfer: input.requestGradebookTransfer ? "REQUESTED" : "NOT_REQUESTED", markerId: user.userId };
     const feedback = await writeFeedback(tx, user, version, input.expectedUpdatedAt, data, false);

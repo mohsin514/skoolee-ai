@@ -119,6 +119,11 @@ export async function POST(req: NextRequest) {
       if (classes.length === 0) throw new ApiError("No active classes found for this year", 404);
 
       await prisma.$transaction(async (tx) => {
+        // SKAI-1680: one close per campus/year. The lock serialises simultaneous closes; claiming the classes
+        // ACTIVE -> COMPLETED up front means a second close finds them gone, rolls back and never re-notifies.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`academic-year-close:${user.schoolId}:${campusId}:${academicYear}`}))`;
+        const claimed = await tx.class.updateMany({ where: { id: { in: classes.map((cls) => cls.id) }, campusId, status: "ACTIVE" }, data: { status: "COMPLETED" } });
+        if (claimed.count !== classes.length) throw new ApiError(`Academic year ${academicYear} was just closed in another session. Reload to see the closed year.`, 409);
         for (const cls of classes) {
           for (const student of cls.students) {
             const latestReport = student.reportCards[0];
@@ -154,11 +159,6 @@ export async function POST(req: NextRequest) {
               });
             }
           }
-
-          await tx.class.update({
-            where: { id: cls.id },
-            data: { status: "COMPLETED" },
-          });
         }
 
         // The academic cycle must end with its classes, or active-year gates stay open after "closed".

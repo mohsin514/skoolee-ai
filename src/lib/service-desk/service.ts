@@ -182,7 +182,8 @@ export async function requestView(user: AuthUser, id: string) {
   const { req, agent } = await load(user, id);
   const events = await prisma.serviceRequestEvent.findMany({ where: { requestId: req.id, ...(agent ? {} : { visibility: "REQUESTER" }) }, orderBy: [{ createdAt: "asc" }, { version: "asc" }] });
   const names = await people(user.schoolId, [req.ownerId, req.requesterId, ...req.watcherIds, ...events.map(e => e.actorId)]);
-  return { ...summary(req, names, new Date()), description: req.description, agent, watchers: req.watcherIds.map(w => ({ id: w, name: names.get(w) ?? "" })),
+  // SKAI-1678: the confirm command is the requester's (agent or not), so the view says who that is.
+  return { ...summary(req, names, new Date()), description: req.description, agent, isRequester: req.requesterId === user.userId, watchers: req.watcherIds.map(w => ({ id: w, name: names.get(w) ?? "" })),
     events: events.map(e => ({ id: e.id, kind: e.kind, visibility: e.visibility, actor: e.actorId ? names.get(e.actorId) ?? "" : null, body: e.body, detail: agent ? { ...(e.detail as Record<string, unknown>), ...publicDetail(e.kind, e.detail, names) } : publicDetail(e.kind, e.detail, names), attachment: e.attachmentKey ? `/api/service-desk/${req.id}?attachment=${e.id}` : null, createdAt: e.createdAt })) };
 }
 const publicDetail = (kind: string, detail: Prisma.JsonValue, names: Map<string, string>) => {

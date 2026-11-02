@@ -19,6 +19,7 @@ import { CycleBadge } from "@/components/academic-year/CycleBadge";
 import { ScopeBadge, useShellSession } from "./ScopeBadge";
 import { HelpMenu } from "./HelpMenu";
 import { useNotifications } from "@/hooks/use-notifications";
+import { NOTIFICATION_FIXED_TITLE_KINDS } from "@/lib/notifications/links";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { playNotificationBell } from "@/lib/sounds/bell";
 import { Button } from "@/components/ui/button";
@@ -94,8 +95,9 @@ export function RoleHeader({
   const [headerProfile, setHeaderProfile] = useState<EditableProfile | null>(null);
   const [arrival, setArrival] = useState("");
   const notifRef = useRef<HTMLDivElement | null>(null);
+  const notifTriggerRef = useRef<HTMLButtonElement | null>(null);
   const prevUnreadRef = useRef(0);
-  const { notifications: liveNotifications, unreadCount, refresh: refreshNotifications } = useNotifications();
+  const { notifications: liveNotifications, loaded: notificationsLoaded, unreadCount, refresh: refreshNotifications } = useNotifications();
   const seenNotifIds = useRef<Set<string> | null>(null);
   const displayName = (headerProfile?.fullName || session?.fullName || userName || "").split("@")[0].replace(/[._-]/g, " ").replace(/\s+/g, " ").trim() || "User";
   // The EN key re-translates after a language switch; the session label is already in the display language.
@@ -127,7 +129,7 @@ export function RoleHeader({
   // report the result of something the viewer just did (addendum 2026-10-22 §4). The bell keeps the full list.
   useEffect(() => {
     if (seenNotifIds.current === null) {
-      if (liveNotifications.length === 0) return;
+      if (!notificationsLoaded) return;
       seenNotifIds.current = new Set(liveNotifications.map((item) => item.id));
       return;
     }
@@ -138,9 +140,11 @@ export function RoleHeader({
     const newest = fresh.find((item) => !item.isRead && (item as { category?: string }).category === "ACTION");
     if (!newest || touring || isModalOpen()) return;
     playNotificationBell();
-    setArrival(t("New notification: {0}", [newest.title]));
+    // Fixed interface titles are stored in English; translate them like the notification center does.
+    const title = newest.type && NOTIFICATION_FIXED_TITLE_KINDS.has(newest.type) ? t(newest.title) : newest.title;
+    setArrival(t("New notification: {0}", [title]));
     // Reads the translator at the moment an item arrives; a language switch should not re-announce it.
-  }, [liveNotifications, touring]);
+  }, [liveNotifications, notificationsLoaded, touring]);
 
   // Header identity (name, photo). A failed read keeps the session name: no toast for a load (R4).
   useEffect(() => {
@@ -175,7 +179,8 @@ export function RoleHeader({
       setNotifOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setNotifOpen(false);
+      // SKAI-1658: Escape returns keyboard focus to the bell that opened the panel.
+      if (event.key === "Escape") { setNotifOpen(false); notifTriggerRef.current?.focus(); }
     };
 
     document.addEventListener("pointerdown", closeOnOutsideClick);
@@ -236,6 +241,7 @@ export function RoleHeader({
             <Tooltip content={t("View notifications")} describe={false}>
             <Button variant="outline" size="icon"
               type="button"
+              ref={notifTriggerRef}
               data-tour="shell.header.notifications"
               onClick={() => setNotifOpen((o) => !o)}
               className={cn(

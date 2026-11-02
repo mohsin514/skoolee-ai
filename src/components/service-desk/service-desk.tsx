@@ -16,6 +16,10 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowButton, DeskSection, DeskStats, RelativeTime, StatTile, deskTimeline, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+
+// SKAI-1677: datetime-local holds local wall time; build it from the instant in the browser's zone so an unchanged
+// value round-trips to the same deadline instead of shifting by the timezone offset.
+function toLocalInput(iso: string) { const d = new Date(iso); return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); }
 import { AlarmClock, CircleDot, Hourglass, LifeBuoy, ShieldAlert, UserX, Wrench } from "lucide-react";
 
 type DeskTab = "mine" | "new" | "queue";
@@ -38,7 +42,7 @@ function writeTab(tab: DeskTab) {
 
 type Ui = ReturnType<typeof useUiText>;
 type Summary = { id: string; reference: string; title: string; location: string; category: string; team: string; safety: boolean; priority: string; status: string; blockedReason: string | null; owner: string | null; ownerId: string | null; requester: string; createdAt: string; resolveDueAt: string | null; responseDueAt: string | null; firstResponseAt: string | null; resolvedAt: string | null; reopenedCount: number; version: number; overdue: boolean; responseOverdue: boolean };
-type Detail = Summary & { description: string; agent: boolean; watchers: { id: string; name: string }[]; events: { id: string; kind: string; visibility: string; actor: string | null; body: string | null; detail: Record<string, unknown>; attachment: string | null; createdAt: string }[] };
+type Detail = Summary & { description: string; agent: boolean; isRequester?: boolean; watchers: { id: string; name: string }[]; events: { id: string; kind: string; visibility: string; actor: string | null; body: string | null; detail: Record<string, unknown>; attachment: string | null; createdAt: string }[] };
 type Form = { campusId: string; categories: { id: string; name: string; kind: string; team: string; safety: boolean; responseHours: number | null; resolveHours: number | null }[]; rooms: { id: string; roomNumber: string }[]; suggestion: { categoryId: string; matches: number } | null };
 
 async function call(url: string, method = "GET", body?: Record<string, unknown>) {
@@ -71,10 +75,14 @@ export function ServiceDesk() {
   const [draft, setDraft] = useState({ title: "", description: "", location: "", roomId: "", categoryId: "" }), [photo, setPhoto] = useState<{ data: string; contentType: string } | null>(null), [requestKey, setRequestKey] = useState(key);
   const [open, setOpen] = useState<Detail | null>(null), [message, setMessage] = useState(""), [reason, setReason] = useState(""), [assignee, setAssignee] = useState(""), [work, setWork] = useState(""), [due, setDue] = useState(""), [prio, setPrio] = useState("");
   const loadMine = useCallback(async () => { try { setMine(await call("/api/service-desk?view=mine")); setError(""); } catch (e) { setError(ui(e instanceof Error ? e.message : "Requests could not be loaded.")); } }, [ui]);
-  const loadQueue = useCallback(async () => { try { setQ(await call("/api/service-desk?view=queue")); } catch { setQ({ agent: false, requests: [] }); } }, []);
+  // SKAI-1656: a failed queue load is a recoverable error, not a loss of agent access; keep the tab and offer Retry.
+  const [queueFailed, setQueueFailed] = useState(false);
+  const loadQueue = useCallback(async () => { try { setQ(await call("/api/service-desk?view=queue")); setQueueFailed(false); } catch { setQueueFailed(true); } }, []);
   useEffect(() => { void loadMine(); void loadQueue(); }, [loadMine, loadQueue]);
-  useEffect(() => { if (tab !== "new") return; const t = setTimeout(() => { void call(`/api/service-desk?view=form&text=${encodeURIComponent(`${draft.title} ${draft.description}`)}`).then((f: Form) => { setForm(f); if (f.suggestion && !draft.categoryId) setDraft(d => ({ ...d, categoryId: f.suggestion!.categoryId })); }).catch(() => undefined); }, 350); return () => clearTimeout(t); }, [tab, draft.title, draft.description, draft.categoryId]);
-  const openRequest = async (id: string) => { try { const d = await call(`/api/service-desk/${id}`); setOpen(d); setMessage(""); setReason(""); setWork(""); setAssignee(d.ownerId ?? ""); setPrio(d.priority); setDue(d.resolveDueAt ? new Date(d.resolveDueAt).toISOString().slice(0, 16) : ""); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "This request is outside your service scope.")); } };
+  // SKAI-1657: a failed form-options lookup is shown with Retry; entered fields are kept.
+  const [formFailed, setFormFailed] = useState(false), [formAttempt, setFormAttempt] = useState(0);
+  useEffect(() => { if (tab !== "new") return; const t = setTimeout(() => { void call(`/api/service-desk?view=form&text=${encodeURIComponent(`${draft.title} ${draft.description}`)}`).then((f: Form) => { setForm(f); setFormFailed(false); if (f.suggestion && !draft.categoryId) setDraft(d => ({ ...d, categoryId: f.suggestion!.categoryId })); }).catch(() => setFormFailed(true)); }, 350); return () => clearTimeout(t); }, [tab, draft.title, draft.description, draft.categoryId, formAttempt]);
+  const openRequest = async (id: string) => { try { const d = await call(`/api/service-desk/${id}`); setOpen(d); setMessage(""); setReason(""); setWork(""); setAssignee(d.ownerId ?? ""); setPrio(d.priority); setDue(d.resolveDueAt ? toLocalInput(d.resolveDueAt) : ""); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "This request is outside your service scope.")); } };
   const act = async (body: Record<string, unknown>, done: string) => {
     if (!open) return; setBusy(true);
     try { await call(`/api/service-desk/${open.id}`, "POST", { ...body, knownVersion: open.version }); toast.success(ui(done)); await openRequest(open.id); void loadMine(); void loadQueue(); }
@@ -120,10 +128,11 @@ export function ServiceDesk() {
       icon={LifeBuoy}
       title="Service desk"
       description="Report repairs, access, supplies or questions. Each request gets a reference and an owner."
-      tabs={<ViewTabs ariaLabel="Service desk sections" value={tab === "queue" && !q?.agent ? "mine" : tab} onChange={(id) => setTab(id as DeskTab)} items={[{ id: "mine", label: "My requests" }, { id: "new", label: "New request" }, { id: "queue", label: "Service queue", hidden: !q?.agent }]} />}
+      tabs={<ViewTabs ariaLabel="Service desk sections" value={tab === "queue" && !q?.agent && !queueFailed ? "mine" : tab} onChange={(id) => setTab(id as DeskTab)} items={[{ id: "mine", label: "My requests" }, { id: "new", label: "New request" }, { id: "queue", label: "Service queue", hidden: !q?.agent && !queueFailed }]} />}
     />
 
     {tab === "mine" || (tab === "queue" && q && !q.agent) ? (error && !mine ? <ErrorState description={error} onRetry={() => void loadMine()} retryLabel={ui("Try again")} /> : mine ? board(mine, false) : <SkeletonList rows={3} label={ui("Loading assignments and latest updates.")} />) : null}
+    {tab === "queue" && queueFailed ? <div data-sd-queue-failed>{q ? <Alert tone="warning" compact live="polite" actions={<Button size="sm" variant="outline" onClick={() => void loadQueue()}>{ui("Try again")}</Button>}>{ui("The service queue could not be refreshed. Showing the last loaded list.")}</Alert> : <ErrorState description={ui("The service queue could not be loaded.")} onRetry={() => loadQueue()} retryLabel={ui("Try again")} />}</div> : null}
     {tab === "queue" && q ? <div className="space-y-3" data-sd-queue><p className="text-xs text-ink-muted">{ui("Unassigned and overdue requests are listed first.")}</p>{board(q.requests, true)}</div> : null}
     {tab === "new" ? <div className="min-w-0 space-y-3" data-sd-new>
       <Alert tone="warning" compact>{ui("Safety concerns follow the school's escalation procedure. Confidential or safeguarding concerns use the restricted workflow, not this desk.")}</Alert>
@@ -133,6 +142,7 @@ export function ServiceDesk() {
         <FormField name="sd-location" label={ui("Where is it?")}><Input value={draft.location} onChange={e => setDraft({ ...draft, location: e.target.value })} maxLength={160} /></FormField>
         <FormField name="sd-room" label={ui("Room (optional)")}><Select className="w-full min-w-0" value={draft.roomId} onChange={e => setDraft({ ...draft, roomId: e.target.value, location: draft.location || (form?.rooms.find(r => r.id === e.target.value)?.roomNumber ?? "") })}><option value="">—</option>{form?.rooms.map(r => <option key={r.id} value={r.id}>{r.roomNumber}</option>)}</Select></FormField>
       </div>
+      {formFailed ? <div data-sd-form-failed><Alert tone="warning" compact live="polite" actions={<Button size="sm" variant="outline" onClick={() => setFormAttempt(n => n + 1)}>{ui("Try again")}</Button>}>{ui("Request types and rooms could not be loaded. Your text is kept; try again to choose a type.")}</Alert></div> : null}
       <FormField name="sd-category" label={ui("Who should handle this request?")} hint={form?.suggestion && form.suggestion.categoryId === draft.categoryId ? ui("Suggested from your description. Change it if it is wrong.") : undefined}>
         <Select className="w-full min-w-0" value={draft.categoryId} onChange={e => setDraft({ ...draft, categoryId: e.target.value })} data-sd-category><option value="">{ui("Choose a type")}</option>{form?.categories.map(c => <option key={c.id} value={c.id}>{c.name} · {c.team}{c.safety ? ` · ${ui("Safety")}` : ""}</option>)}</Select></FormField>
       {chosen ? <p className="text-xs text-ink-muted" data-sd-target>{chosen.resolveHours ? ui("The school aims to resolve this within {0} hours.", [String(chosen.resolveHours)]) : ui("The school has not set a target time for this type.")}</p> : null}
@@ -141,7 +151,7 @@ export function ServiceDesk() {
     </div> : null}
 
     {open ? <Modal icon={open.agent ? Wrench : LifeBuoy} tone={["RESOLVED", "CLOSED"].includes(open.status) ? "emerald" : open.status === "BLOCKED" ? "amber" : open.priority === "URGENT" ? "rose" : "violet"} title={open.title} eyebrow={open.reference} subtitle={`${open.location} · ${open.category} · ${open.team}`} onClose={() => setOpen(null)} wide
-      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={() => setOpen(null)}>{ui("Close")}</Button>{open.agent && ["OPEN", "IN_PROGRESS", "BLOCKED"].includes(open.status) ? <Button disabled={busy || !work.trim()} onClick={() => void act({ action: "resolve", workPerformed: work }, "Marked as resolved; the requester will confirm.")} data-sd-resolve>{ui("Mark resolved")}</Button> : null}{open.status === "RESOLVED" && !open.agent ? <Button disabled={busy} onClick={() => void act({ action: "confirm", body: message }, "Thank you. The request is closed.")} data-sd-confirm>{ui("Confirm resolved")}</Button> : null}</div>}>
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={() => setOpen(null)}>{ui("Close")}</Button>{open.agent && ["OPEN", "IN_PROGRESS", "BLOCKED"].includes(open.status) ? <Button disabled={busy || !work.trim()} onClick={() => void act({ action: "resolve", workPerformed: work }, "Marked as resolved; the requester will confirm.")} data-sd-resolve>{ui("Mark resolved")}</Button> : null}{open.status === "RESOLVED" && (open.isRequester ?? !open.agent) ? <Button disabled={busy} onClick={() => void act({ action: "confirm", body: message }, "Thank you. The request is closed.")} data-sd-confirm>{ui("Confirm resolved")}</Button> : null}</div>}>
       <div className="space-y-4" data-sd-detail data-sd-agent={open.agent ? "true" : "false"}>
         <p className="text-sm" dir="auto">{open.description}</p>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs"><DeskPill tone={statusTone(open.status)}>{statusLabel(ui, open.status, Boolean(open.ownerId))}</DeskPill>{priorityLabel(ui, open.priority)} · {open.owner ? <>{ui("Owner")}: <bdi>{open.owner}</bdi></> : <span className="font-bold text-status-warning-text">{ui("Unassigned")}</span>}{open.resolveDueAt ? <> · {ui("Due")} <bdi>{dateTime(open.resolveDueAt)}</bdi></> : null}{open.firstResponseAt ? <> · {ui("First response")} <bdi>{dateTime(open.firstResponseAt)}</bdi></> : null}</p>
@@ -161,7 +171,7 @@ export function ServiceDesk() {
             <FormField name="sd-priority" label={ui("Priority")}><Select value={prio} onChange={e => setPrio(e.target.value)}>{["LOW", "NORMAL", "HIGH", "URGENT"].map(p => <option key={p} value={p}>{priorityLabel(ui, p)}</option>)}</Select></FormField>
             <Button size="sm" variant="outline" disabled={busy || prio === open.priority || !reason.trim()} onClick={() => void act({ action: "priority", priority: prio, reason }, "Priority changed.")} data-sd-priority>{ui("Change priority")}</Button>
             <FormField name="sd-due" label={ui("Due")}><Input type="datetime-local" value={due} onChange={e => setDue(e.target.value)} /></FormField>
-            <Button size="sm" variant="outline" disabled={busy || !due || !reason.trim()} onClick={() => void act({ action: "due", resolveDueAt: new Date(due).toISOString(), reason }, "Due time changed.")} data-sd-due>{ui("Change due time")}</Button>
+            <Button size="sm" variant="outline" disabled={busy || !due || !reason.trim()} onClick={() => void act({ action: "due", resolveDueAt: open.resolveDueAt && due === toLocalInput(open.resolveDueAt) ? open.resolveDueAt : new Date(due).toISOString(), reason }, "Due time changed.")} data-sd-due>{ui("Change due time")}</Button>
             <Button size="sm" variant="secondary" disabled={busy || !reason.trim()} onClick={() => void act({ action: "block", reason }, "Marked as waiting.")} data-sd-block>{ui("Mark as waiting")}</Button>
           </div>
           <FormField name="sd-message" label={ui("Message")}><Textarea rows={2} value={message} onChange={e => setMessage(e.target.value)} /></FormField>

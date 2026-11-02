@@ -2,7 +2,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { ApiError, canManageLibrary } from "@/lib/api/scope";
+import { ApiError, assertPermission, assertStaffRole, canManageLibrary } from "@/lib/api/scope";
 import { isCampusOperator } from "@/lib/auth/institution";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { DEFAULT_RULES, dueDate, finePreview, type LoanRules } from "./rules";
@@ -130,6 +130,8 @@ export async function issueCopy(user: AuthUser, raw: unknown) {
   return prisma.$transaction(async (tx) => {
     const member = await tx.libraryMember.findFirst({ where: { id: input.memberId, schoolId: user.schoolId, campusId } });
     if (!member) throw new ApiError("Member not found", 404);
+    // SKAI-1671: serialise issues per reader so two desks lending different copies cannot both pass the limit count.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`library-reader-loans:${member.id}`}))`;
     const copy = await tx.bookCopy.findFirst({ where: { schoolId: user.schoolId, campusId, barcode: input.barcode } });
     if (!copy) throw new ApiError("Copy not found", 404);
     const rules = await currentRules(tx, user.schoolId, campusId);
@@ -304,5 +306,21 @@ export async function deskOverview(user: AuthUser) {
     prisma.bookReservation.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: ["WAITING", "READY"] } }, orderBy: { createdAt: "asc" }, take: 200 }),
     prisma.libraryCharge.findMany({ where: { schoolId: user.schoolId, campusId, status: "OPEN" }, orderBy: { createdAt: "desc" }, take: 200 }),
   ]);
-  return { rules, canWaive: canWaiveCharge(user), books, reservations, charges };
+  // SKAI-1665: the desk keeps sight of what it handed to the fees office instead of losing it from view.
+  const handed = await prisma.libraryCharge.findMany({ where: { schoolId: user.schoolId, campusId, status: "HANDED_TO_FEES" }, orderBy: { decidedAt: "desc" }, take: 100 });
+  return { rules, canWaive: canWaiveCharge(user), books, reservations, charges, handed };
+}
+
+/**
+ * SKAI-1665: the fees office queue for library charges handed over by the desk — campus-scoped, finance view
+ * permission, with the member's name and number and the librarian's recorded reason as provenance.
+ */
+export async function handedLibraryCharges(user: AuthUser) {
+  assertStaffRole(user);
+  await assertPermission(user, "fees", "view");
+  const campusId = campusOf(user);
+  const charges = await prisma.libraryCharge.findMany({ where: { schoolId: user.schoolId, campusId, status: "HANDED_TO_FEES" }, orderBy: { decidedAt: "asc" }, take: 200 });
+  const members = await prisma.libraryMember.findMany({ where: { schoolId: user.schoolId, campusId, id: { in: [...new Set(charges.map(c => c.memberId))] } }, select: { id: true, memberNo: true, user: { select: { fullName: true } } } });
+  const byId = new Map(members.map(m => [m.id, m]));
+  return charges.map(c => ({ id: c.id, issueId: c.issueId, kind: c.kind, amount: c.amount, currency: c.currency, reason: c.waiverReason, handedById: c.waivedById, handedAt: c.decidedAt, memberNo: byId.get(c.memberId)?.memberNo ?? null, memberName: byId.get(c.memberId)?.user.fullName ?? null }));
 }

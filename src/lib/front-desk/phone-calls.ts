@@ -200,11 +200,14 @@ export async function listCalls(user: AuthUser, campusId: string, filters: { vie
   };
   const [rows, open] = await Promise.all([
     prisma.phoneCallLog.findMany({
-      where, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 300,
+      // SKAI-1675: one past the cap tells the client the list (and so its export) is not complete.
+      where, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 301,
       include: { callbacks: { orderBy: { createdAt: "asc" }, include: { owner: { select: { id: true, fullName: true } } } } },
     }),
     prisma.phoneCallback.findMany({ where: { campusId, schoolId: user.schoolId, status: "OPEN" }, select: { ownerId: true, dueAt: true } }),
   ]);
+  const truncated = rows.length > 300;
+  rows.splice(300);
   const data = rows.map(({ requestHash: _hash, idempotencyKey: _key, note, callbacks, ...call }) => {
     const readable = canReadNote(user, call, callbacks.map(callback => callback.ownerId));
     return {
@@ -216,6 +219,7 @@ export async function listCalls(user: AuthUser, campusId: string, filters: { vie
   });
   return {
     data,
+    truncated,
     counts: { open: open.length, overdue: open.filter(row => row.dueAt < now).length, unassigned: open.filter(row => !row.ownerId).length, mine: open.filter(row => row.ownerId === user.userId).length },
     owners: await ownerCandidates(user, campusId),
   };

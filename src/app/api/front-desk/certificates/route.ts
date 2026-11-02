@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
     if (params.get("issues")) {
       const status = params.get("status");
       if (status && !STATUSES.includes(status)) throw new ApiError("Unknown status", 400);
-      return Response.json({ success: true, data: await listIssues(user, campusId, { status, q: params.get("q") ?? "" }) });
+      const { rows, truncated } = await listIssues(user, campusId, { status, q: params.get("q") ?? "" });
+      return Response.json({ success: true, data: rows, truncated });
     }
     return Response.json({ success: true, data: await listTemplates(user, campusId), canApprove: isLeader(user) });
   } catch (error) {

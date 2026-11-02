@@ -9,6 +9,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Send } from "lucide-react";
 
@@ -53,13 +54,14 @@ export function PublicationStatus({ timetableId, refreshKey }: { timetableId: st
 export function PublicationReview({ timetableId, className, onClose, onPublished }: { timetableId: string; className: string; onClose: () => void; onPublished: () => void }) {
   const ui = useUiText();
   const { date } = useLocaleFormat();
-  const [data, setData] = useState<Preview | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false);
+  const [data, setData] = useState<Preview | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false), [loadFailed, setLoadFailed] = useState("");
   const [effectiveFrom, setEffectiveFrom] = useState(""), [note, setNote] = useState("");
   const load = useCallback(async () => {
-    setError("");
-    const response = await fetch(`/api/timetable/${timetableId}?publication=1`, { cache: "no-store" });
-    const json = await response.json().catch(() => ({}));
-    if (!response.ok || !json.success) { setError(ui(json.error || "The publication review could not be loaded.")); return; }
+    setError(""); setLoadFailed("");
+    // SKAI-1644: HTTP, malformed and connection failures all end in a retryable error instead of the skeleton.
+    const response = await fetch(`/api/timetable/${timetableId}?publication=1`, { cache: "no-store" }).catch(() => null);
+    const json = await response?.json().catch(() => null);
+    if (!response?.ok || !json?.success || !json.data) { setLoadFailed(ui(json?.error || "The publication review could not be loaded.")); return; }
     setData(json.data); setEffectiveFrom(current => current || json.data.today);
   }, [timetableId, ui]);
   useEffect(() => { void load(); }, [load]);
@@ -83,7 +85,8 @@ export function PublicationReview({ timetableId, className, onClose, onPublished
     </div> : undefined}>
     <div className="space-y-4" data-publication-review>
       {error ? <div data-publication-error><Alert tone="danger" compact live="assertive">{error}</Alert></div> : null}
-      {!data ? <div role="status" aria-label={ui("Checking actual times, rooms and teachers…")}><p className="mb-3 text-sm text-ink-muted">{ui("Checking actual times, rooms and teachers…")}</p><SkeletonList /></div> : <>
+      {loadFailed && data ? <div data-publication-error><Alert tone="danger" compact live="assertive">{loadFailed}</Alert></div> : null}
+      {!data && loadFailed ? <div data-publication-load-failed><ErrorState variant="panel" title={ui("The publication review could not be loaded.")} description={loadFailed === ui("The publication review could not be loaded.") ? undefined : loadFailed} onRetry={() => load()} retryLabel={ui("Try again")} /></div> : !data ? <div role="status" aria-label={ui("Checking actual times, rooms and teachers…")}><p className="mb-3 text-sm text-ink-muted">{ui("Checking actual times, rooms and teachers…")}</p><SkeletonList /></div> : <>
         <p className="text-sm" data-publication-current>{data.inForce ? ui("Everyone sees version {0}, in force from {1}. Publishing creates version {2}.", [String(data.inForce.version), date(data.inForce.effectiveFrom), String((data.latest?.version ?? 0) + 1)]) : ui("Nothing is published yet. Publishing creates version {0}.", [String((data.latest?.version ?? 0) + 1)])}</p>
         <section data-publication-hard={hard.length}>
           <h4 className="text-sm font-bold">{hard.length ? ui("Hard conflicts that prevent publication: {0}", [String(hard.length)]) : ui("No hard conflicts")}</h4>

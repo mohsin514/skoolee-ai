@@ -145,7 +145,8 @@ export async function deletePrivateConversation(user: AuthUser, id: string, inpu
     await assertConversationActor(user, tx, "add");
     const row = await loadPrivateConversation(user, id, tx, true);
     if (row.version !== data.version) throw new SchoolAiError("This conversation changed. Reload before deleting it.", 409);
-    const active = await tx.schoolAiRequest.findFirst({ where: { schoolId: user.schoolId, conversationId: id, status: "PENDING" }, select: { id: true } });
+    // SKAI-1651: only a live lease blocks deletion; an expired PENDING turn is stale, as archive already treats it.
+    const active = await tx.schoolAiRequest.findFirst({ where: { schoolId: user.schoolId, conversationId: id, status: "PENDING", leaseExpiresAt: { gt: new Date() } }, select: { id: true } });
     if (active) throw new SchoolAiError("Wait for the pending reply before deleting this conversation.", 409);
     await tx.schoolAiConversation.delete({ where: { id: row.id } });
     await tx.auditLog.create({ data: { schoolId: user.schoolId, userId: user.userId, tableName: "school_ai_conversations", recordId: row.id, newValue: { action: "conversation.deleted", purpose: row.purpose, at: new Date().toISOString() } } });
@@ -180,14 +181,14 @@ export async function exportPrivateConversation(user: AuthUser, id: string) {
 export async function sweepConversationRetention(db: TxClient, now: Date, days: number) {
   if (!Number.isInteger(days) || days < 30) throw new Error("Conversation retention must be at least 30 days.");
   const cutoff = new Date(now.getTime() - days * 86_400_000);
-  const stale = await db.schoolAiConversation.findMany({ where: { updatedAt: { lt: cutoff }, requests: { none: { status: "PENDING" } } }, select: { id: true, schoolId: true, actorId: true }, take: 500 });
+  const stale = await db.schoolAiConversation.findMany({ where: { updatedAt: { lt: cutoff }, requests: { none: { status: "PENDING", leaseExpiresAt: { gt: now } } } }, select: { id: true, schoolId: true, actorId: true }, take: 500 });
   if (!stale.length) return { deleted: 0 };
   const deleted: typeof stale = [];
   for (const row of stale) {
     // Recheck activity at deletion, not only when the batch was selected.
     const result = await db.schoolAiConversation.deleteMany({ where: {
       id: row.id, schoolId: row.schoolId, updatedAt: { lt: cutoff },
-      requests: { none: { status: "PENDING" } },
+      requests: { none: { status: "PENDING", leaseExpiresAt: { gt: now } } },
     } });
     if (result.count) deleted.push(row);
   }

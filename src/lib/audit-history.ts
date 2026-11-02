@@ -154,7 +154,9 @@ export async function exportAuditHistory(user: AuthUser, raw: unknown, assertExp
   const header = ["time", "action", "category", "record", "campus", "actor", "actor_role", "changes"];
   const lines = rows.slice(0, EXPORT_LIMIT).map(row => [row.createdAt, row.action, row.tableName, row.recordId, row.campusId, row.actor?.fullName, row.actor?.role,
     row.changes.map(change => `${change.field}: ${change.before ?? "—"} → ${change.after ?? "—"}`).join("; ")].map(csvCell).join(","));
-  const result = { csv: [header.join(","), ...lines].join("\r\n") + "\r\n", rows: Math.min(rows.length, EXPORT_LIMIT), truncated, filename: `activity-history-${now.toISOString().slice(0, 10)}.csv` };
+  // SKAI-1633: a cut-off export says so inside the file itself, not only in a response header.
+  const marker = truncated ? [csvCell(`PARTIAL EXPORT: only the newest ${EXPORT_LIMIT} entries are included. Narrow the date range to export the rest.`)] : [];
+  const result = { csv: [header.join(","), ...lines, ...marker].join("\r\n") + "\r\n", rows: Math.min(rows.length, EXPORT_LIMIT), truncated, filename: `activity-history-${now.toISOString().slice(0, 10)}.csv` };
   const receipt = { status: "COMPLETED", rows: result.rows, truncated, filters, filename: result.filename, csv: result.csv };
   if (previous) await db.auditLog.update({ where: { id: previous.id }, data: { newValue: receipt } });
   else await db.auditLog.create({ data: { schoolId: user.schoolId, campusId: typeof scope.campusId === "string" ? scope.campusId : null, tableName: EXPORT_RECEIPT_TABLE, recordId: input.requestKey, userId: user.userId, newValue: receipt } });

@@ -275,15 +275,15 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                 {canCreateGroup && (
                   <div
                     className="relative flex gap-1 rounded-xl bg-brand-50/70 p-1"
-                    role="tablist"
+                    // SKAI-1602: a labelled toggle group, not a tablist: these buttons filter in place and have no tab panels.
+                    role="group"
                     aria-label={ui("Conversation type")}
                   >
                     {(["direct", "group"] as const).map((m) => (
                       <Button data-selected={mode === m} variant="choice" size="sm"
                         key={m}
                         type="button"
-                        role="tab"
-                        aria-selected={mode === m}
+                        aria-pressed={mode === m}
                         onClick={() => {
                           setMode(m);
                           setSelected([]);

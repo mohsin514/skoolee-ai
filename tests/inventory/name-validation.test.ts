@@ -36,8 +36,11 @@ const record = (model: string, op: string) => async (args: { data?: { name?: str
   calls.push(`${model}.${op}`);
   return { id: "new", name: args?.data?.name ?? "", campusId: "campus-a", category: null, stock: [] };
 };
-const fakeModel = (model: string) => ({ create: record(model, "create"), update: record(model, "update"), findFirst: async () => { calls.push(`${model}.findFirst`); return { id: "x", campusId: "campus-a" }; }, findMany: async () => [], count: async () => 0 });
-mock.module("@/lib/db/prisma", { namedExports: { prisma: { supplier: fakeModel("supplier"), item: fakeModel("item"), itemCategory: fakeModel("itemCategory") } } });
+// SKAI-1681: a by-name lookup is the supplier create's duplicate check; no existing supplier has that name here.
+const fakeModel = (model: string) => ({ create: record(model, "create"), update: record(model, "update"), findFirst: async (args?: { where?: { name?: unknown } }) => { calls.push(`${model}.findFirst`); return args?.where?.name ? null : { id: "x", campusId: "campus-a" }; }, findMany: async () => [], count: async () => 0 });
+const fakePrisma: Record<string, unknown> = { supplier: fakeModel("supplier"), item: fakeModel("item"), itemCategory: fakeModel("itemCategory"), $executeRaw: async () => 1 };
+fakePrisma.$transaction = async (work: (tx: unknown) => Promise<unknown>) => work(fakePrisma);
+mock.module("@/lib/db/prisma", { namedExports: { prisma: fakePrisma } });
 
 type Route = { POST: (req: Request) => Promise<Response>; PATCH: (req: Request) => Promise<Response> };
 let suppliers: Route, items: Route;

@@ -27,7 +27,7 @@ type Member = { kind: "MEMBER"; member: { id: string; memberNo: string; name: st
 type Copy = { kind: "COPY"; copy: { id: string; barcode: string; status: string; condition: string; heldForReservation: boolean }; book: { id: string; title: string; author: string | null; isbn: string | null } | null; waitingReservations: number };
 type Fine = { overdueDays: number; graceDays: number; closureDays: string[]; chargeableDays: number; perDay: number; uncapped: number; cap: number; amount: number; currency: string };
 type Overview = { rules: { version: number; loanDays: number; maxLoans: number; maxRenewals: number; graceDays: number; finePerDay: number; fineCap: number; lostCharge: number; holdDays: number; currency: string; closures: string[] }; canWaive: boolean;
-  books: { id: string; title: string; copiesTotal: number; copiesAvailable: number }[]; reservations: { id: string; bookId: string; status: string; readyUntil: string | null }[]; charges: { id: string; kind: string; amount: number; currency: string }[] };
+  books: { id: string; title: string; copiesTotal: number; copiesAvailable: number }[]; reservations: { id: string; bookId: string; status: string; readyUntil: string | null }[]; charges: { id: string; kind: string; amount: number; currency: string }[]; handed?: { id: string; kind: string; amount: number; currency: string; decidedAt: string | null }[] };
 
 const STATUS_LABEL: Record<string, string> = { AVAILABLE: "On the shelf", ON_LOAN: "On loan", RESERVED_HOLD: "Held for a reservation", DAMAGED: "Damaged", LOST: "Lost", WAITING: "Waiting", READY: "Ready to collect" };
 const STATUS_TONE: Record<string, DeskTone> = { AVAILABLE: "success", ON_LOAN: "brand", RESERVED_HOLD: "info", DAMAGED: "warning", LOST: "danger", WAITING: "neutral", READY: "success" };
@@ -94,6 +94,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
   useEffect(() => { void load(); return () => { overviewVersion.current++; }; }, [load]);
   const refocus = () => requestAnimationFrame(() => scanRef.current?.focus());
   const post = async (action: string, data: object) => { try { const r = await call("/api/library/desk", { method: "POST", body: JSON.stringify({ action, data }) }); setError(null); return r; } catch (e) { setError(ui((e as Error).message)); setMessage(null); return null; } };
+  // SKAI-1630: also called after a charge decision, so the selected reader never keeps a handed-off or waived charge.
   const refreshMember = async () => {
     if (!member) return;
     try { setMember(await call(`/api/library/desk?code=${encodeURIComponent(member.member.memberNo)}`)); }
@@ -245,11 +246,13 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
                 <p className="flex flex-wrap items-center gap-2 font-semibold"><Receipt aria-hidden="true" className="size-4 text-status-warning-text" />{ui(KIND_LABEL[c.kind] ?? c.kind)}<DeskPill tone={c.kind === "LOST" ? "danger" : "warning"}><bdi>{money(c.amount, c.currency)}</bdi></DeskPill></p>
                 <div className="flex flex-wrap items-end gap-2">
                   <FormField name={`ch-${c.id}`} label={ui("Reason")} className="min-w-0 flex-1 sm:min-w-[12rem]"><Input value={reasons[c.id] ?? ""} onChange={(e) => setReasons((r) => ({ ...r, [c.id]: e.target.value }))} /></FormField>
-                  {overview.canWaive ? <Button size="sm" variant="outline" onClick={async () => { if (await post("charge", { chargeId: c.id, decision: "WAIVE", reason: reasons[c.id] ?? "" })) { setMessage(ui("Charge waived; the reason and approver are recorded.")); void load(); } }}>{ui("Waive")}</Button> : <span className="text-xs text-ink-subtle">{ui("Your campus admin decides waivers; you can send the charge to the fees office.")}</span>}
-                  <Button size="sm" variant="outline" onClick={async () => { if (await post("charge", { chargeId: c.id, decision: "HAND_TO_FEES", reason: reasons[c.id] ?? "" })) { setMessage(ui("Charge handed to the fees office.")); void load(); } }}>{ui("Send to fees office")}</Button>
+                  {overview.canWaive ? <Button size="sm" variant="outline" onClick={async () => { if (await post("charge", { chargeId: c.id, decision: "WAIVE", reason: reasons[c.id] ?? "" })) { setMessage(ui("Charge waived; the reason and approver are recorded.")); void load(); void refreshMember(); } }}>{ui("Waive")}</Button> : <span className="text-xs text-ink-subtle">{ui("Your campus admin decides waivers; you can send the charge to the fees office.")}</span>}
+                  <Button size="sm" variant="outline" onClick={async () => { if (await post("charge", { chargeId: c.id, decision: "HAND_TO_FEES", reason: reasons[c.id] ?? "" })) { setMessage(ui("Charge handed to the fees office.")); void load(); void refreshMember(); } }}>{ui("Send to fees office")}</Button>
                 </div>
               </div>
             ))}
+            {/* SKAI-1665: handed charges stay visible here until the fees office completes them. */}
+            {overview.handed?.length ? <div className="space-y-1 pt-2" data-handed-charges><h4 className="text-sm font-semibold text-ink-strong">{ui("Handed to the fees office")}</h4>{overview.handed.map(c => <p key={c.id} className="flex flex-wrap items-center gap-2 text-sm text-ink-muted"><Receipt aria-hidden="true" className="size-4" />{ui(KIND_LABEL[c.kind] ?? c.kind)} · <bdi>{money(c.amount, c.currency)}</bdi></p>)}</div> : null}
           </div>
           <div className="space-y-2">
             <h3 className="font-semibold text-ink-strong">{ui("Add barcoded copies")}</h3>

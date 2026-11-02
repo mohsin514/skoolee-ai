@@ -78,7 +78,12 @@ export async function POST(req: NextRequest) {
     const campusId = await resolveCampusId(user, fileKey.split("/")[1]);
     if (!matchesDocumentKey(fileKey, "staff-docs", campusId, staff.id)) throw new ApiError("Document upload does not match this record", 400);
 
-    const doc = await prisma.$transaction(async (tx) => {
+    // SKAI-1663: a retried save of the same upload key replays the committed document. The advisory lock
+    // serialises concurrent same-key saves so only one row, timeline event and audit CREATE is ever written.
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`staff-document:${user.schoolId}:${userId}:${fileKey}`}))`;
+      const existing = await tx.staffDocument.findFirst({ where: { userId, fileKey } });
+      if (existing) return { doc: existing, replay: true };
       const created = await tx.staffDocument.create({
         data: { userId, kind: String(kind).toUpperCase(), fileKey, fileName },
       });
@@ -92,9 +97,9 @@ export async function POST(req: NextRequest) {
         },
       });
       await writeAuditEvent(tx, user, { table: "staff_documents", recordId: created.id, action: "CREATE", campusId, after: { userId, kind: created.kind } });
-      return created;
+      return { doc: created, replay: false };
     });
-    return Response.json({ success: true, data: doc }, { status: 201 });
+    return Response.json({ success: true, data: result.doc, replay: result.replay }, { status: result.replay ? 200 : 201 });
   } catch (error) {
     return errorResponse(error, "[staff/documents] POST failed");
   }

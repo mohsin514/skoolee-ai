@@ -1461,6 +1461,7 @@ function ItemsTab() {
 
 function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
   const ui = useUiText();
+  const { date: formatDate } = useLocaleFormat();
   const campusMoney = useCampusMoney();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1539,7 +1540,7 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
           <tbody>
             {loading ? <EmptyRow cols={8} state="loading" /> : loadFailed ? <EmptyRow cols={8} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={8} text="No transactions" /> : rows.map((t: any) => (
               <tr key={t.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
-                <td className={tdCls}>{new Date(t.createdAt).toLocaleDateString()}</td>
+                <td className={tdCls}>{formatDate(t.createdAt)}</td>
                 <td className={tdCls}><DeskPill tone={t.kind === "RECEIVE" || t.kind === "RETURN" ? "success" : "warning"}>{ui(TXN_KIND_LABEL[t.kind] ?? t.kind)}</DeskPill></td>
                 <td className={tdCls}>{t.item?.name || t.itemId}</td>
                 <td className={tdCls}>{t.store?.name || t.storeId}</td>

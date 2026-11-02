@@ -115,6 +115,9 @@ export async function correctVisit(user: AuthUser, campusId: string, body: Recor
   if (!Object.keys(changes).some(field => (CORRECTABLE as readonly string[]).includes(field))) throw new ApiError("Nothing to correct.", 400);
   return schoolAiTransaction(user, async db => {
     const id = String(body.id ?? "");
+    // SKAI-1679: identity corrections take the same campus register lock as check-in (campus first, as check-in does).
+    const identityChange = ["name", "phone", "reference"].some(field => field in changes);
+    if (identityChange) await lockCampusRegister(db, user, campusId);
     const [locked] = await db.$queryRaw<{ id: string }[]>`SELECT id FROM visitor_logs WHERE id = ${id} AND campus_id = ${campusId} AND school_id = ${user.schoolId} FOR UPDATE`;
     if (!locked) throw new ApiError("Visit not found", 404);
     const visit = await db.visitorLog.findUniqueOrThrow({ where: { id } });
@@ -132,6 +135,13 @@ export async function correctVisit(user: AuthUser, campusId: string, body: Recor
       outTime = instant(changes.outTime, "Departure time");
     }
     if (outTime && outTime < inTime) throw new ApiError("Departure cannot be before arrival.", 400);
+    // SKAI-1679: an on-site visit cannot be corrected into a person check-in would refuse as already on site.
+    if (identityChange && visit.status === "ON_SITE") {
+      const name = (data.name as string | undefined) ?? visit.name, phone = "phone" in data ? (data.phone as string | null) : visit.phone, reference = "reference" in data ? (data.reference as string | null) : visit.reference;
+      const others = await db.visitorLog.findMany({ where: { campusId, status: "ON_SITE", id: { not: id } }, select: { name: true, phone: true, reference: true, toMeet: true } });
+      const clash = others.find(other => normalName(other.name) === normalName(name) && ((phone && other.phone === phone) || (reference && other.reference && normalName(other.reference) === normalName(reference)) || (!phone && !reference && !other.phone && !other.reference)));
+      if (clash) throw new ApiError(`${name} is already on site (checked in to see ${clash.toMeet ?? "—"}). Check one visit out before correcting this one to the same person.`, 409);
+    }
     const updated = await db.visitorLog.update({ where: { id }, data: { ...data, inTime, outTime, version: { increment: 1 } } });
     await writeAuditEvent(db, user, { table: "visitor_logs", recordId: id, action: "UPDATE", campusId, before: snapshot(visit), after: { ...snapshot(updated), correctionReason: reason } });
     return { visit: updated, replayed: false };

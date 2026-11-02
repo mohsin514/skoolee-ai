@@ -95,7 +95,9 @@ function ConcernIntake() {
   const [student, setStudent] = useState<Student | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ source: "STAFF_OBSERVATION", observation: "", eventAt: localNow(), guardianInvolved: false, idempotencyKey: key() });
   const [receipt, setReceipt] = useState<{ reference: string; createdAt: string } | null>(null), [mine, setMine] = useState<{ reference: string; createdAt: string }[]>([]);
-  const loadMine = useCallback(() => call("/api/care?view=my-reports").then(setMine).catch(() => setMine([])), []);
+  // SKAI-1667: a failed history load is shown with Retry; known rows stay and are marked stale, never cleared.
+  const [mineFailed, setMineFailed] = useState(false);
+  const loadMine = useCallback(() => call("/api/care?view=my-reports").then(rows => { setMine(rows); setMineFailed(false); }).catch(error => { if (error instanceof AccessError) { setMine([]); setMineFailed(false); } else setMineFailed(true); }), []);
   useEffect(() => { void loadMine(); }, [loadMine]);
   const submit = async () => {
     if (!student) return;
@@ -121,6 +123,7 @@ function ConcernIntake() {
       {error ? <Alert tone="danger" compact live="assertive" data-care-error>{ui(error)}</Alert> : null}
       <div className="flex justify-end"><Button loading={busy} disabled={busy || !student || !form.observation.trim()} onClick={() => void submit()} data-care-submit>{ui("Submit to the designated lead")}</Button></div>
     </div>}
+    {mineFailed ? <div data-care-mine-failed><Alert tone="warning" compact live="polite" actions={<Button type="button" size="sm" variant="outline" onClick={() => void loadMine()}>{ui("Try again")}</Button>}>{mine.length ? ui("Concerns I recorded could not be refreshed. The list below may be out of date.") : ui("Concerns I recorded could not be loaded.")}</Alert></div> : null}
     {mine.length ? <details className="text-sm"><summary className="cursor-pointer text-ink-muted">{ui("Concerns I recorded")}</summary><ul className={cn(deskTimeline, "mt-3")}>{mine.map(m => <li key={m.reference} data-tone="success" data-care-mine={m.reference}><bdi>{m.reference}</bdi> · <bdi>{dateTime(m.createdAt)}</bdi> · {ui("Received by the designated lead")}</li>)}</ul></details> : null}
   </section>;
 }

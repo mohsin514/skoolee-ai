@@ -221,7 +221,7 @@ export async function generateClassGradesPdf(classId: string) {
   const rollNoMap = new Map(students.map((s) => [s.id, s.rollNo]));
 
   return renderToBuffer(
-    <Document language={locale.language}>
+    <Document language={locale.language} title={`${t("Final Grades")} — ${className}`} creator="SkooleeAI" producer="SkooleeAI">
       <Page size="A4" style={[styles.page,{fontFamily:`Receipt-${locale.language}`,direction:rtl?"rtl":"ltr",textAlign:rtl?"right":"left"}]}>
         <Header campus={cls.campus} />
         <Text style={styles.title}>{t("Final Grades")}</Text><Text style={{fontSize:12,marginBottom:8}}>{className}</Text><Text style={styles.muted}>{number(cls.academicYear)}</Text>
@@ -229,7 +229,8 @@ export async function generateClassGradesPdf(classId: string) {
           {t("Students")}: {number(results.length)} · {t("Passed")}: {number(passed)} · {t("Failed")}: {number(results.length - passed)}
         </Text>
         <View style={styles.table}>
-          <View style={[styles.row, styles.th,{flexDirection:rtl?"row-reverse":"row"}]}>
+          {/* SKAI-1646: fixed repeats the column headings on every page of a long class. */}
+          <View fixed style={[styles.row, styles.th,{flexDirection:rtl?"row-reverse":"row"}]}>
             <Text style={[styles.cell, styles.flex1, styles.center]}>{t("Rank")}</Text>
             <Text style={[styles.cell, styles.flex2]}>{t("Student")}</Text>
             <Text style={[styles.cell, styles.flex1, styles.center]}>{t("Roll No")}</Text>
@@ -240,7 +241,7 @@ export async function generateClassGradesPdf(classId: string) {
           {results.map((r, i) => {
             const rowStyle = i === results.length - 1 ? [styles.row, styles.lastRow] : [styles.row];
             return (
-              <View key={r.studentId} style={[...rowStyle,{flexDirection:rtl?"row-reverse":"row"}]}>
+              <View key={r.studentId} wrap={false} style={[...rowStyle,{flexDirection:rtl?"row-reverse":"row"}]}>
                 <Text style={[styles.cell, styles.flex1, styles.center]}>#{number(r.rank)}</Text>
                 <Text style={[styles.cell, styles.flex2]}>{r.studentName}</Text>
                 <Text style={[styles.cell, styles.flex1, styles.center]}>{rollNoMap.get(r.studentId) || "-"}</Text>

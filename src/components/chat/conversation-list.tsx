@@ -129,15 +129,15 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
 
           <div
             className="relative flex gap-1 rounded-2xl bg-muted p-1"
-            role="tablist"
+            // SKAI-1602: a labelled toggle group, not a tablist: these buttons filter in place and have no tab panels.
+            role="group"
             aria-label={ui("Filter conversations")}
           >
             {FILTERS.map((f) => (
               <Button data-selected={filter === f.value} variant="choice" size="sm"
                 key={f.value}
                 type="button"
-                role="tab"
-                aria-selected={filter === f.value}
+                aria-pressed={filter === f.value}
                 onClick={() => setFilter(f.value)}
                 className="relative flex-1 border-transparent data-[selected=true]:border-border data-[selected=true]:bg-card data-[selected=true]:text-primary data-[selected=true]:shadow-sm"
               >

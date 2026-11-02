@@ -365,7 +365,8 @@ test("load failure shows an error with Retry; a 401 redirects to sign-in", async
   await page.getByRole("button", { name: "Try again" }).click();
   await expect(toggle(page)).toBeVisible();
 
-  const redirected = page.waitForURL("http://security-fixture.test/login?reason=session-expired");
+  // SKAI-1660: the redirect now also carries the deep link as ?redirect=.
+  const redirected = page.waitForURL(url => url.origin === "http://security-fixture.test" && url.pathname === "/login" && url.searchParams.get("reason") === "session-expired");
   await mount(page, { status: [{ status: 401, body: { error: "server text", reason: "session_expired" } }] });
   await redirected;
 });

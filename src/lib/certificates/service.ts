@@ -260,12 +260,15 @@ export async function listIssues(user: AuthUser, campusId: string, filters: { st
   const q = filters.q.trim().slice(0, 80);
   const rows = await prisma.certificateIssue.findMany({
     where: { campusId, schoolId: user.schoolId, ...(filters.status ? { status: filters.status } : {}), ...(q ? { OR: [{ serial: { contains: q, mode: "insensitive" } }, { title: { contains: q, mode: "insensitive" } }, { student: { fullName: { contains: q, mode: "insensitive" } } }] } : {}) },
-    orderBy: { createdAt: "desc" }, take: 200,
+    // SKAI-1676: one past the cap tells the client the history (and so its export) is not complete.
+    orderBy: { createdAt: "desc" }, take: 201,
     select: { id: true, serial: true, status: true, title: true, language: true, issuedAt: true, createdAt: true, version: true, previousId: true, reissueReason: true, decisionNote: true, artifactHash: true, verifyToken: true, requestedById: true, approvedById: true, student: { select: { id: true, fullName: true, rollNo: true } }, templateVersion: { select: { version: true, kind: true } }, templateId: true, successors: { select: { serial: true, status: true } } },
   });
+  const truncated = rows.length > 200;
+  rows.splice(200);
   const ids = [...new Set(rows.flatMap(row => [row.requestedById, row.approvedById]).filter((value): value is string => Boolean(value)))];
   const people = new Map((await prisma.user.findMany({ where: { schoolId: user.schoolId, id: { in: ids } }, select: { id: true, fullName: true } })).map(person => [person.id, person.fullName]));
-  return rows.map(({ requestedById, approvedById, ...row }) => ({ ...row, requestedBy: people.get(requestedById) ?? null, approvedBy: approvedById ? people.get(approvedById) ?? null : null }));
+  return { truncated, rows: rows.map(({ requestedById, approvedById, ...row }) => ({ ...row, requestedBy: people.get(requestedById) ?? null, approvedBy: approvedById ? people.get(approvedById) ?? null : null })) };
 }
 
 /**
