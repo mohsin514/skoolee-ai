@@ -165,7 +165,15 @@ export async function createExamSession(opts: {
     );
   }
 
+  // SKAI-1670: serialise creates for one exam identity and re-check inside the lock, so two simultaneous
+  // submissions cannot both see "no exam yet" and commit duplicate sessions and class exams.
+  let claimed = toCreate;
   const session = await transaction(opts.db, async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`exam-session:${campusId}:${opts.term}:${opts.academicYear}:${opts.examType}`}))`;
+    const taken = new Set((await tx.exam.findMany({ where: { campusId, classId: { in: toCreate.map((c) => c.id) }, term: opts.term, academicYear: opts.academicYear, examType: opts.examType }, select: { classId: true } })).map((e) => e.classId));
+    claimed = toCreate.filter((c) => !taken.has(c.id));
+    if (!claimed.length) throw new ApiError(`Every selected class already has this exam for ${opts.term} ${opts.academicYear}. Nothing was created.`, 409, "EXAM_SESSION_ALL_CLASSES_HAVE_EXAM");
+    taken.forEach((id) => alreadyHas.add(id));
     const created = await tx.examSession.create({
       data: {
         campusId,
@@ -181,9 +189,9 @@ export async function createExamSession(opts: {
       },
     });
 
-    if (toCreate.length) {
+    if (claimed.length) {
       await tx.exam.createMany({
-        data: toCreate.map((c) => ({
+        data: claimed.map((c) => ({
           campusId,
           classId: c.id,
           sessionId: created.id,
@@ -203,7 +211,7 @@ export async function createExamSession(opts: {
 
   return {
     session,
-    created: toCreate.length,
+    created: claimed.length,
     skipped: classes.filter((c) => alreadyHas.has(c.id)).map((c) => `${c.name}${c.section ? ` ${c.section}` : ""}`),
     noSubjects: withoutSubjects.map((c) => `${c.name}${c.section ? ` ${c.section}` : ""}`),
   };

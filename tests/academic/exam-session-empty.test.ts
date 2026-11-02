@@ -7,6 +7,8 @@ import { ApiError } from "../../src/lib/api/scope";
 function fakeDb(existingClassIds: string[]) {
   const writes: string[] = [];
   const db = {
+    // SKAI-1670: createExamSession takes an advisory lock before re-checking inside its transaction.
+    $executeRaw: async () => 1,
     class: { findMany: async () => [
       { id: "c1", name: "Grade 6", section: "A", subjects: [{ totalMarks: 100 }] },
       { id: "c2", name: "Grade 7", section: null, subjects: [{ totalMarks: 50 }] },
