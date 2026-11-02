@@ -87,6 +87,12 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
     isConnected,
   } = useChat();
   const ui = useUiText();
+  // SKAI-1586: loading earlier history shows its own progress and failure, and the button retries.
+  const [olderLoading, setOlderLoading] = useState(false), [olderFailed, setOlderFailed] = useState(false);
+  const loadEarlier = async () => {
+    setOlderLoading(true);
+    try { await loadOlder(); setOlderFailed(false); } catch { setOlderFailed(true); } finally { setOlderLoading(false); }
+  };
   const locale = useLocale();
   const tag = localeTag(locale);
   // SKAI-1437: message days and clocks use the school locale timezone, not the device's.
@@ -348,13 +354,16 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           className="custom-scrollbar relative min-h-0 flex-1 overflow-y-auto bg-background px-3 py-4 md:px-5"
         >
           {hasOlder && (
-            <div className="mb-5 flex justify-center">
+            <div className="mb-5 flex flex-col items-center gap-2">
+              {olderFailed ? <p role="alert" className="text-sm text-status-error-text" data-chat-older-failed>{ui("Earlier messages could not be loaded.")}</p> : null}
               <Button variant="outline" size="sm"
                 type="button"
-                onClick={loadOlder}
+                loading={olderLoading}
+                disabled={olderLoading}
+                onClick={loadEarlier}
                 className="backdrop-blur hover:-translate-y-0.5"
               >
-                {ui("Load earlier messages")}
+                {ui(olderFailed ? "Try again" : "Load earlier messages")}
               </Button>
             </div>
           )}
