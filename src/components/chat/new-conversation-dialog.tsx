@@ -57,7 +57,9 @@ interface NewConversationDialogProps {
 }
 
 export function NewConversationDialog({ open, onClose }: NewConversationDialogProps) {
-  const { viewer, searchDirectory, startDirect, createGroup } = useChat();
+  const { viewer, searchDirectory, startDirect, createGroup, clearError } = useChat();
+  // SKAI-1599: a failed start is shown inside this dialog (the shared alert sits behind it), with Try again.
+  const [startFailed, setStartFailed] = useState<null | { retry: () => void }>(null);
   const ui = useUiText();
   const { language } = useLocale();
 
@@ -155,15 +157,18 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
     }
 
     setIsSubmitting(true);
+    setStartFailed(null);
     const id = await startDirect(contact.id);
     setIsSubmitting(false);
     if (id) onClose();
+    else { clearError(); setStartFailed({ retry: () => void choose(contact) }); }
   }
 
   async function submitGroup() {
     if (selected.length === 0 || !title.trim()) return;
 
     setIsSubmitting(true);
+    setStartFailed(null);
     const id = await createGroup({
       kind: "GROUP",
       title: title.trim(),
@@ -171,6 +176,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
     });
     setIsSubmitting(false);
     if (id) onClose();
+    else { clearError(); setStartFailed({ retry: () => void submitGroup() }); }
   }
 
   return (
@@ -465,6 +471,13 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                   className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent"
                 />
               </div>
+
+              {startFailed ? (
+                <div role="alert" className="flex shrink-0 flex-wrap items-center gap-2 border-t border-edge/25 bg-status-error-surface px-5 py-3 text-sm text-status-error-text" data-new-conversation-failed>
+                  <span className="min-w-0 flex-1">{ui("Couldn't start the conversation. Your choices are kept, so you can try again.")}</span>
+                  <Button type="button" size="sm" variant="outline" disabled={isSubmitting} onClick={startFailed.retry}>{ui("Try again")}</Button>
+                </div>
+              ) : null}
 
               {mode === "group" && (
                 <footer className="shrink-0 border-t border-edge/25 bg-card px-5 py-4">
