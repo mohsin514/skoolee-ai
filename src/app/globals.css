@@ -2489,6 +2489,11 @@ html[data-step-direction="back"]::view-transition-new(sk-step-card) { animation-
     animation: sk-enter-scale 360ms var(--ease-enter) both; }
   .sk-page-icon::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(70% 60% at 30% 20%, rgb(255 255 255 / .35), transparent 70%); pointer-events: none; }
   .sk-page-icon > svg { position: relative; z-index: 1; }
+  /* SKAI-110: the shared desk kit (SKAI-1270) obeys reduced motion like the rest of the Charter Desk block. */
+  @media (prefers-reduced-motion: reduce) {
+    .sk-page-icon, .sk-stat-tile, .sk-desk-filter-status { animation: none !important; }
+    .sk-notif-item, .sk-desk-row, .sk-desk-row::before { transition: none !important; }
+  }
   .sk-console-head { position: relative; isolation: isolate; }
   .sk-console-head::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
     background: radial-gradient(60% 140% at 100% 0%, color-mix(in srgb, var(--brand-500) 9%, transparent), transparent 70%), radial-gradient(40% 120% at 0% 100%, color-mix(in srgb, var(--berry) 5%, transparent), transparent 70%); }
