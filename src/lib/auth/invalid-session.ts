@@ -46,5 +46,10 @@ export async function signOutInvalidSession(): Promise<void> {
     /* ignore — the redirect below is what actually matters */
   }
 
-  window.location.href = "/login?reason=session-expired";
+  // SKAI-1660: carry the deep link like the server-side recovery does; the login page re-validates it with
+  // safeReturnPath against the newly signed-in role before navigating.
+  const requested = `${path}${window.location.search}${window.location.hash}`;
+  const params = new URLSearchParams({ reason: "session-expired" });
+  if (path.startsWith("/") && !path.startsWith("//") && path !== "/") params.set("redirect", requested);
+  window.location.href = `/login?${params}`;
 }
