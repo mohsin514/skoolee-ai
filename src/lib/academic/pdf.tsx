@@ -377,7 +377,7 @@ export function ReportCardDocument({ payload, logoUrl }: { payload: ReportPayloa
   if (!uae && locale.language === "ar" && reportCard.remarksAr) remarkSections.push({ label: "العربية", value: reportCard.remarksAr, urdu: true });
 
   return (
-    <Document language={locale.language}>
+    <Document language={locale.language} title={`${student.fullName} — ${exam.title}`} creator="SkooleeAI" producer="SkooleeAI">
       <Page size="A4" style={[styles.page, { fontFamily: `Report-${locale.language}`, direction: locale.language !== "en" ? "rtl" : "ltr", textAlign: locale.language !== "en" ? "right" : "left" }]}>
         {/* School/Campus branding header */}
         {logo ? (
