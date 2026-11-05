@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AI_SETUP_HREF, campusTaskHref, isLaunchEntry, isLaunchTask, START_CAMPUS_SETUP_EVENT } from "@/lib/onboarding/launch-plan";
+import { AI_SETUP_HREF, campusTaskHref, opensWelcomeAutomatically, isLaunchTask, START_CAMPUS_SETUP_EVENT } from "@/lib/onboarding/launch-plan";
 // The dependency-free tours module only: event names and the hand-off key, never the tour engine or its catalogs.
 import { REPLAY_WELCOME_EVENT, TOUR_STATE_EVENT, WELCOME_FINISHED_EVENT, pendingStartKey } from "@/lib/onboarding/tours/types";
 import type { Language } from "@/lib/locale/package";
@@ -74,7 +74,7 @@ export function FirstRunGuide() {
   /** Help → "Replay welcome" in flight. It supersedes the automatic request and is never superseded by one. */
   const replaying = useRef<AbortController | null>(null);
   const tourRunning = useRef(false);
-  const enabled = isLaunchEntry(pathname);
+  const enabled = opensWelcomeAutomatically(pathname);
 
   // Mounted once in the root layout, so this sees every tour start and stop.
   useEffect(() => {
