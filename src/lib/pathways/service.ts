@@ -216,7 +216,20 @@ export async function recordAlumni(user: AuthUser, raw: unknown) {
   const age = ageOn(asDate(input.dateOfBirth));
   assert(age !== null && age >= 18, "Alumni take part as adults only. Record them again once they are 18.", 409);
   const next = new Date(); next.setUTCFullYear(next.getUTCFullYear() + 1);
-  return prisma.alumniProfile.create({ data: { ...input, studentId: input.studentId ?? null, dateOfBirth: asDate(input.dateOfBirth), schoolId: user.schoolId, campusId: campusOf(user), consentGivenAt: new Date(), reviewDueOn: asDate(next.toISOString().slice(0, 10)), recordedById: user.userId, history: json([{ at: new Date().toISOString(), event: "CONSENT_RECORDED", visibility: input.visibility, mentoring: input.mentoring, by: user.userId }]) } });
+  const campusId = campusOf(user), contactEmail = input.contactEmail.toLowerCase();
+  // SKAI-1707: one consented profile per campus and contact email. A retried or second-tab submit of the same consent
+  // replays the stored profile; different details for a live profile are a 409 (use the yearly review instead).
+  // After withdrawal, fresh consent still records a new profile.
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`alumni-consent:${user.schoolId}:${campusId}:${contactEmail}`}))`;
+    const live = await tx.alumniProfile.findFirst({ where: { schoolId: user.schoolId, campusId, consentWithdrawnAt: null, contactEmail: { equals: contactEmail, mode: "insensitive" } } });
+    if (live) {
+      const same = live.displayName === input.displayName && live.pathway === input.pathway && live.visibility === input.visibility && live.mentoring === input.mentoring && live.consentEvidence === input.consentEvidence && (live.studentId ?? null) === (input.studentId ?? null) && live.dateOfBirth.getTime() === asDate(input.dateOfBirth).getTime();
+      assert(same, "This alumnus already has a consented profile. Use the yearly review to change it.", 409);
+      return { ...live, replayed: true };
+    }
+    return { ...await tx.alumniProfile.create({ data: { ...input, studentId: input.studentId ?? null, dateOfBirth: asDate(input.dateOfBirth), schoolId: user.schoolId, campusId, consentGivenAt: new Date(), reviewDueOn: asDate(next.toISOString().slice(0, 10)), recordedById: user.userId, history: json([{ at: new Date().toISOString(), event: "CONSENT_RECORDED", visibility: input.visibility, mentoring: input.mentoring, by: user.userId }]) } }), replayed: false };
+  });
 }
 
 /** The yearly review: consent and preferences confirmed again, or withdrawn. */
