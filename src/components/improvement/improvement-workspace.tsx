@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -163,16 +163,25 @@ export function ImprovementWorkspace() {
   const { date, dateTime } = useLocaleFormat();
   const [data, setData] = useState<Data | null>(null), [error, setError] = useState<{ status: number; message: string } | null>(null), [frameworkId, setFrameworkId] = useState<string | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
+  // SKAI-1724: staff load separately from the workspace; a failure is shown with Try again and lists page past 300.
+  const [peopleCursor, setPeopleCursor] = useState<string | null>(null), [peopleState, setPeopleState] = useState<"idle" | "loading" | "failed" | "more-failed">("idle");
+  const loadPeople = useCallback((cursor?: string) => {
+    setPeopleState("loading");
+    call(`/api/improvement?view=staff${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`).then((page: { people: Person[]; nextCursor: string | null }) => { setPeople(current => cursor ? [...current, ...page.people] : page.people); setPeopleCursor(page.nextCursor); setPeopleState("idle"); }).catch(() => setPeopleState(cursor ? "more-failed" : "failed"));
+  }, []);
   const [modal, setModal] = useState<null | { kind: "framework" | "evidence" | "action" | "grant" | "export" | "interpret"; criterionId?: string }>(null);
   const [onlyGaps, setOnlyGaps] = useState(false), [open, setOpen] = useState<Record<string, boolean>>({});
   // The overdue tile narrows the action list; the quick filter matches criterion codes and titles.
   const [overdueOnly, setOverdueOnly] = useState(false), [q, setQ] = useState("");
   const [revoking, setRevoking] = useState<Data["grants"][number] | null>(null), [revokeBusy, setRevokeBusy] = useState(false);
   const load = useCallback(async () => {
-    try { const d: Data = await call(`/api/improvement?view=workspace${frameworkId ? `&frameworkId=${encodeURIComponent(frameworkId)}` : ""}`); setData(d); setError(null); if (d.mode === "LEAD" && !people.length) setPeople(await call("/api/improvement?view=staff").catch(() => [])); }
+    try { const d: Data = await call(`/api/improvement?view=workspace${frameworkId ? `&frameworkId=${encodeURIComponent(frameworkId)}` : ""}`); setData(d); setError(null); if (d.mode === "LEAD" && !people.length) loadPeople(); }
     catch (e) { setError({ status: e instanceof RequestError ? e.status : 0, message: e instanceof Error ? e.message : "Unavailable" }); }
-  }, [frameworkId, people.length]);
+  }, [frameworkId, people.length, loadPeople]);
   useEffect(() => { void load(); }, [load]);
+  const peopleControl = peopleState === "failed"
+    ? <ErrorState description={ui("Staff could not be loaded.")} onRetry={() => loadPeople()} retryLabel={ui("Try again")} />
+    : peopleCursor ? <div className="flex flex-wrap items-center gap-2" aria-live="polite" data-people-more>{peopleState === "more-failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("More staff could not be loaded. The list shown is kept.")}</p> : null}<Button type="button" size="sm" variant="outline" disabled={peopleState === "loading"} aria-busy={peopleState === "loading"} onClick={() => loadPeople(peopleCursor)}>{peopleState === "loading" ? ui("Loading more staff…") : peopleState === "more-failed" ? ui("Try again") : ui("Load more staff")}</Button></div> : null;
 
   const title = "Improvement evidence";
   const description = "School-configured framework. No accreditation outcome is implied.";
@@ -273,8 +282,8 @@ export function ImprovementWorkspace() {
 
     {modal?.kind === "framework" ? <Modal title={ui("New framework version")} icon={Layers} size="lg" onClose={() => setModal(null)}><FrameworkForm data={data} onDone={close} /></Modal> : null}
     {modal?.kind === "evidence" && view ? <Modal title={ui("Add evidence")} icon={Plus} size="lg" onClose={() => setModal(null)}><EvidenceForm view={view} preset={modal.criterionId ?? null} onDone={close} /></Modal> : null}
-    {modal?.kind === "action" && view ? <Modal title={ui("Create an improvement action")} icon={Target} size="lg" onClose={() => setModal(null)}><ActionForm view={view} people={people} onDone={close} /></Modal> : null}
-    {modal?.kind === "grant" && view ? <Modal title={ui("Grant reviewer access")} icon={KeyRound} tone="amber" size="lg" onClose={() => setModal(null)}><GrantForm view={view} people={people} onDone={close} /></Modal> : null}
+    {modal?.kind === "action" && view ? <Modal title={ui("Create an improvement action")} icon={Target} size="lg" onClose={() => setModal(null)}><ActionForm view={view} people={people} peopleControl={peopleControl} onDone={close} /></Modal> : null}
+    {modal?.kind === "grant" && view ? <Modal title={ui("Grant reviewer access")} icon={KeyRound} tone="amber" size="lg" onClose={() => setModal(null)}><GrantForm view={view} people={people} peopleControl={peopleControl} onDone={close} /></Modal> : null}
     {modal?.kind === "export" && view ? <Modal title={ui("Export a versioned pack")} icon={FileDown} size="lg" onClose={() => setModal(null)}><ExportForm view={view} onDone={close} /></Modal> : null}
     {modal?.kind === "interpret" && view ? <Modal title={ui("Approve interpretation")} icon={ClipboardCheck} tone="sky" size="lg" onClose={() => setModal(null)}><InterpretForm criterion={view.criteria.find(c => c.id === modal.criterionId)!} onDone={close} /></Modal> : null}
     <ConfirmAction
@@ -319,7 +328,7 @@ function InterpretForm({ criterion, onDone }: { criterion: Criterion; onDone: ()
     <Button disabled={busy || text.trim().length < 5} data-interpret-save onClick={() => submit({ action: "interpretation", criterionId: criterion.id, interpretation: text }, ui("Interpretation approved."))}>{ui("Approve interpretation")}</Button></div>;
 }
 
-function ActionForm({ view, people, onDone }: { view: View; people: Person[]; onDone: () => void }) {
+function ActionForm({ view, people, peopleControl, onDone }: { view: View; people: Person[]; peopleControl: ReactNode; onDone: () => void }) {
   const ui = useUiText();
   const { busy, submit } = useSubmit(onDone);
   const [f, setF] = useState({ title: "", ownerId: "", dueDate: inDays(60), expectedMeasure: "", criterionIds: [] as string[] });
@@ -328,18 +337,20 @@ function ActionForm({ view, people, onDone }: { view: View; people: Person[]; on
     <DraftRecovery recordLabel={ui("Improvement action")} draft={draft} saving={busy} excluded={ui("Only action fields are stored in this signed-in browser draft.")} />
     <FormField name="ac-title" label={ui("Action")}><Input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} dir="auto" data-action-title /></FormField>
     <div className="grid gap-2 sm:grid-cols-2"><FormField name="ac-owner" label={ui("Owner")}><Select value={f.ownerId} onChange={e => setF({ ...f, ownerId: e.target.value })} data-action-owner><option value="">{ui("Choose an owner")}</option>{people.map(p => <option key={p.id} value={p.id}>{p.fullName}</option>)}</Select></FormField><FormField name="ac-due" label={ui("Due date")}><Input type="date" value={f.dueDate} onChange={e => setF({ ...f, dueDate: e.target.value })} data-action-due /></FormField></div>
+    {peopleControl}
     <FormField name="ac-measure" label={ui("Expected measure")}><Textarea value={f.expectedMeasure} onChange={e => setF({ ...f, expectedMeasure: e.target.value })} rows={2} dir="auto" data-action-measure /></FormField>
     <FormField name="ac-criteria" label={ui("Criteria")}><CriteriaPicker criteria={view.criteria} value={f.criterionIds} onChange={v => setF({ ...f, criterionIds: v })} name="action" /></FormField>
     <Button disabled={busy || !f.title || !f.ownerId || f.expectedMeasure.length < 5 || !f.criterionIds.length} data-action-save onClick={async () => { const result = await submit({ action: "improvement", frameworkId: view.framework.id, ...f }, ui("Improvement action created.")); if (result) draft.markSaved(); }}>{ui("Create an improvement action")}</Button>
   </div>;
 }
 
-function GrantForm({ view, people, onDone }: { view: View; people: Person[]; onDone: () => void }) {
+function GrantForm({ view, people, peopleControl, onDone }: { view: View; people: Person[]; peopleControl: ReactNode; onDone: () => void }) {
   const ui = useUiText();
   const { busy, submit } = useSubmit(onDone);
   const [f, setF] = useState({ userId: "", criterionIds: [] as string[], expiresAt: inDays(30) });
   return <div className="space-y-3" data-grant-form>
     <FormField name="gr-user" label={ui("Reviewer")}><Select value={f.userId} onChange={e => setF({ ...f, userId: e.target.value })} data-grant-user><option value="">{ui("Choose a reviewer")}</option>{people.map(p => <option key={p.id} value={p.id}>{p.fullName}</option>)}</Select></FormField>
+    {peopleControl}
     <FormField name="gr-criteria" label={ui("Criteria they may review")}><CriteriaPicker criteria={view.criteria} value={f.criterionIds} onChange={v => setF({ ...f, criterionIds: v })} name="grant" /></FormField>
     <FormField name="gr-exp" label={ui("Access ends")}><Input type="date" value={f.expiresAt} onChange={e => setF({ ...f, expiresAt: e.target.value })} data-grant-expires /></FormField>
     <p className="text-xs text-ink-muted">{ui("Reviewers never open pupil or clinic records and see only evidence shared with reviewers.")}</p>

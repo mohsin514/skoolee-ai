@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const p = request.nextUrl.searchParams;
     switch (p.get("view") ?? "workspace") {
       case "workspace": return ok(await evidence.workspace(user, p.get("frameworkId")));
-      case "staff": return ok(await evidence.staff(user));
+      case "staff": return ok(await evidence.staff(user, p.get("cursor")));
       case "sources": return ok(await evidence.sources(user));
       case "source": return ok(await evidence.openSource(user, p.get("itemId") ?? ""));
       case "pack": return ok(await evidence.downloadPack(user, p.get("id") ?? ""));
