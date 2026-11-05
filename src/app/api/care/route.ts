@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
       case "close": return ok({ id: (await care.closeConcern(user, body)).id });
       case "propose-disclosure": {
         const r = await care.proposeDisclosure(user, body);
+        if (r.replayed) return ok({ id: r.id, replayed: true });
         await notifyDisclosureReview(base(r.campusId));
         return ok({ id: r.id }, 201);
       }

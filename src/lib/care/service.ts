@@ -538,10 +538,17 @@ export async function proposeDisclosure(user: AuthUser, body: Record<string, unk
       if (!s) throw new ApiError("Choose an active staff member.", 400);
       recipientName = s.fullName;
     } else if (recipientName.length < 3) throw new ApiError("Name the agency and contact.", 400);
-    const row = await tx.safeguardingDisclosure.create({ data: { schoolId: user.schoolId, concernId: c.id, recipientType, recipientUserId, recipientName, purpose, content, contentHash: contentHash(content), proposedById: user.userId } });
+    // SKAI-1704: a lost-response, relogin or second-tab retry of the same proposal (same proposer, recipient, purpose
+    // and exact content) replays the pending one: no second disclosure, chronology entry, audit row or review alert.
+    // The lock serialises concurrent identical proposals on this concern.
+    const hash = contentHash(content);
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`safeguarding-disclosure:${user.schoolId}:${c.id}:${user.userId}:${hash}`}))`;
+    const pending = await tx.safeguardingDisclosure.findFirst({ where: { schoolId: user.schoolId, concernId: c.id, status: "PROPOSED", proposedById: user.userId, recipientType, recipientUserId, recipientName, purpose, contentHash: hash }, select: { id: true } });
+    if (pending) return { id: pending.id, campusId: c.campusId, replayed: true };
+    const row = await tx.safeguardingDisclosure.create({ data: { schoolId: user.schoolId, concernId: c.id, recipientType, recipientUserId, recipientName, purpose, content, contentHash: hash, proposedById: user.userId } });
     await entry(tx, user, c.id, "DISCLOSURE", null, { disclosureId: row.id, status: "PROPOSED", recipientType, recipientName, purpose });
     await log(user, { domain: "SAFEGUARDING", recordType: "DISCLOSURE", recordId: row.id, studentId: c.studentId, action: "CREATE" }, tx);
-    return { id: row.id, campusId: c.campusId };
+    return { id: row.id, campusId: c.campusId, replayed: false };
   });
 }
 
