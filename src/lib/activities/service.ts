@@ -281,7 +281,7 @@ export async function roster(user: AuthUser, activityId: string) {
   return {
     activity: { ...activity, placesTaken: places.filter(p => HOLDING.includes(p.status)).length, canRun: isCoordinator(user, activity) },
     places: places.map(p => { const s = students.get(p.studentId); return { id: p.id, studentId: p.studentId, name: s?.fullName ?? "", className: [s?.class?.name, s?.class?.section].filter(Boolean).join(" "), status: p.status, version: p.version, offerExpiresAt: p.offerExpiresAt, feeStatus: p.feeStatus, invoiceId: p.invoiceId, refundState: p.refundState, refundAdjustmentId: p.refundAdjustmentId, cancelReason: p.cancelReason, requirements: requirements(activity, p, consent?.get(p.studentId)) }; }),
-    sessions: sessions.map(s => ({ ...s, marks: marks.filter(m => m.sessionId === s.id).map(m => ({ studentId: m.studentId, status: m.status })) })),
+    sessions: sessions.map(s => ({ ...s, marks: marks.filter(m => m.sessionId === s.id).map(m => ({ studentId: m.studentId, status: m.status, markedAt: m.markedAt })) })),
   };
 }
 
@@ -325,8 +325,21 @@ export async function markAttendance(user: AuthUser, body: Record<string, unknow
   const studentId = String(body.studentId ?? ""), status = String(body.status ?? "");
   if (!["PRESENT", "ABSENT", "LATE_WITHDRAWAL"].includes(status)) throw new ApiError("Choose present, absent or late withdrawal.", 400);
   if (!await prisma.activityPlace.count({ where: { activityId: session.activityId, studentId, status: "CONFIRMED" } })) throw new ApiError("Only confirmed participants are marked.", 409);
-  return prisma.activityAttendance.upsert({ where: { sessionId_studentId: { sessionId: session.id, studentId } }, create: { schoolId: user.schoolId, sessionId: session.id, studentId, status, markedById: user.userId }, update: { status, markedById: user.userId, markedAt: new Date() } });
+  // SKAI-1710: compare-and-set on the mark the editor saw (markedAt, or null for "not marked yet"), so a stale tab
+  // gets 409 and the newer committed mark is kept instead of being silently overwritten.
+  if (!("expectedMarkedAt" in body)) throw new ApiError(STALE_MARK, 409);
+  const expected = body.expectedMarkedAt == null || body.expectedMarkedAt === "" ? null : new Date(String(body.expectedMarkedAt));
+  if (expected && Number.isNaN(expected.getTime())) throw new ApiError(STALE_MARK, 409);
+  const key = { sessionId: session.id, studentId };
+  if (!expected) {
+    try { return await prisma.activityAttendance.create({ data: { schoolId: user.schoolId, ...key, status, markedById: user.userId } }); }
+    catch (e) { if ((e as { code?: string }).code === "P2002") throw new ApiError(STALE_MARK, 409); throw e; }
+  }
+  const won = await prisma.activityAttendance.updateMany({ where: { schoolId: user.schoolId, ...key, markedAt: expected }, data: { status, markedById: user.userId, markedAt: new Date() } });
+  if (won.count !== 1) throw new ApiError(STALE_MARK, 409);
+  return (await prisma.activityAttendance.findFirst({ where: { schoolId: user.schoolId, ...key }, select: { id: true } }))!;
 }
+const STALE_MARK = "This item changed since you opened it. Reload to see the latest before saving.";
 
 export async function cancelActivity(user: AuthUser, activityId: string) {
   return schoolAiTransaction(user, async tx => {
