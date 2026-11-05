@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       case "summary": return ok(await care.careSummary(user, p.get("studentId") ?? ""));
       case "settings": return ok(await care.settings(user, p.get("campusId")));
       case "my-reports": return ok(await care.myReports(user));
-      case "messages": return ok(await care.messagesForMe(user));
+      case "messages": { const page = await care.messagesForMe(user, p.get("cursor")); return Response.json({ success: true, data: page.items, nextCursor: page.nextCursor }, { headers }); }
       case "staff": return ok(await care.disclosureStaff(user));
       case "clinic": return ok(p.get("studentId") ? await care.clinicRecord(user, p.get("studentId")!) : await care.clinicQueue(user));
       case "safeguarding": return ok(p.get("concernId") ? await care.concernDetail(user, p.get("concernId")!) : p.get("studentId") ? await care.concernsForStudent(user, p.get("studentId")!) : await care.safeguardingQueue(user));

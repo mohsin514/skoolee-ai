@@ -1,7 +1,7 @@
 "use client";
 import { ErrorState } from "@/components/ui/error-state";
 import { useFetch } from "@/hooks";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -515,16 +515,44 @@ function CareSettings() {
 
 // ─── Desk ────────────────────────────────────────────────────────────────
 
+type CareMessage = { id: string; purpose: string; content: string; releasedAt: string };
+const CARE_MESSAGES_PAGE = 20;
+
 function MessagesToMe({ family = false }: { family?: boolean }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
-  const { data: rows, failure, isLoading, refetch } = useFetch<{ id: string; purpose: string; content: string; releasedAt: string }[]>(family ? "/api/family/care-messages" : "/api/care?view=messages", {collection:true});
+  const base = family ? "/api/family/care-messages" : "/api/care?view=messages";
+  const { data: rows, failure, isLoading, refetch } = useFetch<CareMessage[]>(base, {collection:true});
+  // SKAI-1708: the first page is the newest 20; older pages follow the cursor and drop out if the list reloads.
+  const [older, setOlder] = useState<{ rows: CareMessage[]; cursor: string | null } | null>(null);
+  const [more, setMore] = useState<"idle" | "loading" | "failed">("idle");
+  const request = useRef(0);
+  useEffect(() => { request.current++; setOlder(null); setMore("idle"); }, [rows]);
   if (isLoading) return <SkeletonList rows={2} label={ui("Loading…")} />;
   if (failure) return <ErrorState error={failure} onRetry={refetch} />;
   if (!rows?.length) return null;
+  const shown = [...rows, ...(older?.rows ?? []).filter(o => !rows.some(r => r.id === o.id))];
+  const cursor = older ? older.cursor : rows.length >= CARE_MESSAGES_PAGE ? rows[rows.length - 1].id : null;
+  const loadOlder = async () => {
+    if (!cursor || more === "loading") return;
+    const id = ++request.current;
+    setMore("loading");
+    try {
+      const response = await fetch(`${base}${base.includes("?") ? "&" : "?"}cursor=${encodeURIComponent(cursor)}`, { cache: "no-store" });
+      const body = await response.json() as { success?: boolean; data?: CareMessage[]; nextCursor?: string | null };
+      if (!response.ok || !body.success || !Array.isArray(body.data)) throw new Error("page failed");
+      if (id !== request.current) return;
+      const page = body.data;
+      setOlder(o => { const have = o?.rows ?? []; return { rows: [...have, ...page.filter(m => !have.some(h => h.id === m.id))], cursor: body.nextCursor ?? null }; });
+      setMore("idle");
+    } catch { if (id === request.current) setMore("failed"); }
+  };
   return <section className="sk-panel space-y-2 p-4 sm:p-5" data-care-messages>
     <h2 className="text-base font-bold text-ink-strong">{ui("Messages from the school")}</h2>
-    <ul className="space-y-2">{rows.map(r => <li key={r.id} className={cn(deskRow, "text-sm")} data-tone="info" data-care-message={r.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(r.releasedAt)}</bdi> · <span dir="auto">{r.purpose}</span></p><p dir="auto" className="whitespace-pre-wrap">{r.content}</p></li>)}</ul>
+    <ul className="space-y-2">{shown.map(r => <li key={r.id} className={cn(deskRow, "text-sm")} data-tone="info" data-care-message={r.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(r.releasedAt)}</bdi> · <span dir="auto">{r.purpose}</span></p><p dir="auto" className="whitespace-pre-wrap">{r.content}</p></li>)}</ul>
+    {more === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("Older messages could not be loaded.")}</p> : null}
+    {cursor ? <Button size="sm" variant="outline" loading={more === "loading"} onClick={loadOlder} data-care-messages-more>{more === "failed" ? ui("Try again") : ui("Show older messages")}</Button>
+      : older ? <p className="text-xs text-ink-muted" role="status">{ui("That's every message from the school.")}</p> : null}
   </section>;
 }
 

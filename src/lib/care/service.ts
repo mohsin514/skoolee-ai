@@ -595,9 +595,13 @@ export async function releaseDisclosure(user: AuthUser, id: string) {
 }
 
 /** Released messages addressed to this person: the approved text and date only, no case reference. */
-export async function messagesForMe(user: AuthUser) {
-  const rows = await prisma.safeguardingDisclosure.findMany({ where: { schoolId: user.schoolId, recipientUserId: user.userId, status: "RELEASED", recipientType: isFamilyRole(user) ? "GUARDIAN" : "STAFF" }, orderBy: { releasedAt: "desc" }, take: 20, select: { id: true, purpose: true, content: true, releasedAt: true } });
-  return rows;
+export const CARE_MESSAGES_PAGE = 20;
+
+/** SKAI-1708: newest first, a page at a time; `cursor` is the last id of the previous page. Same scope on every page. */
+export async function messagesForMe(user: AuthUser, cursor?: string | null) {
+  const rows = await prisma.safeguardingDisclosure.findMany({ where: { schoolId: user.schoolId, recipientUserId: user.userId, status: "RELEASED", recipientType: isFamilyRole(user) ? "GUARDIAN" : "STAFF" }, orderBy: [{ releasedAt: "desc" }, { id: "desc" }], take: CARE_MESSAGES_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), select: { id: true, purpose: true, content: true, releasedAt: true } });
+  const items = rows.slice(0, CARE_MESSAGES_PAGE);
+  return { items, nextCursor: rows.length > CARE_MESSAGES_PAGE ? items[items.length - 1].id : null };
 }
 
 // ─── Export ──────────────────────────────────────────────────────────────
