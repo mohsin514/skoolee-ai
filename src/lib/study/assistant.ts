@@ -56,10 +56,20 @@ export async function studyCollection(user: AuthUser) {
 }
 
 async function activeExam(user: AuthUser) {
-  const exams = await listSchoolAiExams(user).catch(() => [] as Awaited<ReturnType<typeof listSchoolAiExams>>);
-  const now = new Date();
+  return examBlock(() => listSchoolAiExams(user));
+}
+
+type ExamRow = { id: string; title: string; endsAt: Date; attempts?: unknown };
+
+/**
+ * SKAI-830: fails closed. If the exam lookup errors, the assistant cannot prove no exam is live, so it
+ * blocks (no title, link to the exam list) instead of answering during a possibly active exam.
+ */
+export async function examBlock(load: () => Promise<readonly ExamRow[]>, now = new Date()): Promise<{ title: string; href: string } | null> {
+  let exams: readonly ExamRow[];
+  try { exams = await load(); } catch { return { title: "", href: "/ai/exams" }; }
   for (const exam of exams) {
-    const attempt = ("attempts" in exam && Array.isArray(exam.attempts) ? exam.attempts[0] as { status: string } | undefined : undefined);
+    const attempt = (Array.isArray(exam.attempts) ? exam.attempts[0] as { status: string } | undefined : undefined);
     if (attempt?.status === "IN_PROGRESS" && exam.endsAt > now) return { title: exam.title, href: `/ai/exams/${exam.id}` };
   }
   return null;
