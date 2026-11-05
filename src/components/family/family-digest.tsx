@@ -1,7 +1,7 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { mondayOf } from "@/lib/family/week";
-import { useFetch } from "@/hooks";
+import { checkedJson, readRequest, RequestFailure, requestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
@@ -147,16 +147,46 @@ type GuardianDigest = { id: string; weekStart: string; version: number; content:
 export function GuardianDigest({ studentId }: { studentId: string }) {
   const ui = useUiText();
   const { date } = useLocaleFormat();
-  const { data: rows, failure, isLoading, refetch } = useFetch<GuardianDigest[]>(`/api/family/digests?studentId=${encodeURIComponent(studentId)}`, { collection: true });
-  const [index, setIndex] = useState(0);
-  useEffect(() => { setIndex(0); }, [studentId]);
-  if (isLoading) return <SkeletonList rows={2} label={ui("Loading…")} />;
-  if (failure) return <ErrorState error={failure} onRetry={refetch} />;
-  if (!rows || !rows.length) return null;
+  const base = `/api/family/digests?studentId=${encodeURIComponent(studentId)}`;
+  const [state, setState] = useState<{ rows: GuardianDigest[]; nextCursor: string | null; failure: RequestFailure | null; loading: boolean }>({ rows: [], nextCursor: null, failure: null, loading: true });
+  const [index, setIndex] = useState(0), [older, setOlder] = useState(false), [olderFailed, setOlderFailed] = useState(false);
+  // SKAI-1743: a page that returns after a child switch or reload is dropped.
+  const requestId = useRef(0);
+  const load = useCallback(async () => {
+    const id = ++requestId.current;
+    setState({ rows: [], nextCursor: null, failure: null, loading: true }); setIndex(0); setOlder(false); setOlderFailed(false);
+    try {
+      const json = await checkedJson(await readRequest(base));
+      if (!Array.isArray(json.data)) throw new RequestFailure("server");
+      if (id === requestId.current) setState({ rows: json.data, nextCursor: json.nextCursor ?? null, failure: null, loading: false });
+    } catch (error) { if (id === requestId.current) setState({ rows: [], nextCursor: null, failure: requestFailure(error), loading: false }); }
+  }, [base]);
+  useEffect(() => { void load(); }, [load]);
+  const { rows, nextCursor } = state;
+  // Earlier walks the loaded updates, then fetches the next older page when the last loaded one is reached.
+  const earlier = async () => {
+    if (index < rows.length - 1) { setIndex(index + 1); return; }
+    if (!nextCursor) return;
+    const id = requestId.current;
+    setOlder(true); setOlderFailed(false);
+    try {
+      const json = await checkedJson(await readRequest(`${base}&cursor=${encodeURIComponent(nextCursor)}`));
+      if (!Array.isArray(json.data)) throw new RequestFailure("server");
+      if (id !== requestId.current) return;
+      const seen = new Set(rows.map(r => r.id));
+      const added = (json.data as GuardianDigest[]).filter(r => !seen.has(r.id));
+      setState(prev => ({ ...prev, rows: [...prev.rows, ...added], nextCursor: json.nextCursor ?? null }));
+      if (added.length) setIndex(index + 1);
+    } catch { if (id === requestId.current) setOlderFailed(true); }
+    finally { if (id === requestId.current) setOlder(false); }
+  };
+  if (state.loading) return <SkeletonList rows={2} label={ui("Loading…")} />;
+  if (state.failure) return <ErrorState error={state.failure} onRetry={() => void load()} />;
+  if (!rows.length) return null;
   const current = rows[Math.min(index, rows.length - 1)];
   return <section className="sk-panel space-y-3 p-5" data-guardian-digest={current.id}>
-    <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><Newspaper aria-hidden="true" className="size-4 text-primary" />{ui("Weekly update")}</h3>{rows.length > 1 ? <div className="flex gap-1"><Button size="sm" variant="outline" disabled={index >= rows.length - 1} onClick={() => setIndex(index + 1)}>{ui("Earlier")}</Button><Button size="sm" variant="outline" disabled={index === 0} onClick={() => setIndex(index - 1)}>{ui("Later")}</Button></div> : null}</div>
+    <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><Newspaper aria-hidden="true" className="size-4 text-primary" />{ui("Weekly update")}</h3>{rows.length > 1 || nextCursor ? <div className="flex gap-1"><Button size="sm" variant="outline" loading={older} disabled={older || (index >= rows.length - 1 && !nextCursor)} onClick={() => void earlier()} data-digest-earlier>{ui("Earlier")}</Button><Button size="sm" variant="outline" disabled={index === 0} onClick={() => setIndex(index - 1)}>{ui("Later")}</Button></div> : null}</div>
+    {olderFailed ? <p role="alert" className="text-sm text-status-danger-text">{ui("Earlier weekly updates could not be loaded. Try again.")}</p> : null}
     <DigestCard ui={ui} weekStart={current.weekStart} content={current.content} reviewedBy={current.reviewedBy} formatDate={date} />
   </section>;
 }
-
