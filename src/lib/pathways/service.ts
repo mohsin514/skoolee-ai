@@ -155,7 +155,15 @@ async function opportunityEditor(user: AuthUser) { assert(LEADERS.includes(user.
 export async function saveOpportunity(user: AuthUser, raw: unknown) {
   await opportunityEditor(user);
   const input = parse(OpportunityInput, raw);
-  return prisma.pathwayOpportunity.create({ data: { ...input, deadline: input.deadline ? asDate(input.deadline) : null, schoolId: user.schoolId, campusId: campusOf(user), lastVerifiedAt: new Date(), verifiedById: user.userId } });
+  const campusId = campusOf(user), deadline = input.deadline ? asDate(input.deadline) : null;
+  // SKAI-1723: a retried or double-pressed Add replays the active listing with the same title, provider, link and
+  // deadline instead of adding a copy. The lock serialises concurrent identical submits on this campus.
+  return prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pathway-opportunity:${user.schoolId}:${campusId}:${input.title.toLowerCase()}:${input.provider.toLowerCase()}:${input.sourceUrl}`}))`;
+    const existing = await tx.pathwayOpportunity.findFirst({ where: { schoolId: user.schoolId, campusId, status: "ACTIVE", title: { equals: input.title, mode: "insensitive" }, provider: { equals: input.provider, mode: "insensitive" }, sourceUrl: input.sourceUrl, deadline } });
+    if (existing) return { ...existing, replayed: true };
+    return { ...await tx.pathwayOpportunity.create({ data: { ...input, deadline, schoolId: user.schoolId, campusId, lastVerifiedAt: new Date(), verifiedById: user.userId } }), replayed: false };
+  });
 }
 export async function verifyOpportunity(user: AuthUser, id: string, raw: unknown) {
   await opportunityEditor(user);
