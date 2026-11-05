@@ -154,11 +154,15 @@ function summary(r: Req, names: Map<string, string>, now: Date) {
   return { id: r.id, reference: r.reference, title: r.title, location: r.location, category: r.category.name, team: r.category.team, safety: r.category.safety, priority: r.priority, status: r.status, blockedReason: r.blockedReason, owner: r.ownerId ? names.get(r.ownerId) ?? "" : null, ownerId: r.ownerId, requester: names.get(r.requesterId) ?? "", createdAt: r.createdAt, responseDueAt: r.responseDueAt, resolveDueAt: r.resolveDueAt, firstResponseAt: r.firstResponseAt, resolvedAt: r.resolvedAt, firstResolvedAt: r.firstResolvedAt, closedAt: r.closedAt, reopenedCount: r.reopenedCount, version: r.version, overdue: OPEN.includes(r.status) && late(r.resolveDueAt, r.resolvedAt, now), responseOverdue: late(r.responseDueAt, r.firstResponseAt, now) };
 }
 
-export async function myRequests(user: AuthUser) {
+const MINE_PAGE = 50;
+// SKAI-1702: keyset pages (newest first, id tiebreak). The cursor only positions the page; the requester/watcher
+// and school filter applies to every page, so a cursor from someone else's request reveals nothing.
+export async function myRequests(user: AuthUser, cursor?: string | null) {
   if (!isStaff(user)) throw new ApiError("The service desk is for staff.", 403);
-  const rows = await prisma.serviceRequest.findMany({ where: { schoolId: user.schoolId, OR: [{ requesterId: user.userId }, { watcherIds: { has: user.userId } }] }, include: { category: true }, orderBy: { createdAt: "desc" }, take: 50 });
+  const found = await prisma.serviceRequest.findMany({ where: { schoolId: user.schoolId, OR: [{ requesterId: user.userId }, { watcherIds: { has: user.userId } }] }, include: { category: true }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: MINE_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
+  const rows = found.slice(0, MINE_PAGE);
   const names = await people(user.schoolId, rows.flatMap(r => [r.ownerId, r.requesterId]));
-  return rows.map(r => summary(r, names, new Date()));
+  return { requests: rows.map(r => summary(r, names, new Date())), nextCursor: found.length > MINE_PAGE ? rows[rows.length - 1].id : null };
 }
 
 /** The queue for the agent: unassigned and overdue first, within the agent's service scope. */
