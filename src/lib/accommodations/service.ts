@@ -168,7 +168,8 @@ export function activePlanFor(tx: TxClient, schoolId: string, studentId: string)
   return tx.accommodationPlan.findFirst({ where: { schoolId, studentId, status: "ACTIVE" } });
 }
 
-export const liveInput = z.object({ studentId: z.string().min(1), addedMinutes: z.number().int().min(1).max(120), reason: z.string().trim().min(3).max(300) }).strict();
+// SKAI-1459: requestKey names one logical adjustment so a retry after a lost response replays it.
+export const liveInput = z.object({ studentId: z.string().min(1), addedMinutes: z.number().int().min(1).max(120), reason: z.string().trim().min(3).max(300), requestKey: z.string().uuid() }).strict();
 /** An exceptional extension of a running attempt: approver, reason and old/new deadline are recorded for the invigilator. */
 export async function liveAdjustment(user: AuthUser, assignmentId: string, raw: unknown) {
   const input = liveInput.parse(raw);
@@ -176,13 +177,21 @@ export async function liveAdjustment(user: AuthUser, assignmentId: string, raw: 
   return schoolAiTransaction(user, async tx => {
     const assignment = await tx.schoolAiExamAssignment.findFirst({ where: { id: assignmentId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true, campusId: true } });
     if (!assignment) throw new ApiError("Exam not found.", 404);
+    const receipt = () => tx.accommodationLiveAdjustment.findFirst({ where: { schoolId: user.schoolId, assignmentId, studentId: input.studentId, requestKey: input.requestKey } });
+    const prior = await receipt();
+    if (prior) return prior;
     const now = new Date();
     const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { schoolId: user.schoolId, assignmentId, studentId: input.studentId, status: "IN_PROGRESS", deadlineAt: { gt: now } } });
     if (!attempt) throw new ApiError("A live adjustment needs an attempt in progress. Before start, approve the plan or exam adjustment instead.", 409);
     const newDeadline = new Date(attempt.deadlineAt.getTime() + input.addedMinutes * 60_000);
     const moved = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", deadlineAt: attempt.deadlineAt }, data: { deadlineAt: newDeadline } });
-    if (moved.count !== 1) throw new ApiError("The attempt changed meanwhile. Refresh and try again.", 409);
-    const row = await tx.accommodationLiveAdjustment.create({ data: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, attemptId: attempt.id, studentId: input.studentId, addedMinutes: input.addedMinutes, reason: input.reason, oldDeadline: attempt.deadlineAt, newDeadline, approvedById: user.userId } });
+    if (moved.count !== 1) {
+      // A concurrent identical request may have committed while this one waited on the attempt row.
+      const committed = await receipt();
+      if (committed) return committed;
+      throw new ApiError("The attempt changed meanwhile. Refresh and try again.", 409);
+    }
+    const row = await tx.accommodationLiveAdjustment.create({ data: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, attemptId: attempt.id, studentId: input.studentId, requestKey: input.requestKey, addedMinutes: input.addedMinutes, reason: input.reason, oldDeadline: attempt.deadlineAt, newDeadline, approvedById: user.userId } });
     await tx.auditLog.create({ data: { schoolId: user.schoolId, campusId: assignment.campusId, tableName: "school_ai_exam_attempts", recordId: attempt.id, userId: user.userId, oldValue: { deadlineAt: attempt.deadlineAt.toISOString() }, newValue: { deadlineAt: newDeadline.toISOString(), addedMinutes: input.addedMinutes, liveAdjustmentId: row.id } } });
     return row;
   });

@@ -7848,9 +7848,12 @@ model AccommodationLiveAdjustment {
   oldDeadline  DateTime @map("old_deadline")
   newDeadline  DateTime @map("new_deadline")
   approvedById String   @map("approved_by_id")
+  /// SKAI-1459: client operation key; a retry with the same key replays the original adjustment.
+  requestKey   String?  @map("request_key")
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, assignmentId])
+  @@unique([schoolId, assignmentId, studentId, requestKey], map: "accommodation_live_adjustments_request_key_key")
   @@map("accommodation_live_adjustments")
 }
 
