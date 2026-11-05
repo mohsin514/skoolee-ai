@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
+import { teachesExamClass } from "@/lib/academic/teaches-exam-class";
 import { roundConfigured } from "@/lib/academic/model-config";
 import { calculateWeightedGrade, getOrCreateGradeWeightConfig, buildSubjectDistribution, gradeForMark, gradeForPercentage, type WeightConfig } from "@/lib/academic/grade-calculator";
 
@@ -51,7 +52,7 @@ export async function GET(
         select: {
           id: true, title: true, term: true, status: true, examType: true, subjectId: true, academicYear: true,
           classId: true,
-          class: { select: { id: true, name: true, section: true } },
+          class: { select: { id: true, name: true, section: true, classTeacherId: true, subjects: { select: { teacherId: true } } } },
         },
       },
     },
@@ -60,6 +61,9 @@ export async function GET(
   if (!reportCard) return Response.json({ error: "Report card not found" }, { status: 404 });
   if (user.campusId && reportCard.campusId !== user.campusId) {
     return Response.json({ error: "Report card is outside your campus" }, { status: 403 });
+  }
+  if (user.role === "TEACHER" && !teachesExamClass(reportCard.exam.class, user.userId)) {
+    return Response.json({ error: "You are not assigned to this class" }, { status: 403 });
   }
 
   const marks = await prisma.mark.findMany({
@@ -139,7 +143,7 @@ export async function GET(
       ...reportCard,
       // Show the class this exam actually belonged to, not wherever the
       // student has since been promoted to.
-      student: { ...reportCard.student, class: reportCard.exam.class },
+      student: { ...reportCard.student, class: { id: reportCard.exam.class.id, name: reportCard.exam.class.name, section: reportCard.exam.class.section } },
       ...(isAggregateFinal && overall
         ? { percentage: overall.overallPercentage, grade: overall.overallGrade }
         : {}),
