@@ -66,6 +66,11 @@ async function liveByWindow(db: TxClient, windowIds: string[]) {
 
 function assertStaff(user: AuthUser) { if (user.role !== "TEACHER" && !canManageOperations(user)) throw new ApiError("Only staff can manage meetings.", 403); }
 
+type WindowDetails = { slotMinutes: number; bufferMinutes: number; maxBookings: number | null; mode: string; location: string | null; cancellationPolicy: string | null };
+export const sameWindowDetails = (a: WindowDetails, b: WindowDetails) =>
+  a.slotMinutes === b.slotMinutes && a.bufferMinutes === b.bufferMinutes && (a.maxBookings ?? null) === (b.maxBookings ?? null)
+  && a.mode === b.mode && (a.location || null) === (b.location || null) && (a.cancellationPolicy || null) === (b.cancellationPolicy || null);
+
 export async function createWindow(user: AuthUser, body: Record<string, unknown>) {
   assertStaff(user);
   const localDate = String(body.localDate ?? ""), startTime = String(body.startTime ?? ""), endTime = String(body.endTime ?? "");
@@ -90,7 +95,13 @@ export async function createWindow(user: AuthUser, body: Record<string, unknown>
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.userId} FOR UPDATE`;
     const existing = await tx.meetingWindow.findFirst({ where: { schoolId: user.schoolId, teacherId: user.userId, localDate, startTime, endTime, status: "OPEN" } });
-    if (existing) return existing;
+    if (existing) {
+      // SKAI-1786: only an unchanged retry replays. Different family-facing details are a conflict, never a stale success.
+      if (!sameWindowDetails(existing, { slotMinutes, bufferMinutes, maxBookings, mode, location, cancellationPolicy })) {
+        throw new ApiError("You already have a window at this time with different details. Withdraw it or choose another time.", 409);
+      }
+      return existing;
+    }
     return tx.meetingWindow.create({ data: { schoolId: user.schoolId, campusId: user.campusId ?? "", teacherId: user.userId, localDate, startTime, endTime, timezone, slotMinutes, bufferMinutes, maxBookings, mode, location, cancellationPolicy, createdById: user.userId } });
   });
 }
