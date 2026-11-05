@@ -22,3 +22,11 @@ test("token must match the active key", () => {
   const a = guard.begin("teacher-a");
   assert.equal(guard.isCurrent(a, "teacher-b"), false);
 });
+
+test("payroll period: slow March 2026 response after March 2027 is ignored; March 2027 is applied", () => {
+  const guard = createLatestRequest<string>();
+  const older = guard.begin("2026-3");
+  const newer = guard.begin("2027-3");
+  assert.equal(guard.isCurrent(newer, "2027-3"), true);
+  assert.equal(guard.isCurrent(older, "2026-3"), false);
+});
