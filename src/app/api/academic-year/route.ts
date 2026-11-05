@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { notify } from "@/lib/notifications/in-app";
 import {
   ApiError,
+  assertStaffRole,
   canLeadAcademics,
   canManageAcademics,
   canManageCampusOps,
@@ -20,6 +21,8 @@ import { jsonObjectBody } from "@/lib/validators/route-bodies";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // SKAI-1768: campus-wide classes, class teachers and cohort counts are staff data; families use /parent and /student.
+    assertStaffRole(user);
     const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
 
     const classes = await prisma.class.findMany({
