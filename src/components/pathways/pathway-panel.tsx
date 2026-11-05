@@ -25,9 +25,9 @@ type Opportunity = { id: string; title: string; provider: string; kind: string; 
 type Appointment = { id: string; startsAt: string; minutes: number; publicLabel: string; status: string; studentId: string; studentName?: string };
 type Alumnus = { id: string; displayName: string; pathway: string; contactEmail?: string; visibility?: string; mentoring?: boolean; consentWithdrawnAt?: string | null; reviewOverdue?: boolean };
 type Request = { id: string; reference: string; alumniId: string; purpose: string; status: string; reviewNote: string | null; studentName?: string; minor?: boolean };
-type StudentView = { mode: "STUDENT"; studentId: string; plan: Goal[]; appointments: Appointment[]; alumni: Alumnus[]; requests: Request[]; counsellors: { id: string; fullName: string }[]; opportunities: Opportunity[] };
+type StudentView = { mode: "STUDENT"; studentId: string; plan: Goal[]; appointments: Appointment[]; alumni: Alumnus[]; requests: Request[]; counsellors: { id: string; fullName: string }[]; opportunities: Opportunity[]; opportunitiesNext?: number | null };
 type GuardianView = { mode: "GUARDIAN"; children: { studentId: string; name: string; plan: Goal[] }[] };
-type StaffView = { mode: "STAFF" | "COUNSELLOR"; designated: boolean; isLeader: boolean; designations: { id: string; userId: string; name: string }[]; staff: { id: string; fullName: string }[]; opportunities: Opportunity[]; plans?: { studentId: string; name: string; goals: Goal[] }[]; appointments?: Appointment[]; alumni?: Alumnus[]; requests?: Request[]; requestsNextCursor?: string | null };
+type StaffView = { mode: "STAFF" | "COUNSELLOR"; designated: boolean; isLeader: boolean; designations: { id: string; userId: string; name: string }[]; staff: { id: string; fullName: string }[]; opportunities: Opportunity[]; opportunitiesNext?: number | null; plans?: { studentId: string; name: string; goals: Goal[] }[]; appointments?: Appointment[]; alumni?: Alumnus[]; requests?: Request[]; requestsNextCursor?: string | null };
 type View = StudentView | GuardianView | StaffView;
 
 const OWNER: Record<string, string> = { STUDENT: "Student", COUNSELLOR: "Counsellor", GUARDIAN: "Guardian" };
@@ -68,6 +68,17 @@ export function PathwayPanel({ hideWhenEmpty = false }: { hideWhenEmpty?: boolea
   const olderReq = useRef(0);
   const load = useCallback(async () => { try { const next = await call("/api/pathways"); olderReq.current++; setOlder({ rows: [], cursor: undefined, loading: false, failed: false }); setView(next); setError(null); } catch (e) { setError(ui((e as Error).message)); } }, [ui]);
   useEffect(() => { void load(); }, [load]);
+  // SKAI-1719: opportunities beyond the first 100 load page by page; a failed page keeps the list and retries the same offset.
+  const [more, setMore] = useState<"idle" | "loading" | "failed">("idle");
+  const loadMoreOpportunities = async (offset: number) => {
+    setMore("loading");
+    try {
+      const page = await call(`/api/pathways?view=opportunities&offset=${offset}`) as { opportunities: Opportunity[]; opportunitiesNext: number | null };
+      setView((current) => current && "opportunities" in current && current.opportunitiesNext === offset ? { ...current, opportunities: [...current.opportunities, ...page.opportunities], opportunitiesNext: page.opportunitiesNext } : current);
+      setMore("idle");
+    } catch { setMore("failed"); }
+  };
+  const moreOpportunities = (next: number | null | undefined) => next == null ? null : <div className="flex flex-wrap items-center gap-2" aria-live="polite" data-pw-more>{more === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("More opportunities could not be loaded. The list shown is kept.")}</p> : null}<Button type="button" size="sm" variant="outline" disabled={more === "loading"} aria-busy={more === "loading"} onClick={() => void loadMoreOpportunities(next)}>{more === "loading" ? ui("Loading more opportunities…") : more === "failed" ? ui("Try again") : ui("Load more opportunities")}</Button></div>;
   const post = async (body: object, success: string) => {
     if (busy) return null;
     setBusy(true);
@@ -159,7 +170,7 @@ export function PathwayPanel({ hideWhenEmpty = false }: { hideWhenEmpty?: boolea
             </div>
           ))}
           {view.plan.length ? exportLink(view.studentId) : null}
-          <div className="space-y-2"><h3 className="font-semibold">{ui("Opportunities")}</h3>{view.opportunities.length ? <ul className="space-y-2">{view.opportunities.map((o) => <li key={o.id}>{opportunityRow(o)}</li>)}</ul> : <EmptyState size="sm" icon={Compass} title={ui("No verified opportunities yet.")} />}</div>
+          <div className="space-y-2"><h3 className="font-semibold">{ui("Opportunities")}</h3>{view.opportunities.length ? <ul className="space-y-2">{view.opportunities.map((o) => <li key={o.id}>{opportunityRow(o)}</li>)}</ul> : <EmptyState size="sm" icon={Compass} title={ui("No verified opportunities yet.")} />}{moreOpportunities(view.opportunitiesNext)}</div>
           <form className="flex flex-wrap items-end gap-2 rounded-xl border border-border p-3" onSubmit={(e) => { e.preventDefault(); void post({ action: "appointment", data: { counsellorId: f("c"), startsAt: f("when") ? new Date(f("when")).toISOString() : "", minutes: 30 } }, "Meeting requested."); }}>
             <h3 className="w-full font-semibold">{ui("Book a meeting")}</h3>
             <FormField name="pw-c" label={ui("Counsellor")}><Select value={f("c")} onChange={setF("c")}><option value="">{ui("Choose a counsellor")}</option>{view.counsellors.map((c) => <option key={c.id} value={c.id}>{c.fullName}</option>)}</Select></FormField>
@@ -210,6 +221,7 @@ export function PathwayPanel({ hideWhenEmpty = false }: { hideWhenEmpty?: boolea
           {!view.designated ? <p className="text-sm text-ink-subtle">{ui("These counselling notes are restricted to designated staff.")}</p> : null}
           <div className="space-y-2"><h3 className="font-semibold">{ui("Opportunities")}</h3>
             <ul className="space-y-2">{view.opportunities.map((o) => <li key={o.id} className="list-none">{opportunityRow(o)}{o.state !== "WITHDRAWN" ? <div className="mt-1 flex gap-2"><Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void post({ action: "verify", id: o.id, data: { outcome: "CONFIRMED" } }, "Opportunity re-checked.")}>{ui("Mark as checked today")}</Button><Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void post({ action: "verify", id: o.id, data: { outcome: "WITHDRAWN" } }, "Opportunity withdrawn.")}>{ui("Withdraw")}</Button></div> : null}</li>)}</ul>
+            {moreOpportunities(view.opportunitiesNext)}
             <form className="grid gap-2 md:grid-cols-3" onSubmit={(e) => { e.preventDefault(); void post({ action: "opportunity", data: { title: f("ot"), provider: f("op"), kind: f("ok") || "OTHER", sourceUrl: f("ou"), eligibility: f("oe"), ...(f("od") ? { deadline: f("od") } : {}) } }, "Opportunity added with today's check."); }}>
               <FormField name="pw-ot" label={ui("Opportunity")}><Input value={f("ot")} onChange={setF("ot")} /></FormField>
               <FormField name="pw-op" label={ui("Provider")}><Input value={f("op")} onChange={setF("op")} /></FormField>
