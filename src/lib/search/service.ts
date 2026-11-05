@@ -75,12 +75,12 @@ export function resultHref(role: string, type: SearchType, record: { id: string;
 export async function allowedTypes(user: AuthUser) {
   if (!canSearchRecords(user.role)) return [] as SearchType[];
   const openable = TYPES_FOR_ROLE[user.role as (typeof RECORD_SEARCH_ROLES)[number]];
-  const allowed: SearchType[] = [];
-  for (const type of TYPES) {
-    if (!openable.includes(type)) continue;
-    try { await assertModuleRead(user, MODULE[type]); allowed.push(type); } catch { /* not offered */ }
-  }
-  return allowed;
+  // SKAI-1245: the permission checks are independent reads, so they run together rather than one round trip each.
+  const checks = await Promise.all(TYPES.map(async type => {
+    if (!openable.includes(type)) return false;
+    try { await assertModuleRead(user, MODULE[type]); return true; } catch { return false; /* not offered */ }
+  }));
+  return TYPES.filter((_, index) => checks[index]);
 }
 
 async function teacherClassIds(user: AuthUser) {
@@ -197,10 +197,15 @@ const SEARCHERS = { student: searchStudents, class: searchClasses, staff: search
 export async function searchRecords(user: AuthUser, filters: Filters) {
   if (isFamilyRole(user)) throw new ApiError("Search covers school records for staff. Families find their children's information in their own portal.", 403);
   if (!canSearchRecords(user.role)) throw new ApiError("Record search is not part of your workspace.", 403);
+  // SKAI-1245: resolve the campus scope alongside the permission checks; a missing permission still wins.
+  const scoped = scope(user, filters.campusId);
+  scoped.catch(() => undefined);
   const allowed = await allowedTypes(user);
   if (!allowed.length) throw new ApiError("Your role has no searchable records.", 403);
   const types = filters.types.length ? filters.types.filter(type => allowed.includes(type)) : allowed;
-  const { campusIds } = await scope(user, filters.campusId);
+  const { campusIds } = await scoped;
+  const header = Promise.all([prisma.school.findUnique({ where: { id: user.schoolId }, select: { name: true } }), campusIds?.length === 1 ? prisma.campus.findUnique({ where: { id: campusIds[0] }, select: { name: true } }) : null]);
+  header.catch(() => undefined);
   const single = types.length === 1;
   const limit = single ? PAGE : 8;
   let page = boundedInteger(String(filters.page), 1, 100_000);
@@ -220,7 +225,7 @@ export async function searchRecords(user: AuthUser, filters: Filters) {
     }
     catch { console.error(`[search] ${type} source failed`); sources[type] = "failed"; return { type, rows: [] as Result[], total: 0 }; }
   }));
-  const [school, campus] = await Promise.all([prisma.school.findUnique({ where: { id: user.schoolId }, select: { name: true } }), campusIds?.length === 1 ? prisma.campus.findUnique({ where: { id: campusIds[0] }, select: { name: true } }) : null]);
+  const [school, campus] = await header;
   return {
     scope: { school: school?.name ?? "", campus: campus?.name ?? null, allCampuses: !campusIds },
     allowedTypes: allowed, types, groups, sources, partial: Object.values(sources).includes("failed"),
