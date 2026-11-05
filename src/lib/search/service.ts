@@ -121,12 +121,14 @@ async function searchStudents(user: AuthUser, filters: Filters, campusIds: strin
     ${filters.academicYear ? Prisma.sql`AND c.academic_year = ${filters.academicYear}` : Prisma.empty}
     ${q ? Prisma.sql`AND (lower(s.roll_no) = lower(${q}) OR lower(coalesce(s.admission_no, '')) = lower(${q}) OR s.id = ${q} OR search_fold(s.full_name) LIKE search_fold(${like(q)}) OR search_fold(coalesce(s.name_ur, '')) LIKE search_fold(${like(q)}))` : Prisma.empty}`;
   const exact = q ? Prisma.sql`(lower(s.roll_no) = lower(${q}) OR lower(coalesce(s.admission_no, '')) = lower(${q}) OR s.id = ${q})` : Prisma.sql`false`;
+  // SKAI-1740: PostgreSQL rejects a bare constant in ORDER BY ("non-integer constant"), so a blank query skips the exact-match key.
+  const exactFirst = q ? Prisma.sql`${exact} DESC,` : Prisma.empty;
   const [rows, [{ total }]] = await Promise.all([
     prisma.$queryRaw<{ id: string; full_name: string; name_ur: string | null; roll_no: string; admission_no: string | null; archived_at: Date | null; consolidated_into_id: string | null; class_name: string; section: string | null; academic_year: number; campus_name: string; exact: boolean }[]>`
       SELECT s.id, s.full_name, s.name_ur, s.roll_no, s.admission_no, s.archived_at, s.consolidated_into_id, c.name AS class_name, c.section, c.academic_year, cp.name AS campus_name, ${exact} AS exact
       FROM students s JOIN classes c ON c.id = s.class_id JOIN campuses cp ON cp.id = s.campus_id
       WHERE ${where}
-      ORDER BY ${exact} DESC, s.archived_at IS NOT NULL, search_fold(s.full_name) ${filters.sort === "name-desc" ? Prisma.sql`DESC` : Prisma.sql`ASC`}, s.roll_no, s.id
+      ORDER BY ${exactFirst} s.archived_at IS NOT NULL, search_fold(s.full_name) ${filters.sort === "name-desc" ? Prisma.sql`DESC` : Prisma.sql`ASC`}, s.roll_no, s.id
       LIMIT ${limit} OFFSET ${offset}`,
     prisma.$queryRaw<{ total: bigint }[]>`SELECT count(*) AS total FROM students s JOIN classes c ON c.id = s.class_id WHERE ${where}`,
   ]);
