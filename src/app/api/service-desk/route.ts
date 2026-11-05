@@ -5,14 +5,14 @@ import { tell } from "@/lib/service-desk/notify";
 
 export const runtime = "nodejs";
 
-// SKO-441: the service desk. GET ?view=mine | queue | form [&campusId&status&text]
+// SKO-441: the service desk. GET ?view=mine[&cursor] | queue | form [&campusId&status&text]
 // POST {action: request | category}
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     const params = request.nextUrl.searchParams, view = params.get("view") ?? "mine";
     const headers = { "Cache-Control": "private, no-store" };
-    if (view === "mine") return Response.json({ success: true, data: await myRequests(user) }, { headers });
+    if (view === "mine") { const page = await myRequests(user, params.get("cursor")); return Response.json({ success: true, data: page.requests, nextCursor: page.nextCursor }, { headers }); }
     if (view === "queue") return Response.json({ success: true, data: await queue(user, params.get("campusId"), params.get("status") ?? "OPEN") }, { headers });
     if (view === "form") {
       const form = await listCategories(user, params.get("campusId"));

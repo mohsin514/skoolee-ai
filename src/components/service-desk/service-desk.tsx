@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,12 +45,19 @@ type Summary = { id: string; reference: string; title: string; location: string;
 type Detail = Summary & { description: string; agent: boolean; isRequester?: boolean; watchers: { id: string; name: string }[]; events: { id: string; kind: string; visibility: string; actor: string | null; body: string | null; detail: Record<string, unknown>; attachment: string | null; createdAt: string }[] };
 type Form = { campusId: string; categories: { id: string; name: string; kind: string; team: string; safety: boolean; responseHours: number | null; resolveHours: number | null }[]; rooms: { id: string; roomNumber: string }[]; suggestion: { categoryId: string; matches: number } | null };
 
-async function call(url: string, method = "GET", body?: Record<string, unknown>) {
+async function send(url: string, method = "GET", body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
   if (!response.ok || !json.success) throw new Error(json.error || "Your update was not saved. Try again.");
-  return json.data;
+  return json;
 }
+const call = async (url: string, method = "GET", body?: Record<string, unknown>) => (await send(url, method, body)).data;
+// SKAI-1702: My requests is paged; older pages append without duplicates.
+const minePage = async (cursor?: string | null): Promise<{ requests: Summary[]; nextCursor: string | null }> => {
+  const json = await send(`/api/service-desk?view=mine${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+  return { requests: json.data, nextCursor: json.nextCursor ?? null };
+};
+const appendNew = (shown: Summary[], page: Summary[]) => { const seen = new Set(shown.map(r => r.id)); return [...shown, ...page.filter(r => !seen.has(r.id))]; };
 const key = () => `sd-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 const readPhoto = (file: File) => new Promise<{ data: string; contentType: string }>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve({ data: String(r.result).split(",")[1] ?? "", contentType: file.type }); r.onerror = reject; r.readAsDataURL(file); });
 const statusLabel = (ui: Ui, s: string, owned = false) => ({ OPEN: owned ? ui("Assigned · not started yet") : ui("Waiting for the team"), IN_PROGRESS: ui("In progress"), BLOCKED: ui("Waiting"), RESOLVED: ui("Work completed · awaiting your confirmation"), CLOSED: ui("Closed") } as Record<string, string>)[s] ?? s;
@@ -74,7 +81,18 @@ export function ServiceDesk() {
   const [form, setForm] = useState<Form | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const [draft, setDraft] = useState({ title: "", description: "", location: "", roomId: "", categoryId: "" }), [photo, setPhoto] = useState<{ data: string; contentType: string } | null>(null), [requestKey, setRequestKey] = useState(key);
   const [open, setOpen] = useState<Detail | null>(null), [message, setMessage] = useState(""), [reason, setReason] = useState(""), [assignee, setAssignee] = useState(""), [work, setWork] = useState(""), [due, setDue] = useState(""), [prio, setPrio] = useState("");
-  const loadMine = useCallback(async () => { try { setMine(await call("/api/service-desk?view=mine")); setError(""); } catch (e) { setError(ui(e instanceof Error ? e.message : "Requests could not be loaded.")); } }, [ui]);
+  const [mineCursor, setMineCursor] = useState<string | null>(null), [olderBusy, setOlderBusy] = useState(false), [olderFailed, setOlderFailed] = useState(false);
+  const mineRequest = useRef(0);
+  const loadMine = useCallback(async () => {
+    const id = ++mineRequest.current; setOlderBusy(false); setOlderFailed(false);
+    try { const page = await minePage(); if (id !== mineRequest.current) return; setMine(page.requests); setMineCursor(page.nextCursor); setError(""); }
+    catch (e) { if (id === mineRequest.current) setError(ui(e instanceof Error ? e.message : "Requests could not be loaded.")); }
+  }, [ui]);
+  const loadOlder = async () => {
+    if (!mineCursor) return; const id = ++mineRequest.current; setOlderBusy(true); setOlderFailed(false);
+    try { const page = await minePage(mineCursor); if (id !== mineRequest.current) return; setMine(shown => appendNew(shown ?? [], page.requests)); setMineCursor(page.nextCursor); }
+    catch { if (id === mineRequest.current) setOlderFailed(true); } finally { if (id === mineRequest.current) setOlderBusy(false); }
+  };
   // SKAI-1656: a failed queue load is a recoverable error, not a loss of agent access; keep the tab and offer Retry.
   const [queueFailed, setQueueFailed] = useState(false);
   const loadQueue = useCallback(async () => { try { setQ(await call("/api/service-desk?view=queue")); setQueueFailed(false); } catch { setQueueFailed(true); } }, []);
@@ -131,7 +149,7 @@ export function ServiceDesk() {
       tabs={<ViewTabs ariaLabel="Service desk sections" value={tab === "queue" && !q?.agent && !queueFailed ? "mine" : tab} onChange={(id) => setTab(id as DeskTab)} items={[{ id: "mine", label: "My requests" }, { id: "new", label: "New request" }, { id: "queue", label: "Service queue", hidden: !q?.agent && !queueFailed }]} />}
     />
 
-    {tab === "mine" || (tab === "queue" && q && !q.agent) ? (error && !mine ? <ErrorState description={error} onRetry={() => void loadMine()} retryLabel={ui("Try again")} /> : mine ? board(mine, false) : <SkeletonList rows={3} label={ui("Loading assignments and latest updates.")} />) : null}
+    {tab === "mine" || (tab === "queue" && q && !q.agent) ? (error && !mine ? <ErrorState description={error} onRetry={() => void loadMine()} retryLabel={ui("Try again")} /> : mine ? <div className="space-y-3">{board(mine, false)}{mineCursor ? <div className="flex flex-col items-center gap-2" data-sd-older>{olderFailed ? <p role="alert" className="text-sm text-status-danger-text">{ui("Older requests could not be loaded. Try again.")}</p> : null}<Button size="sm" variant="outline" loading={olderBusy} onClick={() => void loadOlder()}>{olderFailed ? ui("Try again") : ui("Show older requests")}</Button></div> : null}</div> : <SkeletonList rows={3} label={ui("Loading assignments and latest updates.")} />) : null}
     {tab === "queue" && queueFailed ? <div data-sd-queue-failed>{q ? <Alert tone="warning" compact live="polite" actions={<Button size="sm" variant="outline" onClick={() => void loadQueue()}>{ui("Try again")}</Button>}>{ui("The service queue could not be refreshed. Showing the last loaded list.")}</Alert> : <ErrorState description={ui("The service queue could not be loaded.")} onRetry={() => loadQueue()} retryLabel={ui("Try again")} />}</div> : null}
     {tab === "queue" && q ? <div className="space-y-3" data-sd-queue><p className="text-xs text-ink-muted">{ui("Unassigned and overdue requests are listed first.")}</p>{board(q.requests, true)}</div> : null}
     {tab === "new" ? <div className="min-w-0 space-y-3" data-sd-new>

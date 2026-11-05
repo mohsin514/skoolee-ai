@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import { chatUnreadBadge } from "./chat-styles";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -64,10 +65,20 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
     isLoadingList,
     listFailed,
     retryList,
+    hasMoreConversations,
+    loadMoreConversations,
     isConnected,
     unreadTotal,
   } = useChat();
   const ui = useUiText();
+  // SKAI-1696: older pages load on request; a failure keeps the shown rows and the button retries the same cursor.
+  const [moreLoading, setMoreLoading] = useState(false);
+  const [moreFailed, setMoreFailed] = useState(false);
+  useEffect(() => { setMoreFailed(false); }, [filter, search]);
+  const loadMore = async () => {
+    setMoreLoading(true);
+    try { await loadMoreConversations(); setMoreFailed(false); } catch { setMoreFailed(true); } finally { setMoreLoading(false); }
+  };
 
   return (
     <MotionConfig reducedMotion="user">
@@ -173,6 +184,14 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
               ))}
             </ul>
           )}
+          {!isLoadingList && hasMoreConversations ? (
+            <div className="space-y-2 px-2 pt-2 text-center">
+              {moreFailed ? <p role="alert" className="text-sm text-status-danger-text">{ui("Older conversations could not be loaded.")}</p> : null}
+              <Button type="button" size="sm" variant="outline" loading={moreLoading} disabled={moreLoading} onClick={loadMore}>
+                {moreFailed ? ui("Try again") : ui("Show older conversations")}
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
     </MotionConfig>

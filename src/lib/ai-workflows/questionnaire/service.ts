@@ -76,7 +76,8 @@ export interface LaunchTile { campusId: string; campus: string; leader: "NONE" |
  */
 async function launchBoard(user: AuthUser): Promise<LaunchTile[]> {
   const [campuses, admins, invites, responses] = await Promise.all([
-    prisma.campus.findMany({ where: { schoolId: user.schoolId }, select: { id: true, name: true }, orderBy: { createdAt: "asc" }, take: 50 }),
+    // SKAI-1728: every campus gets a tile — a fixed cap hid campus 51+ and capped the progress count at 50.
+    prisma.campus.findMany({ where: { schoolId: user.schoolId }, select: { id: true, name: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
     prisma.user.findMany({ where: { schoolId: user.schoolId, role: "CAMPUS_ADMIN", isActive: true }, select: { id: true, campusId: true } }),
     prisma.staffInvitation.findMany({ where: { schoolId: user.schoolId, role: "CAMPUS_ADMIN", status: "pending" }, select: { campusId: true } }).catch(() => []),
     prisma.aiSetupResponse.findMany({ where: { schoolId: user.schoolId, role: "CAMPUS_ADMIN" }, select: { userId: true, campusId: true, status: true } }),
