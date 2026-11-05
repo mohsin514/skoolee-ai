@@ -36,7 +36,8 @@ export function CoverFollowUp({ campusId }: { campusId?: string }) {
   const toggle = (next: typeof focus) => setFocus(f => f === next ? "" : next);
   const show = (part: typeof focus) => !focus || focus === part;
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<{ covered: Covered[]; recoveries: Recovery[]; uncoveredRecorded: string[] } | null>(null), [uncovered, setUncovered] = useState<Uncovered[]>([]);
+  const [data, setData] = useState<{ covered: Covered[]; recoveries: Recovery[]; recoveriesTotal?: number; recoveriesCursor?: string | null; uncoveredRecorded: string[] } | null>(null), [uncovered, setUncovered] = useState<Uncovered[]>([]);
+  const [more, setMore] = useState<"idle" | "loading" | "failed">("idle");
   const load = useCallback(async () => {
     const version = ++sequence.current;
     setError(null); setLoading(true);
@@ -47,12 +48,23 @@ export function CoverFollowUp({ campusId }: { campusId?: string }) {
       ]);
       if (version !== sequence.current) return;
       if (!Array.isArray(ja.data?.covered) || !Array.isArray(ja.data?.recoveries) || !Array.isArray(ja.data?.uncoveredRecorded) || !Array.isArray(jb.data?.lessons)) throw new RequestFailure("server");
-      setData(ja.data); setUncovered(jb.data.lessons);
+      setData(ja.data); setUncovered(jb.data.lessons); setMore("idle");
     } catch (failure) {
       if (version === sequence.current) { setData(null); setUncovered([]); setError(requestFailure(failure)); }
     } finally { if (version === sequence.current) setLoading(false); }
   }, [scope, day]);
   useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
+  // SKAI-1729: open recoveries past the first 100 load page by page; a failed page keeps the list and retries the same cursor.
+  const loadMoreRecoveries = async (cursor: string) => {
+    setMore("loading");
+    try {
+      const json = await checkedJson(await readRequest(`/api/cover/campus?${scope}recoveriesCursor=${encodeURIComponent(cursor)}`));
+      if (!Array.isArray(json.data?.recoveries)) throw new RequestFailure("server");
+      setData(current => current && current.recoveriesCursor === cursor ? { ...current, recoveries: [...current.recoveries, ...json.data.recoveries], recoveriesTotal: json.data.recoveriesTotal, recoveriesCursor: json.data.recoveriesCursor } : current);
+      setMore("idle");
+    } catch { setMore("failed"); }
+  };
+  const openTotal = data ? data.recoveriesTotal ?? data.recoveries.length : 0;
   const recordNoCover = async (slotId: string) => {
     setBusy(true);
     try {
@@ -72,7 +84,7 @@ export function CoverFollowUp({ campusId }: { campusId?: string }) {
       <DeskStats data-follow-pulse>
         <StatTile index={0} icon={DoorOpen} tone={data.covered.some(c => !c.handoverReady || !c.acknowledged) ? "warning" : "success"} value={data.covered.length} label={ui("Covered lessons")} onSelect={() => toggle("covered")} selected={focus === "covered"} />
         <StatTile index={1} icon={AlertTriangle} tone={uncovered.some(l => !data.uncoveredRecorded.includes(l.slotId)) ? "danger" : uncovered.length ? "info" : "success"} value={uncovered.length} label={ui("Lessons without cover")} onSelect={uncovered.length ? () => toggle("uncovered") : undefined} selected={focus === "uncovered"} />
-        <StatTile index={2} icon={Hourglass} tone={data.recoveries.length ? "warning" : "success"} value={data.recoveries.length} label={ui("Missed learning still open")} onSelect={() => toggle("recoveries")} selected={focus === "recoveries"} />
+        <StatTile index={2} icon={Hourglass} tone={openTotal ? "warning" : "success"} value={openTotal} label={ui("Missed learning still open")} onSelect={() => toggle("recoveries")} selected={focus === "recoveries"} />
       </DeskStats>
       <DeskFilterStatus shown={(show("covered") ? data.covered.length : 0) + (show("uncovered") ? uncovered.length : 0) + (show("recoveries") ? data.recoveries.length : 0)} total={data.covered.length + uncovered.length + data.recoveries.length} onClear={() => setFocus("")} />
       {show("covered") ? <div className="space-y-2" data-follow-covered><p className="sk-eyebrow">{ui("Covered lessons")}</p>
@@ -86,7 +98,8 @@ export function CoverFollowUp({ campusId }: { campusId?: string }) {
           {data.uncoveredRecorded.includes(l.slotId) ? <DeskPill tone="info">{ui("Recorded for follow-up")}</DeskPill> : <Button size="sm" variant="outline" disabled={busy} onClick={() => void recordNoCover(l.slotId)} data-follow-record>{ui("Record no cover")}</Button>}
         </div>)}</div> : null}
       {show("recoveries") ? <div className="space-y-2" data-follow-recoveries><p className="sk-eyebrow">{ui("Missed learning still open")}</p>
-        {data.recoveries.length ? data.recoveries.map(r => <p key={r.id} className={cn(deskRow, "flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink")} data-tone={r.status === "DECISION_NEEDED" ? "warning" : undefined} data-follow-recovery={r.id}><DeskRowIcon icon={BookOpenCheck} /><span className="min-w-0 flex-1"><bdi>{formatDate(r.date)}</bdi> · <bdi>{r.className}</bdi> · <span dir="auto">{r.subjectName}</span> · <bdi>{r.owner}</bdi>{r.dueDate ? <> · {ui("Due")} <bdi>{formatDate(r.dueDate)}</bdi></> : null}</span><DeskPill tone={r.status === "DECISION_NEEDED" ? "warning" : r.status === "PUBLISHED" ? "brand" : "info"}>{status(r.status)}</DeskPill></p>) : <p className="flex items-center gap-2 rounded-(--radius-control) bg-status-success-surface px-3 py-2.5 text-sm text-status-success-text"><CalendarCheck aria-hidden="true" className="size-4 shrink-0" />{ui("No missed learning is waiting.")}</p>}</div> : null}
+        {data.recoveries.length ? data.recoveries.map(r => <p key={r.id} className={cn(deskRow, "flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink")} data-tone={r.status === "DECISION_NEEDED" ? "warning" : undefined} data-follow-recovery={r.id}><DeskRowIcon icon={BookOpenCheck} /><span className="min-w-0 flex-1"><bdi>{formatDate(r.date)}</bdi> · <bdi>{r.className}</bdi> · <span dir="auto">{r.subjectName}</span> · <bdi>{r.owner}</bdi>{r.dueDate ? <> · {ui("Due")} <bdi>{formatDate(r.dueDate)}</bdi></> : null}</span><DeskPill tone={r.status === "DECISION_NEEDED" ? "warning" : r.status === "PUBLISHED" ? "brand" : "info"}>{status(r.status)}</DeskPill></p>) : <p className="flex items-center gap-2 rounded-(--radius-control) bg-status-success-surface px-3 py-2.5 text-sm text-status-success-text"><CalendarCheck aria-hidden="true" className="size-4 shrink-0" />{ui("No missed learning is waiting.")}</p>}
+        {data.recoveriesCursor ? <div className="flex flex-wrap items-center gap-2" aria-live="polite" data-follow-recoveries-more>{more === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("More missed learning could not be loaded. The list shown is kept.")}</p> : null}<Button type="button" size="sm" variant="outline" disabled={more === "loading"} aria-busy={more === "loading"} onClick={() => void loadMoreRecoveries(data.recoveriesCursor!)}>{more === "loading" ? ui("Loading more missed learning…") : more === "failed" ? ui("Try again") : ui("Load more missed learning")}</Button></div> : null}</div> : null}
     </>}
   </section>;
 }

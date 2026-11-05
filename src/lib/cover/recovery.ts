@@ -192,6 +192,35 @@ export async function myCover(user: AuthUser) {
 }
 
 /** Campus follow-up for a date: covered lessons with handover/outcome, and open recovery decisions. */
+export const RECOVERY_PAGE = 100;
+/** SKAI-1729: open recoveries page by keyset over (date asc, id asc); the count covers the whole open queue. */
+export function recoveryPageWhere(cursor: string | null | undefined) {
+  if (!cursor) return {};
+  const [at, id] = Buffer.from(cursor.slice(0, 200), "base64url").toString("utf8").split("|");
+  const when = new Date(at ?? "");
+  if (!id || Number.isNaN(when.getTime())) throw new ApiError("This list has changed. Reload it.", 400);
+  return { OR: [{ date: { gt: when } }, { date: when, id: { gt: id } }] };
+}
+export function recoveryNextCursor(rows: { id: string; date: Date }[]) {
+  if (rows.length <= RECOVERY_PAGE) return null;
+  const last = rows[RECOVERY_PAGE - 1];
+  return Buffer.from(`${last.date.toISOString()}|${last.id}`, "utf8").toString("base64url");
+}
+
+/** One page of the campus's open recoveries, with the same leader gate as the follow-up. */
+export async function openRecoveries(user: AuthUser, campusId: string, cursor?: string | null) {
+  if (!canLead(user, campusId)) throw new ApiError("Cover follow-up is for campus leaders.", 403);
+  const scope = { schoolId: user.schoolId, campusId, status: { in: OPEN_RECOVERY } };
+  const [fetched, recoveriesTotal] = await Promise.all([
+    prisma.lessonRecovery.findMany({ where: { ...scope, ...recoveryPageWhere(cursor) }, orderBy: [{ date: "asc" }, { id: "asc" }], take: RECOVERY_PAGE + 1 }),
+    prisma.lessonRecovery.count({ where: scope }),
+  ]);
+  const recoveries = fetched.slice(0, RECOVERY_PAGE);
+  const names = await classNames(user.schoolId, recoveries.map(r => r.classId));
+  const owners = new Map((await prisma.user.findMany({ where: { schoolId: user.schoolId, id: { in: [...new Set(recoveries.map(r => r.ownerId))] } }, select: { id: true, fullName: true } })).map(u => [u.id, u.fullName ?? ""]));
+  return { recoveries: recoveries.map(r => ({ ...recoveryView(r, names.get(r.classId) ?? ""), owner: owners.get(r.ownerId) ?? "" })), recoveriesTotal, recoveriesCursor: recoveryNextCursor(fetched) };
+}
+
 export async function campusFollowUp(user: AuthUser, campusId: string, date: string) {
   if (!canLead(user, campusId)) throw new ApiError("Cover follow-up is for campus leaders.", 403);
   if (!DAY.test(date)) throw new ApiError("Choose a date.", 400);
@@ -204,11 +233,9 @@ export async function campusFollowUp(user: AuthUser, campusId: string, date: str
     const ctx = (await dutyContext(prisma, user.schoolId, duty.id))!, h = handovers.get(duty.id);
     covered.push({ id: duty.id, ...ctx.lesson, substitute: people.get(duty.teacherId) ?? "", originalTeacher: people.get(duty.originalTeacherId) ?? "", handoverReady: Boolean(h?.objective), acknowledged: Boolean(h?.acknowledgedAt), outcome: h?.outcome ?? null });
   }
-  const recoveries = await prisma.lessonRecovery.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: OPEN_RECOVERY } }, orderBy: { date: "asc" }, take: 100 });
-  const names = await classNames(user.schoolId, recoveries.map(r => r.classId));
-  const owners = new Map((await prisma.user.findMany({ where: { schoolId: user.schoolId, id: { in: [...new Set(recoveries.map(r => r.ownerId))] } }, select: { id: true, fullName: true } })).map(u => [u.id, u.fullName ?? ""]));
+  const open = await openRecoveries(user, campusId);
   const recorded = await prisma.lessonRecovery.findMany({ where: { schoolId: user.schoolId, campusId, date: instant, source: "UNCOVERED" }, select: { timetableSlotId: true } });
-  return { date, covered, recoveries: recoveries.map(r => ({ ...recoveryView(r, names.get(r.classId) ?? ""), owner: owners.get(r.ownerId) ?? "" })), uncoveredRecorded: recorded.map(r => r.timetableSlotId) };
+  return { date, covered, ...open, uncoveredRecorded: recorded.map(r => r.timetableSlotId) };
 }
 
 /** Published catch-up for a class (learners see these on Today until a week after completion). */
