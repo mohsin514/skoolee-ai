@@ -32,7 +32,7 @@ type HistoryEntry = { by?: string; action?: string; reason?: string | null; self
 type Request = { id: string; poNumber: string; title: string; budgetId: string; status: string; total: number; version: number; lines: Line[]; received: number[]; requestedById: string; selfApproved?: boolean; history?: HistoryEntry[] | null };
 type Invoice = { id: string; requestId: string; invoiceNo: string; amount: number; status: string; issues: { code: string; detail: string }[] };
 type Asset = { id: string; tag: string; description: string; custodian: string | null; location: string | null; nextServiceOn: string | null };
-type Overview = { userId: string; canApprove: boolean; /** SD3 (§2.5): no other campus operator can decide on this campus. */ soleChecker?: boolean; budgets: Budget[]; requests: Request[]; invoices: Invoice[]; assets: Asset[]; services: { id: string; assetId: string; dueOn: string }[]; stores: { id: string; name: string }[]; items: { id: string; name: string }[]; suppliers: { id: string; name: string }[] };
+type Overview = { userId: string; canApprove: boolean; /** SD3 (§2.5): no other campus operator can decide on this campus. */ soleChecker?: boolean; budgets: Budget[]; requests: Request[]; requestsCursor?: string | null; invoices: Invoice[]; assets: Asset[]; services: { id: string; assetId: string; dueOn: string }[]; stores: { id: string; name: string }[]; items: { id: string; name: string }[]; suppliers: { id: string; name: string }[] };
 
 const STATUS_LABEL: Record<string, string> = { DRAFT: "Draft", SUBMITTED: "Waiting for approval", APPROVED: "Approved — record delivery", RETURNED: "Returned for changes", PARTIALLY_RECEIVED: "Partly received", RECEIVED: "Received", CANCELLED: "Cancelled", MATCHED: "Matched", REVIEW: "Needs review", ACCEPTED_WITH_VARIANCE: "Accepted with variance", REJECTED: "Rejected" };
 const STATUS_TONE: Record<string, DeskTone> = { DRAFT: "brand", SUBMITTED: "warning", APPROVED: "info", RETURNED: "warning", PARTIALLY_RECEIVED: "info", RECEIVED: "success", CANCELLED: "neutral" };
@@ -78,6 +78,16 @@ export function PurchasingPanel({ command, createInHeader = false, soleChecker }
   usePanelCommand(command, { "new-request": () => setCreating(true) }, Boolean(data));
   const load = useCallback(async () => { try { setData(await call("/api/purchasing")); setError(null); } catch (e) { setError(friendlyErrorMessage(e, ui("Check your connection and try again."))); } }, [ui]);
   useEffect(() => { void load(); }, [load]);
+  // SKAI-1779: open requests always arrive in full; older closed ones load page by page and a failed page keeps the list.
+  const [more, setMore] = useState<"idle" | "loading" | "failed">("idle");
+  const loadOlder = async (cursor: string) => {
+    setMore("loading");
+    try {
+      const page = await call(`/api/purchasing?requestsCursor=${encodeURIComponent(cursor)}`) as { requests: Request[]; requestsCursor: string | null };
+      setData((current) => current && current.requestsCursor === cursor ? { ...current, requests: [...current.requests, ...page.requests], requestsCursor: page.requestsCursor } : current);
+      setMore("idle");
+    } catch { setMore("failed"); }
+  };
   // R4: an action's result is one translated toast; a failure keeps the form or dialog open.
   const post = async (body: object, success: string, key = "form") => { setBusy(key); try { const r = await call("/api/purchasing", { method: "POST", body: JSON.stringify(body) }); toast.success(ui(success)); await load(); return r; } catch (e) { toast.error(friendlyErrorMessage(e, ui("This action could not be completed. Please try again."))); return null; } finally { setBusy(null); } };
   const saveDraft = async () => {
@@ -260,6 +270,7 @@ export function PurchasingPanel({ command, createInHeader = false, soleChecker }
           </li>
         );
       })}</ul>
+      {data.requestsCursor ? <div className="flex flex-wrap items-center gap-2" aria-live="polite" data-purchasing-more>{more === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("Older requests could not be loaded. The list shown is kept.")}</p> : null}<Button type="button" size="sm" variant="outline" disabled={more === "loading"} aria-busy={more === "loading"} onClick={() => void loadOlder(data.requestsCursor!)}>{more === "loading" ? ui("Loading older requests…") : more === "failed" ? ui("Try again") : ui("Load older requests")}</Button></div> : null}
 
       <div className="space-y-2">
         <h3 className="text-base font-semibold text-ink-strong">{ui("Assets")}</h3>
