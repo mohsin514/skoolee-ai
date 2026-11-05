@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useSearchParams } from "next/navigation";
 import { Banknote, CalendarClock, CheckCircle2, Receipt } from "lucide-react";
 import { Select } from "@/components/ui/select";
@@ -141,5 +142,5 @@ function ReceiptDownload({ id, receiptNo }: { id: string; receiptNo: string | nu
     catch { toast.error(ui("Failed to download PDF")); }
     finally { setBusy(false); }
   };
-  return <button type="button" className="sk-link font-semibold text-primary" disabled={busy} aria-busy={busy} onClick={() => void download()} data-receipt-download>{ui("Download receipt")}</button>;
+  return <Button type="button" variant="link" className="sk-link h-auto min-h-0 min-w-0 rounded-none p-0 font-semibold text-primary" disabled={busy} aria-busy={busy} onClick={() => void download()} data-receipt-download>{ui("Download receipt")}</Button>;
 }
