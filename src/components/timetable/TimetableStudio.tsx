@@ -927,7 +927,8 @@ export function TimetableStudio({ campusId, periodsHref, hideActions = false, co
       const res = await fetch(`/api/timetable/${activeTimetable.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "unpublish" }),
+        // SKAI-1742: bind the unpublish to the revision and publication this tab shows; a stale tab gets 409.
+        body: JSON.stringify({ action: "unpublish", draftRevision: activeTimetable.draftRevision, publishedAt: activeTimetable.publishedAt ?? null }),
       });
       const json = await res.json();
       if (json.success) {
@@ -935,6 +936,7 @@ export function TimetableStudio({ campusId, periodsHref, hideActions = false, co
         await loadData();
       } else {
         toast.error(json.error || ui("Could not update the timetable. Try again."));
+        if (res.status === 409) await loadData();
       }
     } catch {
       toast.error(ui("Could not update the timetable. Try again."));

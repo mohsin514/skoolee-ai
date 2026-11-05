@@ -175,9 +175,19 @@ export async function publishTimetableVersion(user: AuthUser, campusId: string, 
   });
 }
 
-export async function changeManualTimetableStatus(user: AuthUser, campusId: string, timetableId: string, action: "publish" | "unpublish") {
+/** SKAI-1742: an unpublish is bound to the draft revision and publication the caller saw; a newer one is stale. */
+export type TimetableStatusExpectation = { draftRevision?: unknown; publishedAt?: unknown };
+export function assertTimetableStatusCurrent(board: { status: string; draftRevision: number; publishedAt: Date | null }, expected: TimetableStatusExpectation) {
+  const seenPublishedAt = typeof expected.publishedAt === "string" && expected.publishedAt ? new Date(expected.publishedAt).getTime() : null;
+  const stale = typeof expected.draftRevision !== "number" || expected.draftRevision !== board.draftRevision || board.status !== "PUBLISHED"
+    || (seenPublishedAt !== null && seenPublishedAt !== board.publishedAt?.getTime());
+  if (stale) throw new ApiError("This timetable changed in another session. Refresh and review the current timetable before unpublishing.", 409);
+}
+
+export async function changeManualTimetableStatus(user: AuthUser, campusId: string, timetableId: string, action: "publish" | "unpublish", expected?: TimetableStatusExpectation) {
   return write(user, campusId, "edit", async tx => {
     const board = await load(user, campusId, timetableId, tx);
+    if (expected) assertTimetableStatusCurrent(board, expected);
     const validation = action === "publish" ? (await validateResult(user, board, board.slots, tx, true)).validation : undefined;
     const status = action === "publish" ? "PUBLISHED" : "DRAFT";
     const changed = board.status !== status;

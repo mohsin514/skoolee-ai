@@ -49,7 +49,7 @@ test("publish notifies TIMETABLE_PUBLISHED with classId", async () => {
 });
 
 test("unpublish sends no publish notice", async () => {
-  const res = await put({ action: "unpublish" });
+  const res = await put({ action: "unpublish", draftRevision: 3, publishedAt: "2026-11-01T08:00:00.000Z" });
   assert.equal(res.status, 200);
   assert.equal(sent.length, 0);
 });
