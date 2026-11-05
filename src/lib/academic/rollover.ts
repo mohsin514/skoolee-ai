@@ -6,6 +6,7 @@ import { assertCapacityFitsEnrolled, parseClassCapacity } from "@/lib/academic/c
 import { calculateWeightedGrade } from "@/lib/academic/grade-calculator";
 import { getYearClosureReport } from "@/lib/academic/year-closure";
 import { notify } from "@/lib/notifications/in-app";
+import { schoolToday } from "@/lib/datetime";
 
 /**
  * SKO-404: year-end rollover as a reviewed, versioned plan.
@@ -26,7 +27,8 @@ type Baseline = { learners: number; balances: { currency: string; minor: number 
 
 const LEASE_MS = 2 * 60_000;
 const UNFINISHED_EXAM = ["DRAFT", "ACTIVE", "MARKS_ENTRY"];
-const today = () => dateOnly(new Date().toISOString().slice(0, 10));
+// SKAI-1413: "today" is the campus calendar date, not UTC, so execution opens at the campus midnight.
+const today = async (schoolId: string, campusId: string) => dateOnly(await schoolToday(schoolId, campusId));
 const classLabel = (c: { name: string; section: string | null }) => [c.name, c.section].filter(Boolean).join(" - ");
 
 export async function assertRolloverRead(user: AuthUser) {
@@ -200,7 +202,7 @@ export async function loadRollover(user: AuthUser, campusId: string, requestedYe
     prisma.class.findMany({ where: { campusId, academicYear: destinationYear, status: "ACTIVE", archivedAt: null }, select: { id: true, name: true, section: true, capacity: true, _count: { select: { students: { where: { status: "active", archivedAt: null } } } } }, orderBy: [{ name: "asc" }, { section: "asc" }] }),
     prisma.rolloverPlan.findFirst({ where: { campusId, sourceYear } }),
   ]);
-  const base = { years, sourceYear, destinationYear, readiness, sourceClasses: sourceClasses.map(c => ({ id: c.id, label: classLabel(c) })) };
+  const base = { today: await schoolToday(user.schoolId, campusId), years, sourceYear, destinationYear, readiness, sourceClasses: sourceClasses.map(c => ({ id: c.id, label: classLabel(c) })) };
   const destinations = destinationClasses.map(c => ({ id: c.id, label: classLabel(c), capacity: c.capacity, occupancy: c._count.students }));
   if (!plan) return { ...base, destinations: destinations.map(d => ({ ...d, incoming: 0 })), eligible: (await eligibleLearners(prisma, campusId, sourceYear)).length, plan: null };
 
@@ -336,7 +338,7 @@ async function applyRow(tx: TxClient, user: AuthUser, plan: { id: string; campus
 export async function executePlan(user: AuthUser, planId: string, version: number, limit = 50) {
   await assertRegistrar(user);
   const plan = await getPlan(user, planId);
-  if (plan.effectiveDate > today()) throw new ApiError(`Execution opens on the effective date, ${plan.effectiveDate.toISOString().slice(0, 10)}.`, 409);
+  if (plan.effectiveDate > await today(plan.schoolId, plan.campusId)) throw new ApiError(`Execution opens on the effective date, ${plan.effectiveDate.toISOString().slice(0, 10)}.`, 409);
   const now = new Date();
   const claimed = await prisma.rolloverPlan.updateMany({
     where: { id: planId, version, approvedVersion: version, OR: [{ status: { in: ["APPROVED", "PAUSED"] } }, { status: "EXECUTING", leaseUntil: { lt: now } }] },
@@ -389,7 +391,7 @@ export async function reverseDecision(user: AuthUser, planId: string, studentId:
     const row = await tx.rolloverDecision.findFirst({ where: { planId, studentId } });
     if (!row || row.executionStatus !== "DONE") throw new ApiError("Only an applied decision can be corrected", 409);
     if (row.decision !== "PROMOTE" && row.decision !== "RETAIN" || !row.newEnrollmentId) throw new ApiError("Graduation and transfer are corrected through re-admission, not here.", 409);
-    if (effectiveDate <= plan.effectiveDate || effectiveDate > today()) throw new ApiError("The correction date must be after the rollover date and no later than today.", 400);
+    if (effectiveDate <= plan.effectiveDate || effectiveDate > await today(plan.schoolId, plan.campusId)) throw new ApiError("The correction date must be after the rollover date and no later than today.", 400);
     const current = await tx.studentEnrollment.findFirst({ where: { studentId, status: "ACTIVE", endDate: null } });
     if (current?.id !== row.newEnrollmentId) throw new ApiError("The learner has moved since the rollover. Record a reviewed transfer instead.", 409);
     const [attendance, invoices, reports] = await Promise.all([
