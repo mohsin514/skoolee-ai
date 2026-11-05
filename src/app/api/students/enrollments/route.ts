@@ -9,6 +9,7 @@ import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { applyEnrollment, applyReadmission, assertPlacementTarget, assertRegistrar, assertRollNoFree, canPlaceAcrossCampuses, dateOnly, enrollmentHistoryWhere, enrollmentImpact, readPupil } from "@/lib/students/enrollment";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { isSerializationConflict, retrySerializable } from "@/lib/students/serializable-retry";
 
 const PAGE_SIZE = 100;
 
@@ -71,7 +72,8 @@ export async function POST(req: NextRequest) {
     await readPupil(user, id);
     if (body.action === "confirm") {
       if (body.reviewed !== true || body.capacityChecked !== true) throw new ApiError("Review identity, history, guardian impact and target capacity first", 400);
-      const result = await prisma.$transaction(async tx => {
+      // SKAI-1782: a lost last-seat race is retried so it re-reads capacity and answers with the domain 409.
+      const result = await retrySerializable(() => prisma.$transaction(async tx => {
         const proposal = await tx.enrollmentProposal.findFirst({ where: { id: String(body.proposalId), studentId: id, status: "PROPOSED" } });
         if (!proposal) throw new ApiError("Proposal unavailable or already confirmed", 409);
         const pupil = await tx.student.findFirst({ where: { id, ...studentScope(user) } });
@@ -83,7 +85,7 @@ export async function POST(req: NextRequest) {
         const result = await applyEnrollment(tx, { studentId: id, fromId: proposal.fromEnrollmentId, targetClassId: proposal.targetClassId, effectiveDate: proposal.effectiveDate, rollNo: proposal.rollNo, actorId: user.userId, reason: proposal.reason });
         await tx.enrollmentProposal.update({ where: { id: proposal.id }, data: { status: "CONFIRMED", confirmedAt: new Date(), confirmedBy: user.userId } });
         return result;
-      }, { isolationLevel: "Serializable" });
+      }, { isolationLevel: "Serializable" }));
       return Response.json(result);
     }
     const effectiveDate = dateOnly(body.effectiveDate);
@@ -117,5 +119,8 @@ export async function POST(req: NextRequest) {
     });
     if (outcome.replayed) return Response.json(outcome);
     return Response.json({ proposal: outcome.proposal }, { status: 201 });
-  } catch (error) { return errorResponse(error, "Enrollment transition could not be saved. Reload and review conflicting records."); }
+  } catch (error) {
+    if (isSerializationConflict(error)) return errorResponse(new ApiError("Another change to this class was saved at the same time. Reload and review its seats before trying again.", 409), "Enrollment transition conflicted");
+    return errorResponse(error, "Enrollment transition could not be saved. Reload and review conflicting records.");
+  }
 }
