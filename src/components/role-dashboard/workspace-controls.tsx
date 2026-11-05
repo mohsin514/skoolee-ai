@@ -6,11 +6,14 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Modal } from "@/components/ui/modal";
+import { useShellSession } from "@/components/role-dashboard/ScopeBadge";
+import { workspacePrefKey } from "@/lib/ui/workspace-pref-storage";
 
 export type Density = "comfortable" | "compact";
 
-const FOCUS_KEY = "skoolee.workspace.focus";
-const DENSITY_KEY = "skoolee.workspace.density";
+// SKAI-1780: keyed per signed-in user (`skoolee.workspace.focus:<userId>`); cleared on sign-out.
+const FOCUS_KEY = "focus";
+const DENSITY_KEY = "density";
 
 export interface WorkspacePrefs {
   focus: boolean;
@@ -24,8 +27,8 @@ const noop = () => undefined;
 export const WorkspacePrefsContext = createContext<WorkspacePrefs>({ focus: false, setFocus: noop, density: "comfortable", setDensity: noop, openShortcuts: noop });
 export const useWorkspacePrefs = () => useContext(WorkspacePrefsContext);
 
-const read = (key: string) => { try { return window.localStorage.getItem(key); } catch { return null; } };
-const write = (key: string, value: string) => { try { window.localStorage.setItem(key, value); } catch { /* blocked storage keeps the session choice only */ } };
+const read = (key: string | null) => { if (!key) return null; try { return window.localStorage.getItem(key); } catch { return null; } };
+const write = (key: string | null, value: string) => { if (!key) return; try { window.localStorage.setItem(key, value); } catch { /* blocked storage keeps the session choice only */ } };
 
 /** A keystroke typed into a field, or one meant for an open dialog, is never a workspace shortcut. */
 export function isTypingOrInDialog(event: KeyboardEvent) {
@@ -39,14 +42,17 @@ export function useWorkspacePrefsState(): WorkspacePrefs & { shortcutsOpen: bool
   const [focus, setFocusState] = useState(false);
   const [density, setDensityState] = useState<Density>("comfortable");
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const userId = useShellSession()?.id ?? null;
+  const focusKey = workspacePrefKey(FOCUS_KEY, userId);
+  const densityKey = workspacePrefKey(DENSITY_KEY, userId);
 
   useEffect(() => {
-    setFocusState(read(FOCUS_KEY) === "1");
-    setDensityState(read(DENSITY_KEY) === "compact" ? "compact" : "comfortable");
-  }, []);
+    setFocusState(read(focusKey) === "1");
+    setDensityState(read(densityKey) === "compact" ? "compact" : "comfortable");
+  }, [focusKey, densityKey]);
 
-  const setFocus = useCallback((on: boolean) => { setFocusState(on); write(FOCUS_KEY, on ? "1" : "0"); }, []);
-  const setDensity = useCallback((next: Density) => { setDensityState(next); write(DENSITY_KEY, next); }, []);
+  const setFocus = useCallback((on: boolean) => { setFocusState(on); write(focusKey, on ? "1" : "0"); }, [focusKey]);
+  const setDensity = useCallback((next: Density) => { setDensityState(next); write(densityKey, next); }, [densityKey]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -54,18 +60,18 @@ export function useWorkspacePrefsState(): WorkspacePrefs & { shortcutsOpen: bool
       if ((event.metaKey || event.ctrlKey) && event.key === ".") {
         if (isTypingOrInDialog(event)) return;
         event.preventDefault();
-        setFocusState((current) => { write(FOCUS_KEY, current ? "0" : "1"); return !current; });
+        setFocusState((current) => { write(focusKey, current ? "0" : "1"); return !current; });
         return;
       }
       if (event.metaKey || event.ctrlKey || isTypingOrInDialog(event)) return;
       if (event.key === "?") { event.preventDefault(); setShortcutsOpen(true); return; }
       if (event.key === "Escape" && !document.querySelector("[data-maximized]")) {
-        setFocusState((current) => { if (current) write(FOCUS_KEY, "0"); return false; });
+        setFocusState((current) => { if (current) write(focusKey, "0"); return false; });
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [focusKey]);
 
   return { focus, setFocus, density, setDensity, openShortcuts: () => setShortcutsOpen(true), shortcutsOpen, closeShortcuts: () => setShortcutsOpen(false) };
 }

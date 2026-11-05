@@ -1,4 +1,5 @@
 
+import { clearWorkspacePrefs } from "@/lib/ui/workspace-pref-storage";
 import { clearDeviceDrafts } from "@/lib/drafts/store";
 /**
  * Recovery from a session the server has stopped accepting.
@@ -41,6 +42,7 @@ export async function signOutInvalidSession(): Promise<void> {
   // cookie anyway, so a failure here must not strand the user.
   try {
     clearDeviceDrafts();
+    clearWorkspacePrefs(); // SKAI-1780
     await fetch("/api/auth/logout", { method: "POST" });
   } catch {
     /* ignore — the redirect below is what actually matters */
