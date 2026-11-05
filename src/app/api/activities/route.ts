@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     };
     switch (body.action) {
       case "create": return Response.json({ success: true, data: { id: (await createActivity(user, body)).id } }, { status: 201 });
-      case "session": return Response.json({ success: true, data: { id: (await addSession(user, body)).id } }, { status: 201 });
+      case "session": { const s = await addSession(user, body); return Response.json({ success: true, data: { id: s.id, replayed: s.replayed } }, { status: s.replayed ? 200 : 201 }); }
       case "attend": return Response.json({ success: true, data: { id: (await markAttendance(user, body)).id } });
       case "fee": return Response.json({ success: true, data: await recordFee(user, body) });
       case "cancel-place": { const r = await cancelPlace(user, body); await offerNotice(r.offered); return Response.json({ success: true, data: r }); }
