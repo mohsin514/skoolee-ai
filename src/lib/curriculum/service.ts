@@ -57,7 +57,8 @@ export async function objectiveMap(user: AuthUser, raw: unknown) {
   return schoolAiTransaction(user, async tx => {
     const { record, curriculum } = await openCurriculum(tx, user, input.recordId);
     const campusId = record.campusId!;
-    const versions = await tx.schoolAiRevision.findMany({ where: { schoolId: user.schoolId, recordId: record.id }, select: { version: true, status: true, createdAt: true }, orderBy: { version: "desc" }, take: 50 });
+    // SKAI-1735: every revision (version metadata only) so older approved versions stay comparable.
+    const versions = await tx.schoolAiRevision.findMany({ where: { schoolId: user.schoolId, recordId: record.id }, select: { version: true, status: true, createdAt: true }, orderBy: { version: "desc" } });
     const baseline = input.compareTo ?? versions.find(row => row.version < record.version && row.status === "APPROVED")?.version;
     const previous = baseline && baseline !== record.version ? await curriculumAt(tx, user, record.id, baseline, record) : null;
 
