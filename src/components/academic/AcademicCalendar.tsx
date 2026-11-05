@@ -76,9 +76,13 @@ function isoOf(year: number, month: number, day: number) {
 function dowFromIso(iso: string) {
   return ((new Date(`${iso}T00:00:00Z`).getDay() + 6) % 7) + 1; // 1=Mon..7=Sun
 }
-function todayIso() {
-  const d = new Date();
-  return isoOf(d.getFullYear(), d.getMonth(), d.getDate());
+/** SKAI-1701: "today" is the campus calendar date (school timezone), never the device's, so the year/month it opens on match the campus. */
+export function todayIso(timeZone?: string, now: Date = new Date()) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  } catch {
+    return isoOf(now.getFullYear(), now.getMonth(), now.getDate());
+  }
 }
 
 interface DayEvents {
@@ -132,9 +136,10 @@ export function AcademicCalendar({
   const locale = useLocale();
   const canEdit = !readOnly && role !== "TEACHER" && role !== "STUDENT" && role !== "PARENT";
 
-  const now = new Date();
-  const [viewYear, setViewYear] = useState(now.getFullYear());
-  const [viewMonth, setViewMonth] = useState(now.getMonth());
+  const campusToday = todayIso(locale.timezone);
+  const todayYear = Number(campusToday.slice(0, 4)), todayMonth = Number(campusToday.slice(5, 7)) - 1;
+  const [viewYear, setViewYear] = useState(todayYear);
+  const [viewMonth, setViewMonth] = useState(todayMonth);
   const [feed, setFeed] = useState<UnifiedFeed | null>(null);
   const [loading, setLoading] = useState(true);
   const [layers, setLayers] = useState<LayerState>({
@@ -261,9 +266,8 @@ export function AcademicCalendar({
   }, [feed, layers, tr, locale]);
 
   const upcoming = useMemo(() => {
-    const today = todayIso();
-    return agenda.filter((i) => i.iso >= today);
-  }, [agenda]);
+    return agenda.filter((i) => i.iso >= campusToday);
+  }, [agenda, campusToday]);
 
   // ── Aggregate events per day ─────────────────────────────────────────────
   const dayMap = useMemo(() => {
@@ -392,7 +396,7 @@ export function AcademicCalendar({
                 <ChevronLeft aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />
               </Button>
               <Button variant="outline"
-                onClick={() => { setPopover(null); setViewYear(now.getFullYear()); setViewMonth(now.getMonth()); }}
+                onClick={() => { setPopover(null); setViewYear(todayYear); setViewMonth(todayMonth); }}
                 className="min-h-[44px] px-[10px] py-[6px]"
               ><UiText>{"Today"}</UiText></Button>
               <Button variant="outline" size="icon" onClick={nextMonth} aria-label={tr("Next month")} className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px]">
@@ -460,7 +464,7 @@ export function AcademicCalendar({
             ))}
             {monthCells.map((cell, idx) => {
               if (!cell) return <div key={`e${idx}`} />;
-              const isToday = cell.iso === todayIso();
+              const isToday = cell.iso === campusToday;
               const holidayBg = layers.holidays && cell.holidays.length > 0;
               const weekendBg = cell.isWeekend && !(layers.holidays && cell.holidays.length > 0);
               return (
@@ -724,7 +728,7 @@ function AgendaList({
 }) {
  const tr = useUiText();
   const locale = useLocale();
-  const today = todayIso();
+  const today = todayIso(locale.timezone);
   const grouped = useMemo(() => {
     const map = new Map<string, typeof items>();
     items.forEach((i) => {

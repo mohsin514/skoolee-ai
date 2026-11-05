@@ -142,7 +142,24 @@ async function learnerView(tx: TxClient, user: AuthUser, access: LearnerAccess, 
 }
 
 // ─── Reading ──────────────────────────────────────────────────────
-export const listInput = z.object({ classId: z.string().min(1).optional() }).strict();
+export const listInput = z.object({ classId: z.string().min(1).optional(), cursor: z.string().min(1).max(200).optional() }).strict();
+export const ASSIGNMENT_PAGE_SIZE = 200;
+
+/** SKAI-1699: stable keyset page over (updatedAt desc, id desc); the cursor is the last row returned. */
+export function assignmentPageWhere(cursor: string | undefined) {
+  if (!cursor) return {};
+  const [at, id] = Buffer.from(cursor, "base64url").toString("utf8").split("|");
+  const when = new Date(at ?? "");
+  if (!id || Number.isNaN(when.getTime())) throw new ApiError("This page link has expired. Reload the list.", 400);
+  return { OR: [{ updatedAt: { lt: when } }, { updatedAt: when, id: { lt: id } }] };
+}
+export function assignmentPage<T extends { id: string; updatedAt: Date }>(rows: T[]) {
+  const page = rows.slice(0, ASSIGNMENT_PAGE_SIZE);
+  const last = page[page.length - 1];
+  const nextCursor = rows.length > ASSIGNMENT_PAGE_SIZE && last ? Buffer.from(`${last.updatedAt.toISOString()}|${last.id}`, "utf8").toString("base64url") : null;
+  return { page, nextCursor };
+}
+const pageOrder = [{ updatedAt: "desc" as const }, { id: "desc" as const }];
 
 export async function listAssignments(user: AuthUser, raw: unknown, now = new Date()) {
   const input = listInput.parse(raw);
@@ -150,28 +167,29 @@ export async function listAssignments(user: AuthUser, raw: unknown, now = new Da
     if (user.role === "STUDENT" || user.role === "PARENT") {
       const students = await learnerStudents(tx, user);
       const subs = await tx.assignmentSubmission.findMany({ where: { schoolId: user.schoolId, studentId: { in: students.map(s => s.id) }, latestVersion: { gt: 0 } }, select: { assignmentId: true } });
-      const rows = await tx.assignment.findMany({ where: { schoolId: user.schoolId, status: { not: "DRAFT" }, OR: [{ classId: { in: students.map(s => s.classId) } }, { id: { in: subs.map(s => s.assignmentId) } }] }, orderBy: { updatedAt: "desc" }, take: 200 });
+      const { page: rows, nextCursor } = assignmentPage(await tx.assignment.findMany({ where: { schoolId: user.schoolId, status: { not: "DRAFT" }, AND: [{ OR: [{ classId: { in: students.map(s => s.classId) } }, { id: { in: subs.map(s => s.assignmentId) } }] }, assignmentPageWhere(input.cursor)] }, orderBy: pageOrder, take: ASSIGNMENT_PAGE_SIZE + 1 }));
       const items = [];
       for (const row of rows) for (const student of students) {
         const access = await learnerAccess(tx, user, row.id, now, student.id).catch(() => null);
         if (access) items.push(await learnerView(tx, user, access, now));
       }
       items.sort((a, b) => new Date(a.effectiveDueAt).getTime() - new Date(b.effectiveDueAt).getTime());
-      return { mode: user.role === "PARENT" ? "guardian" as const : "learner" as const, assignments: items };
+      return { mode: user.role === "PARENT" ? "guardian" as const : "learner" as const, assignments: items, nextCursor };
     }
     const scope = await authorClassIds(tx, user);
     const classes = await tx.class.findMany({ where: { schoolId: user.schoolId, archivedAt: null, ...(scope === "campus" ? (user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) : { id: { in: scope } }) }, select: { id: true, name: true, section: true }, orderBy: [{ name: "asc" }] });
     if (!classes.length) throw new ApiError("You have no classes to set work for.", 403);
     if (input.classId && !classes.some(c => c.id === input.classId)) throw new ApiError("You cannot set work for this class.", 403);
     const classId = input.classId ?? classes[0].id;
-    const [rows, subjects] = await Promise.all([
-      tx.assignment.findMany({ where: { schoolId: user.schoolId, classId }, orderBy: { updatedAt: "desc" }, take: 200 }),
+    const [fetched, subjects] = await Promise.all([
+      tx.assignment.findMany({ where: { schoolId: user.schoolId, classId, ...assignmentPageWhere(input.cursor) }, orderBy: pageOrder, take: ASSIGNMENT_PAGE_SIZE + 1 }),
       tx.subject.findMany({ where: { schoolId: user.schoolId, classId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     ]);
+    const { page: rows, nextCursor } = assignmentPage(fetched);
     const releases = await tx.assignmentVersion.findMany({ where: { schoolId: user.schoolId, assignmentId: { in: rows.map(r => r.id) } }, select: { assignmentId: true, version: true, dueAt: true, dueLocal: true, timezone: true, audience: true, rubricVersion: true } });
     const submissions = await tx.assignmentSubmission.findMany({ where: { schoolId: user.schoolId, assignmentId: { in: rows.map(r => r.id) }, latestVersion: { gt: 0 } }, include: { versions: { include: { feedback: { select: { status: true } } }, orderBy: { version: "desc" }, take: 1 } } });
     return {
-      mode: "staff" as const, classId, classes, subjects,
+      mode: "staff" as const, classId, classes, subjects, nextCursor,
       assignments: rows.map(row => {
         const release = releases.find(r => r.assignmentId === row.id && r.version === row.currentVersion);
         const mine = submissions.filter(s => s.assignmentId === row.id);

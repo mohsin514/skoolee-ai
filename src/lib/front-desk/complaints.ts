@@ -136,6 +136,21 @@ export async function act(user: AuthUser, campusId: string, body: Record<string,
   });
 }
 
+export const COMPLAINT_PAGE = 300;
+/** SKAI-1720: keyset over the queue order (date desc, createdAt desc, id desc). */
+export function complaintCursor(row: { id: string; date: Date; createdAt: Date }) {
+  return Buffer.from(JSON.stringify([row.date.toISOString(), row.createdAt.toISOString(), row.id]), "utf8").toString("base64url");
+}
+export function complaintPageWhere(cursor: string | null | undefined) {
+  if (!cursor) return null;
+  let parts: unknown;
+  try { parts = JSON.parse(Buffer.from(cursor.slice(0, 400), "base64url").toString("utf8")); } catch { parts = null; }
+  const [d, c, id] = Array.isArray(parts) ? parts : [];
+  const date = new Date(typeof d === "string" ? d : ""), created = new Date(typeof c === "string" ? c : "");
+  if (typeof id !== "string" || !id || Number.isNaN(date.getTime()) || Number.isNaN(created.getTime())) throw new ApiError("This list has changed. Reload it.", 400);
+  return { OR: [{ date: { lt: date } }, { date, createdAt: { lt: created } }, { date, createdAt: created, id: { lt: id } }] };
+}
+
 export function overdue(row: { status: string; dueDate: Date | null }, today: Date) {
   return row.status !== "RESOLVED" && row.dueDate !== null && row.dueDate < today;
 }

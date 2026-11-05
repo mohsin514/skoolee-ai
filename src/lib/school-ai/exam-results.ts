@@ -54,17 +54,35 @@ async function departmentResultScope(user: AuthUser, assignmentId: string, attem
 }
 
 /** Only released results with a review request, scoped to the head's current department. */
-export async function listDepartmentAppeals(user: AuthUser) {
+export const APPEAL_PAGE = 50;
+/** SKAI-1725: keyset over the queue order (createdAt asc, id asc) so appeals after the first 50 stay reachable. */
+export function appealPageWhere(cursor: string | null | undefined) {
+ if (!cursor) return {};
+ const [at, id] = Buffer.from(cursor.slice(0, 200), "base64url").toString("utf8").split("|");
+ const when = new Date(at ?? "");
+ if (!id || Number.isNaN(when.getTime())) throw new ApiError("This list has changed. Reload it.", 400);
+ return { OR: [{ createdAt: { gt: when } }, { createdAt: when, id: { gt: id } }] };
+}
+export function appealNextCursor(rows: { id: string; createdAt: Date }[]) {
+ if (rows.length <= APPEAL_PAGE) return null;
+ const last = rows[APPEAL_PAGE - 1];
+ return Buffer.from(`${last.createdAt.toISOString()}|${last.id}`, "utf8").toString("base64url");
+}
+
+export async function listDepartmentAppeals(user: AuthUser, cursor?: string | null) {
  return schoolAiTransaction(user, async tx => {
-  if (user.role !== "TEACHER") return [];
+  const none = { appeals: [], nextCursor: null };
+  if (user.role !== "TEACHER") return none;
   const members = await membersHeadedBy(tx, user.schoolId, user.userId);
-  if (!members.length) return [];
+  if (!members.length) return none;
   const subjects = await tx.subject.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? "", teacherId: { in: members } }, select: { id: true } });
-  const rows = await tx.schoolAiExamAppeal.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? "", status: { in: ["OPEN", "UPHELD"] }, attempt: { assignment: { resultsReleasedAt: { not: null }, endsAt: { lte: new Date() }, OR: [{ createdById: { in: members } }, { paper: { subjectId: { in: subjects.map(subject => subject.id) } } }] } } }, orderBy: { createdAt: "asc" }, take: 50, select: { id: true, assignmentId: true, attemptId: true, studentId: true, status: true, attempt: { select: { assignment: { select: { title: true } } } } } });
+  const fetched = await tx.schoolAiExamAppeal.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? "", status: { in: ["OPEN", "UPHELD"] }, attempt: { assignment: { resultsReleasedAt: { not: null }, endsAt: { lte: new Date() }, OR: [{ createdById: { in: members } }, { paper: { subjectId: { in: subjects.map(subject => subject.id) } } }] } }, ...appealPageWhere(cursor) }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: APPEAL_PAGE + 1, select: { id: true, createdAt: true, assignmentId: true, attemptId: true, studentId: true, status: true, attempt: { select: { assignment: { select: { title: true } } } } } });
+  const nextCursor = appealNextCursor(fetched);
+  const rows = fetched.slice(0, APPEAL_PAGE);
   for (const row of rows) await departmentResultScope(user, row.assignmentId, row.attemptId, tx);
   const students = await tx.student.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? "", id: { in: rows.map(row => row.studentId) } }, select: { id: true, fullName: true, rollNo: true } });
   const names = new Map(students.map(student => [student.id, student]));
-  return rows.map(row => ({ id: row.id, assignmentId: row.assignmentId, attemptId: row.attemptId, status: row.status, title: row.attempt.assignment.title, studentName: names.get(row.studentId)?.fullName ?? "", rollNo: names.get(row.studentId)?.rollNo ?? "" }));
+  return { appeals: rows.map(row => ({ id: row.id, assignmentId: row.assignmentId, attemptId: row.attemptId, status: row.status, title: row.attempt.assignment.title, studentName: names.get(row.studentId)?.fullName ?? "", rollNo: names.get(row.studentId)?.rollNo ?? "" })), nextCursor };
  });
 }
 

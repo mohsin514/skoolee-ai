@@ -5,6 +5,7 @@ import { AlertTriangle, AtSign, Bell, CheckCircle2, ClipboardList, Eye, Reply } 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { appendInboxPage, inboxPageUrl } from "@/lib/notifications/inbox-pages";
 import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -50,17 +51,31 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
 
   // A slower response for a tab the user already left must never overwrite the current tab's list.
   const requestRef = useRef(0);
+  const [nextCursor, setNextCursor] = useState<string | null>(null), [older, setOlder] = useState<"idle" | "loading" | "failed">("idle");
   const load = useCallback(async () => {
     const requestId = ++requestRef.current;
-    setError(null); setItems(null); setCounts(null);
+    setError(null); setItems(null); setCounts(null); setNextCursor(null); setOlder("idle");
     try {
-      const params = new URLSearchParams({ view: tab, limit: "30", ...(tab === "actions" ? { status: "open" } : {}) });
-      const json = await checkedJson(await readRequest(`/api/notifications?${params}`));
+      const json = await checkedJson(await readRequest(inboxPageUrl(tab)));
       if (requestId !== requestRef.current) return;
       if (!Array.isArray(json.notifications) || !json.counts) throw new RequestFailure("server");
-      setItems(json.notifications); setCounts(json.counts);
+      setItems(json.notifications); setCounts(json.counts); setNextCursor(typeof json.nextCursor === "string" ? json.nextCursor : null);
     } catch (failure) { if (requestId === requestRef.current) { setItems(null); setCounts(null); setError(requestFailure(failure)); } }
   }, [tab]);
+  // SKAI-1694: older pages append to the shown list; a failure keeps the rows and retries the same cursor, and a
+  // page that returns after the user switched tab or reloaded is dropped.
+  const loadOlder = async () => {
+    if (!nextCursor || older === "loading") return;
+    const requestId = requestRef.current;
+    setOlder("loading");
+    try {
+      const json = await checkedJson(await readRequest(inboxPageUrl(tab, nextCursor)));
+      if (requestId !== requestRef.current) return;
+      if (!Array.isArray(json.notifications)) throw new RequestFailure("server");
+      setItems(prev => prev ? appendInboxPage(prev, json.notifications) : prev);
+      setNextCursor(typeof json.nextCursor === "string" ? json.nextCursor : null); setOlder("idle");
+    } catch { if (requestId === requestRef.current) setOlder("failed"); }
+  };
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => { clearTimeout(timer); requestRef.current++; }; }, [load]);
 
   // Never announce a save or navigate until the server confirms it. No automatic mutation replay.
@@ -144,6 +159,10 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
             </div>
           </article></div>;
         })}
+      {items?.length && nextCursor ? <div className="flex flex-col items-center gap-1 pt-1" data-notifications-more>
+        <Button size="sm" variant="secondary" loading={older === "loading"} disabled={older === "loading"} onClick={() => void loadOlder()} data-notifications-load-older>{older === "failed" ? ui("Try again") : ui("Show older notifications")}</Button>
+        {older === "failed" ? <p role="alert" className="text-2xs font-bold text-status-danger-text">{ui("Older notifications could not be loaded.")}</p> : null}
+      </div> : null}
     </div>
     {tab !== "actions" && (counts?.unread ?? 0) > 0 ? <div className="border-t border-border px-4 py-2.5">
       <Button variant="secondary" size="sm" className="w-full" disabled={busy} onClick={() => void markUpdatesRead()}>{tab === "mentions" ? ui("Mark mentions as seen") : ui("Mark all as seen")}</Button>
