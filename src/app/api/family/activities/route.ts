@@ -5,11 +5,11 @@ import { notifyOfferedPlaces } from "@/lib/activities/offer-notice";
 
 export const runtime = "nodejs";
 
-// SKO-440: a guardian's activities for one child. GET ?studentId · POST {action: request | answer | withdraw}.
+// SKO-440: a guardian's activities for one child. GET ?studentId[&cursor] · POST {action: request | answer | withdraw}.
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
-    return Response.json({ success: true, data: await familyActivities(user, request.nextUrl.searchParams.get("studentId") ?? "") }, { headers: { "Cache-Control": "private, no-store" } });
+    return Response.json({ success: true, data: await familyActivities(user, request.nextUrl.searchParams.get("studentId") ?? "", request.nextUrl.searchParams.get("cursor")) }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error, "[family/activities] GET failed"); }
 }
 
