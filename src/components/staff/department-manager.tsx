@@ -354,6 +354,7 @@ export function DepartmentManager({
                         </Tooltip>
                       ) : null}
                       <Select
+                        aria-label={ui("Role of {0}", [member.user.fullName])}
                         value={member.role}
                         onChange={(e) =>
                           act(
