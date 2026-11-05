@@ -58,3 +58,19 @@ export const studentProfileUpdateSchema = z.object({
   siblingGroupId: optionalText,
   expectedValues: z.record(z.string(), z.string().nullable()).nullish(),
 });
+
+/** SKAI-1760: the tag a bulk roster action read for one pupil, bound as the PATCH conflict baseline. */
+export function bulkTagExpectedValues(row: { category?: { id?: string | null } | null; group?: { id?: string | null } | null } | undefined, patch: Record<string, unknown>) {
+  const expected: Record<string, string | null> = {};
+  if ("categoryId" in patch) expected.categoryId = row?.category?.id || null;
+  if ("groupId" in patch) expected.groupId = row?.group?.id || null;
+  return Object.keys(expected).length ? { expectedValues: expected } : {};
+}
+
+/** The atomic predicate for a pupil update: each written field must still hold the value the editor read. */
+export function expectedValueConditions(data: Record<string, unknown>, expected: Record<string, string | null> | null | undefined, asDate: (value: string | null) => unknown) {
+  if (!expected || typeof expected !== "object") return [];
+  return Object.keys(data)
+    .filter(key => Object.hasOwn(expected, key) && !["siblingGroupId", "classId", "status"].includes(key))
+    .map(key => ({ [key]: key === "dateOfBirth" ? asDate(expected[key]) : (expected[key] || null) }));
+}

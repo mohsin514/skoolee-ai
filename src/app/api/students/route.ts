@@ -19,7 +19,7 @@ import {
   readJsonObject,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
-import { studentProfileUpdateSchema } from "@/lib/students/profile-update";
+import { expectedValueConditions, studentProfileUpdateSchema } from "@/lib/students/profile-update";
 import { parseEmiratesId, parseNationality, parseRegulatorId, regulatorAuditChange } from "@/lib/identity/regulator-ids";
 import { rosterSearchWhere, rosterStatusWhere } from "@/lib/students/roster-status";
 
@@ -508,9 +508,7 @@ export async function PATCH(req: NextRequest) {
     // Conditional update protects each value this form originally read. The
     // predicate is evaluated atomically with the write, including concurrent edits.
     const expected = updates.expectedValues;
-    const conditions = expected && typeof expected === "object" ? Object.keys(data)
-      .filter(key => Object.hasOwn(expected, key) && !["siblingGroupId", "classId", "status"].includes(key))
-      .map(key => ({ [key]: key === "dateOfBirth" ? asDate(expected[key]) : (expected[key] || null) })) : [];
+    const conditions = expectedValueConditions(data, expected, asDate);
     const student = await prisma.student.update({
       where: { id, ...(conditions.length ? { AND: conditions } : {}) },
       data,

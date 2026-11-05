@@ -5,6 +5,7 @@ import { pageWindow } from "@/lib/lists/query";
 import { Button as SystemButton } from "@/components/ui/button";
 import { DeskPill, DeskRowIcon, deskRow } from "@/components/ui/desk";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { bulkTagExpectedValues } from "@/lib/students/profile-update";
 import {
   Archive,
   ArrowRight,
@@ -435,7 +436,8 @@ export function StudentsPanel({
           const res = await fetch("/api/students", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id, ...patch }),
+            // SKAI-1760: bind the tag this roster showed, so a stale row gets 409 instead of overwriting a newer tag.
+            body: JSON.stringify({ id, ...patch, ...bulkTagExpectedValues(students.find((s) => s.id === id), patch) }),
           });
           const json = await res.json();
           if (!res.ok) throw new Error(json.error || "failed");
