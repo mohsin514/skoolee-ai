@@ -11,9 +11,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Clock, CloudOff, GitCompare, RefreshCw, TriangleAlert, User, Wifi } from "lucide-react";
 import { ModalFrame } from "@/components/shared-admin";
-import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
-import { deviceId, load, pending, save, type Op, type OpState, type Snapshot } from "@/lib/offline/store";
+import { deviceId, load, pending, save, schoolDateIn, type Op, type OpState, type Snapshot } from "@/lib/offline/store";
 
 // SKO-448: offline class register. Marks are saved on this device first and labelled as such until the server
 // accepts them — never shown as recorded before that. Sync revalidates the session and each change; a newer
@@ -25,13 +25,13 @@ const statusLabel = (ui: Ui, s: string | null | undefined) => s ? ({ PRESENT: ui
 const stateLabel = (ui: Ui, s: OpState) => ({ LOCAL: ui("Saved on this device · not yet synced"), SYNCING: ui("Syncing…"), ACCEPTED: ui("Accepted by the server"), CONFLICT: ui("A newer entry needs your review"), REJECTED_ACCESS: ui("Your access changed; queued work needs an authorised reviewer"), EXPIRED: ui("Too old to sync"), INVALID: ui("Not a supported offline change"), RESOLVED_SERVER: ui("Kept the server value"), RESOLVED_LOCAL: ui("Your value applied"), CORRECTION_REQUESTED: ui("Correction requested") } as Record<string, string>)[s] ?? s;
 // Row colour follows where the mark is: waiting on this device, in conflict, or confirmed by the server.
 const STATE_TONES: Partial<Record<OpState, DeskTone>> = { LOCAL: "info", SYNCING: "info", CONFLICT: "warning", ACCEPTED: "success", RESOLVED_LOCAL: "success", RESOLVED_SERVER: "neutral", REJECTED_ACCESS: "danger", EXPIRED: "danger", INVALID: "danger" };
-const todayLocal = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10); };
 
 export function OfflineRegister({ classes }: { classes: { id: string; label: string }[] }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
+  const { timezone } = useLocale();
   const [me, setMe] = useState<{ id: string; schoolId: string } | null>(null), [online, setOnline] = useState(true);
-  const [bucket, setBucket] = useState<ReturnType<typeof load> | null>(null), [classId, setClassId] = useState(classes[0]?.id ?? ""), [date, setDate] = useState(todayLocal());
+  const [bucket, setBucket] = useState<ReturnType<typeof load> | null>(null), [classId, setClassId] = useState(classes[0]?.id ?? ""), [date, setDate] = useState(""), [dateChosen, setDateChosen] = useState(false);
   const [busy, setBusy] = useState(false), [late, setLate] = useState<{ studentId: string; time: string } | null>(null), [resolving, setResolving] = useState<Op | null>(null), [authLost, setAuthLost] = useState(false);
   const caps = { offline: [ui("Mark attendance for a class you prepared on this device")], online: [ui("Submit the register"), ui("Corrections to a submitted register"), ui("Review family explanations"), ui("Grades and report cards"), ui("Fees and payments"), ui("Pickup"), ui("Assignments")] };
   // SKAI-1520: a failed session lookup is an error with Retry, not an endless skeleton. The device bucket
@@ -52,6 +52,14 @@ export function OfflineRegister({ classes }: { classes: { id: string; label: str
     window.addEventListener("online", on); window.addEventListener("offline", on);
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", on); };
   }, [loadSession]);
+  // SKAI-1718: default to the campus academic day (server), else the school timezone; never the device date.
+  useEffect(() => { if (!dateChosen && !date) { const local = schoolDateIn(timezone); if (local) setDate(local); } }, [timezone, dateChosen, date]);
+  useEffect(() => {
+    if (!me || dateChosen) return;
+    let live = true;
+    void fetch("/api/offline?view=today", { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(j => { if (live && j?.data?.today) setDate(j.data.today); }).catch(() => {});
+    return () => { live = false; };
+  }, [me, dateChosen]);
   const persist = useCallback((next: ReturnType<typeof load>) => { if (!me) return; save(me.id, me.schoolId, next); setBucket({ ...next }); }, [me]);
   const key = `${classId}:${date}`;
   const snap: Snapshot | undefined = bucket?.snapshots[key];
@@ -130,8 +138,8 @@ export function OfflineRegister({ classes }: { classes: { id: string; label: str
     </div>
     <div className="grid gap-2 sm:grid-cols-3">
       <FormField name="off-class" label={ui("Class")}><Select value={classId} onChange={e => setClassId(e.target.value)} data-offline-class>{classes.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</Select></FormField>
-      <FormField name="off-date" label={ui("Date")}><Input type="date" value={date} onChange={e => setDate(e.target.value)} dir="ltr" data-offline-date /></FormField>
-      <div className="flex items-end"><Button variant="outline" disabled={busy || !online || !classId} onClick={() => void prepare()} data-offline-prepare>{snap ? ui("Refresh for offline use") : ui("Prepare for offline use")}</Button></div>
+      <FormField name="off-date" label={ui("Date")}><Input type="date" value={date} onChange={e => { setDateChosen(true); setDate(e.target.value); }} dir="ltr" data-offline-date /></FormField>
+      <div className="flex items-end"><Button variant="outline" disabled={busy || !online || !classId || !date} onClick={() => void prepare()} data-offline-prepare>{snap ? ui("Refresh for offline use") : ui("Prepare for offline use")}</Button></div>
     </div>
     {conflicts.length ? <DeskSection tone="warning" icon={TriangleAlert} title={ui("A newer office entry needs your review")} className="space-y-2" data-offline-conflicts>{conflicts.map(o => <Button key={o.operationId} variant="outline" className="w-full justify-start" onClick={() => setResolving(o)} data-offline-conflict={o.studentId}><bdi>{bucket.snapshots[`${o.classId}:${o.date}`]?.entries.find(e => e.studentId === o.studentId)?.name ?? o.studentId}</bdi> · <bdi>{o.date}</bdi></Button>)}</DeskSection> : null}
     {snap ? <div className="space-y-2" data-offline-roster>

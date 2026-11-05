@@ -3,7 +3,7 @@ import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canManageOperations } from "@/lib/api/scope";
 import { registerView, saveRegister } from "@/lib/attendance/register";
-import { schoolToday } from "@/lib/datetime";
+import { calendarDateIn, getSchoolTimeZone, schoolToday } from "@/lib/datetime";
 
 // SKO-448: conflict-aware offline capture, deliberately narrow — marking attendance only. Submitting a register,
 // corrections with reasons, grades, fees, pickup and assignment publishing stay online.
@@ -22,9 +22,16 @@ export const CAPABILITIES = {
 const SNAPSHOT_HOURS = 12, MAX_AGE_DAYS = 3;
 const STATUSES = ["PRESENT", "ABSENT", "LATE", "LEAVE", "EXCUSED", "PARTIAL"];
 
+/** SKAI-1718: the campus academic day the offline register defaults to, matching sync's schoolToday check. */
+export async function today(user: AuthUser) {
+  const timeZone = await getSchoolTimeZone(user.schoolId, user.campusId);
+  return { today: calendarDateIn(timeZone), timeZone };
+}
+
 export async function prepare(user: AuthUser, classId: string, date: string) {
-  const view = await registerView(user, classId, date);
+  const [view, day] = await Promise.all([registerView(user, classId, date), today(user)]);
   return {
+    schoolToday: day.today, timeZone: day.timeZone,
     owner: { userId: user.userId, schoolId: user.schoolId }, class: view.class, date: view.date, registerStatus: view.register.status,
     preparedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + SNAPSHOT_HOURS * 3_600_000).toISOString(),
     entries: view.entries.map(e => ({ studentId: e.studentId, name: e.name, rollNo: e.rollNo, status: e.status, arrivalTime: e.arrivalTime, version: e.version })),
