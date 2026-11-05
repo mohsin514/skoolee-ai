@@ -91,9 +91,18 @@ export async function GET(req: Request) {
     const avgPerformance = allPcts.length
       ? Math.round(allPcts.reduce((a, b) => a + b, 0) / allPcts.length * 10) / 10
       : 0;
-    const passCount = reportCards.filter(passes).length;
-    const passRate = allPcts.length ? Math.round((passCount / allPcts.length) * 100) : 0;
-    const needsAttention = reportCards.filter((r) => !passes(r)).length;
+    // SKAI-1752: pupil-facing counts and lists use one result per pupil: their latest exam (exams are
+    // ordered by lockedAt), so a pupil with several report cards is counted and listed once.
+    const examOrder = new Map(exams.map((e, i) => [e.id, i]));
+    const latestByStudent = new Map<string, (typeof reportCards)[number]>();
+    for (const r of reportCards) {
+      const prev = latestByStudent.get(r.studentId);
+      if (!prev || (examOrder.get(r.examId) ?? -1) >= (examOrder.get(prev.examId) ?? -1)) latestByStudent.set(r.studentId, r);
+    }
+    const pupilResults = [...latestByStudent.values()];
+    const passCount = pupilResults.filter(passes).length;
+    const passRate = pupilResults.length ? Math.round((passCount / pupilResults.length) * 100) : 0;
+    const needsAttention = pupilResults.length - passCount;
 
     const classMap = new Map<string, string>();
     const classExams = await prisma.class.findMany({
@@ -167,7 +176,7 @@ export async function GET(req: Request) {
       };
     });
 
-    const topStudents = [...reportCards]
+    const topStudents = [...pupilResults]
       .sort((a, b) => b.percentage - a.percentage)
       .slice(0, 10)
       .map((r) => ({
@@ -177,7 +186,7 @@ export async function GET(req: Request) {
         grade: r.grade || gradeForPercentage(r.percentage),
       }));
 
-    const atRiskStudents = [...reportCards]
+    const atRiskStudents = [...pupilResults]
       .filter((r) => !passes(r))
       .sort((a, b) => a.percentage - b.percentage)
       .slice(0, 10)
