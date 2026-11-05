@@ -32,6 +32,14 @@ const ACADEMIC_DELIVERY_SCOPE = {
   ],
 };
 
+const RECEIPT_FAILED = { deliveryReceipts: { some: { state: "failed" } } };
+
+/** SKAI-1783: filter on the effective outcome — a receipt-confirmed failure is FAILED, not SENT. */
+function statusFilter(status: string) {
+  if (status === "FAILED") return { OR: [{ status }, RECEIPT_FAILED] };
+  return { status, deliveryReceipts: { none: { state: "failed" } } };
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
@@ -58,7 +66,7 @@ export async function GET(req: NextRequest) {
     const communications = await prisma.parentCommunication.findMany({
       where: {
         ...historyScope,
-        ...(status && status !== "ALL" ? { status } : {}),
+        ...(status && status !== "ALL" ? statusFilter(status) : {}),
         ...(channel && channel !== "ALL" ? { channel } : {}),
         ...(studentId ? { studentId } : {}),
         ...(parentUserId ? { parentUserId } : {}),
@@ -84,6 +92,13 @@ export async function GET(req: NextRequest) {
       where: historyScope,
       _count: { _all: true },
     });
+    // SKAI-1783: a provider receipt that says "failed" makes the row FAILED wherever it is counted.
+    // Rows already FAILED are not moved, so nothing is counted twice.
+    const receiptFailed = await prisma.parentCommunication.groupBy({
+      by: ["status"],
+      where: { AND: [historyScope, { status: { not: "FAILED" } }, RECEIPT_FAILED] },
+      _count: { _all: true },
+    });
 
     return Response.json({
       success: true,
@@ -93,10 +108,14 @@ export async function GET(req: NextRequest) {
         // SKAI-800: `deliveryState` carries OPENED; `delivery` keeps the existing log label.
         return { ...row, delivery: coarseDeliveryState(state), deliveryState: state };
       }),
-      summary: summary.reduce<Record<string, number>>((acc, item) => {
+      summary: receiptFailed.reduce<Record<string, number>>((acc, item) => {
+        acc[item.status] = (acc[item.status] ?? 0) - item._count._all;
+        acc.FAILED = (acc.FAILED ?? 0) + item._count._all;
+        return acc;
+      }, summary.reduce<Record<string, number>>((acc, item) => {
         acc[item.status] = item._count._all;
         return acc;
-      }, {}),
+      }, {})),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return errorResponse(error, "[communications] GET failed");
