@@ -761,6 +761,9 @@ const entries: [string, string, string][] = [
 ["Show older meetings", "عرض الاجتماعات الأقدم", "پرانی ملاقاتیں دکھائیں"],
 ["Older meetings could not be loaded. Try again.", "تعذّر تحميل الاجتماعات الأقدم. حاول مرة أخرى.", "پرانی ملاقاتیں لوڈ نہیں ہو سکیں۔ دوبارہ کوشش کریں۔"],
 ["That's the full meeting history.", "هذا هو سجل الاجتماعات كاملًا.", "یہ ملاقاتوں کی مکمل تاریخ ہے۔"],
+["Show older messages", "عرض الرسائل الأقدم", "پرانے پیغامات دکھائیں"],
+["Older messages could not be loaded.", "تعذّر تحميل الرسائل الأقدم.", "پرانے پیغامات لوڈ نہیں ہو سکے۔"],
+["That's every message from the school.", "هذه كل الرسائل من المدرسة.", "یہ اسکول کے تمام پیغامات ہیں۔"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));
