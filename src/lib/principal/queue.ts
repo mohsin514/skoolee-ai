@@ -106,7 +106,9 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
     }
   });
   await run("LEAVE_PENDING", async () => {
-    const pending = await db.leaveRequest.findMany({ where: { ...scope, status: "PENDING" }, select: { id: true, fromDate: true, toDate: true, user: { select: { fullName: true, role: true } }, leaveType: { select: { name: true } } }, orderBy: { fromDate: "asc" }, take: 100 });
+    // SKAI-1744: source collectors read every unresolved row — a per-source cap undercounted Open/Overdue and let rows
+    // past the cap fall out of the active set, where the settle step below marked them resolved.
+    const pending = await db.leaveRequest.findMany({ where: { ...scope, status: "PENDING" }, select: { id: true, fromDate: true, toDate: true, user: { select: { fullName: true, role: true } }, leaveType: { select: { name: true } } }, orderBy: { fromDate: "asc" } });
     for (const leave of pending) {
       // Teachers' leave goes to the academic lead; office staff and the principal go to the campus admin.
       const family: Family = leave.user.role === "TEACHER" ? "academic" : "operations";
@@ -126,7 +128,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
   });
   await run("DELIVERY_FAILED", async () => {
     const since = new Date(Date.now() - 14 * 86_400_000);
-    const failures = await db.parentCommunication.findMany({ where: { ...scope, status: "FAILED", createdAt: { gte: since } }, select: { id: true, channel: true, recipientName: true, templateKey: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 100 });
+    const failures = await db.parentCommunication.findMany({ where: { ...scope, status: "FAILED", createdAt: { gte: since } }, select: { id: true, channel: true, recipientName: true, templateKey: true, createdAt: true }, orderBy: { createdAt: "desc" } });
     for (const message of failures) items.push({ family: "operations", key: `DELIVERY_FAILED:${message.id}`, type: "DELIVERY_FAILED", sourceId: message.id, title: `Message to ${message.recipientName ?? "a family"} was not delivered`, titleMessage: { key: "Message to {0} was not delivered", values: [message.recipientName ?? "—"] }, triggerMessage: { key: "The {0} message ({1}) sent on {2} failed.", values: [message.channel.toLowerCase(), message.templateKey, message.createdAt.toISOString().slice(0, 10)] }, trigger: `The ${message.channel.toLowerCase()} message (${message.templateKey}) sent on ${message.createdAt.toISOString().slice(0, 10)} failed.`, nextAction: "Check the contact details and resend", sourceOwner: null, dueAt: new Date(message.createdAt.getTime() + 2 * 86_400_000).toISOString(), link: link("communications") });
   });
   await run("COMPLAINT", async () => {
@@ -145,7 +147,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
   // R-B2: record corrections wait on their checker seat — payment corrections on the campus admin, mark
   // corrections on the academic lead. The queue links to the corrections workspace filtered by kind.
   await run("CORRECTION_APPROVAL", async () => {
-    const pending = await db.correction.findMany({ where: { ...scope, status: "PENDING", kind: { in: ["PAYMENT", "MARK"] } }, select: { id: true, kind: true, requesterName: true, requestedAt: true }, orderBy: { requestedAt: "asc" }, take: 100 });
+    const pending = await db.correction.findMany({ where: { ...scope, status: "PENDING", kind: { in: ["PAYMENT", "MARK"] } }, select: { id: true, kind: true, requesterName: true, requestedAt: true }, orderBy: { requestedAt: "asc" } });
     for (const correction of pending) {
       const label = correction.kind === "PAYMENT" ? "Payment correction" : "Mark correction";
       items.push({ family: correction.kind === "PAYMENT" ? "operations" : "academic", key: `CORRECTION_APPROVAL:${correction.id}`, type: "CORRECTION_APPROVAL", sourceId: correction.id, title: `${label} awaiting a decision`, titleMessage: { key: correction.kind === "PAYMENT" ? "Payment correction awaiting a decision" : "Mark correction awaiting a decision", values: [] }, triggerMessage: { key: "{0} requested it on {1}.", values: [correction.requesterName, correction.requestedAt.toISOString().slice(0, 10)] }, trigger: `${correction.requesterName} requested it on ${correction.requestedAt.toISOString().slice(0, 10)}.`, nextAction: "Review the correction", sourceOwner: null, dueAt: new Date(correction.requestedAt.getTime() + 3 * 86_400_000).toISOString(), link: user.role === "SUPER_ADMIN" ? link("corrections") : `/corrections?${new URLSearchParams({ kind: correction.kind })}` });
@@ -164,7 +166,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
   // not yet ready for review; a paper sent for review that nobody has moderated; results reviewed but not released.
   // PAPER_SEAL has no source until the seal lands (slice 2).
   await run("SYLLABUS_APPROVAL", async () => {
-    const waiting = await db.schoolAiRecord.findMany({ where: { ...scope, kind: "CURRICULUM", status: "IN_REVIEW" }, select: { id: true, title: true, updatedAt: true, createdById: true }, orderBy: { updatedAt: "asc" }, take: 50 });
+    const waiting = await db.schoolAiRecord.findMany({ where: { ...scope, kind: "CURRICULUM", status: "IN_REVIEW" }, select: { id: true, title: true, updatedAt: true, createdById: true }, orderBy: { updatedAt: "asc" } });
     const authors = new Map((await db.user.findMany({ where: { schoolId: user.schoolId, id: { in: waiting.map(row => row.createdById) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
     for (const row of waiting) {
       const sent = row.updatedAt.toISOString().slice(0, 10);
@@ -173,7 +175,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
   });
   await run("PAPER_DUE", async () => {
     const soon = new Date(new Date(`${today}T00:00:00.000Z`).getTime() + 3 * 86_400_000);
-    const slots = await db.examPaperSlot.findMany({ where: { ...scope, cancelledAt: null, sealedAt: null, dueOn: { lte: soon } }, select: { id: true, dueOn: true, subjectName: true, gradeName: true, authorUserId: true, paperRecordId: true, schedules: { take: 1, select: { subject: { select: { name: true } }, exam: { select: { class: { select: { name: true } } } } } } }, take: 100 });
+    const slots = await db.examPaperSlot.findMany({ where: { ...scope, cancelledAt: null, sealedAt: null, dueOn: { lte: soon } }, select: { id: true, dueOn: true, subjectName: true, gradeName: true, authorUserId: true, paperRecordId: true, schedules: { take: 1, select: { subject: { select: { name: true } }, exam: { select: { class: { select: { name: true } } } } } } } });
     const papers = new Map((await db.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, id: { in: slots.map(slot => slot.paperRecordId).filter((x): x is string => Boolean(x)) } }, select: { id: true, status: true } })).map(row => [row.id, row.status]));
     const authors = new Map((await db.user.findMany({ where: { schoolId: user.schoolId, id: { in: slots.map(slot => slot.authorUserId).filter((x): x is string => Boolean(x)) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
     for (const slot of slots) {
@@ -185,7 +187,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
     }
   });
   await run("PAPER_MODERATION", async () => {
-    const slots = await db.examPaperSlot.findMany({ where: { ...scope, cancelledAt: null, sealedAt: null, paperRecordId: { not: null } }, select: { id: true, subjectName: true, gradeName: true, moderatorUserId: true, paperRecordId: true, schedules: { take: 1, select: { subject: { select: { name: true } }, exam: { select: { class: { select: { name: true } } } } } } }, take: 200 });
+    const slots = await db.examPaperSlot.findMany({ where: { ...scope, cancelledAt: null, sealedAt: null, paperRecordId: { not: null } }, select: { id: true, subjectName: true, gradeName: true, moderatorUserId: true, paperRecordId: true, schedules: { take: 1, select: { subject: { select: { name: true } }, exam: { select: { class: { select: { name: true } } } } } } } });
     const inReview = new Map((await db.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, status: "IN_REVIEW", id: { in: slots.map(slot => slot.paperRecordId!) } }, select: { id: true, updatedAt: true } })).map(row => [row.id, row.updatedAt]));
     const moderators = new Map((await db.user.findMany({ where: { schoolId: user.schoolId, id: { in: slots.map(slot => slot.moderatorUserId).filter((x): x is string => Boolean(x)) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
     for (const slot of slots) {
@@ -197,7 +199,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
     }
   });
   await run("RESULT_RELEASE", async () => {
-    const exams = await db.exam.findMany({ where: { ...scope, status: "PRINCIPAL_REVIEWED" }, select: { id: true, title: true, reviewedAt: true, class: { select: { name: true, section: true } } }, take: 100 });
+    const exams = await db.exam.findMany({ where: { ...scope, status: "PRINCIPAL_REVIEWED" }, select: { id: true, title: true, reviewedAt: true, class: { select: { name: true, section: true } } } });
     for (const exam of exams) {
       const name = `${exam.title} · ${exam.class.name}${exam.class.section ? ` ${exam.class.section}` : ""}`;
       items.push({ family: "academic", key: `RESULT_RELEASE:${exam.id}`, type: "RESULT_RELEASE", sourceId: exam.id, title: `Results ready to publish: ${name}`, titleMessage: { key: "Results ready to publish: {0}", values: [name] }, triggerMessage: { key: "Review is recorded and families cannot see the results yet.", values: [] }, trigger: "Review is recorded and families cannot see the results yet.", nextAction: "Publish the results", sourceOwner: null, dueAt: exam.reviewedAt ? new Date(exam.reviewedAt.getTime() + 2 * 86_400_000).toISOString() : null, link: link("exam-cycles") });

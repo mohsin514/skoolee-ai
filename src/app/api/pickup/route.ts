@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
-    return Response.json({ success: true, data: await guardianPickups(user, request.nextUrl.searchParams.get("studentId") ?? "") }, { headers: { "Cache-Control": "private, no-store" } });
+    return Response.json({ success: true, data: await guardianPickups(user, request.nextUrl.searchParams.get("studentId") ?? "", request.nextUrl.searchParams.get("cursor")) }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error, "[pickup] GET failed"); }
 }
 

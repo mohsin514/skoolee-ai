@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { CurrencySelect } from "@/components/locale/CurrencySelect";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createLatestRequest } from "@/lib/latest-request";
 import {
   BarChart3,
   CreditCard,
@@ -94,7 +95,10 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
   const [sendingAll, setSendingAll] = useState(false);
   useEffect(() => { onCountChange?.(loading || failed ? null : defaulters.length); }, [loading, failed, defaulters.length, onCountChange]);
 
+  // SKAI-1766: only the newest campus/currency request may write rows, loading or error state.
+  const request = useRef(createLatestRequest<string>());
   const load = useCallback(async () => {
+    const key = `${campusId ?? ""}|${currency}`, token = request.current.begin(key);
     setLoading(true);
     setFailed(false);
     try {
@@ -102,13 +106,14 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
       if (campusId) params.set("campusId", campusId);
       const res = await fetch(`${API}/reports/defaulters?${params}`);
       const json = await res.json();
+      if (!request.current.isCurrent(token, key)) return;
       if (json.success) setDefaulters(json.data);
       else setFailed(true);
     } catch {
       // Shown in place with a retry (role-ux R4).
-      setFailed(true);
+      if (request.current.isCurrent(token, key)) setFailed(true);
     } finally {
-      setLoading(false);
+      if (request.current.isCurrent(token, key)) setLoading(false);
     }
   }, [campusId, currency]);
 
@@ -302,7 +307,10 @@ function CollectionSummary({ campusId, currency, command, showToolbar = true }: 
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
 
+  // SKAI-1766: only the newest campus/currency request may write rows, loading or error state.
+  const request = useRef(createLatestRequest<string>());
   const load = useCallback(async () => {
+    const key = `${campusId ?? ""}|${currency}`, token = request.current.begin(key);
     setLoading(true);
     setFailed(false);
     try {
@@ -310,12 +318,13 @@ function CollectionSummary({ campusId, currency, command, showToolbar = true }: 
       if (campusId) params.set("campusId", campusId);
       const res = await fetch(`${API}/reports/collection?${params}`);
       const json = await res.json();
+      if (!request.current.isCurrent(token, key)) return;
       if (json.success) setData(json.data.byClass);
       else setFailed(true);
     } catch {
-      setFailed(true);
+      if (request.current.isCurrent(token, key)) setFailed(true);
     } finally {
-      setLoading(false);
+      if (request.current.isCurrent(token, key)) setLoading(false);
     }
   }, [campusId, currency]);
 
@@ -465,7 +474,10 @@ function MethodBreakdown({ campusId, currency }: { campusId?: string; currency: 
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
 
+  // SKAI-1766: only the newest campus/currency request may write rows, loading or error state.
+  const request = useRef(createLatestRequest<string>());
   const load = useCallback(async () => {
+    const key = `${campusId ?? ""}|${currency}`, token = request.current.begin(key);
     setLoading(true);
     setFailed(false);
     try {
@@ -473,12 +485,13 @@ function MethodBreakdown({ campusId, currency }: { campusId?: string; currency: 
       if (campusId) params.set("campusId", campusId);
       const res = await fetch(`${API}/reports/collection?${params}`);
       const json = await res.json();
+      if (!request.current.isCurrent(token, key)) return;
       if (json.success) setData(json.data.byMethod);
       else setFailed(true);
     } catch {
-      setFailed(true);
+      if (request.current.isCurrent(token, key)) setFailed(true);
     } finally {
-      setLoading(false);
+      if (request.current.isCurrent(token, key)) setLoading(false);
     }
   }, [campusId, currency]);
 

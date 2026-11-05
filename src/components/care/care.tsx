@@ -1,7 +1,7 @@
 "use client";
 import { ErrorState } from "@/components/ui/error-state";
 import { useFetch } from "@/hooks";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -23,7 +23,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
-import { RequestFailure } from "@/lib/http/request-state";
+import { RequestFailure, requestFailure } from "@/lib/http/request-state";
 
 /** `?tab=report` is the Help menu's "Record a concern" deep link (role-ux §4.2); other tabs open by id. */
 function careTabFromUrl(): string | null {
@@ -49,6 +49,9 @@ type Me = { canConfigure: boolean; canReport: boolean; canEmergency: Record<Doma
 type Student = { id: string; fullName: string; rollNo?: string | null; class?: { name: string; section: string | null } | null };
 
 class AccessError extends Error {}
+type MyReport = { id: string; reference: string; createdAt: string };
+const MY_REPORTS_PAGE = 20;
+
 async function call(url: string, method = "GET", body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
@@ -94,11 +97,32 @@ function ConcernIntake() {
   const { dateTime } = useLocaleFormat();
   const [student, setStudent] = useState<Student | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ source: "STAFF_OBSERVATION", observation: "", eventAt: localNow(), guardianInvolved: false, idempotencyKey: key() });
-  const [receipt, setReceipt] = useState<{ reference: string; createdAt: string } | null>(null), [mine, setMine] = useState<{ reference: string; createdAt: string }[]>([]);
+  const [receipt, setReceipt] = useState<{ reference: string; createdAt: string } | null>(null), [mine, setMine] = useState<MyReport[]>([]);
   // SKAI-1667: a failed history load is shown with Retry; known rows stay and are marked stale, never cleared.
   const [mineFailed, setMineFailed] = useState(false);
   const loadMine = useCallback(() => call("/api/care?view=my-reports").then(rows => { setMine(rows); setMineFailed(false); }).catch(error => { if (error instanceof AccessError) { setMine([]); setMineFailed(false); } else setMineFailed(true); }), []);
   useEffect(() => { void loadMine(); }, [loadMine]);
+  // SKAI-1698: the first load is the newest 20; older receipts follow the cursor and drop out if the list reloads.
+  const [olderMine, setOlderMine] = useState<{ rows: MyReport[]; cursor: string | null } | null>(null);
+  const [moreMine, setMoreMine] = useState<"idle" | "loading" | "failed">("idle");
+  const mineRequest = useRef(0);
+  useEffect(() => { mineRequest.current++; setOlderMine(null); setMoreMine("idle"); }, [mine]);
+  const shownMine = [...mine, ...(olderMine?.rows ?? []).filter(o => !mine.some(m => m.id === o.id))];
+  const mineCursor = olderMine ? olderMine.cursor : mine.length >= MY_REPORTS_PAGE ? mine[mine.length - 1].id : null;
+  const loadOlderMine = async () => {
+    if (!mineCursor || moreMine === "loading") return;
+    const id = ++mineRequest.current;
+    setMoreMine("loading");
+    try {
+      const response = await fetch(`/api/care?view=my-reports&cursor=${encodeURIComponent(mineCursor)}`, { cache: "no-store" });
+      const body = await response.json() as { success?: boolean; data?: MyReport[]; nextCursor?: string | null };
+      if (!response.ok || !body.success || !Array.isArray(body.data)) throw new Error("page failed");
+      if (id !== mineRequest.current) return;
+      const page = body.data;
+      setOlderMine(o => { const have = o?.rows ?? []; return { rows: [...have, ...page.filter(m => !have.some(h => h.id === m.id))], cursor: body.nextCursor ?? null }; });
+      setMoreMine("idle");
+    } catch { if (id === mineRequest.current) setMoreMine("failed"); }
+  };
   const submit = async () => {
     if (!student) return;
     setBusy(true); setError(null);
@@ -124,7 +148,10 @@ function ConcernIntake() {
       <div className="flex justify-end"><Button loading={busy} disabled={busy || !student || !form.observation.trim()} onClick={() => void submit()} data-care-submit>{ui("Submit to the designated lead")}</Button></div>
     </div>}
     {mineFailed ? <div data-care-mine-failed><Alert tone="warning" compact live="polite" actions={<Button type="button" size="sm" variant="outline" onClick={() => void loadMine()}>{ui("Try again")}</Button>}>{mine.length ? ui("Concerns I recorded could not be refreshed. The list below may be out of date.") : ui("Concerns I recorded could not be loaded.")}</Alert></div> : null}
-    {mine.length ? <details className="text-sm"><summary className="cursor-pointer text-ink-muted">{ui("Concerns I recorded")}</summary><ul className={cn(deskTimeline, "mt-3")}>{mine.map(m => <li key={m.reference} data-tone="success" data-care-mine={m.reference}><bdi>{m.reference}</bdi> · <bdi>{dateTime(m.createdAt)}</bdi> · {ui("Received by the designated lead")}</li>)}</ul></details> : null}
+    {mine.length ? <details className="text-sm"><summary className="cursor-pointer text-ink-muted">{ui("Concerns I recorded")}</summary><ul className={cn(deskTimeline, "mt-3")}>{shownMine.map(m => <li key={m.id} data-tone="success" data-care-mine={m.reference}><bdi>{m.reference}</bdi> · <bdi>{dateTime(m.createdAt)}</bdi> · {ui("Received by the designated lead")}</li>)}</ul>
+      {moreMine === "failed" ? <p role="alert" className="mt-2 text-sm text-status-danger-text">{ui("Older concerns could not be loaded.")}</p> : null}
+      {mineCursor ? <Button className="mt-2" size="sm" variant="outline" loading={moreMine === "loading"} onClick={loadOlderMine} data-care-mine-more>{moreMine === "failed" ? ui("Try again") : ui("Show older concerns")}</Button>
+        : olderMine ? <p className="mt-2 text-xs text-ink-muted" role="status">{ui("That's every concern you recorded.")}</p> : null}</details> : null}
   </section>;
 }
 
@@ -391,17 +418,29 @@ function SafeguardingWorkspace() {
 
 // ─── Lead oversight ──────────────────────────────────────────────────────
 
+type OversightData = { grants: { id: string; user: string; studentName: string; purpose: string; createdAt: string; expiresAt: string; revokedAt: string | null; live: boolean; uses: number; reviewedAt: string | null; reviewedBy: string | null; reviewNote: string | null }[]; logs: { id: string; actor: string; action: string; recordType: string; emergency: boolean; createdAt: string }[] };
+
 function Oversight({ domain }: { domain: Domain }) {
+  const [data, setData] = useState<OversightData | null>(null), [failure, setFailure] = useState<RequestFailure | null>(null);
+  // SKAI-1697: a failed load keeps the last known rows and shows a retryable error instead of hiding the panel.
+  const load = useCallback(() => call(`/api/care?view=oversight&domain=${domain}`).then((next: OversightData) => { setData(next); setFailure(null); }).catch((e: unknown) => setFailure(e instanceof AccessError ? new RequestFailure("denied") : requestFailure(e))), [domain]);
+  useEffect(() => { setData(null); setFailure(null); void load(); }, [load]);
+  return <OversightPanel domain={domain} data={data} failure={failure} reload={load} />;
+}
+
+export function OversightPanel({ domain, data, failure, reload }: { domain: Domain; data: OversightData | null; failure: RequestFailure | null; reload: () => Promise<unknown> }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
-  const [data, setData] = useState<{ grants: { id: string; user: string; studentName: string; purpose: string; createdAt: string; expiresAt: string; revokedAt: string | null; live: boolean; uses: number; reviewedAt: string | null; reviewedBy: string | null; reviewNote: string | null }[]; logs: { id: string; actor: string; action: string; recordType: string; emergency: boolean; createdAt: string }[] } | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({}), [busy, setBusy] = useState(false);
-  const load = useCallback(() => call(`/api/care?view=oversight&domain=${domain}`).then(setData).catch(() => setData(null)), [domain]);
-  useEffect(() => { void load(); }, [load]);
-  if (!data) return null;
-  const review = async (id: string) => { setBusy(true); try { await call("/api/care", "POST", { action: "review-emergency", id, note: notes[id] }); toast.success(ui("Review recorded.")); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
-  return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-oversight={domain}>
+  const failed = failure ? <ErrorState error={failure} variant="panel" onRetry={reload} /> : null;
+  if (!data) return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-oversight={domain} data-oversight-state={failure ? "failure" : "loading"}>
     <h2 className="text-base font-bold text-ink-strong">{ui("Access review · {0}", [domainLabel(ui, domain)])}</h2>
+    {failed ?? <SkeletonList />}
+  </section>;
+  const review = async (id: string) => { setBusy(true); try { await call("/api/care", "POST", { action: "review-emergency", id, note: notes[id] }); toast.success(ui("Review recorded.")); await reload(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
+  return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-oversight={domain} data-oversight-state={failure ? "stale" : "ready"}>
+    <h2 className="text-base font-bold text-ink-strong">{ui("Access review · {0}", [domainLabel(ui, domain)])}</h2>
+    {failed}
     <h3 className="text-base font-semibold text-ink-strong">{ui("Emergency access")}</h3>
     {data.grants.length ? <ul className="space-y-2">{data.grants.map(g => <li key={g.id} className={cn(deskRow, "space-y-1 text-sm")} data-tone={g.reviewedAt ? "muted" : g.live ? "danger" : "warning"} data-emergency-grant={g.id} data-reviewed={!!g.reviewedAt}>
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1"><DeskPill tone={g.live ? "danger" : g.reviewedAt ? "success" : "warning"}>{g.live ? ui("Active") : g.revokedAt ? ui("Revoked") : ui("Expired")}</DeskPill><bdi className="font-semibold text-ink-strong">{g.user}</bdi> · <bdi>{g.studentName}</bdi> · <span dir="auto">{g.purpose}</span></p>
@@ -515,16 +554,44 @@ function CareSettings() {
 
 // ─── Desk ────────────────────────────────────────────────────────────────
 
+type CareMessage = { id: string; purpose: string; content: string; releasedAt: string };
+const CARE_MESSAGES_PAGE = 20;
+
 function MessagesToMe({ family = false }: { family?: boolean }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
-  const { data: rows, failure, isLoading, refetch } = useFetch<{ id: string; purpose: string; content: string; releasedAt: string }[]>(family ? "/api/family/care-messages" : "/api/care?view=messages", {collection:true});
+  const base = family ? "/api/family/care-messages" : "/api/care?view=messages";
+  const { data: rows, failure, isLoading, refetch } = useFetch<CareMessage[]>(base, {collection:true});
+  // SKAI-1708: the first page is the newest 20; older pages follow the cursor and drop out if the list reloads.
+  const [older, setOlder] = useState<{ rows: CareMessage[]; cursor: string | null } | null>(null);
+  const [more, setMore] = useState<"idle" | "loading" | "failed">("idle");
+  const request = useRef(0);
+  useEffect(() => { request.current++; setOlder(null); setMore("idle"); }, [rows]);
   if (isLoading) return <SkeletonList rows={2} label={ui("Loading…")} />;
   if (failure) return <ErrorState error={failure} onRetry={refetch} />;
   if (!rows?.length) return null;
+  const shown = [...rows, ...(older?.rows ?? []).filter(o => !rows.some(r => r.id === o.id))];
+  const cursor = older ? older.cursor : rows.length >= CARE_MESSAGES_PAGE ? rows[rows.length - 1].id : null;
+  const loadOlder = async () => {
+    if (!cursor || more === "loading") return;
+    const id = ++request.current;
+    setMore("loading");
+    try {
+      const response = await fetch(`${base}${base.includes("?") ? "&" : "?"}cursor=${encodeURIComponent(cursor)}`, { cache: "no-store" });
+      const body = await response.json() as { success?: boolean; data?: CareMessage[]; nextCursor?: string | null };
+      if (!response.ok || !body.success || !Array.isArray(body.data)) throw new Error("page failed");
+      if (id !== request.current) return;
+      const page = body.data;
+      setOlder(o => { const have = o?.rows ?? []; return { rows: [...have, ...page.filter(m => !have.some(h => h.id === m.id))], cursor: body.nextCursor ?? null }; });
+      setMore("idle");
+    } catch { if (id === request.current) setMore("failed"); }
+  };
   return <section className="sk-panel space-y-2 p-4 sm:p-5" data-care-messages>
     <h2 className="text-base font-bold text-ink-strong">{ui("Messages from the school")}</h2>
-    <ul className="space-y-2">{rows.map(r => <li key={r.id} className={cn(deskRow, "text-sm")} data-tone="info" data-care-message={r.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(r.releasedAt)}</bdi> · <span dir="auto">{r.purpose}</span></p><p dir="auto" className="whitespace-pre-wrap">{r.content}</p></li>)}</ul>
+    <ul className="space-y-2">{shown.map(r => <li key={r.id} className={cn(deskRow, "text-sm")} data-tone="info" data-care-message={r.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(r.releasedAt)}</bdi> · <span dir="auto">{r.purpose}</span></p><p dir="auto" className="whitespace-pre-wrap">{r.content}</p></li>)}</ul>
+    {more === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("Older messages could not be loaded.")}</p> : null}
+    {cursor ? <Button size="sm" variant="outline" loading={more === "loading"} onClick={loadOlder} data-care-messages-more>{more === "failed" ? ui("Try again") : ui("Show older messages")}</Button>
+      : older ? <p className="text-xs text-ink-muted" role="status">{ui("That's every message from the school.")}</p> : null}
   </section>;
 }
 

@@ -70,7 +70,21 @@ function Jobs({ id }: { id: string }) {
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const status = useJobActivity(id, busy);
-  const { detail, jobs, checkedAt, error, loading } = status;
+  const { detail, jobs: newest, checkedAt, error, loading } = status;
+  // SKAI-1781: polling refreshes the newest page; older pages are kept here and merged (newest wins) so job 101+ stays
+  // reachable. A failed older page keeps the list and retries the same cursor.
+  const [older, setOlder] = useState<typeof newest>([]), [olderCursor, setOlderCursor] = useState<string | null | undefined>(undefined), [more, setMore] = useState<"idle" | "loading" | "failed">("idle");
+  const jobs = useMemo(() => { const seen = new Set(newest.map(job => job.id)); return [...newest, ...older.filter(job => !seen.has(job.id))]; }, [newest, older]);
+  const nextCursor = olderCursor === undefined ? status.nextCursor ?? null : olderCursor;
+  const loadOlder = async (cursor: string) => {
+    setMore("loading");
+    try {
+      const response = await fetch(`/api/jobs?cursor=${encodeURIComponent(cursor)}`, { cache: "no-store" });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !Array.isArray(payload?.jobs)) throw new Error("JOB_STATUS_UNAVAILABLE");
+      setOlder(current => [...current, ...payload.jobs]); setOlderCursor(typeof payload.nextCursor === "string" ? payload.nextCursor : null); setMore("idle");
+    } catch { setMore("failed"); }
+  };
   const permitted = error !== "denied" && error !== "missing";
   useEffect(() => {
     if (!permitted) { setReview(null); setSelected([]); setReason(""); setConfirmed(false); }
@@ -196,6 +210,7 @@ function Jobs({ id }: { id: string }) {
       {!id ? <section className="grid gap-4 md:grid-cols-2" aria-label={t.title}>
         {!loading && !error && !filteredJobs.length && <div className={`${cardClass} md:col-span-2`}><EmptyState size="sm" icon={jobs.length ? SearchX : ClipboardList} title={jobs.length ? t.filteredEmpty : t.empty} action={jobs.length > 0 ? <Button variant="outline" onClick={clear}>{t.clearFilters}</Button> : undefined} /></div>}
         {filteredJobs.map(job => <Button key={job.id} variant="choice" className="sk-hover-lift sk-nudge-trigger block h-auto min-w-0 w-full space-y-2 rounded-2xl bg-card p-5 text-start font-normal shadow-xs" onClick={() => open(job.id)}><span className="flex items-start justify-between gap-3"><strong className="block min-w-0 text-base font-bold leading-snug text-ink-strong">{job.source_label}</strong><ArrowRight aria-hidden className="sk-nudge mt-0.5 size-4 shrink-0 text-ink-subtle rtl:rotate-180" /></span><span className="block text-sm text-ink-muted">{t[job.kind as "PDF"] || job.kind} · {job.campus_label}</span><span className="block text-sm tabular-nums text-ink">{t.completed}: <bdi>{job.counts.completed} / {job.counts.total}</bdi> · <DeskPill tone={job.attentionCount > 0 ? "warning" : "success"}>{t.attention}: <bdi>{job.attentionCount}</bdi></DeskPill></span><span className="block text-xs text-ink-subtle">{date(job.created_at)}</span><bdi dir="ltr" className="block break-all font-mono text-2xs font-normal text-ink-subtle">{job.id}</bdi></Button>)}
+        {!loading && !error && nextCursor ? <div className="flex flex-wrap items-center gap-2 md:col-span-2" aria-live="polite" data-jobs-more>{more === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{t.olderFailed}</p> : null}<Button type="button" size="sm" variant="outline" disabled={more === "loading"} aria-busy={more === "loading"} onClick={() => void loadOlder(nextCursor)}>{more === "loading" ? t.loadingOlder : more === "failed" ? t.retryOlder : t.loadOlder}</Button></div> : null}
       </section> : detail && <>
         <section className={cardClass}><h2 className="text-lg font-bold leading-snug text-ink-strong sm:text-xl">{detail.source_label}</h2><p className="mt-1.5 text-xs text-ink-subtle">{t.jobId}: <bdi dir="ltr" className="break-all font-mono">{id}</bdi></p><Link href={detail.sourceHref} className="sk-link sk-nudge-trigger mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm">{t.source}<ArrowRight aria-hidden className="sk-nudge size-4 rtl:rotate-180" /></Link></section>
         {/* Counters are filters: an outcome tile narrows the items below to that state; pressing it again shows all. */}

@@ -99,8 +99,8 @@ test("objectives from two boards stay distinct until a lead records a decision; 
 });
 
 test("teachers see their subjects only and link their resources to exact objective versions", async () => {
-  assert.deepEqual((await listCurricula(teacher)).map(row => row.id).sort(), [curriculumId, otherId].sort());
-  assert.deepEqual(await listCurricula(outsider), [], "a teacher without the subject sees no curricula");
+  assert.deepEqual((await listCurricula(teacher)).curricula.map(row => row.id).sort(), [curriculumId, otherId].sort());
+  assert.deepEqual((await listCurricula(outsider)).curricula, [], "a teacher without the subject sees no curricula");
   await assert.rejects(() => objectiveMap(outsider, { recordId: curriculumId }), (error: { status?: number }) => error.status === 403 || error.status === 404);
   const view = await objectiveMap(teacher, { recordId: curriculumId });
   assert.equal(view.canDecide, false);
