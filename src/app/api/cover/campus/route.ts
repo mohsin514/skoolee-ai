@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { ApiError, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
-import { campusFollowUp, recordUncovered } from "@/lib/cover/recovery";
+import { campusFollowUp, openRecoveries, recordUncovered } from "@/lib/cover/recovery";
 import { deliverNotification } from "@/lib/notifications/in-app";
 
 export const runtime = "nodejs";
@@ -12,6 +12,8 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     const campusId = await resolveCampusId(user, request.nextUrl.searchParams.get("campusId"));
+    const recoveriesCursor = request.nextUrl.searchParams.get("recoveriesCursor");
+    if (recoveriesCursor) return Response.json({ success: true, data: await openRecoveries(user, campusId, recoveriesCursor) }, { headers: { "Cache-Control": "private, no-store" } });
     return Response.json({ success: true, data: await campusFollowUp(user, campusId, request.nextUrl.searchParams.get("date") ?? "") }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error, "[cover/campus] GET failed"); }
 }
