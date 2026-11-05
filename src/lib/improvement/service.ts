@@ -195,9 +195,26 @@ export async function workspace(user: AuthUser, frameworkId?: string | null) {
   };
 }
 
-export async function staff(user: AuthUser) {
+export const STAFF_PAGE = 300;
+/** SKAI-1724: keyset over (fullName asc, id asc) so staff after the first 300 can be chosen as owners and reviewers. */
+export function staffPageWhere(cursor: string | null | undefined) {
+  if (!cursor) return {};
+  let parts: unknown = null;
+  try { parts = JSON.parse(Buffer.from(cursor.slice(0, 600), "base64url").toString("utf8")); } catch { /* refused below */ }
+  const [name, id] = Array.isArray(parts) ? parts : [];
+  assert(typeof name === "string" && typeof id === "string" && id.length > 0, "This list has changed. Reload it.", 400);
+  return { OR: [{ fullName: { gt: name } }, { fullName: name, id: { gt: id } }] };
+}
+export function staffNextCursor(rows: { id: string; fullName: string }[]) {
+  if (rows.length <= STAFF_PAGE) return null;
+  const last = rows[STAFF_PAGE - 1];
+  return Buffer.from(JSON.stringify([last.fullName, last.id]), "utf8").toString("base64url");
+}
+
+export async function staff(user: AuthUser, cursor?: string | null) {
   assert(!NOT_STAFF.includes(user.role), "Staff access is required.");
-  return prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: { notIn: ["PARENT", "STUDENT"] } }, select: { id: true, fullName: true, role: true }, orderBy: { fullName: "asc" }, take: 300 });
+  const rows = await prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: { notIn: ["PARENT", "STUDENT"] }, ...staffPageWhere(cursor) }, select: { id: true, fullName: true, role: true }, orderBy: [{ fullName: "asc" }, { id: "asc" }], take: STAFF_PAGE + 1 });
+  return { people: rows.slice(0, STAFF_PAGE), nextCursor: staffNextCursor(rows) };
 }
 
 export const SOURCE_PAGE = 50;
