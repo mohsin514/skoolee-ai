@@ -151,9 +151,8 @@ export async function addNote(user: AuthUser, campusId: string, teacherId: strin
   if (!teacher) throw new ApiError("Teacher not found in this campus", 404);
   // A leader records a reviewed support action; the teacher records a response. Neither is an employment decision.
   const kind = user.userId === teacherId ? "TEACHER_RESPONSE" : "SUPPORT_ACTION";
-  return prisma.$transaction(async tx => {
-    const note = await tx.teacherSupportNote.create({ data: { schoolId: user.schoolId, campusId, teacherId, authorId: user.userId, academicYear, kind, body: text } });
-    await tx.auditLog.create({ data: { schoolId: user.schoolId, userId: user.userId, tableName: "teacher_support_notes", recordId: note.id, newValue: { teacherId, academicYear, kind } } });
-    return { id: note.id, kind };
-  });
+  // SKAI-1692: the audit-trail extension already writes the one audit row for this create (actor, school, note,
+  // teacher, year and kind); a hand-written row on top of it logged every append twice.
+  const note = await prisma.teacherSupportNote.create({ data: { schoolId: user.schoolId, campusId, teacherId, authorId: user.userId, academicYear, kind, body: text } });
+  return { id: note.id, kind };
 }
