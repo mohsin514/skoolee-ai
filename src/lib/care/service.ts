@@ -397,9 +397,14 @@ export async function reportConcern(user: AuthUser, body: Record<string, unknown
   throw new ApiError("Could not record the concern; your text is still on this page. Try again.", 503);
 }
 
-export async function myReports(user: AuthUser) {
+// SKAI-1698: the reporter's receipts page newest-first past the first 20 with an id cursor; every page keeps
+// school + reporter scope and returns only the reference, date and an opaque id.
+export const MY_REPORTS_PAGE = 20;
+export async function myReports(user: AuthUser, cursor?: string | null) {
   assertStaffRole(user);
-  return prisma.safeguardingConcern.findMany({ where: { schoolId: user.schoolId, reporterId: user.userId }, orderBy: { createdAt: "desc" }, take: 20, select: { reference: true, createdAt: true } });
+  const rows = await prisma.safeguardingConcern.findMany({ where: { schoolId: user.schoolId, reporterId: user.userId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: MY_REPORTS_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), select: { id: true, reference: true, createdAt: true } });
+  const items = rows.slice(0, MY_REPORTS_PAGE);
+  return { items, nextCursor: rows.length > MY_REPORTS_PAGE ? items[items.length - 1].id : null };
 }
 
 /** Lead queue: reference, status, owner and dates — no names, observations or conclusions. */
