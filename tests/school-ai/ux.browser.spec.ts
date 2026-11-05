@@ -33,6 +33,8 @@ test("denied microphone permission preserves the typed draft and provides a usab
   const composer = page.getByRole("textbox", { name: "Message or answer", exact: true });
   await composer.fill("Keep my typed question.");
   await page.getByRole("button", { name: "Record a voice message", exact: true }).click();
+  await expect(page.locator("[data-intake-consent=voice]")).toBeVisible();
+  await page.getByRole("button", { name: "Allow and continue", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "The microphone is unavailable or permission was declined." })).toBeVisible();
   await expect(composer).toHaveValue("Keep my typed question.");
   await expect(composer).toBeEnabled();
