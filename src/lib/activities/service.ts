@@ -4,6 +4,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, canManageCampusOps } from "@/lib/api/scope";
 import { isCampusOperator } from "@/lib/auth/institution";
 import { guardianHasAccess } from "@/lib/parent/guardian-access";
+import { authorizedGuardianCommunicationTargets } from "@/lib/auth/communication-policy";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { tripConsentStatus } from "@/lib/family/trips";
 import { requestAdjustment } from "@/lib/fees/adjustments-service";
@@ -331,9 +332,14 @@ export async function cancelActivity(user: AuthUser, activityId: string) {
   });
 }
 
-/** Guardians of these learners who can act (for notices). */
+/**
+ * Guardians of these learners who may receive an activity notice. SKAI-1713: resolved through the shared
+ * communication policy (current verified relationship, communication grant, per-child familyMessages
+ * consent), re-read at every call so a delayed or retried notice sees a later revocation.
+ */
 export async function guardiansOf(schoolId: string, studentIds: string[]) {
-  if (!studentIds.length) return [];
-  const rows = await prisma.guardianRelationship.findMany({ where: { schoolId, studentId: { in: studentIds }, status: "ACTIVE", guardianUserId: { not: null } }, select: { guardianUserId: true } });
-  return [...new Set(rows.map(r => r.guardianUserId!))];
+  const unique = [...new Set(studentIds)];
+  if (!unique.length) return [];
+  const targets = await Promise.all(unique.map(studentId => authorizedGuardianCommunicationTargets({ schoolId, studentId }, "IN_APP")));
+  return [...new Set(targets.flat().map(t => t.guardianUserId))];
 }
