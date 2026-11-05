@@ -296,9 +296,15 @@ export async function resolveInvoice(user: AuthUser, invoiceId: string, raw: unk
 export async function assignAsset(user: AuthUser, assetId: string, raw: unknown) {
   assert(OPS.includes(user.role), "Only school leaders reassign assets.");
   const input = parse(z.object({ custodian: text(2, 120).optional(), location: text(2, 120).optional() }).strict(), raw);
-  const asset = await prisma.schoolAsset.findFirst({ where: { id: assetId, schoolId: user.schoolId, campusId: campusOf(user) } });
-  if (!asset) throw new ApiError("Asset not found", 404);
-  return prisma.schoolAsset.update({ where: { id: assetId }, data: { ...input, history: push(asset.history, { by: user.userId, action: "ASSIGNED", from: { custodian: asset.custodian, location: asset.location }, to: input }) } });
+  const campusId = campusOf(user);
+  // SKAI-1753: lock the asset row and re-read its history inside the transaction, so overlapping assignments
+  // serialise and each appends to the latest history instead of overwriting it from a stale snapshot.
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM school_assets WHERE id = ${assetId} AND school_id = ${user.schoolId} AND campus_id = ${campusId} FOR UPDATE`;
+    const asset = await tx.schoolAsset.findFirst({ where: { id: assetId, schoolId: user.schoolId, campusId } });
+    if (!asset) throw new ApiError("Asset not found", 404);
+    return tx.schoolAsset.update({ where: { id: assetId }, data: { ...input, history: push(asset.history, { by: user.userId, action: "ASSIGNED", from: { custodian: asset.custodian, location: asset.location }, to: input }) } });
+  });
 }
 
 export async function scheduleService(user: AuthUser, assetId: string, raw: unknown) {
