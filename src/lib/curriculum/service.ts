@@ -38,15 +38,32 @@ async function openCurriculum(tx: TxClient, user: AuthUser, recordId: string) {
 }
 
 /** Approved curricula the actor may open: managers see their campus, teachers their assigned subjects. */
-export async function listCurricula(user: AuthUser) {
+export const CURRICULUM_PAGE = 200;
+/** SKAI-1734: keyset over (title asc, id asc) so approved curricula after the first 200 stay selectable. */
+export function curriculumPageWhere(cursor: string | null | undefined) {
+  if (!cursor) return {};
+  let parts: unknown = null;
+  try { parts = JSON.parse(Buffer.from(cursor.slice(0, 800), "base64url").toString("utf8")); } catch { /* refused below */ }
+  const [title, id] = Array.isArray(parts) ? parts : [];
+  if (typeof title !== "string" || typeof id !== "string" || !id) throw new ApiError("This list has changed. Reload it.", 400);
+  return { OR: [{ title: { gt: title } }, { title, id: { gt: id } }] };
+}
+export function curriculumNextCursor(rows: { id: string; title: string }[]) {
+  if (rows.length <= CURRICULUM_PAGE) return null;
+  const last = rows[CURRICULUM_PAGE - 1];
+  return Buffer.from(JSON.stringify([last.title, last.id]), "utf8").toString("base64url");
+}
+
+export async function listCurricula(user: AuthUser, cursor?: string | null) {
   return schoolAiTransaction(user, async tx => {
     const permissions = await loadWorkspacePermissionSnapshot(user, tx);
     await assertSchoolAiAccess(user, "view", permissions);
     await assertWorkspacePermission(user, "exams", "view", permissions);
     const campusId = await resolveWorkspaceCampus(user, undefined, tx);
     const subjects = await getAssignedWorkspaceSubjects(user, tx);
-    const rows = await tx.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, kind: "CURRICULUM", status: "APPROVED", ...(campusId ? { campusId } : {}), subjectId: { in: subjects.map(subject => subject.id) } }, select: { id: true, title: true, version: true, subjectId: true, classId: true }, orderBy: { title: "asc" }, take: 200 });
-    return rows.map(row => { const subject = subjects.find(item => item.id === row.subjectId); return { ...row, subject: subject?.name ?? "", className: subject ? `${subject.class.name}${subject.class.section ? ` ${subject.class.section}` : ""}` : "" }; });
+    const rows = await tx.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, kind: "CURRICULUM", status: "APPROVED", ...(campusId ? { campusId } : {}), subjectId: { in: subjects.map(subject => subject.id) }, ...curriculumPageWhere(cursor) }, select: { id: true, title: true, version: true, subjectId: true, classId: true }, orderBy: [{ title: "asc" }, { id: "asc" }], take: CURRICULUM_PAGE + 1 });
+    const nextCursor = curriculumNextCursor(rows);
+    return { curricula: rows.slice(0, CURRICULUM_PAGE).map(row => { const subject = subjects.find(item => item.id === row.subjectId); return { ...row, subject: subject?.name ?? "", className: subject ? `${subject.class.name}${subject.class.section ? ` ${subject.class.section}` : ""}` : "" }; }), nextCursor };
   });
 }
 
