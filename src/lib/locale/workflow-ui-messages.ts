@@ -767,6 +767,7 @@ const entries: [string, string, string][] = [
 ["Older exam results could not be loaded. Try again.", "تعذّر تحميل نتائج الامتحانات الأقدم. حاول مرة أخرى.", "پرانے امتحانی نتائج لوڈ نہیں ہو سکے۔ دوبارہ کوشش کریں۔"],
   ["Show older pickup authorizations", "عرض تصاريح الاستلام الأقدم", "پرانی پک اپ اجازتیں دکھائیں"],
   ["Older pickup authorizations could not be loaded.", "تعذّر تحميل تصاريح الاستلام الأقدم.", "پرانی پک اپ اجازتیں لوڈ نہیں ہو سکیں۔"],
+  ["Earlier weekly updates could not be loaded. Try again.", "تعذّر تحميل التحديثات الأسبوعية الأقدم. حاول مرة أخرى.", "پرانی ہفتہ وار اپڈیٹس لوڈ نہیں ہو سکیں۔ دوبارہ کوشش کریں۔"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));
