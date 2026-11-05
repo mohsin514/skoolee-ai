@@ -117,11 +117,23 @@ export async function resolveClassEdit(user: AuthUser, body: Record<string, unkn
   }
 }
 
-/** Reconnect cursor: classes in your scope changed after `cursor` (ISO updatedAt), oldest first. */
+/** Reconnect cursor `<ISO updatedAt>|<id>`: classes in your scope after that (updatedAt, id) point, oldest first.
+ * SKAI-1755: rows sharing the boundary timestamp are paged by id, so a 500-row page cannot skip ties.
+ * A legacy timestamp-only cursor is still accepted (everything strictly after it). */
+export function parseClassCursor(cursor: string | null): { at: Date; id: string | null } {
+  if (!cursor) return { at: new Date(0), id: null };
+  const cut = cursor.indexOf("|");
+  const at = new Date(cut < 0 ? cursor : cursor.slice(0, cut));
+  const id = cut < 0 ? null : cursor.slice(cut + 1);
+  if (Number.isNaN(at.getTime()) || id === "") throw new ApiError("Invalid cursor", 400);
+  return { at, id };
+}
+
 export async function classChanges(user: AuthUser, cursor: string | null) {
   if (!canManageCampusOps(user)) throw new ApiError("Classes are set up by your campus admin.", 403);
-  const since = cursor ? new Date(cursor) : new Date(0);
-  if (Number.isNaN(since.getTime())) throw new ApiError("Invalid cursor", 400);
-  const rows = await prisma.class.findMany({ where: { ...scope(user), updatedAt: { gt: since } }, select, orderBy: [{ updatedAt: "asc" }, { id: "asc" }], take: 500 });
-  return { items: rows.map(view), cursor: rows.length ? rows[rows.length - 1].updatedAt.toISOString() : cursor, more: rows.length === 500 };
+  const { at, id } = parseClassCursor(cursor);
+  const after: Prisma.ClassWhereInput = id ? { OR: [{ updatedAt: { gt: at } }, { updatedAt: at, id: { gt: id } }] } : { updatedAt: { gt: at } };
+  const rows = await prisma.class.findMany({ where: { AND: [scope(user), after] }, select, orderBy: [{ updatedAt: "asc" }, { id: "asc" }], take: 500 });
+  const last = rows[rows.length - 1];
+  return { items: rows.map(view), cursor: last ? `${last.updatedAt.toISOString()}|${last.id}` : cursor, more: rows.length === 500 };
 }
