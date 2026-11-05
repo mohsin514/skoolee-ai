@@ -1,23 +1,23 @@
 # AI Workflows capability coverage (generated — do not edit)
 
-Total capabilities: **890**; connected: **149**.
+Total capabilities: **891**; connected: **149**.
 
-Risk: ACCESS_GRANT 57 · APPROVAL_DECISION 72 · COMMUNICATION 40 · CREATE 229 · DESTRUCTIVE 79 · FINANCIAL 59 · PUBLISH 29 · READ 49 · UPDATE 276
+Risk: ACCESS_GRANT 57 · APPROVAL_DECISION 72 · COMMUNICATION 40 · CREATE 229 · DESTRUCTIVE 79 · FINANCIAL 59 · PUBLISH 29 · READ 49 · UPDATE 277
 
-Reuse: direct 585 · inline-prisma 230 · wrapper 75
+Reuse: direct 586 · inline-prisma 230 · wrapper 75
 
-Idempotent: no 260 · unknown 50 · versioned 1 · yes 579
+Idempotent: no 260 · unknown 50 · versioned 1 · yes 580
 
 ## By role
 
 | Role | Capabilities | Connected |
 |---|---|---|
 | APP_OWNER | 66 | 14 |
-| SUPER_ADMIN | 671 | 18 |
-| ADMIN | 707 | 89 |
-| CAMPUS_ADMIN | 660 | 87 |
-| PRINCIPAL | 390 | 23 |
-| TEACHER | 249 | 24 |
+| SUPER_ADMIN | 672 | 18 |
+| ADMIN | 708 | 89 |
+| CAMPUS_ADMIN | 661 | 87 |
+| PRINCIPAL | 391 | 23 |
+| TEACHER | 250 | 24 |
 | ACCOUNTANT | 140 | 27 |
 | LIBRARIAN | 104 | 20 |
 | RECEPTIONIST | 121 | 25 |
@@ -37,6 +37,6 @@ Idempotent: no 260 · unknown 50 · versioned 1 · yes 579
 | C7 Campus operations | 112 | 24 |
 | C8 Platform, group governance and onboarding | 76 | 14 |
 | C8 Reviewed RAG knowledge | 4 | 1 |
-| C9a school-ai exams and Exam Studio | 94 | 1 |
+| C9a school-ai exams and Exam Studio | 95 | 1 |
 | C9b school-ai workspace, setup, runs, assistant, plus /api/ai and /api/automatio | 61 | 0 |
 | PERSONAL | 3 | 3 |

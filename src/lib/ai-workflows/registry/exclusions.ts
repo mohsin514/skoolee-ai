@@ -19,6 +19,8 @@ const RULES: Rule[] = [
   { category: "internal", reason: "SKAI-145: the holiday edit form is the office's own versioned edit; the assistant already edits holidays through the reviewed setup.apply_changes HOLIDAYS UPDATE path, so it must not call this route directly.", match: key => key === "academic.calendar.update_holiday", link: "/admin?view=settings&tab=calendar" },
   { category: "cron", reason: "The scheduled notification sweep (SKAI-1128) runs under CRON_SECRET system authority, never as an assistant action.", match: key => key === "system.notification_automation_sweep" },
   { category: "cron", reason: "Scheduled system jobs run on their own schedule under system authority.", match: key => key.startsWith("system.") },
+  { category: "internal", reason: "SKAI-785: finalising auto-scored attempts is the marker's own review decision in Exam Studio, with the same seat and review rules as a single attempt review; the assistant must not finalise results.",
+    match: key => key === "exams.attempts.finalise_objective" },
   { category: "candidate-only", reason: "A candidate starts, answers and submits their own exam attempt; secure-browser evidence comes from their device.",
     match: key => ["exams.attempt.start", "exams.attempt.save_or_submit", "exams.clarification.acknowledge"].includes(key) },
   { category: "file-upload", reason: "File and camera uploads are owned by the multimodal intake (SKO-460).",

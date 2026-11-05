@@ -12861,6 +12861,25 @@
   "source": "appendix-a"
  },
  {
+  "key": "exams.attempts.finalise_objective",
+  "cluster": "C9a school-ai exams and Exam Studio",
+  "method": "POST",
+  "route": "src/app/api/school-ai/exams/[id]/attempts/finalise-objective/route.ts:8",
+  "roles": [
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL",
+   "TEACHER"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "exams.attempts.list",
   "cluster": "C9a school-ai exams and Exam Studio",
   "method": "GET",
