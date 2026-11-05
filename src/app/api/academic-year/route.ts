@@ -12,6 +12,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { getYearClosureReport } from "@/lib/academic/year-closure";
+import { admissionNumberAllocator } from "@/lib/students/admission-number";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -124,6 +125,7 @@ export async function POST(req: NextRequest) {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`academic-year-close:${user.schoolId}:${campusId}:${academicYear}`}))`;
         const claimed = await tx.class.updateMany({ where: { id: { in: classes.map((cls) => cls.id) }, campusId, status: "ACTIVE" }, data: { status: "COMPLETED" } });
         if (claimed.count !== classes.length) throw new ApiError(`Academic year ${academicYear} was just closed in another session. Reload to see the closed year.`, 409);
+        let nextAdmissionNo: (() => string) | undefined;
         for (const cls of classes) {
           for (const student of cls.students) {
             const latestReport = student.reportCards[0];
@@ -152,11 +154,8 @@ export async function POST(req: NextRequest) {
             });
 
             if (!student.admissionNo) {
-              const count = await tx.student.count({ where: { campusId, admissionNo: { not: null } } });
-              await tx.student.update({
-                where: { id: student.id },
-                data: { admissionNo: `ADM-${academicYear}-${String(count + 1).padStart(4, "0")}` },
-              });
+              nextAdmissionNo ??= await admissionNumberAllocator(tx, user.schoolId, academicYear);
+              await tx.student.update({ where: { id: student.id }, data: { admissionNo: nextAdmissionNo() } });
             }
           }
         }
