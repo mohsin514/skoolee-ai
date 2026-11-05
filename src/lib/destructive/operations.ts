@@ -3,7 +3,8 @@ import { createHash } from "node:crypto";
 import type { NextRequest } from "next/server";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
-import { ApiError, assertStaffRole, canManageCampusOps, canManageFinance, canManageLibrary, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertStaffRole, canManageCampusOps, canManageFinance, canManageLibrary, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { authorizeAssignment } from "@/lib/api/teacher-assignments";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { studentScope, campusScope } from "@/lib/auth/policy";
@@ -300,8 +301,12 @@ export async function operationDeleteResponse(request: NextRequest, kind: Operat
     const user = await requireAuthUser();
     const params = request.nextUrl.searchParams;
     const campusId = await resolveCampusId(user, params.get("campusId"));
-    return Response.json(await operationDelete(user, kind, { id: params.get("id") ?? "", campusId, preview: params.get("preview") === "true", version: request.headers.get("If-Match") }), { headers: { "Cache-Control": "no-store" } });
+    const id = params.get("id") ?? "";
+    const result = await operationDelete(user, kind, { id, campusId, preview: params.get("preview") === "true", version: request.headers.get("If-Match") });
+    // SKAI-1211: envelope — preview → { data: { preview } }, delete → { data: { id, replayed } }.
+    const data = "preview" in result ? { preview: result.preview } : { id, replayed: result.replayed };
+    return ok(data, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    return errorResponse(error, "[confirmed-delete] failed");
+    return failFrom(error, "[confirmed-delete] failed");
   }
 }
