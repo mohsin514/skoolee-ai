@@ -37,7 +37,9 @@ export async function coordinatorView(user: AuthUser, raw: unknown) {
     const students = selected ? await tx.student.findMany({ where: { schoolId: user.schoolId, classId: selected, archivedAt: null }, select: { id: true, fullName: true, rollNo: true }, orderBy: { rollNo: "asc" } }) : [];
     const plans = await tx.accommodationPlan.findMany({ where: { schoolId: user.schoolId, studentId: { in: students.map(row => row.id) } }, orderBy: { version: "desc" }, include: { _count: { select: { supportRecords: true, rehearsals: true } } } });
     const now = new Date();
-    const review = await tx.accommodationPlan.findMany({ where: { schoolId: user.schoolId, status: "ACTIVE", ...campus, validUntil: { lt: new Date(now.getTime() + 14 * 86_400_000) } }, orderBy: { validUntil: "asc" }, take: 100 });
+    // SKAI-1741: the whole review queue (expired or due within 14 days) — a 100-row cap undercounted the Review tile
+    // and hid later learners from the Review filter. The set is bounded by the campus's active plans.
+    const review = await tx.accommodationPlan.findMany({ where: { schoolId: user.schoolId, status: "ACTIVE", ...campus, validUntil: { lt: new Date(now.getTime() + 14 * 86_400_000) } }, orderBy: [{ validUntil: "asc" }, { id: "asc" }] });
     const reviewStudents = await tx.student.findMany({ where: { schoolId: user.schoolId, id: { in: review.map(row => row.studentId) } }, select: { id: true, fullName: true } });
     return {
       classId: selected ?? null, classes,
