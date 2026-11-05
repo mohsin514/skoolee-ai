@@ -6,15 +6,18 @@ import { Prisma } from "@prisma/client";
 // (school_id, operation_id), so replay, stale versions and tenant isolation are checked without a database.
 type Row = Record<string, unknown> & { id: string; schoolId: string };
 const db = { classes: [] as Row[], ops: [] as Row[] };
-const match = (row: Row, where: Record<string, unknown> = {}) => Object.entries(where).every(([k, v]) => {
-  if (v && typeof v === "object" && !(v instanceof Date) && "gt" in v) return (row[k] as Date) > (v as { gt: Date }).gt;
+const match = (row: Row, where: Record<string, unknown> = {}): boolean => Object.entries(where).every(([k, v]) => {
+  if (k === "AND") return (v as Record<string, unknown>[]).every(w => match(row, w));
+  if (k === "OR") return (v as Record<string, unknown>[]).some(w => match(row, w));
+  if (v instanceof Date) return +(row[k] as Date) === +v;
+  if (v && typeof v === "object" && "gt" in v) return (row[k] as Date | string) > (v as { gt: Date | string }).gt;
   if (v && typeof v === "object" && !(v instanceof Date)) return true; // campus scope objects are not modelled
   return row[k] === v;
 });
 const fake = {
   class: {
     findFirst: async ({ where }: { where: Record<string, unknown> }) => db.classes.find(r => match(r, where)) ?? null,
-    findMany: async ({ where }: { where: Record<string, unknown> }) => db.classes.filter(r => match(r, where)).sort((a, b) => +(a.updatedAt as Date) - +(b.updatedAt as Date)),
+    findMany: async ({ where, take }: { where: Record<string, unknown>; take?: number }) => db.classes.filter(r => match(r, where)).sort((a, b) => +(a.updatedAt as Date) - +(b.updatedAt as Date) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).slice(0, take ?? Infinity),
   },
   offlineOperation: {
     findFirst: async ({ where }: { where: Record<string, unknown> }) => db.ops.find(r => match(r, where)) ?? null,
@@ -114,6 +117,24 @@ test("the reconnect cursor returns only classes changed since it, for this schoo
   await assert.rejects(classChanges(admin(), "not-a-date"), (e: { status: number }) => e.status === 400);
 });
 
+test("SKAI-1755: 501 classes on one timestamp page fully, once each, per school; legacy cursor still works", async () => {
+  const bulk = new Date("2026-10-30T07:30:00.000Z");
+  for (const school of ["school-a", "school-b"]) for (let i = 0; i < 501; i++) db.classes.push({ id: `${school}-bulk-${String(i).padStart(3, "0")}`, schoolId: school, campusId: `${school}-campus`, name: `Bulk ${i}`, section: null, capacity: null, updatedAt: bulk, archivedAt: null });
+  const p1 = await classChanges(admin(), null);
+  assert.equal(p1.items.length, 500); assert.equal(p1.more, true);
+  assert.equal(p1.cursor, `${bulk.toISOString()}|school-a-bulk-498`);
+  const p2 = await classChanges(admin(), p1.cursor);
+  assert.deepEqual(p2.items.map(i => i.id), ["school-a-bulk-499", "school-a-bulk-500"]);
+  assert.equal(p2.more, false);
+  const seen = [...p1.items, ...p2.items].map(i => i.id);
+  assert.equal(new Set(seen).size, 502);
+  assert.ok(seen.every(id => !id.startsWith("school-b")));
+  assert.equal((await classChanges(admin(), p2.cursor)).items.length, 0);
+  assert.deepEqual((await classChanges(admin(), v0.toISOString())).items.length, 500); // legacy timestamp-only cursor
+  await assert.rejects(classChanges(admin(), `${bulk.toISOString()}|`), (e: { status: number }) => e.status === 400);
+  await assert.rejects(classChanges({ ...(admin() as object), role: "TEACHER" } as never, p1.cursor), (e: { status: number }) => e.status === 403);
+});
+
 test("device queue folds unsent edits, keeps a fresh id once sent, and the cursor never moves back", () => {
   const row = { id: "class-a", name: "Grade 1", section: "A", capacity: 30, updatedAt: v0.toISOString(), archived: false };
   let ids = 0; const id = () => `id-${++ids}`;
@@ -126,4 +147,7 @@ test("device queue folds unsent edits, keeps a fresh id once sent, and the curso
   assert.deepEqual(b.classOps!.map(o => o.operationId), ["id-1", "id-2"]);
   const m = mergeClassChanges(b, [row], "2026-10-30T09:00:00.000Z");
   assert.equal(mergeClassChanges(m, [], "2026-10-30T08:00:00.000Z").classCursor, "2026-10-30T09:00:00.000Z");
+  const c = mergeClassChanges(m, [], "2026-10-30T09:00:00.000Z|class-a"); // compound cursor moves past the legacy one
+  assert.equal(c.classCursor, "2026-10-30T09:00:00.000Z|class-a");
+  assert.equal(mergeClassChanges(c, [], "2026-10-30T09:00:00.000Z").classCursor, "2026-10-30T09:00:00.000Z|class-a");
 });
