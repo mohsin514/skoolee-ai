@@ -181,6 +181,8 @@ export async function recordOutcome(user: AuthUser, body: Record<string, unknown
     if (!["HELD", "NOT_HELD"].includes(outcome)) throw new ApiError("Say whether the meeting took place.", 400);
     if (!["CONFIRMED", "HELD", "NOT_HELD"].includes(booking.status)) throw new ApiError("This meeting is not confirmed.", 409);
     if (booking.startsAt > new Date()) throw new ApiError("Record the outcome after the meeting time.", 409);
+    // SKAI-1731: the booking row is locked above; a tab that saw an older version gets 409 and nothing changes.
+    if (Number(body.knownVersion) !== booking.version) throw new ApiError("This meeting changed since you opened it. Review the latest details.", 409);
     await tx.meetingBooking.update({ where: { id: booking.id }, data: { status: outcome, version: { increment: 1 } } });
     await event(tx, booking, booking.version + 1, outcome, user.userId, {});
     return { status: outcome };
