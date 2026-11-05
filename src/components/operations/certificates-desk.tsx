@@ -29,7 +29,7 @@ import { DraftRecovery } from "@/components/ui/draft-recovery";
 // downloads are the frozen document, and a correction is a reissue with a reason and a new serial.
 
 type Ui = ReturnType<typeof useUiText>;
-type Template = { id: string; kind: "STUDENT_CERTIFICATE" | "ID_CARD"; name: string; language: "en" | "ar" | "ur"; pageSize: string; requiresApproval: boolean; currentVersion: number; draft: { title: string; body: string }; approved: { version: number; title: string; body: string; approvedAt: string } | null };
+type Template = { id: string; kind: "STUDENT_CERTIFICATE" | "ID_CARD"; name: string; language: "en" | "ar" | "ur"; pageSize: string; requiresApproval: boolean; currentVersion: number; draftVersion?: number; draft: { title: string; body: string }; approved: { version: number; title: string; body: string; approvedAt: string } | null };
 type Status = "PENDING_APPROVAL" | "ISSUED" | "REJECTED" | "REVOKED" | "SUPERSEDED";
 type Issue = { id: string; serial: string; status: Status; title: string; language: string; issuedAt: string | null; createdAt: string; version: number; previousId: string | null; reissueReason: string | null; decisionNote: string | null; artifactHash: string; verifyToken: string; templateId: string; student: { id: string; fullName: string; rollNo: string }; templateVersion: { version: number; kind: string }; successors: { serial: string; status: Status }[]; requestedBy: string | null; approvedBy: string | null };
 type Student = { id: string; fullName: string; rollNo: string; admissionNo: string | null; className: string };
@@ -335,7 +335,7 @@ function TemplateDialog({ template, onClose, onDone }: { template: Template | nu
   const set = (field: keyof typeof form) => (event: { target: { value: string } }) => setForm(current => ({ ...current, [field]: event.target.value }));
   const save = async () => {
     setBusy(true); setError("");
-    try { await send("POST", { action: "save-template", id: template?.id, ...form }); toast.success(ui("Draft saved. Approve it before documents use it.")); onDone(); }
+    try { await send("POST", { action: "save-template", id: template?.id, expectedDraftVersion: template?.draftVersion, ...form }); toast.success(ui("Draft saved. Approve it before documents use it.")); onDone(); }
     catch (failure) { setError(failure instanceof TypeError ? ui("The connection failed before the server answered. Your draft is kept; try again.") : ui(failure instanceof Error ? failure.message : "The change was not saved.")); }
     finally { setBusy(false); }
   };

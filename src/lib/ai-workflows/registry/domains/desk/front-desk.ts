@@ -961,7 +961,7 @@ const CERTIFICATE_TEMPLATE_SAVE = defineCapability<TemplateInput>({
     const existing = await existingTemplate(ctx, input);
     // No key in the domain: the same draft already on file is this run's earlier save.
     if (existing && sameDraft(existing, input)) return reconciledReceipt("front_desk.certificate_template_save", [{ model: "certificateTemplate", id: existing.id }], link(ctx.user.role, "certificates"), { draftVersion: existing.draftVersion });
-    const saved = await saveTemplate(ctx.user, campusId, { ...(existing ? { id: existing.id } : {}), kind: input.kind, name: input.name, language: input.language, pageSize: pageOf(input), title: input.title, body: input.body, requiresApproval: approvalOf(input) }).catch(domain);
+    const saved = await saveTemplate(ctx.user, campusId, { ...(existing ? { id: existing.id, expectedDraftVersion: existing.draftVersion } : {}), kind: input.kind, name: input.name, language: input.language, pageSize: pageOf(input), title: input.title, body: input.body, requiresApproval: approvalOf(input) }).catch(domain);
     return { kind: "draft", capability: "front_desk.certificate_template_save", entities: [{ model: "certificateTemplate", id: saved.id }], counts: { created: existing ? 0 : 1, updated: existing ? 1 : 0 }, link: link(ctx.user.role, "certificates"), replayed: false, detail: { draftVersion: saved.draftVersion, approvedVersion: saved.currentVersion } };
   },
 });
