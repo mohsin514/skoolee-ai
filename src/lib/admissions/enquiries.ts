@@ -61,6 +61,14 @@ export async function createEnquiry(user: AuthUser, body: Record<string, any>) {
   });
 }
 
+// The relations the enquiry list returns and the detail panel renders.
+const ENQUIRY_DETAIL_INCLUDE = {
+  classInterested: { select: { id: true, name: true, section: true } },
+  assignedTo: { select: { id: true, fullName: true, role: true } },
+  convertedStudent: { select: { id: true, fullName: true, rollNo: true } },
+  _count: { select: { followUps: true } },
+} as const;
+
 export async function updateEnquiry(user: AuthUser, body: Record<string, any>) {
   const id = String(body.id ?? "");
   if (!id) throw new ApiError("id is required", 400);
@@ -130,6 +138,9 @@ export async function updateEnquiry(user: AuthUser, body: Record<string, any>) {
         return tx.admissionQuery.update({
           where: { id },
           data: { ...updates, status: updates.status ?? existing.status === "ACTIVE" ? "FOLLOW_UP" : updates.status ?? existing.status },
+          // SKAI-1778: the open detail replaces its state with this row, so it
+          // must carry the same relations as the list, or the owner reads "Unassigned".
+          include: ENQUIRY_DETAIL_INCLUDE,
         });
       },
       { timeout: 20000 }
@@ -139,10 +150,6 @@ export async function updateEnquiry(user: AuthUser, body: Record<string, any>) {
   return prisma.admissionQuery.update({
     where: { id },
     data: updates,
-    include: {
-      classInterested: { select: { id: true, name: true, section: true } },
-      assignedTo: { select: { id: true, fullName: true, role: true } },
-      convertedStudent: { select: { id: true, fullName: true, rollNo: true } },
-    },
+    include: ENQUIRY_DETAIL_INCLUDE,
   });
 }
