@@ -1,4 +1,5 @@
 import { operationDeleteResponse } from "@/lib/destructive/operations";
+import { campusScope } from "@/lib/auth/policy";
 import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
     if (!Number.isInteger(balance)) throw new ApiError("balance must be an integer (paisa)", 400);
 
     const student = await prisma.student.findFirst({
-      where: { id: body.studentId, campus: { schoolId: user.schoolId } },
+      where: { id: body.studentId, ...campusScope(user) },
       select: { id: true, campusId: true },
     });
     if (!student) throw new ApiError("Student not found", 404);

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { campusScope } from "@/lib/auth/policy";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
     if (!Number.isInteger(requestedYear) || requestedYear < 2000) throw new ApiError("invalid academicYear", 400);
 
     const student = await prisma.student.findFirst({
-      where: { id: studentId, campus: { schoolId: user.schoolId } },
+      where: { id: studentId, ...campusScope(user) },
       select: {
         id: true,
         fullName: true,
