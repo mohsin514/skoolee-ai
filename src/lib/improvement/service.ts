@@ -293,16 +293,23 @@ export async function addEvidence(user: AuthUser, raw: unknown) {
 
 /** Leads and granted reviewers judge evidence; never the person who added or owns it. */
 export async function reviewEvidence(user: AuthUser, raw: unknown) {
-  const input = parse(z.object({ itemId: z.string().uuid(), decision: z.enum(["ACCEPT", "REQUEST_MORE"]), note: z.string().trim().max(2000).nullish() }), raw);
+  const input = parse(z.object({ itemId: z.string().uuid(), decision: z.enum(["ACCEPT", "REQUEST_MORE"]), note: z.string().trim().max(2000).nullish(), expectedReviewState: z.enum(["PENDING", "ACCEPTED", "MORE_REQUESTED"]).optional() }), raw);
   const item = await prisma.evidenceItem.findFirst({ where: { id: input.itemId, schoolId: user.schoolId } });
   if (!item) throw new ApiError("Evidence not found", 404);
   const a = await access(user, item.frameworkId);
   assert(a.mode === "LEAD" || (a.mode === "REVIEWER" && item.audience !== "STAFF" && item.criterionIds.some(id => a.criteria!.has(id))), "You cannot review this evidence.");
   assert(item.createdById !== user.userId && item.ownerId !== user.userId, "Someone other than the person who added or owns this evidence must review it.", 409);
   if (input.decision === "REQUEST_MORE") assert(input.note && input.note.length >= 3, "Say what further evidence is needed.", 400);
-  const updated = await prisma.evidenceItem.update({ where: { id: item.id }, data: { reviewState: input.decision === "ACCEPT" ? "ACCEPTED" : "MORE_REQUESTED", reviewedById: user.userId, reviewedAt: new Date(), reviewNote: input.note ?? null } });
-  await writeAuditEvent(prisma, user, { table: "evidence_items", recordId: item.id, action: input.decision === "ACCEPT" ? "APPROVE" : "REJECT", after: { reviewState: updated.reviewState, note: input.note ?? "" } });
-  return updated;
+  const stale = "This evidence was reviewed since you opened it. Reload to see the latest decision.";
+  if (input.expectedReviewState) assert(item.reviewState === input.expectedReviewState, stale, 409);
+  // SKAI-1726: compare-and-set on the review state this request read, so a concurrent decision 409s instead of overwriting.
+  return prisma.$transaction(async tx => {
+    const changed = await tx.evidenceItem.updateMany({ where: { id: item.id, schoolId: user.schoolId, reviewState: item.reviewState, reviewedAt: item.reviewedAt }, data: { reviewState: input.decision === "ACCEPT" ? "ACCEPTED" : "MORE_REQUESTED", reviewedById: user.userId, reviewedAt: new Date(), reviewNote: input.note ?? null } });
+    assert(changed.count === 1, stale, 409);
+    const updated = await tx.evidenceItem.findFirstOrThrow({ where: { id: item.id, schoolId: user.schoolId } });
+    await writeAuditEvent(tx, user, { table: "evidence_items", recordId: item.id, action: input.decision === "ACCEPT" ? "APPROVE" : "REJECT", after: { reviewState: updated.reviewState, note: input.note ?? "" } });
+    return updated;
+  });
 }
 
 /** Opening a source is a separate, checked request; reviewers can review a criterion without opening restricted records. */
