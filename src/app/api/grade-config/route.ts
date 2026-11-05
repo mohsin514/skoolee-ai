@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { normalizeWeightMode } from "@/lib/academic/grade-calculator";
-import { ApiError, assertPermission, canLeadAcademics } from "@/lib/api/scope";
+import { ApiError, assertPermission, assertStaffRole, canLeadAcademics } from "@/lib/api/scope";
 import { assertWritable, recordProvenance } from "@/lib/group-policy/service";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -95,6 +95,15 @@ export async function GET(request: NextRequest) {
     const session = await getAuthUser();
     if (!session || !session.campusId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // SKAI-1685: grading rules are staff academic data — families and staff without exams.view are refused, as on POST.
+    try {
+      assertStaffRole(session);
+      await assertPermission(session, "exams", "view");
+    } catch (error) {
+      if (error instanceof ApiError) return NextResponse.json({ error: error.message }, { status: error.status });
+      throw error;
     }
 
     const { searchParams } = new URL(request.url);
@@ -191,6 +200,12 @@ export async function GET(request: NextRequest) {
     const classId = searchParams.get("classId");
     if (!classId) {
       return NextResponse.json({ error: "classId is required" }, { status: 400 });
+    }
+
+    // SKAI-1685: the class must belong to the caller's campus; a foreign id reads exactly like an unknown one.
+    const cls = await prisma.class.findFirst({ where: { id: classId, campusId: session.campusId }, select: { id: true } });
+    if (!cls) {
+      return NextResponse.json({ error: "Class not found in your campus" }, { status: 404 });
     }
 
     const config = await prisma.gradeWeightConfig.findUnique({
