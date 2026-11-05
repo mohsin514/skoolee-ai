@@ -252,11 +252,26 @@ export async function sharedCollection(user: AuthUser, shareId: string) {
 }
 
 /** Learners whose portfolios this teacher may open (their classes; leaders: their campus). */
-export async function teachingLearners(user: AuthUser) {
+export const LEARNER_PAGE_SIZE = 400;
+/** SKAI-1716: keyset over (fullName asc, id asc) so learners after the first page stay reachable. */
+export function learnerPageWhere(cursor: string | null | undefined) {
+  if (!cursor) return {};
+  const [name, id] = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8") || "null") ?? [];
+  if (typeof name !== "string" || typeof id !== "string" || !id) throw new ApiError("This list has changed. Reload it.", 400);
+  return { OR: [{ fullName: { gt: name } }, { fullName: name, id: { gt: id } }] };
+}
+export function learnerNextCursor(rows: { id: string; fullName: string }[]) {
+  if (rows.length <= LEARNER_PAGE_SIZE) return null;
+  const last = rows[LEARNER_PAGE_SIZE - 1];
+  return Buffer.from(JSON.stringify([last.fullName, last.id]), "utf8").toString("base64url");
+}
+export async function teachingLearners(user: AuthUser, cursor?: string | null) {
   if (user.role === "STUDENT" || user.role === "PARENT") throw new ApiError("Portfolio not found", 404);
   const lead = canManageOperations(user);
   const classIds = lead ? null : await teacherClassIds(user.userId);
-  const rows = await prisma.student.findMany({ where: { schoolId: user.schoolId, archivedAt: null, ...(lead ? (user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) : { classId: { in: classIds ?? [] } }) }, select: { id: true, fullName: true, rollNo: true, class: { select: { name: true, section: true } } }, orderBy: [{ fullName: "asc" }], take: 400 });
+  const fetched = await prisma.student.findMany({ where: { schoolId: user.schoolId, archivedAt: null, ...(lead ? (user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) : { classId: { in: classIds ?? [] } }), ...learnerPageWhere(cursor) }, select: { id: true, fullName: true, rollNo: true, class: { select: { name: true, section: true } } }, orderBy: [{ fullName: "asc" }, { id: "asc" }], take: LEARNER_PAGE_SIZE + 1 });
+  const nextCursor = learnerNextCursor(fetched);
+  const rows = fetched.slice(0, LEARNER_PAGE_SIZE);
   const counts = rows.length ? await prisma.portfolioEntry.groupBy({ by: ["studentId", "status"], where: { schoolId: user.schoolId, studentId: { in: rows.map(r => r.id) }, removedAt: null }, _count: { _all: true } }) : [];
-  return rows.map(r => ({ id: r.id, name: r.fullName, rollNo: r.rollNo, className: [r.class?.name, r.class?.section].filter(Boolean).join(" "), toReview: counts.filter(c => c.studentId === r.id && c.status === "PROPOSED").reduce((n, c) => n + c._count._all, 0) }));
+  return { learners: rows.map(r => ({ id: r.id, name: r.fullName, rollNo: r.rollNo, className: [r.class?.name, r.class?.section].filter(Boolean).join(" "), toReview: counts.filter(c => c.studentId === r.id && c.status === "PROPOSED").reduce((n, c) => n + c._count._all, 0) })), nextCursor };
 }

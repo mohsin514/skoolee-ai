@@ -288,9 +288,24 @@ export async function decideMentoring(user: AuthUser, id: string, raw: unknown) 
 
 // ─── Overview ───────────────────────────────────────────────────
 
+export const OPPORTUNITY_PAGE = 100;
+/** SKAI-1719: opportunities page in a stable order; `next` is the offset of the following page, or null. */
+async function opportunityPage(user: AuthUser, campusId: string, includeWithdrawn: boolean, offset: number, now = new Date()) {
+  const rows = await prisma.pathwayOpportunity.findMany({ where: { schoolId: user.schoolId, campusId, ...(includeWithdrawn ? {} : { status: "ACTIVE" }) }, orderBy: [{ deadline: "asc" }, { createdAt: "desc" }, { id: "asc" }], skip: offset, take: OPPORTUNITY_PAGE + 1 });
+  return { opportunities: rows.slice(0, OPPORTUNITY_PAGE).map((o) => ({ ...o, state: opportunityState(o, now) })), opportunitiesNext: rows.length > OPPORTUNITY_PAGE ? offset + OPPORTUNITY_PAGE : null };
+}
+export const opportunityOffset = (raw: string | null | undefined) => { const n = Number(raw ?? 0); if (!Number.isInteger(n) || n < 0 || n > 100_000) throw new ApiError("This list has changed. Reload it.", 400); return n; };
+
+/** The next page of opportunities for this viewer, in the same scope the overview uses. */
+export async function pathwayOpportunities(user: AuthUser, offset: number) {
+  if (user.role === "STUDENT") return opportunityPage(user, (await ownStudent(user)).campusId, false, offset);
+  assert(STAFF.includes(user.role), "Pathways are not available for this account.");
+  return opportunityPage(user, campusOf(user), true, offset);
+}
+
 export async function pathwayOverview(user: AuthUser) {
   const now = new Date();
-  const opportunities = async (campusId: string, includeWithdrawn: boolean) => (await prisma.pathwayOpportunity.findMany({ where: { schoolId: user.schoolId, campusId, ...(includeWithdrawn ? {} : { status: "ACTIVE" }) }, orderBy: [{ deadline: "asc" }, { createdAt: "desc" }], take: 100 })).map((o) => ({ ...o, state: opportunityState(o, now) }));
+  const opportunities = (campusId: string, includeWithdrawn: boolean) => opportunityPage(user, campusId, includeWithdrawn, 0, now);
   if (user.role === "STUDENT") {
     const student = await ownStudent(user);
     const [plan, appointments, alumni, requests, counsellors, opps] = await Promise.all([
@@ -302,7 +317,7 @@ export async function pathwayOverview(user: AuthUser) {
       opportunities(student.campusId, false),
     ]);
     const names = await prisma.user.findMany({ where: { id: { in: counsellors.map((c) => c.userId) } }, select: { id: true, fullName: true } });
-    return { mode: "STUDENT" as const, studentId: student.id, plan, appointments, alumni, requests, counsellors: names, opportunities: opps };
+    return { mode: "STUDENT" as const, studentId: student.id, plan, appointments, alumni, requests, counsellors: names, ...opps };
   }
   if (user.role === "PARENT") {
     const links = await prisma.guardianRelationship.findMany({ where: { schoolId: user.schoolId, guardianUserId: user.userId, status: "ACTIVE" }, select: { studentId: true, student: { select: { fullName: true } } } });
@@ -320,22 +335,42 @@ export async function pathwayOverview(user: AuthUser) {
     designated ? prisma.pathwayGoal.findMany({ where: { schoolId: user.schoolId, campusId, audience: { has: "COUNSELLOR" }, status: { not: "ARCHIVED" } }, orderBy: { updatedAt: "desc" }, take: 50 }) : Promise.resolve([]),
   ]);
   const counsellorNames = await prisma.user.findMany({ where: { id: { in: designations.map((d) => d.userId) } }, select: { id: true, fullName: true } });
-  if (!designated) return { mode: "STAFF" as const, designated, isLeader: LEADERS.includes(user.role), designations: designations.map((d) => ({ ...d, name: counsellorNames.find((n) => n.id === d.userId)?.fullName ?? "" })), staff, opportunities: opps };
+  if (!designated) return { mode: "STAFF" as const, designated, isLeader: LEADERS.includes(user.role), designations: designations.map((d) => ({ ...d, name: counsellorNames.find((n) => n.id === d.userId)?.fullName ?? "" })), staff, ...opps };
   const studentIds = [...new Set(sharedGoals.map((g) => g.studentId))];
   const [students, actions, appointments, alumni, requests] = await Promise.all([
     prisma.student.findMany({ where: { id: { in: studentIds } }, select: { id: true, fullName: true } }),
     prisma.pathwayAction.findMany({ where: { goalId: { in: sharedGoals.map((g) => g.id) } }, orderBy: { dueOn: "asc" } }),
     prisma.counsellingAppointment.findMany({ where: { schoolId: user.schoolId, counsellorId: user.userId, status: { not: "CANCELLED" } }, orderBy: { startsAt: "asc" }, take: 50 }),
     prisma.alumniProfile.findMany({ where: { schoolId: user.schoolId, campusId }, orderBy: { createdAt: "desc" } }),
-    prisma.mentoringRequest.findMany({ where: { schoolId: user.schoolId, campusId }, orderBy: { createdAt: "desc" }, take: 50 }),
+    mentoringRequestPage(user),
   ]);
-  const apptStudents = await prisma.student.findMany({ where: { id: { in: [...appointments.map((a) => a.studentId), ...requests.map((r) => r.studentId)] } }, select: { id: true, fullName: true, dateOfBirth: true } });
+  const apptStudents = await prisma.student.findMany({ where: { id: { in: appointments.map((a) => a.studentId) } }, select: { id: true, fullName: true } });
   return {
     mode: "COUNSELLOR" as const, designated, isLeader: LEADERS.includes(user.role),
-    designations: designations.map((d) => ({ ...d, name: counsellorNames.find((n) => n.id === d.userId)?.fullName ?? "" })), staff, opportunities: opps,
+    designations: designations.map((d) => ({ ...d, name: counsellorNames.find((n) => n.id === d.userId)?.fullName ?? "" })), staff, ...opps,
     plans: studentIds.map((id) => ({ studentId: id, name: students.find((s) => s.id === id)?.fullName ?? "", goals: sharedGoals.filter((g) => g.studentId === id).map((g) => ({ ...g, actions: actions.filter((a) => a.goalId === g.id) })) })),
     appointments: appointments.map((a) => ({ ...a, studentName: apptStudents.find((s) => s.id === a.studentId)?.fullName ?? "" })),
     alumni: alumni.map((a) => ({ ...a, reviewOverdue: a.reviewDueOn < today() })),
-    requests: requests.map((r) => { const s = apptStudents.find((x) => x.id === r.studentId); const age = ageOn(s?.dateOfBirth); return { ...r, studentName: s?.fullName ?? "", minor: age === null || age < 18 }; }),
+    requests: requests.requests, requestsNextCursor: requests.nextCursor,
+  };
+}
+
+const MENTORING_PAGE = 50;
+
+/**
+ * SKAI-1706: one newest-first page of the campus's mentoring requests for a designated counsellor.
+ * Keyset cursor with an id tie-break, so every page re-checks the counsellor designation and the
+ * school/campus scope, and concurrent inserts never cause gaps or duplicates.
+ */
+export async function mentoringRequestPage(user: AuthUser, cursor?: string | null) {
+  assert(STAFF.includes(user.role), "Pathways are not available for this account.");
+  const campusId = campusOf(user);
+  await counsellor(user);
+  const rows = await prisma.mentoringRequest.findMany({ where: { schoolId: user.schoolId, campusId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: MENTORING_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
+  const page = rows.slice(0, MENTORING_PAGE);
+  const students = await prisma.student.findMany({ where: { id: { in: page.map((r) => r.studentId) } }, select: { id: true, fullName: true, dateOfBirth: true } });
+  return {
+    requests: page.map((r) => { const s = students.find((x) => x.id === r.studentId); const age = ageOn(s?.dateOfBirth); return { ...r, studentName: s?.fullName ?? "", minor: age === null || age < 18 }; }),
+    nextCursor: rows.length > MENTORING_PAGE ? page[page.length - 1].id : null,
   };
 }

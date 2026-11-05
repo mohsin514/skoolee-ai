@@ -56,6 +56,9 @@ interface ChatContextValue {
   /** SKAI-1530: the list could not be loaded; the cached list (if any) stays and retryList reloads it. */
   listFailed: boolean;
   retryList: () => void;
+  /** SKAI-1696: more conversations exist beyond the loaded pages; loadMoreConversations rejects on failure. */
+  hasMoreConversations: boolean;
+  loadMoreConversations: () => Promise<void>;
 
   filter: ConversationFilter;
   setFilter: (filter: ConversationFilter) => void;
@@ -237,8 +240,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // SKAI-1595: the list on screen belongs to one filter + search. A new query shows loading, and if it fails the
   // old query's rows are cleared rather than shown as results for the new one.
   const listQueryRef = useRef<string | null>(null);
+  // SKAI-1696: the cursor for the next inbox page; a reload bumps the request id so a late page is dropped.
+  const [listCursor, setListCursor] = useState<string | null>(null);
+  const listRequestRef = useRef(0);
   const loadConversations = useCallback(async () => {
     const query = `${filter}|${search.trim()}`;
+    listRequestRef.current += 1;
     const sameQuery = listQueryRef.current === query;
     if (!sameQuery) setIsLoadingList(true);
     try {
@@ -252,15 +259,36 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (!json.success || !Array.isArray(json.conversations)) throw new Error("conversations payload");
       setConversations(json.conversations);
       listQueryRef.current = query;
+      setListCursor(typeof json.nextCursor === "string" ? json.nextCursor : null);
       setListFailed(false);
     } catch {
       // Offline or failed: keep the same query's list on screen and say so, never pretend the inbox is empty.
+      if (!sameQuery) setListCursor(null);
       if (!sameQuery) { setConversations([]); listQueryRef.current = null; }
       setListFailed(true);
     } finally {
       setIsLoadingList(false);
     }
   }, [filter, search]);
+
+  const loadMoreConversations = useCallback(async () => {
+    if (!listCursor) return;
+    const query = `${filter}|${search.trim()}`;
+    const requestId = listRequestRef.current;
+    const params = new URLSearchParams({ filter });
+    if (search.trim()) params.set("q", search.trim());
+    params.set("cursor", listCursor);
+    const res = await fetch(`/api/chat/conversations?${params}`);
+    if (!res.ok) throw new Error("Older conversations could not be loaded.");
+    const json = await res.json();
+    if (!json.success || !Array.isArray(json.conversations)) throw new Error("Older conversations could not be loaded.");
+    if (listQueryRef.current !== query || listRequestRef.current !== requestId) return;
+    setConversations((prev) => {
+      const seen = new Set(prev.map((c) => c.id));
+      return [...prev, ...(json.conversations as ConversationView[]).filter((c) => !seen.has(c.id))];
+    });
+    setListCursor(typeof json.nextCursor === "string" ? json.nextCursor : null);
+  }, [filter, search, listCursor]);
 
   const retryList = useCallback(() => { setIsLoadingList(true); void loadConversations(); }, [loadConversations]);
 
@@ -811,6 +839,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       isLoadingList,
       listFailed,
       retryList,
+      hasMoreConversations: listCursor !== null,
+      loadMoreConversations,
       filter,
       setFilter,
       search,
@@ -851,6 +881,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       isLoadingList,
       listFailed,
       retryList,
+      listCursor,
+      loadMoreConversations,
       filter,
       search,
       activeId,

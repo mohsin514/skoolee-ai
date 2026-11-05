@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { act, intake, isLeader, overdue, visibleWhere } from "@/lib/front-desk/complaints";
+import { act, complaintCursor, complaintPageWhere, intake, isLeader, overdue, visibleWhere } from "@/lib/front-desk/complaints";
 import { ownerCandidates } from "@/lib/front-desk/phone-calls";
 import {
   ApiError,
@@ -54,28 +55,38 @@ export async function GET(request: NextRequest) {
     const owner = params.get("owner");
     const q = (params.get("q") ?? "").trim().slice(0, 80);
     const today = todayUtc();
+    const filters = {
+      ...scope, AND: [visibleWhere(user)] as Prisma.ComplaintWhereInput[],
+      ...(status === "active" ? { status: { not: "RESOLVED" } } : status ? { status } : {}),
+      ...(owner === "me" ? { ownerId: user.userId } : owner === "unassigned" ? { ownerId: null } : {}),
+      ...(params.get("overdue") ? { status: { not: "RESOLVED" }, dueDate: { lt: today } } : {}),
+      ...(q ? { OR: [{ referenceCode: { contains: q, mode: "insensitive" as const } }, { type: { contains: q, mode: "insensitive" as const } }, { complainantName: { contains: q, mode: "insensitive" as const } }] } : {}),
+    } satisfies Prisma.ComplaintWhereInput;
+    // SKAI-1720: the queue pages by keyset; the counters count the whole filtered queue, not the loaded page.
+    const page = complaintPageWhere(params.get("cursor"));
     const rows = await prisma.complaint.findMany({
-      where: {
-        ...scope, AND: [visibleWhere(user)],
-        ...(status === "active" ? { status: { not: "RESOLVED" } } : status ? { status } : {}),
-        ...(owner === "me" ? { ownerId: user.userId } : owner === "unassigned" ? { ownerId: null } : {}),
-        ...(params.get("overdue") ? { status: { not: "RESOLVED" }, dueDate: { lt: today } } : {}),
-        ...(q ? { OR: [{ referenceCode: { contains: q, mode: "insensitive" as const } }, { type: { contains: q, mode: "insensitive" as const } }, { complainantName: { contains: q, mode: "insensitive" as const } }] } : {}),
-      },
+      where: page ? { ...filters, AND: [...filters.AND, page] } : filters,
       select: { id: true, referenceCode: true, type: true, complainantName: true, confidential: true, status: true, date: true, dueDate: true, reopenedCount: true, version: true, owner: ownerSelect, createdAt: true },
-      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       // SKAI-1675: one past the cap tells the client the list (and so its export) is not complete.
       take: 301,
     });
     const truncated = rows.length > 300;
     rows.splice(300);
-    const active = rows.filter(row => row.status !== "RESOLVED");
+    const last = rows[rows.length - 1];
+    const activeWhere = { ...filters, AND: [...filters.AND, { status: { not: "RESOLVED" } }] };
+    const [active, unassigned, late] = await Promise.all([
+      prisma.complaint.count({ where: activeWhere }),
+      prisma.complaint.count({ where: { ...activeWhere, AND: [...activeWhere.AND, { ownerId: null }] } }),
+      prisma.complaint.count({ where: { ...activeWhere, AND: [...activeWhere.AND, { dueDate: { lt: today } }] } }),
+    ]);
     return Response.json({
       success: true,
       data: rows.map(row => ({ ...row, overdue: overdue(row, today) })),
-      counts: { active: active.length, unassigned: active.filter(row => !row.owner).length, overdue: active.filter(row => overdue(row, today)).length },
+      counts: { active, unassigned, overdue: late },
       canSeeConfidential: isLeader(user),
       truncated,
+      nextCursor: truncated && last ? complaintCursor(last) : null,
     });
   } catch (error) {
     return errorResponse(error, "[front-desk] complaints GET failed");

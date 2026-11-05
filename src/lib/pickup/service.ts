@@ -99,12 +99,18 @@ export async function revokeAuthorization(user: AuthUser, id: string) {
   });
 }
 
-export async function guardianPickups(user: AuthUser, studentId: string) {
+const PICKUP_PAGE = 20;
+
+// SKAI-1714: newest first, 20 per page; `cursor` (the last id of the previous page) reaches older rows.
+// Every page re-runs the guardian, child and school checks.
+export async function guardianPickups(user: AuthUser, studentId: string, cursor?: string | null) {
   const { student } = await guardianChild(user, studentId);
-  const rows = await prisma.pickupAuthorization.findMany({ where: { schoolId: user.schoolId, studentId: student.id, issuedById: user.userId }, orderBy: { validFrom: "desc" }, take: 20 });
+  const page = await prisma.pickupAuthorization.findMany({ where: { schoolId: user.schoolId, studentId: student.id, issuedById: user.userId }, orderBy: [{ validFrom: "desc" }, { id: "desc" }], take: PICKUP_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
+  const rows = page.slice(0, PICKUP_PAGE);
+  const nextCursor = page.length > PICKUP_PAGE ? rows[rows.length - 1].id : null;
   const released = await prisma.pickupEvent.findMany({ where: { schoolId: user.schoolId, studentId: student.id, kind: { in: ["RELEASED"] }, authorizationId: { in: rows.map(r => r.id) } }, select: { authorizationId: true, createdAt: true } });
   const now = new Date();
-  return { timezone: (await getLocalePackage(user.schoolId, student.campusId)).timezone, items: rows.map(r => ({ id: r.id, recipientName: r.recipientName, recipientRelation: r.recipientRelation, idMethod: r.idMethod, validFrom: r.validFrom, validUntil: r.validUntil, status: r.status === "ACTIVE" && r.validUntil <= now ? "EXPIRED" : r.status, releasedAt: released.find(e => e.authorizationId === r.id)?.createdAt ?? null })) };
+  return { timezone: (await getLocalePackage(user.schoolId, student.campusId)).timezone, items: rows.map(r => ({ id: r.id, recipientName: r.recipientName, recipientRelation: r.recipientRelation, idMethod: r.idMethod, validFrom: r.validFrom, validUntil: r.validUntil, status: r.status === "ACTIVE" && r.validUntil <= now ? "EXPIRED" : r.status, releasedAt: released.find(e => e.authorizationId === r.id)?.createdAt ?? null })), nextCursor };
 }
 
 // ─── Gate ────────────────────────────────────────────────────────────────

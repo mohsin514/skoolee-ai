@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const studentId = p.get("studentId");
     if (p.get("share")) return Response.json({ success: true, data: await sharedCollection(user, p.get("share")!) }, { headers });
     if (p.get("view") === "shares") return Response.json({ success: true, data: await guardianShares(user, studentId) }, { headers });
-    if (p.get("view") === "learners") return Response.json({ success: true, data: await teachingLearners(user) }, { headers });
+    if (p.get("view") === "learners") return Response.json({ success: true, data: await teachingLearners(user, p.get("cursor")?.slice(0, 600)) }, { headers });
     if (p.get("view") === "evidence") return Response.json({ success: true, data: await eligibleEvidence(user, studentId) }, { headers });
     return Response.json({ success: true, data: await portfolio(user, studentId) }, { headers });
   } catch (error) { return errorResponse(error, "[portfolio] GET failed"); }

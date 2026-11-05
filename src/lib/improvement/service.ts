@@ -217,18 +217,33 @@ export async function staff(user: AuthUser, cursor?: string | null) {
   return { people: rows.slice(0, STAFF_PAGE), nextCursor: staffNextCursor(rows) };
 }
 
-/** Linkable sources: learning actions and report cards on the user's campus. Clinic sources are linked by id only. */
-export async function sources(user: AuthUser) {
+export const SOURCE_PAGE = 50;
+type PickerSource = "INTERVENTION" | "REPORT_CARD";
+type SourceItem = { type: PickerSource; id: string; label: string };
+export const sourceOffset = (raw: string | null | undefined) => { const n = Number(raw ?? 0); assert(Number.isInteger(n) && n >= 0 && n <= 100_000, "This list has changed. Reload it.", 400); return n; };
+
+/**
+ * Linkable sources: learning actions and report cards on the user's campus. Clinic sources are linked by id only.
+ * SKAI-1722: each type pages in a stable order; `more[type]` is the next offset, or null when every record is listed.
+ */
+export async function sources(user: AuthUser, only?: string | null, offset = 0) {
   assert(!NOT_STAFF.includes(user.role), "Staff access is required.");
+  assert(!only || only === "INTERVENTION" || only === "REPORT_CARD", "Unknown source type.", 400);
   const campus = isLead(user) && user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "__none__" };
+  const want = (type: PickerSource) => !only || only === type;
   const [plans, reports] = await Promise.all([
-    prisma.interventionPlan.findMany({ where: { schoolId: user.schoolId, ...campus }, select: { id: true, version: true, status: true }, orderBy: { updatedAt: "desc" }, take: 50 }),
-    prisma.reportCard.findMany({ where: { schoolId: user.schoolId, ...campus }, select: { id: true, sourceRevision: true, exam: { select: { title: true } } }, orderBy: { id: "desc" }, take: 50 }),
+    want("INTERVENTION") ? prisma.interventionPlan.findMany({ where: { schoolId: user.schoolId, ...campus }, select: { id: true, version: true, status: true }, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], skip: offset, take: SOURCE_PAGE + 1 }) : [],
+    want("REPORT_CARD") ? prisma.reportCard.findMany({ where: { schoolId: user.schoolId, ...campus }, select: { id: true, sourceRevision: true, exam: { select: { title: true } } }, orderBy: { id: "desc" }, skip: offset, take: SOURCE_PAGE + 1 }) : [],
   ]);
-  return [
-    ...plans.map(p => ({ type: "INTERVENTION", id: p.id, label: `Learning action v${p.version} · ${p.status}` })),
-    ...reports.map(r => ({ type: "REPORT_CARD", id: r.id, label: `Report card · ${r.exam.title} · revision ${r.sourceRevision}` })),
+  const next = (rows: unknown[]) => rows.length > SOURCE_PAGE ? offset + SOURCE_PAGE : null;
+  const items: SourceItem[] = [
+    ...plans.slice(0, SOURCE_PAGE).map(p => ({ type: "INTERVENTION" as const, id: p.id, label: `Learning action v${p.version} · ${p.status}` })),
+    ...reports.slice(0, SOURCE_PAGE).map(r => ({ type: "REPORT_CARD" as const, id: r.id, label: `Report card · ${r.exam.title} · revision ${r.sourceRevision}` })),
   ];
+  const more: Partial<Record<PickerSource, number | null>> = {};
+  if (want("INTERVENTION")) more.INTERVENTION = next(plans);
+  if (want("REPORT_CARD")) more.REPORT_CARD = next(reports);
+  return { items, more };
 }
 
 const frameworkInput = z.object({

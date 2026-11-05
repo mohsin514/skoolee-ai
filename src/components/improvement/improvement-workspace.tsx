@@ -63,16 +63,24 @@ function CriteriaPicker({ criteria, value, onChange, name }: { criteria: Criteri
 
 function EvidenceForm({ view, preset, onDone }: { view: View; preset: string | null; onDone: () => void }) {
   const ui = useUiText();
-  const [sources, setSources] = useState<{ type: string; id: string; label: string }[]>([]);
+  type Source = { type: string; id: string; label: string };
+  // SKAI-1722: a failed load is an error with Try again, not an empty picker; each type loads more past 50.
+  const [sources, setSources] = useState<Source[] | null>(null), [more, setMore] = useState<Record<string, number | null>>({});
+  const [sourceError, setSourceError] = useState(false), [paging, setPaging] = useState<"idle" | "loading" | "failed">("idle");
   const [f, setF] = useState({ criterionIds: preset ? [preset] : [] as string[], sourceType: "INTERVENTION", sourceId: "", title: "", note: "", reviewBy: inDays(180), audience: "STAFF", stance: "SUPPORTS", pupilData: false });
   const [busy, setBusy] = useState(false);
-  useEffect(() => { call("/api/improvement?view=sources").then(setSources).catch(() => setSources([])); }, []);
-  const options = sources.filter(s => s.type === f.sourceType);
+  const loadSources = useCallback(() => { setSourceError(false); call("/api/improvement?view=sources").then((page: { items: Source[]; more: Record<string, number | null> }) => { setSources(page.items); setMore(page.more); setPaging("idle"); }).catch(() => setSourceError(true)); }, []);
+  useEffect(() => { loadSources(); }, [loadSources]);
+  const loadMoreSources = (type: string, offset: number) => { setPaging("loading"); call(`/api/improvement?view=sources&type=${encodeURIComponent(type)}&offset=${offset}`).then((page: { items: Source[]; more: Record<string, number | null> }) => { setSources(current => [...(current ?? []), ...page.items]); setMore(current => ({ ...current, ...page.more })); setPaging("idle"); }).catch(() => setPaging("failed")); };
+  const options = (sources ?? []).filter(s => s.type === f.sourceType);
+  const nextOffset = more[f.sourceType];
   return <div className="space-y-3" data-evidence-form>
     <FormField name="ev-criteria" label={ui("Criteria this evidence supports")}><CriteriaPicker criteria={view.criteria} value={f.criterionIds} onChange={v => setF({ ...f, criterionIds: v })} name="evidence" /></FormField>
     <div className="grid gap-2 sm:grid-cols-2">
       <FormField name="ev-type" label={ui("Source")}><Select value={f.sourceType} onChange={e => setF({ ...f, sourceType: e.target.value, sourceId: "" })} data-evidence-type>{["INTERVENTION", "REPORT_CARD", "DOCUMENT"].map(t => <option key={t} value={t}>{sourceLabel(ui, t)}</option>)}</Select></FormField>
       {f.sourceType !== "DOCUMENT" ? <FormField name="ev-source" label={ui("Record")}><Select value={f.sourceId} onChange={e => setF({ ...f, sourceId: e.target.value })} data-evidence-source><option value="">{ui("Choose the source record")}</option>{options.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</Select></FormField> : null}
+      {f.sourceType !== "DOCUMENT" && sourceError ? <div className="sm:col-span-2"><ErrorState description={ui("Source records could not be loaded.")} onRetry={loadSources} retryLabel={ui("Try again")} /></div> : null}
+      {f.sourceType !== "DOCUMENT" && !sourceError && nextOffset != null ? <div className="flex flex-wrap items-center gap-2 sm:col-span-2" aria-live="polite" data-evidence-more>{paging === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("More records could not be loaded. The list shown is kept.")}</p> : null}<Button type="button" size="sm" variant="outline" disabled={paging === "loading"} aria-busy={paging === "loading"} onClick={() => loadMoreSources(f.sourceType, nextOffset)}>{paging === "loading" ? ui("Loading more records…") : paging === "failed" ? ui("Try again") : ui("Load more records")}</Button></div> : null}
     </div>
     <FormField name="ev-title" label={ui("What this evidence shows")}><Input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} dir="auto" data-evidence-title /></FormField>
     {f.sourceType === "DOCUMENT" ? <FormField name="ev-note" label={ui("Evidence note")} hint={ui("A narrative stays unverified until someone else reviews it.")}><Textarea value={f.note} onChange={e => setF({ ...f, note: e.target.value })} rows={3} dir="auto" data-evidence-note /></FormField> : null}
