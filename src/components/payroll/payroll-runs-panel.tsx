@@ -2,7 +2,8 @@
 
 import { Alert } from "@/components/ui/alert";
 import { ErrorState } from "@/components/ui/error-state";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createLatestRequest } from "@/lib/latest-request";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -86,9 +87,18 @@ export function PayrollRunsPanel({ mode = "prepare", command, hideHeader = false
     }).catch(() => undefined);
   }, []);
 
+  // SKAI-1721: only the newest request for the selected period may write state; older month/year responses are ignored.
+  const periodRequest = useRef(createLatestRequest<string>());
   const load = useCallback(async () => {
-    try { setData(await call(`/api/payroll/runs?year=${period.year}&month=${period.month}`)); setError(null); }
-    catch (e) { setData(null); setError(ui((e as Error).message)); }
+    const key = `${period.year}-${period.month}`, token = periodRequest.current.begin(key);
+    try {
+      const next = await call(`/api/payroll/runs?year=${period.year}&month=${period.month}`);
+      if (!periodRequest.current.isCurrent(token, key)) return;
+      setData(next); setError(null);
+    } catch (e) {
+      if (!periodRequest.current.isCurrent(token, key)) return;
+      setData(null); setError(ui((e as Error).message));
+    }
   }, [period, ui]);
   useEffect(() => { void load(); }, [load]);
   const post = async (body: object, success: string) => {
