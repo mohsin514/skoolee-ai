@@ -228,8 +228,11 @@ export async function createBridge(user: AuthUser, raw: unknown) {
     requireRights(row, "objectives");
     if (row.version !== input.version) throw new ApiError("This transfer changed. Reload it.", 409);
     if (!row.destinationRecordId) throw new ApiError("Choose the destination curriculum first.", 409);
-    const mappings = await tx.learningTransferMapping.findMany({ where: { caseId: row.id, schoolId: user.schoolId } });
-    if (mappings.some(m => m.decision === "PROPOSED" || m.stale)) throw new ApiError("Review every mapping against the current source before planning.", 409);
+    // SKAI-1751: a corrected re-import can drop an objective; its old mapping stays stale but is no longer in
+    // the evidence (so the workbench never shows it). Only objectives in the current source count, and each must have a reviewed mapping.
+    const evidenceIds = new Set((row.evidence as Evidence).objectives.map(o => o.id));
+    const mappings = (await tx.learningTransferMapping.findMany({ where: { caseId: row.id, schoolId: user.schoolId } })).filter(m => evidenceIds.has(m.sourceObjectiveId));
+    if (mappings.length < evidenceIds.size || mappings.some(m => m.decision === "PROPOSED" || m.stale)) throw new ApiError("Review every mapping against the current source before planning.", 409);
     const record = await tx.schoolAiRecord.findFirstOrThrow({ where: { id: row.destinationRecordId, schoolId: user.schoolId }, select: { title: true, version: true, data: true } });
     if (record.version !== row.destinationVersion) throw new ApiError("The destination curriculum has a newer version. Review against it first.", 409);
     const outcomes = curriculumDataSchema.parse(record.data).outcomes.filter(o => o.included);
