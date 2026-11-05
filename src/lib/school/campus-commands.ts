@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Prisma, type Campus } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { withoutAutoAudit } from "@/lib/db/audit-trail";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { defaultBoardFor } from "@/config/boards";
 import { schoolCountry } from "@/lib/school/country";
@@ -253,7 +254,8 @@ export async function updateCampusDetailsCommand(session: AuthUser, input: Campu
     };
     const diff = diffOf(current as unknown as Record<string, unknown>, data);
     if (!Object.keys(diff).length) return { campus: current, changed: [] as string[] };
-    const campus = await tx.campus.update({ where: { id: campusId }, data });
+    // The DETAILS row below is the one audit entry for this save (changed fields only, before and after).
+    const campus = await withoutAutoAudit(() => tx.campus.update({ where: { id: campusId }, data }));
     await tx.auditLog.create({ data: { schoolId: session.schoolId, campusId, tableName: "campus", recordId: campusId, userId: session.userId, oldValue: { kind: "DETAILS", fields: AUDIT_FIELDS(diff, "from") } as Prisma.InputJsonValue, newValue: { kind: "DETAILS", fields: AUDIT_FIELDS(diff, "to") } as Prisma.InputJsonValue } });
     return { campus, changed: Object.keys(diff) };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
