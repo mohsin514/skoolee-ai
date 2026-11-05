@@ -174,10 +174,15 @@ export function FormField({
         "data-form-field-control": "",
         // A compound wrapper owns a nested control; leaving the id off the
         // wrapper keeps the server HTML free of duplicate ids.
-        ...(compound ? null : { id: fieldId }),
-        "aria-invalid": error ? true : control.props["aria-invalid"],
-        "aria-required": required || control.props["aria-required"],
-        "aria-describedby": describedBy(control.props["aria-describedby"], guidanceId, error ? errorId : undefined, control.props.id ?? `field-${name}`),
+        // ARIA field state is not allowed on a wrapper <div> (axe
+        // aria-allowed-attr, SKAI-1003); the layout effect puts it on the
+        // nested input instead.
+        ...(compound ? null : {
+          id: fieldId,
+          "aria-invalid": error ? true : control.props["aria-invalid"],
+          "aria-required": required || control.props["aria-required"],
+          "aria-describedby": describedBy(control.props["aria-describedby"], guidanceId, error ? errorId : undefined, control.props.id ?? `field-${name}`),
+        }),
       }) : children}
 
       {error ? (
