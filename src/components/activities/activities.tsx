@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -51,7 +51,17 @@ export function FamilyActivities({ studentId }: { studentId: string }) {
   // Giving up a place cannot be undone by the family (the next family may take it), so it is confirmed first (role-ux R3).
   const [releasing, setReleasing] = useState<{ kind: "withdraw" | "decline"; activity: FamilyActivity } | null>(null);
   // SKAI-1379: only an authorization or missing-record answer hides the panel; other failures can be retried.
-  const load = useCallback(async () => { try { setData(await call(`/api/family/activities?studentId=${encodeURIComponent(studentId)}`)); setFailed(false); } catch (error) { const status = (error as { status?: number }).status; if (status === 401 || status === 403 || status === 404) setDenied(true); else setFailed(true); } }, [studentId]);
+  // SKAI-1705: the server pages 50 at a time; "Show more" follows nextCursor. A reload bumps `req`, so a page that
+  // answers after it is dropped; a failed page keeps the rows already shown.
+  const req = useRef(0), [more, setMore] = useState<{ cursor: string | null; loading: boolean; failed: boolean }>({ cursor: null, loading: false, failed: false });
+  const url = (cursor?: string) => `/api/family/activities?studentId=${encodeURIComponent(studentId)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+  const loadMore = async () => {
+    const cursor = more.cursor, id = req.current; if (!cursor) return;
+    setMore(m => ({ ...m, loading: true, failed: false }));
+    try { const page = await call(url(cursor)) as { activities: FamilyActivity[]; nextCursor: string | null }; if (id !== req.current) return; setData(d => d && { ...d, activities: [...d.activities, ...page.activities.filter(a => !d.activities.some(x => x.id === a.id))] }); setMore({ cursor: page.nextCursor ?? null, loading: false, failed: false }); }
+    catch { if (id === req.current) setMore(m => ({ ...m, loading: false, failed: true })); }
+  };
+  const load = useCallback(async () => { const id = ++req.current; try { const first = await call(`/api/family/activities?studentId=${encodeURIComponent(studentId)}`); if (id !== req.current) return; setData(first); setMore({ cursor: first.nextCursor ?? null, loading: false, failed: false }); setFailed(false); } catch (error) { const status = (error as { status?: number }).status; if (status === 401 || status === 403 || status === 404) setDenied(true); else setFailed(true); } }, [studentId]);
   useEffect(() => { void load(); }, [load]);
   const run = async (body: Record<string, unknown>, done: string | ((r: { status?: string }) => string)) => { setBusy(true); try { const r = await call("/api/family/activities", "POST", body); toast.success(ui(typeof done === "function" ? done(r ?? {}) : done)); await load(); return r; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); await load(); return null; } finally { setBusy(false); } };
   if (denied) return null;
@@ -74,6 +84,8 @@ export function FamilyActivities({ studentId }: { studentId: string }) {
           {a.place && ["WAITLIST", "RESERVED", "CONFIRMED"].includes(a.place.status) ? <Button size="sm" variant="outline" disabled={busy} onClick={() => setReleasing({ kind: "withdraw", activity: a })} data-activity-withdraw>{ui("Withdraw")}</Button> : null}
         </div></div>
     </li>)}</ul>}
+    {more.failed ? <p role="alert" className="text-sm text-status-danger-text">{ui("More activities could not be loaded. Try again.")}</p> : null}
+    {more.cursor ? <Button size="sm" variant="outline" loading={more.loading} onClick={() => void loadMore()} data-activity-more>{ui(more.failed ? "Try again" : "Show more activities")}</Button> : null}
     <ConfirmAction
       open={Boolean(releasing)}
       busy={busy}
@@ -184,7 +196,8 @@ export function ActivitiesDesk() {
         </li>;
       })}</ul>
       <div className="space-y-2" data-activity-sessions><p className="sk-eyebrow">{ui("Sessions")}</p>
-        {roster.sessions.map(s => <div key={s.id} className="rounded-(--radius-control-small) border border-border-subtle bg-surface-subtle p-2.5" data-session={s.id}><p className="text-xs font-bold"><bdi>{dateTime(s.startsAt)}</bdi></p><div className="mt-1 flex flex-wrap gap-2">{roster.places.filter(p => p.status === "CONFIRMED").map(p => { const seen = s.marks.find(m => m.studentId === p.studentId), mark = seen?.status; return <span key={p.id} className="flex items-center gap-1 text-xs"><bdi>{p.name}</bdi>{running ? ["PRESENT", "ABSENT"].map(st => <Button key={st} size="sm" variant={mark === st ? "default" : "outline"} disabled={busy} aria-pressed={mark === st} onClick={() => void act({ action: "attend", sessionId: s.id, studentId: p.studentId, status: st, expectedMarkedAt: seen?.markedAt ?? null }, "Attendance saved.")} data-attend={st}>{st === "PRESENT" ? ui("Present") : ui("Absent")}</Button>) : <span className="text-ink-muted">{mark === "PRESENT" ? ui("Present") : mark === "ABSENT" ? ui("Absent") : "—"}</span>}</span>; })}</div></div>)}
+        {/* SKAI-1785: a saved mark stays readable after the place ends; only confirmed learners can still be marked. */}
+        {roster.sessions.map(s => <div key={s.id} className="rounded-(--radius-control-small) border border-border-subtle bg-surface-subtle p-2.5" data-session={s.id}><p className="text-xs font-bold"><bdi>{dateTime(s.startsAt)}</bdi></p><div className="mt-1 flex flex-wrap gap-2">{roster.places.filter(p => p.status === "CONFIRMED" || s.marks.some(m => m.studentId === p.studentId)).map(p => { const seen = s.marks.find(m => m.studentId === p.studentId), mark = seen?.status; return <span key={p.id} className="flex items-center gap-1 text-xs" data-session-learner={p.studentId}><bdi>{p.name}</bdi>{running && p.status === "CONFIRMED" ? ["PRESENT", "ABSENT"].map(st => <Button key={st} size="sm" variant={mark === st ? "default" : "outline"} disabled={busy} aria-pressed={mark === st} onClick={() => void act({ action: "attend", sessionId: s.id, studentId: p.studentId, status: st, expectedMarkedAt: seen?.markedAt ?? null }, "Attendance saved.")} data-attend={st}>{st === "PRESENT" ? ui("Present") : ui("Absent")}</Button>) : <span className="text-ink-muted">{mark === "PRESENT" ? ui("Present") : mark === "ABSENT" ? ui("Absent") : "—"}</span>}</span>; })}</div></div>)}
         {running ? <Button size="sm" variant="outline" loading={busy} onClick={() => void act({ action: "session", activityId: roster.activity.id, startsAt: roster.activity.startsAt, endsAt: new Date(new Date(roster.activity.startsAt).getTime() + 3_600_000).toISOString() }, "Session added.")} data-session-add>{ui("Add a session")}</Button> : null}
       </div>
       {lead && running && roster.activity.status !== "CANCELLED" ? <div className="flex justify-start border-t border-border-subtle pt-3"><Button size="sm" variant="outline" className="text-destructive" disabled={busy} onClick={() => setConfirming({ kind: "cancel-activity", id: roster.activity.id, title: roster.activity.title })} data-activity-cancel>{ui("Cancel activity")}</Button></div> : null}

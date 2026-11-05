@@ -34,8 +34,8 @@ export interface ScheduleRow {
 
 type Ui = (source: string, values?: unknown[]) => string;
 
-function relativeLabel(date: string, ui: Ui): { text: string; tone: "past" | "today" | "soon" | "future" } {
-  const days = daysFromToday(date);
+function relativeLabel(date: string, ui: Ui, timeZone?: string): { text: string; tone: "past" | "today" | "soon" | "future" } {
+  const days = daysFromToday(date, timeZone);
   if (days === 0) return { text: ui("Today"), tone: "today" };
   if (days === 1) return { text: ui("Tomorrow"), tone: "soon" };
   if (days < 0) return { text: ui(days === -1 ? "{0} day ago" : "{0} days ago", [Math.abs(days)]), tone: "past" };
@@ -67,7 +67,7 @@ export function ExamTimelineView({
   onOpen: (examId: string, tab?: DetailTab) => void;
 }) {
   const ui = useUiText();
-  const { language } = useLocale();
+  const { language, timezone } = useLocale();
   const days = useMemo(() => {
     const grouped = new Map<string, ScheduleRow[]>();
     rows.forEach((r) => {
@@ -100,7 +100,7 @@ export function ExamTimelineView({
   return (
     <div className="space-y-4">
       {days.map(({ date, papers }) => {
-        const rel = relativeLabel(date, ui);
+        const rel = relativeLabel(date, ui, timezone);
         return (
           <section
             key={date}
