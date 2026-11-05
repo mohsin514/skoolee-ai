@@ -10308,7 +10308,8 @@ model AiSetupResponse {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  @@unique([schoolId, userId, questionnaireKey])
+  /// SKAI-1730: one response per campus, so a transferred user starts fresh and old-campus history is kept.
+  @@unique([schoolId, userId, questionnaireKey, campusId])
   @@map("ai_setup_responses")
 }
 
