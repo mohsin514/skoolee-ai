@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { EmptyState } from "@/components/ui/empty-state";
+import { isApiOk } from "@/lib/api/envelope-client";
 import { IconButton } from "@/components/ui/icon-button";
 import { Input as SystemInput } from "@/components/ui/input";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
@@ -341,7 +342,7 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
       if (campusId) sp.set("campusId", campusId);
       const res = await fetch(`/api/academic/rooms?${sp.toString()}`, { method: "DELETE" });
       const json = await res.json();
-      if (json.success) setRooms((r) => r.filter((x) => x.id !== id));
+      if (res.ok && isApiOk(json)) setRooms((r) => r.filter((x) => x.id !== id));
     } catch { toast.error(ui("The room could not be removed")); }
   };
 

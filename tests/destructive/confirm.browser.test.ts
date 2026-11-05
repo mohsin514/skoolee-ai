@@ -109,7 +109,7 @@ test("permission revoked after review denies direct API confirmation and preserv
   assert.equal((await ctx.request.delete(endpoint)).status(), 428);
   const preview = await (await ctx.request.delete(endpoint + "&preview=true")).json();
   await db.rolePermission.create({ data: { schoolId, role: "LIBRARIAN", module: "library", canView: true, canAdd: true, canEdit: true, canDelete: false } });
-  assert.equal((await ctx.request.delete(endpoint, { headers: { "If-Match": preview.preview.version } })).status(), 403);
+  assert.equal((await ctx.request.delete(endpoint, { headers: { "If-Match": preview.data.preview.version } })).status(), 403);
   await db.rolePermission.deleteMany({ where: { schoolId, role: "LIBRARIAN" } });
   const denied = await context("teacher");
   assert.equal((await denied.request.delete(endpoint + "&preview=true")).status(), 403);
