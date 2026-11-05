@@ -226,12 +226,20 @@ export interface ListOptions {
   filter?: "all" | "unread" | "archived";
   query?: string;
   limit?: number;
+  /** SKAI-1696: the membership id the previous page ended on. */
+  cursor?: string;
 }
 
-export async function listConversations(
+export async function listConversations(user: AuthUser, options: ListOptions = {}): Promise<ConversationView[]> {
+  return (await listConversationsPage(user, options)).conversations;
+}
+
+// SKAI-1696: keyset-paged so conversations beyond the first page stay reachable. Each page re-runs the
+// membership filter and the current-access check.
+export async function listConversationsPage(
   user: AuthUser,
   options: ListOptions = {}
-): Promise<ConversationView[]> {
+): Promise<{ conversations: ConversationView[]; nextCursor: string | null }> {
   const limit = boundedInteger(String(options.limit ?? 50), 50, 100);
   const archived = options.filter === "archived";
 
@@ -259,14 +267,18 @@ export async function listConversations(
           }
         : {}),
     },
-    select: { conversationId: true },
-    orderBy: [{ isPinned: "desc" }, { conversation: { lastMessageAt: "desc" } }, { conversationId: "asc" }],
-    take: limit,
+    select: { id: true, conversationId: true },
+    orderBy: [{ isPinned: "desc" }, { conversation: { lastMessageAt: "desc" } }, { conversationId: "asc" }, { id: "asc" }],
+    take: limit + 1,
+    ...(options.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
   });
 
-  if (memberships.length === 0) return [];
+  const hasMore = memberships.length > limit;
+  const page = hasMore ? memberships.slice(0, limit) : memberships;
+  const nextCursor = hasMore ? (page[page.length - 1]?.id ?? null) : null;
+  if (page.length === 0) return { conversations: [], nextCursor: null };
 
-  const ids = memberships.map((m) => m.conversationId);
+  const ids = page.map((m) => m.conversationId);
   const rows = await prisma.conversation.findMany({
     where: { id: { in: ids } },
     include: conversationInclude,
@@ -286,7 +298,7 @@ export async function listConversations(
     ordered.flatMap((r) => r.members.map((m) => m.userId)).filter((id) => id !== user.userId)
   );
 
-  return ordered.map((r) => serialiseConversation(r, user.userId, user.role, online));
+  return { conversations: ordered.map((r) => serialiseConversation(r, user.userId, user.role, online)), nextCursor };
 }
 
 export async function getConversation(

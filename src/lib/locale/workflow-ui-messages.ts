@@ -758,6 +758,8 @@ const entries: [string, string, string][] = [
 ["Transfer: a fresh, unseen task", "نقل: مهمة جديدة لم تُرَ من قبل", "منتقلی: ایک نیا، نہ دیکھا ہوا کام"],
 ["Transfer", "نقل", "منتقلی"],
 ["Retrieval, not transfer evidence", "استرجاع، وليس دليلًا على النقل", "بازیافت، منتقلی کا ثبوت نہیں"],
+["Show older conversations", "عرض المحادثات الأقدم", "پرانی گفتگوئیں دکھائیں"],
+["Older conversations could not be loaded.", "تعذّر تحميل المحادثات الأقدم.", "پرانی گفتگوئیں لوڈ نہیں ہو سکیں۔"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));
