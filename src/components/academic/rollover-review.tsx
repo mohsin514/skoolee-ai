@@ -31,7 +31,7 @@ type Plan = { id: string; version: number; status: string; effectiveDate: string
 type Money = { currency: string; minor: number };
 type History = { attendance: number; reports: number; invoices: number };
 type View = {
-  years: number[]; sourceYear: number; destinationYear: number; readiness: Readiness; sourceClasses: { id: string; label: string }[]; destinations: Destination[];
+  today?: string; years: number[]; sourceYear: number; destinationYear: number; readiness: Readiness; sourceClasses: { id: string; label: string }[]; destinations: Destination[];
   eligible: number; plan: Plan | null; blockers?: { kind: string; text: string }[]; needsDecision?: number; withIssues?: number;
   counts?: { decisions: Record<string, number>; execution: Record<string, number> }; learners?: Learner[];
   reconciliation?: { baseline: { learners: number; balances: Money[]; history: History }; now: { balances: Money[]; history: History }; learners: number; accounted: number; clean: boolean } | null;
@@ -83,7 +83,7 @@ export function RolloverReview({ campusId, mode = "operate", hideApprove = false
   const [effectiveDate, setEffectiveDate] = useState(todayText()), [busy, setBusy] = useState(""), [filter, setFilter] = useState("attention");
   const [selected, setSelected] = useState<Set<string>>(new Set()), [bulkDecision, setBulkDecision] = useState("RETAIN"), [bulkReason, setBulkReason] = useState("");
   const [batchSize, setBatchSize] = useState("50"), [correcting, setCorrecting] = useState<string | null>(null), [correction, setCorrection] = useState({ reason: "", date: todayText() });
-  const request = useRef(0);
+  const request = useRef(0), dateTouched = useRef(false);
 
   const load = useCallback(async () => {
     const ticket = ++request.current;
@@ -93,7 +93,10 @@ export function RolloverReview({ campusId, mode = "operate", hideApprove = false
     if (ticket !== request.current) return;
     if (!response?.ok || !json?.success) { setError(ui(json?.error || "The rollover plan could not be loaded.")); return; }
     setView(json.data);
+    // SKAI-1413: default dates to the campus calendar day the server gates on, not the device's.
     if (json.data.plan) setEffectiveDate(json.data.plan.effectiveDate);
+    else if (json.data.today && !dateTouched.current) setEffectiveDate(json.data.today);
+    if (json.data.today) setCorrection(current => current.reason ? current : { ...current, date: json.data.today });
   }, [scope, year, ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
 
@@ -181,7 +184,7 @@ export function RolloverReview({ campusId, mode = "operate", hideApprove = false
           <FormField name="rollover-source-year" label={ui("Source year")}><Select value={String(view.sourceYear)} onChange={event => { setYear(Number(event.target.value)); setSelected(new Set()); }}>{view.years.map(y => <option key={y} value={y}>{y}</option>)}</Select></FormField>
           <p className="pb-2 text-sm font-bold" data-destination-year>{ui("Destination year")}: {view.destinationYear}</p>
           {operate ? <>
-            <FormField name="rollover-effective-date" label={ui("Effective date")}><Input type="date" value={effectiveDate} onChange={event => setEffectiveDate(event.target.value)} /></FormField>
+            <FormField name="rollover-effective-date" label={ui("Effective date")}><Input type="date" value={effectiveDate} onChange={event => { dateTouched.current = true; setEffectiveDate(event.target.value); }} /></FormField>
             {hidePrepare ? null : <Button disabled={!!busy} onClick={() => void post("prepare", { action: "prepare", sourceYear: view.sourceYear, effectiveDate }, plan ? ui("Plan refreshed.") : ui("Plan draft created."))}>{busy === "prepare" ? ui("Preparing…") : plan ? ui("Refresh plan") : ui("Prepare plan")}</Button>}
           </> : plan ? <p className="pb-2 text-sm font-bold">{ui("Effective date")}: <bdi>{plan.effectiveDate}</bdi></p> : null}
         </div>
