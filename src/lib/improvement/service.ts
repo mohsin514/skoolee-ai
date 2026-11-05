@@ -392,18 +392,36 @@ export async function grantReviewer(user: AuthUser, raw: unknown) {
   assert(await prisma.user.count({ where: { id: input.userId, schoolId: user.schoolId, isActive: true, role: { notIn: NOT_STAFF as never } } }), "Reviewer not found", 404);
   const expiresAt = new Date(`${input.expiresAt}T23:59:59Z`);
   assert(expiresAt > new Date(), "Choose a future expiry date.", 400);
-  const grant = await prisma.evidenceReviewerGrant.create({ data: { schoolId: user.schoolId, frameworkId: fw.id, userId: input.userId, criterionIds: input.criterionIds, expiresAt, grantedById: user.userId } });
-  await writeAuditEvent(prisma, user, { table: "evidence_reviewer_grants", recordId: grant.id, action: "GRANT", after: { userId: input.userId, criteria: input.criterionIds.length, expiresAt: input.expiresAt } });
-  return grant;
+  // SKAI-1727: a retry or double submit of the same reviewer, framework, criteria and expiry returns the active grant
+  // instead of adding a second row; a partial unique index backs this up against a concurrent insert.
+  const criterionIds = [...new Set(input.criterionIds)].sort();
+  const scope = { schoolId: user.schoolId, frameworkId: fw.id, userId: input.userId, criterionIds: { equals: criterionIds }, expiresAt, revokedAt: null };
+  const existing = await prisma.evidenceReviewerGrant.findFirst({ where: scope });
+  if (existing) return existing;
+  try {
+    return await prisma.$transaction(async tx => {
+      const grant = await tx.evidenceReviewerGrant.create({ data: { schoolId: user.schoolId, frameworkId: fw.id, userId: input.userId, criterionIds, expiresAt, grantedById: user.userId } });
+      await writeAuditEvent(tx, user, { table: "evidence_reviewer_grants", recordId: grant.id, action: "GRANT", after: { userId: input.userId, criteria: criterionIds.length, expiresAt: input.expiresAt } });
+      return grant;
+    });
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+    const winner = await prisma.evidenceReviewerGrant.findFirst({ where: scope });
+    if (!winner) throw error;
+    return winner;
+  }
 }
 
 export async function revokeReviewer(user: AuthUser, id: string) {
   assert(isLead(user), "Only school leaders revoke reviewer access.");
   const grant = await prisma.evidenceReviewerGrant.findFirst({ where: { id, schoolId: user.schoolId, revokedAt: null } });
   if (!grant) throw new ApiError("Grant not found", 404);
-  await prisma.evidenceReviewerGrant.update({ where: { id }, data: { revokedAt: new Date() } });
-  await writeAuditEvent(prisma, user, { table: "evidence_reviewer_grants", recordId: id, action: "REVOKE", after: { userId: grant.userId } });
-  return { id, revoked: true };
+  // SKAI-1727: revoking ends every active grant this reviewer holds on the framework, so no duplicate keeps access.
+  return prisma.$transaction(async tx => {
+    const ended = await tx.evidenceReviewerGrant.updateMany({ where: { schoolId: user.schoolId, frameworkId: grant.frameworkId, userId: grant.userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    await writeAuditEvent(tx, user, { table: "evidence_reviewer_grants", recordId: id, action: "REVOKE", after: { userId: grant.userId, grantsEnded: ended.count } });
+    return { id, revoked: true, grantsEnded: ended.count };
+  });
 }
 
 function packCriteria(manifest: unknown) { return ((manifest as { criteria?: { id: string }[] }).criteria ?? []).map(c => c.id); }
