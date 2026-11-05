@@ -758,6 +758,8 @@ const entries: [string, string, string][] = [
 ["Transfer: a fresh, unseen task", "نقل: مهمة جديدة لم تُرَ من قبل", "منتقلی: ایک نیا، نہ دیکھا ہوا کام"],
 ["Transfer", "نقل", "منتقلی"],
 ["Retrieval, not transfer evidence", "استرجاع، وليس دليلًا على النقل", "بازیافت، منتقلی کا ثبوت نہیں"],
+["Show older notifications", "عرض الإشعارات الأقدم", "پرانی اطلاعات دکھائیں"],
+["Older notifications could not be loaded.", "تعذّر تحميل الإشعارات الأقدم.", "پرانی اطلاعات لوڈ نہیں ہو سکیں۔"],
 ["Show older meetings", "عرض الاجتماعات الأقدم", "پرانی ملاقاتیں دکھائیں"],
 ["Older meetings could not be loaded. Try again.", "تعذّر تحميل الاجتماعات الأقدم. حاول مرة أخرى.", "پرانی ملاقاتیں لوڈ نہیں ہو سکیں۔ دوبارہ کوشش کریں۔"],
 ["That's the full meeting history.", "هذا هو سجل الاجتماعات كاملًا.", "یہ ملاقاتوں کی مکمل تاریخ ہے۔"],
