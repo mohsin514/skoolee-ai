@@ -12,7 +12,7 @@ import { runNotificationAutomationSweep } from "@/lib/notifications/automation";
 import { announcementHistoryRestriction } from "@/lib/school-ai/announcement-history";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
-import { deliveryState } from "@/lib/notifications/delivery-state";
+import { coarseDeliveryState, deliveryState } from "@/lib/notifications/delivery-state";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,10 +88,11 @@ export async function GET(req: NextRequest) {
     return Response.json({
       success: true,
       scope: academicOnly ? "academic" : "office",
-      communications: communications.map(({ deliveryReceipts, ...row }) => ({
-        ...row,
-        delivery: deliveryState({ ...row, receiptStates: deliveryReceipts.map((item) => item.state) }),
-      })),
+      communications: communications.map(({ deliveryReceipts, ...row }) => {
+        const state = deliveryState({ ...row, receiptStates: deliveryReceipts.map((item) => item.state) });
+        // SKAI-800: `deliveryState` carries OPENED; `delivery` keeps the existing log label.
+        return { ...row, delivery: coarseDeliveryState(state), deliveryState: state };
+      }),
       summary: summary.reduce<Record<string, number>>((acc, item) => {
         acc[item.status] = item._count._all;
         return acc;

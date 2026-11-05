@@ -5,9 +5,14 @@
  * "Unknown" is a WhatsApp message the provider accepted but never confirmed within a day: it may or
  * may not have arrived, and the office should not read it as delivered. Email and SMS have no
  * receipts here, so an accepted message stays "sent".
+ *
+ * SKAI-800 (F2-FR-06): "opened" is its own state. A WhatsApp "read" receipt, or a digest the
+ * guardian has seen (`seenAt`), is OPENED, never folded into DELIVERED. "Action completed" is not
+ * a delivery state: it must come from the source workflow (a paid fee, a signed slip), so nothing
+ * here ever infers it from a receipt.
  */
 
-export type DeliveryState = "QUEUED" | "SENT" | "DELIVERED" | "FAILED" | "UNKNOWN" | "NO_RECIPIENT" | "BLOCKED";
+export type DeliveryState = "QUEUED" | "SENT" | "DELIVERED" | "OPENED" | "FAILED" | "UNKNOWN" | "NO_RECIPIENT" | "BLOCKED";
 
 export const RECEIPT_WAIT_MS = 24 * 60 * 60 * 1000;
 
@@ -17,10 +22,23 @@ export function deliveryState(
 ): DeliveryState {
   const receipts = row.receiptStates ?? [];
   if (receipts.includes("failed")) return "FAILED";
-  if (receipts.includes("read") || receipts.includes("delivered")) return "DELIVERED";
+  if (receipts.includes("read")) return "OPENED";
+  if (receipts.includes("delivered")) return "DELIVERED";
   if (row.status === "FAILED") return "FAILED";
   if (row.status === "NO_RECIPIENT" || row.status === "BLOCKED") return row.status;
   if (row.status !== "SENT") return "QUEUED";
   if (row.channel !== "WHATSAPP" || !row.sentAt) return "SENT";
   return now.getTime() - new Date(row.sentAt).getTime() > RECEIPT_WAIT_MS ? "UNKNOWN" : "SENT";
+}
+
+/** Office logs that only know delivered-or-not keep showing a read message as delivered. */
+export function coarseDeliveryState(state: DeliveryState): Exclude<DeliveryState, "OPENED"> {
+  return state === "OPENED" ? "DELIVERED" : state;
+}
+
+/** In-app digest deliveries: SENT or BLOCKED, and OPENED once the guardian has seen it. */
+export function digestDeliveryState(row: { status: string; seenAt?: Date | string | null }): DeliveryState {
+  if (row.status === "BLOCKED") return "BLOCKED";
+  if (row.status !== "SENT") return "QUEUED";
+  return row.seenAt ? "OPENED" : "DELIVERED";
 }
