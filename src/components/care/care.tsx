@@ -23,7 +23,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
-import { RequestFailure } from "@/lib/http/request-state";
+import { RequestFailure, requestFailure } from "@/lib/http/request-state";
 
 /** `?tab=report` is the Help menu's "Record a concern" deep link (role-ux §4.2); other tabs open by id. */
 function careTabFromUrl(): string | null {
@@ -391,17 +391,29 @@ function SafeguardingWorkspace() {
 
 // ─── Lead oversight ──────────────────────────────────────────────────────
 
+type OversightData = { grants: { id: string; user: string; studentName: string; purpose: string; createdAt: string; expiresAt: string; revokedAt: string | null; live: boolean; uses: number; reviewedAt: string | null; reviewedBy: string | null; reviewNote: string | null }[]; logs: { id: string; actor: string; action: string; recordType: string; emergency: boolean; createdAt: string }[] };
+
 function Oversight({ domain }: { domain: Domain }) {
+  const [data, setData] = useState<OversightData | null>(null), [failure, setFailure] = useState<RequestFailure | null>(null);
+  // SKAI-1697: a failed load keeps the last known rows and shows a retryable error instead of hiding the panel.
+  const load = useCallback(() => call(`/api/care?view=oversight&domain=${domain}`).then((next: OversightData) => { setData(next); setFailure(null); }).catch((e: unknown) => setFailure(e instanceof AccessError ? new RequestFailure("denied") : requestFailure(e))), [domain]);
+  useEffect(() => { setData(null); setFailure(null); void load(); }, [load]);
+  return <OversightPanel domain={domain} data={data} failure={failure} reload={load} />;
+}
+
+export function OversightPanel({ domain, data, failure, reload }: { domain: Domain; data: OversightData | null; failure: RequestFailure | null; reload: () => Promise<unknown> }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
-  const [data, setData] = useState<{ grants: { id: string; user: string; studentName: string; purpose: string; createdAt: string; expiresAt: string; revokedAt: string | null; live: boolean; uses: number; reviewedAt: string | null; reviewedBy: string | null; reviewNote: string | null }[]; logs: { id: string; actor: string; action: string; recordType: string; emergency: boolean; createdAt: string }[] } | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({}), [busy, setBusy] = useState(false);
-  const load = useCallback(() => call(`/api/care?view=oversight&domain=${domain}`).then(setData).catch(() => setData(null)), [domain]);
-  useEffect(() => { void load(); }, [load]);
-  if (!data) return null;
-  const review = async (id: string) => { setBusy(true); try { await call("/api/care", "POST", { action: "review-emergency", id, note: notes[id] }); toast.success(ui("Review recorded.")); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
-  return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-oversight={domain}>
+  const failed = failure ? <ErrorState error={failure} variant="panel" onRetry={reload} /> : null;
+  if (!data) return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-oversight={domain} data-oversight-state={failure ? "failure" : "loading"}>
     <h2 className="text-base font-bold text-ink-strong">{ui("Access review · {0}", [domainLabel(ui, domain)])}</h2>
+    {failed ?? <SkeletonList />}
+  </section>;
+  const review = async (id: string) => { setBusy(true); try { await call("/api/care", "POST", { action: "review-emergency", id, note: notes[id] }); toast.success(ui("Review recorded.")); await reload(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
+  return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-oversight={domain} data-oversight-state={failure ? "stale" : "ready"}>
+    <h2 className="text-base font-bold text-ink-strong">{ui("Access review · {0}", [domainLabel(ui, domain)])}</h2>
+    {failed}
     <h3 className="text-base font-semibold text-ink-strong">{ui("Emergency access")}</h3>
     {data.grants.length ? <ul className="space-y-2">{data.grants.map(g => <li key={g.id} className={cn(deskRow, "space-y-1 text-sm")} data-tone={g.reviewedAt ? "muted" : g.live ? "danger" : "warning"} data-emergency-grant={g.id} data-reviewed={!!g.reviewedAt}>
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1"><DeskPill tone={g.live ? "danger" : g.reviewedAt ? "success" : "warning"}>{g.live ? ui("Active") : g.revokedAt ? ui("Revoked") : ui("Expired")}</DeskPill><bdi className="font-semibold text-ink-strong">{g.user}</bdi> · <bdi>{g.studentName}</bdi> · <span dir="auto">{g.purpose}</span></p>
