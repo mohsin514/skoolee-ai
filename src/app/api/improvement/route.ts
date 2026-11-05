@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     switch (p.get("view") ?? "workspace") {
       case "workspace": return ok(await evidence.workspace(user, p.get("frameworkId")));
       case "staff": return ok(await evidence.staff(user));
-      case "sources": return ok(await evidence.sources(user));
+      case "sources": return ok(await evidence.sources(user, p.get("type"), evidence.sourceOffset(p.get("offset"))));
       case "source": return ok(await evidence.openSource(user, p.get("itemId") ?? ""));
       case "pack": return ok(await evidence.downloadPack(user, p.get("id") ?? ""));
       default: throw new ApiError("Unknown view", 400);
