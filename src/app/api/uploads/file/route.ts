@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { authorizePrivateUpload, readPrivateUploadBody, verifyPrivateUploadIntent } from "@/lib/storage/private-upload";
 import { uploadPrivateObject } from "@/lib/storage/s3";
+import { matchesFileSignature } from "@/lib/storage/file-signature";
 import { SESSION_COOKIE_NAME, hashSessionToken } from "@/lib/auth/session-cookie";
 import { checkRevocation } from "@/lib/auth/session-revocation";
 
@@ -16,6 +17,7 @@ export async function PUT(request: NextRequest) {
     await authorizePrivateUpload(user, intent);
     if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== intent.contentType) throw new ApiError("The file type changed. Choose the file again.", 400);
     const bytes = await readPrivateUploadBody(request, intent.sizeBytes);
+    if (!matchesFileSignature(intent.contentType, bytes, { strictText: true })) throw new ApiError("The file content does not match its type. Choose a genuine file of that type.", 415);
     // Permissions or membership may have changed while a slow connection sent the file.
     // Bypass the render/request memo: logout during receipt must also stop the write.
     const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;

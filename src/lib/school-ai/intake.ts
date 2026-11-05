@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { matchesFileSignature } from "@/lib/storage/file-signature";
 
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 export const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
@@ -17,12 +18,7 @@ export function validateDocument(fileName: string, mimeType: string, bytes: Uint
   const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
   if (!mimeExtensions[mime]?.includes(ext)) throw new Error("Use a PDF, JPEG, PNG, WebP, text or CSV file.");
   if (!bytes.length || bytes.length > MAX_DOCUMENT_BYTES) throw new Error("Documents must be between 1 byte and 10 MB.");
-  const head = new TextDecoder("latin1").decode(bytes.slice(0, 16));
-  const valid = mime === "application/pdf" ? head.startsWith("%PDF-")
-    : mime === "image/jpeg" ? bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
-    : mime === "image/png" ? [137,80,78,71,13,10,26,10].every((n, i) => bytes[i] === n)
-    : mime === "image/webp" ? head.startsWith("RIFF") && head.slice(8, 12) === "WEBP"
-    : !bytes.includes(0);
+  const valid = matchesFileSignature(mime, bytes);
   if (!valid) throw new Error("The file content does not match its format.");
   return mime;
 }
