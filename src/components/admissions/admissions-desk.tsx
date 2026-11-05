@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlarmClock, BadgeCheck, CircleDashed, ClipboardList, Copy, FileText, Globe2, Hourglass, Inbox, MessageCircleQuestion, Plus, Sparkles, UserX, Users } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
+import { ViewTabs } from "@/components/ui/view-tabs";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -86,9 +87,8 @@ export function AdmissionsDesk({ showForms = true, canDecide = true, section, en
     return () => clearTimeout(timer);
   }, [loadForms]);
   return <div className="sk-panel space-y-4 p-5" data-admissions-desk>
-    {!section && showForms ? <div className="flex gap-1 rounded-2xl bg-muted p-1" role="tablist" aria-label={ui("Admissions")}>
-      {(["applications", "forms"] as const).map(value => <Button key={value} role="tab" aria-selected={tab === value} data-selected={tab === value} variant="choice" size="sm" className="flex-1" onClick={() => setTab(value)}>{value === "applications" ? ui("Applications") : ui("Application forms")}</Button>)}
-    </div> : null}
+    {/* SKAI-1777: the shared ViewTabs — roving tabIndex, ←/→ mirrored in RTL, Home/End — instead of click-only buttons. */}
+    {!section && showForms ? <ViewTabs ariaLabel="Admissions" value={tab} onChange={value => setTab(value === "forms" ? "forms" : "applications")} items={[{ id: "applications", label: "Applications" }, { id: "forms", label: "Application forms" }]} /> : null}
     {tab === "applications" ? <Pipeline forms={forms} owners={owners} classes={classes} canDecide={canDecide} entryInHeader={entryInHeader} command={command} /> : <FormsTab forms={forms} onChanged={() => void loadForms()} />}
   </div>;
 }
