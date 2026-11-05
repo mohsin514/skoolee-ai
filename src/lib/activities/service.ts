@@ -250,10 +250,16 @@ const requirements = (activity: Act, place: { feeStatus: string; status: string 
 });
 
 /** Family view: activities open to this child, with explained availability and the child's place. */
-export async function familyActivities(user: AuthUser, studentId: string) {
+// SKAI-1705: one page of FAMILY_PAGE activities; `nextCursor` (the last id) reaches the rest. Every page re-runs the
+// guardian and child checks and the same school, campus, published and not-ended filter; the id tiebreak keeps
+// activities that share a start time in one stable order.
+export const FAMILY_PAGE = 50;
+export async function familyActivities(user: AuthUser, studentId: string, cursor?: string | null) {
   const student = await familyChild(user, studentId);
   const now = new Date();
-  const activities = await prisma.activity.findMany({ where: { schoolId: user.schoolId, campusId: student.campusId, status: "PUBLISHED", endsAt: { gt: now } }, orderBy: { startsAt: "asc" }, take: 50 });
+  const rows = await prisma.activity.findMany({ where: { schoolId: user.schoolId, campusId: student.campusId, status: "PUBLISHED", endsAt: { gt: now } }, orderBy: [{ startsAt: "asc" }, { id: "asc" }], take: FAMILY_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
+  const activities = rows.slice(0, FAMILY_PAGE);
+  const nextCursor = rows.length > FAMILY_PAGE ? activities[activities.length - 1].id : null;
   for (const a of activities) await prisma.$transaction(async tx => { await settle(tx as TxClient, a); await syncRequirements(tx as TxClient, a); });
   const places = await prisma.activityPlace.findMany({ where: { schoolId: user.schoolId, studentId: student.id, activityId: { in: activities.map(a => a.id) } } });
   const counts = await prisma.activityPlace.groupBy({ by: ["activityId"], where: { activityId: { in: activities.map(a => a.id) }, status: { in: HOLDING } }, _count: { _all: true } });
@@ -267,7 +273,7 @@ export async function familyActivities(user: AuthUser, studentId: string) {
     out.push({ id: a.id, kind: a.kind, title: a.title, description: a.description, location: a.location, startsAt: a.startsAt, endsAt: a.endsAt, costAmount: a.costAmount, costCurrency: a.costCurrency, cancellationTerms: a.cancellationTerms, placesLeft: Math.max(0, a.capacity - taken), capacity: a.capacity, blocker,
       place: place ? { id: place.id, status: place.status, version: place.version, offerExpiresAt: place.offerExpiresAt, waitlistPosition: position, requirements: requirements(a, place, consent), refundState: place.refundState } : null });
   }
-  return { child: { id: student.id, name: student.fullName }, activities: out };
+  return { child: { id: student.id, name: student.fullName }, activities: out, nextCursor };
 }
 
 /** Coordinator roster: who is confirmed or conditional and what is missing; no care or medical detail. */
