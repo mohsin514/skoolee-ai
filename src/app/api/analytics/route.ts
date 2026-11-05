@@ -74,13 +74,26 @@ export async function GET(req: Request) {
       }),
     ]);
 
+    // SKAI-1750: pass/at-risk follow each class's published pass mark (as report cards do), not a fixed 50%.
+    const examClassIds = [...new Set(exams.map((e) => e.classId))];
+    const passConfigs = examClassIds.length
+      ? await prisma.gradeWeightConfig.findMany({
+          where: { schoolId: user.schoolId, academicYear, classId: { in: examClassIds } },
+          select: { classId: true, passingPercentage: true },
+        })
+      : [];
+    const passMarkByClass = new Map(passConfigs.map((c) => [c.classId, c.passingPercentage]));
+    const examClassOf = new Map(exams.map((e) => [e.id, e.classId]));
+    const passes = (r: { examId: string; percentage: number }) =>
+      r.percentage >= (passMarkByClass.get(examClassOf.get(r.examId) ?? "") ?? 50);
+
     const allPcts = reportCards.map((r) => r.percentage);
     const avgPerformance = allPcts.length
       ? Math.round(allPcts.reduce((a, b) => a + b, 0) / allPcts.length * 10) / 10
       : 0;
-    const passCount = allPcts.filter((p) => p >= 50).length;
+    const passCount = reportCards.filter(passes).length;
     const passRate = allPcts.length ? Math.round((passCount / allPcts.length) * 100) : 0;
-    const needsAttention = reportCards.filter((r) => r.percentage < 50).length;
+    const needsAttention = reportCards.filter((r) => !passes(r)).length;
 
     const classMap = new Map<string, string>();
     const classExams = await prisma.class.findMany({
@@ -165,7 +178,7 @@ export async function GET(req: Request) {
       }));
 
     const atRiskStudents = [...reportCards]
-      .filter((r) => r.percentage < 50)
+      .filter((r) => !passes(r))
       .sort((a, b) => a.percentage - b.percentage)
       .slice(0, 10)
       .map((r) => ({
