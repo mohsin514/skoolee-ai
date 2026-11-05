@@ -108,14 +108,27 @@ export async function setRouteVehicles(user: AuthUser, routeId: string, vehicleI
   });
 }
 
+/**
+ * SKAI-1756: a capacity or active change takes the same per-route lock as rider assignment, for every route the
+ * vehicle serves (in a fixed order), and re-checks seats against riders inside that transaction before writing.
+ */
+export async function changeVehicleWithinCapacity<T>(user: AuthUser, vehicleId: string, next: { capacity?: number | null; active?: boolean }, write: (tx: TxClient) => Promise<T>) {
+  return schoolAiTransaction(user, async tx => {
+    const links = await tx.routeVehicle.findMany({ where: { vehicleId, schoolId: user.schoolId }, select: { routeId: true } });
+    for (const routeId of [...new Set(links.map(l => l.routeId))].sort()) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`route:${routeId}`}))`;
+    await assertVehicleChange(user, vehicleId, next, tx);
+    return write(tx);
+  });
+}
+
 /** A vehicle cannot shrink below, or be deactivated from under, a route that depends on its seats. */
-export async function assertVehicleChange(user: AuthUser, vehicleId: string, next: { capacity?: number | null; active?: boolean }) {
-  const links = await prisma.routeVehicle.findMany({ where: { vehicleId, schoolId: user.schoolId }, select: { routeId: true, route: { select: { title: true } } } });
+export async function assertVehicleChange(user: AuthUser, vehicleId: string, next: { capacity?: number | null; active?: boolean }, db: TxClient | typeof prisma = prisma) {
+  const links = await db.routeVehicle.findMany({ where: { vehicleId, schoolId: user.schoolId }, select: { routeId: true, route: { select: { title: true } } } });
   for (const link of links) {
-    const riders = await prisma.student.count({ where: { schoolId: user.schoolId, transportRouteId: link.routeId, archivedAt: null } });
+    const riders = await db.student.count({ where: { schoolId: user.schoolId, transportRouteId: link.routeId, archivedAt: null } });
     if (!riders) continue;
-    const others = await prisma.routeVehicle.findMany({ where: { routeId: link.routeId, vehicleId: { not: vehicleId }, vehicle: { active: true } }, select: { vehicle: { select: { capacity: true } } } });
-    const current = await prisma.vehicle.findFirst({ where: { id: vehicleId }, select: { capacity: true, active: true } });
+    const others = await db.routeVehicle.findMany({ where: { routeId: link.routeId, vehicleId: { not: vehicleId }, vehicle: { active: true } }, select: { vehicle: { select: { capacity: true } } } });
+    const current = await db.vehicle.findFirst({ where: { id: vehicleId }, select: { capacity: true, active: true } });
     const capacity = next.capacity !== undefined ? next.capacity : current?.capacity;
     const active = next.active !== undefined ? next.active : current?.active;
     const seats = Math.max(active ? capacity ?? 0 : 0, ...others.map(o => o.vehicle.capacity ?? 0));
