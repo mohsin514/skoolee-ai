@@ -18,7 +18,7 @@ function fixture(versions: Array<{ id: string; reportCard: { currentVersionId: s
     assert.equal(id, "@/lib/db/prisma");
     return { prisma: db };
   });
-  return { count: () => module.exports.pendingReportReviewCount("school-a", "campus-a"), queries };
+  return { count: () => mod.exports.pendingReportReviewCount("school-a", "campus-a"), queries };
 }
 
 test("historical unapproved versions do not inflate the current review count", async () => {
