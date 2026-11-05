@@ -7,8 +7,9 @@ const source = readFileSync("src/components/exams/family-exam-results.tsx", "utf
 const message = "Online exam results could not be loaded. Try again.";
 
 test("SKAI-1521: a non-OK response or network failure is a failure, not zero results", () => {
-  assert.match(source, /if \(response\.ok && Array\.isArray\(payload\.data\)\) setResults\(payload\.data\); else setFailed\(true\);/);
-  assert.match(source, /\.catch\(\(\) => \{ if \(live\) setFailed\(true\); \}\)/);
+  // SKAI-760: SKAI-1715 paging kept the rule but reshaped the lines (nextCursor, request-id guard).
+  assert.match(source, /if \(response\.ok && Array\.isArray\(payload\.data\)\) \{ setResults\(payload\.data\);[^}]*\} else setFailed\(true\);/);
+  assert.match(source, /\.catch\(\(\) => \{ if \(id === request\.current\) setFailed\(true\); \}\)/);
   assert.doesNotMatch(source, /setResults\(\[\]\)/);
 });
 
