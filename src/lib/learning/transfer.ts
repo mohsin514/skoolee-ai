@@ -59,8 +59,20 @@ async function learner(tx: TxClient, user: AuthUser, studentId: string) {
 async function loadCase(tx: TxClient, user: AuthUser, caseId: string) {
   const row = await tx.learningTransferCase.findFirst({ where: { id: caseId, schoolId: user.schoolId } });
   if (!row) throw new ApiError("Not found.", 404);
-  await learner(tx, user, row.studentId);
-  return row;
+  const student = await learner(tx, user, row.studentId);
+  return followCampus(tx, user, row, student.campusId);
+}
+
+/**
+ * SKAI-1747: a case belongs to the learner's current campus. After an ordinary campus move the case moves
+ * with the learner, so destination curricula, later writes and audit events use the receiving campus. A
+ * destination chosen at the old campus is cleared, since that campus's curriculum is no longer selectable.
+ */
+async function followCampus<T extends { id: string; campusId: string | null; destinationRecordId: string | null }>(tx: TxClient, user: AuthUser, row: T, campusId: string | null): Promise<T> {
+  if (!campusId || row.campusId === campusId) return row;
+  await tx.learningTransferCase.update({ where: { id: row.id }, data: { campusId, destinationRecordId: null } });
+  await writeAuditEvent(tx, user, { table: "learning_transfer_cases", recordId: row.id, action: "UPDATE", campusId, before: { campusId: row.campusId }, after: { campusId, destinationCleared: Boolean(row.destinationRecordId) } });
+  return { ...row, campusId, destinationRecordId: null };
 }
 
 type CaseRow = Awaited<ReturnType<typeof loadCase>>;
@@ -98,7 +110,8 @@ export async function importTransfer(user: AuthUser, raw: unknown) {
     // SKAI-1558: imports for one learner and source are serialised, so two identical first imports
     // cannot both try to create the case; the second finds it and replays instead of failing.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`learning-transfer:${key.schoolId}:${key.studentId}:${key.sourceInstitution}:${key.sourceLearnerRef}`}))`;
-    const existing = await tx.learningTransferCase.findUnique({ where: { schoolId_studentId_sourceInstitution_sourceLearnerRef: key } });
+    const found = await tx.learningTransferCase.findUnique({ where: { schoolId_studentId_sourceInstitution_sourceLearnerRef: key } });
+    const existing = found ? await followCampus(tx, user, found, student.campusId) : null;
     const data = { sourceCurriculumId: input.source.curriculumId, sourceCurriculumName: input.source.curriculumName, sourceVersion: input.source.version, sourceLanguage: input.source.language || null, sourceHash: hash, evidence: json({ objectives: input.source.objectives }) };
     if (existing?.sourceHash === hash) return { id: existing.id, replayed: true, stale: false };
     if (!existing) {
@@ -291,7 +304,8 @@ async function guardianCase(tx: TxClient, user: AuthUser, caseId: string) {
   if (!row) throw new ApiError("Not found.", 404);
   const link = await tx.guardianRelationship.findFirst({ where: { ...liveGuardianRelationshipWhere(user.userId, "learningRecords", new Date(), user.schoolId), studentId: row.studentId }, select: { id: true } });
   if (!link) throw new ApiError("Not found.", 404);
-  return row;
+  const student = await tx.student.findFirst({ where: { id: row.studentId, schoolId: user.schoolId }, select: { campusId: true } });
+  return followCampus(tx, user, row, student?.campusId ?? null);
 }
 
 export async function listFamilyTransfers(user: AuthUser) {
