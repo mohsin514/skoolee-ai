@@ -308,7 +308,14 @@ export async function addSession(user: AuthUser, body: Record<string, unknown>) 
   if (!activity || !isCoordinator(user, activity)) throw new ApiError("Activity not found", 404);
   const startsAt = new Date(String(body.startsAt ?? "")), endsAt = new Date(String(body.endsAt ?? ""));
   if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) throw new ApiError("Set when the session starts and ends.", 400);
-  return prisma.activitySession.create({ data: { schoolId: user.schoolId, activityId: activity.id, startsAt, endsAt } });
+  // SKAI-1709: a retried or second-tab submit of the same slot replays the stored session instead of adding another.
+  // The lock is per activity and slot, held for the transaction, so concurrent identical submits serialise.
+  return prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`activity-session:${user.schoolId}:${activity.id}:${startsAt.toISOString()}:${endsAt.toISOString()}`}))`;
+    const existing = await tx.activitySession.findFirst({ where: { schoolId: user.schoolId, activityId: activity.id, startsAt, endsAt } });
+    if (existing) return { ...existing, replayed: true };
+    return { ...await tx.activitySession.create({ data: { schoolId: user.schoolId, activityId: activity.id, startsAt, endsAt } }), replayed: false };
+  });
 }
 
 /** Mark session attendance for confirmed participants only. */
