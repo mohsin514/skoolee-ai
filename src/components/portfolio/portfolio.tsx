@@ -191,17 +191,22 @@ export function Portfolio({ studentId, addRequest, hideAdd = false }: { studentI
 /** Teacher view: choose a learner from your classes, then open their portfolio. */
 export function TeacherPortfolio() {
   const ui = useUiText();
-  const [learners, setLearners] = useState<{ id: string; name: string; className: string; toReview: number }[] | null>(null), [selected, setSelected] = useState("");
+  type Learner = { id: string; name: string; className: string; toReview: number };
+  type Page = { learners: Learner[]; nextCursor: string | null };
+  const [learners, setLearners] = useState<Learner[] | null>(null), [selected, setSelected] = useState("");
+  // SKAI-1716: the learner list pages beyond 400; a failed later page keeps the list and retries the same cursor.
+  const [cursor, setCursor] = useState<string | null>(null), [more, setMore] = useState<"idle" | "loading" | "failed">("idle");
+  const loadMore = () => { if (!cursor) return; setMore("loading"); void call(`/api/portfolio?view=learners&cursor=${encodeURIComponent(cursor)}`).then((page: Page) => { setLearners(rows => [...(rows ?? []), ...page.learners]); setCursor(page.nextCursor); setMore("idle"); }).catch(() => setMore("failed")); };
   const [loadError, setLoadError] = useState("");
   const loadLearners = useCallback(() => {
     setLoadError("");
-    void call("/api/portfolio?view=learners").then(rows => { setLearners(rows); setSelected(s => s || rows.find((r: { toReview: number }) => r.toReview)?.id || rows[0]?.id || ""); }).catch(e => setLoadError(ui(e instanceof Error ? e.message : "The learners could not be loaded.")));
+    void call("/api/portfolio?view=learners").then((page: Page) => { const rows = page.learners; setLearners(rows); setCursor(page.nextCursor); setMore("idle"); setSelected(s => s || rows.find(r => r.toReview)?.id || rows[0]?.id || ""); }).catch(e => setLoadError(ui(e instanceof Error ? e.message : "The learners could not be loaded.")));
   }, [ui]);
   useEffect(() => { loadLearners(); }, [loadLearners]);
   if (loadError) return <ErrorState description={loadError} onRetry={loadLearners} retryLabel={ui("Try again")} />;
   if (!learners) return <SkeletonList rows={3} label={ui("Loading the portfolio…")} />;
   if (!learners.length) return <p className="rounded-xl border border-dashed p-4 text-sm text-ink-muted">{ui("No learners in your classes yet.")}</p>;
-  return <div className="space-y-3"><FormField name="pf-learner" label={ui("Learner")}><Select value={selected} onChange={e => setSelected(e.target.value)} data-pf-learner>{learners.map(l => <option key={l.id} value={l.id}>{l.name} · {l.className}{l.toReview ? ` · ${ui("{0} to review", [String(l.toReview)])}` : ""}</option>)}</Select></FormField>{selected ? <Portfolio key={selected} studentId={selected} /> : null}</div>;
+  return <div className="space-y-3"><FormField name="pf-learner" label={ui("Learner")}><Select value={selected} onChange={e => setSelected(e.target.value)} data-pf-learner>{learners.map(l => <option key={l.id} value={l.id}>{l.name} · {l.className}{l.toReview ? ` · ${ui("{0} to review", [String(l.toReview)])}` : ""}</option>)}</Select></FormField>{cursor ? <div className="flex flex-wrap items-center gap-2" aria-live="polite" data-pf-more>{more === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("More learners could not be loaded. The list shown is kept.")}</p> : null}<Button type="button" variant="outline" size="sm" disabled={more === "loading"} aria-busy={more === "loading"} onClick={loadMore}>{more === "loading" ? ui("Loading more learners…") : more === "failed" ? ui("Try again") : ui("Load more learners")}</Button></div> : null}{selected ? <Portfolio key={selected} studentId={selected} /> : null}</div>;
 }
 
 /** Family view: collections shared with this guardian — only while the share and permission last. */
