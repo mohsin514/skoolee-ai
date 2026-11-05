@@ -140,7 +140,7 @@ test("a reception request waits for a leader, a retry issues once, and the downl
 
   // The pupil moves class and the template is re-approved; the issued document does not change.
   await db.student.update({ where: { id: pupils.complete }, data: { guardianName: "Synthetic Guardian Changed" } });
-  await post(desk, { action: "save-template", id: certTemplate, kind: "STUDENT_CERTIFICATE", name: "Bonafide", language: "en", title: "Bonafide Certificate (2027)", body: "Certified: {{studentName}} of {{className}}, guardian {{guardianName}}, born {{dateOfBirth}}. {{serial}}" });
+  await post(desk, { action: "save-template", id: certTemplate, expectedDraftVersion: (await db.certificateTemplate.findUniqueOrThrow({ where: { id: certTemplate } })).draftVersion, kind: "STUDENT_CERTIFICATE", name: "Bonafide", language: "en", title: "Bonafide Certificate (2027)", body: "Certified: {{studentName}} of {{className}}, guardian {{guardianName}}, born {{dateOfBirth}}. {{serial}}" });
   assert.equal((await post(lead, { action: "approve-template", id: certTemplate })).status(), 200);
   const again = await download(desk, issue.id);
   assert.equal(sha(again.body), sha(first.body), "re-downloading the original is unchanged");
