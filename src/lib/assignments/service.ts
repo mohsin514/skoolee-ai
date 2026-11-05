@@ -379,6 +379,8 @@ export async function grantExtension(user: AuthUser, assignmentId: string, raw: 
   const input = extensionInput.parse(raw);
   return schoolAiTransaction(user, async tx => {
     const assignment = await authorAssignment(tx, user, assignmentId);
+    // SKAI-1749: learners can submit only while the work is RELEASED, so a closed assignment takes no new extensions.
+    if (assignment.status === "CLOSED") throw new ApiError("This assignment is closed.", 409);
     const { release } = await recipient(tx, user, assignment, input.studentId);
     const { timezone } = await getLocalePackage(user.schoolId, assignment.campusId, now, null, tx);
     let dueAt: Date;
