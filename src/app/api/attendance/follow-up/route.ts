@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, canManageAcademics, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { alertKeyFragment, followUpLane } from "@/lib/attendance/follow-up";
 
 // SKAI-823: unexplained absences from the last `days` days, split by why the family has not answered.
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageAcademics(user)) throw new ApiError("Insufficient permissions", 403);
     const { searchParams } = new URL(req.url);
     const days = Number(searchParams.get("days") ?? "7");
     if (!Number.isInteger(days) || days < 1 || days > 31) throw new ApiError("days must be a whole number from 1 to 31", 400);
