@@ -785,6 +785,8 @@ const entries: [string, string, string][] = [
   ["Show older concerns", "عرض المخاوف الأقدم", "پرانے خدشات دکھائیں"],
   ["Older concerns could not be loaded.", "تعذّر تحميل المخاوف الأقدم.", "پرانے خدشات لوڈ نہیں ہو سکے۔"],
   ["That's every concern you recorded.", "هذه كل المخاوف التي سجّلتها.", "یہ آپ کے درج کردہ تمام خدشات ہیں۔"],
+  ["Showing {0} of {1} open items", "عرض {0} من {1} من الأعمال المفتوحة", "{1} میں سے {0} کھلے کام دکھائے جا رہے ہیں"],
+  ["See all work", "عرض كل الأعمال", "تمام کام دیکھیں"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));

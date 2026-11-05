@@ -26,6 +26,13 @@ const isoWeekday = (day: string) => new Date(`${day}T00:00:00Z`).getUTCDay() || 
 const clockIn = (timeZone: string, at: Date) => new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(at);
 
 export type TodayWork = { id: string; title: string; state: string; dueAt: string; dueLocal: string; extended: boolean; overdue: boolean; canSubmit: boolean; draftSavedAt: string | null; href: string };
+// SKAI-1746: Today is a summary card. It lists work in priority order (overdue first) up to a cap and
+// always reports the full open-work total, so the card can say how many more there are and link to the list.
+export const TODAY_WORK_LIMIT = 20;
+export function todayWorkList(open: TodayWork[], overdue: TodayWork[]) {
+  const ordered = [...overdue, ...open.filter(item => !overdue.includes(item))];
+  return { work: ordered.slice(0, TODAY_WORK_LIMIT), workTotal: ordered.length };
+}
 export type TodayAction = { kind: "RESUME_EXAM" | "CONTINUE_DRAFT" | "OVERDUE" | "DUE_TODAY" | "NEXT_DUE"; title: string; href: string; dueAt?: string; reason: string };
 
 export async function studentToday(user: AuthUser, requestedDay: string | null, now = new Date()) {
@@ -104,7 +111,7 @@ export async function studentToday(user: AuthUser, requestedDay: string | null, 
     // While an exam is running, Today offers only the way back into it.
     examLock: Boolean(activeExam), activeExam, examsUnavailable,
     nextAction,
-    work: activeExam ? [] : [...overdue, ...open.filter(item => !overdue.includes(item))].slice(0, 20),
+    ...(activeExam ? { work: [], workTotal: 0 } : todayWorkList(open, overdue)),
     upcomingExams: activeExam ? [] : upcomingExams.slice(0, 5),
     returned: activeExam ? [] : returned.slice(0, 5),
     catchUp: activeExam ? [] : catchUp,
