@@ -68,3 +68,19 @@ test("the bilingual PDF renders with the template on and off", async () => {
     if (process.env.UAE_PDF_OUT) (await import("node:fs")).writeFileSync(`${process.env.UAE_PDF_OUT}/report-${uae ? "uae" : "plain"}-${lang}.pdf`, buf);
   }
 });
+
+test("the bilingual print pairs status and version words too", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const p = payload(true);
+  p.reportCard.status = "APPROVED";
+  const buf = await renderToBuffer(createElement(ReportCardDocument, { payload: p }) as any);
+  const file = `${mkdtempSync(`${tmpdir()}/uae-`)}/card.pdf`;
+  writeFileSync(file, buf);
+  let text: string;
+  try { text = execFileSync("pdftotext", [file, "-"]).toString(); } catch { return; } // poppler not installed
+  assert.match(text, /Approved/);
+  assert.match(text, /Version/);
+  assert.doesNotMatch(text, /^Approved$/m);
+});

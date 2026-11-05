@@ -46,7 +46,7 @@ type Item = { id: string; recipientName: string; recipientRelation: string; idMe
 export function FamilyPickups({ studentId, addRequest, hideAdd = false }: { studentId: string; addRequest?: number; hideAdd?: boolean }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
-  const [data, setData] = useState<{ timezone: string; items: Item[] } | null>(null), [denied, setDenied] = useState(false), [failed, setFailed] = useState(false), [busy, setBusy] = useState(false);
+  const [data, setData] = useState<{ timezone: string; items: Item[]; nextCursor?: string | null } | null>(null), [denied, setDenied] = useState(false), [failed, setFailed] = useState(false), [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ recipientName: "", recipientRelation: "", idMethod: "PHOTO_ID", idLast4: "", date: todayLocal(), from: "14:00", until: "16:00" }), [code, setCode] = useState<{ code: string; qr: string } | null>(null), [open, setOpen] = useState(false);
   const [withdrawing, setWithdrawing] = useState<Item | null>(null), [filterText, setFilterText] = useState("");
   // Only a change after mount opens the form, so a remount (child switch) never reopens it.
@@ -57,8 +57,20 @@ export function FamilyPickups({ studentId, addRequest, hideAdd = false }: { stud
     setOpen(true);
   }, [addRequest]);
   // SKAI-1379: only an authorization or missing-record answer hides the panel; other failures can be retried.
-  const load = useCallback(async () => { try { setData(await call(`/api/pickup?studentId=${encodeURIComponent(studentId)}`)); setDenied(false); setFailed(false); } catch (error) { const status = (error as { status?: number }).status; if (status === 401 || status === 403 || status === 404) setDenied(true); else setFailed(true); } }, [studentId]);
+  // SKAI-1714: older pages append by cursor; a page that returns after a reload or child switch is dropped.
+  const [older, setOlder] = useState<"idle" | "loading" | "failed">("idle"), request = useRef(0);
+  const load = useCallback(async () => { const id = ++request.current; setOlder("idle"); try { const next = await call(`/api/pickup?studentId=${encodeURIComponent(studentId)}`); if (id !== request.current) return; setData(next); setDenied(false); setFailed(false); } catch (error) { const status = (error as { status?: number }).status; if (status === 401 || status === 403 || status === 404) setDenied(true); else setFailed(true); } }, [studentId]);
   useEffect(() => { void load(); }, [load]);
+  const loadOlder = async () => {
+    const cursor = data?.nextCursor; if (!cursor) return;
+    const id = request.current; setOlder("loading");
+    try {
+      const page = await call(`/api/pickup?studentId=${encodeURIComponent(studentId)}&cursor=${encodeURIComponent(cursor)}`) as { items: Item[]; nextCursor: string | null };
+      if (id !== request.current) return;
+      setData(d => d ? { ...d, items: [...d.items, ...page.items.filter(i => !d.items.some(x => x.id === i.id))], nextCursor: page.nextCursor } : d);
+      setOlder("idle");
+    } catch { if (id === request.current) setOlder("failed"); }
+  };
   const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
   if (denied) return null;
   if (!data && failed) return <section className="sk-panel p-4 sm:p-5" data-family-pickup><ErrorState title={ui("Pickup authorizations could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void load()} /></section>;
@@ -76,6 +88,8 @@ export function FamilyPickups({ studentId, addRequest, hideAdd = false }: { stud
           behind a confirmation (role-ux §4.5.2–3, §4.4b parent · Pickup). */}
       {i.status === "ACTIVE" ? <span className="flex items-center gap-1"><Button size="sm" variant="outline" disabled={busy} onClick={() => void run(async () => setCode(await call("/api/pickup", "POST", { action: "code", id: i.id })), "A new code is ready. The previous code no longer works.")} data-pickup-show>{ui("Show code")}</Button><Menu label="More actions" align="end" items={[{ id: "withdraw", label: "Withdraw", tone: "danger", disabled: busy, onSelect: () => setWithdrawing(i) }]} trigger={<IconButton variant="ghost" label={ui("More actions")} data-pickup-revoke><MoreHorizontal aria-hidden="true" /></IconButton>} /></span> : null}
     </li>)}</ul> : <EmptyState size="sm" icon={UserCheck} title={ui("No pickup authorizations yet.")} action={hideAdd ? undefined : <Button size="sm" onClick={() => setOpen(true)}>{ui("Authorize a pickup")}</Button>} />}
+    {older === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("Older pickup authorizations could not be loaded.")}</p> : null}
+    {data.nextCursor ? <Button size="sm" variant="outline" loading={older === "loading"} onClick={() => void loadOlder()} data-pickup-older>{ui(older === "failed" ? "Try again" : "Show older pickup authorizations")}</Button> : null}
     <ConfirmAction
       open={Boolean(withdrawing)}
       busy={busy}

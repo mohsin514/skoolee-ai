@@ -301,11 +301,30 @@ export async function history(user: AuthUser, kind: Kind) {
  * (teachers for marks; the accountant, or a campus admin while the campus has no accountant, for payments).
  * Approvers and readers get no records and no form.
  */
-export async function catalog(user: AuthUser, kind: Kind): Promise<{ canRequest: boolean; items: Array<{ id: string; label: string; version: string; original: unknown }> }> {
+export const CATALOG_PAGE_SIZE = 100;
+/** SKAI-1703: keyset cursor for the correction catalog: marks page by id desc, payments by (createdAt desc, id desc). */
+export function catalogPageWhere(kind: Kind, cursor: string | null | undefined) {
+    if (!cursor) return {};
+    const [at, id] = Buffer.from(cursor, "base64url").toString("utf8").split("|");
+    if (!id) throw new ApiError("This list has changed. Reload it.", 400);
+    if (kind === "MARK") return { id: { lt: id } };
+    const when = new Date(at ?? "");
+    if (Number.isNaN(when.getTime())) throw new ApiError("This list has changed. Reload it.", 400);
+    return { OR: [{ createdAt: { lt: when } }, { createdAt: when, id: { lt: id } }] };
+}
+export function catalogNextCursor(rows: Array<{ id: string; createdAt?: Date }>) {
+    if (rows.length <= CATALOG_PAGE_SIZE) return null;
+    const last = rows[CATALOG_PAGE_SIZE - 1];
+    return Buffer.from(`${last.createdAt ? last.createdAt.toISOString() : ""}|${last.id}`, "utf8").toString("base64url");
+}
+export async function catalog(user: AuthUser, kind: Kind, cursor?: string | null): Promise<{ canRequest: boolean; items: Array<{ id: string; label: string; version: string; original: unknown }>; nextCursor: string | null }> {
     await permit(user, kind);
     if (isFamily(user) || !(await canRequestKind(user, kind)))
-        return { canRequest: false, items: [] };
-    const ids = kind === "MARK" ? await prisma.mark.findMany({ where: { ...campusScope(user), ...(user.role === "TEACHER" ? { OR: [{ subject: { teacherId: user.userId } }, { exam: { class: { classTeacherId: user.userId } } }] } : {}) }, select: { id: true }, take: 100 }) : await prisma.payment.findMany({ where: { ...campusScope(user), amount: { gt: 0 }, reversalOfId: null }, select: { id: true }, orderBy: { createdAt: "desc" }, take: 100 });
+        return { canRequest: false, items: [], nextCursor: null };
+    const page = catalogPageWhere(kind, cursor);
+    const rows: Array<{ id: string; createdAt?: Date }> = kind === "MARK" ? await prisma.mark.findMany({ where: { ...campusScope(user), ...page, ...(user.role === "TEACHER" ? { OR: [{ subject: { teacherId: user.userId } }, { exam: { class: { classTeacherId: user.userId } } }] } : {}) }, select: { id: true }, orderBy: { id: "desc" }, take: CATALOG_PAGE_SIZE + 1 }) : await prisma.payment.findMany({ where: { ...campusScope(user), amount: { gt: 0 }, reversalOfId: null, ...page }, select: { id: true, createdAt: true }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: CATALOG_PAGE_SIZE + 1 });
+    const nextCursor = catalogNextCursor(rows);
+    const ids = rows.slice(0, CATALOG_PAGE_SIZE);
     const items = await Promise.all(ids.map(async ({ id }) => { const s = await source(prisma, user, kind, id); return { id, label: s.label, version: s.version, original: s.snapshot as unknown }; }));
-    return { canRequest: true, items };
+    return { canRequest: true, items, nextCursor };
 }

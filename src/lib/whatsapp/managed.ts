@@ -77,16 +77,18 @@ export function creditOutlook(balanceMicroUsd: number, spent30MicroUsd: number) 
 
 export async function usage(user: AuthUser, db: Db = prisma) {
   requireWhatsAppAdmin(user);
-  const [row, entries] = await Promise.all([
+  // SKAI-1784: the 30-day pace is a database aggregate over every in-window MESSAGE row; the 50-row list is display only.
+  const since = new Date(Date.now() - 30 * 86_400_000);
+  const [row, entries, window30] = await Promise.all([
     db.whatsAppManagedSending.findFirst({ where: { schoolId: user.schoolId } }),
     db.whatsAppUsageEntry.findMany({ where: { schoolId: user.schoolId }, orderBy: { createdAt: "desc" }, take: 50 }),
+    db.whatsAppUsageEntry.aggregate({ where: { schoolId: user.schoolId, kind: "MESSAGE", createdAt: { gte: since } }, _sum: { amountMicroUsd: true }, _count: { _all: true } }),
   ]);
-  const since = new Date(Date.now() - 30 * 86_400_000), recent = entries.filter(e => e.kind === "MESSAGE" && e.createdAt >= since);
-  const spent30 = recent.reduce((sum, e) => sum + n(e.amountMicroUsd), 0);
+  const spent30 = n(window30._sum.amountMicroUsd ?? 0);
   return {
     ...(row?.enabled ? creditOutlook(n(row.balanceMicroUsd), spent30) : { daysLeft: null, lowCredit: false }),
     enabled: row?.enabled ?? false, provisioned: Boolean(row?.phoneNumberId), balanceMicroUsd: n(row?.balanceMicroUsd ?? 0),
-    last30Days: { messages: recent.length, spentMicroUsd: spent30 },
+    last30Days: { messages: window30._count._all, spentMicroUsd: spent30 },
     entries: entries.map(e => ({ id: e.id, kind: e.kind, category: e.category, country: e.country, metaRateMicroUsd: n(e.metaRateMicroUsd), marginMicroUsd: n(e.marginMicroUsd), amountMicroUsd: n(e.amountMicroUsd), reference: e.reference, createdAt: e.createdAt })),
   };
 }
