@@ -152,7 +152,7 @@ export async function staffDesk(user: AuthUser) {
   return {
     timezone, today,
     windows: windows.map(w => ({ ...w, slots: windowSlots(w, busy, new Set(live.filter(l => l.windowId === w.id).map(l => l.startsAt.getTime())), live.filter(l => l.windowId === w.id).length, now) })),
-    bookings: bookings.map(b => ({ id: b.id, status: b.status, conflictReason: b.conflictReason, version: b.version, startsAt: b.startsAt, endsAt: b.endsAt, local: { ...localParts(b.startsAt, b.window.timezone), end: localParts(b.endsAt, b.window.timezone).time }, mode: b.mode, location: b.window.location, agenda: b.agenda, accessNeeds: b.accessNeeds, studentName: people.students.get(b.studentId) ?? "", guardianName: people.users.get(b.guardianUserId) ?? "", followUp: b.followUp ? { summary: b.followUp.summary, sharedAt: b.followUp.sharedAt } : null, actions: b.actions, notes: b.notes.map(n => ({ id: n.id, body: n.body, createdAt: n.createdAt, author: people.users.get(n.authorId) ?? "" })), events: b.events.map(e => ({ version: e.version, action: e.action, createdAt: e.createdAt, detail: e.detail })) })),
+    bookings: bookings.map(b => ({ id: b.id, status: b.status, conflictReason: b.conflictReason, version: b.version, startsAt: b.startsAt, endsAt: b.endsAt, local: { ...localParts(b.startsAt, b.window.timezone), end: localParts(b.endsAt, b.window.timezone).time }, mode: b.mode, location: b.window.location, agenda: b.agenda, accessNeeds: b.accessNeeds, studentName: people.students.get(b.studentId) ?? "", guardianName: people.users.get(b.guardianUserId) ?? "", followUp: b.followUp ? { summary: b.followUp.summary, sharedAt: b.followUp.sharedAt, updatedAt: b.followUp.updatedAt } : null, actions: b.actions, notes: b.notes.map(n => ({ id: n.id, body: n.body, createdAt: n.createdAt, author: people.users.get(n.authorId) ?? "" })), events: b.events.map(e => ({ version: e.version, action: e.action, createdAt: e.createdAt, detail: e.detail })) })),
   };
 }
 
@@ -194,6 +194,10 @@ export async function saveFollowUp(user: AuthUser, body: Record<string, unknown>
     if (booking.status !== "HELD") throw new ApiError("Record that the meeting took place before writing the follow-up.", 409);
     const existing = await tx.meetingFollowUp.findUnique({ where: { bookingId: booking.id } });
     if (existing?.sharedAt) throw new ApiError("The follow-up was already shared with the family.", 409);
+    // SKAI-1732: the booking row is locked above; a tab whose draft token (null = no draft yet) is not the stored
+    // draft's updatedAt gets 409 before the summary or actions are replaced.
+    const seen = body.knownFollowUpAt == null || body.knownFollowUpAt === "" ? null : new Date(String(body.knownFollowUpAt)).getTime();
+    if (!("knownFollowUpAt" in body) || seen !== (existing ? existing.updatedAt.getTime() : null)) throw new ApiError("This meeting changed since you opened it. Review the latest details.", 409);
     const summary = text(body.summary, 2000);
     if (!summary) throw new ApiError("Write the summary the family will read.", 400);
     const raw = Array.isArray(body.actions) ? body.actions as Record<string, unknown>[] : [];

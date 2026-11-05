@@ -24,7 +24,7 @@ import { readApiError } from "@/lib/api/envelope-client";
 type Slot = { startsAt: string; endsAt: string; start: string; end: string; state: "OPEN" | "TAKEN" | "BLOCKED" | "PAST" };
 type Window = { id: string; localDate: string; startTime: string; endTime: string; slotMinutes: number; bufferMinutes: number; maxBookings: number | null; mode: string; location: string | null; cancellationPolicy: string; slots: Slot[] };
 type Action = { id: string; text: string; ownerRole: string; dueDate: string; status: string };
-type Booking = { id: string; status: string; conflictReason: string | null; version: number; startsAt: string; endsAt: string; local: { date: string; time: string; end: string }; mode: string; location: string | null; agenda: string | null; accessNeeds: string | null; studentName: string; guardianName: string; followUp: { summary: string; sharedAt: string | null } | null; actions: Action[]; notes: { id: string; body: string; createdAt: string; author: string }[]; events: { version: number; action: string; createdAt: string }[] };
+type Booking = { id: string; status: string; conflictReason: string | null; version: number; startsAt: string; endsAt: string; local: { date: string; time: string; end: string }; mode: string; location: string | null; agenda: string | null; accessNeeds: string | null; studentName: string; guardianName: string; followUp: { summary: string; sharedAt: string | null; updatedAt?: string } | null; actions: Action[]; notes: { id: string; body: string; createdAt: string; author: string }[]; events: { version: number; action: string; createdAt: string }[] };
 type Desk = { timezone: string; today: string; windows: Window[]; bookings: Booking[] };
 type Draft = { text: string; ownerRole: "FAMILY" | "STAFF"; dueDate: string };
 
@@ -178,7 +178,7 @@ export function MeetingDesk({ offerOpen, onOfferOpenChange, onReadyChange }: { o
           </div>)}
           {!open.followUp?.sharedAt ? <div className="flex flex-wrap justify-end gap-2">
             {drafts.length < 5 ? <Button size="sm" variant="secondary" onClick={() => setDrafts([...drafts, { text: "", ownerRole: "FAMILY", dueDate: desk.today }])} data-followup-add>{ui("Add an action")}</Button> : null}
-            <Button size="sm" variant="outline" disabled={busy || !summary.trim()} onClick={() => void act({ action: "followup", bookingId: open.id, summary, actions: drafts }, "Draft saved.")} data-followup-save>{ui("Save draft")}</Button>
+            <Button size="sm" variant="outline" disabled={busy || !summary.trim()} onClick={() => void act({ action: "followup", bookingId: open.id, knownFollowUpAt: open.followUp?.updatedAt ?? null, summary, actions: drafts }, "Draft saved.")} data-followup-save>{ui("Save draft")}</Button>
             <Button size="sm" disabled={busy || !open.followUp || open.followUp.summary !== summary} onClick={() => void act({ action: "share", bookingId: open.id }, "Shared with the family.")} data-followup-share>{ui("Share with the family")}</Button>
           </div> : null}
         </div> : null}
