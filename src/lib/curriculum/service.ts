@@ -69,7 +69,7 @@ export async function objectiveMap(user: AuthUser, raw: unknown) {
     const resources: ResourceRef[] = resourceRows.map(row => ({ ...row, objectives: row.objectives as ResourceRef["objectives"] }));
     const topics = await tx.syllabusTopic.findMany({ where: { schoolId: user.schoolId, subjectId: curriculum.subjectId }, select: { id: true, title: true, description: true, status: true }, orderBy: { order: "asc" } });
     const mappings = await tx.curriculumObjectiveMapping.findMany({ where: { schoolId: user.schoolId, OR: [{ fromRecordId: record.id, fromVersion: record.version }, { toRecordId: record.id, toVersion: record.version }] }, orderBy: { createdAt: "desc" } });
-    const others = isSchoolAiManager(user) ? await tx.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, campusId, kind: "CURRICULUM", status: "APPROVED", id: { not: record.id } }, select: { id: true, title: true, version: true, data: true }, take: 50 }) : [];
+    const others = isSchoolAiManager(user) ? await tx.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, campusId, kind: "CURRICULUM", status: "APPROVED", id: { not: record.id } }, select: { id: true, title: true, version: true, data: true }, orderBy: [{ title: "asc" }, { id: "asc" }] }) : []; // SKAI-1738: every in-scope target, not the first 50
     const changes = previous ? compareVersions(previous, curriculum) : [];
 
     return {
