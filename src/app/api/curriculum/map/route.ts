@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     const params = Object.fromEntries([...req.nextUrl.searchParams].filter(([, value]) => value));
-    if (!params.recordId) return Response.json({ success: true, curricula: await listCurricula(user) }, { headers: noStore });
+    if (!params.recordId) return Response.json({ success: true, ...(await listCurricula(user, params.cursor)) }, { headers: noStore });
     return Response.json({ success: true, ...(await objectiveMap(user, params)) }, { headers: noStore });
   } catch (error) {
     const response = (error instanceof ZodError ? Response.json({ error: "Please check the highlighted information.", details: error.issues.map(issue => ({ path: issue.path.join("."), message: issue.message })) }, { status: 400 }) : errorResponse(error, "[curriculum-map] GET failed"));
