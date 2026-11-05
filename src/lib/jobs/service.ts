@@ -189,14 +189,35 @@ export async function readJob(user: AuthUser, id: string) {
     return { ...job, sourceHref: jobSourceHref(user, job), items: enriched, counts: reconcileCounts(items), attentionCount: attentionCount(items), canEdit, updatedAt: new Date().toISOString() };
   });
 }
+export const JOB_PAGE = 100;
+/** SKAI-1781: keyset over (created_at to the millisecond, id), both descending, so job 101+ stays reachable. */
+export function jobCursor(cursor: string | null | undefined): { at: string | null; after: string | null } {
+  if (!cursor) return { at: null, after: null };
+  const [at, after] = Buffer.from(cursor.slice(0, 200), "base64url").toString("utf8").split("|");
+  if (!after || Number.isNaN(new Date(at ?? "").getTime())) throw new ApiError("This list has changed. Reload it.", 400);
+  return { at: new Date(at).toISOString(), after };
+}
+export function jobNextCursor(rows: { id: string; created_at: Date }[]) {
+  if (rows.length <= JOB_PAGE) return null;
+  const last = rows[JOB_PAGE - 1];
+  return Buffer.from(`${new Date(last.created_at).toISOString()}|${last.id}`, "utf8").toString("base64url");
+}
+
 export async function listJobs(user: AuthUser) {
-  const jobs = await jobTransaction(
+  return (await listJobsPage(user)).jobs;
+}
+
+export async function listJobsPage(user: AuthUser, cursor?: string | null) {
+  const { at, after } = jobCursor(cursor);
+  const page = await jobTransaction(
     user,
     (tx) =>
       tx.$queryRaw<
         Job[]
-      >`SELECT j.*,c.name AS campus_label FROM activity_jobs j JOIN campuses c ON c.id=j.campus_id AND c.school_id=j.school_id WHERE j.school_id=${user.schoolId} AND (${user.role === "SUPER_ADMIN"} OR j.campus_id=${user.campusId}) ORDER BY j.created_at DESC LIMIT 100`,
+      >`SELECT j.*,c.name AS campus_label FROM activity_jobs j JOIN campuses c ON c.id=j.campus_id AND c.school_id=j.school_id WHERE j.school_id=${user.schoolId} AND (${user.role === "SUPER_ADMIN"} OR j.campus_id=${user.campusId}) AND (${at}::timestamptz IS NULL OR date_trunc('milliseconds', j.created_at) < ${at}::timestamptz OR (date_trunc('milliseconds', j.created_at) = ${at}::timestamptz AND j.id < ${after})) ORDER BY date_trunc('milliseconds', j.created_at) DESC, j.id DESC LIMIT ${JOB_PAGE + 1}`,
   );
+  const nextCursor = jobNextCursor(page);
+  const jobs = page.slice(0, JOB_PAGE);
   const visible = [];
   for (const job of jobs) {
     try {
@@ -208,7 +229,7 @@ export async function listJobs(user: AuthUser) {
         throw error;
     }
   }
-  return visible;
+  return { jobs: visible, nextCursor };
 }
 export async function createJob(
   tx: Sql,
