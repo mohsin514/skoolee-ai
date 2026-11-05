@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { getAssignmentCopy, type AssignmentCopy } from "./assignment-copy";
-import { Banner, call, fileHref, formatAt, Pill, RubricTable, shortSha, stateTone, type Criterion, type Feedback, type Receipt, type Score } from "./shared";
+import { Banner, LoadOlder, call, fileHref, formatAt, Pill, RubricTable, shortSha, stateTone, type Criterion, type Feedback, type Receipt, type Score } from "./shared";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmAction } from "@/components/ui/confirm-action";
@@ -18,7 +18,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 // SKO-409 teacher workspace: queue by status, draft editor, release review, marking and return.
 type Status = "DRAFT" | "RELEASED" | "CLOSED";
 type Summary = { id: string; title: string; status: Status; currentVersion: number | null; dueLocal: string | null; dueAt: string | null; timezone: string | null; rubricVersion: number | null; recipients: number; counts: { submitted: number; needsFeedback: number; late: number; returned: number } };
-type ListView = { classId: string; classes: { id: string; name: string; section: string | null }[]; subjects: { id: string; name: string }[]; assignments: Summary[] };
+type ListView = { classId: string; classes: { id: string; name: string; section: string | null }[]; subjects: { id: string; name: string }[]; assignments: Summary[]; nextCursor?: string | null };
 type StaffFeedback = (NonNullable<Feedback> & { status: "DRAFT" | "RETURNED"; gradebookTransfer: string; updatedAt?: string }) | null;
 type QueueRow = { studentId: string; name: string; rollNo: string; enrolled: boolean; inAudience: boolean; status: string; effectiveDueAt: string | null; extension: { dueLocal: string; reason: string } | null; versions: (Receipt & { feedback: StaffFeedback })[] };
 type Draft = { id: string; classId?: string; title: string; subjectId: string | null; instructions: string; status: Status; submissionMode: "ONLINE" | "PAPER" | "BOTH"; allowedTypes: string[]; opensLocal: string | null; dueLocal: string | null; latePolicy: "ACCEPT_FLAGGED" | "REFUSE"; resubmission: "NEVER" | "AFTER_RETURN"; rubric: Criterion[]; resourceIds: string[]; currentVersion: number | null; updatedAt: string };
@@ -54,6 +54,10 @@ export function AssignmentWorkspace({ createRequest, hideCreateButton = false }:
     const data = await call(`/api/assignments${classId ? `?classId=${encodeURIComponent(classId)}` : ""}`);
     setView(data);
     if (!classId) setClassId(data.classId);
+  }, [classId]);
+  const loadOlder = useCallback(async (from: string) => {
+    const data = await call(`/api/assignments?classId=${encodeURIComponent(classId)}&cursor=${encodeURIComponent(from)}`);
+    setView(prev => prev && prev.classId === data.classId ? { ...prev, assignments: [...prev.assignments, ...data.assignments], nextCursor: data.nextCursor } : prev);
   }, [classId]);
   const loadDetail = useCallback(async (id: string) => setDetail(await call(`/api/assignments/${id}`)), []);
   useEffect(() => { setLoadFailed(false); loadList().catch(() => setLoadFailed(true)); }, [loadList]);
@@ -109,6 +113,7 @@ export function AssignmentWorkspace({ createRequest, hideCreateButton = false }:
           </p>}
           <div className="mt-3"><Button type="button" variant="outline" size="sm" onClick={() => { setEditing(null); setSelected(item.id); }}>{t.open}<span className="sr-only">: {item.title}</span></Button></div>
         </li>)}</ul>)}
+    {!selected && editing !== "new" && <LoadOlder cursor={view.nextCursor} onLoad={loadOlder} labels={t} />}
   </div>;
 }
 

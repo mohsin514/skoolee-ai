@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
-import { bookMeeting, cancelMeeting, completeAction, familyMeetings, rescheduleMeeting } from "@/lib/meetings/service";
+import { bookMeeting, cancelMeeting, completeAction, familyMeetingHistory, familyMeetings, rescheduleMeeting } from "@/lib/meetings/service";
 import { notifyParty } from "@/lib/meetings/notify";
 
 export const runtime = "nodejs";
@@ -12,7 +12,9 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (user.role !== "PARENT") throw new ApiError("Not found", 404);
-    return Response.json({ success: true, data: await familyMeetings(user, request.nextUrl.searchParams.get("studentId") ?? "") }, { headers: { "Cache-Control": "private, no-store" } });
+    const studentId = request.nextUrl.searchParams.get("studentId") ?? "", cursor = request.nextUrl.searchParams.get("cursor");
+    const data = cursor ? await familyMeetingHistory(user, studentId, cursor) : await familyMeetings(user, studentId);
+    return Response.json({ success: true, data }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error, "[family/meetings] GET failed"); }
 }
 

@@ -23,7 +23,12 @@ function fakeDb() {
     },
     whatsAppUsageEntry: {
       create: async ({ data }: { data: Row }) => { pin(data); const row = { id: `e${ledger.length}`, createdAt: new Date(), ...data }; ledger.push(row); return row; },
-      findMany: async ({ where }: { where: { schoolId: string } }) => { pin(where); return ledger.filter(r => r.schoolId === where.schoolId).reverse(); },
+      findMany: async ({ where, take }: { where: { schoolId: string }; take?: number }) => { pin(where); return ledger.filter(r => r.schoolId === where.schoolId).reverse().slice(0, take ?? Infinity); },
+      aggregate: async ({ where }: { where: { schoolId: string; kind: string; createdAt: { gte: Date } } }) => {
+        pin(where);
+        const rows = ledger.filter(r => r.schoolId === where.schoolId && r.kind === where.kind && (r.createdAt as Date) >= where.createdAt.gte);
+        return { _sum: { amountMicroUsd: rows.length ? rows.reduce((sum, r) => sum + (r.amountMicroUsd as bigint), BigInt(0)) : null }, _count: { _all: rows.length } };
+      },
     },
     auditLog: { create: async ({ data }: { data: Row }) => { pin(data); audits.push(data); return data; } },
   };
@@ -109,4 +114,19 @@ test("permissions: only the institution authority opts in or reads usage; only t
 
 test("opting in and buying credit are human-only AI exclusions", () => {
   for (const key of ["whatsapp.managed_settings", "whatsapp.managed_provision", "whatsapp.managed_top_up"]) assert.ok(exclusionFor(key), key);
+});
+
+test("SKAI-1784: the 30-day pace counts every in-window message, not just the newest 50 rows", async () => {
+  const { db, ledger } = fakeDb();
+  await funded(db, "s1", 2_100_000);
+  const day = 86_400_000;
+  for (let i = 0; i < 100; i++) ledger.push({ id: `m${i}`, schoolId: "s1", kind: "MESSAGE", amountMicroUsd: BigInt(100_000), createdAt: new Date(Date.now() - (i % 29 + 1) * day) });
+  ledger.push({ id: "old", schoolId: "s1", kind: "MESSAGE", amountMicroUsd: BigInt(9_000_000), createdAt: new Date(Date.now() - 45 * day) });
+  ledger.push({ id: "other", schoolId: "s2", kind: "MESSAGE", amountMicroUsd: BigInt(9_000_000), createdAt: new Date() });
+  const view = await usage(admin("s1"), db);
+  assert.equal(view.last30Days.messages, 100);
+  assert.equal(view.last30Days.spentMicroUsd, 10_000_000, "TOP_UP, out-of-window and other-school rows excluded");
+  assert.equal(view.daysLeft, 6);
+  assert.equal(view.lowCredit, true);
+  assert.equal(view.entries.length, 50, "the ledger list is still the newest 50");
 });
