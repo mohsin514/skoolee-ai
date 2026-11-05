@@ -35,7 +35,7 @@ const prisma = {
   campus: { findFirst: async ({ where }: { where: { id: string; schoolId: string } }) => h.campuses.find(c => c.id === where.id && c.schoolId === where.schoolId) ?? null },
 };
 mock.module(src("lib/db/prisma.ts"), { namedExports: { prisma } });
-mock.module(src("lib/school-ai/transaction.ts"), { namedExports: { schoolAiTransaction: async (_u: unknown, work: (tx: unknown) => unknown) => work({ $executeRaw: async () => 0, guardianConsent: consentTable, auditLog: { create: async ({ data }: { data: Record<string, unknown> }) => { h.audits.push(data); } } }) } });
+mock.module(src("lib/school-ai/transaction.ts"), { namedExports: { schoolAiTransaction: async (_u: unknown, work: (tx: unknown) => unknown) => work({ $executeRaw: async () => 0, guardianRelationship: prisma.guardianRelationship, guardianConsent: consentTable, auditLog: { create: async ({ data }: { data: Record<string, unknown> }) => { h.audits.push(data); } } }) } });
 
 const svc = () => import("../../src/lib/family/guardian-consent");
 const user = (role: string, schoolId = "school-a", userId = "parent-1", campusId: string | null = "campus-a") => ({ userId, role, schoolId, campusId, email: "x@example.test" }) as never;

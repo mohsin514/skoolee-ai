@@ -10,11 +10,11 @@ import { runWithTenantContext } from "@/lib/db/tenant-context";
  * contain database operations only; provider calls happen before this boundary.
  * Each attempt rereads idempotency and version predicates from a fresh snapshot.
  */
-export async function schoolAiTransaction<T>(user: AuthUser, work: (tx: TxClient) => Promise<T>): Promise<T> {
+export async function schoolAiTransaction<T>(user: AuthUser, work: (tx: TxClient) => Promise<T>, options: { isolationLevel?: Prisma.TransactionIsolationLevel } = {}): Promise<T> {
   return retryDatabaseTransaction(() => runWithTenantContext({ schoolId: user.schoolId, userId: user.userId, campusId: user.campusId, role: user.role, unscoped: false, rlsSession: true }, () => prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('app.current_school_id', ${user.schoolId}, true)`;
     return work(tx as TxClient);
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 })));
+  }, { isolationLevel: options.isolationLevel ?? Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 })));
 }
 
 /** Retry the entire rolled-back transaction, never just its failed statement. */
