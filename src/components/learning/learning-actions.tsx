@@ -19,14 +19,15 @@ import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 // first; AI text is only ever a draft; activation, sharing, check-ins and the
 // outcome review are stages of one record with a reason for every decision.
 
-type Row = { id: string; version: number; status: string; origin: string; title: string; learner: string; goal: string | null; owner: string | null; reviewDate: string | null; nextCheckInDate: string | null; checkInOverdue: boolean; reviewDue: boolean; shared: boolean; staleSince?: string | null; staleReason?: string | null };
+type Row = { id: string; version: number; status: string; origin: string; title: string; learner: string; goal: string | null; owner: string | null; reviewDate: string | null; nextCheckInDate: string | null; checkInOverdue: boolean; reviewDue: boolean; shared: boolean; staleSince?: string | null; staleReason?: string | null; followUpGap?: "DUE" | "OVERDUE" | "MISSING" | null; followUpKind?: "RETRIEVAL" | "TRANSFER" | null };
 type Ctx = { actions: Row[]; learners: { id: string; name: string; rollNo: string }[]; staff: { id: string; name: string }[]; leader: boolean; canActivate?: boolean; userId: string };
 type Detail = Row & { studentId: string; concern: string | null; evidenceState: string; evidenceRefs: { kind: string; refId: string; label: string }[]; baseline: { measure: string; value: number | null; denominator: number | null; takenOn: string; source: string } | null;
   ownerId: string | null; plannedActivity: string | null; minutesPerWeek: number | null; familyShare: { goal: string; action: string; sharedAt: string | null } | null; privateNotes: string | null;
-  outcome: { decision: string; reason: string; limitations: string; note: string; participation: { checkIns: number; delivered: number; minutes: number; absent: number }; followUp: { measure: string; value: number | null; denominator: number | null; comparable: boolean; differences: string } | null } | null;
+  outcome: { decision: string; reason: string; limitations: string; note: string; participation: { checkIns: number; delivered: number; minutes: number; absent: number }; followUp: { measure: string; value: number | null; denominator: number | null; comparable: boolean; differences: string; kind?: "RETRIEVAL" | "TRANSFER" } | null } | null;
   checkIns: { id: string; dueOn: string; delivered: boolean; minutes: number | null; participation: string; adjustment: string | null }[]; events: { id: string; version: number; kind: string; reason: string | null; createdAt: string }[] };
 const STATUS: Record<string, string> = { DRAFT: "Draft", ACTIVE: "Active", CLOSED: "Closed", ESCALATED: "Escalated", REJECTED: "Rejected" };
 const PARTICIPATION: Record<string, string> = { FULL: "Took part fully", PARTIAL: "Took part partly", ABSENT: "Absent" };
+const GAP: Record<string, string> = { DUE: "Follow-up due today", OVERDUE: "Follow-up overdue", MISSING: "Reviewed without a follow-up" };
 const DECISION: Record<string, string> = { CLOSE: "Close: goal reviewed", EXTEND: "Extend with a new review date", ESCALATE: "Escalate to another adult", INCONCLUSIVE: "Close as inconclusive" };
 const EVENT: Record<string, string> = { CREATED: "Created", EDITED: "Draft edited", EDITED_ACTIVE: "Plan changed while active", ACTIVATED: "Activated", SHARED_WITH_FAMILY: "Shared with the family", CHECK_IN: "Check-in recorded", RESCHEDULED: "Check-in rescheduled", OWNER_CHANGED: "Responsible adult changed", REVIEW_CLOSE: "Closed after review", REVIEW_EXTEND: "Extended", REVIEW_ESCALATE: "Escalated", REVIEW_INCONCLUSIVE: "Closed as inconclusive", SUGGESTION_REVIEWED: "AI suggestion reviewed", SUGGESTION_REJECTED: "AI suggestion rejected" };
 const EVIDENCE_STATE: Record<string, string> = { CONFIRMED: "Confirmed by the teacher", NEEDS_OBSERVATION: "Needs more observation" };
@@ -69,6 +70,13 @@ export function LearningActions({ mode = "author" }: { mode?: "author" | "review
     </div>}
     <p className="text-xs text-ink-muted">{ui("Specific support with a goal, a responsible adult and a review date. Describe skills and actions, not labels.")}</p>
     {creating && !review ? <Editor ctx={ctx} onSaved={async id => { setCreating(false); await load(); setOpen(id); }} /> : null}
+    {ctx.actions.some(a => a.followUpGap) ? <section className="rounded-xl border border-border p-3" aria-labelledby="la-followups-title" data-follow-ups>
+      <h3 id="la-followups-title" className="text-sm font-semibold text-ink-strong">{ui("Follow-ups due or missing")}</h3>
+      <p className="text-xs text-ink-muted">{ui("Learners without a fresh check stay on this list so missing evidence is not hidden.")}</p>
+      <ul className="mt-2 space-y-1 text-sm">{ctx.actions.filter(a => a.followUpGap).map(a => <li key={a.id} data-follow-up-gap={a.followUpGap}>
+        <button type="button" className="text-start underline-offset-2 hover:underline" onClick={() => setOpen(a.id)}><bdi>{a.learner || a.title}</bdi></button> · <span>{a.title}</span> · <span className="font-semibold text-status-warning-text">{ui(GAP[a.followUpGap!])}</span>{a.reviewDate ? <> · {date(a.reviewDate)}</> : null}
+      </li>)}</ul>
+    </section> : null}
     {!ctx.actions.length ? <div data-empty>{review
       ? <EmptyState size="sm" icon={ClipboardList} title={ui("No learning actions are waiting")} description={ui("Support plans teachers propose for students appear here for you to activate.")} />
       : <EmptyState size="sm" icon={ClipboardList} title={ui("No learning actions yet")} description={ui("Start from a specific concern and the evidence behind it.")} action={<Button size="sm" onClick={() => setCreating(true)}>{ui("New learning action")}</Button>} />}</div>
@@ -144,7 +152,7 @@ function Panel({ id, ctx, onChanged, dateTime }: { id: string; ctx: Ctx; onChang
   const { date } = useLocaleFormat();
   const [detail, setDetail] = useState<Detail | null>(null), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false), [editing, setEditing] = useState(false);
   const [check, setCheck] = useState({ dueOn: todayText(), delivered: "yes", minutes: "", participation: "FULL", adjustment: "", next: "" });
-  const [review, setReview] = useState({ decision: "CLOSE", reason: "", measure: "", value: "", of: "", comparable: "yes", differences: "", limitations: "", nextReviewDate: "", nextOwnerId: "" });
+  const [review, setReview] = useState({ decision: "CLOSE", reason: "", measure: "", value: "", of: "", comparable: "yes", kind: "RETRIEVAL", differences: "", limitations: "", nextReviewDate: "", nextOwnerId: "" });
   const [handoff, setHandoff] = useState({ ownerId: "", reason: "" }), [reschedule, setReschedule] = useState({ date: "", reason: "" });
   const load = useCallback(async () => {
     const response = await fetch(`/api/learning-actions/${encodeURIComponent(id)}`, { cache: "no-store" }).catch(() => null);
@@ -210,13 +218,14 @@ function Panel({ id, ctx, onChanged, dateTime }: { id: string; ctx: Ctx; onChang
       <FormField name={`rv-measure-${id}`} label={ui("Follow-up measure")}><Input value={review.measure} onChange={e => setReview(r => ({ ...r, measure: e.target.value }))} /></FormField>
       <div className="grid grid-cols-2 gap-2"><FormField name={`rv-value-${id}`} label={ui("Score")}><Input type="number" value={review.value} onChange={e => setReview(r => ({ ...r, value: e.target.value }))} /></FormField><FormField name={`rv-of-${id}`} label={ui("Out of")}><Input type="number" value={review.of} onChange={e => setReview(r => ({ ...r, of: e.target.value }))} /></FormField></div>
       <FormField name={`rv-comparable-${id}`} label={ui("Comparable with the baseline?")}><Select value={review.comparable} onChange={e => setReview(r => ({ ...r, comparable: e.target.value }))}><option value="yes">{ui("Yes")}</option><option value="no">{ui("No")}</option></Select></FormField>
+      <FormField name={`rv-kind-${id}`} label={ui("Kind of follow-up")}><Select value={review.kind} onChange={e => setReview(r => ({ ...r, kind: e.target.value }))}><option value="RETRIEVAL">{ui("Retrieval: repeats practised material")}</option><option value="TRANSFER">{ui("Transfer: a fresh, unseen task")}</option></Select></FormField>
       <FormField name={`rv-diff-${id}`} label={ui("What differed")}><Input value={review.differences} onChange={e => setReview(r => ({ ...r, differences: e.target.value }))} /></FormField>
       <FormField name={`rv-limits-${id}`} label={ui("Limitations")}><Input value={review.limitations} onChange={e => setReview(r => ({ ...r, limitations: e.target.value }))} /></FormField>
       <FormField name={`rv-next-${id}`} label={ui("New review date (extend)")}><Input type="date" value={review.nextReviewDate} onChange={e => setReview(r => ({ ...r, nextReviewDate: e.target.value }))} /></FormField>
       <FormField name={`rv-owner-${id}`} label={ui("Takes it on (escalate)")}><Select value={review.nextOwnerId} onChange={e => setReview(r => ({ ...r, nextOwnerId: e.target.value }))}><option value="">—</option>{ctx.staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></FormField>
       <FormField name={`rv-reason-${id}`} label={ui("Reason for the decision")}><Textarea value={review.reason} onChange={e => setReview(r => ({ ...r, reason: e.target.value }))} /></FormField>
       <Button size="sm" disabled={busy || review.reason.trim().length < 10} onClick={() => void act("review", { decision: review.decision, reason: review.reason, limitations: review.limitations,
-        followUp: review.measure ? { measure: review.measure, value: review.value === "" ? null : Number(review.value), denominator: review.of === "" ? null : Number(review.of), takenOn: todayText(), source: "Teacher-approved follow-up", comparable: review.comparable === "yes", differences: review.differences } : null,
+        followUp: review.measure ? { measure: review.measure, value: review.value === "" ? null : Number(review.value), denominator: review.of === "" ? null : Number(review.of), takenOn: todayText(), source: "Teacher-approved follow-up", comparable: review.comparable === "yes", differences: review.differences, kind: review.kind } : null,
         nextReviewDate: review.nextReviewDate || null, nextOwnerId: review.nextOwnerId || null }, ui("Decision recorded."))}>{ui("Record decision")}</Button>
       <div className="flex flex-wrap items-end gap-2 sm:col-span-3">
         <FormField name={`ho-owner-${id}`} label={ui("Hand over to")}><Select value={handoff.ownerId} onChange={e => setHandoff(h => ({ ...h, ownerId: e.target.value }))}><option value="">—</option>{ctx.staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></FormField>
@@ -228,7 +237,7 @@ function Panel({ id, ctx, onChanged, dateTime }: { id: string; ctx: Ctx; onChang
     {detail.outcome ? <section className="rounded-xl bg-muted/60 p-3 text-xs" data-outcome>
       <p className="font-bold">{ui(DECISION[detail.outcome.decision] ?? detail.outcome.decision)} — <bdi>{detail.outcome.reason}</bdi></p>
       <p>{ui("Participation")}: {ui("{0} of {1} check-ins delivered, {2} minutes, absent {3} time(s)", [detail.outcome.participation.delivered, detail.outcome.participation.checkIns, detail.outcome.participation.minutes, detail.outcome.participation.absent])}</p>
-      <p>{ui("Baseline")}: {detail.baseline ? `${detail.baseline.value ?? "—"}${detail.baseline.denominator ? ` / ${detail.baseline.denominator}` : ""}` : "—"} · {ui("Follow-up")}: {detail.outcome.followUp ? `${detail.outcome.followUp.value ?? "—"}${detail.outcome.followUp.denominator ? ` / ${detail.outcome.followUp.denominator}` : ""}${detail.outcome.followUp.comparable ? "" : ` (${ui("not comparable")})`}` : ui("No follow-up evidence")}</p>
+      <p>{ui("Baseline")}: {detail.baseline ? `${detail.baseline.value ?? "—"}${detail.baseline.denominator ? ` / ${detail.baseline.denominator}` : ""}` : "—"} · {ui("Follow-up")}: {detail.outcome.followUp ? `${detail.outcome.followUp.value ?? "—"}${detail.outcome.followUp.denominator ? ` / ${detail.outcome.followUp.denominator}` : ""}${detail.outcome.followUp.comparable ? "" : ` (${ui("not comparable")})`} · ${ui(detail.outcome.followUp.kind === "TRANSFER" ? "Transfer" : "Retrieval, not transfer evidence")}` : ui("No follow-up evidence")}</p>
       {detail.outcome.limitations ? <p>{ui("Limitations")}: <bdi>{detail.outcome.limitations}</bdi></p> : null}
       <p className="text-ink-muted">{ui("This compares evidence before and after the action. It does not show that the action caused any change.")}</p>
     </section> : null}
