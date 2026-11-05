@@ -61,7 +61,7 @@ export async function updateClassWithTeacherAssignment(user: AuthUser, body: Ass
 /** Body keys that only staff a class (class teacher, teaching mode). Like subject-teacher assignment they are an
  *  academic act gated on `exams.edit` (the route enforces the academic-lead seat); anything else (name, section,
  *  year) is a class-record change and keeps `students.edit` (§7.6). */
-const STAFFING_ONLY_KEYS = new Set(["id", "campusId", "classTeacherId", "teacherId", "teachingMode", "effectiveFrom"]);
+const STAFFING_ONLY_KEYS = new Set(["id", "campusId", "classTeacherId", "teacherId", "expectedClassTeacherId", "teachingMode", "effectiveFrom"]);
 
 /** Caller holds the campus scheduling fence and a SERIALIZABLE transaction. */
 export async function updateClassWithTeacherAssignmentTx(tx: TxClient, user: AuthUser, body: AssignmentInput, campusId: string) {
@@ -94,6 +94,8 @@ export async function updateClassWithTeacherAssignmentTx(tx: TxClient, user: Aut
     if (duplicate) throw new ApiError(`${duplicate.name}${duplicate.section ? ` ${duplicate.section}` : ""} already exists for that year (class ${duplicate.id}).`, 409);
   }
   const teacherProvided = body.classTeacherId !== undefined || body.teacherId !== undefined;
+  // SKAI-1759: a stale page cannot overwrite a newer class-teacher allocation.
+  if (teacherProvided && body.expectedClassTeacherId !== undefined && (body.expectedClassTeacherId ?? null) !== existing.classTeacherId) throw new ApiError("This class's teacher changed since you opened the page. Reload to see the latest allocation, then try again.", 409);
   const classTeacherId = teacherProvided ? await teacherInCampus(tx, body.classTeacherId !== undefined ? body.classTeacherId : body.teacherId, user.schoolId, existing.campusId, true) : existing.classTeacherId;
   if (teacherProvided) data.classTeacherId = classTeacherId;
   let effectiveMode = existing.teachingMode;

@@ -173,6 +173,7 @@ import {
 } from "@/components/shared-admin";
 import { AI_COMPOSER_INPUT_ID } from "@/components/ai-workflows/AiWorkflowsHome";
 import { readApiError } from "@/lib/api/envelope-client";
+import { currentClassTeacherId, currentSubjectTeacherId } from "@/lib/academic/allocation-version";
 
 /* ────────────────────────── Session (names for "Managed by" copy) ────────────────────────── */
 
@@ -485,7 +486,7 @@ export default function CampusConsolePage() {
       const res = await fetch("/api/classes", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: classId, classTeacherId: classTeacherId || null }),
+        body: JSON.stringify({ id: classId, classTeacherId: classTeacherId || null, expectedClassTeacherId: currentClassTeacherId(data?.classes, classId) }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
@@ -616,7 +617,7 @@ export default function CampusConsolePage() {
       const res = await fetch("/api/subjects", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: subjectId, teacherId: teacherId || null, ...(effectiveFrom ? { effectiveFrom } : {}) }),
+        body: JSON.stringify({ id: subjectId, teacherId: teacherId || null, expectedTeacherId: currentSubjectTeacherId(data?.classes, subjectId), ...(effectiveFrom ? { effectiveFrom } : {}) }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));

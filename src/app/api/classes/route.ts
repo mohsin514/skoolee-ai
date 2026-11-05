@@ -23,7 +23,7 @@ import { gradeRangeNames, parseClassCapacity, parseGradeRange } from "@/lib/acad
 
 /** Fields of a class PATCH that are academic staffing decisions (the principal's job); everything else
  *  (name, section, year, capacity, room, restore) is campus operations (§7.6). */
-const ACADEMIC_CLASS_FIELDS = new Set(["id", "campusId", "classTeacherId", "teacherId", "teachingMode", "effectiveFrom"]);
+const ACADEMIC_CLASS_FIELDS = new Set(["id", "campusId", "classTeacherId", "teacherId", "expectedClassTeacherId", "teachingMode", "effectiveFrom"]);
 function isAcademicOnlyClassPatch(body: Record<string, unknown>) {
   return body.action === undefined && Object.keys(body).every((key) => ACADEMIC_CLASS_FIELDS.has(key));
 }
