@@ -153,6 +153,10 @@ async function reserveVersion(tx: TxClient, user: AuthUser, resource: { id: stri
 }
 
 const CREATE_REPLAY_WINDOW_MS = 2 * 60 * 1000;
+/** Stored objectives come back from jsonb with keys reordered, so compare them key-order-independently. */
+const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical)
+  : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, canonical(v)])) : value;
+export const sameObjectives = (stored: unknown, requested: unknown) => JSON.stringify(canonical(stored ?? null)) === JSON.stringify(canonical(requested ?? null));
 
 export async function createResource(user: AuthUser, raw: unknown) {
   const input = createInput.parse(raw);
@@ -162,10 +166,12 @@ export async function createResource(user: AuthUser, raw: unknown) {
     if (input.objectives) await assertObjectivesExist(tx, user, klass.id, input.objectives);
     // SKAI-624: a double-submitted create replays the author's recent identical draft instead of adding a second resource.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`learning-resource:${klass.id}:${user.userId}`}))`;
-    const recent = await tx.learningResource.findFirst({ where: { schoolId: user.schoolId, classId: klass.id, ownerId: user.userId, status: "DRAFT", latestVersion: 1, kind: input.kind, audience: input.audience, title: { equals: input.title, mode: "insensitive" }, createdAt: { gte: new Date(Date.now() - CREATE_REPLAY_WINDOW_MS) } } });
+    const recent = await tx.learningResource.findFirst({ where: { schoolId: user.schoolId, classId: klass.id, ownerId: user.userId, status: "DRAFT", latestVersion: 1, kind: input.kind, audience: input.audience, language: input.language, sourceRights: input.sourceRights, subjectId: input.subjectId ?? null, title: { equals: input.title, mode: "insensitive" }, createdAt: { gte: new Date(Date.now() - CREATE_REPLAY_WINDOW_MS) } } });
     if (recent) {
       const first = await tx.learningResourceVersion.findFirst({ where: { schoolId: user.schoolId, resourceId: recent.id, version: 1 } });
-      const sameContent = first && ("link" in input.content ? first.linkUrl === input.content.link : first.fileName === input.content.fileName && first.sizeBytes === input.content.sizeBytes);
+      // SKAI-1769: every authored field must match; a near-match with a different description or objectives is a new draft.
+      const sameContent = first && first.description === input.description && sameObjectives(recent.objectives, input.objectives)
+        && ("link" in input.content ? first.linkUrl === input.content.link : first.fileName === input.content.fileName && first.sizeBytes === input.content.sizeBytes && first.contentType === input.content.contentType);
       if (sameContent) {
         const uploadUrl = first.storageKey && !first.uploadedAt && !("link" in input.content)
           ? await createPrivateUploadUrl(user, { kind: "resource", targetId: recent.id, storageKey: first.storageKey, contentType: input.content.contentType, sizeBytes: input.content.sizeBytes, fileName: input.content.fileName })
