@@ -110,6 +110,14 @@ type AuditClient = Record<string, Delegate>;
  */
 const inFlight = new AsyncLocalStorage<true>();
 
+/**
+ * SKAI-1770: run a mutation whose caller writes its own, richer audit row for the same action, so the
+ * extension does not log it a second time. The caller must write that row; audit_logs keeps exactly one.
+ */
+export function withoutAutoAudit<T>(fn: () => Promise<T>): Promise<T> {
+  return inFlight.run(true, fn);
+}
+
 function rowSchool(row: unknown, context: TenantContext): string | null {
   const own = (row as { schoolId?: unknown } | null)?.schoolId;
   if (typeof own === "string" && own) return own;
