@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertStaffRole, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import type { Prisma } from "@prisma/client";
+import { ApiError, assertPermission, assertStaffRole, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { campusScope } from "@/lib/auth/policy";
 
 // Sibling lookup.
 // GET /api/students/siblings?studentId= — returns every student sharing the
@@ -13,12 +15,24 @@ export async function GET(req: NextRequest) {
     const user = await requireAuthUser();
     // School-wide sibling groups — staff only.
     assertStaffRole(user);
+    // SKAI-1757: this is a roster-like read (pupil identities + guardian
+    // contacts), so it needs Students > View, campus scope, and — for teachers —
+    // the classes they teach or lead, exactly like /api/students.
+    await assertPermission(user, "students", "view");
+    const isTeacher = user.role === "TEACHER";
+    const scope: Prisma.StudentWhereInput = {
+      ...campusScope(user),
+      ...(isTeacher ? { class: { is: { OR: [
+        { classTeacherId: user.userId },
+        { subjects: { some: { teacherId: user.userId } } },
+      ] } } } : {}),
+    };
     const studentId = req.nextUrl.searchParams.get("studentId");
     const search = req.nextUrl.searchParams.get("search")?.trim();
 
     if (studentId) {
       const student = await prisma.student.findFirst({
-        where: { id: studentId, campus: { schoolId: user.schoolId } },
+        where: { id: studentId, ...scope },
         select: { id: true, siblingGroupId: true },
       });
       if (!student) throw new ApiError("Student not found", 404);
@@ -31,7 +45,7 @@ export async function GET(req: NextRequest) {
         where: {
           siblingGroupId: student.siblingGroupId,
           consolidatedIntoId: null,
-          campus: { schoolId: user.schoolId },
+          ...scope,
         },
         select: {
           id: true,
@@ -47,19 +61,18 @@ export async function GET(req: NextRequest) {
       return Response.json({ success: true, data: siblings });
     }
 
-    const where = search
+    const where: Prisma.StudentWhereInput = search
       ? {
+          ...scope,
           consolidatedIntoId: null,
           siblingGroupId: { not: null },
-          campus: { schoolId: user.schoolId },
           OR: [
             { fullName: { contains: search, mode: "insensitive" as const } },
             { rollNo: { contains: search, mode: "insensitive" as const } },
             { admissionNo: { contains: search, mode: "insensitive" as const } },
           ],
         }
-      : { consolidatedIntoId: null,
-          siblingGroupId: { not: null }, campus: { schoolId: user.schoolId } };
+      : { ...scope, consolidatedIntoId: null, siblingGroupId: { not: null } };
 
     const students = await prisma.student.findMany({
       where,
@@ -70,7 +83,8 @@ export async function GET(req: NextRequest) {
         admissionNo: true,
         siblingGroupId: true,
         parentUserId: true,
-        parent: { select: { id: true, fullName: true, phone: true, email: true } },
+        // Guardian contact details stay with registrars; teachers get the name only.
+        parent: { select: { id: true, fullName: true, ...(isTeacher ? {} : { phone: true, email: true }) } },
         class: { select: { name: true, section: true } },
       },
       orderBy: [{ fullName: "asc" }],
