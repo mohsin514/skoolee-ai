@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
+import { withoutAutoAudit } from "@/lib/db/audit-trail";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, soleChecker } from "@/lib/api/scope";
 import { isCampusOperator } from "@/lib/auth/institution";
@@ -145,12 +146,15 @@ export async function decideRequest(user: AuthUser, id: string, raw: unknown) {
       } else if (!input.reason) throw new ApiError("Give a reason for returning the request.", 400);
     }
     const status = input.decision === "APPROVE" ? "APPROVED" : input.decision === "RETURN" ? "RETURNED" : "CANCELLED";
-    const done = await tx.purchaseRequest.updateMany({ where: { id, version: input.version }, data: { status, version: { increment: 1 },
+    // SKAI-1773: a self-decision writes its own audit row below (reason, selfApproved), so the automatic row for
+    // this update is skipped and the decision is logged once. Other decisions keep the automatic row.
+    const update = () => tx.purchaseRequest.updateMany({ where: { id, version: input.version }, data: { status, version: { increment: 1 },
       ...(input.decision === "APPROVE" ? { approvedById: user.userId, approvedAt: new Date(), approvedHash: orderHash(r.lines as Line[], r.supplierId, r.total) } : {}),
       history: push(r.history, { by: user.userId, action: status, reason: input.reason ?? null, ...(selfApproved ? { selfApproved: true } : {}) }) } });
+    const done = await (selfApproved ? withoutAutoAudit(update) : update());
     if (!done.count) throw new ApiError("Another decision was saved first.", 409);
     if (selfApproved) {
-      await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "purchase_requests", recordId: id, userId: user.userId, oldValue: { status: r.status }, newValue: { status, selfApproved: true, reason: input.reason ?? null } } });
+      await tx.auditLog.create({ data: { schoolId: user.schoolId, campusId: r.campusId, tableName: "purchase_requests", recordId: id, userId: user.userId, oldValue: { status: r.status }, newValue: { status, selfApproved: true, reason: input.reason ?? null } } });
     }
     return tx.purchaseRequest.findUnique({ where: { id } });
   });
