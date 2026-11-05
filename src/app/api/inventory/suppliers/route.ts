@@ -81,14 +81,21 @@ export async function PATCH(req: NextRequest) {
     const supplier = await prisma.supplier.findFirst({ where: { id, campusId } });
     if (!supplier) throw new ApiError("Supplier not found", 404);
 
-    const updated = await prisma.supplier.update({
-      where: { id },
-      data: {
-        ...(name !== undefined ? { name } : {}),
-        ...(phone !== undefined ? { phone } : {}),
-        ...(email !== undefined ? { email } : {}),
-        ...(address !== undefined ? { address } : {}),
-      },
+    const data = {
+      ...(name !== undefined ? { name } : {}),
+      ...(phone !== undefined ? { phone } : {}),
+      ...(email !== undefined ? { email } : {}),
+      ...(address !== undefined ? { address } : {}),
+    };
+    // SKAI-1687: a rename takes the same per-campus lock and case-insensitive name check as create, so an update
+    // cannot produce two suppliers with one name; the record is left unchanged on conflict.
+    const updated = await prisma.$transaction(async (tx) => {
+      if (name !== undefined) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`inventory-supplier:${campusId}`}))`;
+        const clash = await tx.supplier.findFirst({ where: { campusId, id: { not: id }, name: { equals: name, mode: "insensitive" } }, select: { id: true } });
+        if (clash) throw new ApiError("A supplier with this name already exists", 409);
+      }
+      return tx.supplier.update({ where: { id }, data });
     });
 
     return Response.json({ success: true, data: updated });
