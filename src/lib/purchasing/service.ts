@@ -260,7 +260,9 @@ export async function returnToSupplier(user: AuthUser, id: string, raw: unknown)
     if (line.asset) {
       const active = await tx.schoolAsset.findMany({ where: { schoolId: user.schoolId, requestId: id, status: "ACTIVE", tag: { startsWith: `${r.poNumber}-L${input.line + 1}-` } }, orderBy: { tag: "desc" }, take: input.quantity });
       if (active.length < input.quantity) throw new ApiError("Some returned units are no longer active in the asset register. Update those assets first.", 409);
-      for (const asset of active) await tx.schoolAsset.update({ where: { id: asset.id }, data: { status: "RETURNED", history: push(asset.history, { action: "RETURNED_TO_SUPPLIER", by: user.userId, reason: input.reason }) } });
+      for (const asset of active) await tx.schoolAsset.update({ where: { id: asset.id }, data: { status: "RETURNED", nextServiceOn: null, history: push(asset.history, { action: "RETURNED_TO_SUPPLIER", by: user.userId, reason: input.reason }) } });
+      // SKAI-1693: a returned unit has no future maintenance. Its open jobs are cancelled (kept for audit), not deleted.
+      if (active.length) await tx.assetService.updateMany({ where: { schoolId: user.schoolId, assetId: { in: active.map(a => a.id) }, status: "SCHEDULED" }, data: { status: "CANCELLED", cancelReason: `Asset returned to supplier: ${input.reason}` } });
     }
     received[input.line] -= input.quantity;
     const done = await tx.purchaseRequest.updateMany({ where: { id, version: r.version }, data: { received, status: "PARTIALLY_RECEIVED", version: { increment: 1 }, history: push(r.history, { by: user.userId, action: "RETURNED_TO_SUPPLIER", line: input.line, quantity: input.quantity, reason: input.reason, idempotencyKey: input.idempotencyKey }) } });
@@ -312,6 +314,7 @@ export async function scheduleService(user: AuthUser, assetId: string, raw: unkn
   const input = parse(z.object({ dueOn: day }).strict(), raw);
   const asset = await prisma.schoolAsset.findFirst({ where: { id: assetId, schoolId: user.schoolId, campusId: campusOf(user) } });
   if (!asset) throw new ApiError("Asset not found", 404);
+  if (asset.status !== "ACTIVE") throw new ApiError("Only an active asset can be scheduled for maintenance.", 409);
   const due = new Date(`${input.dueOn}T00:00:00Z`);
   await prisma.schoolAsset.update({ where: { id: assetId }, data: { nextServiceOn: due } });
   return prisma.assetService.create({ data: { schoolId: user.schoolId, assetId, dueOn: due } });
@@ -323,9 +326,11 @@ export async function closeService(user: AuthUser, serviceId: string, raw: unkno
   const input = parse(z.object({ action: z.enum(["COMPLETE", "CANCEL"]), work: text(5, 1000).optional(), nextDueOn: day.optional(), reason: text(5, 300).optional() }).strict(), raw);
   const job = await prisma.assetService.findFirst({ where: { id: serviceId, schoolId: user.schoolId, status: "SCHEDULED" } });
   // SKAI-1395: a job on another campus's asset is not disclosed, and nothing is written for it.
-  const asset = job ? await prisma.schoolAsset.findFirst({ where: { id: job.assetId, schoolId: user.schoolId, campusId: campusOf(user) }, select: { id: true } }) : null;
+  const asset = job ? await prisma.schoolAsset.findFirst({ where: { id: job.assetId, schoolId: user.schoolId, campusId: campusOf(user) }, select: { id: true, status: true } }) : null;
   if (!job || !asset) throw new ApiError("This job is not open.", 409);
   if (input.action === "COMPLETE") {
+    // SKAI-1693: a returned or retired asset gets no next job; a stale job on it can only be cancelled.
+    if (asset.status !== "ACTIVE") throw new ApiError("This asset is no longer active. Cancel the job instead.", 409);
     if (!input.work || !input.nextDueOn) throw new ApiError("Record the work done and the next due date.", 400);
     const next = new Date(`${input.nextDueOn}T00:00:00Z`);
     // All three writes commit together, so a failed close cannot leave the job DONE with no next job.
@@ -351,12 +356,13 @@ export async function purchasingOverview(user: AuthUser) {
   const budgets = await prisma.purchaseBudget.findMany({ where: { schoolId: user.schoolId, campusId }, orderBy: [{ period: "desc" }, { costCenter: "asc" }] });
   const positions = await Promise.all(budgets.map((b) => budgetPosition(prisma, b.id)));
   // SKAI-1395: maintenance jobs are campus-scoped through their asset (AssetService has no campus column).
-  const assetIds = (await prisma.schoolAsset.findMany({ where: { schoolId: user.schoolId, campusId }, select: { id: true } })).map((asset) => asset.id);
+  const campusAssets = await prisma.schoolAsset.findMany({ where: { schoolId: user.schoolId, campusId }, select: { id: true, status: true } });
+  const activeAssetIds = campusAssets.filter((asset) => asset.status === "ACTIVE").map((asset) => asset.id);
   const [requests, invoices, assets, services, stores, items, suppliers] = await Promise.all([
     prisma.purchaseRequest.findMany({ where: { schoolId: user.schoolId, campusId }, orderBy: { createdAt: "desc" }, take: 100 }),
     prisma.supplierInvoice.findMany({ where: { schoolId: user.schoolId, campusId }, orderBy: { createdAt: "desc" }, take: 100 }),
     prisma.schoolAsset.findMany({ where: { schoolId: user.schoolId, campusId }, orderBy: { tag: "asc" }, take: 300 }),
-    prisma.assetService.findMany({ where: { schoolId: user.schoolId, status: "SCHEDULED", assetId: { in: assetIds } }, orderBy: { dueOn: "asc" }, take: 200 }),
+    prisma.assetService.findMany({ where: { schoolId: user.schoolId, status: "SCHEDULED", assetId: { in: activeAssetIds } }, orderBy: { dueOn: "asc" }, take: 200 }),
     prisma.itemStore.findMany({ where: { campusId }, select: { id: true, name: true } }),
     prisma.item.findMany({ where: { campusId }, select: { id: true, name: true }, take: 300 }),
     prisma.supplier.findMany({ where: { campusId }, select: { id: true, name: true } }),
