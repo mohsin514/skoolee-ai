@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { getAuthUser } from "@/lib/auth";
 import { calculateWeightedGradeForClass } from "@/lib/academic/grade-calculator";
-import { refreshVersion, versionTransaction } from "@/lib/academic/report-versions";
+import { ReportConflict, refreshVersion, versionTransaction } from "@/lib/academic/report-versions";
+import { findOrCreateFinalExam, lockFinalGradeScope } from "@/lib/academic/final-grade-exam";
 import { canLeadAcademics, canManageAcademics } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -101,36 +102,8 @@ export async function POST(req: NextRequest) {
     });
     if (!cls) return NextResponse.json({ error: "Class not found" }, { status: 404 });
 
-    // Find or create a synthetic "Final Grade" exam for this class/year
-    let finalExam = await prisma.exam.findFirst({
-      where: {
-        campusId: user.campusId,
-        classId,
-        academicYear: year,
-        examType: "FINAL",
-        subjectId: null,
-      },
-    });
-
-    if (!finalExam) {
-      finalExam = await prisma.$transaction(async (tx) => {
-        const created = await tx.exam.create({
-          data: {
-            campusId: user.campusId!,
-            classId,
-            title: `Final Grade - ${cls.name} ${cls.section || ""}`.trim(),
-            term: `Academic Year ${academicYear}`,
-            academicYear: Number(academicYear),
-            examType: "FINAL",
-            status: "PUBLISHED",
-            totalMarks: 100,
-            publishedAt: new Date(),
-          },
-        });
-        await writeAuditEvent(tx, user, { table: "exams", recordId: created.id, action: "CREATE", campusId: created.campusId, after: { status: created.status, examType: created.examType, academicYear: created.academicYear, totalMarks: created.totalMarks } });
-        return created;
-      });
-    }
+    // SKAI-1688: find or create the synthetic "Final Grade" exam under a per-scope lock, so a race makes one exam.
+    const { exam: finalExam } = await prisma.$transaction((tx) => findOrCreateFinalExam(tx as TxClient, user, user.campusId!, cls, year));
 
     // Calculate weighted grades for all students
     const grades = await calculateWeightedGradeForClass(classId, user.campusId, Number(academicYear));
@@ -168,6 +141,8 @@ export async function POST(req: NextRequest) {
     // Existing cards keep their remarks, delivery history and published version. Changed marks go through the
     // report-version workflow, which records a new reviewable version and clears approval and the PDF.
     await versionTransaction(async (tx) => {
+      // SKAI-1688: the same lock serialises card writes; a stale loser aborts as a ReportConflict (409), never a duplicate.
+      await lockFinalGradeScope(tx, user.campusId!, classId, year);
       for (const { marks, studentId, existingId } of writes) {
         const card = existingId
           ? await tx.reportCard.update({ where: { id: existingId }, data: marks })
@@ -182,6 +157,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, count: grades.length });
   } catch (error: any) {
+    if (error instanceof ReportConflict) {
+      return NextResponse.json({ error: "Final grades are already being generated for this class. Reload to see the result." }, { status: 409 });
+    }
     console.error("Generate-from-grades error:", error);
     // SKAI-1340: the detail stays in the server log; the client gets a plain message.
     return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });
