@@ -19,11 +19,13 @@
 import { clearDeviceDrafts } from "@/lib/drafts/store";
 import { clearNavigationAccessCache } from "@/components/nav/NavigationAccess";
 import { resetShellSession } from "@/components/role-dashboard/ScopeBadge";
+import { clearWorkspacePrefs } from "@/lib/ui/workspace-pref-storage";
 
 export function clearClientIdentity(): void {
   clearDeviceDrafts();
   clearNavigationAccessCache();
   resetShellSession();
+  clearWorkspacePrefs(); // SKAI-1780
 }
 
 /** POSTs the sign-out, retrying once. Resolves true when the server confirmed it. */
