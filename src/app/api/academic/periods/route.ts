@@ -2,7 +2,7 @@ import { validateStoredExamSchedules } from "@/lib/academic/exam-bookings";
 import { withSchedulingResourceWrite, resourceScope } from "@/lib/academic/resource-write";
 import { NextRequest } from "next/server";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageCampusOps, errorResponse, requestedCampusId, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 import { classPeriodEditDecision, findPeriodOverlap, periodImpactMessage, periodInputProblem, type PeriodTimetableImpact } from "@/lib/academic/period-rules";
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     await assertPermission(user, "timetable", "add");
 
     const body = await parseBody(req, jsonObjectBody);
-    const campusId = await resolveCampusId(user, body.campusId);
+    const campusId = await resolveCampusId(user, requestedCampusId(req, body));
     const timeType = String(body.timeType ?? "CLASS").toUpperCase() === "EXAM" ? "EXAM" : "CLASS";
     const periodNumber = parseInt(String(body.periodNumber ?? ""), 10);
     const startTime = String(body.startTime ?? "").trim();
