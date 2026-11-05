@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, canManageCampusOps, resolveCampusId } from "@/lib/api/scope";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { guardianRelationshipAuthorityWhere } from "@/lib/parent/guardian-query";
@@ -46,9 +46,9 @@ export function parseConsentBody(body: Record<string, unknown>) {
   return { studentId, language: language as ConsentLanguage, choices };
 }
 
-async function guardianLink(user: AuthUser, studentId: string) {
+async function guardianLink(user: AuthUser, studentId: string, db: Pick<TxClient, "guardianRelationship"> = prisma) {
   if (user.role !== "PARENT") throw new ApiError("Not found", 404);
-  const link = await prisma.guardianRelationship.findFirst({
+  const link = await db.guardianRelationship.findFirst({
     where: { ...guardianRelationshipAuthorityWhere(user.userId, new Date(), user.schoolId), studentId },
     select: { id: true, fullName: true, campusId: true },
   });
@@ -92,8 +92,13 @@ export function isConsentReplay(previous: { choices: unknown; noticeVersion: str
 
 export async function recordGuardianConsent(user: AuthUser, body: Record<string, unknown>) {
   const input = parseConsentBody(body);
-  const link = await guardianLink(user, input.studentId);
+  if (user.role !== "PARENT") throw new ApiError("Not found", 404);
+  // SKAI-1250: one transaction, read committed. Serializable added nothing here (the advisory lock below
+  // already orders the only race that matters) but its predicate reads over campuses, students and the busy
+  // audit_logs table drew 40001 aborts that replayed the whole write up to seven times on the remote DB.
+  // The guardian check joins the same transaction instead of paying for its own BEGIN/COMMIT.
   return schoolAiTransaction(user, async tx => {
+    const link = await guardianLink(user, input.studentId, tx);
     // One guardian answering for one child is serialised, so two in-flight copies of one submission
     // cannot both insert: the second sees the first and returns its receipt.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`guardian-consent:${user.schoolId}:${input.studentId}:${user.userId}`}))`;
@@ -109,7 +114,7 @@ export async function recordGuardianConsent(user: AuthUser, body: Record<string,
       after: { studentId: input.studentId, relationshipId: link.id, noticeVersion: CONSENT_NOTICE_VERSION, language: input.language, ...input.choices },
     });
     return publicRow(row);
-  });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 }
 
 /** Staff view: every active pupil on the campus with each current guardian's latest answer. */
