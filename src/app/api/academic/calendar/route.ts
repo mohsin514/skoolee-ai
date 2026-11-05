@@ -8,7 +8,7 @@ import { withSchedulingResourceWrite } from "@/lib/academic/resource-write";
 import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageCampusOps, errorResponse, requestedCampusId, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     await assertPermission(user, "timetable", "add");
 
     const body = await parseBody(req, jsonObjectBody);
-    const campusId = await resolveCampusId(user, body.campusId);
+    const campusId = await resolveCampusId(user, requestedCampusId(req, body));
     const input = parseHolidayInput(body);
     if (input.allCampuses && user.role !== "SUPER_ADMIN") throw new ApiError("Only the school owner can add a whole-school holiday.", 403);
 
@@ -117,7 +117,7 @@ export async function PUT(req: NextRequest) {
     await assertPermission(user, "timetable", "edit");
 
     const body = await parseBody(req, jsonObjectBody);
-    const campusId = await resolveCampusId(user, body.campusId);
+    const campusId = await resolveCampusId(user, requestedCampusId(req, body));
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);
     const input = parseHolidayInput({ ...body, repeatYears: 0, allCampuses: false });
