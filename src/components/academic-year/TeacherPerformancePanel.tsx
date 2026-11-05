@@ -70,14 +70,24 @@ export function TeacherPerformancePanel({ self = false, hideHeading = false, exp
   }, [year, ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
 
+  // SKAI-1733: a failed history load is an error with Retry, never "No notes yet."; the last history loaded for
+  // this teacher stays visible, and adding a note waits until the authoritative history is back.
+  const [notesFailed, setNotesFailed] = useState(false);
+  const lastNotes = useRef<{ teacherId: string; notes: Note[] } | null>(null);
+  const fetchNotes = async (teacherId: string) => {
+    const token = notesRequest.current.begin(teacherId);
+    setNotesFailed(false);
+    setNotes(lastNotes.current?.teacherId === teacherId ? lastNotes.current.notes : null);
+    const response = await fetch(`/api/teachers/performance/notes?teacherId=${encodeURIComponent(teacherId)}&academicYear=${year}`, { cache: "no-store" }).catch(() => null);
+    const json = await response?.json().catch(() => null);
+    if (!notesRequest.current.isCurrent(token, teacherId)) return;
+    if (response?.ok && isApiOk(json) && Array.isArray(json.data)) { lastNotes.current = { teacherId, notes: json.data }; setNotes(json.data); }
+    else setNotesFailed(true);
+  };
   const openNotes = async (teacherId: string) => {
     if (open === teacherId) { notesRequest.current.cancel(); setOpen(null); return; }
-    const token = notesRequest.current.begin(teacherId);
-    setOpen(teacherId); setNotes(null); setDraft("");
-    const response = await fetch(`/api/teachers/performance/notes?teacherId=${encodeURIComponent(teacherId)}&academicYear=${year}`, { cache: "no-store" }).catch(() => null);
-    const json = await response?.json().catch(() => ({}));
-    if (!notesRequest.current.isCurrent(token, teacherId)) return;
-    setNotes(response?.ok && isApiOk(json) ? json.data : []);
+    setOpen(teacherId); setDraft("");
+    await fetchNotes(teacherId);
   };
   // One POST for the row editor and the "Add note" composer; `draft` is the note text either one passes in.
   const postNote = async (teacherId: string, draft: string) => {
@@ -172,10 +182,11 @@ export function TeacherPerformancePanel({ self = false, hideHeading = false, exp
           </table></div>
           {open === row.teacherId ? <div className="space-y-2 rounded-xl bg-muted/60 p-3" data-notes>
             <p className="text-xs text-ink-muted">{ui("Support notes are reviewed actions and responses. They are not employment decisions, which are made and recorded separately by an authorized person.")}</p>
-            {notes === null ? <div role="status" aria-label={ui("Loading notes…")}><SkeletonList /></div> : !notes.length ? <EmptyState size="sm" icon={MessageSquareText} title={ui("No notes yet.")} description={self ? ui("Add your response below.") : ui("Record the first support action below.")} />
+            {notesFailed ? <ErrorState title={ui("Support notes could not be loaded.")} description={notes?.length ? ui("Showing the notes last loaded. Adding a note waits until the history loads.") : ui("Adding a note waits until the history loads.")} onRetry={() => void fetchNotes(row.teacherId)} retryLabel={ui("Try again")} /> : null}
+            {notes === null ? (notesFailed ? null : <div role="status" aria-label={ui("Loading notes…")}><SkeletonList /></div>) : !notes.length ? <EmptyState size="sm" icon={MessageSquareText} title={ui("No notes yet.")} description={self ? ui("Add your response below.") : ui("Record the first support action below.")} />
               : <ol className="space-y-1 text-xs">{notes.map(note => <li key={note.id} data-note-kind={note.kind}><span className="font-bold">{ui(NOTE_LABEL[note.kind] ?? note.kind)}</span> · <bdi>{note.author}</bdi> · {dateTime(note.createdAt)}<span className="block"><bdi>{note.body}</bdi></span></li>)}</ol>}
             <FormField name={`note-${row.teacherId}`} label={self ? ui("Your response") : ui("Reviewed support action")}><Textarea maxLength={2000} value={draft} onChange={event => setDraft(event.target.value)} /></FormField>
-            <Button size="sm" loading={saving} disabled={saving || draft.trim().length < NOTE_MIN} onClick={() => void saveNote(row.teacherId)}>{self ? ui("Add your response") : ui("Record support action")}</Button>
+            <Button size="sm" loading={saving} disabled={saving || notesFailed || notes === null || draft.trim().length < NOTE_MIN} onClick={() => void saveNote(row.teacherId)}>{self ? ui("Add your response") : ui("Record support action")}</Button>
           </div> : null}
         </li>)}</ul>}
 
