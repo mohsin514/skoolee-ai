@@ -1,7 +1,8 @@
 "use client";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 // SKO-409 helpers shared by the teacher workspace and the learner/family pages.
 export type Criterion = { id: string; title: string; description: string; maxPoints: number };
@@ -59,4 +60,15 @@ export function RubricTable({ criteria, scores, labels }: { criteria: Criterion[
     </tr>; })}</tbody>
     <tfoot><tr><th scope="row" className="pt-1.5 text-start text-xs font-semibold">{labels.total}</th><td className="pt-1.5 font-semibold tabular-nums"><span dir="ltr">{got !== undefined ? `${got} / ${total}` : total}</span></td>{scores && <td />}</tr></tfoot>
   </table></div>;
+}
+
+/** SKAI-1699: older work loads page by page; a failed page keeps the rows already shown and retries the same cursor. */
+export function LoadOlder({ cursor, onLoad, labels }: { cursor: string | null | undefined; onLoad: (cursor: string) => Promise<void>; labels: { loadOlder: string; loadingOlder: string; olderFailed: string; retry: string } }) {
+  const [state, setState] = useState<"idle" | "loading" | "failed">("idle");
+  if (!cursor) return null;
+  const run = () => { setState("loading"); onLoad(cursor).then(() => setState("idle"), () => setState("failed")); };
+  return <div className="flex flex-col items-center gap-2" aria-live="polite" data-load-older>
+    {state === "failed" && <p role="alert" className="text-sm text-status-danger-text">{labels.olderFailed}</p>}
+    <Button type="button" variant="outline" onClick={run} disabled={state === "loading"} aria-busy={state === "loading"}>{state === "loading" ? labels.loadingOlder : state === "failed" ? labels.retry : labels.loadOlder}</Button>
+  </div>;
 }
