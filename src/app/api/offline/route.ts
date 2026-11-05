@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 const headers = { "Cache-Control": "private, no-store" };
 const ok = (data: unknown) => Response.json({ success: true, data }, { headers });
 
-// SKO-448: offline capture. GET ?view=prepare&classId=&date= | review | capabilities.
+// SKO-448: offline capture. GET ?view=prepare&classId=&date= | today | review | capabilities.
 // POST {action: sync | resolve | review-decide}. SKAI-193: GET ?view=class-changes&cursor=, POST class-sync | class-resolve. Every call runs as the current session.
 export async function GET(request: NextRequest) {
   try {
@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const p = request.nextUrl.searchParams;
     switch (p.get("view") ?? "capabilities") {
       case "prepare": return ok(await offline.prepare(user, p.get("classId") ?? "", p.get("date") ?? ""));
+      case "today": return ok(await offline.today(user));
       case "review": return ok(await offline.reviewQueue(user));
       case "capabilities": return ok(offline.CAPABILITIES);
       case "class-changes": return ok(await classChanges(user, p.get("cursor")));
