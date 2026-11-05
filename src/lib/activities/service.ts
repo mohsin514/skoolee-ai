@@ -47,6 +47,9 @@ export async function createActivity(user: AuthUser, body: Record<string, unknow
   if (!cancellationTerms) throw new ApiError("State the cancellation and refund terms families will see.", 400);
   const startsAt = new Date(String(body.startsAt ?? "")), endsAt = new Date(String(body.endsAt ?? ""));
   if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) throw new ApiError("Set when the activity starts and ends.", 400);
+  // SKAI-1712: families see only activities that have not ended (familyActivities: endsAt > now), so an
+  // activity that has already ended would publish to nobody. Instants compare the same in every campus timezone.
+  if (endsAt <= new Date()) throw new ApiError("This activity has already ended. Choose an end time in the future.", 400);
   const capacity = Number(body.capacity), costAmount = Number(body.costAmount ?? 0);
   if (!Number.isInteger(capacity) || capacity < 1 || capacity > 2000) throw new ApiError("Capacity is a whole number of places.", 400);
   if (!Number.isInteger(costAmount) || costAmount < 0) throw new ApiError("The cost is a whole amount (0 for free).", 400);
