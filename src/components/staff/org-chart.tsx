@@ -263,6 +263,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
         </InputGroup>
 
         <SystemSelect
+          aria-label={ui("Filter by department")}
           value={departmentId}
           onChange={(e) => setDepartmentId(e.target.value)}
           className="px-3 py-2.5"
@@ -277,6 +278,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
         </SystemSelect>
 
         <SystemSelect
+          aria-label={ui("Filter by track")}
           value={track}
           onChange={(e) => setTrack(e.target.value)}
           className="px-3 py-2.5"
