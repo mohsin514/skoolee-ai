@@ -150,30 +150,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ? await prisma.guardianRelationship.findFirst({ where: { id: input.relationshipId, schoolId: user.schoolId, studentId }, include: { accessVersions: { orderBy: { effectiveFrom: "desc" } } } })
         : null;
       if (input.relationshipId && !relationship) throw new ApiError("Guardian relationship not found", 404);
-      if (!relationship) {
+      // SKAI-1686: the draft lookup, duplicate check and create run under one lock per school, child and email, so
+      // two concurrent previews for a new guardian leave one DRAFT: the same registrar's retry reuses it and any
+      // other request sees it as an existing relationship (409).
+      if (!relationship) relationship = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`guardian-draft:${user.schoolId}:${studentId}:${input.email}`}))`;
         // A retried preview reuses the unexpired draft instead of stacking another hidden draft behind it.
-        const reusable = await prisma.guardianRelationship.findFirst({
+        const reusable = await tx.guardianRelationship.findFirst({
           where: { schoolId: user.schoolId, studentId, status: "DRAFT", createdByUserId: user.userId, invitationExpiresAt: { gt: now }, email: { equals: input.email, mode: "insensitive" } },
           include: { accessVersions: { orderBy: { effectiveFrom: "desc" } } },
           orderBy: { createdAt: "desc" },
         });
-        if (reusable) relationship = reusable;
-      }
-      if (!relationship) {
+        if (reusable) return reusable;
         // Expired drafts are abandoned and no longer block a new preview.
-        const duplicate = await prisma.guardianRelationship.findFirst({
+        const duplicate = await tx.guardianRelationship.findFirst({
           where: { schoolId: user.schoolId, studentId, status: { not: "REVOKED" }, NOT: { status: "DRAFT", invitationExpiresAt: { lte: now } }, email: { equals: input.email, mode: "insensitive" } },
           select: { id: true },
         });
         if (duplicate) throw new ApiError("This email already has a guardian relationship for the child. Edit that relationship instead.", 409);
-      }
-      if (!relationship) relationship = await prisma.guardianRelationship.create({ data: {
-        id: randomUUID(), schoolId: student.schoolId, campusId: student.campusId, studentId,
-        createdByUserId: user.userId, fullName: input.fullName, email: input.email,
-        phone: input.phone || null, relationship: input.relationship, status: "DRAFT",
-        validFrom: effectiveFrom, validUntil,
-        invitationExpiresAt: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
-      }, include: { accessVersions: true } });
+        return tx.guardianRelationship.create({ data: {
+          id: randomUUID(), schoolId: student.schoolId, campusId: student.campusId, studentId,
+          createdByUserId: user.userId, fullName: input.fullName, email: input.email,
+          phone: input.phone || null, relationship: input.relationship, status: "DRAFT",
+          validFrom: effectiveFrom, validUntil,
+          invitationExpiresAt: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
+        }, include: { accessVersions: true } });
+      });
 
       const current = activePermissionVersion(relationship.accessVersions, now);
       const beforeState = { status: relationship.status, currentVersionId: current?.id ?? null, permissions: current ? parseGuardianPermissions(current.permissions) : null };
