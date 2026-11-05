@@ -91,8 +91,11 @@ export const blueprintSchema = z.object({
 }).strict();
 
 export const bankDifficultySchema = z.enum(["UNSPECIFIED", "EASY", "MEDIUM", "HARD"]);
+/** SKAI-1758: single source for the per-question tag cap (schema + editor). */
+export const QUESTION_TAG_LIMIT = 12;
+export const QUESTION_TAG_MAX_LENGTH = 80;
 export const questionBankMetadataSchema = z.object({
-  tags: z.array(z.string().trim().min(1).max(80)).max(12),
+  tags: z.array(z.string().trim().min(1).max(QUESTION_TAG_MAX_LENGTH)).max(QUESTION_TAG_LIMIT, `A question can have at most ${QUESTION_TAG_LIMIT} tags. Remove extra tags and save again.`),
   difficulty: bankDifficultySchema,
 }).strict();
 export const questionOriginSchema = z.object({

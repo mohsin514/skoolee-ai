@@ -372,10 +372,17 @@ export function formatDayHeading(date: string): string {
 }
 
 /** Whole days from today; negative when the date has passed. */
-export function daysFromToday(date: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(date);
-  target.setHours(0, 0, 0, 0);
-  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
+/**
+ * SKAI-1775: whole calendar days from "today" in the school's timezone to a date-only value. Both sides are
+ * compared as YYYY-MM-DD calendar days, so neither the device timezone nor UTC midnight can shift a paper a day.
+ */
+export function daysFromToday(date: string, timeZone?: string, now: Date = new Date()): number {
+  const dayNumber = (ymd: string) => Date.UTC(Number(ymd.slice(0, 4)), Number(ymd.slice(5, 7)) - 1, Number(ymd.slice(8, 10))) / 86_400_000;
+  let today: string;
+  try {
+    today = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  } catch {
+    today = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  }
+  return Math.round(dayNumber(String(date).slice(0, 10)) - dayNumber(today));
 }
