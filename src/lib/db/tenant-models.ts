@@ -330,6 +330,7 @@ export const TENANT_MODELS = new Set<string>([
   "staffProfile",
   "staffReportingLine",
   "staffTimelineEvent",
+  "storageCleanup",
   "student",
   "studentCategory",
   "studentClassHistory",
