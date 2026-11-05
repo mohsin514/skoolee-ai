@@ -25,6 +25,9 @@ export async function GET(req: Request) {
             const bytes = await immutablePaymentPdf(payment.id);
             return new Response(new Uint8Array(bytes), { headers: { "Content-Type": "application/pdf", "Content-Disposition": "inline; filename=original-receipt.pdf", "Cache-Control": "private, no-store" } });
         }
+        const cursor = url.searchParams.get("cursor");
+        if (cursor)
+            return Response.json({ records: await catalog(user, kind, cursor.slice(0, 200)) }, { headers: { "Cache-Control": "private, no-store" } });
         const rows = await history(user, kind);
         if (url.searchParams.get("export") === "1" || url.searchParams.has("receipt")) {
             const id = url.searchParams.get("receipt");

@@ -24,7 +24,7 @@ import { DeskPill, DeskRowIcon, RelativeTime, deskRow } from "@/components/ui/de
 type Slot = { startsAt: string; endsAt: string; start: string; end: string };
 type Window = { id: string; teacherId: string; localDate: string; mode: string; location: string | null; slotMinutes: number; cancellationPolicy: string; slots: Slot[] };
 type Booking = { id: string; status: string; conflictReason: string | null; version: number; teacherId: string; teacherName: string; startsAt: string; endsAt: string; local: { date: string; time: string; end: string }; mode: string; location: string | null; cancellationPolicy: string; agenda: string | null; accessNeeds: string | null; mine: boolean; lastChange: { version: number; action: string; at: string } | null; followUp: { summary: string; sharedAt: string } | null; actions: { id: string; text: string; ownerRole: string; dueDate: string; status: string; completedAt: string | null }[] };
-type Data = { timezone: string; child: { id: string; name: string }; teachers: { id: string; name: string; classTeacher: boolean; subjects: string[] }[]; windows: Window[]; bookings: Booking[] };
+type Data = { timezone: string; child: { id: string; name: string }; teachers: { id: string; name: string; classTeacher: boolean; subjects: string[] }[]; windows: Window[]; bookings: Booking[]; nextCursor: string | null };
 
 async function call(url: string, method: string, body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
@@ -50,6 +50,17 @@ export function FamilyMeetings({ studentId }: { studentId: string }) {
     catch (e) { setError(ui(e instanceof Error ? e.message : "Meetings could not be loaded.")); }
   }, [studentId, ui]);
   useEffect(() => { void load(); }, [load]);
+  // SKAI-1682: older history pages append after the newest page; a failed page keeps what is shown.
+  const [older, setOlder] = useState<"idle" | "loading" | "failed">("idle");
+  const loadOlder = async () => {
+    if (!data?.nextCursor || older === "loading") return;
+    setOlder("loading");
+    try {
+      const page = await call(`/api/family/meetings?studentId=${encodeURIComponent(studentId)}&cursor=${encodeURIComponent(data.nextCursor)}`, "GET") as Pick<Data, "bookings" | "nextCursor">;
+      setData(d => d ? { ...d, bookings: [...d.bookings, ...page.bookings.filter(b => !d.bookings.some(x => x.id === b.id))], nextCursor: page.nextCursor } : d);
+      setOlder("idle");
+    } catch { setOlder("failed"); }
+  };
   // SKAI-1608: the device-zone time follows the selected Skoolee locale, not the browser default.
   const theirClock = (iso: string) => !data || !viewerZone || viewerZone === data.timezone ? null : new Intl.DateTimeFormat(clockTag, { timeZone: viewerZone, weekday: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
   const run = async (work: () => Promise<unknown>, done?: string) => { setBusy(true); try { await work(); if (done) toast.success(ui(done)); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); await load(); } finally { setBusy(false); } };
@@ -99,7 +110,7 @@ export function FamilyMeetings({ studentId }: { studentId: string }) {
       </>}
     </div>
 
-    {past.length ? <div className="space-y-2" data-meetings-past>
+    {past.length || data.nextCursor ? <div className="space-y-2" data-meetings-past>
       <p className="sk-eyebrow">{ui("Earlier meetings")}</p>
       {past.map(b => <div key={b.id} className={cn(deskRow, "flex items-start gap-3")} data-tone={b.status === "HELD" ? "success" : "neutral"} data-meeting={b.id} data-meeting-status={b.status}>
         <DeskRowIcon icon={b.status === "HELD" ? CheckCircle2 : CalendarX} />
@@ -111,6 +122,10 @@ export function FamilyMeetings({ studentId }: { studentId: string }) {
             <ul className="space-y-1">{b.actions.map(a => <li key={a.id} className="flex flex-wrap items-center gap-2 text-sm" data-meeting-action={a.id} data-action-status={a.status}><span className={cn(a.status === "DONE" && "line-through opacity-70")}><bdi>{a.text}</bdi></span><span className="text-xs text-ink-muted">{a.ownerRole === "FAMILY" ? ui("Family") : ui("School")} · {ui("Due")} <bdi>{date(a.dueDate)}</bdi></span>{a.ownerRole === "FAMILY" && a.status === "OPEN" ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void done(a.id)} data-action-done>{ui("Mark done")}<span className="sr-only">: <bdi>{a.text}</bdi></span></Button> : a.status === "DONE" ? <span className="text-xs font-bold text-status-success-text">{ui("Done")}</span> : null}</li>)}</ul></> : null}
         </div> : null}
       </div></div>)}
+      {data.nextCursor ? <div className="flex flex-wrap items-center gap-2" data-meetings-more>
+        <Button size="sm" variant="outline" loading={older === "loading"} disabled={older === "loading"} onClick={() => void loadOlder()} data-meetings-load-older>{ui("Show older meetings")}</Button>
+        {older === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("Older meetings could not be loaded. Try again.")}</p> : null}
+      </div> : past.length ? <p className="text-xs text-ink-muted" data-meetings-end>{ui("That's the full meeting history.")}</p> : null}
     </div> : null}
 
     {picked ? <Modal size="sm" icon={CalendarCheck} tone={moving ? "amber" : "violet"} title={ui("Review booking")} eyebrow={data.child.name} subtitle={teacherName(picked.window.teacherId)} onClose={() => setPicked(null)}

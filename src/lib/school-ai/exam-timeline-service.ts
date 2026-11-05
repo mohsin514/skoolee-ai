@@ -36,12 +36,23 @@ export async function myExamTimeline(user: AuthUser) {
   return examTimelineFor(user.schoolId, student);
 }
 
-/** SKO-505: a learner's released online results for their family — moderated marks and the teacher's feedback only. */
-export async function familyExamResults(schoolId: string, studentId: string) {
+export const FAMILY_EXAM_RESULTS_PAGE = 30;
+
+/**
+ * SKO-505: a learner's released online results for their family — moderated marks and the teacher's feedback only.
+ * SKAI-1715: newest first in pages of 30; `nextCursor` (the last sitting id of the page) reaches older releases.
+ */
+export async function familyExamResults(schoolId: string, studentId: string, cursor?: string | null) {
+  const empty = { results: [] as Awaited<ReturnType<typeof familyExamResultRows>>, nextCursor: null as string | null };
   const student = await prisma.student.findFirst({ where: { schoolId, id: studentId }, select: { id: true, classId: true, campusId: true } });
-  if (!student) return [];
-  const sittings = await prisma.schoolAiExamAssignment.findMany({ where: { schoolId, campusId: student.campusId, classId: student.classId, resultsReleasedAt: { not: null }, endsAt: { lte: new Date() }, mode: { in: DELIVERED_EXAM_MODES }, studentIds: { array_contains: [student.id] } }, select: { id: true, title: true, resultsReleasedAt: true, paperSnapshot: true }, orderBy: { resultsReleasedAt: "desc" }, take: 30 });
-  if (!sittings.length) return [];
+  if (!student) return empty;
+  const page = await prisma.schoolAiExamAssignment.findMany({ where: { schoolId, campusId: student.campusId, classId: student.classId, resultsReleasedAt: { not: null }, endsAt: { lte: new Date() }, mode: { in: DELIVERED_EXAM_MODES }, studentIds: { array_contains: [student.id] } }, select: { id: true, title: true, resultsReleasedAt: true, paperSnapshot: true }, orderBy: [{ resultsReleasedAt: "desc" }, { id: "desc" }], take: FAMILY_EXAM_RESULTS_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
+  const sittings = page.slice(0, FAMILY_EXAM_RESULTS_PAGE);
+  if (!sittings.length) return empty;
+  return { results: await familyExamResultRows(schoolId, student, sittings), nextCursor: page.length > FAMILY_EXAM_RESULTS_PAGE ? sittings[sittings.length - 1].id : null };
+}
+
+async function familyExamResultRows(schoolId: string, student: { id: string }, sittings: { id: string; title: string; resultsReleasedAt: Date | null; paperSnapshot: unknown }[]) {
   const attempts = await prisma.schoolAiExamAttempt.findMany({ where: { schoolId, studentId: student.id, status: "REVIEWED", assignmentId: { in: sittings.map(row => row.id) } }, select: { assignmentId: true, review: true, responses: true, reviewVersion: true } });
   const { paperDataSchema, curriculumDataSchema } = await import("./assessment");
   const { examReviewSchema, responsesSchema } = await import("./exam");

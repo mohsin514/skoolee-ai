@@ -80,15 +80,37 @@ const DECISIONS = ["RESIT_NEW_FORM", "RESIT_CAPPED", "RESIT_FULL", "RECORD_ABSEN
 const createSchema = z.strictObject({ examId: z.string().min(1).max(120), studentId: z.string().min(1).max(120), subjectId: z.string().min(1).max(120).optional(), kind: z.enum(KINDS), note: z.string().trim().min(3).max(2000) });
 const resolveSchema = z.strictObject({ version: z.number().int().positive(), decision: z.enum(DECISIONS), resolution: z.string().trim().min(3).max(2000) });
 
-export async function listExceptions(user: AuthUser, sessionId: string) {
+export const RESOLVED_EXCEPTION_PAGE = 300;
+/** SKAI-1717: open exceptions are always listed in full (they hold report cards back); resolved history pages by (createdAt desc, id desc). */
+export function resolvedExceptionWhere(cursor: string | null | undefined) {
+  if (!cursor) return {};
+  const [at, id] = Buffer.from(cursor, "base64url").toString("utf8").split("|");
+  const when = new Date(at ?? "");
+  if (!id || Number.isNaN(when.getTime())) throw new ApiError("This list has changed. Reload it.", 400);
+  return { OR: [{ createdAt: { lt: when } }, { createdAt: when, id: { lt: id } }] };
+}
+export function resolvedExceptionCursor(rows: { id: string; createdAt: Date }[]) {
+  if (rows.length <= RESOLVED_EXCEPTION_PAGE) return null;
+  const last = rows[RESOLVED_EXCEPTION_PAGE - 1];
+  return Buffer.from(`${last.createdAt.toISOString()}|${last.id}`, "utf8").toString("base64url");
+}
+
+export async function listExceptions(user: AuthUser, sessionId: string, cursor?: string | null) {
   const session = await sessionFor(user, sessionId);
   const exams = await prisma.exam.findMany({ where: { schoolId: user.schoolId, campusId: session.campusId, sessionId }, select: { id: true, title: true, classId: true, class: { select: { name: true, section: true } } } });
-  const rows = await prisma.examException.findMany({ where: { schoolId: user.schoolId, examId: { in: exams.map(exam => exam.id) } }, orderBy: [{ status: "asc" }, { createdAt: "desc" }], take: 300 });
+  const inSession = { schoolId: user.schoolId, examId: { in: exams.map(exam => exam.id) } };
+  const [open, resolved] = await Promise.all([
+    cursor ? [] : prisma.examException.findMany({ where: { ...inSession, status: "OPEN" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] }),
+    prisma.examException.findMany({ where: { ...inSession, status: { not: "OPEN" }, ...resolvedExceptionWhere(cursor) }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: RESOLVED_EXCEPTION_PAGE + 1 }),
+  ]);
+  const nextCursor = resolvedExceptionCursor(resolved);
+  const rows = [...open, ...resolved.slice(0, RESOLVED_EXCEPTION_PAGE)];
   const students = new Map((await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: rows.map(row => row.studentId) } }, select: { id: true, fullName: true, rollNo: true } })).map(row => [row.id, row]));
   const roster = await prisma.student.findMany({ where: { schoolId: user.schoolId, classId: { in: exams.map(exam => exam.classId) }, status: "active", archivedAt: null }, select: { id: true, fullName: true, rollNo: true, classId: true }, orderBy: [{ rollNo: "asc" }] });
   const label = (exam: (typeof exams)[number]) => [exam.class.name, exam.class.section].filter(Boolean).join(" ");
   return {
     exams: exams.map(exam => ({ id: exam.id, label: label(exam), students: roster.filter(pupil => pupil.classId === exam.classId).map(pupil => ({ id: pupil.id, name: pupil.fullName, rollNo: pupil.rollNo })) })),
+    nextCursor,
     exceptions: rows.map(row => ({ id: row.id, examId: row.examId, exam: label(exams.find(exam => exam.id === row.examId)!), student: students.get(row.studentId)?.fullName ?? null, rollNo: students.get(row.studentId)?.rollNo ?? null, kind: row.kind, note: row.note, status: row.status, decision: row.decision, resolution: row.resolution, version: row.version, createdAt: row.createdAt, resolvedAt: row.resolvedAt })),
   };
 }

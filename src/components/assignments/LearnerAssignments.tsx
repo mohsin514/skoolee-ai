@@ -8,7 +8,7 @@ import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getAssignmentCopy, type AssignmentCopy } from "./assignment-copy";
-import { Banner, call, fileHref, fill, formatAt, Pill, RubricTable, stateTone, type Criterion, type Feedback, type Receipt } from "./shared";
+import { Banner, LoadOlder, call, fileHref, fill, formatAt, Pill, RubricTable, stateTone, type Criterion, type Feedback, type Receipt } from "./shared";
 import { Textarea } from "@/components/ui/textarea";
 
 // SKO-409 learner and family view. Learners draft, upload and submit with a server receipt;
@@ -39,7 +39,9 @@ export function LearnerAssignments({ audience }: { audience: "learner" | "guardi
   const ui = useUiText();
   const params = useSearchParams(), requested = params.get("open"), fromToday = params.get("from") === "today";
   const [missing, setMissing] = useState(false), linked = useRef(false);
-  const load = useCallback(async () => setItems((await call("/api/assignments")).assignments), []);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const load = useCallback(async () => { const data = await call("/api/assignments"); setItems(data.assignments); setCursor(data.nextCursor ?? null); }, []);
+  const loadOlder = useCallback(async (from: string) => { const data = await call(`/api/assignments?cursor=${encodeURIComponent(from)}`); setItems(prev => [...(prev ?? []), ...data.assignments]); setCursor(data.nextCursor ?? null); }, []);
   // SKAI-1501: a failed first load is its own state with a localized Retry, not a dead-end banner.
   const [loadFailed, setLoadFailed] = useState(false);
   const firstLoad = useCallback(() => { setLoadFailed(false); load().catch(() => setLoadFailed(true)); }, [load]);
@@ -75,6 +77,7 @@ export function LearnerAssignments({ audience }: { audience: "learner" | "guardi
         </div>
         <div className="mt-3"><Button type="button" variant="outline" size="sm" onClick={() => setSelected(`${item.id}:${item.studentId}`)}>{t.open}<span className="sr-only">: {item.title}</span></Button></div>
       </li>; })}</ul>}
+    <LoadOlder cursor={cursor} onLoad={loadOlder} labels={t} />
   </div>;
 }
 
