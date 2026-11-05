@@ -257,6 +257,24 @@ async function childTeachers(schoolId: string, student: { classId: string | null
   return users.map(u => ({ id: u.id, name: u.fullName ?? "", classTeacher: u.id === student.class?.classTeacherId, subjects: subjects.filter(s => s.teacherId === u.id).map(s => s.name) }));
 }
 
+// SKAI-1682: history pages newest-first by (startsAt, id); `nextCursor` reaches every older booking.
+export const FAMILY_MEETING_PAGE = 20;
+async function familyBookingPage(user: AuthUser, studentId: string, names: Map<string, string>, cursor?: string) {
+  const rows = await prisma.meetingBooking.findMany({ where: { schoolId: user.schoolId, studentId }, include: { followUp: true, actions: { orderBy: { createdAt: "asc" } }, window: { select: { location: true, timezone: true, cancellationPolicy: true } }, events: { orderBy: { version: "desc" }, take: 1 } }, orderBy: [{ startsAt: "desc" }, { id: "desc" }], take: FAMILY_MEETING_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
+  const page = rows.slice(0, FAMILY_MEETING_PAGE);
+  return {
+    nextCursor: rows.length > FAMILY_MEETING_PAGE ? page[page.length - 1].id : null,
+    bookings: page.map(b => ({ id: b.id, status: b.status, conflictReason: b.conflictReason, version: b.version, teacherId: b.teacherId, teacherName: names.get(b.teacherId) ?? "", startsAt: b.startsAt, endsAt: b.endsAt, local: { ...localParts(b.startsAt, b.window.timezone), end: localParts(b.endsAt, b.window.timezone).time }, mode: b.mode, location: b.window.location, cancellationPolicy: b.window.cancellationPolicy, agenda: b.agenda, accessNeeds: b.accessNeeds, mine: b.guardianUserId === user.userId, lastChange: b.events[0] ? { version: b.events[0].version, action: b.events[0].action, at: b.events[0].createdAt } : null, ...sharedView(b) })),
+  };
+}
+
+/** One older page of a guardian's meeting history, after `cursor` (a booking id from the previous page). */
+export async function familyMeetingHistory(user: AuthUser, studentId: string, cursor: string) {
+  const { student } = await guardianChild(user, studentId);
+  const teachers = await childTeachers(user.schoolId, student);
+  return familyBookingPage(user, student.id, new Map(teachers.map(t => [t.id, t.name])), cursor);
+}
+
 export async function familyMeetings(user: AuthUser, studentId: string) {
   const { student } = await guardianChild(user, studentId);
   const timezone = await timezoneFor(user.schoolId, student.campusId);
@@ -267,12 +285,12 @@ export async function familyMeetings(user: AuthUser, studentId: string) {
   const live = await liveByWindow(prisma, windows.map(w => w.id));
   const busy = new Map<string, Busy>();
   for (const t of new Set(windows.map(w => w.teacherId))) busy.set(t, await teacherBusy(prisma, user.schoolId, t));
-  const bookings = await prisma.meetingBooking.findMany({ where: { schoolId: user.schoolId, studentId: student.id }, include: { followUp: true, actions: { orderBy: { createdAt: "asc" } }, window: { select: { location: true, timezone: true, cancellationPolicy: true } }, events: { orderBy: { version: "desc" }, take: 1 } }, orderBy: { startsAt: "desc" }, take: 20 });
   const names = new Map(teachers.map(t => [t.id, t.name]));
+  const history = await familyBookingPage(user, student.id, names);
   return {
     timezone, child: { id: student.id, name: student.fullName }, teachers,
     windows: windows.map(w => ({ id: w.id, teacherId: w.teacherId, localDate: w.localDate, mode: w.mode, location: w.location, slotMinutes: w.slotMinutes, cancellationPolicy: w.cancellationPolicy, slots: windowSlots(w, busy.get(w.teacherId)!, new Set(live.filter(l => l.windowId === w.id).map(l => l.startsAt.getTime())), live.filter(l => l.windowId === w.id).length, now).filter(s => s.state === "OPEN").map(({ state: _state, ...s }) => s) })).filter(w => w.slots.length),
-    bookings: bookings.map(b => ({ id: b.id, status: b.status, conflictReason: b.conflictReason, version: b.version, teacherId: b.teacherId, teacherName: names.get(b.teacherId) ?? "", startsAt: b.startsAt, endsAt: b.endsAt, local: { ...localParts(b.startsAt, b.window.timezone), end: localParts(b.endsAt, b.window.timezone).time }, mode: b.mode, location: b.window.location, cancellationPolicy: b.window.cancellationPolicy, agenda: b.agenda, accessNeeds: b.accessNeeds, mine: b.guardianUserId === user.userId, lastChange: b.events[0] ? { version: b.events[0].version, action: b.events[0].action, at: b.events[0].createdAt } : null, ...sharedView(b) })),
+    bookings: history.bookings, nextCursor: history.nextCursor,
   };
 }
 
