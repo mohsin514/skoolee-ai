@@ -76,7 +76,11 @@ export async function guardianLeave(user: AuthUser, studentId: string) {
 
 export async function staffLeaveQueue(user: AuthUser, campusId: string) {
   if (!canMarkAttendance(user)) throw new ApiError("You cannot review learner leave.", 403);
-  const rows = await prisma.learnerLeaveRequest.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: OPEN } }, orderBy: { fromDate: "asc" }, take: 100 });
+  // SKAI-759: a teacher sees leave only for pupils in classes they teach, like the register itself.
+  const taught = user.role === "TEACHER"
+    ? (await prisma.student.findMany({ where: { schoolId: user.schoolId, class: { campusId, OR: [{ classTeacherId: user.userId }, { subjects: { some: { teacherId: user.userId } } }] } }, select: { id: true } })).map(s => s.id)
+    : null;
+  const rows = await prisma.learnerLeaveRequest.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: OPEN }, ...(taught ? { studentId: { in: taught } } : {}) }, orderBy: { fromDate: "asc" }, take: 100 });
   const students = new Map((await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: rows.map(r => r.studentId) } }, select: { id: true, fullName: true, class: { select: { name: true, section: true } } } })).map(s => [s.id, s]));
   return rows.map(row => ({ ...row, studentName: students.get(row.studentId)?.fullName ?? "", className: [students.get(row.studentId)?.class?.name, students.get(row.studentId)?.class?.section].filter(Boolean).join(" ") }));
 }
