@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Check, Loader2, Lock, School } from "lucide-react";
 import { getPersonalLanguage, saveLanguagePreference } from "@/app/actions/locale";
 import { useUiText } from "@/components/locale/LocaleProvider";
@@ -136,7 +137,7 @@ export function PersonalLanguageSetting({ id = "personal-language", lockedReason
       {error ? (
         <p role="alert" className="text-sm font-semibold text-destructive">
           {error === "permission" ? t("Sign in again to change your language.") : error === "load" ? t("Couldn't load your language settings.") : t("Couldn't save your language. Try again.")}
-          {error === "load" ? <> <button type="button" className="sk-link font-semibold" onClick={() => load()} data-language-retry>{t("Try again")}</button></> : null}
+          {error === "load" ? <> <Button type="button" variant="link" className="sk-link h-auto min-h-0 min-w-0 rounded-none p-0 font-semibold" onClick={() => load()} data-language-retry>{t("Try again")}</Button></> : null}
         </p>
       ) : null}
     </div>

@@ -112,7 +112,7 @@ export function ResourceLibrary({ audience, studentId, adding: addingProp, onAdd
   const openLink = (id: string, current: Version, version?: number) => current.link
     ? <a className="inline-flex items-center gap-1 text-sm font-semibold text-primary underline" href={fileHref(id, version)} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" aria-hidden />{t.open}</a>
     // SKAI-1527: download in place; a failed request stays on the page with a translated message, and the button retries.
-    : <button type="button" className="inline-flex items-center gap-1 text-sm font-semibold text-primary underline disabled:opacity-60" disabled={downloading === `${id}:${version ?? ""}`} aria-busy={downloading === `${id}:${version ?? ""}`} onClick={() => void download(id, current, version)}><Download className="h-4 w-4" aria-hidden />{t.download}{current.fileName ? <span className="sr-only">: {current.fileName}</span> : null}</button>;
+    : <Button type="button" variant="link" className="h-auto min-h-0 min-w-0 gap-1 rounded-none p-0 text-sm font-semibold text-primary underline disabled:bg-transparent disabled:opacity-60" disabled={downloading === `${id}:${version ?? ""}`} aria-busy={downloading === `${id}:${version ?? ""}`} onClick={() => void download(id, current, version)}><Download className="h-4 w-4" aria-hidden />{t.download}{current.fileName ? <span className="sr-only">: {current.fileName}</span> : null}</Button>;
   const [downloadError, setDownloadError] = useState("");
 
   const learnerList = (items: LearnerItem[]) => items.length === 0

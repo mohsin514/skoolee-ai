@@ -89,7 +89,7 @@ export default function ParentAttendancePage() {
                           role="img"
                           tabIndex={0}
                           aria-label={label}
-                          className={`block size-6 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 shadow-xs transition-transform motion-safe:hover:scale-110 ${STATUS_DOT[a.status] || "bg-ink-faint"}`}
+                          className={`block size-6 rounded-lg shadow-xs transition-transform motion-safe:hover:scale-110 ${STATUS_DOT[a.status] || "bg-ink-faint"}`}
                         />
                       </Tooltip>
                       <span className="text-3xs font-semibold tabular-nums text-ink-subtle">

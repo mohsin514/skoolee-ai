@@ -42,7 +42,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Install matching PostgreSQL client
         run: |
+          # ubuntu-latest (26.04) no longer ships postgresql-client-16; add the PGDG repo so the
+          # client still matches the postgres:16 service.
           sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y postgresql-client-16
           echo '/usr/lib/postgresql/16/bin' >> "$GITHUB_PATH"
       - name: Operator decision safeguards
