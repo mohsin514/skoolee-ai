@@ -379,6 +379,19 @@ export async function resolveCampusId(user: AuthUser, requestedCampusId?: string
   return campusId;
 }
 
+/**
+ * The campus a campus-setup write targets: the JSON body's `campusId`, else the `?campusId=` the console put on the URL.
+ * A group owner (SUPER_ADMIN) has no account campus, so dropping the URL value 400s every write (SKAI-1761).
+ * Conflicting body and URL values are refused. Always pass the result through `resolveCampusId`, which keeps it in the
+ * caller's school and pins campus-bound roles to their own campus.
+ */
+export function requestedCampusId(req: Request, body: Record<string, unknown>): string | null {
+  const fromBody = typeof body.campusId === "string" && body.campusId ? body.campusId : null;
+  const fromUrl = new URL(req.url).searchParams.get("campusId") || null;
+  if (fromBody && fromUrl && fromBody !== fromUrl) throw new ApiError("campusId in the body and URL disagree", 400);
+  return fromBody ?? fromUrl;
+}
+
 export function scopedCampusWhere(user: AuthUser, campusId?: string | null) {
   return {
     campus: {
