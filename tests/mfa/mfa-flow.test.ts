@@ -92,7 +92,7 @@ type ChildStep = { op: "signIn" } | { op: "get" } | { op: "post"; body: unknown 
 
 /** Simulates a server restart: a fresh process with only the given environment, sharing the stored state. */
 function restart(userId: string, steps: ChildStep[], authSecret = AUTH_SECRET): CallResult[] {
-  const child = spawnSync(process.execPath, ["--import", "tsx", CHILD], {
+  const child = spawnSync(process.execPath, ["--import", "./tests/support/server-only.mjs", "--import", "tsx", CHILD], {
     cwd: process.cwd(),
     input: JSON.stringify({ state: serializeState(fake.state), now: Date.now(), userId, steps }),
     env: { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: process.env.TMPDIR, NODE_ENV: "test", AUTH_SECRET: authSecret },
