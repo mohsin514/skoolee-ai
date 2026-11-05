@@ -40,7 +40,8 @@ function table(rows: Row[]) {
 }
 
 const user = { userId: "u-admin", schoolId: "school-a", role: "CAMPUS_ADMIN", campusId: "campus-a" } as never;
-let db: Record<string, ReturnType<typeof table>>;
+type Table = ReturnType<typeof table>;
+let db: Record<"admissionAssessment" | "admissionApplicationEvent" | "user" | "admissionApplication", Table> & { locks: unknown[][]; $queryRaw: (sql: TemplateStringsArray, ...values: unknown[]) => Promise<unknown[]> };
 const app = (status: string, extra: Row = {}) => ({ id: "app-1", schoolId: "school-a", campusId: "campus-a", status, waitlistRank: null, offerExpiresAt: null, ...extra }) as never;
 const ctx = (application: never, officeNote: string | null = null) => ({ db: db as never, user, campusId: "campus-a", application, officeNote });
 const future = () => new Date(Date.now() + 3 * 86_400_000).toISOString();
@@ -55,6 +56,9 @@ beforeEach(() => {
       { id: "p-1", schoolId: "school-a", campusId: "campus-a", isActive: true, role: "PARENT" },
     ]),
     admissionApplication: table([]),
+    // SKAI-1763: models the SKAI-1420 campus row lock (tagged-template $queryRaw) and records each call.
+    locks: [] as unknown[][],
+    $queryRaw: async (_sql: TemplateStringsArray, ...values: unknown[]) => { db.locks.push(values); return []; },
   };
 });
 
@@ -131,6 +135,7 @@ test("waitlist: next place per campus and school; moves swap with the neighbour"
   const w2 = db.admissionApplication.rows[1];
   assert.deepEqual(await moveOnWaitlist(ctx(w2 as never), "up"), { rank: 1, moved: true });
   assert.equal(db.admissionApplication.rows[0].waitlistRank, 2);
+  assert.deepEqual(db.locks, [["campus-a", "school-a"]], "the move locks the campus waitlist for this school first");
   assert.equal(db.admissionApplicationEvent.rows.at(-1)!.kind, "WAITLIST_MOVED");
   assert.deepEqual(await moveOnWaitlist(ctx({ ...w2, waitlistRank: 1 } as never), "up"), { rank: 1, moved: false });
   assert.equal(db.admissionApplication.rows[2].waitlistRank, 9, "another school's waitlist is untouched");
