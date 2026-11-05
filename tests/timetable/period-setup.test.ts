@@ -49,6 +49,13 @@ mock.module(src("lib/api/scope.ts"), {
     requireAuthUser: async () => user,
     canManageCampusOps: (u: typeof user) => u.role !== "TEACHER",
     assertPermission: async () => undefined,
+    // Same contract as the real helper (SKAI-1764): body campusId, else ?campusId=, conflicting values refused.
+    requestedCampusId: (req: Request, body: Record<string, unknown>) => {
+      const fromBody = typeof body.campusId === "string" && body.campusId ? body.campusId : null;
+      const fromUrl = new URL(req.url).searchParams.get("campusId") || null;
+      if (fromBody && fromUrl && fromBody !== fromUrl) throw new ApiError("campusId in the body and URL disagree", 400);
+      return fromBody ?? fromUrl;
+    },
     resolveCampusId: async (u: typeof user, requested?: string | null) => {
       if (requested && requested !== u.campusId) throw new ApiError("Campus not accessible", 403);
       return u.campusId;
