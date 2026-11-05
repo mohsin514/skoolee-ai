@@ -83,6 +83,7 @@ import { downloadCSV } from "@/lib/csv";
 import { AlarmClock, BedDouble, BookCheck, CircleSlash, DoorOpen, Inbox, Route as RouteIcon, SearchX, type LucideIcon } from "lucide-react";
 import { DeskFilterStatus, DeskPill, DeskStats, RelativeTime, StatTile, urgencyFirst } from "@/components/ui/desk";
 import { Progress } from "@/components/ui/progress";
+import { routeVehicleCount } from "@/lib/transport/route-vehicle-count";
 
 
 /* ─── tiny helpers ─── */
@@ -274,7 +275,7 @@ export function TransportPanel({ hideHeader = false, command }: { hideHeader?: b
     vehicles: () => select("vehicles"),
     export: () => tab === "vehicles"
       ? void exportList(ui, "/api/transport/vehicles", "transport-vehicles", ["Number", "Type", "Capacity", "Driver", "Phone"], (v) => [v.number, v.model ?? "", v.capacity ?? "", v.driverName ?? "", v.driverPhone ?? ""])
-      : void exportList(ui, "/api/transport/routes", "transport-routes", ["Route", "Description", "Fare", "Vehicles"], (r) => [r.title, r.description ?? "", r.fare != null ? campusMoney(r.fare) : "", r._count?.routeVehicles ?? r.routeVehicles?.length ?? 0]),
+      : void exportList(ui, "/api/transport/routes", "transport-routes", ["Route", "Description", "Fare", "Vehicles"], (r) => [r.title, r.description ?? "", r.fare != null ? campusMoney(r.fare) : "", routeVehicleCount(r)]),
   });
   const choices = <SectionChoices label="Transport sections" items={TRANSPORT_TABS} value={tab} onChange={select} dataAttr="data-transport-tab" />;
   return (
@@ -364,7 +365,7 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
                 <td className={tdCls}><NameCell icon={RouteIcon}>{r.title}</NameCell></td>
                 <td className={tdCls}>{r.description || "—"}</td>
                 <td className={tdCls}>{r.fare != null ? campusMoney(r.fare) : "—"}</td>
-                <td className={tdCls}>{(r._count?.routeVehicles ?? r.routeVehicles?.length ?? 0) > 0 ? <DeskPill tone="success"><bdi className="tabular-nums">{r._count?.routeVehicles ?? r.routeVehicles?.length ?? 0}</bdi></DeskPill> : <DeskPill tone="warning"><bdi className="tabular-nums">0</bdi></DeskPill>}</td>
+                <td className={tdCls}>{routeVehicleCount(r) > 0 ? <DeskPill tone="success"><bdi className="tabular-nums">{routeVehicleCount(r)}</bdi></DeskPill> : <DeskPill tone="warning"><bdi className="tabular-nums">0</bdi></DeskPill>}</td>
                 <td className={tdCls}><ReviewedDelete endpoint="transport/routes" record={r} label={r.title} onDeleted={load} /></td>
               </tr>
             ))}
