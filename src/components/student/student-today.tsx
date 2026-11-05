@@ -22,7 +22,7 @@ type Work = { id: string; title: string; state: string; dueAt: string; extended:
 type Today = {
   day: string; today: string; timezone: string; clock: string | null; schoolDay: boolean; closure: { kind: "HOLIDAY" | "WEEKEND"; name: string | null } | null;
   cycle: { label: string } | null; timetableVersion: number | null; lessons: Lesson[]; current: Lesson | null; next: Lesson | null;
-  examLock: boolean; activeExam: { title: string; href: string } | null;
+  examLock: boolean; activeExam: { title: string; href: string } | null; examsUnavailable?: boolean;
   nextAction: { kind: string; title: string; href: string; dueAt?: string } | null;
   work: Work[]; upcomingExams: { id: string; title: string; startsAt: string; href: string }[]; returned: { id: string; title: string; returnedAt: string; href: string }[]; refreshedAt: string;
   catchUp?: { id: string; subject: string; lessonDate: string; title: string; instructions: string | null; dueDate: string | null; done: boolean }[];
@@ -109,6 +109,7 @@ export function StudentToday({ onNextAction }: { onNextAction?: (action: Student
       </nav>
     </header>
     {error ? <Alert tone="warning" compact live="polite" data-today-error actions={<Button size="sm" variant="outline" type="button" onClick={() => void load(day)}>{ui("Try again")}</Button>}>{stale && data ? ui("We could not refresh Today. Showing the view from {0}.", [dateTime(data.refreshedAt)]) : error}</Alert> : null}
+    {data?.examsUnavailable ? <Alert tone="warning" compact live="polite" data-today-exams-unavailable actions={<><Button size="sm" variant="outline" type="button" onClick={() => void load(day)}>{ui("Try again")}</Button><Link href="/ai/exams" className={buttonVariants({ variant: "outline", size: "sm" })}>{ui("Open exams")}</Link></>}>{ui("We could not check your exams. If an exam is running, open it from Exams.")}</Alert> : null}
 
     {/* The learner's next step, always at the top. The tour anchor (student.today.next) is present in every state,
         loading included, so a tour step never waits for data (§9.4). */}
@@ -127,7 +128,7 @@ export function StudentToday({ onNextAction }: { onNextAction?: (action: Student
         {data.examLock ? <p className="mt-2 text-xs text-status-error-text">{ui("Your exam is in progress. Other work and help are hidden until you finish it.")}</p> : null}
         </div>
         <div className="order-last basis-full ps-12 sm:order-none sm:basis-auto sm:ps-0"><Link href={data.nextAction.href} className={buttonVariants({ variant: "outline", size: "sm" })} data-next-action-link>{data.nextAction.kind === "RESUME_EXAM" ? ui("Resume exam") : ui("Open")}</Link></div>
-      </div> : <div className="sk-panel" data-next-action="NONE"><EmptyState size="sm" icon={PartyPopper} title={data.returned.length ? ui("No new work is due. Review feedback when you are ready.") : ui("No work is due. Enjoy the day.")} /></div>
+      </div> : data.examsUnavailable ? null : <div className="sk-panel" data-next-action="NONE"><EmptyState size="sm" icon={PartyPopper} title={data.returned.length ? ui("No new work is due. Review feedback when you are ready.") : ui("No work is due. Enjoy the day.")} /></div>
       ) : null}
     </div>
     {/* Exam Studio's delivery side (addendum 2026-10-22): the learner's upcoming online exams stay prominent on

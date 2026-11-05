@@ -59,7 +59,10 @@ export async function studentToday(user: AuthUser, requestedDay: string | null, 
   const next = clock ? teaching.find(lesson => lesson.startTime > clock) ?? null : null;
 
   // Exams: the learner's own assigned exams; an attempt in progress is resumed, never restarted.
-  const exams = await listSchoolAiExams(user).catch(() => [] as Awaited<ReturnType<typeof listSchoolAiExams>>);
+  // SKAI-917: a failed exam lookup is not "no exams"; it is reported so Today never suggests other work
+  // when an exam may be running.
+  let examsUnavailable = false;
+  const exams = await listSchoolAiExams(user).catch(() => { examsUnavailable = true; return [] as Awaited<ReturnType<typeof listSchoolAiExams>>; });
   const examItems = exams.map(exam => ({ id: exam.id, title: exam.title, startsAt: exam.startsAt.toISOString(), endsAt: exam.endsAt.toISOString(), attempt: ("attempts" in exam && Array.isArray(exam.attempts) ? exam.attempts[0] as { id: string; status: string; submittedAt: Date | null } : null) ?? null, href: `/ai/exams/${exam.id}` }));
   const activeExam = examItems.find(exam => exam.attempt?.status === "IN_PROGRESS" && new Date(exam.endsAt) > now) ?? null;
   const dayEnd = new Date(`${addDays(day, 1)}T00:00:00Z`);
@@ -87,7 +90,8 @@ export async function studentToday(user: AuthUser, requestedDay: string | null, 
   const overdue = open.filter(item => item.overdue && item.canSubmit).sort((a, b) => a.dueAt.localeCompare(b.dueAt));
   const dueToday = open.filter(item => !item.overdue && dueOnDay(item)).sort((a, b) => a.dueAt.localeCompare(b.dueAt));
   const upcoming = open.filter(item => !item.overdue && item.canSubmit).sort((a, b) => a.dueAt.localeCompare(b.dueAt));
-  if (activeExam) nextAction = { kind: "RESUME_EXAM", title: activeExam.title, href: activeExam.href, reason: "EXAM_IN_PROGRESS" };
+  if (examsUnavailable) nextAction = null;
+  else if (activeExam) nextAction = { kind: "RESUME_EXAM", title: activeExam.title, href: activeExam.href, reason: "EXAM_IN_PROGRESS" };
   else if (drafts[0]) nextAction = { kind: "CONTINUE_DRAFT", title: drafts[0].title, href: drafts[0].href, dueAt: drafts[0].dueAt, reason: "SAVED_DRAFT" };
   else if (overdue[0]) nextAction = { kind: "OVERDUE", title: overdue[0].title, href: overdue[0].href, dueAt: overdue[0].dueAt, reason: "PAST_DUE_STILL_ACCEPTED" };
   else if (dueToday[0]) nextAction = { kind: "DUE_TODAY", title: dueToday[0].title, href: dueToday[0].href, dueAt: dueToday[0].dueAt, reason: "DUE_ON_THIS_DAY" };
@@ -98,7 +102,7 @@ export async function studentToday(user: AuthUser, requestedDay: string | null, 
     cycle, student: { name: student.fullName, className: [student.class?.name, student.class?.section].filter(Boolean).join(" ") },
     timetableVersion: version?.version ?? null, lessons, current, next,
     // While an exam is running, Today offers only the way back into it.
-    examLock: Boolean(activeExam), activeExam,
+    examLock: Boolean(activeExam), activeExam, examsUnavailable,
     nextAction,
     work: activeExam ? [] : [...overdue, ...open.filter(item => !overdue.includes(item))].slice(0, 20),
     upcomingExams: activeExam ? [] : upcomingExams.slice(0, 5),

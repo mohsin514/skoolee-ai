@@ -745,6 +745,8 @@ const entries: [string, string, string][] = [
 ["Save rates", "حفظ الأسعار", "شرحیں محفوظ کریں"],
 ["Cost rates saved.", "تم حفظ أسعار التكلفة.", "لاگت کی شرحیں محفوظ ہو گئیں۔"],
 ["Write one model per line as model=USD per million tokens.", "اكتب نموذجًا واحدًا في كل سطر بصيغة model=دولار لكل مليون رمز.", "ہر سطر میں ایک ماڈل بطور model=فی ملین ٹوکن USD لکھیں۔"],
+// SKAI-917: Student Today when exams could not be checked.
+["We could not check your exams. If an exam is running, open it from Exams.", "تعذر التحقق من اختباراتك. إذا كان هناك اختبار جارٍ، فافتحه من صفحة الاختبارات.", "ہم آپ کے امتحانات چیک نہیں کر سکے۔ اگر کوئی امتحان جاری ہے تو اسے امتحانات سے کھولیں۔"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));
