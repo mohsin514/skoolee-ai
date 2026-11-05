@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, type TxClient } from "@/lib/db/prisma";
+import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { getAuthUser } from "@/lib/auth";
 import { calculateWeightedGradeForClass } from "@/lib/academic/grade-calculator";
 import { ReportConflict, refreshVersion, versionTransaction } from "@/lib/academic/report-versions";
-import { findOrCreateFinalExam, lockFinalGradeScope } from "@/lib/academic/final-grade-exam";
+import { findOrCreateFinalExam } from "@/lib/academic/final-grade-exam";
 import { canLeadAcademics, canManageAcademics } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -102,11 +102,8 @@ export async function POST(req: NextRequest) {
     });
     if (!cls) return NextResponse.json({ error: "Class not found" }, { status: 404 });
 
-    // SKAI-1688: find or create the synthetic "Final Grade" exam under a per-scope lock, so a race makes one exam.
-    const { exam: finalExam } = await prisma.$transaction((tx) => findOrCreateFinalExam(tx as TxClient, user, user.campusId!, cls, year));
-
-    // Calculate weighted grades for all students
-    const grades = await calculateWeightedGradeForClass(classId, user.campusId, Number(academicYear));
+    // SKAI-1689: calculate and validate first; a rejected generation writes nothing.
+    const grades = await calculateWeightedGradeForClass(classId, user.campusId, year);
     if (!grades.length) {
       return NextResponse.json({ error: "No grade data available. Ensure exams have marks entered." }, { status: 400 });
     }
@@ -115,35 +112,33 @@ export async function POST(req: NextRequest) {
       where: { classId, campusId: user.campusId },
       select: { id: true, name: true, totalMarks: true },
     });
-
-    const studentIds = grades.map((g) => g.studentId);
-    const existingCards = await prisma.reportCard.findMany({
-      where: { examId: finalExam.id, studentId: { in: studentIds } },
-      select: { id: true, studentId: true },
-    });
-    const existingMap = new Map(existingCards.map((c) => [c.studentId, c.id]));
     const totalMarks = subjects.reduce((s, sub) => s + sub.totalMarks, 0);
     const now = new Date();
+    const studentIds = grades.map((g) => g.studentId);
 
-    const examId = finalExam.id;
-    const writes = grades.map((grade) => {
-      const marks = {
-        totalMarks,
-        obtainedMarks: grade.subjectBreakdown.reduce((s, sb) => s + sb.obtainedMarks, 0),
-        percentage: grade.overallPercentage,
-        grade: grade.overallGrade,
-        rank: (grade as any).rank || 0,
-        generatedAt: now,
-      };
-      return { marks, studentId: grade.studentId, existingId: existingMap.get(grade.studentId) };
-    });
-
+    // SKAI-1689: the exam, its audit and every report card commit together or not at all. SKAI-1688: the
+    // per-scope lock inside findOrCreateFinalExam serialises concurrent runs; a stale loser aborts as a 409.
     // Existing cards keep their remarks, delivery history and published version. Changed marks go through the
     // report-version workflow, which records a new reviewable version and clears approval and the PDF.
     await versionTransaction(async (tx) => {
-      // SKAI-1688: the same lock serialises card writes; a stale loser aborts as a ReportConflict (409), never a duplicate.
-      await lockFinalGradeScope(tx, user.campusId!, classId, year);
-      for (const { marks, studentId, existingId } of writes) {
+      const { exam: finalExam } = await findOrCreateFinalExam(tx, user, user.campusId!, cls, year);
+      const examId = finalExam.id;
+      const existingCards = await tx.reportCard.findMany({
+        where: { examId, studentId: { in: studentIds } },
+        select: { id: true, studentId: true },
+      });
+      const existingMap = new Map(existingCards.map((c) => [c.studentId, c.id]));
+      for (const grade of grades) {
+        const studentId = grade.studentId;
+        const existingId = existingMap.get(studentId);
+        const marks = {
+          totalMarks,
+          obtainedMarks: grade.subjectBreakdown.reduce((s, sb) => s + sb.obtainedMarks, 0),
+          percentage: grade.overallPercentage,
+          grade: grade.overallGrade,
+          rank: (grade as any).rank || 0,
+          generatedAt: now,
+        };
         const card = existingId
           ? await tx.reportCard.update({ where: { id: existingId }, data: marks })
           : await tx.reportCard.create({ data: { ...marks, status: "PUBLISHED", remarksEn: null, remarksUr: null, remarksApproved: false, isSent: false, deliveryStatus: "PENDING", campusId: user.campusId!, examId, studentId } });

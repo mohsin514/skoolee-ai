@@ -71,10 +71,9 @@ test("two schools/campuses and two years are separate scopes", async () => {
   assert.equal(new Set(db.keys).size, 3, "each scope has its own lock key");
 });
 
-test("the route locks card writes, maps conflicts to 409 and keeps the principal-only gate", () => {
+test("the route locks exam and card writes together, maps conflicts to 409 and keeps the principal-only gate", () => {
   const src = readFileSync(join(__dirname, "..", "..", "src/app/api/reports/generate-from-grades/route.ts"), "utf8");
-  assert.match(src, /findOrCreateFinalExam\(tx as TxClient/);
-  assert.match(src, /versionTransaction\(async \(tx\) => \{[\s\S]*?lockFinalGradeScope\(tx/);
+  assert.match(src, /versionTransaction\(async \(tx\) => \{\s*const \{ exam: finalExam \} = await findOrCreateFinalExam\(tx/, "exam and cards share one locked transaction");
   assert.match(src, /error instanceof ReportConflict[\s\S]*?status: 409/);
   assert.match(src, /if \(!\(await canLeadAcademics\(user, user\.campusId\)\)\) \{\s*return NextResponse\.json\([^)]*\{ status: 403 \}/);
   assert.doesNotMatch(src, /prisma\.exam\.findFirst\(\{\s*where: \{\s*campusId: user\.campusId,\s*classId,\s*academicYear: year/, "no unlocked find-then-create");
