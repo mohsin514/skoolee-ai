@@ -140,7 +140,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (input.action === "preview") {
       const now = new Date();
-      const effectiveFrom = input.status === "SUSPENDED" || input.status === "REVOKED" ? now : input.effectiveFrom ? new Date(input.effectiveFrom) : now;
+      const removing = input.status === "SUSPENDED" || input.status === "REVOKED";
+      // SKAI-1498: removal is immediate. A future date is refused rather than silently applied early (one minute of clock skew allowed).
+      if (removing && input.effectiveFrom && new Date(input.effectiveFrom).getTime() > now.getTime() + 60_000) {
+        throw new ApiError("Suspension and revocation take effect immediately. Scheduling them for a later date is not supported; choose the current time or leave access unchanged until then.", 400);
+      }
+      const effectiveFrom = removing ? now : input.effectiveFrom ? new Date(input.effectiveFrom) : now;
       const validUntil = input.validUntil ? new Date(input.validUntil) : null;
       if (Number.isNaN(effectiveFrom.getTime()) || validUntil && Number.isNaN(validUntil.getTime()) || validUntil && validUntil <= effectiveFrom) {
         throw new ApiError("The effective dates are invalid", 400);
