@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
+import { digestDeliveryState } from "@/lib/notifications/delivery-state";
 import { ApiError, canManageOperations } from "@/lib/api/scope";
 import { publishedReportsWhere } from "@/lib/auth/policy";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
@@ -74,7 +75,7 @@ export async function getDigest(user: AuthUser, id: string) {
   if (!digest) throw new ApiError("Digest not found", 404);
   await assertClassAccess(user, digest.classId);
   const students = new Map((await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: digest.entries.map(e => e.studentId) } }, select: { id: true, fullName: true, rollNo: true } })).map(s => [s.id, s]));
-  return { ...digest, entries: digest.entries.map(e => ({ ...e, studentName: students.get(e.studentId)?.fullName ?? "", rollNo: students.get(e.studentId)?.rollNo ?? "", deliveries: digest.deliveries.filter(d => d.entryId === e.id) })).sort((a, b) => a.rollNo.localeCompare(b.rollNo)) };
+  return { ...digest, entries: digest.entries.map(e => ({ ...e, studentName: students.get(e.studentId)?.fullName ?? "", rollNo: students.get(e.studentId)?.rollNo ?? "", deliveries: digest.deliveries.filter(d => d.entryId === e.id).map(d => ({ ...d, state: digestDeliveryState(d) })) })).sort((a, b) => a.rollNo.localeCompare(b.rollNo)) };
 }
 
 export async function listDigests(user: AuthUser, classId: string) {
