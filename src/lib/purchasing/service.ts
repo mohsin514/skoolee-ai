@@ -275,15 +275,21 @@ export async function returnToSupplier(user: AuthUser, id: string, raw: unknown)
 export async function recordInvoice(user: AuthUser, id: string, raw: unknown) {
   assert(OPS.includes(user.role) || user.role === "ACCOUNTANT", "Only the office or accounts records supplier invoices.");
   const input = parse(z.object({ invoiceNo: text(2, 60), amount: z.number().int().min(0) }).strict(), raw);
-  const r = await prisma.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId } });
-  if (!r) throw new ApiError("Request not found", 404);
-  const receivedValue = (r.lines as Line[]).reduce((s, l, i) => s + l.unitPrice * (((r.received as number[])[i]) ?? 0), 0);
-  const issues: { code: string; detail: string }[] = [];
-  const duplicate = await prisma.supplierInvoice.findFirst({ where: { schoolId: user.schoolId, invoiceNo: input.invoiceNo, supplierId: r.supplierId } });
-  if (duplicate) issues.push({ code: "DUPLICATE", detail: `Invoice ${input.invoiceNo} was already recorded for this supplier.` });
-  if (input.amount !== receivedValue) issues.push({ code: "PRICE_VARIANCE", detail: `Invoice ${input.amount} vs received value ${receivedValue}.` });
-  if (receivedValue === 0) issues.push({ code: "NOTHING_RECEIVED", detail: "No goods have been received against this order yet." });
-  return prisma.supplierInvoice.create({ data: { schoolId: user.schoolId, campusId: r.campusId, requestId: id, supplierId: r.supplierId, invoiceNo: input.invoiceNo, amount: input.amount, status: issues.length ? "REVIEW" : "MATCHED", issues, recordedById: user.userId } });
+  // SKAI-1461: one canonical number per supplier; a per-supplier lock makes the duplicate check and insert atomic,
+  // so a concurrent identical invoice waits, then sees the first and becomes a DUPLICATE review item.
+  const invoiceNo = input.invoiceNo.trim().replace(/\s+/g, " ");
+  return prisma.$transaction(async (tx) => {
+    const r = await tx.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId } });
+    if (!r) throw new ApiError("Request not found", 404);
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`supplier-invoice:${user.schoolId}:${r.supplierId ?? "none"}:${invoiceNo.toLowerCase()}`}))`;
+    const receivedValue = (r.lines as Line[]).reduce((s, l, i) => s + l.unitPrice * (((r.received as number[])[i]) ?? 0), 0);
+    const issues: { code: string; detail: string }[] = [];
+    const duplicate = await tx.supplierInvoice.findFirst({ where: { schoolId: user.schoolId, supplierId: r.supplierId, invoiceNo: { equals: invoiceNo, mode: "insensitive" } } });
+    if (duplicate) issues.push({ code: "DUPLICATE", detail: `Invoice ${invoiceNo} was already recorded for this supplier.` });
+    if (input.amount !== receivedValue) issues.push({ code: "PRICE_VARIANCE", detail: `Invoice ${input.amount} vs received value ${receivedValue}.` });
+    if (receivedValue === 0) issues.push({ code: "NOTHING_RECEIVED", detail: "No goods have been received against this order yet." });
+    return tx.supplierInvoice.create({ data: { schoolId: user.schoolId, campusId: r.campusId, requestId: id, supplierId: r.supplierId, invoiceNo, amount: input.amount, status: issues.length ? "REVIEW" : "MATCHED", issues, recordedById: user.userId } });
+  });
 }
 
 export async function resolveInvoice(user: AuthUser, invoiceId: string, raw: unknown) {
