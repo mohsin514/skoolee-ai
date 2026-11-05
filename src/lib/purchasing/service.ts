@@ -350,6 +350,32 @@ export async function closeService(user: AuthUser, serviceId: string, raw: unkno
   return prisma.assetService.findUnique({ where: { id: serviceId } });
 }
 
+/** SKAI-1779: open requests are always listed in full (counts and filters read them); closed history pages by keyset. */
+const CLOSED_REQUEST = ["RECEIVED", "REJECTED", "CANCELLED"];
+export const CLOSED_REQUEST_PAGE = 100;
+export function closedRequestWhere(cursor: string | null | undefined) {
+  if (!cursor) return {};
+  const [at, id] = Buffer.from(cursor.slice(0, 200), "base64url").toString("utf8").split("|");
+  const when = new Date(at ?? "");
+  if (!id || Number.isNaN(when.getTime())) throw new ApiError("This list has changed. Reload it.", 400);
+  return { OR: [{ createdAt: { lt: when } }, { createdAt: when, id: { lt: id } }] };
+}
+export function closedRequestCursor(rows: { id: string; createdAt: Date }[]) {
+  if (rows.length <= CLOSED_REQUEST_PAGE) return null;
+  const last = rows[CLOSED_REQUEST_PAGE - 1];
+  return Buffer.from(`${last.createdAt.toISOString()}|${last.id}`, "utf8").toString("base64url");
+}
+const requestOrder = [{ createdAt: "desc" as const }, { id: "desc" as const }];
+const selfApprovedIn = (history: Prisma.JsonValue) => Array.isArray(history) && history.some((entry) => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry) && (entry as { selfApproved?: unknown }).selfApproved === true);
+
+/** The next page of this campus's closed purchase requests (received, rejected, cancelled). */
+export async function closedRequests(user: AuthUser, cursor: string | null) {
+  assert(STAFF.includes(user.role), "Only school staff use purchasing.");
+  const campusId = campusOf(user);
+  const rows = await prisma.purchaseRequest.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: CLOSED_REQUEST }, ...closedRequestWhere(cursor) }, orderBy: requestOrder, take: CLOSED_REQUEST_PAGE + 1 });
+  return { requests: rows.slice(0, CLOSED_REQUEST_PAGE).map((r) => ({ ...r, selfApproved: selfApprovedIn(r.history) })), requestsCursor: closedRequestCursor(rows) };
+}
+
 export async function purchasingOverview(user: AuthUser) {
   assert(STAFF.includes(user.role), "Only school staff use purchasing.");
   const campusId = campusOf(user);
@@ -359,7 +385,10 @@ export async function purchasingOverview(user: AuthUser) {
   const campusAssets = await prisma.schoolAsset.findMany({ where: { schoolId: user.schoolId, campusId }, select: { id: true, status: true } });
   const activeAssetIds = campusAssets.filter((asset) => asset.status === "ACTIVE").map((asset) => asset.id);
   const [requests, invoices, assets, services, stores, items, suppliers] = await Promise.all([
-    prisma.purchaseRequest.findMany({ where: { schoolId: user.schoolId, campusId }, orderBy: { createdAt: "desc" }, take: 100 }),
+    Promise.all([
+      prisma.purchaseRequest.findMany({ where: { schoolId: user.schoolId, campusId, status: { notIn: CLOSED_REQUEST } }, orderBy: requestOrder }),
+      prisma.purchaseRequest.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: CLOSED_REQUEST } }, orderBy: requestOrder, take: CLOSED_REQUEST_PAGE + 1 }),
+    ]),
     prisma.supplierInvoice.findMany({ where: { schoolId: user.schoolId, campusId }, orderBy: { createdAt: "desc" }, take: 100 }),
     prisma.schoolAsset.findMany({ where: { schoolId: user.schoolId, campusId }, orderBy: { tag: "asc" }, take: 300 }),
     prisma.assetService.findMany({ where: { schoolId: user.schoolId, status: "SCHEDULED", assetId: { in: activeAssetIds } }, orderBy: { dueOn: "asc" }, take: 200 }),
@@ -370,6 +399,7 @@ export async function purchasingOverview(user: AuthUser) {
   // SD3 (§2.5): whether this operator is the campus's only checker (it may then decide its own request with a reason),
   // and which decisions were such self-approvals (recorded in each request's history by decideRequest).
   const sole = await soleChecker("purchase", user, campusId);
-  const selfApprovedIn = (history: Prisma.JsonValue) => Array.isArray(history) && history.some((entry) => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry) && (entry as { selfApproved?: unknown }).selfApproved === true);
-  return { userId: user.userId, canApprove: OPS.includes(user.role), soleChecker: sole, budgets: positions.map((p) => ({ ...p.budget, committed: p.committed, spent: p.spent, available: p.available })), requests: requests.map((r) => ({ ...r, selfApproved: selfApprovedIn(r.history) })), invoices, assets, services, stores, items, suppliers };
+  const [openRequests, closed] = requests;
+  const requestsCursor = closedRequestCursor(closed);
+  return { userId: user.userId, canApprove: OPS.includes(user.role), soleChecker: sole, budgets: positions.map((p) => ({ ...p.budget, committed: p.committed, spent: p.spent, available: p.available })), requests: [...openRequests, ...closed.slice(0, CLOSED_REQUEST_PAGE)].map((r) => ({ ...r, selfApproved: selfApprovedIn(r.history) })), requestsCursor, invoices, assets, services, stores, items, suppliers };
 }

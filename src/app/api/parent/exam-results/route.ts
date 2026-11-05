@@ -10,7 +10,9 @@ export async function GET(req: NextRequest) {
   try {
     return await withParentScope(req, async ({ studentId, permissions, schoolId }) => {
       if (!permissions.learningRecords) throw new AccessDenied("results");
-      return Response.json({ success: true, data: await familyExamResults(schoolId, studentId!) }, { headers: { "Cache-Control": "private, no-store" } });
+      // SKAI-1715: every page re-runs the same linked-child scope; `cursor` only moves to older releases.
+      const { results, nextCursor } = await familyExamResults(schoolId, studentId!, req.nextUrl.searchParams.get("cursor"));
+      return Response.json({ success: true, data: results, nextCursor }, { headers: { "Cache-Control": "private, no-store" } });
     });
   } catch (error) { return errorResponse(error, "[parent/exam-results] GET failed"); }
 }

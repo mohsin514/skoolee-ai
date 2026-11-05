@@ -10,7 +10,7 @@ import { useLocale } from "@/components/locale/LocaleProvider";
 import { studioOfficeCopy, type StudioOfficeCopy } from "@/lib/school-ai/exam-studio-copy-office";
 
 type Exception = { id: string; examId: string; exam: string; student: string | null; rollNo: string | null; kind: string; note: string; status: "OPEN" | "RESOLVED"; decision: string | null; resolution: string | null; version: number };
-type Desk = { exams: Array<{ id: string; label: string; students: Array<{ id: string; name: string; rollNo: string | null }> }>; exceptions: Exception[] };
+type Desk = { exams: Array<{ id: string; label: string; students: Array<{ id: string; name: string; rollNo: string | null }> }>; exceptions: Exception[]; nextCursor?: string | null };
 const KINDS = ["ABSENT_MEDICAL", "ABSENT_LEAVE", "UNFAIR_MEANS", "EXEMPT", "RESIT"] as const;
 const DECISIONS = ["RESIT_NEW_FORM", "RESIT_CAPPED", "RESIT_FULL", "RECORD_ABSENT", "EXEMPT_FROM_TOTAL", "NO_CHANGE"] as const;
 
@@ -37,6 +37,18 @@ export function ExceptionsDesk({ sessionId, onChanged }: { sessionId: string; on
     } catch { setLoadFailed(true); }
   }, [url]);
   useEffect(() => { void load(); }, [load]);
+  // SKAI-1717: older resolved exceptions load page by page; a failed page keeps the desk and retries the same cursor.
+  const [more, setMore] = useState<"idle" | "loading" | "failed">("idle");
+  const loadMore = async (cursor: string) => {
+    setMore("loading");
+    try {
+      const response = await fetch(`${url}?cursor=${encodeURIComponent(cursor)}`, { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.data) throw new Error();
+      setDesk(previous => previous && previous.nextCursor === cursor ? { ...previous, exceptions: [...previous.exceptions, ...payload.data.exceptions], nextCursor: payload.data.nextCursor } : previous);
+      setMore("idle");
+    } catch { setMore("failed"); }
+  };
   const send = async (path: string, method: string, body: unknown) => {
     setBusy(true); setError("");
     const response = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -76,5 +88,9 @@ export function ExceptionsDesk({ sessionId, onChanged }: { sessionId: string; on
           </div>}
       </li>;
     })}</ul>}
+    {desk.nextCursor ? <div className="flex flex-wrap items-center gap-2" aria-live="polite" data-exceptions-more>
+      {more === "failed" ? <p role="alert" className="text-sm text-status-error-text">{t.exceptionsMoreFailed}</p> : null}
+      <Button type="button" size="sm" variant="outline" disabled={more === "loading"} aria-busy={more === "loading"} onClick={() => void loadMore(desk.nextCursor!)}>{more === "loading" ? t.exceptionsLoadingMore : more === "failed" ? t.exceptionsRetry : t.exceptionsLoadMore}</Button>
+    </div> : null}
   </section>;
 }

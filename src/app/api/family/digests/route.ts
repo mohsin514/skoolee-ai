@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const user = await requireAuthUser();
     const studentId = request.nextUrl.searchParams.get("studentId");
     if (!studentId) throw new ApiError("studentId is required", 400);
-    return Response.json({ success: true, data: await guardianDigests(user, studentId) }, { headers: { "Cache-Control": "private, no-store" } });
+    const { items, nextCursor } = await guardianDigests(user, studentId, request.nextUrl.searchParams.get("cursor"));
+    return Response.json({ success: true, data: items, nextCursor }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error, "[family/digests] GET failed"); }
 }

@@ -245,7 +245,8 @@ export async function loadRollover(user: AuthUser, campusId: string, requestedYe
   const baseline = plan.baseline as Baseline | null;
   const reconciliation = baseline ? { baseline, now: await measure(prisma, rows), learners: rows.length,
     accounted: (statuses.DONE ?? 0) + (statuses.BLOCKED ?? 0) + (statuses.REVERSED ?? 0), clean: !(statuses.PENDING ?? 0) && !(statuses.BLOCKED ?? 0) } : null;
-  const events = await prisma.rolloverEvent.findMany({ where: { planId: plan.id }, orderBy: { createdAt: "desc" }, take: 30 });
+  // SKAI-1745: the plan's whole audit trail, newest first — a 30-event cap hid older approvals and corrections.
+  const events = await prisma.rolloverEvent.findMany({ where: { planId: plan.id }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
   const leaseActive = plan.status === "EXECUTING" && !!plan.leaseUntil && plan.leaseUntil > new Date();
   return {
     ...base, destinations: destinations.map(d => ({ ...d, incoming: incoming.get(d.id) ?? 0 })), eligible: rows.length,

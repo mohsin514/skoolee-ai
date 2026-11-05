@@ -5,11 +5,13 @@ import { AlertTriangle, AtSign, Bell, CheckCircle2, ClipboardList, Eye, Reply } 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { appendInboxPage, inboxPageUrl } from "@/lib/notifications/inbox-pages";
 import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { arrowSelect } from "@/components/ui/choice-card";
 import type { DeskTone } from "@/components/ui/desk";
 import { NOTIFICATION_FIXED_MESSAGE_KINDS, NOTIFICATION_FIXED_TITLE_KINDS, NOTIFICATION_NOTICE_ONLY_KINDS } from "@/lib/notifications/links";
 
@@ -27,6 +29,11 @@ const TABS = [
   { key: "mentions", label: "Mentions" },
   { key: "actions", label: "Needs you" },
 ] as const;
+type TabKey = (typeof TABS)[number]["key"];
+// SKAI-1767: WAI-ARIA tabs — roving tabIndex, arrows (mirrored in RTL), Home/End, tab <-> panel ids.
+const TAB_OPTIONS = TABS.map(item => ({ value: item.key, label: item.label }));
+const tabId = (key: string) => `sk-notif-tab-${key}`;
+const PANEL_ID = "sk-notif-panel";
 
 /** Overdue tasks read as danger, open tasks as warning, mentions as info, plain updates as brand. */
 const toneOf = (item: Item): DeskTone | "muted" => item.state === "unavailable" ? "muted" : item.category === "ACTION" ? (item.state === "resolved" ? "success" : item.overdue ? "danger" : "warning") : item.category === "MENTION" ? "info" : "brand";
@@ -41,7 +48,7 @@ function dayBucket(iso: string): "Today" | "Yesterday" | "Earlier" {
 export function NotificationCenter({ formatTime, onClose, onChanged }: { formatTime: (iso: string) => string; onClose: () => void; onChanged: () => void }) {
   const ui = useUiText();
   const router = useRouter();
-  const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("all");
+  const [tab, setTab] = useState<TabKey>("all");
   const [items, setItems] = useState<Item[] | null>(null), [counts, setCounts] = useState<Counts | null>(null);
   const [error, setError] = useState<RequestFailure | null>(null), [notice, setNotice] = useState<Record<string, string>>({});
 
@@ -50,17 +57,31 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
 
   // A slower response for a tab the user already left must never overwrite the current tab's list.
   const requestRef = useRef(0);
+  const [nextCursor, setNextCursor] = useState<string | null>(null), [older, setOlder] = useState<"idle" | "loading" | "failed">("idle");
   const load = useCallback(async () => {
     const requestId = ++requestRef.current;
-    setError(null); setItems(null); setCounts(null);
+    setError(null); setItems(null); setCounts(null); setNextCursor(null); setOlder("idle");
     try {
-      const params = new URLSearchParams({ view: tab, limit: "30", ...(tab === "actions" ? { status: "open" } : {}) });
-      const json = await checkedJson(await readRequest(`/api/notifications?${params}`));
+      const json = await checkedJson(await readRequest(inboxPageUrl(tab)));
       if (requestId !== requestRef.current) return;
       if (!Array.isArray(json.notifications) || !json.counts) throw new RequestFailure("server");
-      setItems(json.notifications); setCounts(json.counts);
+      setItems(json.notifications); setCounts(json.counts); setNextCursor(typeof json.nextCursor === "string" ? json.nextCursor : null);
     } catch (failure) { if (requestId === requestRef.current) { setItems(null); setCounts(null); setError(requestFailure(failure)); } }
   }, [tab]);
+  // SKAI-1694: older pages append to the shown list; a failure keeps the rows and retries the same cursor, and a
+  // page that returns after the user switched tab or reloaded is dropped.
+  const loadOlder = async () => {
+    if (!nextCursor || older === "loading") return;
+    const requestId = requestRef.current;
+    setOlder("loading");
+    try {
+      const json = await checkedJson(await readRequest(inboxPageUrl(tab, nextCursor)));
+      if (requestId !== requestRef.current) return;
+      if (!Array.isArray(json.notifications)) throw new RequestFailure("server");
+      setItems(prev => prev ? appendInboxPage(prev, json.notifications) : prev);
+      setNextCursor(typeof json.nextCursor === "string" ? json.nextCursor : null); setOlder("idle");
+    } catch { if (requestId === requestRef.current) setOlder("failed"); }
+  };
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => { clearTimeout(timer); requestRef.current++; }; }, [load]);
 
   // Never announce a save or navigate until the server confirms it. No automatic mutation replay.
@@ -95,16 +116,17 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
     onChanged(); await load();
   });
 
+  const selectTab = (key: TabKey) => { if (key === tab) return; setItems(null); setTab(key); };
   const badge = (key: string) => key === "mentions" ? counts?.mentionsUnread : key === "actions" ? counts?.openActions : counts?.unread;
   return <div data-notification-center>
-    <div role="tablist" aria-label={ui("Notification views")} className="sk-notif-tabs">
-      {TABS.map(item => <Button variant="ghost" key={item.key} role="tab" type="button" disabled={busy} aria-selected={tab === item.key} onClick={() => { setItems(null); setTab(item.key); }}
-        className={cn("min-h-9 flex-1 gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold", tab === item.key ? "bg-card text-primary shadow-xs" : "text-ink-muted")} data-tab={item.key}>
+    <div role="tablist" aria-label={ui("Notification views")} className="sk-notif-tabs" onKeyDown={event => { if (!busy) arrowSelect(event, TAB_OPTIONS, tab, key => selectTab(key as TabKey)); }}>
+      {TABS.map(item => <Button variant="ghost" key={item.key} role="tab" type="button" id={tabId(item.key)} aria-controls={PANEL_ID} tabIndex={tab === item.key ? 0 : -1} disabled={busy} aria-selected={tab === item.key} onClick={() => selectTab(item.key)}
+        className={cn("min-h-9 flex-1 gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold", tab === item.key ? "bg-card text-primary shadow-xs" : "text-ink-muted")} data-tab={item.key} data-value={item.key}>
         {ui(item.label)}{badge(item.key) ? <Badge size="sm" variant="neutral" className="tabular-nums" data-tab-count={badge(item.key)}>{badge(item.key)}</Badge> : null}
       </Button>)}
     </div>
     {tab === "actions" && counts?.overdueActions ? <div className="mx-3 mt-2"><Badge variant="danger" dot className="tabular-nums" data-overdue-actions={counts.overdueActions}>{ui("{0} overdue", [counts.overdueActions])}</Badge></div> : null}
-    <div className="sk-scroll-cue max-h-[420px] space-y-1.5 overflow-y-auto p-2.5" aria-live="polite">
+    <div className="sk-scroll-cue max-h-[420px] space-y-1.5 overflow-y-auto p-2.5" aria-live="polite" role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(tab)}>
       {error ? <ErrorState error={error} onRetry={load} />
         : items === null ? <SkeletonList rows={3} label={ui("Loading…")} />
         : items.length === 0 ? <EmptyState size="sm" icon={Bell} title={tab === "actions" ? ui("No assigned actions need your attention.") : tab === "mentions" ? ui("No one has messaged you directly.") : ui("No notifications yet")} />
@@ -144,6 +166,10 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
             </div>
           </article></div>;
         })}
+      {items?.length && nextCursor ? <div className="flex flex-col items-center gap-1 pt-1" data-notifications-more>
+        <Button size="sm" variant="secondary" loading={older === "loading"} disabled={older === "loading"} onClick={() => void loadOlder()} data-notifications-load-older>{older === "failed" ? ui("Try again") : ui("Show older notifications")}</Button>
+        {older === "failed" ? <p role="alert" className="text-2xs font-bold text-status-danger-text">{ui("Older notifications could not be loaded.")}</p> : null}
+      </div> : null}
     </div>
     {tab !== "actions" && (counts?.unread ?? 0) > 0 ? <div className="border-t border-border px-4 py-2.5">
       <Button variant="secondary" size="sm" className="w-full" disabled={busy} onClick={() => void markUpdatesRead()}>{tab === "mentions" ? ui("Mark mentions as seen") : ui("Mark all as seen")}</Button>

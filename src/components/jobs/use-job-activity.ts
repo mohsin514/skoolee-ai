@@ -5,7 +5,7 @@ import type { listJobs, readJob } from "@/lib/jobs/service";
 
 export type JobDetail = Awaited<ReturnType<typeof readJob>>;
 export type JobSummary = Awaited<ReturnType<typeof listJobs>>[number];
-type Data = { detail: JobDetail | null; jobs: JobSummary[] };
+type Data = { detail: JobDetail | null; jobs: JobSummary[]; nextCursor?: string | null };
 type Failure = "unavailable" | "denied" | "missing";
 type Snapshot = Data & { key: string; checkedAt: string | null; error: Failure | null; loading: boolean };
 
@@ -40,7 +40,7 @@ export function useJobActivity(id: string, paused: boolean) {
       if (!response.ok) throw new Error("JOB_STATUS_UNAVAILABLE");
       const payload = await response.json();
       if (!current()) return null;
-      const data = id ? { detail: payload as JobDetail, jobs: [] } : { detail: null, jobs: payload.jobs as JobSummary[] };
+      const data = id ? { detail: payload as JobDetail, jobs: [] } : { detail: null, jobs: payload.jobs as JobSummary[], nextCursor: typeof payload.nextCursor === "string" ? payload.nextCursor : null };
       if ((id && (data.detail?.id !== id || !Array.isArray(data.detail?.items) || typeof data.detail?.counts?.total !== "number")) || !Array.isArray(data.jobs)) throw new Error("INVALID_JOB_STATUS");
       setSnapshot({ ...data, key, checkedAt: new Date().toISOString(), error: null, loading: false });
       return data;

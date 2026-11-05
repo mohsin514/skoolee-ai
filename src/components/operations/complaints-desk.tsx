@@ -56,6 +56,9 @@ export function ComplaintsDesk({ hideHeader = false, command }: { hideHeader?: b
   const ui = useUiText();
   const { date: formatDate } = useLocaleFormat();
   const [truncated, setTruncated] = useState(false);
+  // SKAI-1720: older complaints load page by page; a failed page keeps the queue and retries the same cursor.
+  const [nextCursor, setNextCursor] = useState<string | null>(null), [more, setMore] = useState<"idle" | "loading" | "failed">("idle");
+  const [query, setQuery] = useState("");
   const [rows, setRows] = useState<Row[]>([]), [counts, setCounts] = useState({ active: 0, unassigned: 0, overdue: 0 }), [leader, setLeader] = useState(false);
   const [owners, setOwners] = useState<Owner[]>([]);
   const [status, setStatus] = useState("active"), [owner, setOwner] = useState(""), [q, setQ] = useState("");
@@ -76,10 +79,22 @@ export function ComplaintsDesk({ hideHeader = false, command }: { hideHeader?: b
       const response = await fetch(`/api/front-desk/complaints?${params}`, { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to complaints for this campus.") : json.error || ui("Complaints could not be loaded."));
-      setRows(json.data); setCounts(json.counts); setLeader(json.canSeeConfidential); setTruncated(Boolean(json.truncated));
+      setRows(json.data); setCounts(json.counts); setLeader(json.canSeeConfidential); setTruncated(Boolean(json.truncated)); setNextCursor(json.nextCursor ?? null); setMore("idle"); setQuery(params.toString());
     } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("Complaints could not be loaded.")); } finally { setLoading(false); }
   }, [status, owner, q, ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
+  const loadMore = async () => {
+    if (!nextCursor) return;
+    const from = nextCursor;
+    setMore("loading");
+    try {
+      const params = new URLSearchParams(query); params.set("cursor", from);
+      const response = await fetch(`/api/front-desk/complaints?${params}`, { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.success) throw new Error();
+      setRows(current => [...current, ...json.data]); setCounts(json.counts); setTruncated(Boolean(json.truncated)); setNextCursor(json.nextCursor ?? null); setMore("idle");
+    } catch { setMore("failed"); }
+  };
   // Owner candidates (G40, F13): the campus's admins — including a single school's admin — and receptionists. The
   // complaints route's older `?owners=1` list still names the principal and omits ADMIN, so the candidates come from
   // the front-desk list that serves them (the smallest one: callbacks the viewer owns).
@@ -128,6 +143,7 @@ export function ComplaintsDesk({ hideHeader = false, command }: { hideHeader?: b
         {row.dueDate && row.status !== "RESOLVED" ? <span className={`text-xs font-semibold tabular-nums ${row.overdue ? "text-status-error-text" : "text-ink-muted"}`}><RelativeTime iso={row.dueDate} full={formatDate(row.dueDate)} /></span> : null}
         <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)} aria-label={ui("Open complaint {0}", [row.referenceCode])}>{ui("Open")}</Button>
       </li>)}</ul></div>}
+    {!loading && !loadError && nextCursor ? <div className="flex flex-wrap items-center gap-2" aria-live="polite" data-complaints-more>{more === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("Older complaints could not be loaded. The queue shown is kept.")}</p> : null}<Button type="button" size="sm" variant="outline" disabled={more === "loading"} aria-busy={more === "loading"} onClick={() => void loadMore()}>{more === "loading" ? ui("Loading older complaints…") : more === "failed" ? ui("Try again") : ui("Load older complaints")}</Button></div> : null}
 
     {intakeOpen ? <IntakeDialog owners={owners} leader={leader} onClose={() => setIntakeOpen(false)} onDone={() => { setIntakeOpen(false); void load(); }} /> : null}
     {openId ? <CaseDialog id={openId} owners={owners} leader={leader} onClose={() => setOpenId(null)} onChanged={() => void load()} /> : null}

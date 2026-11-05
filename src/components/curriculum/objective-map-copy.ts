@@ -1,5 +1,6 @@
 const en = {
   title: "Objective map", eyebrow: "Curriculum", summary: "Learning objectives with what is planned, what teachers confirmed as taught and what was assessed — each with its evidence.",
+  loadMoreCurricula: "Load more curricula", loadingMoreCurricula: "Loading more curricula…", moreCurriculaFailed: "More curricula could not be loaded. The list shown is kept.", retryMoreCurricula: "Try again",
   loading: "Loading the objective map…", failed: "The objective map could not be loaded.", saved: "Saved.", noCurricula: "No approved curriculum is available for your subjects yet. Approve one in the School AI workspace first.",
   curriculum: "Curriculum", version: "Version", pack: "Curriculum pack", authority: "Authority", edition: "Edition", language: "Language", board: "Board", year: "Academic year", sources: "Sources",
   rights: { APPROVED: "Source rights approved", UNDER_REVIEW: "Under evaluation", MANUAL: "Manual — not validated" }, rightsUnknown: "Pack details not recorded — treat as manual",
@@ -22,6 +23,7 @@ export type ObjectiveMapCopy = typeof en;
 
 const ar: ObjectiveMapCopy = {
   title: "خريطة الأهداف", eyebrow: "المنهج", summary: "أهداف التعلّم مع ما خُطِّط له وما أكّد المعلمون تدريسه وما تم تقييمه — مع الدليل لكلٍّ منها.",
+  loadMoreCurricula: "تحميل مزيد من المناهج", loadingMoreCurricula: "جارٍ تحميل مزيد من المناهج…", moreCurriculaFailed: "تعذّر تحميل مزيد من المناهج. تبقى القائمة المعروضة.", retryMoreCurricula: "حاول مرة أخرى",
   loading: "جارٍ تحميل خريطة الأهداف…", failed: "تعذّر تحميل خريطة الأهداف.", saved: "تم الحفظ.", noCurricula: "لا يوجد منهج معتمد لموادك بعد. اعتمد منهجاً في مساحة الذكاء الاصطناعي أولاً.",
   curriculum: "المنهج", version: "الإصدار", pack: "حزمة المنهج", authority: "الجهة", edition: "الطبعة", language: "اللغة", board: "المجلس", year: "العام الدراسي", sources: "المصادر",
   rights: { APPROVED: "حقوق المصدر معتمدة", UNDER_REVIEW: "قيد التقييم", MANUAL: "يدوي — غير مُتحقَّق منه" }, rightsUnknown: "تفاصيل الحزمة غير مسجلة — تعامل معها كيدوية",
@@ -43,6 +45,7 @@ const ar: ObjectiveMapCopy = {
 
 const ur: ObjectiveMapCopy = {
   title: "مقاصد کا نقشہ", eyebrow: "نصاب", summary: "تعلیمی مقاصد: کیا منصوبہ بند ہے، اساتذہ نے کیا پڑھانے کی تصدیق کی اور کیا جانچا گیا — ہر ایک کے ثبوت کے ساتھ۔",
+  loadMoreCurricula: "مزید نصاب لوڈ کریں", loadingMoreCurricula: "مزید نصاب لوڈ ہو رہے ہیں…", moreCurriculaFailed: "مزید نصاب لوڈ نہیں ہو سکے۔ دکھائی گئی فہرست برقرار ہے۔", retryMoreCurricula: "دوبارہ کوشش کریں",
   loading: "مقاصد کا نقشہ لوڈ ہو رہا ہے…", failed: "مقاصد کا نقشہ لوڈ نہ ہو سکا۔", saved: "محفوظ ہو گیا۔", noCurricula: "آپ کے مضامین کے لیے ابھی کوئی منظور شدہ نصاب نہیں۔ پہلے اسکول AI ورک اسپیس میں منظور کریں۔",
   curriculum: "نصاب", version: "ورژن", pack: "نصابی پیک", authority: "ادارہ", edition: "ایڈیشن", language: "زبان", board: "بورڈ", year: "تعلیمی سال", sources: "ماخذ",
   rights: { APPROVED: "ماخذ کے حقوق منظور", UNDER_REVIEW: "جائزہ جاری", MANUAL: "دستی — تصدیق شدہ نہیں" }, rightsUnknown: "پیک کی تفصیل درج نہیں — دستی سمجھیں",

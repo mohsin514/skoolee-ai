@@ -38,15 +38,32 @@ async function openCurriculum(tx: TxClient, user: AuthUser, recordId: string) {
 }
 
 /** Approved curricula the actor may open: managers see their campus, teachers their assigned subjects. */
-export async function listCurricula(user: AuthUser) {
+export const CURRICULUM_PAGE = 200;
+/** SKAI-1734: keyset over (title asc, id asc) so approved curricula after the first 200 stay selectable. */
+export function curriculumPageWhere(cursor: string | null | undefined) {
+  if (!cursor) return {};
+  let parts: unknown = null;
+  try { parts = JSON.parse(Buffer.from(cursor.slice(0, 800), "base64url").toString("utf8")); } catch { /* refused below */ }
+  const [title, id] = Array.isArray(parts) ? parts : [];
+  if (typeof title !== "string" || typeof id !== "string" || !id) throw new ApiError("This list has changed. Reload it.", 400);
+  return { OR: [{ title: { gt: title } }, { title, id: { gt: id } }] };
+}
+export function curriculumNextCursor(rows: { id: string; title: string }[]) {
+  if (rows.length <= CURRICULUM_PAGE) return null;
+  const last = rows[CURRICULUM_PAGE - 1];
+  return Buffer.from(JSON.stringify([last.title, last.id]), "utf8").toString("base64url");
+}
+
+export async function listCurricula(user: AuthUser, cursor?: string | null) {
   return schoolAiTransaction(user, async tx => {
     const permissions = await loadWorkspacePermissionSnapshot(user, tx);
     await assertSchoolAiAccess(user, "view", permissions);
     await assertWorkspacePermission(user, "exams", "view", permissions);
     const campusId = await resolveWorkspaceCampus(user, undefined, tx);
     const subjects = await getAssignedWorkspaceSubjects(user, tx);
-    const rows = await tx.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, kind: "CURRICULUM", status: "APPROVED", ...(campusId ? { campusId } : {}), subjectId: { in: subjects.map(subject => subject.id) } }, select: { id: true, title: true, version: true, subjectId: true, classId: true }, orderBy: { title: "asc" }, take: 200 });
-    return rows.map(row => { const subject = subjects.find(item => item.id === row.subjectId); return { ...row, subject: subject?.name ?? "", className: subject ? `${subject.class.name}${subject.class.section ? ` ${subject.class.section}` : ""}` : "" }; });
+    const rows = await tx.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, kind: "CURRICULUM", status: "APPROVED", ...(campusId ? { campusId } : {}), subjectId: { in: subjects.map(subject => subject.id) }, ...curriculumPageWhere(cursor) }, select: { id: true, title: true, version: true, subjectId: true, classId: true }, orderBy: [{ title: "asc" }, { id: "asc" }], take: CURRICULUM_PAGE + 1 });
+    const nextCursor = curriculumNextCursor(rows);
+    return { curricula: rows.slice(0, CURRICULUM_PAGE).map(row => { const subject = subjects.find(item => item.id === row.subjectId); return { ...row, subject: subject?.name ?? "", className: subject ? `${subject.class.name}${subject.class.section ? ` ${subject.class.section}` : ""}` : "" }; }), nextCursor };
   });
 }
 
@@ -57,19 +74,22 @@ export async function objectiveMap(user: AuthUser, raw: unknown) {
   return schoolAiTransaction(user, async tx => {
     const { record, curriculum } = await openCurriculum(tx, user, input.recordId);
     const campusId = record.campusId!;
-    const versions = await tx.schoolAiRevision.findMany({ where: { schoolId: user.schoolId, recordId: record.id }, select: { version: true, status: true, createdAt: true }, orderBy: { version: "desc" }, take: 50 });
+    // SKAI-1735: every revision (version metadata only) so older approved versions stay comparable.
+    const versions = await tx.schoolAiRevision.findMany({ where: { schoolId: user.schoolId, recordId: record.id }, select: { version: true, status: true, createdAt: true }, orderBy: { version: "desc" } });
     const baseline = input.compareTo ?? versions.find(row => row.version < record.version && row.status === "APPROVED")?.version;
     const previous = baseline && baseline !== record.version ? await curriculumAt(tx, user, record.id, baseline, record) : null;
 
-    const paperRows = await tx.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, campusId, kind: "PAPER", subjectId: curriculum.subjectId, classId: curriculum.classId, ...(isSchoolAiManager(user) ? {} : { createdById: user.userId }) }, select: { id: true, title: true, version: true, status: true, data: true }, take: 500 });
+    // SKAI-1739: coverage, impact and the export read the complete scoped evidence — a 500-row cap made objectives
+    // look unmapped or unaffected when the deciding paper, release or resource was older than the newest 500.
+    const paperRows = await tx.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, campusId, kind: "PAPER", subjectId: curriculum.subjectId, classId: curriculum.classId, ...(isSchoolAiManager(user) ? {} : { createdById: user.userId }) }, select: { id: true, title: true, version: true, status: true, data: true } });
     const papers: PaperRef[] = paperRows.flatMap(row => { const data = paperDataSchema.safeParse(row.data); return data.success && data.data.curriculumId === record.id ? [{ id: row.id, title: row.title, version: row.version, status: row.status, data: data.data }] : []; });
-    const releaseRows = await tx.schoolAiExamAssignment.findMany({ where: { schoolId: user.schoolId, campusId, classId: curriculum.classId, status: { not: "DRAFT" }, AND: [{ paperSnapshot: { path: ["curriculumId"], equals: record.id } }] }, select: { id: true, paperId: true, paperVersion: true, paperSnapshot: true }, take: 500 });
+    const releaseRows = await tx.schoolAiExamAssignment.findMany({ where: { schoolId: user.schoolId, campusId, classId: curriculum.classId, status: { not: "DRAFT" }, AND: [{ paperSnapshot: { path: ["curriculumId"], equals: record.id } }] }, select: { id: true, paperId: true, paperVersion: true, paperSnapshot: true } });
     const releases: ReleaseRef[] = releaseRows.flatMap(row => { const snapshot = paperDataSchema.safeParse(row.paperSnapshot); return snapshot.success ? [{ id: row.id, paperId: row.paperId, paperVersion: row.paperVersion, snapshot: snapshot.data }] : []; });
-    const resourceRows = await tx.learningResource.findMany({ where: { schoolId: user.schoolId, classId: curriculum.classId }, select: { id: true, title: true, status: true, objectives: true }, take: 500 });
+    const resourceRows = await tx.learningResource.findMany({ where: { schoolId: user.schoolId, classId: curriculum.classId }, select: { id: true, title: true, status: true, objectives: true } });
     const resources: ResourceRef[] = resourceRows.map(row => ({ ...row, objectives: row.objectives as ResourceRef["objectives"] }));
     const topics = await tx.syllabusTopic.findMany({ where: { schoolId: user.schoolId, subjectId: curriculum.subjectId }, select: { id: true, title: true, description: true, status: true }, orderBy: { order: "asc" } });
     const mappings = await tx.curriculumObjectiveMapping.findMany({ where: { schoolId: user.schoolId, OR: [{ fromRecordId: record.id, fromVersion: record.version }, { toRecordId: record.id, toVersion: record.version }] }, orderBy: { createdAt: "desc" } });
-    const others = isSchoolAiManager(user) ? await tx.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, campusId, kind: "CURRICULUM", status: "APPROVED", id: { not: record.id } }, select: { id: true, title: true, version: true, data: true }, take: 50 }) : [];
+    const others = isSchoolAiManager(user) ? await tx.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, campusId, kind: "CURRICULUM", status: "APPROVED", id: { not: record.id } }, select: { id: true, title: true, version: true, data: true }, orderBy: [{ title: "asc" }, { id: "asc" }] }) : []; // SKAI-1738: every in-scope target, not the first 50
     const changes = previous ? compareVersions(previous, curriculum) : [];
 
     return {

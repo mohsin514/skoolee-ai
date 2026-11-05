@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 // never claims a submission it did not see.
 
 type Ui = ReturnType<typeof useUiText>;
+const TODAY_WORK_SHOWN = 6;
 type Lesson = { id: string; startTime: string; endTime: string; kind: string; subject: string | null; teacher: string | null; room: string | null; cover?: boolean };
 type Work = { id: string; title: string; state: string; dueAt: string; extended: boolean; overdue: boolean; canSubmit: boolean; draftSavedAt: string | null; href: string };
 type Today = {
@@ -24,7 +25,7 @@ type Today = {
   cycle: { label: string } | null; timetableVersion: number | null; lessons: Lesson[]; current: Lesson | null; next: Lesson | null;
   examLock: boolean; activeExam: { title: string; href: string } | null; examsUnavailable?: boolean;
   nextAction: { kind: string; title: string; href: string; dueAt?: string } | null;
-  work: Work[]; upcomingExams: { id: string; title: string; startsAt: string; href: string }[]; returned: { id: string; title: string; returnedAt: string; href: string }[]; refreshedAt: string;
+  work: Work[]; workTotal?: number; upcomingExams: { id: string; title: string; startsAt: string; href: string }[]; returned: { id: string; title: string; returnedAt: string; href: string }[]; refreshedAt: string;
   catchUp?: { id: string; subject: string; lessonDate: string; title: string; instructions: string | null; dueDate: string | null; done: boolean }[];
 };
 const KEY = "skoolee.student.today";
@@ -161,13 +162,17 @@ export function StudentToday({ onNextAction }: { onNextAction?: (action: Student
         </section>
         {!data.examLock ? <section aria-labelledby="today-work" data-today-work={data.work.length}>
           <h3 id="today-work" className="text-sm font-bold text-ink-strong">{ui("Work")}</h3>
-          {data.work.length === 0 ? <p className="mt-2 text-sm text-ink-muted">{ui("Nothing open.")}</p> : <ul className="mt-2 space-y-2">{data.work.slice(0, 6).map(item => <li key={item.id} data-work={item.id} data-work-state={item.state}>
+          {data.work.length === 0 ? <p className="mt-2 text-sm text-ink-muted">{ui("Nothing open.")}</p> : <ul className="mt-2 space-y-2">{data.work.slice(0, TODAY_WORK_SHOWN).map(item => <li key={item.id} data-work={item.id} data-work-state={item.state}>
             <Link href={item.href} data-tone={stateTone(item)} className={cn(deskRow, "flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-sm")}>
               <span className="min-w-0 basis-full font-bold text-ink-strong [overflow-wrap:anywhere] sm:flex-1" dir="auto">{item.title}</span>
               <DeskPill tone={stateTone(item)}>{item.overdue ? (item.canSubmit ? ui("Past due") : ui("Closed for submission")) : stateLabel(ui, item.state)}</DeskPill>
               <span className="text-xs text-ink-muted">{item.overdue ? <>{stateLabel(ui, item.state)} · </> : null}<RelativeTime iso={item.dueAt} full={dateTime(item.dueAt)} />{item.extended ? <> · {ui("Extended for you")}</> : null}</span>
             </Link>
           </li>)}</ul>}
+          {(() => { const shown = Math.min(data.work.length, TODAY_WORK_SHOWN); const total = Math.max(data.workTotal ?? data.work.length, data.work.length); return total > shown ? <p className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted" data-today-work-more={total - shown}>
+            <span>{ui("Showing {0} of {1} open items", [String(shown), String(total)])}</span>
+            <Link href="/student/assignments?from=today" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "sk-nudge-trigger gap-1 text-primary")}>{ui("See all work")}<ChevronRight aria-hidden="true" className="sk-nudge size-4 rtl:rotate-180" /></Link>
+          </p> : null; })()}
           {data.catchUp?.length ? <><h4 className="mt-3 text-xs font-semibold text-ink-muted">{ui("Catch-up from missed lessons")}</h4><ul className="space-y-1">{data.catchUp.map(item => <li key={item.id} className="text-sm" data-catch-up={item.id} data-catch-up-done={item.done ? "true" : "false"}><span className={cn("font-bold", item.done && "line-through opacity-70")} dir="auto">{item.title}</span> · <span dir="auto">{item.subject}</span>{item.dueDate ? <> · {ui("Due")} <bdi>{date(item.dueDate)}</bdi></> : null}{item.done ? <> · <span className="text-xs font-semibold text-status-success-text">{ui("Done")}</span></> : null}{item.instructions ? <p className="text-xs text-ink-muted" dir="auto">{item.instructions}</p> : null}</li>)}</ul></> : null}
           {data.returned.length ? <><h4 className="mt-3 text-xs font-semibold text-ink-muted">{ui("Feedback to read")}</h4><ul className="space-y-1">{data.returned.map(item => <li key={item.id} data-returned={item.id}><Link href={item.href} className="text-sm underline" dir="auto">{item.title}</Link></li>)}</ul></> : null}
         </section> : null}

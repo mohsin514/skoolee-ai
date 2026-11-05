@@ -5,16 +5,23 @@ import { cn } from "@/lib/utils";
 
 export interface ChoiceOption { value: string; label: string; detail?: string }
 
-/** Arrow keys move the choice within a radio group, as native radios do (mirrored in RTL). */
-export function arrowSelect(event: KeyboardEvent<HTMLElement>, options: ChoiceOption[], value: unknown, onChange: (value: string) => void) {
-  const forward = ["ArrowDown", "ArrowRight"], backward = ["ArrowUp", "ArrowLeft"];
-  if (![...forward, ...backward].includes(event.key) || options.length === 0) return;
+/**
+ * Arrow keys move the choice within a radio group or tablist, as native radios do (mirrored in RTL);
+ * Home and End jump to the first and last option. Each option element needs `data-value`.
+ */
+export function arrowSelect(event: KeyboardEvent<HTMLElement>, options: readonly ChoiceOption[], value: unknown, onChange: (value: string) => void) {
+  const forward = ["ArrowDown", "ArrowRight"], backward = ["ArrowUp", "ArrowLeft"], ends = ["Home", "End"];
+  if (![...forward, ...backward, ...ends].includes(event.key) || options.length === 0) return;
   event.preventDefault();
-  const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
-  const horizontal = event.key === "ArrowRight" || event.key === "ArrowLeft";
-  const step = (forward.includes(event.key) ? 1 : -1) * (rtl && horizontal ? -1 : 1);
-  const at = Math.max(0, options.findIndex(option => option.value === value));
-  const next = options[(at + step + options.length) % options.length];
+  let next: ChoiceOption;
+  if (ends.includes(event.key)) next = options[event.key === "Home" ? 0 : options.length - 1];
+  else {
+    const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
+    const horizontal = event.key === "ArrowRight" || event.key === "ArrowLeft";
+    const step = (forward.includes(event.key) ? 1 : -1) * (rtl && horizontal ? -1 : 1);
+    const at = Math.max(0, options.findIndex(option => option.value === value));
+    next = options[(at + step + options.length) % options.length];
+  }
   onChange(next.value);
   event.currentTarget.querySelector<HTMLElement>(`[data-value="${CSS.escape(next.value)}"]`)?.focus();
 }
