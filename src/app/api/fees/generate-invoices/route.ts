@@ -292,9 +292,8 @@ export async function POST(req: NextRequest) {
 
     return Response.json(
       {
+        // SKAI-1765: generation runs synchronously and its result is this response; no pseudo job ID is issued.
         success: true,
-        jobId: `invoice-gen-${parsed.data.generationMonth}`,
-        status: "completed",
         totalStudents: committed.totalStudents,
         generated,
         errors,
