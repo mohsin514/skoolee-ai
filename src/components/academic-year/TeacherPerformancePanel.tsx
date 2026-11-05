@@ -14,6 +14,7 @@ import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { isApiOk, readApiError } from "@/lib/api/envelope-client";
+import { createLatestRequest } from "@/lib/latest-request";
 
 // SKO-461: "Teaching evidence" — bounded to the selected period, published
 // results only, every measure with its source, coverage and freshness, absent
@@ -55,6 +56,8 @@ export function TeacherPerformancePanel({ self = false, hideHeading = false, exp
   // "Add note" from the page header: a dialog with its own teacher and text, independent of any open row.
   const [composer, setComposer] = useState<{ teacherId: string; body: string } | null>(null);
   const request = useRef(0);
+  // SKAI-1736: bind each support-note response to its teacher + request so a slow one never renders under another teacher.
+  const notesRequest = useRef(createLatestRequest<string>());
 
   const load = useCallback(async () => {
     const ticket = ++request.current;
@@ -68,10 +71,12 @@ export function TeacherPerformancePanel({ self = false, hideHeading = false, exp
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
 
   const openNotes = async (teacherId: string) => {
-    if (open === teacherId) { setOpen(null); return; }
+    if (open === teacherId) { notesRequest.current.cancel(); setOpen(null); return; }
+    const token = notesRequest.current.begin(teacherId);
     setOpen(teacherId); setNotes(null); setDraft("");
     const response = await fetch(`/api/teachers/performance/notes?teacherId=${encodeURIComponent(teacherId)}&academicYear=${year}`, { cache: "no-store" }).catch(() => null);
     const json = await response?.json().catch(() => ({}));
+    if (!notesRequest.current.isCurrent(token, teacherId)) return;
     setNotes(response?.ok && isApiOk(json) ? json.data : []);
   };
   // One POST for the row editor and the "Add note" composer; `draft` is the note text either one passes in.
