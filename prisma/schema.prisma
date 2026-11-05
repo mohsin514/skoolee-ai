@@ -10539,3 +10539,22 @@ model WhatsAppUsageEntry {
   @@index([schoolId, createdAt])
   @@map("whatsapp_usage_entries")
 }
+
+/// SKAI-1478: a private object whose metadata was deleted. Written in the same transaction as the
+/// deletion and kept until storage confirms removal; FAILED after repeated errors, for operator follow-up.
+model StorageCleanup {
+  id          String    @id @default(uuid())
+  schoolId    String    @map("school_id")
+  campusId    String    @map("campus_id")
+  objectKey   String    @unique @map("object_key")
+  receiptId   String?   @map("receipt_id")
+  status      String    @default("PENDING")
+  attempts    Int       @default(0)
+  lastError   String?   @map("last_error")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+
+  @@index([schoolId, status])
+  @@index([receiptId])
+  @@map("storage_cleanups")
+}

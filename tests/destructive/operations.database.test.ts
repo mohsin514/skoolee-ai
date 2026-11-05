@@ -124,6 +124,11 @@ test("student and staff documents recheck review, related-record scope, and comm
     // Count the retry receipts only; the audit-trail extension adds its own generic rows.
     const receipts = (await db.auditLog.findMany({ where: { schoolId, recordId: row.id } })).filter(item => /^[a-f0-9]{64}$/.test(item.id));
     assert.equal(receipts.length, 1, kind);
+    // SKAI-1478: the storage delete fails here (no bucket), so the key must survive as a retried tombstone.
+    const tombstone = await db.storageCleanup.findUnique({ where: { objectKey: row.fileKey } });
+    assert.equal(tombstone?.status, "PENDING", kind);
+    assert.ok((tombstone?.attempts ?? 0) >= 1, `${kind} cleanup was attempted`);
+    assert.equal(tombstone?.schoolId, schoolId);
   }
   assert.equal(await db.studentTimelineEvent.count({ where: { schoolId, studentId: pupil.id, title: "Document removed" } }), 1);
   const invalid = await db.studentDocument.create({ data: { schoolId, studentId: pupil.id, kind: "OTHER", fileName: "Invalid scoped key.pdf", fileKey: `student-docs/${campusB}/${pupil.id}/synthetic.pdf` } });

@@ -10,6 +10,9 @@ import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { studentScope, campusScope } from "@/lib/auth/policy";
 import { matchesDocumentKey } from "@/lib/storage/document-key-scope";
 import { deleteFile } from "@/lib/storage/s3";
+import { enqueueCleanup, runCleanups } from "@/lib/storage/cleanup-queue";
+import { prisma } from "@/lib/db/prisma";
+import { runAsUser } from "@/lib/db/tenant-context";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { deletionVersion } from "./version";
 
@@ -253,7 +256,6 @@ export async function operationDelete(user: AuthUser, kind: OperationDeleteKind,
   if (kind === "students/documents") assertStaffRole(user);
   else if (!(permissionModule === "library" ? canManageLibrary(user) : permissionModule === "accounts" || permissionModule === "fees" ? canManageFinance(user) : canManageCampusOps(user))) throw new ApiError("Insufficient permissions", 403);
   const reviewed = input.preview || /^[a-f0-9]{64}$/.test(input.version ?? "");
-  let cleanupKey: string | undefined;
   // Deterministic per request: concurrent identical deletes share one receipt id.
   const receiptId = createHash("sha256").update(JSON.stringify(["confirmed-delete-v1", user.schoolId, input.campusId, user.userId, kind, input.id, input.version])).digest("hex");
   const replayReceipt = () => schoolAiTransaction(user, tx => tx.auditLog.findFirst({ where: { id: receiptId, schoolId: user.schoolId, campusId: input.campusId, userId: user.userId } }));
@@ -281,7 +283,8 @@ export async function operationDelete(user: AuthUser, kind: OperationDeleteKind,
     // a receipt, no receipt for a rolled-back deletion. Metadata only.
     await tx.auditLog.create({ data: { id: receiptId, schoolId: user.schoolId, campusId: campus.id, userId: user.userId, tableName: operationDeleteAuditTables[kind] ?? kind, recordId: input.id, oldValue: { action: "DELETE", version, ...Object.fromEntries(Object.entries(selected.record).filter(([key, value]) => ["currency", "amount", "balance", "openingBalance", "isActive", "type", "value", "fromAcademicYear", "toAcademicYear", "academicYear", "feeGroupId", "feeTypeId", "studentId", "classId", "discountId"].includes(key) && (value === null || ["string", "number", "boolean"].includes(typeof value)))) } } });
     await selected.remove();
-    if ("cleanupKey" in selected) cleanupKey = selected.cleanupKey;
+    // SKAI-1478: the object key is kept as a tombstone in the same transaction, so a failed storage delete is retried.
+    if ("cleanupKey" in selected && selected.cleanupKey) await enqueueCleanup(tx, { schoolId: user.schoolId, campusId: campus.id, objectKey: selected.cleanupKey, receiptId });
     return { success: true, data: { id: input.id }, replayed: false };
   }).catch(async error => {
     // The losing concurrent request: the winner's receipt is now committed.
@@ -291,8 +294,13 @@ export async function operationDelete(user: AuthUser, kind: OperationDeleteKind,
     throw error;
   });
   // Preserve the private-document storage boundary: only remove the object
-  // after metadata/timeline/receipt commit. Failed cleanup cannot restore access.
-  if (cleanupKey) await deleteFile(cleanupKey).catch(() => undefined);
+  // after metadata/timeline/receipt commit. A failure leaves the tombstone PENDING;
+  // this request (or a replay) and later deletes in the school retry it.
+  if (!input.preview) {
+    const outcome = await runAsUser(user, () => runCleanups(prisma, { schoolId: user.schoolId, receiptId }, deleteFile)).catch(() => ({ done: 0, pending: 1, failed: 0 }));
+    await runAsUser(user, () => runCleanups(prisma, { schoolId: user.schoolId }, deleteFile, 5)).catch(() => undefined);
+    if (outcome.pending || outcome.failed) return { ...result, cleanup: outcome.failed ? "FAILED" : "PENDING" };
+  }
   return result;
 }
 
