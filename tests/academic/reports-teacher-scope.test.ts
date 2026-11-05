@@ -20,3 +20,13 @@ test("GET denies an unassigned teacher before report cards or guardian contacts 
   assert.ok(deny < get.indexOf("prisma.reportCard.findMany"));
   assert.match(get.slice(deny, deny + 200), /status: 403/);
 });
+
+test("detail GET denies an unassigned teacher before marks or grades are read", () => {
+  const src = readFileSync("src/app/api/reports/[id]/detail/route.ts", "utf8");
+  const deny = src.indexOf('user.role === "TEACHER" && !teachesExamClass(reportCard.exam.class, user.userId)');
+  assert.ok(deny > 0, "detail route must check the teacher is assigned to the exam class");
+  assert.ok(deny < src.indexOf("prisma.mark"), "deny must run before marks are read");
+  assert.match(src.slice(deny, deny + 200), /status: 403/);
+  assert.match(src, /classTeacherId: true/);
+  assert.match(src, /subjects: \{ select: \{ teacherId: true \} \}/);
+});
