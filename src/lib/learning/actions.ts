@@ -3,6 +3,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, canLeadAcademics, canManageOperations } from "@/lib/api/scope";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
+import { FollowUpKind, followUpGap, followUpKind } from "@/lib/learning/follow-ups";
 
 /**
  * SKO-425: learning actions — the structured form of InterventionPlan.
@@ -195,7 +196,7 @@ export async function handOffLearningAction(user: AuthUser, id: string, raw: unk
 
 const ReviewInput = z.object({
   version: z.number().int().min(1), decision: z.enum(["CLOSE", "EXTEND", "ESCALATE", "INCONCLUSIVE"]), reason: z.string().trim().min(10).max(1000),
-  followUp: measure.extend({ comparable: z.boolean(), differences: z.string().trim().max(500) }).nullable(), limitations: z.string().trim().max(1000),
+  followUp: measure.extend({ comparable: z.boolean(), differences: z.string().trim().max(500), kind: FollowUpKind.default("RETRIEVAL") }).nullable(), limitations: z.string().trim().max(1000),
   nextReviewDate: day.nullable(), nextOwnerId: z.string().min(1).nullable(),
 }).strict();
 /**
@@ -240,6 +241,8 @@ export async function listLearningActions(user: AuthUser, studentId?: string | n
     shared: Boolean((r.familyShare as { sharedAt?: string | null } | null)?.sharedAt),
     // SKO-472: an approved assessment repair changed evidence this action cites.
     staleSince: r.staleSince?.toISOString() ?? null, staleReason: r.staleReason,
+    // SKAI-790: due, overdue or missing fresh checks, and retrieval vs transfer.
+    followUpGap: followUpGap({ status: r.status, reviewDate: ymd(r.reviewDate), outcome: r.outcome }, now), followUpKind: followUpKind(r.outcome),
   }));
 }
 

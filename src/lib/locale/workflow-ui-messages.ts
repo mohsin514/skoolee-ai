@@ -747,6 +747,17 @@ const entries: [string, string, string][] = [
 ["Write one model per line as model=USD per million tokens.", "اكتب نموذجًا واحدًا في كل سطر بصيغة model=دولار لكل مليون رمز.", "ہر سطر میں ایک ماڈل بطور model=فی ملین ٹوکن USD لکھیں۔"],
 // SKAI-917: Student Today when exams could not be checked.
 ["We could not check your exams. If an exam is running, open it from Exams.", "تعذر التحقق من اختباراتك. إذا كان هناك اختبار جارٍ، فافتحه من صفحة الاختبارات.", "ہم آپ کے امتحانات چیک نہیں کر سکے۔ اگر کوئی امتحان جاری ہے تو اسے امتحانات سے کھولیں۔"],
+// SKAI-790: fresh-check follow-ups, retrieval vs transfer.
+["Follow-ups due or missing", "متابعات مستحقة أو ناقصة", "واجب یا غائب فالو اپ"],
+["Learners without a fresh check stay on this list so missing evidence is not hidden.", "يبقى المتعلمون الذين لم يُجرَ لهم تحقق جديد في هذه القائمة حتى لا تُخفى الأدلة الناقصة.", "جن طلبہ کا نیا جائزہ نہیں ہوا وہ اس فہرست میں رہتے ہیں تاکہ غائب شواہد چھپ نہ جائیں۔"],
+["Follow-up due today", "المتابعة مستحقة اليوم", "فالو اپ آج واجب ہے"],
+["Follow-up overdue", "المتابعة متأخرة", "فالو اپ میں تاخیر ہو گئی"],
+["Reviewed without a follow-up", "رُوجع دون متابعة", "فالو اپ کے بغیر جائزہ لیا گیا"],
+["Kind of follow-up", "نوع المتابعة", "فالو اپ کی قسم"],
+["Retrieval: repeats practised material", "استرجاع: يكرر مادة تم التدرب عليها", "بازیافت: مشق شدہ مواد دہراتا ہے"],
+["Transfer: a fresh, unseen task", "نقل: مهمة جديدة لم تُرَ من قبل", "منتقلی: ایک نیا، نہ دیکھا ہوا کام"],
+["Transfer", "نقل", "منتقلی"],
+["Retrieval, not transfer evidence", "استرجاع، وليس دليلًا على النقل", "بازیافت، منتقلی کا ثبوت نہیں"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));
