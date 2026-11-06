@@ -28,7 +28,7 @@ type Ui = ReturnType<typeof useUiText>;
 export type Status = "PRESENT" | "LATE" | "PARTIAL" | "ABSENT" | "EXCUSED" | "LEAVE";
 const STATUSES: Status[] = ["PRESENT", "LATE", "PARTIAL", "ABSENT", "EXCUSED", "LEAVE"];
 type Entry = { studentId: string; name: string; rollNo: string; movedSince: boolean; status: Status | null; arrivalTime: string | null; departureTime: string | null; note: string | null; version: number; markedBy: string | null; openExplanation: string | null };
-type Register = { class: { id: string; name: string }; date: string; today: string; register: { status: "OPEN" | "SUBMITTED"; submittedAt: string | null }; entries: Entry[]; rule: { version: number }; regulator: { regulator: string; name: string; confirmed: boolean; codes: Record<Status, string>; schoolDay: boolean } | null };
+type Register = { canCorrect?: boolean; class: { id: string; name: string }; date: string; today: string; register: { status: "OPEN" | "SUBMITTED"; submittedAt: string | null }; entries: Entry[]; rule: { version: number }; regulator: { regulator: string; name: string; confirmed: boolean; codes: Record<Status, string>; schoolDay: boolean } | null };
 type Draft = { status: Status | null; arrivalTime: string; departureTime: string };
 type Conflict = { studentId: string; name: string; current: string | null; yours: string; seen: string | null; markedBy: string | null };
 
@@ -65,6 +65,8 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
   const changed = entries.filter(entry => { const d = drafts[entry.studentId]; return d && (d.status !== entry.status || (d.arrivalTime || null) !== entry.arrivalTime || (d.departureTime || null) !== entry.departureTime); });
   const counts = useMemo(() => { const out: Record<string, number> = { UNMARKED: 0 }; for (const entry of entries) { const key = drafts[entry.studentId]?.status ?? "UNMARKED"; out[key] = (out[key] ?? 0) + 1; } return out; }, [entries, drafts]);
   const submitted = data?.register.status === "SUBMITTED";
+  // SKAI-229: a submitted day is corrected only by someone with attendance.edit; others see it read-only.
+  const locked = submitted && data?.canCorrect === false;
   const setDraft = (id: string, patch: Partial<Draft>) => setDrafts(current => ({ ...current, [id]: { ...current[id], ...patch } }));
   const fillPresent = () => setDrafts(current => Object.fromEntries(Object.entries(current).map(([id, d]) => [id, d.status ? d : { ...d, status: "PRESENT" }])));
   const missingTime = changed.find(entry => { const d = drafts[entry.studentId]; return d.status === "LATE" && !d.arrivalTime || d.status === "PARTIAL" && !d.arrivalTime && !d.departureTime; });
@@ -104,11 +106,11 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
         {entries.map(entry => { const d = drafts[entry.studentId] ?? { status: null, arrivalTime: "", departureTime: "" }; return <li key={entry.studentId} className="flex flex-wrap items-center gap-3 py-2" data-register-row={entry.studentId} data-status={d.status ?? "UNMARKED"}>
           <div className="min-w-0 flex-1 basis-44"><p className="truncate text-sm font-semibold text-ink-strong"><bdi>{entry.name}</bdi></p><p className="text-xs text-ink-muted">{ui("Roll {0}", [entry.rollNo])}{entry.movedSince ? <> · {ui("Moved to another class since")}</> : null}{entry.openExplanation ? <> · {ui("Explanation waiting")}</> : null}</p></div>
           <div role="radiogroup" aria-label={ui("Attendance for {0}", [entry.name])} className="flex flex-wrap gap-1">
-            {STATUSES.map(status => <Button variant="ghost" key={status} type="button" role="radio" aria-checked={d.status === status} onClick={() => setDraft(entry.studentId, { status })} className={cn("rounded-lg border border-edge/40 px-2 py-1 text-xs font-bold", tone[status])} data-mark={status}>{statusLabel(ui, status)}{data.regulator ? <bdi className="ms-1 opacity-75" data-regulator-code>{data.regulator.codes[status]}</bdi> : null}</Button>)}
+            {STATUSES.map(status => <Button variant="ghost" key={status} type="button" role="radio" aria-checked={d.status === status} disabled={locked} onClick={() => setDraft(entry.studentId, { status })} className={cn("rounded-lg border border-edge/40 px-2 py-1 text-xs font-bold", tone[status])} data-mark={status}>{statusLabel(ui, status)}{data.regulator ? <bdi className="ms-1 opacity-75" data-regulator-code>{data.regulator.codes[status]}</bdi> : null}</Button>)}
           </div>
           {d.status === "LATE" || d.status === "PARTIAL" ? <div className="flex flex-wrap gap-2">
-            <FormField name={`arrive-${entry.studentId}`} label={ui("Arrived")}><Input type="time" value={d.arrivalTime} onChange={event => setDraft(entry.studentId, { arrivalTime: event.target.value })} className="w-28" /></FormField>
-            {d.status === "PARTIAL" ? <FormField name={`depart-${entry.studentId}`} label={ui("Left")}><Input type="time" value={d.departureTime} onChange={event => setDraft(entry.studentId, { departureTime: event.target.value })} className="w-28" /></FormField> : null}
+            <FormField name={`arrive-${entry.studentId}`} label={ui("Arrived")}><Input type="time" disabled={locked} value={d.arrivalTime} onChange={event => setDraft(entry.studentId, { arrivalTime: event.target.value })} className="w-28" /></FormField>
+            {d.status === "PARTIAL" ? <FormField name={`depart-${entry.studentId}`} label={ui("Left")}><Input type="time" disabled={locked} value={d.departureTime} onChange={event => setDraft(entry.studentId, { departureTime: event.target.value })} className="w-28" /></FormField> : null}
           </div> : null}
         </li>; })}
       </ul>}
@@ -118,7 +120,8 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
         {missingTime ? <p className="me-auto text-xs font-semibold text-status-error-text" role="alert">{ui("Add the time for {0}.", [missingTime.name])}</p> : null}
         {!submitted && counts.UNMARKED ? <Button variant="secondary" onClick={fillPresent} data-fill-present>{ui("Mark unmarked present")}</Button> : null}
         {!submitted ? <Button variant="outline" disabled={!changed.length || saving || Boolean(missingTime)} onClick={() => void save({ submit: false })} data-save-register>{ui("Save")}</Button> : null}
-        <Button disabled={saving || Boolean(missingTime) || (submitted && !changed.length)} onClick={() => setReviewOpen(true)} data-review-register data-tour="teacher.attendance.submit">{submitted ? ui("Review correction") : ui("Review and submit")}</Button>
+        {locked ? <p className="me-auto text-xs font-semibold text-ink-muted" data-register-locked>{ui("Only a school leader can correct a submitted register.")}</p> : null}
+        {locked ? null : <Button disabled={saving || Boolean(missingTime) || (submitted && !changed.length)} onClick={() => setReviewOpen(true)} data-review-register data-tour="teacher.attendance.submit">{submitted ? ui("Review correction") : ui("Review and submit")}</Button>}
       </div>
     </> : null}
     {reviewOpen && data ? <ReviewDialog ui={ui} listNames={names => new Intl.ListFormat(localeTag(locale), { type: "conjunction" }).formatToParts(names).map((part, index) => part.type === "element" ? <bdi key={index}>{part.value}</bdi> : part.value)} submitted={submitted} counts={counts} unmarked={entries.filter(entry => !drafts[entry.studentId]?.status)} changed={changed.map(entry => ({ name: entry.name, from: entry.status, to: drafts[entry.studentId].status }))} className={data.class.name} date={formatDate(data.date)} saving={saving} onClose={() => setReviewOpen(false)} onConfirm={reason => void save({ submit: !submitted, reason })} /> : null}
