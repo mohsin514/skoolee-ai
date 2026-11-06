@@ -44,6 +44,8 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }) {
 }
 const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 const call = async (key: string, method: "post" | "get", path: string, data?: Record<string, unknown>) => { const ctx = await context(key); const r = await ctx.request[method](`${base}${path}`, data ? { data } : undefined); const body = await r.text(); await ctx.close(); let json: { data?: any; error?: string; code?: string } = {}; try { json = JSON.parse(body); } catch { /* */ } return { status: r.status(), json, body }; };
+// API errors arrive as a string (older routes) or as the { code, message } envelope.
+const errorText = (json: { error?: string | { message?: string } }) => typeof json.error === "string" ? json.error : json.error?.message ?? "";
 const gp = (key: string, data: Record<string, unknown>) => call(key, "post", "/api/group-policy", data);
 const campusView = (key: string, campusId: string, extra = "") => call(key, "get", `/api/group-policy?view=campus&domain=GRADING&campusId=${campusId}${extra}`);
 const row = (view: { json: { data?: any } }, key: string) => view.json.data.rows.find((r: { key: string }) => r.key === key);
@@ -100,7 +102,7 @@ test("a template that does not fit a campus blocks; incompatible campuses need t
   const lah = p.json.data.campuses.find((c: { name: string }) => c.name === "Crescent Lahore");
   assert.deepEqual(lah.changes.map((c: { key: string; from: unknown; to: unknown }) => [c.key, c.from, c.to]), [["passingPercentage", 50, 40]]);
   const blocked = await gp("owner1", { action: "submit", versionId: ids.v1, effectiveFrom: new Date().toISOString(), reviewerId: id("owner2"), previewHash: p.json.data.previewHash });
-  assert.equal(blocked.status, 409); assert.match(blocked.json.error ?? "", /incompatible/);
+  assert.equal(blocked.status, 409); assert.match(errorText(blocked.json), /incompatible/);
   // Separate templates: Dubai leaves this one and gets its own IB template.
   assert.equal((await gp("owner1", { action: "template-update", id: ids.t, campusIds: [north] })).status, 200);
   ids.tIb = (await gp("owner1", { action: "template", domain: "GRADING", title: "Crescent IB grading", countries: ["AE"], boards: ["IB"], campusIds: [dubai] })).json.data.id;
@@ -120,7 +122,7 @@ test("publishing: hash-bound submit, a second owner reviews, a campus change in 
   // The campus changes a setting the release will replace, after the preview.
   assert.equal((await grading("principal", { passingPercentage: 45 })).status, 200);
   const stale = await gp("owner2", { action: "review", versionId: ids.v1, decision: "APPROVE" });
-  assert.equal(stale.status, 409); assert.match(stale.json.error ?? "", /changed since/);
+  assert.equal(stale.status, 409); assert.match(errorText(stale.json), /changed since/);
   assert.equal((await gp("owner2", { action: "review", versionId: ids.v1, decision: "RETURN" })).status, 200);
   const p2 = await previewOf("owner1", ids.v1, now);
   assert.deepEqual(p2.json.data.campuses[0].changes.map((c: { from: unknown }) => c.from), [45], "the new preview shows the intervening change");
@@ -138,7 +140,7 @@ test("locked values refuse changes through the grading API and the override path
   assert.equal(row(view, "gradeB").source, "CAMPUS");
   const denied = await grading("principal", { passingPercentage: 45 });
   assert.deepEqual([denied.status, denied.json.code], [403, "POLICY_LOCKED"]);
-  assert.match(denied.json.error ?? "", /locked by Group Policy v1/);
+  assert.match(errorText(denied.json), /locked by Group Policy v1/);
   assert.equal((await db.gradeWeightConfig.findFirstOrThrow({ where: { schoolId, campusId: north } })).passingPercentage, 45, "nothing was written");
   assert.equal(await db.policyEvent.count({ where: { schoolId, kind: "LOCK_DENIED" } }), 1);
   const saved = await grading("principal", { passingPercentage: 40 });
@@ -149,7 +151,7 @@ test("locked values refuse changes through the grading API and the override path
   assert.ok(prov.every(x => x.versionId === ids.v1));
   ids.provRecord = rows[0].id;
   const viaOverride = await gp("campus", { action: "request-override", campusId: north, domain: "GRADING", key: "passingPercentage", value: 35, reason: "Board allows 33", validUntil: new Date(Date.now() + 30 * 86_400_000).toISOString() });
-  assert.equal(viaOverride.status, 403); assert.match(viaOverride.json.error ?? "", /locked/);
+  assert.equal(viaOverride.status, 403); assert.match(errorText(viaOverride.json), /locked/);
   assert.equal((await gp("teacher", { action: "request-override", campusId: north, domain: "GRADING", key: "gradeA", value: 85, reason: "x x x x x", validUntil: new Date(Date.now() + 86_400_000).toISOString() })).status, 403);
 });
 
