@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mock, test } from "node:test";
 
 type Job = { id: string; schoolId: string; assetId: string; status: string; dueOn: Date; work: string | null; nextDueOn: Date | null; completedById: string | null; cancelReason: string | null };
-type Asset = { id: string; schoolId: string; campusId: string; nextServiceOn: Date | null };
+type Asset = { id: string; schoolId: string; campusId: string; status: string; nextServiceOn: Date | null };
 let jobs: Job[] = [];
 let assets: Asset[] = [];
 let seq = 0;
@@ -50,7 +50,7 @@ const fakePrisma = {
   schoolAsset: {
     findFirst: async ({ where }: { where: { id: string; schoolId: string; campusId: string } }) => {
       const a = assets.find((x) => x.id === where.id && x.schoolId === where.schoolId && x.campusId === where.campusId);
-      return a ? { id: a.id } : null;
+      return a ? { id: a.id, status: a.status } : null;
     },
   },
   $transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
@@ -72,8 +72,8 @@ const is409 = (e: { status?: number }) => e.status === 409;
 function seed() {
   jobs = [{ id: "job-1", schoolId: "school-a", assetId: "asset-a", status: "SCHEDULED", dueOn: new Date("2026-11-01"), work: null, nextDueOn: null, completedById: null, cancelReason: null }];
   assets = [
-    { id: "asset-a", schoolId: "school-a", campusId: "campus-a", nextServiceOn: null },
-    { id: "asset-b", schoolId: "school-a", campusId: "campus-b", nextServiceOn: null },
+    { id: "asset-a", schoolId: "school-a", campusId: "campus-a", status: "ACTIVE", nextServiceOn: null },
+    { id: "asset-b", schoolId: "school-a", campusId: "campus-b", status: "ACTIVE", nextServiceOn: null },
   ];
   seq = 100; // created job ids must not collide with seeded ids
 }
@@ -102,6 +102,14 @@ test("a campus admin cannot complete another campus's job, and nothing is writte
   jobs.push({ id: "job-b", schoolId: "school-a", assetId: "asset-b", status: "SCHEDULED", dueOn: new Date("2026-11-01"), work: null, nextDueOn: null, completedById: null, cancelReason: null });
   await assert.rejects(() => complete(admin("school-a", "campus-a"), "job-b"), is409);
   assert.equal(jobs.find((j) => j.id === "job-b")!.status, "SCHEDULED");
+});
+
+test("SKAI-1693: a job on a returned asset cannot be completed and no next job is created", async () => {
+  seed();
+  assets[0].status = "RETURNED";
+  await assert.rejects(() => complete(admin(), "job-1"), is409);
+  assert.equal(jobs.filter((j) => j.assetId === "asset-a").length, 1);
+  assert.equal(jobs[0].status, "SCHEDULED");
 });
 
 test("another school's job is not found and nothing is written", async () => {
