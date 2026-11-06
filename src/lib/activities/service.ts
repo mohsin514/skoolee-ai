@@ -263,6 +263,18 @@ const requirements = (activity: Act, place: { feeStatus: string; status: string 
 // SKAI-1705: one page of FAMILY_PAGE activities; `nextCursor` (the last id) reaches the rest. Every page re-runs the
 // guardian and child checks and the same school, campus, published and not-ended filter; the id tiebreak keeps
 // activities that share a start time in one stable order.
+/**
+ * SKAI-605: the read-time offer-expiry / waitlist job runs under the activity row lock against the activity as
+ * it is now (not the caller's snapshot), so it serialises with place requests and cancellation.
+ */
+async function settleLocked(snapshot: Act) {
+  await prisma.$transaction(async t => {
+    const tx = t as TxClient, activity = await lockActivity(tx, snapshot.schoolId, snapshot.id);
+    await settle(tx, activity);
+    await syncRequirements(tx, activity);
+  });
+}
+
 export const FAMILY_PAGE = 50;
 export async function familyActivities(user: AuthUser, studentId: string, cursor?: string | null) {
   const student = await familyChild(user, studentId);
@@ -270,7 +282,7 @@ export async function familyActivities(user: AuthUser, studentId: string, cursor
   const rows = await prisma.activity.findMany({ where: { schoolId: user.schoolId, campusId: student.campusId, status: "PUBLISHED", endsAt: { gt: now } }, orderBy: [{ startsAt: "asc" }, { id: "asc" }], take: FAMILY_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
   const activities = rows.slice(0, FAMILY_PAGE);
   const nextCursor = rows.length > FAMILY_PAGE ? activities[activities.length - 1].id : null;
-  for (const a of activities) await prisma.$transaction(async tx => { await settle(tx as TxClient, a); await syncRequirements(tx as TxClient, a); });
+  for (const a of activities) await settleLocked(a);
   const places = await prisma.activityPlace.findMany({ where: { schoolId: user.schoolId, studentId: student.id, activityId: { in: activities.map(a => a.id) } } });
   const counts = await prisma.activityPlace.groupBy({ by: ["activityId"], where: { activityId: { in: activities.map(a => a.id) }, status: { in: HOLDING } }, _count: { _all: true } });
   const out = [];
@@ -291,7 +303,7 @@ export async function roster(user: AuthUser, activityId: string) {
   const activity = await prisma.activity.findFirst({ where: { id: activityId, schoolId: user.schoolId } });
   // The principal reads any roster on the campus (oversight, §2.2 #46); only its coordinators run it.
   if (!activity || (!isCoordinator(user, activity) && !readsCampus(user, activity))) throw new ApiError("Activity not found", 404);
-  await prisma.$transaction(async tx => { await settle(tx as TxClient, activity); await syncRequirements(tx as TxClient, activity); });
+  await settleLocked(activity);
   const places = await prisma.activityPlace.findMany({ where: { activityId }, orderBy: { createdAt: "asc" } });
   const students = new Map((await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: places.map(p => p.studentId) } }, select: { id: true, fullName: true, rollNo: true, class: { select: { name: true, section: true } } } })).map(s => [s.id, s]));
   const consent = activity.tripId ? await tripConsentStatus(prisma, user.schoolId, activity.tripId, places.map(p => p.studentId)) : null;
