@@ -21,9 +21,9 @@ const pause = () => new Promise((r) => setTimeout(r, 5));
 
 function client(held: Array<() => void>) {
   return {
-    $queryRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
+    $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
       if (strings.join("?").includes("pg_advisory_xact_lock")) held.push(await acquire(String(values[0])));
-      return [];
+      return 1;
     },
     purchaseRequest: { findFirst: async ({ where }: { where: { id: string; schoolId: string } }) => requests.find((r) => r.id === where.id && r.schoolId === where.schoolId) ?? null },
     supplierInvoice: {

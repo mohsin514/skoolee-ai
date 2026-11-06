@@ -281,7 +281,7 @@ export async function recordInvoice(user: AuthUser, id: string, raw: unknown) {
   return prisma.$transaction(async (tx) => {
     const r = await tx.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId } });
     if (!r) throw new ApiError("Request not found", 404);
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`supplier-invoice:${user.schoolId}:${r.supplierId ?? "none"}:${invoiceNo.toLowerCase()}`}))`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`supplier-invoice:${user.schoolId}:${r.supplierId ?? "none"}:${invoiceNo.toLowerCase()}`}))`;
     const receivedValue = (r.lines as Line[]).reduce((s, l, i) => s + l.unitPrice * (((r.received as number[])[i]) ?? 0), 0);
     const issues: { code: string; detail: string }[] = [];
     const duplicate = await tx.supplierInvoice.findFirst({ where: { schoolId: user.schoolId, supplierId: r.supplierId, invoiceNo: { equals: invoiceNo, mode: "insensitive" } } });
