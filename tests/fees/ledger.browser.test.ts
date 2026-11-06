@@ -206,7 +206,10 @@ test("Arabic accountant at phone width reads the report right-to-left without ov
   await page.waitForLoadState("networkidle");
   if (!page.url().includes("view=accounts")) await page.goto(`${base}/accountant?view=accounts`);
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");
-  await page.getByRole("tab", { name: "الأرباح", exact: true }).click({ timeout: 30_000 });
+  // Below `sm` the section strip is a Select (ViewTabs); pick the profit report from it.
+  const sections = page.locator("select").filter({ has: page.locator('option[value="profit"]') });
+  assert.equal(await sections.locator('option[value="profit"]').innerText({ timeout: 30_000 }), "الأرباح");
+  await sections.selectOption("profit");
   await page.locator("[data-profit-basis]").waitFor({ timeout: 15_000 });
   assert.equal(await page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true);
   await shot(page, "ledger-profit-ar-390");

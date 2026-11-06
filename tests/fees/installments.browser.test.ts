@@ -38,7 +38,7 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }): P
   sessions.set(key, await ctx.storageState());
   return ctx;
 }
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
+const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 const statement = async (ctx: BrowserContext) => (await (await ctx.request.get(`${base}/api/fees/family-statement?studentId=${childId}`)).json()).data;
 
 before(async () => {
@@ -87,7 +87,8 @@ test("a colleague approves in the invoice dialog; the family then sees the sched
   await shot(page, "installment-plan-approve-en-1440");
   await panel.getByRole("button", { name: "Approve plan" }).click();
   // Approving a schedule is confirmed (role-ux R3); the confirm button repeats the verb.
-  await page.getByRole("dialog", { name: "Approve this instalment plan?" }).getByRole("button", { name: "Approve plan" }).click();
+  // ConfirmAction renders an alertdialog.
+  await page.getByRole("alertdialog", { name: "Approve this instalment plan?" }).getByRole("button", { name: "Approve plan" }).click();
   await page.locator('[data-installment-panel="active"]').waitFor();
   assert.equal((await db.paymentPlan.findUniqueOrThrow({ where: { id: planId } })).approvedById, users.get("bursar")!.id);
   assert.deepEqual(errors, []); await ctx.close();

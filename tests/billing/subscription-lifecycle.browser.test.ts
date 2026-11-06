@@ -256,13 +256,14 @@ test("the payer sees plain-language state and a cancellation preview, in English
   const panel = page.locator("[data-subscription-lifecycle]");
   await panel.waitFor({ timeout: 30_000 });
   assert.match(await panel.locator("[data-state-explainer]").innerText(), /The subscription is paid and renews on the renewal date/);
-  await panel.getByRole("button", { name: "Cancel subscription…" }).click();
-  await panel.locator("[data-cancel-preview]").waitFor({ timeout: 15_000 });
-  assert.match(await panel.locator("[data-cancel-preview]").innerText(), /nothing is deleted when the subscription ends/);
-  await panel.locator("[data-cancel-preview]").scrollIntoViewIfNeeded();
+  // The actions now sit in their own section and the preview opens in a confirmation dialog.
+  await page.locator('section[aria-labelledby="subscription-actions-title"]').getByRole("button", { name: "Cancel subscription…" }).click();
+  const preview = page.getByRole("alertdialog").locator("[data-cancel-preview]");
+  await preview.waitFor({ timeout: 15_000 });
+  assert.match(await preview.innerText(), /nothing is deleted when the subscription ends/);
   await shot(page, "billing-cancel-preview-en-1440");
-  await panel.getByRole("button", { name: "Keep subscription" }).click();
-  assert.equal(await panel.locator("[data-cancel-preview]").count(), 0);
+  await page.getByRole("alertdialog").getByRole("button", { name: "Keep subscription" }).click();
+  assert.equal(await page.locator("[data-cancel-preview]").count(), 0);
   assert.deepEqual(errors, []);
   await page.close();
 

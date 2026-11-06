@@ -37,7 +37,7 @@ const request = (ctx: BrowserContext, body: Record<string, unknown>) => ctx.requ
 // Approve / decline are money decisions with a typed reason kept in the audit row (role-ux R3, P8-10).
 const decide = (ctx: BrowserContext, id: string, action: string, reference = "") => ctx.request.patch(`${base}/api/fees/adjustments`, { data: { id, action, reference, ...(action === "approve" || action === "decline" ? { reason: "Checked the receipt and the fee policy." } : {}) } });
 const invoice = () => db.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
+const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Cedar Ledger School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Karachi", status: "ACTIVE", plan: "PRO" } });
