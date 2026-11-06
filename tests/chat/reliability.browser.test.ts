@@ -174,7 +174,8 @@ test("a lost acknowledgement leaves an unconfirmed bubble; Retry keeps one messa
   await shot(page, "chat-unconfirmed-en-1440");
   await unconfirmed.getByRole("button", { name: "Retry sending this message" }).click();
   await page.locator('[data-send-state="unconfirmed"]').waitFor({ state: "detached", timeout: 15_000 });
-  assert.equal(await page.getByText("Synthetic: please share the field trip list").count(), 1, "one bubble");
+  // Count bubbles in the thread only: the inbox row also previews the latest message text.
+  assert.equal(await page.locator("ol > li").getByText("Synthetic: please share the field trip list", { exact: true }).count(), 1, "one bubble");
   assert.equal(await db.chatMessage.count({ where: { conversationId, body: "Synthetic: please share the field trip list" } }), 1, "one stored message");
   await page.unroute(`**/api/chat/conversations/${conversationId}/messages`);
   await page.unroute("**/api/chat/stream");
@@ -193,7 +194,8 @@ test("a lost acknowledgement leaves an unconfirmed bubble; Retry keeps one messa
   await page.route("**/api/uploads/file**", route => failUpload ? route.abort("failed") : route.fallback());
   await composer.fill("Synthetic: photo of the notice board");
   await page.locator('input[type="file"]').setInputFiles({ name: "notice.png", mimeType: "image/png", buffer: Buffer.from("89504e470d0a1a0a", "hex") });
-  await page.getByText(/Your message draft is still here/).waitFor({ timeout: 15_000 });
+  // The composer status and the failed attachment chip both say so.
+  await page.getByText(/Your message draft is still here/).first().waitFor({ timeout: 15_000 });
   assert.equal(await composer.inputValue(), "Synthetic: photo of the notice board");
   await shot(page, "chat-upload-failed-en-1440");
   failUpload = false;
