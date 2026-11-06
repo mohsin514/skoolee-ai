@@ -29,7 +29,7 @@ before(async () => {
   ids.supplier = (await raw.supplier.create({ data: { schoolId, campusId, name: "Synthetic Supplies" } })).id;
 });
 after(async () => {
-  await raw.auditLog.deleteMany({ where: { schoolId } });
+  // Audit rows are append-only until retention ends (20261017100000_audit_log_append_only); they stay with the synthetic school.
   for (const m of [raw.assetService, raw.schoolAsset, raw.supplierInvoice, raw.goodsReceipt, raw.purchaseRequest, raw.purchaseBudget]) await (m as unknown as { deleteMany: (a: object) => Promise<unknown> }).deleteMany({ where: { schoolId } });
   await raw.school.deleteMany({ where: { id: schoolId } }); await raw.$disconnect(); await prisma.$disconnect();
 });
