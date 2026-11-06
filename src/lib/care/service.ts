@@ -305,10 +305,15 @@ export async function addInstruction(user: AuthUser, body: Record<string, unknow
     validFrom: when(body.validFrom), validUntil: when(body.validUntil),
   };
   if (data.validUntil <= data.validFrom) throw new ApiError("The instruction must end after it starts.", 400);
+  const instruction = { schoolId: user.schoolId, campusId: m.campusId, studentId: student.id, approvedById: user.userId, ...data };
   return schoolAiTransaction(user, async tx => {
-    const row = await tx.medicationInstruction.create({ data: { schoolId: user.schoolId, campusId: m.campusId, studentId: student.id, approvedById: user.userId, ...data } });
+    // A lost-response retry or a double click sends the identical instruction again: replay the active one, never a second row.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`medication-instruction:${user.schoolId}:${student.id}:${user.userId}`}))`;
+    const existing = await tx.medicationInstruction.findFirst({ where: { ...instruction, endedAt: null }, select: { id: true } });
+    if (existing) return { id: existing.id, replayed: true };
+    const row = await tx.medicationInstruction.create({ data: instruction });
     await log(user, { domain: "CLINIC", recordType: "MEDICATION_INSTRUCTION", recordId: row.id, studentId: student.id, action: "CREATE" }, tx);
-    return { id: row.id };
+    return { id: row.id, replayed: false };
   });
 }
 
