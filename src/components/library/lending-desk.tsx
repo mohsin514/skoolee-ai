@@ -18,6 +18,7 @@ import { usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { deskPulse } from "@/lib/library/desk-pulse";
 
 // SKO-436: the lending desk. Scan a member card, then copies; scan a copy to return it. Focus goes
 // back to the scan field after every scan. Fines are previewed and explained, never the first step.
@@ -159,12 +160,10 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
       {overviewLoading && !overview ? <p role="status" className="text-sm text-ink-muted">{ui("Loading library data…")}</p> : null}
       {overviewError ? <Alert tone="warning" compact actions={<Button size="sm" variant="outline" disabled={overviewLoading} onClick={() => void load()}>{ui("Try again")}</Button>}>{overviewError}</Alert> : null}
       {overview ? (() => {
-        const total = overview.books.reduce((sum, b) => sum + b.copiesTotal, 0);
-        const shelf = overview.books.reduce((sum, b) => sum + b.copiesAvailable, 0);
-        const ready = overview.reservations.filter((r) => r.status === "READY").length;
+        const { shelf, onLoan, ready } = deskPulse(overview.books, overview.reservations);
         return <DeskStats data-lending-pulse>
           <StatTile index={0} icon={BookCheck} tone="success" value={number(shelf)} label={ui("On the shelf")} />
-          <StatTile index={1} icon={BookOpen} tone="brand" value={number(total - shelf)} label={ui("On loan")} />
+          <StatTile index={1} icon={BookOpen} tone="brand" value={number(onLoan)} label={ui("On loan")} />
           <StatTile index={2} icon={BookmarkCheck} tone={ready ? "info" : "neutral"} value={number(ready)} label={ui("Ready to collect")} />
           <StatTile index={3} icon={Receipt} tone={overview.charges.length ? "warning" : "neutral"} value={number(overview.charges.length)} label={ui("Open charges")} />
         </DeskStats>;
