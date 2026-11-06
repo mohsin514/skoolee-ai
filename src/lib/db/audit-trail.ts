@@ -108,7 +108,11 @@ type AuditClient = Record<string, Delegate>;
  * Set while a mutation is in flight, so the guard re-issuing the same query
  * inside its RLS transaction is not audited a second time.
  */
-const inFlight = new AsyncLocalStorage<true>();
+// Pinned to globalThis like the tenant and reference-transaction stores: the cached Prisma client's extension
+// reads this store, so a second copy of this module (server actions vs route handlers, HMR) must share it,
+// or withoutAutoAudit() in that copy is invisible to the extension (SKAI-139: two audit rows per campus save).
+declare global { var __skooleeAuditInFlight: AsyncLocalStorage<true> | undefined; }
+const inFlight = globalThis.__skooleeAuditInFlight ??= new AsyncLocalStorage<true>();
 
 /**
  * SKAI-1770: run a mutation whose caller writes its own, richer audit row for the same action, so the
