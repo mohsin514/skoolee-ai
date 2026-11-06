@@ -65,3 +65,14 @@ test("two campuses and two schools stay isolated; a denied role is refused", asy
   assert.equal(audits.length, 0);
   assert.deepEqual(campuses.map(c => c.name), ["Synthetic North", "Synthetic South", "Other North"]);
 });
+
+// Real Prisma delegates return a lazy PrismaPromise: the query (and the audit extension) only runs when it is
+// awaited, which happened outside withoutAutoAudit's scope, so lane-d still saw two rows per save.
+test("a lazy (Prisma-style) update still writes exactly one audit row", async () => {
+  const eager = prisma.campus.update;
+  prisma.campus.update = (args: unknown) => ({ then: (ok: (v: unknown) => unknown, ko: (e: unknown) => unknown) => eager(args).then(ok, ko) });
+  try {
+    await update(adminA1, { campusId: "campus-a1", name: "Synthetic North Campus" });
+    assert.deepEqual(audits.map(a => a.tableName), ["campus"]);
+  } finally { prisma.campus.update = eager; }
+});

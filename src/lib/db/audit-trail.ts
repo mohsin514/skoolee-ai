@@ -113,9 +113,11 @@ const inFlight = new AsyncLocalStorage<true>();
 /**
  * SKAI-1770: run a mutation whose caller writes its own, richer audit row for the same action, so the
  * extension does not log it a second time. The caller must write that row; audit_logs keeps exactly one.
+ * Awaited inside the scope: a Prisma query is a lazy PrismaPromise that only runs when awaited, so returning
+ * it unawaited would run the query (and the extension) outside the scope.
  */
-export function withoutAutoAudit<T>(fn: () => Promise<T>): Promise<T> {
-  return inFlight.run(true, fn);
+export function withoutAutoAudit<T>(fn: () => PromiseLike<T>): Promise<T> {
+  return inFlight.run(true, async () => await fn());
 }
 
 function rowSchool(row: unknown, context: TenantContext): string | null {
