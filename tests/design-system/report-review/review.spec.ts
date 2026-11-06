@@ -7,7 +7,7 @@ const {build}=requireTool('esbuild'),{compile}=requireTool('@tailwindcss/node'),
 let js:string,css:string;
 test.beforeAll(async()=>{
  const root=process.cwd();
- const result=await build({entryPoints:[path.join(root,'tests/design-system/report-review/fixture.tsx')],outfile:'fixture.js',bundle:true,write:false,platform:'browser',format:'iife',jsx:'automatic',define:{'process.env.NODE_ENV':'"development"'},alias:{'@/app/actions/locale':path.join(root,'tests/design-system/component-adoption/locale-mock.ts')}});
+ const result=await build({entryPoints:[path.join(root,'tests/design-system/report-review/fixture.tsx')],outfile:'fixture.js',bundle:true,write:false,platform:'browser',format:'iife',jsx:'automatic',define:{'process.env.NODE_ENV':'"development"','process.env':'{}'},alias:{'@/app/actions/locale':path.join(root,'tests/design-system/component-adoption/locale-mock.ts')}});
  js=result.outputFiles.find((file:{path:string})=>file.path.endsWith('.js')).text;
  const compiler=await compile(await readFile(path.join(root,'src/app/globals.css'),'utf8'),{base:path.join(root,'src/app'),onDependency(){}});
  css=compiler.build(new Scanner({sources:[{base:root,pattern:'src/components/**/*.{ts,tsx}',negated:false}]}).scan());
@@ -23,7 +23,7 @@ for(const language of ['en','ar','ur']) {
   await mount(page,language);await expect(page.getByText('Pupil A',{exact:true})).toBeVisible();
   await page.getByRole('checkbox').focus();await page.keyboard.press('Space');await expect(page.getByRole('checkbox')).toBeChecked();
   await page.getByRole('button',{name:/Review version|مراجعة النسخة|نسخہ دیکھیں/}).click();
-  await expect(page.getByRole('region')).toContainText('90');await expect(page.getByRole('region')).toContainText('80');
+  const inspect=page.getByRole('region',{name:/Review version|مراجعة النسخة|نسخہ دیکھیں/});await expect(inspect).toContainText('90');await expect(inspect).toContainText('80');
   await page.addStyleTag({content:'html{font-size:200% !important;}'});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   await page.screenshot({path:test.info().outputPath(`${language}-comparison-phone.png`),fullPage:true});

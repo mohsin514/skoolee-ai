@@ -250,7 +250,8 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
       const d = await r.json();
       if (!alive.current) return;
       if (r.status === 401 || r.status === 403) { setCards([]); setCanReview(false); setCanDeliver(false); setCanEdit(false); setActive(null); setLoadFailed(typeof d.error === "string" ? d.error : ui(copy.loadFailed)); }
-      if (r.status === 409) { await load(); return; }
+      // A stale approval reloads the changed content and says why nothing was approved.
+      if (r.status === 409) { await load(); if (alive.current) setFailure(typeof d.error === "string" ? d.error : ui(copy.actionFailed)); return; }
       if (!r.ok) throw new Error(typeof d.error === "string" ? d.error : "");
       if (d.jobId) {
         // Background work reports through one toast with a link to its progress (R4), not a page jump.
