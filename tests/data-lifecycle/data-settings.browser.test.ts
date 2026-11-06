@@ -81,7 +81,9 @@ test("retention runs respect a record hold and need a second administrator", asy
   const { ctx, page } = await open("owner");
   const row = page.locator("li").filter({ hasText: "In-app notifications" }).first();
   await row.getByRole("spinbutton").fill("30");
-  await row.getByRole("button", { name: "Save new version" }).click();
+  // §4.4: the group console's Settings tab saves retention periods with its one sticky Save, not a per-row button.
+  assert.equal(await row.getByRole("button", { name: "Save new version" }).count(), 0);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
   await row.getByText("version 1", { exact: false }).waitFor();
   const held = await raw.notification.findFirstOrThrow({ where: { schoolId, createdAt: { lt: new Date(Date.now() - 90 * DAY) } } });

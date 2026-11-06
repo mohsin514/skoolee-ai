@@ -118,7 +118,7 @@ export function orphanRouteTarget(route: OrphanRoute, user: OrphanRouteUser): st
   const operator = isCampusOperator(user);
   switch (route) {
     case "settings-data":
-      return groupAdmin ? "/super?view=settings&tab=data" : schoolAdmin ? "/admin?view=school-settings&tab=data" : home;
+      return groupAdmin ? "/super?view=settings&tab=data" : schoolAdmin ? "/admin?view=school-settings&tab=data" : user.role === "PARENT" ? "/parent/data" : home;
     case "settings-locale":
       if (groupAdmin) return "/super?view=settings&tab=locale";
       if (schoolAdmin) return "/admin?view=school-settings&tab=locale";

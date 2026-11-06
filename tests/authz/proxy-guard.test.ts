@@ -61,6 +61,9 @@ test("family module routes land on their §6.3 family destination, not on home",
 
 test("a guardian pays fees online through the sandbox card form; learners and the platform operator do not", () => {
   assert.equal(roleGuardRedirect("PARENT", "/safepay"), null, "matrix #79: the dev/QA sandbox return of /api/fees/pay-online");
+  assert.equal(roleGuardRedirect("PARENT", "/settings/data"), "/parent/data", "SKAI-192: a guardian's data requests live in the family portal");
+  assert.equal(roleGuardRedirect("STUDENT", "/settings/data"), "/student", "learners have no data-request page");
+  assert.equal(roleGuardRedirect("PARENT", "/parent/data"), null);
   assert.equal(roleGuardRedirect("STUDENT", "/safepay"), "/student", "G44a: learners never pay");
   assert.equal(roleGuardRedirect("APP_OWNER", "/safepay"), "/owner");
   assert.equal(roleGuardRedirect("SUPER_ADMIN", "/safepay"), null, "the payer's subscription sandbox");
