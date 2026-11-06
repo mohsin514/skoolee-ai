@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
-import { chromium, type Browser, type BrowserContext } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import bcrypt from "bcryptjs";
 import { totp } from "../../src/lib/auth/mfa-crypto";
 import { prisma as appPrisma } from "../../src/lib/db/prisma";
@@ -33,6 +33,9 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }) {
   assert.equal((await c.request.post(base + "/api/auth/login", { data: { email: users.get(key)!.email, password } })).status(), 200, `login ${key}`);
   const { secret } = await (await c.request.post(base + "/api/auth/mfa", { data: { action: "setup" } })).json().catch(() => ({}));
   if (secret) { await c.request.post(base + "/api/auth/mfa", { data: { action: "verify-setup", code: totp(secret.replace(/\s+/g, "")) } }); await c.request.post(base + "/api/auth/mfa", { data: { action: "acknowledge", acknowledged: true } }); }
+  // The first-visit welcome and product tours overlay the shell; these runs test the policy flows, not onboarding.
+  await c.request.post(base + "/api/auth/welcome", { data: {}, headers: { origin: base } });
+  for (const tourId of ["parent", "admin-campus"]) await c.request.post(base + "/api/auth/tour", { data: { tourId, version: 1, status: "dismissed" }, headers: { origin: base } });
   sessions.set(key, await c.storageState());
   return c;
 }
@@ -65,6 +68,15 @@ after(async () => {
   await db.$disconnect(); await appPrisma.$disconnect();
 });
 
+/** Families reach the assistant through Help > "Ask the school" (a dialog), not a panel on Home. */
+async function openAssistant(page: Page) {
+  await page.locator('[data-tour="shell.header.help"]').first().click();
+  await page.locator('[data-tour="shell.help.ask"]').first().click();
+  const panel = page.getByRole("dialog").locator('section[aria-labelledby="policy-assistant"]');
+  await panel.waitFor({ timeout: 60_000 });
+  return panel;
+}
+
 test("the API keeps families out of management and refuses cross-site writes", async () => {
   const parent = await context("parent");
   assert.equal((await parent.request.get(`${base}/api/policies?view=manage`)).status(), 403);
@@ -77,8 +89,7 @@ test("the API keeps families out of management and refuses cross-site writes", a
 test("a parent gets a cited answer; a conflict offers a reviewed message to the right office (EN desktop, AR phone)", async () => {
   const page = await (await context("parent")).newPage();
   await page.goto(`${base}/parent`);
-  const panel = page.locator('section[aria-labelledby="policy-assistant"]');
-  await panel.waitFor({ timeout: 60_000 });
+  const panel = await openAssistant(page);
   await panel.getByLabel("Your question").fill("How do I request leave?");
   await panel.getByRole("button", { name: "Ask", exact: true }).click();
   await panel.getByText("Based on Attendance Policy v1, section 2.2").waitFor({ timeout: 30_000 });
@@ -89,8 +100,7 @@ test("a parent gets a cited answer; a conflict offers a reviewed message to the 
 
   const ar = await (await context("parent-ar", { width: 390, height: 844 })).newPage();
   await ar.goto(`${base}/parent`);
-  const arPanel = ar.locator('section[aria-labelledby="policy-assistant"]');
-  await arPanel.waitFor({ timeout: 60_000 });
+  const arPanel = await openAssistant(ar);
   assert.equal(await ar.evaluate("document.documentElement.dir"), "rtl");
   await arPanel.getByLabel("سؤالك").fill("Is late trip cancellation refunded?");
   await arPanel.getByRole("button", { name: "اسأل", exact: true }).click();
@@ -108,7 +118,8 @@ test("a parent gets a cited answer; a conflict offers a reviewed message to the 
 
 test("leaders see the policy list and the office queue", async () => {
   const page = await (await context("lead")).newPage();
-  await page.goto(`${base}/admin`);
+  // Leaders manage policies under Settings > Policies.
+  await page.goto(`${base}/admin?view=settings&tab=policies`);
   const panel = page.locator('section[aria-labelledby="policy-manager"]');
   await panel.waitFor({ timeout: 60_000 });
   await panel.getByText("Which refund rule applies to our trip next week?").waitFor({ timeout: 30_000 });
