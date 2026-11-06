@@ -164,7 +164,9 @@ test("the warden allocates from the dialog and sees the impact before taking a r
   await page.goto(`${base}/admin?view=dormitory`);
   const panel = page.locator("[data-dorm-allocations]");
   await panel.locator('[data-dorm-room="A-104"]').waitFor({ timeout: 30_000 });
-  await panel.getByRole("button", { name: "Allocate student" }).click();
+  // The admin console carries allocation in its PageHeader ("Allocate bed"); the panel hides its own button there.
+  assert.equal(await panel.getByRole("button", { name: "Allocate student" }).count(), 0);
+  await page.getByRole("button", { name: "Allocate bed" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Allocate", exact: true }).click();
   await dialog.locator("[data-dorm-error]").waitFor();
