@@ -2115,9 +2115,13 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
           description={description ?? "Stock, stores and suppliers, and purchase requests waiting for a decision."}
           icon={icon ?? Package}
           primaryAction={{ id: "new-purchase-request", label: "New purchase request", icon: Plus, onClick: () => sendCommand("inventory", "new-request") }}
+          secondaryActions={[
+            { id: "receive-goods", label: "Receive goods", icon: Package, onClick: () => sendCommand("inventory", "receive-goods") },
+            { id: "export-stock", label: "Export", icon: Download, onClick: () => sendCommand("inventory", "export") },
+          ]}
         >
           <PurchasingPanel createInHeader command={commandFor("inventory")} soleChecker={soleCampusOperator} />
-          <InventoryPanel />
+          <InventoryPanel command={commandFor("inventory")} />
         </ViewFrame>
       );
 
