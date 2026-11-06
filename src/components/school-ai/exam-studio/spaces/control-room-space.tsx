@@ -117,6 +117,9 @@ function Supervise({ examId, board, language, canExtend, onChanged }: { examId: 
   const [minutes, setMinutes] = useState("10");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  // SKAI-783: the live-adjustment API needs a requestKey (SKAI-1459); one per candidate, kept across a failed
+  // try so a retry replays instead of adding the time twice, cleared after success or when the inputs change.
+  const keys = useRef<Record<string, string>>({});
   if (!live.length) return null;
   const selected = live.filter(attempt => chosen.includes(attempt.id));
   const time = (value: string) => new Intl.DateTimeFormat(language, { timeStyle: "short" }).format(new Date(value));
@@ -133,8 +136,9 @@ function Supervise({ examId, board, language, canExtend, onChanged }: { examId: 
   const extend = async () => {
     setBusy(true); setMessage(null);
     for (const attempt of selected) {
-      const response = await fetch(`/api/school-ai/exams/${encodeURIComponent(examId)}/accommodations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId: attempt.studentId, addedMinutes: Number(minutes), reason }) });
+      const response = await fetch(`/api/school-ai/exams/${encodeURIComponent(examId)}/accommodations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId: attempt.studentId, addedMinutes: Number(minutes), reason, requestKey: (keys.current[attempt.studentId] ||= crypto.randomUUID()) }) });
       if (!response.ok) { const payload = await response.json().catch(() => ({})); setBusy(false); setMessage({ tone: "error", text: typeof payload.error === "string" ? payload.error : t.failed }); return; }
+      delete keys.current[attempt.studentId];
     }
     setBusy(false); setMessage({ tone: "ok", text: t.done }); setChosen([]); setReason(""); onChanged();
   };
@@ -146,12 +150,12 @@ function Supervise({ examId, board, language, canExtend, onChanged }: { examId: 
       <bdi dir="auto" className="font-medium">{attempt.name ?? attempt.id}</bdi>
       <span className={`text-xs ${attempt.pausedAt ? "font-semibold text-status-warning-text" : "text-ink-subtle"}`}>{attempt.pausedAt ? fill(t.pausedSince, [time(attempt.pausedAt)]) : fill(t.deadline, [time(attempt.deadlineAt)])}</span>
     </label></li>)}</ul>
-    <label className="grid max-w-xl gap-1 text-sm font-semibold">{t.pauseReason}<Input value={reason} maxLength={300} dir="auto" onChange={event => setReason(event.target.value)} /></label>
+    <label className="grid max-w-xl gap-1 text-sm font-semibold">{t.pauseReason}<Input value={reason} maxLength={300} dir="auto" onChange={event => { keys.current = {}; setReason(event.target.value); }} /></label>
     <p className="text-sm" data-affected>{fill(t.affected, [new Intl.NumberFormat(language).format(selected.length)])}</p>
     <div className="flex flex-wrap items-end gap-2">
       <Button variant="outline" disabled={busy || !selected.some(attempt => !attempt.pausedAt) || reason.trim().length < 3} onClick={() => void act("pause")}>{t.pause}</Button>
       <Button variant="outline" disabled={busy || !selected.some(attempt => attempt.pausedAt)} onClick={() => void act("resume")}>{t.resume}</Button>
-      {canExtend && <><label className="grid gap-1 text-xs font-semibold">{t.extraMinutes}<Input type="number" min={1} max={120} value={minutes} onChange={event => setMinutes(event.target.value)} className="w-28" /></label>
+      {canExtend && <><label className="grid gap-1 text-xs font-semibold">{t.extraMinutes}<Input type="number" min={1} max={120} value={minutes} onChange={event => { keys.current = {}; setMinutes(event.target.value); }} className="w-28" /></label>
         <Button variant="outline" disabled={busy || !selected.length || reason.trim().length < 3 || !(Number(minutes) >= 1)} onClick={() => void extend()}>{t.addTime}</Button></>}
     </div>
     {canExtend && <p className="text-xs text-ink-subtle">{t.extraHint}</p>}
