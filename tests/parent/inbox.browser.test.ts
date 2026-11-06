@@ -121,7 +121,8 @@ test("a co-guardian's answer, the school's request for detail, the reply and the
 test("retired capability links do not authenticate or alter a signed-in family's scope", async () => {
   const token = await new SignJWT({ type: "parent_portal", studentId: ids.zoya, schoolId, relationshipId: ids.relZoya, guardianUserId: users.get("parent")!.id }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("1h").sign(secret);
   const anonymous = await browser.newContext();
-  assert.equal((await inbox(anonymous, `?token=${encodeURIComponent(token)}`)).status, 403);
+  // SKAI-1359 (#410): a request with no session is an authentication failure, so the retired token still yields 401.
+  assert.equal((await inbox(anonymous, `?token=${encodeURIComponent(token)}`)).status, 401);
   const parent = await context("parent");
   const ordinary = (await inbox(parent)).data;
   const withOldLink = (await inbox(parent, `?token=${encodeURIComponent(token)}`)).data;
