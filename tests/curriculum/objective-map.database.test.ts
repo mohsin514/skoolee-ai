@@ -22,7 +22,9 @@ let curriculumId = "", otherId = "", latest = 0, first = 0;
 function data(): CurriculumData {
   const { curriculum } = assessmentFixture(subjectId, classId);
   curriculum.board = "Synthetic Board A";
-  curriculum.pack = { authority: "Synthetic Board A", edition: "2026", language: "en", rights: "APPROVED" };
+  curriculum.pack = { packId: "synthetic-board-a-maths", version: 1, authority: "Synthetic Board A", edition: "2026", language: "en", rights: "APPROVED" };
+  // SKAI-1010 (2dc1ba140): an approved pack is versioned, and its sources carry URL, checksum, rights scope and review.
+  curriculum.sources = curriculum.sources.map(source => ({ ...source, url: "https://example.invalid/synthetic-syllabus.pdf", checksum: "a".repeat(64), rightsScope: "Synthetic test-only syllabus", reviewedAt: "2026-09-01T00:00:00.000Z" }));
   curriculum.outcomes = [
     { id: "o-add", code: "SBA.M.1", title: "Add whole numbers", sourceId: "source-1", sourcePage: "1", included: true, taught: true },
     { id: "o-sub", code: "SBA.M.2", title: "Subtract whole numbers", sourceId: "source-1", sourcePage: "1", included: true, taught: true, prerequisiteIds: ["o-add"] },
@@ -95,7 +97,13 @@ test("objectives from two boards stay distinct until a lead records a decision; 
   assert.deepEqual(after.mappings.map(row => row.relation), ["SAME"], "the latest decision is current");
   assert.equal(await raw.curriculumObjectiveMapping.count({ where: { schoolId } }), 2, "earlier decisions remain");
   await assert.rejects(() => raw.curriculumObjectiveMapping.updateMany({ where: { schoolId }, data: { relation: "NOT_EQUIVALENT" } }), /kept/);
-  assert.equal(await raw.auditLog.count({ where: { schoolId, tableName: "curriculum_objective_mappings" } }), 2);
+  // SKAI-1159 (3f7c2e881): the audit trail writes an automatic "create" row for every mapping and the decision's own
+  // row is appended after it (supersedesAuditId), so each of the two decisions has exactly two audit rows.
+  const audits = await raw.auditLog.findMany({ where: { schoolId, tableName: "curriculum_objective_mappings" }, select: { recordId: true, newValue: true } });
+  const mappingIds = (await raw.curriculumObjectiveMapping.findMany({ where: { schoolId }, select: { id: true } })).map(row => row.id).sort();
+  assert.deepEqual([...new Set(audits.map(row => row.recordId))].sort(), mappingIds);
+  assert.deepEqual(audits.filter(row => (row.newValue as { supersedesAuditId?: string } | null)?.supersedesAuditId).map(row => (row.newValue as { relation: string }).relation).sort(), ["PARTIAL", "SAME"], "one decision row per recorded decision");
+  assert.equal(audits.length, 4);
 });
 
 test("teachers see their subjects only and link their resources to exact objective versions", async () => {
