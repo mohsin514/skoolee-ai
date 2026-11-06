@@ -23,7 +23,8 @@ const students: Record<string, { id: string; schoolId: string; classId: null; ca
   "kid-a1": { id: "kid-a1", schoolId: "school-a", classId: null, campusId: "campus-a1", fullName: "Synthetic A1" },
   "kid-b1": { id: "kid-b1", schoolId: "school-b", classId: null, campusId: "campus-b1", fullName: "Synthetic B1" },
 };
-const tx = { activityPlace: { updateMany: async () => ({ count: 0 }), count: async () => 0, findMany: async () => [], update: async () => ({}) } };
+// SKAI-605: the read-time settle locks and re-reads the activity.
+const tx = { $queryRaw: async () => [], activity: { findFirst: async ({ where }: { where: { id: string; schoolId: string } }) => acts.find(a => a.id === where.id && a.schoolId === where.schoolId) ?? null }, activityPlace: { updateMany: async () => ({ count: 0 }), count: async () => 0, findMany: async () => [], update: async () => ({}) } };
 const prisma = {
   activity: { findMany: async (args: Find) => findMany(args) },
   activityPlace: { findMany: async () => [], groupBy: async () => [], findFirst: async () => null, count: async () => 0 },
