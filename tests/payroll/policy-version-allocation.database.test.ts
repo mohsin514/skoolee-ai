@@ -66,15 +66,22 @@ test("two concurrent policy saves on one campus both commit the next versions, a
   }
 });
 
-test("concurrent provider saves for one campus and code also allocate distinct versions", async () => {
+// SKAI-137: aligned with the SKAI-1623 contract (#472, provider-mapping-versions.database.test.ts). Racing
+// differing mappings never share a version: one commits v1 and the loser gets a controlled 409 (no lost update).
+test("concurrent provider saves for one campus and code never share a version; the loser is a controlled 409", async () => {
   const campusId = await newCampus(schoolA);
   const user = actor(schoolA, campusId);
   await raw.user.create({ data: { id: user.userId, schoolId: schoolA, campusId, role: user.role, email: user.email, fullName: "Synthetic admin", onboardingComplete: true } });
-  const saved = await Promise.all([
+  const settled = await Promise.allSettled([
     ctx(user, () => saveProvider(user, provider({ name: "Mapping one" }))),
     ctx(user, () => saveProvider(user, provider({ name: "Mapping two" }))),
   ]);
-  assert.deepEqual(saved.map((p) => p.version).sort(), [1, 2]);
+  const saved = settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+  const rejected = settled.flatMap((r) => (r.status === "rejected" ? [r.reason as { status?: number }] : []));
+  assert.deepEqual(saved.map((p) => p.version), [1]);
+  assert.equal(rejected.length, 1);
+  assert.equal(rejected[0].status, 409);
+  assert.equal(await raw.payrollProvider.count({ where: { campusId } }), 1);
 });
 
 test("an identical repeat save returns the current version instead of creating another", async () => {
