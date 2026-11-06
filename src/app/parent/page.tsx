@@ -10,6 +10,7 @@ import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/Local
 import { FamilyInbox, type InboxTopAction } from "@/components/parent/family-inbox";
 import { GuardianDigest } from "@/components/family/family-digest";
 import { FamilyCareMessages } from "@/components/care/care";
+import { FamilyTransferConsent } from "@/components/learning/learning-transfer";
 import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -126,6 +127,9 @@ export default function ParentHomePage() {
 
         {/* M91 / SKO-439: messages a safeguarding lead approved for this guardian; renders nothing when empty. */}
         <FamilyCareMessages />
+
+        {/* SKAI-486: a receiving school's request to use records from a previous school; renders nothing when empty. */}
+        <FamilyTransferConsent />
 
         {/* SKO-423: the selected child's reviewed weekly update. */}
         {selectedStudentId ? <GuardianDigest key={selectedStudentId} studentId={selectedStudentId} /> : null}
