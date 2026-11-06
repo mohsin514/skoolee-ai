@@ -380,12 +380,16 @@ export async function board(user: AuthUser, body: Record<string, unknown>) {
 
 /** Opens the double-boarding exception (outside the refused transaction) for the trip's coordinator. */
 export async function recordDoubleBoarding(user: AuthUser, tripId: string, e: DoubleBoarding) {
-  const trip = await prisma.transportTrip.findFirst({ where: { id: tripId, schoolId: user.schoolId }, select: { id: true, coordinatorId: true, campusId: true } });
-  if (!trip) return null;
-  const open = await prisma.tripException.findFirst({ where: { tripId: trip.id, studentId: e.studentId, kind: "DOUBLE_BOARDING", status: "OPEN" } });
-  if (open) return null;
-  const row = await prisma.tripException.create({ data: { schoolId: user.schoolId, tripId: trip.id, studentId: e.studentId, kind: "DOUBLE_BOARDING", note: `Already on board ${e.otherLabel}.`, ownerId: trip.coordinatorId, createdById: user.userId } });
-  return { id: row.id, ownerId: trip.coordinatorId, campusId: trip.campusId };
+  // SKAI-613: serialise per trip and child so retried or concurrent refusals open one exception, not several.
+  return schoolAiTransaction(user, async tx => {
+    const trip = await tx.transportTrip.findFirst({ where: { id: tripId, schoolId: user.schoolId }, select: { id: true, coordinatorId: true, campusId: true } });
+    if (!trip) return null;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`trip-exception:${trip.id}:${e.studentId}:DOUBLE_BOARDING`}))`;
+    const open = await tx.tripException.findFirst({ where: { tripId: trip.id, studentId: e.studentId, kind: "DOUBLE_BOARDING", status: "OPEN" } });
+    if (open) return null;
+    const row = await tx.tripException.create({ data: { schoolId: user.schoolId, tripId: trip.id, studentId: e.studentId, kind: "DOUBLE_BOARDING", note: `Already on board ${e.otherLabel}.`, ownerId: trip.coordinatorId, createdById: user.userId } });
+    return { id: row.id, ownerId: trip.coordinatorId, campusId: trip.campusId };
+  });
 }
 
 export async function markAbsent(user: AuthUser, body: Record<string, unknown>) {
