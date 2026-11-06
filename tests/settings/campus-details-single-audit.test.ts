@@ -76,3 +76,12 @@ test("a lazy (Prisma-style) update still writes exactly one audit row", async ()
     assert.deepEqual(audits.map(a => a.tableName), ["campus"]);
   } finally { prisma.campus.update = eager; }
 });
+
+// A second copy of audit-trail (Next bundles server actions and route handlers separately) must share the
+// in-flight store with the copy whose extension the cached Prisma client was built with.
+test("the audit in-flight store is one per process", async () => {
+  const store = (globalThis as { __skooleeAuditInFlight?: { getStore(): unknown } }).__skooleeAuditInFlight;
+  assert.ok(store, "pinned to globalThis");
+  const { withoutAutoAudit } = await import("../../src/lib/db/audit-trail");
+  assert.equal(await withoutAutoAudit(async () => store!.getStore()), true);
+});
