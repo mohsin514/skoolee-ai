@@ -352,12 +352,18 @@ export async function markAttendance(user: AuthUser, body: Record<string, unknow
   const expected = body.expectedMarkedAt == null || body.expectedMarkedAt === "" ? null : new Date(String(body.expectedMarkedAt));
   if (expected && Number.isNaN(expected.getTime())) throw new ApiError(STALE_MARK, 409);
   const key = { sessionId: session.id, studentId };
+  // SKAI-604: when the stored mark is already this editor's identical mark (a lost-response retry), replay it.
+  const replayOrStale = async () => {
+    const current = await prisma.activityAttendance.findFirst({ where: { schoolId: user.schoolId, ...key } });
+    if (current && current.status === status && current.markedById === user.userId) return { id: current.id };
+    throw new ApiError(STALE_MARK, 409);
+  };
   if (!expected) {
     try { return await prisma.activityAttendance.create({ data: { schoolId: user.schoolId, ...key, status, markedById: user.userId } }); }
-    catch (e) { if ((e as { code?: string }).code === "P2002") throw new ApiError(STALE_MARK, 409); throw e; }
+    catch (e) { if ((e as { code?: string }).code === "P2002") return replayOrStale(); throw e; }
   }
   const won = await prisma.activityAttendance.updateMany({ where: { schoolId: user.schoolId, ...key, markedAt: expected }, data: { status, markedById: user.userId, markedAt: new Date() } });
-  if (won.count !== 1) throw new ApiError(STALE_MARK, 409);
+  if (won.count !== 1) return replayOrStale();
   return (await prisma.activityAttendance.findFirst({ where: { schoolId: user.schoolId, ...key }, select: { id: true } }))!;
 }
 const STALE_MARK = "This item changed since you opened it. Reload to see the latest before saving.";
