@@ -114,17 +114,17 @@ before(async () => {
   ({ SESSION_COOKIE_NAME: SESSION_COOKIE } = await import("../../src/lib/auth/session-cookie"));
 });
 
-async function token(role: UserRole, schoolStatus = "ACTIVE") {
-  return new SignJWT({ userId: `user-${role.toLowerCase()}`, schoolId: "school-synthetic", role, onboardingComplete: true, schoolStatus, campusId: "campus-a", accessVersion: 0 })
+async function token(role: UserRole, schoolStatus = "ACTIVE", mustChangePassword = false) {
+  return new SignJWT({ userId: `user-${role.toLowerCase()}`, schoolId: "school-synthetic", role, onboardingComplete: true, schoolStatus, campusId: "campus-a", accessVersion: 0, ...(mustChangePassword ? { mustChangePassword: true } : {}) })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("1h")
     .sign(new TextEncoder().encode(AUTH_SECRET));
 }
 
-async function call(path: string, options: { role?: UserRole; status?: string; method?: string } = {}) {
+async function call(path: string, options: { role?: UserRole; status?: string; method?: string; mustChangePassword?: boolean } = {}) {
   const headers = new Headers();
-  if (options.role) headers.set("cookie", `${SESSION_COOKIE}=${await token(options.role, options.status)}`);
+  if (options.role) headers.set("cookie", `${SESSION_COOKIE}=${await token(options.role, options.status, options.mustChangePassword)}`);
   const response = await proxy(new NextRequestCtor(new URL(path, "http://localhost:3000"), { method: options.method ?? "GET", headers }));
   const location = response.headers.get("location");
   return { status: response.status, location: location ? new URL(location).pathname + new URL(location).search : null, passed: response.headers.get("x-middleware-next") === "1", response };
@@ -157,6 +157,18 @@ test("suspended family: /parent goes to the recovery screen, which then renders 
   assert.equal(recovery.passed, true, "the recovery screen itself is never redirected");
   assert.equal((await call("/api/notifications", { role: "PARENT", status: "SUSPENDED" })).passed, true);
   assert.equal((await call("/api/auth/tour", { role: "PARENT", status: "SUSPENDED" })).passed, true);
+});
+
+test("suspended school + owner-set password (SKAI-715): the reset screen renders instead of looping with the recovery screen", async () => {
+  const pending = { role: "TEACHER" as UserRole, status: "SUSPENDED", mustChangePassword: true };
+  assert.equal((await call("/dashboard", pending)).location, "/first-login");
+  const reset = await call("/first-login", pending);
+  assert.equal(reset.passed, true, "the password reset screen itself is never redirected");
+  assert.equal((await call("/api/auth/first-password", { ...pending, method: "POST" })).passed, true);
+  // Everything else still waits for the new password, and the recovery screen comes after it.
+  assert.equal((await call("/subscription-suspended", pending)).location, "/first-login");
+  assert.equal((await call("/api/students", pending)).status, 403);
+  assert.equal((await call("/teacher", { role: "TEACHER", status: "SUSPENDED" })).location, "/subscription-suspended");
 });
 
 test("active school: family and platform-operator page rules, staff legacy paths", async () => {
