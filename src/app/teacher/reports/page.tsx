@@ -193,12 +193,16 @@ export default function ReportsPage() {
     try {
       const res = await fetch("/api/ai/generate-remarks", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ examId: selectedReportExamId }),
+        body: JSON.stringify({ batch: true, examId: selectedReportExamId }),
       });
       const text = await res.text();
       const result = JSON.parse(text);
       if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not draft remarks. Please try again.")));
-      toast.success(ui("Remarks drafted for every pupil. Review each one before you save it."));
+      // The batch answers 200 with per-pupil failures; only a full success is announced as one.
+      const failed = Array.isArray(result.failed) ? result.failed.length : 0;
+      if (failed && !result.succeeded) throw new Error(ui("The AI service is unavailable. Continue these drafts manually."));
+      if (failed) toast.error(ui("Remarks drafted for {0} pupils; {1} could not be drafted. Continue those manually.", [String(result.succeeded), String(failed)]));
+      else toast.success(ui("Remarks drafted for every pupil. Review each one before you save it."));
       await loadData();
     } catch (error: any) { toast.error(friendlyErrorMessage(error, ui("Could not draft remarks. Please try again."))); }
     finally { setRemarkBusy(false); }
