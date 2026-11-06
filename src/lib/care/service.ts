@@ -655,7 +655,9 @@ export async function exportConcern(user: AuthUser, concernId: string) {
 
 export async function exportClinic(user: AuthUser, studentId: string) {
   const record = await clinicRecord(user, studentId);
-  await log(user, { domain: "CLINIC", recordType: "CLINIC_EXPORT", studentId, action: "EXPORT" });
+  // An export under emergency access is a use of that grant: log it against the grant so oversight counts it.
+  const grant = record.access.emergency ? await activeGrant(user, "CLINIC", studentId) : null;
+  await log(user, { domain: "CLINIC", recordType: "CLINIC_EXPORT", studentId, action: "EXPORT", emergencyAccessId: grant?.id });
   const lines = [
     `CONFIDENTIAL — clinic record for ${record.student.fullName}`,
     `Exported ${stamp(new Date())}${record.access.emergency ? " under emergency access" : ""}`,
