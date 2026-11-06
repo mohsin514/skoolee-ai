@@ -50,7 +50,8 @@ const api = async (key: string, body: object) => (await context(key)).request.po
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Birch School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Riyadh", status: "ACTIVE", plan: "PRO" } });
   await db.campus.create({ data: { id: campusId, schoolId, name: "Birch Main", regId: campusId, city: "Riyadh" } });
-  await user("marker", "CAMPUS_ADMIN"); await user("lead", "PRINCIPAL"); await user("lead-ar", "CAMPUS_ADMIN", "ar"); await user("parent", "PARENT");
+  // A campus admin is not the academic lead while a principal exists (e76a2743e), so the AR reviewer is a principal.
+  await user("marker", "CAMPUS_ADMIN"); await user("lead", "PRINCIPAL"); await user("lead-ar", "PRINCIPAL", "ar"); await user("parent", "PARENT");
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Five", section: "B", academicYear: 2026 } });
   await db.subject.create({ data: { id: subjectId, schoolId, campusId, classId, name: "Mathematics" } });
   const learnerIds: string[] = [];
@@ -91,7 +92,13 @@ after(async () => {
 test("released results change only through an independent, version-checked approval over HTTP", async () => {
   const marker = await context("marker");
   const revise = await marker.request.post(`${base}/api/school-ai/exams/${ids.exam}/results`, { data: { action: "revise", data: { attemptId: ids.attempt0, version: 1, reason: "Direct change after release", review: review(3) } }, headers: { origin: base } });
-  assert.equal(revise.status(), 409);
+  // SKO-504: a "revise" after release no longer edits the result; it opens a pending correction for another reviewer.
+  assert.equal(revise.status(), 200, await revise.text());
+  const pending = (await revise.json()).result;
+  assert.equal(pending.pendingCorrection, true);
+  assert.equal((await db.schoolAiExamAttempt.findUniqueOrThrow({ where: { id: ids.attempt0 } })).reviewVersion, 1, "the released result itself is unchanged");
+  assert.equal((await api("marker", { action: "decide", data: { correctionId: pending.correctionId, version: 1, decision: "APPROVE", note: "Approving my own change." } })).status(), 403);
+  assert.equal((await api("lead", { action: "decide", data: { correctionId: pending.correctionId, version: 1, decision: "REJECT", note: "Use the documented alternative-method proposal instead." } })).status(), 200);
   const proposed = await api("marker", { action: "propose", data: { attemptId: ids.attempt0, version: 1, reason: "Alternative method meets criterion r2.", review: review(3), source: "REGRADE" } });
   assert.equal(proposed.status(), 201, await proposed.text());
   ids.correction = (await proposed.json()).result.id;
