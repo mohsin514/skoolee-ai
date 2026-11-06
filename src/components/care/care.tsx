@@ -61,6 +61,12 @@ async function call(url: string, method = "GET", body?: Record<string, unknown>)
 }
 const localNow = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); };
 const key = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+/** One administration keeps its key and time until the server confirms it, so a retry after a lost response replays the dose instead of recording a second one. */
+export function doseAttempt(pending: Map<string, { idempotencyKey: string; givenAt: string }>, instructionId: string, now = () => new Date()) {
+  let attempt = pending.get(instructionId);
+  if (!attempt) { attempt = { idempotencyKey: key(), givenAt: now().toISOString() }; pending.set(instructionId, attempt); }
+  return attempt;
+}
 const roleLabel = (ui: Ui, r: string) => ({ NURSE: ui("Nurse"), CLINIC_STAFF: ui("Clinic staff"), LEAD: ui("Lead"), DEPUTY: ui("Deputy lead") } as Record<string, string>)[r] ?? r;
 const outcomeLabel = (ui: Ui, o: string) => ({ RETURNED_TO_CLASS: ui("Returned to class"), SENT_HOME: ui("Sent home"), EMERGENCY_SERVICES: ui("Emergency services called"), STAYED_IN_CLINIC: ui("Stayed in clinic") } as Record<string, string>)[o] ?? o;
 const sourceLabel = (ui: Ui, s: string) => ({ STAFF_OBSERVATION: ui("Something I saw"), DISCLOSURE_BY_PUPIL: ui("The pupil told me"), THIRD_PARTY: ui("Someone else told me"), OTHER: ui("Other") } as Record<string, string>)[s] ?? s;
@@ -193,6 +199,7 @@ function ClinicRecord({ studentId, onClose }: { studentId: string; onClose: () =
   const [visit, setVisit] = useState({ observation: "", actionTaken: "", outcome: "RETURNED_TO_CLASS", arrivedAt: localNow() });
   const [plan, setPlan] = useState({ allergies: "", actionPlan: "", teacherSummary: "" }), [editPlan, setEditPlan] = useState(false);
   const [ins, setIns] = useState<Record<string, string> | null>(null);
+  const doseAttempts = useRef(new Map<string, { idempotencyKey: string; givenAt: string }>());
   const load = useCallback(async () => {
     try { const d = await call(`/api/care?view=clinic&studentId=${studentId}`); setData(d); setPlan({ allergies: d.plan?.allergies ?? "", actionPlan: d.plan?.actionPlan ?? "", teacherSummary: d.plan?.teacherSummary ?? "" }); }
     catch (e) { setData(null); setGone(e instanceof Error ? e.message : "Record unavailable."); }
@@ -227,7 +234,7 @@ function ClinicRecord({ studentId, onClose }: { studentId: string; onClose: () =
       {data.instructions.length ? <ul className="space-y-2">{data.instructions.map(i => <li key={i.id} className={cn(deskRow, "space-y-1 text-sm")} data-tone={i.active ? "success" : "muted"} data-clinic-instruction={i.id} data-active={i.active}>
         <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1"><DeskPill tone={i.active ? "success" : "neutral"}>{i.active ? ui("Active") : i.endedAt ? ui("Ended") : ui("Not in effect")}</DeskPill><span dir="auto" className="font-bold text-ink-strong">{i.medicine}</span> · <span dir="auto">{i.dose}</span> · <span dir="auto">{i.schedule}</span></p>
         <p className="text-xs text-ink-muted">{ui("Authorized by {0} · ref {1} · {2}–{3}", [i.authorizedBy, i.authorizationRef, dateTime(i.validFrom), dateTime(i.validUntil)])}{i.endedAt ? <> · {ui("Ended")}</> : !i.active ? <> · {ui("Not in effect")}</> : null}</p>
-        {i.active && canRecord ? <span className="mt-1 flex flex-wrap gap-2"><Button size="sm" disabled={busy} onClick={() => void run(() => call("/api/care", "POST", { action: "dose", instructionId: i.id, dose: i.dose }), "Dose recorded.")} data-clinic-dose>{ui("Record dose given now ({0})", [i.dose])}</Button>{canPlan ? <Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(() => call("/api/care", "POST", { action: "end-instruction", id: i.id }), "Instruction ended.")} data-clinic-instruction-end>{ui("End instruction")}</Button> : null}</span> : null}
+        {i.active && canRecord ? <span className="mt-1 flex flex-wrap gap-2"><Button size="sm" disabled={busy} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "dose", instructionId: i.id, dose: i.dose, ...doseAttempt(doseAttempts.current, i.id) }); doseAttempts.current.delete(i.id); }, "Dose recorded.")} data-clinic-dose>{ui("Record dose given now ({0})", [i.dose])}</Button>{canPlan ? <Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(() => call("/api/care", "POST", { action: "end-instruction", id: i.id }), "Instruction ended.")} data-clinic-instruction-end>{ui("End instruction")}</Button> : null}</span> : null}
       </li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No medication instructions.")}</p>}
     </div>
     {!data.access.emergency ? <>
