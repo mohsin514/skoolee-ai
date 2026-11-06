@@ -22,7 +22,7 @@ let browser: Browser, ctx: BrowserContext, reconciliationId = "";
 const csv = "date,amount,description\n2026-10-05,750.00,Fee INV-REC-A1 Ayaan Khan\n2026-10-06,250.00,Fee Ayaan Khan\n2026-10-07,80.00,Unknown transfer\n";
 const reordered = "Description,Value,Transaction Date\nfee   inv-rec-a1 ayaan khan,750.00,2026-10-05\nFEE AYAAN KHAN,250.00,2026-10-06\nunknown transfer,80.00,2026-10-07\n";
 const stage = async (text: string, name: string) => (await (await ctx.request.post(`${base}/api/import-batches`, { data: { kind: "BANK_STATEMENT", sourceName: name, csvText: text, accountName: "Synthetic Main Account", currency: "PKR", statementFrom: "2026-10-01", statementTo: "2026-10-31", campusId } })).json()).data;
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
+const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Banyan Ledger School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } });
@@ -101,9 +101,10 @@ test("the bursar posts from the workbench; replays post nothing twice and money 
   await shot(page, "reconciliation-posted-en-1440");
   const replays = await Promise.all(Array.from({ length: 5 }, () => ctx.request.post(`${base}/api/fees/reconciliations`, { data: { id: reconciliationId, action: "post" } })));
   assert.deepEqual(replays.map(r => r.status()), [200, 200, 200, 200, 200]);
-  assert.equal(await db.payment.count({ where: { campusId } }), 2, "one payment per matched transaction");
+  // The job-imported statement above also posts in this campus; count this statement's invoices only.
+  assert.equal(await db.payment.count({ where: { campusId, invoiceId: { in: [invA, invB] } } }), 2, "one payment per matched transaction");
   assert.deepEqual([(await db.invoice.findUniqueOrThrow({ where: { id: invA } })).balanceDue, (await db.invoice.findUniqueOrThrow({ where: { id: invB } })).balanceDue], [0, 25000]);
-  const report = (await (await ctx.request.get(`${base}/api/fees/reconciliations?campusId=${campusId}`)).json()).data[0].report;
+  const report = (await (await ctx.request.get(`${base}/api/fees/reconciliations?campusId=${campusId}`)).json()).data.find((r: { id: string }) => r.id === reconciliationId).report;
   assert.deepEqual([report.received, report.allocated, report.credited, report.unallocated, report.balanced], [108000, 100000, 0, 8000, true]);
   assert.deepEqual(errors, []); await page.close();
 });

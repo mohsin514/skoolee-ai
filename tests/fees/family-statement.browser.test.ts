@@ -37,7 +37,7 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }): P
   sessions.set(key, await ctx.storageState());
   return ctx;
 }
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png`, fullPage: true }); };
+const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png`, fullPage: true }); };
 async function invoice(studentId: string, number: string, total: number, paid: number, dueOffset: number, status: string) {
   const inv = await db.invoice.create({ data: { schoolId, campusId, studentId, invoiceDate: day(dueOffset - 30), dueDate: day(dueOffset), currency: "PKR", invoiceNumber: number, monthlyFee: total, subtotal: total, totalAmount: total, totalAmountPaid: paid, balanceDue: Math.max(total - paid, 0), status: status as never } });
   if (paid > 0) await db.payment.create({ data: { schoolId, campusId, studentId, invoiceId: inv.id, currency: "PKR", amount: paid, paymentDate: day(dueOffset - 5), paymentMethod: "CASH", receiptNo: `RCP-SYN-${number}` } });

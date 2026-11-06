@@ -45,7 +45,7 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }): P
   sessions.set(key, await ctx.storageState());
   return ctx;
 }
-const settled = (page: Page) => page.evaluate("Promise.all(document.getAnimations().map(a => a.finished.catch(() => undefined)))");
+const settled = (page: Page) => page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))");
 const shot = async (page: Page, name: string) => { await settled(page); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 const invoice = (id: string, studentId: string, currency: string, amount: number) => db.invoice.create({ data: { id, schoolId, campusId, studentId, invoiceDate: new Date("2026-09-01Z"), dueDate: new Date("2026-11-01Z"), currency, invoiceNumber: `SYN-431-${id.slice(0, 6)}`, monthlyFee: amount, subtotal: amount, totalAmount: amount, balanceDue: amount } });
 
@@ -95,9 +95,11 @@ test("an unsupported currency is refused before any order exists, and other fami
   assert.equal((await other.request.get(`${base}/api/fees/pay-online?ref=${orderRef}`)).status(), 404, "another family's payment reference");
   await other.close();
   const pupil = await context("pupil");
-  const own = await (await pupil.request.post(`${base}/api/fees/pay-online`, { data: { invoiceId: inv1 } })).json();
-  assert.ok(own.returnPath.startsWith(`/student/fees?invoice=${inv1}&payment=`), "a pupil returns to their own fees");
-  assert.equal((await pupil.request.post(`${base}/api/fees/pay-online`, { data: { invoiceId: inv2 } })).status(), 404, "a pupil cannot pay a sibling's invoice");
+  // role-ux: pupils do not pay online; their guardian does. No order is opened for either child.
+  const own = await pupil.request.post(`${base}/api/fees/pay-online`, { data: { invoiceId: inv1 } });
+  assert.equal(own.status(), 403, "a pupil is sent to their guardian to pay");
+  assert.equal((await pupil.request.post(`${base}/api/fees/pay-online`, { data: { invoiceId: inv2 } })).status(), 403, "a pupil cannot pay a sibling's invoice");
+  assert.equal(await db.onlinePaymentOrder.count({ where: { invoiceId: inv1 } }), 0, "the refused pupil opened no order");
   await pupil.close();
 });
 
