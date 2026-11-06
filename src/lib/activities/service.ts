@@ -60,8 +60,16 @@ export async function createActivity(user: AuthUser, body: Record<string, unknow
   if (kind === "TRIP" && !tripId) throw new ApiError("Link the trip's consent record so places can depend on it.", 400);
   if (tripId && !await prisma.trip.count({ where: { id: tripId, schoolId: user.schoolId, campusId, status: "OPEN" } })) throw new ApiError("Trip not found", 400);
   const offerHours = Number(body.offerHours ?? 48);
+  const costCurrency = text(body.costCurrency, 3).toUpperCase() || (await getLocalePackage(user.schoolId, campusId || null)).currency;
   try {
-    return await prisma.activity.create({ data: { schoolId: user.schoolId, campusId, kind, title, description: text(body.description, 2000), location, startsAt, endsAt, capacity, classIds, staffIds: (Array.isArray(body.staffIds) ? body.staffIds : []).map(String), costAmount, costCurrency: text(body.costCurrency, 3).toUpperCase() || (await getLocalePackage(user.schoolId, campusId || null)).currency, tripId, offerHours: Number.isInteger(offerHours) && offerHours >= 1 && offerHours <= 336 ? offerHours : 48, cancellationTerms, coordinatorId: user.userId } });
+    // SKAI-601: a lost-response retry or second-tab submit of the same activity (same coordinator, campus, kind,
+    // title and times) replays the stored one instead of publishing a duplicate; the lock serialises concurrent submits.
+    return await prisma.$transaction(async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`activity-create:${user.schoolId}:${campusId}:${user.userId}:${kind}:${title}:${startsAt.toISOString()}:${endsAt.toISOString()}`}))`;
+      const existing = await tx.activity.findFirst({ where: { schoolId: user.schoolId, campusId, coordinatorId: user.userId, kind, title, startsAt, endsAt, status: { not: "CANCELLED" } } });
+      if (existing) return existing;
+      return tx.activity.create({ data: { schoolId: user.schoolId, campusId, kind, title, description: text(body.description, 2000), location, startsAt, endsAt, capacity, classIds, staffIds: (Array.isArray(body.staffIds) ? body.staffIds : []).map(String), costAmount, costCurrency, tripId, offerHours: Number.isInteger(offerHours) && offerHours >= 1 && offerHours <= 336 ? offerHours : 48, cancellationTerms, coordinatorId: user.userId } });
+    });
   } catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ApiError("This trip already has an activity.", 409); throw error; }
 }
 

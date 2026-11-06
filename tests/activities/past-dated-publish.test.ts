@@ -14,6 +14,8 @@ const prisma = {
   },
   class: { count: async () => 0 },
   trip: { count: async () => 0 },
+  // SKAI-601: createActivity runs in a transaction with a replay lookup; nothing here repeats a create.
+  $transaction: async <T>(fn: (tx: unknown) => Promise<T>) => fn({ activity: { ...prisma.activity, findFirst: async () => null }, $executeRaw: async () => 0 }),
 };
 mock.module("@/lib/db/prisma", { namedExports: { prisma } });
 mock.module("@/lib/locale/store", { namedExports: { getLocalePackage: async () => ({ currency: "PKR", timezone: "Asia/Karachi" }) } });
