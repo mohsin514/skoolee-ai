@@ -6,6 +6,8 @@ import { parseEmiratesId, parseNationality, parseRegulatorId, regulatorAuditChan
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { getLocalePackage } from "@/lib/locale/store";
+import { salaryChangeDetail } from "@/lib/staff/salary-detail";
 
 // Staff payroll / bank records (Module 8).
 // GET  /api/staff/profile?userId= — full profile + documents + timeline (admin only).
@@ -90,7 +92,7 @@ export async function PATCH(req: NextRequest) {
 
     const staff = await prisma.user.findFirst({
       where: { id: userId, role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] }, ...campusScope(user) },
-      select: { id: true, fullName: true, staffProfile: true },
+      select: { id: true, fullName: true, campusId: true, staffProfile: true },
     });
     if (!staff) throw new ApiError("Staff member not found", 404);
 
@@ -155,7 +157,7 @@ export async function PATCH(req: NextRequest) {
       events.push({
         kind: "SALARY",
         title: "Basic salary updated",
-        detail: `Rs. ${(current.basicSalary / 100).toLocaleString("en-PK")} → Rs. ${(Number(data.basicSalary ?? 0) / 100).toLocaleString("en-PK")}`,
+        detail: salaryChangeDetail(current.basicSalary, Number(data.basicSalary ?? 0), await getLocalePackage(user.schoolId, staff.campusId)),
       });
     }
     if (inBody("bankAccountNumber") && changed(current.bankAccountNumber, data.bankAccountNumber)) {
