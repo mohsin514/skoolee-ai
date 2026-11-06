@@ -155,7 +155,8 @@ test("the learning actions panel reads clearly in English and Arabic", async () 
   await save("owner", draft({ title: "Reading fluency", evidenceRefs: [{ kind: "OBSERVATION", refId: "obs-1", label: "Reads two-syllable words slowly during guided reading." }], evidenceState: "NEEDS_OBSERVATION" }));
   const page = await (await context("owner")).newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.goto(`${base}/teacher/insights`);
+  // Since role-ux (M65), a teacher's learning actions live with their pupils on /teacher/students.
+  await page.goto(`${base}/teacher/students`);
   const panel = page.locator("[data-learning-actions]");
   await panel.locator("[data-action]").first().waitFor({ timeout: 30_000 });
   await panel.locator("[data-action]").first().getByRole("button", { name: "Open" }).click();

@@ -99,7 +99,8 @@ test("the teacher imports evidence; it stays hidden until the family consents", 
 
 test("the guardian shares objectives and work on an Arabic phone through a bounded confirmation", async () => {
   const ctx = await context("guardian", { width: 390, height: 844 }), page = await ctx.newPage();
-  await page.goto(`${base}/parent`);
+  // Since role-ux, consent lives on the family console's Consent page (More › Consent), not Home.
+  await page.goto(`${base}/parent/consent`);
   const card = page.locator("[data-family-transfer]");
   await card.waitFor({ timeout: 60_000 });
   assert.equal(await page.evaluate(() => document.documentElement.dir), "rtl");
