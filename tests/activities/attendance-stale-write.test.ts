@@ -62,3 +62,17 @@ test("a teacher who does not run the activity is refused and nothing changes", a
   await assert.rejects(markAttendance(user("t-other", "a"), { sessionId: "ses-a", studentId: "st1", status: "PRESENT", expectedMarkedAt: null }), (e: { status?: number }) => e.status === 404);
   assert.equal(marks.length, 0);
 });
+
+// SKAI-604: a lost-response retry of the same mark by the same editor replays instead of reporting a false conflict.
+test("a retried identical mark replays the stored mark without changing it", async () => {
+  const { markAttendance } = await import("../../src/lib/activities/service");
+  marks.length = 0;
+  const first = await markAttendance(user("coord-a", "a"), { sessionId: "ses-a", studentId: "st1", status: "PRESENT", expectedMarkedAt: null });
+  const at = marks[0].markedAt.getTime();
+  const retry = await markAttendance(user("coord-a", "a"), { sessionId: "ses-a", studentId: "st1", status: "PRESENT", expectedMarkedAt: null });
+  assert.equal(retry.id, first.id);
+  assert.equal(marks.length, 1);
+  assert.equal(marks[0].markedAt.getTime(), at);
+  await assert.rejects(markAttendance(user("coord-a2", "a"), { sessionId: "ses-a", studentId: "st1", status: "PRESENT", expectedMarkedAt: null }), conflict);
+  await assert.rejects(markAttendance(user("coord-a", "a"), { sessionId: "ses-a", studentId: "st1", status: "ABSENT", expectedMarkedAt: null }), conflict);
+});
