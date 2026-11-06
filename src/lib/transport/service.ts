@@ -269,12 +269,18 @@ export async function listTrips(user: AuthUser, date?: string | null) {
   return { serviceDate, lead, trips: trips.map(t => ({ id: t.id, label: t.label, direction: t.direction, vehicleNumber: t.vehicleNumber, status: t.status, ...counts(t.passengers), openExceptions: t.exceptions.length })) };
 }
 
+const STALE_LIST = "The trip's passenger list changed. Reload it and check before amending again.";
+
 /** Coordinator-only amendments after publication: the original manifest rows are kept. */
 export async function amend(user: AuthUser, body: Record<string, unknown>) {
   const reason = required(body.reason, 300, "Give the reason for the change.");
   return schoolAiTransaction(user, async tx => {
     const { trip } = await tripFor(user, tx, String(body.tripId ?? ""), "coordinator");
+    // SKAI-611: a replayed amendment (same device event id) changes nothing; one made from a stale list is refused.
+    const clientEventId = text(body.clientEventId, 80) || null;
+    if (clientEventId && await tx.tripEvent.findFirst({ where: { tripId: trip.id, clientEventId }, select: { id: true } })) return { id: trip.id, overflow: null, ownerId: user.userId, campusId: trip.campusId, repeated: true };
     if (!OPEN.includes(trip.status)) throw new ApiError("This trip is closed.", 409);
+    if (body.knownVersion != null && Number(body.knownVersion) !== trip.version) throw new ApiError(STALE_LIST, 409);
     const studentId = String(body.studentId ?? "");
     const existing = await tx.tripPassenger.findFirst({ where: { tripId: trip.id, studentId } });
     const late = trip.status === "DEPARTED";
@@ -292,9 +298,11 @@ export async function amend(user: AuthUser, body: Record<string, unknown>) {
       if (existing.status !== "EXPECTED" && existing.status !== "ABSENT") throw new ApiError("A student who has boarded cannot be removed; record their handover or resolve an exception.", 409);
       await tx.tripPassenger.update({ where: { id: existing.id }, data: { status: "REMOVED", note: reason } });
     } else throw new ApiError("Choose to add or remove a student.", 400);
-    await tx.tripEvent.create({ data: { schoolId: user.schoolId, tripId: trip.id, studentId, kind: body.change === "add" ? "AMENDED_ADD" : "AMENDED_REMOVE", occurredAt: new Date(), actorId: user.userId, detail: { reason, late } } });
-    await tx.transportTrip.update({ where: { id: trip.id }, data: { version: { increment: 1 } } });
-    return { id: trip.id, overflow, ownerId: user.userId, campusId: trip.campusId };
+    // Bump only the version this amendment was checked against, so a concurrent amendment rolls back.
+    const bumped = await tx.transportTrip.updateMany({ where: { id: trip.id, version: trip.version }, data: { version: { increment: 1 } } });
+    if (!bumped.count) throw new ApiError(STALE_LIST, 409);
+    await tx.tripEvent.create({ data: { schoolId: user.schoolId, tripId: trip.id, studentId, kind: body.change === "add" ? "AMENDED_ADD" : "AMENDED_REMOVE", occurredAt: new Date(), actorId: user.userId, clientEventId, detail: { reason, late } } });
+    return { id: trip.id, overflow, ownerId: user.userId, campusId: trip.campusId, repeated: false };
   });
 }
 
