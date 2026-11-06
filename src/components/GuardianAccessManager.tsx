@@ -193,16 +193,33 @@ export function GuardianAccessManager({ students, locale, initialStudentId, addR
     finally { setBusy(false); }
   };
 
-  // SKO-491: while the review actions stick to the bottom, reserve their height as scroll padding so a field
-  // reached by keyboard is scrolled clear of them, at any text size.
+  // SKO-491 / SKAI-187: while the review actions stick to the bottom, reserve their height as scroll padding so a
+  // field reached by keyboard is scrolled clear of them, at any text size. The padding goes on the element that
+  // actually scrolls (the console's content pane, not <html>), otherwise a field that is already "visible" but sits
+  // under a tall wrapped bar (Urdu at 200% text) is never scrolled.
   const actionBarRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const bar = actionBarRef.current, html = document.documentElement;
+    const bar = actionBarRef.current;
     if (!bar || typeof ResizeObserver === "undefined") return;
-    const previous = html.style.scrollPaddingBottom;
-    const sync = () => { html.style.scrollPaddingBottom = getComputedStyle(bar).position === "sticky" ? `${Math.ceil(bar.getBoundingClientRect().height) + 16}px` : previous; };
-    const observer = new ResizeObserver(sync); observer.observe(bar); observer.observe(html); sync();
-    return () => { observer.disconnect(); html.style.scrollPaddingBottom = previous; };
+    let scroller: HTMLElement | null = bar.parentElement;
+    while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
+    const targets = [...new Set([document.documentElement, scroller ?? document.documentElement])];
+    const previous = targets.map((el) => el.style.scrollPaddingBottom);
+    const sync = () => {
+      const padding = getComputedStyle(bar).position === "sticky" ? `${Math.ceil(bar.getBoundingClientRect().height) + 16}px` : null;
+      targets.forEach((el, i) => { el.style.scrollPaddingBottom = padding ?? previous[i]; });
+    };
+    // Browsers skip the focus scroll when a field is partly visible, so nudge any focused field out from under the bar.
+    const form = bar.parentElement;
+    const reveal = (event: FocusEvent) => {
+      const field = event.target as HTMLElement;
+      if (!scroller || bar.contains(field) || getComputedStyle(bar).position !== "sticky") return;
+      const overlap = field.getBoundingClientRect().bottom - bar.getBoundingClientRect().top + 8;
+      if (overlap > 0) scroller.scrollBy({ top: overlap, behavior: "instant" });
+    };
+    form?.addEventListener("focusin", reveal);
+    const observer = new ResizeObserver(sync); observer.observe(bar); targets.forEach((el) => observer.observe(el)); sync();
+    return () => { observer.disconnect(); form?.removeEventListener("focusin", reveal); targets.forEach((el, i) => { el.style.scrollPaddingBottom = previous[i]; }); };
   }, [studentId]);
 
   const selected = useMemo(() => students.find((item) => item.id === studentId), [students, studentId]);
