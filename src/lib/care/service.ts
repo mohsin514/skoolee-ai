@@ -477,7 +477,10 @@ export async function concernDetail(user: AuthUser, concernId: string) {
 /** Lead actions change the case under its version so two leads never overwrite each other. */
 async function leadChange(user: AuthUser, body: Record<string, unknown>, change: (tx: TxClient, c: Prisma.SafeguardingConcernGetPayload<object>, m: { campusId: string }) => Promise<{ data: Prisma.SafeguardingConcernUpdateManyMutationInput; kind: string; text: string | null; detail?: Record<string, unknown> }>) {
   const m = await member(user, "SAFEGUARDING");
-  const version = Number(body.version);
+  // The version the lead's screen showed; without it the change cannot be checked against other leads' entries.
+  const raw = body.version;
+  const version = typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() !== "" ? Number(raw) : NaN;
+  if (!Number.isInteger(version) || version < 0) throw new ApiError("Reload the case and try again.", 400);
   return schoolAiTransaction(user, async tx => {
     const c = await tx.safeguardingConcern.findFirst({ where: { id: String(body.concernId ?? ""), schoolId: user.schoolId, campusId: m.campusId } });
     if (!c) throw new ApiError("Record unavailable.", 404);
