@@ -56,7 +56,9 @@ function curriculum(board: string, prefix: string, language: "en" | "ar" | "ur" 
   const { curriculum } = assessmentFixture(subjectId, classId);
   const id = (value: string) => `${prefix}${value}`;
   curriculum.board = board;
-  curriculum.pack = { authority: board, edition: "2026", language, rights: prefix ? "UNDER_REVIEW" : "APPROVED" };
+  curriculum.pack = { packId: `synthetic-${prefix || "a-"}maths`, version: 1, authority: board, edition: "2026", language, rights: prefix ? "UNDER_REVIEW" : "APPROVED" };
+  // SKAI-1010 (2dc1ba140): an approved pack is versioned, and its sources carry URL, checksum, rights scope and review.
+  curriculum.sources = curriculum.sources.map(source => ({ ...source, url: "https://example.invalid/synthetic-syllabus.pdf", checksum: "a".repeat(64), rightsScope: "Synthetic test-only syllabus", reviewedAt: "2026-09-01T00:00:00.000Z" }));
   curriculum.outcomes = [
     { id: id("o-add"), code: `${prefix ? "SBB" : "SBA"}.M.1`, title: "Add whole numbers", description: "Learners add two whole numbers and explain their method.", sourceId: "source-1", sourcePage: "1", included: true, taught: true },
     { id: id("o-sub"), code: `${prefix ? "SBB" : "SBA"}.M.2`, title: "Subtract whole numbers", sourceId: "source-1", sourcePage: "1", included: true, taught: true, prerequisiteIds: [id("o-add")] },
