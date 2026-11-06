@@ -27,9 +27,10 @@ const people = new Map<string, AuthUser>();
 const sessions = new Map<string, Awaited<ReturnType<BrowserContext["storageState"]>>>();
 let browser: Browser, draftPaperId = "", examId = "", sealedHash = "";
 
+// Synthetic people have finished the welcome; otherwise its dialog covers the AI workspace.
 async function person(key: string, role: AuthUser["role"], language = "en") {
   const user: AuthUser = { userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid`, accessVersion: 0 };
-  await raw.user.create({ data: { id: user.userId, email: user.email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role, schoolId, campusId, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await raw.user.create({ data: { id: user.userId, email: user.email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role, schoolId, campusId, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), preferredLanguage: language } });
   people.set(key, user);
   return user;
 }
@@ -49,9 +50,11 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }) {
 const settled = (page: Page) => page.evaluate(() => Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect?.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined))));
 const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 const shotOf = async (page: Page, target: ReturnType<Page["locator"]>, name: string) => { await settled(page); await target.scrollIntoViewIfNeeded(); await page.screenshot({ path: `${evidence}/${name}.png` }); };
-async function openPanel(page: Page, tab: string) {
+// The launchpad opens each workflow from its card (the old "Curriculum & papers" tab button was replaced);
+// the card's data attribute is the same in every language.
+async function openPanel(page: Page, tab: "curriculum") {
   await page.goto(`${base}/ai`);
-  await page.getByRole("button", { name: tab, exact: true }).click();
+  await page.locator(`[data-ai-workflow="${tab}"]`).getByRole("button").click();
   await page.locator('select[id$="assessment-record"]').selectOption(draftPaperId);
   return page.getByRole("region", { name: /Review, rehearse and release|المراجعة والتجربة والإصدار|جائزہ، مشق اور اجرا/ });
 }
@@ -101,7 +104,7 @@ after(async () => { await browser?.close(); await raw.school.delete({ where: { i
 test("the lead approves the last item and a rehearsal defect shows as a release blocker", async () => {
   const ctx = await context("lead"), page = await ctx.newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
-  const panel = await openPanel(page, "Curriculum & papers");
+  const panel = await openPanel(page, "curriculum");
   await panel.getByText("Ready for review").waitFor();
   const approve = panel.getByRole("button", { name: "Approve item" });
   await approve.waitFor();
@@ -148,7 +151,7 @@ test("the learner's exam shows the sealed version and hash; results appear only 
 test("Arabic lead sees the review desk right-to-left without overflow at 390px", async () => {
   const ctx = await context("lead-ar", { width: 390, height: 860 }), page = await ctx.newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
-  const panel = await openPanel(page, "المناهج والأوراق");
+  const panel = await openPanel(page, "curriculum");
   await panel.getByText("معتمد", { exact: true }).first().waitFor();
   assert.equal(await noOverflow(page), true);
   await shotOf(page, panel, "release-review-ar-390");
@@ -168,7 +171,7 @@ test("a reviewer compares a regenerated item beside the current one and keeps th
     candidate: { prompt: `${first.prompt} Show how you know.`, marks: first.marks, options: first.options, modelAnswer: first.modelAnswer, correctOptionId: first.correctOptionId },
     differingFields: ["prompt"],
   }) }));
-  const panel = await openPanel(page, "Curriculum & papers");
+  const panel = await openPanel(page, "curriculum");
   await panel.locator(`[data-regenerate="${first.id}"]`).click();
   const compare = panel.locator("[data-item-compare]");
   await compare.waitFor();
@@ -196,7 +199,7 @@ test("the paper editor reads streamed generation frames and applies the complete
   page.on("pageerror", error => errors.push(error.message));
   // No approved provider runs here; the route's frames are recorded exactly as the server writes them.
   await page.route("**/api/school-ai/generate-paper/stream", route => { requestBody = route.request().postDataJSON(); return route.fulfill({ status: 200, contentType: "application/x-ndjson; charset=utf-8", body: frames.map(frame => JSON.stringify(frame)).join("\n") + "\n" }); });
-  await openPanel(page, "Curriculum & papers");
+  await openPanel(page, "curriculum");
   await page.getByRole("button", { name: /Generate proposed questions/ }).click();
   await page.getByText(/AI output is an editable draft/).first().waitFor();
   assert.ok(typeof requestBody.idempotencyKey === "string" && typeof requestBody.curriculumVersion === "number", "the request now carries the idempotency key and curriculum version the server requires");
