@@ -226,13 +226,12 @@ async function proxyImpl(req: NextRequest, nonce: string) {
     // An owner-generated password must be replaced before the account
     // can reach anything else — this outranks even onboarding.
     const mustChangePassword = Boolean(payload.mustChangePassword);
+    const allowedDuringReset = mustChangePassword && (
+      pathname === "/first-login" ||
+      pathname.startsWith("/api/auth/first-password") ||
+      pathname.startsWith("/api/auth/logout") ||
+      pathname.startsWith("/api/auth/session"));
     if (mustChangePassword) {
-      const allowedDuringReset =
-        pathname === "/first-login" ||
-        pathname.startsWith("/api/auth/first-password") ||
-        pathname.startsWith("/api/auth/logout") ||
-        pathname.startsWith("/api/auth/session");
-
       if (!allowedDuringReset) {
         if (pathname.startsWith("/api")) {
           return NextResponse.json(
@@ -268,7 +267,9 @@ async function proxyImpl(req: NextRequest, nonce: string) {
     const schoolStatus = typeof payload.schoolStatus === "string" ? payload.schoolStatus : "";
     const isBillingWorkspace = isBillingWorkspacePath(pathname, req.nextUrl.searchParams.get("view"));
 
-    if (schoolStatus === "SUSPENDED" && role !== "APP_OWNER" && !allowedWhileSuspended(pathname, req.method, isBillingWorkspace)) {
+    // SKAI-715: the forced password reset outranks the suspended redirect too; otherwise /first-login and
+    // /subscription-suspended redirect to each other forever. The recovery screen follows the new password.
+    if (schoolStatus === "SUSPENDED" && role !== "APP_OWNER" && !allowedDuringReset && !allowedWhileSuspended(pathname, req.method, isBillingWorkspace)) {
       if (pathname.startsWith("/api")) {
         // Neutral for every role (G51): the account owner renews; nobody else is sent to billing.
         return NextResponse.json({ error: SUBSCRIPTION_PAUSED_MESSAGE, code: "SUBSCRIPTION_SUSPENDED" }, { status: 402 });
