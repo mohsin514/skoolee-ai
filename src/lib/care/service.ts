@@ -260,10 +260,15 @@ export async function recordVisit(user: AuthUser, body: Record<string, unknown>)
   if (!OUTCOMES.includes(outcome)) throw new ApiError("Choose the outcome of the visit.", 400);
   const arrivedAt = when(body.arrivedAt, new Date());
   if (arrivedAt.getTime() > Date.now() + 5 * 60_000) throw new ApiError("The visit time cannot be in the future.", 400);
+  const visit = { schoolId: user.schoolId, campusId: m.campusId, studentId: student.id, arrivedAt, observation, actionTaken, outcome, recordedById: user.userId };
   return schoolAiTransaction(user, async tx => {
-    const row = await tx.clinicVisit.create({ data: { schoolId: user.schoolId, campusId: m.campusId, studentId: student.id, arrivedAt, observation, actionTaken, outcome, recordedById: user.userId } });
+    // A lost-response retry or a double click sends the identical visit again: replay it, never a second row.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`clinic-visit:${user.schoolId}:${student.id}:${user.userId}`}))`;
+    const existing = await tx.clinicVisit.findFirst({ where: visit, select: { id: true } });
+    if (existing) return { id: existing.id, replayed: true };
+    const row = await tx.clinicVisit.create({ data: visit });
     await log(user, { domain: "CLINIC", recordType: "CLINIC_VISIT", recordId: row.id, studentId: student.id, action: "CREATE" }, tx);
-    return { id: row.id };
+    return { id: row.id, replayed: false };
   });
 }
 
