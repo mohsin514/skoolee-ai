@@ -494,9 +494,11 @@ export async function emergencyClose(user: AuthUser, body: Record<string, unknow
   return schoolAiTransaction(user, async tx => {
     const { trip } = await tripFor(user, tx, String(body.tripId ?? ""), "coordinator");
     if (!OPEN.includes(trip.status)) return { id: trip.id, repeated: true, created: 0, campusId: trip.campusId };
+    // SKAI-612: claim the closure first, so a concurrent second closure records no event or exceptions.
+    const claimed = await tx.transportTrip.updateMany({ where: { id: trip.id, status: { in: OPEN } }, data: { status: "CLOSED_EMERGENCY", closedAt: new Date(), closedById: user.userId, emergencyReason: reason, version: { increment: 1 } } });
+    if (!claimed.count) return { id: trip.id, repeated: true, created: 0, campusId: trip.campusId };
     const unresolved = await tx.tripPassenger.findMany({ where: { tripId: trip.id, status: { in: UNRESOLVED } }, select: { studentId: true, studentName: true, status: true } });
     for (const p of unresolved) await tx.tripException.create({ data: { schoolId: user.schoolId, tripId: trip.id, studentId: p.studentId, kind: p.status === "BOARDED" ? "MISSING_RECIPIENT" : "MISSING_CHILD", note: `Unresolved at emergency closure (${p.status === "BOARDED" ? "on board, no handover" : "not boarded, no absence"}).`, ownerId: user.userId, createdById: user.userId } });
-    await tx.transportTrip.update({ where: { id: trip.id }, data: { status: "CLOSED_EMERGENCY", closedAt: new Date(), closedById: user.userId, emergencyReason: reason, version: { increment: 1 } } });
     await tx.tripEvent.create({ data: { schoolId: user.schoolId, tripId: trip.id, kind: "CLOSED_EMERGENCY", occurredAt: new Date(), actorId: user.userId, detail: { reason, unresolved: unresolved.length } } });
     return { id: trip.id, repeated: false, created: unresolved.length, campusId: trip.campusId };
   });
