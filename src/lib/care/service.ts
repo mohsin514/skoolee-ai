@@ -271,10 +271,19 @@ export async function saveCarePlan(user: AuthUser, body: Record<string, unknown>
   const m = await member(user, "CLINIC", ["NURSE", "LEAD"]);
   const student = await campusStudent(user.schoolId, m.campusId, String(body.studentId ?? ""));
   const data = { allergies: text(body.allergies, 2000) || null, actionPlan: text(body.actionPlan, 4000) || null, teacherSummary: text(body.teacherSummary, 600) || null, updatedById: user.userId };
+  // The version the editor opened (null for a new plan). Older clients that omit it keep last-write-wins.
+  const checkVersion = "expectedUpdatedAt" in body;
+  const expected = body.expectedUpdatedAt ? new Date(String(body.expectedUpdatedAt)).getTime() : null;
+  if (checkVersion && expected !== null && Number.isNaN(expected)) throw new ApiError("Reload the care plan and try again.", 400);
   return schoolAiTransaction(user, async tx => {
+    if (checkVersion) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`care-plan:${user.schoolId}:${student.id}`}))`;
+      const current = await tx.carePlan.findFirst({ where: { schoolId: user.schoolId, studentId: student.id }, select: { updatedAt: true } });
+      if ((current?.updatedAt.getTime() ?? null) !== expected) throw new ApiError("Someone else saved this care plan after you opened it. Reload to see their changes, then edit again.", 409);
+    }
     const row = await tx.carePlan.upsert({ where: { studentId: student.id }, create: { schoolId: user.schoolId, campusId: m.campusId, studentId: student.id, ...data }, update: data });
     await log(user, { domain: "CLINIC", recordType: "CARE_PLAN", recordId: row.id, studentId: student.id, action: "UPDATE" }, tx);
-    return { id: row.id };
+    return { id: row.id, updatedAt: row.updatedAt.toISOString() };
   });
 }
 
