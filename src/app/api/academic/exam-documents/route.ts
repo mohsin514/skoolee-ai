@@ -77,6 +77,9 @@ export async function GET(req: NextRequest) {
         if (!exam || !ownClassIds.has(exam.classId)) throw new ApiError("Exam not found", 404);
         if (!exam.sessionId && exam.status === "DRAFT") throw new ApiError("Exam not found", 404);
         if (exam.sessionId && !sessionId) sessionId = exam.sessionId;
+        // SKAI-279: the exam names the child's class; defaulting to the first linked class
+        // refused the second child's sheet for a guardian of two.
+        classId = exam.classId;
       }
       if (sessionId) {
         const papers = (await publishedPapersForClasses(user.schoolId, [classId])).filter(p => p.sessionId === sessionId && (!examId || p.examId === examId));
