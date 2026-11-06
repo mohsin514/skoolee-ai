@@ -243,10 +243,12 @@ export async function recordFee(user: AuthUser, body: Record<string, unknown>) {
     // A waiver is a money decision: it carries a reason (≥ 10 characters) recorded in the audit trail (role-ux R3).
     const reason = status === "WAIVED" ? text(body.reason, 500) : "";
     if (status === "WAIVED" && reason.length < 10) throw new ApiError("Give a reason of at least 10 characters for waiving this fee.", 400);
+    // SKAI-602: a retried or second-tab record of the same outcome is a replay: no second waiver audit, no version bump.
+    if (first.feeStatus === status && (status !== "PAID" || (first.invoiceId === invoiceId && first.paymentId === paymentId))) return { feeStatus: status, repeated: true };
     await tx.activityPlace.update({ where: { id: first.id }, data: { feeStatus: status, invoiceId, paymentId, version: { increment: 1 } } });
     if (status === "WAIVED") await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "activity_places", recordId: first.id, userId: user.userId, oldValue: { feeStatus: first.feeStatus }, newValue: { feeStatus: "WAIVED", reason } } });
     await syncRequirements(tx, activity);
-    return { feeStatus: status };
+    return { feeStatus: status, repeated: false };
   });
 }
 
