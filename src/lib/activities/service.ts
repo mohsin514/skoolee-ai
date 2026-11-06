@@ -325,6 +325,8 @@ export async function staffActivities(user: AuthUser) {
 export async function addSession(user: AuthUser, body: Record<string, unknown>) {
   const activity = await prisma.activity.findFirst({ where: { id: String(body.activityId ?? ""), schoolId: user.schoolId } });
   if (!activity || !isCoordinator(user, activity)) throw new ApiError("Activity not found", 404);
+  // SKAI-603: a cancelled activity takes no new sessions (the desk hides the button; a direct call is refused too).
+  if (activity.status === "CANCELLED") throw new ApiError("This activity was cancelled, so no sessions can be added.", 409);
   const startsAt = new Date(String(body.startsAt ?? "")), endsAt = new Date(String(body.endsAt ?? ""));
   if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) throw new ApiError("Set when the session starts and ends.", 400);
   // SKAI-1709: a retried or second-tab submit of the same slot replays the stored session instead of adding another.
