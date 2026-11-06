@@ -12,6 +12,7 @@ import { ATTENDANCE_STATUSES, DEFAULT_ATTENDANCE_RULE } from "@/lib/attendance";
 import { attendanceRuleFor, explainClosed } from "./rule";
 export { attendanceRuleFor, EXPLAIN_WINDOW_DAYS } from "./rule";
 import { regulatorView } from "./regulator";
+import { canCorrectRegister } from "./correction-permission";
 
 // SKO-405: the class register. A register is one class on one school day; its roster is the pupils
 // enrolled in that class on that date (dated enrollment), so a pupil who later moved still appears on the
@@ -87,7 +88,8 @@ export async function registerView(user: AuthUser, classId: string, dateText: st
       status: (row?.status ?? null) as Status | null, arrivalTime: row?.arrivalTime ?? null, departureTime: row?.departureTime ?? null, note: row?.notes ?? null, version: row?.version ?? 0, markedBy: row?.marker?.fullName ?? null, markedAt: row?.markedAt ?? null, openExplanation: row?.explanations[0]?.status ?? null };
   });
   const counts = Object.fromEntries([...ATTENDANCE_STATUSES, "UNMARKED"].map(status => [status, entries.filter(entry => (entry.status ?? "UNMARKED") === status).length]));
-  return { class: { id: cls.id, name: [cls.name, cls.section].filter(Boolean).join(" "), academicYear: cls.academicYear }, date: dateText, register: register ? { status: register.status, submittedAt: register.submittedAt, version: register.version } : { status: "OPEN", submittedAt: null, version: 0 }, entries, counts, rule, regulator: regulatorView(school?.attendanceRegulator, date) };
+  const canCorrect = await canCorrectRegister(() => assertPermission(user, "attendance", "edit"));
+  return { canCorrect, class: { id: cls.id, name: [cls.name, cls.section].filter(Boolean).join(" "), academicYear: cls.academicYear }, date: dateText, register: register ? { status: register.status, submittedAt: register.submittedAt, version: register.version } : { status: "OPEN", submittedAt: null, version: 0 }, entries, counts, rule, regulator: regulatorView(school?.attendanceRegulator, date) };
 }
 
 type EntryInput = { studentId: string; status: Status; knownStatus: Status | null; knownVersion?: number | null; arrivalTime?: string | null; departureTime?: string | null; note?: string | null; reviewedConflict?: boolean };
