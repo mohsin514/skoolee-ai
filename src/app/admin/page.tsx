@@ -1771,7 +1771,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
       );
 
     case "timetable": {
-      // §4.4b: Publish only while the chosen class has a draft (disabled with its reason while edits are unsaved);
+      // §4.4b: Publish while the chosen class has a draft, and on a published one so its later edits can be republished (SKAI-439) (disabled with its reason while edits are unsaved);
       // Print always; Unpublish (the studio's own confirmation) only for a published timetable.
       const tt = timetableState;
       const secondaries: PageAction[] = [{ id: "print-timetable", label: "Print", icon: Printer, onClick: () => runTimetable("print") }];
@@ -1781,7 +1781,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
           title={title}
           description={description ?? "Build, publish and adjust this campus's timetable."}
           icon={icon ?? CalendarRange}
-          primaryAction={tt?.hasDraft ? {
+          primaryAction={tt && (tt.hasDraft || tt.published) ? {
             id: "publish-timetable",
             label: "Publish",
             icon: Upload,

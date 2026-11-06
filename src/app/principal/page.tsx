@@ -600,7 +600,7 @@ function PrincipalWorkspace({
       if (tt?.published) secondaries.push({ id: "unpublish-timetable", label: "Unpublish", tone: "danger", onClick: () => runTimetable("unpublish") });
       content = frame(<TimetableStudio campusId={data.campusId} hideActions command={timetableCommand} onDraftState={onTimetableState} />, {
         description: description ?? "Build and publish the timetable and arrange cover.",
-        primaryAction: tt?.hasDraft ? {
+        primaryAction: tt && (tt.hasDraft || tt.published) ? {
           id: "publish-timetable",
           label: "Publish",
           icon: Upload,
