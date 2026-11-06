@@ -74,6 +74,8 @@ export async function reviseTrip(user: AuthUser, tripId: string, body: Record<st
   const data = terms(body);
   const material = body.material !== false;
   const changeNote = text(body.changeNote, "note on what changed", 3, 500);
+  // SKAI-607: a material change needs fresh answers, so families must still be able to give them.
+  if (material && data.respondBy <= new Date()) throw new ApiError("The response deadline must be in the future.", 400);
   return schoolAiTransaction(user, async tx => {
     const trip = await lockTrip(tx, user, tripId);
     if (trip.status !== "OPEN") throw new ApiError("This trip was cancelled.", 409);
