@@ -60,8 +60,9 @@ for (const [key, browserLocale, lang, dir, heading, button] of [
     const page = await ctx.newPage();
     await page.goto(`${base}/parent-invitations`);
     await page.locator("main h1").waitFor();
-    const main = page.locator("main[dir]").last();
-    assert.equal(await main.getAttribute("dir"), dir); assert.equal(await main.getAttribute("lang"), lang);
+    // Since role-ux (§6.3) the page renders inside the family console shell, which sets dir/lang on <html>
+    // from the server-resolved display locale; the page no longer owns a <main dir lang> of its own.
+    assert.deepEqual(await page.evaluate(() => [document.documentElement.dir, document.documentElement.lang]), [dir, lang]);
     assert.equal((await page.locator("main h1").innerText()).trim(), heading);
     await page.getByRole("button", { name: button }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.dir), dir, "the document direction agrees from first paint");
@@ -69,7 +70,8 @@ for (const [key, browserLocale, lang, dir, heading, button] of [
     // The load error is in the saved language too.
     await page.route("**/api/parent/invitations", r => r.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ success: false }) }));
     await page.reload();
-    const alert = page.locator("main p[role=alert]");
+    // The load failure is now the shared ErrorState (role=alert) whose heading carries the message.
+    const alert = page.locator("main [role=alert] h2");
     await alert.waitFor();
     assert.equal((await alert.innerText()).trim(), { ar: "تعذر تحميل الدعوة أو قبولها.", ur: "دعوت لوڈ یا قبول نہیں ہوسکی۔", en: "Could not load or accept this invitation." }[lang]);
     await ctx.close();
