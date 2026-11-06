@@ -40,6 +40,7 @@ function terms(body: Record<string, unknown>) {
   return { title: text(body.title, "trip name", 3, 160), destination: text(body.destination, "destination", 2, 200), departAt, returnAt, respondBy, costAmount, costCurrency: text(body.costCurrency ?? "PKR", "currency", 3, 3).toUpperCase(), contact: text(body.contact, "school contact", 3, 200), instructions: text(body.instructions ?? "", "instructions", 0, 4000), consentKind, signatoryRule };
 }
 
+const RETRY_WINDOW_MS = 10 * 60_000;
 const staffOnly = (user: AuthUser) => { if (!canManageOperations(user)) throw new ApiError("Only school leaders can publish trip notices.", 403); };
 
 export async function createTrip(user: AuthUser, body: Record<string, unknown>) {
@@ -55,6 +56,12 @@ export async function createTrip(user: AuthUser, body: Record<string, unknown>) 
   return schoolAiTransaction(user, async tx => {
     const count = await tx.student.count({ where: { schoolId: user.schoolId, campusId, id: { in: studentIds }, archivedAt: null } });
     if (count !== studentIds.length) throw new ApiError("Every invited pupil must be on this campus.", 400);
+    // SKAI-606: a retried publish (double click, network retry) returns the trip already published by this leader.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`trip-create:${user.schoolId}:${user.userId}`}))`;
+    const recent = await tx.trip.findMany({ where: { schoolId: user.schoolId, campusId, createdById: user.userId, status: "OPEN", createdAt: { gte: new Date(Date.now() - RETRY_WINDOW_MS) } }, include: { versions: { where: { version: 1 }, select: { title: true, departAt: true } }, invitees: { select: { studentId: true } } } });
+    const wanted = [...studentIds].sort().join(",");
+    const repeat = recent.find(t => t.versions[0]?.title === data.title && t.versions[0]?.departAt.getTime() === data.departAt.getTime() && t.invitees.map(i => i.studentId).sort().join(",") === wanted);
+    if (repeat) { const { versions: _v, invitees: _i, ...trip } = repeat; return trip; }
     const trip = await tx.trip.create({ data: { schoolId: user.schoolId, campusId, createdById: user.userId, invitees: { create: studentIds.map(studentId => ({ schoolId: user.schoolId, studentId })) } } });
     await tx.tripVersion.create({ data: { schoolId: user.schoolId, tripId: trip.id, version: 1, ...data, material: true, publishedById: user.userId } });
     return trip;
