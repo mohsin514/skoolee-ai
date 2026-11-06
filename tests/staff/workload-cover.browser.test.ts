@@ -82,8 +82,8 @@ test("workload names its week and definition; unknown capacity stays unknown", a
   assert.deepEqual([row("absent").teaching, row("absent").leaveDays, row("absent").percent], [1, 1, null]);
   assert.deepEqual([row("full").teaching, row("full").capacity, row("full").percent], [3, 3, 100]);
   assert.equal(row("invigilator").invigilations, 1);
-  assert.equal((await admin.request.patch(`${base}/api/staff/workload`, { data: { campusId, staffId: id("free"), capacity: 200 } })).status(), 400);
-  assert.equal((await admin.request.patch(`${base}/api/staff/workload`, { data: { campusId, staffId: id("free"), capacity: 20 } })).status(), 200);
+  assert.equal((await admin.request.patch(`${base}/api/staff/workload`, { data: { campusId, staffId: id("free"), capacity: 200, expectedCapacity: null } })).status(), 400);
+  assert.equal((await admin.request.patch(`${base}/api/staff/workload`, { data: { campusId, staffId: id("free"), capacity: 20, expectedCapacity: null } })).status(), 200);
   assert.ok(await db.auditLog.findFirst({ where: { recordId: id("free"), tableName: "staff_profiles" } }));
   assert.equal((await (await context("absent")).request.get(`${base}/api/staff/workload?campusId=${campusId}&weekStart=${monday}`)).status(), 403);
 });
