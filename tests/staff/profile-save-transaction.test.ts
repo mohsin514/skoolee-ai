@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { defaultLocale } from "../../src/lib/locale/package";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -48,6 +49,7 @@ function load(opts: { schoolId?: string; failAudit?: boolean } = {}) {
   new Function("module", "exports", "require", code)(mod, mod.exports, (id: string) => {
     if (id === "@/lib/db/prisma") return { prisma: base };
     if (id === "@/lib/auth/policy") return { campusScope: (u: any) => ({ schoolId: u.schoolId }) };
+    if (id === "@/lib/locale/store") return { getLocalePackage: async () => ({ ...defaultLocale, currency: "PKR" }) };
     if (id === "@/lib/audit-events") return {
       writeAuditEvent: async (client: any, _user: any, event: any) => {
         calls.push({ on: client === base ? "base" : "tx", op: "audit", inTx, args: event });
