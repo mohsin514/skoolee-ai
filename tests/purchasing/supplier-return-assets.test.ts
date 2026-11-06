@@ -9,7 +9,7 @@ const fn = source.slice(source.indexOf("export async function returnToSupplier")
 test("asset-tracked returns retire the newest active tags for that order line", () => {
   assert.match(fn, /if \(line\.asset\) \{/);
   assert.match(fn, /schoolAsset\.findMany\(\{ where: \{ schoolId: user\.schoolId, requestId: id, status: "ACTIVE", tag: \{ startsWith: `\$\{r\.poNumber\}-L\$\{input\.line \+ 1\}-` \} \}, orderBy: \{ tag: "desc" \}, take: input\.quantity \}\)/);
-  assert.match(fn, /data: \{ status: "RETURNED", history: push\(asset\.history, \{ action: "RETURNED_TO_SUPPLIER", by: user\.userId, reason: input\.reason \}\) \}/);
+  assert.match(fn, /data: \{ status: "RETURNED", nextServiceOn: null, history: push\(asset\.history, \{ action: "RETURNED_TO_SUPPLIER", by: user\.userId, reason: input\.reason \}\) \}/);
 });
 
 test("the asset update happens before the order quantity is reduced, inside the same transaction", () => {
