@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     lineHeight: 1.7,
     fontFamily: "NotoNaskhArabic",
     color: "#1d1b20",
-    direction: "rtl",
+    textAlign: "right",
   },
   footer: {
     marginTop: 12,
