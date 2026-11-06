@@ -13,6 +13,7 @@ mock.module("@/lib/db/prisma", { namedExports: { prisma: {
   interventionPlan: { findMany: async ({ where }: { where: Record<string, unknown> }) => { wheres.push(where); return plans.filter(p => p.schoolId === where.schoolId && p.campusId === where.campusId).map(p => ({ ...p, version: 1, origin: "MANUAL", title: "Fractions", studentId: null, goal: null, ownerId: null, createdBy: "t", nextCheckInDate: null, familyShare: null, staleSince: null, staleReason: null })); } },
   user: { findMany: async () => [] }, student: { findMany: async () => [] },
 } } });
+mock.module("@/lib/datetime", { namedExports: { schoolToday: async () => new Date().toISOString().slice(0, 10) } });
 mock.module("@/lib/school-ai/transaction", { namedExports: { schoolAiTransaction: async () => { throw new Error("unused"); } } });
 
 test("old follow-ups without a kind read as retrieval, never transfer", async () => {
