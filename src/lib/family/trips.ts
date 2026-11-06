@@ -54,8 +54,9 @@ export async function createTrip(user: AuthUser, body: Record<string, unknown>) 
   const studentIds = [...new Set([...(Array.isArray(body.studentIds) ? body.studentIds : []).map(String), ...fromClasses])];
   if (!studentIds.length || studentIds.length > 400) throw new ApiError("Choose the pupils invited on the trip.", 400);
   return schoolAiTransaction(user, async tx => {
-    const count = await tx.student.count({ where: { schoolId: user.schoolId, campusId, id: { in: studentIds }, archivedAt: null } });
-    if (count !== studentIds.length) throw new ApiError("Every invited pupil must be on this campus.", 400);
+    const count = await tx.student.count({ where: { schoolId: user.schoolId, campusId, id: { in: studentIds }, archivedAt: null, status: "active" } });
+    // SKAI-608: named pupils meet the same rule as class invites (active, unarchived, this campus).
+    if (count !== studentIds.length) throw new ApiError("Every invited pupil must be an active pupil on this campus.", 400);
     // SKAI-606: a retried publish (double click, network retry) returns the trip already published by this leader.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`trip-create:${user.schoolId}:${user.userId}`}))`;
     const recent = await tx.trip.findMany({ where: { schoolId: user.schoolId, campusId, createdById: user.userId, status: "OPEN", createdAt: { gte: new Date(Date.now() - RETRY_WINDOW_MS) } }, include: { versions: { where: { version: 1 }, select: { title: true, departAt: true } }, invitees: { select: { studentId: true } } } });
