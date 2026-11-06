@@ -276,6 +276,8 @@ const P8: Record<string, readonly [ar: string, ur: string]> = {
   "Titles held in each": ["العناوين في كل تصنيف", "ہر زمرے میں عنوانات"],
   "No categories set up yet": ["لم تُعدّ أي تصنيفات بعد", "ابھی کوئی زمرہ ترتیب نہیں دیا گیا"],
   "The collection today": ["المجموعة اليوم", "آج کا ذخیرہ"],
+  "These figures may be out of date. Last read at {0}.": ["قد تكون هذه الأرقام قديمة. آخر قراءة عند {0}.", "یہ اعداد پرانے ہو سکتے ہیں۔ آخری بار {0} پر پڑھے گئے۔"],
+  "Figures read at {0}.": ["قُرئت الأرقام عند {0}.", "اعداد {0} پر پڑھے گئے۔"],
 
   // ─── Transport, hostel and inventory panels (operations/index.tsx) ─────────
   "Route Name": ["اسم المسار", "روٹ کا نام"],

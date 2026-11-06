@@ -12,6 +12,7 @@ import { CATALOGUE_CREATE, CATALOGUE_TABS, LibraryPanel } from "@/components/ope
 import { ViewTabs } from "@/components/ui/view-tabs";
 import { MyLeavePanel } from "@/components/leave/my-leave";
 import { LibraryOverview } from "@/components/insights";
+import type { LibraryFreshnessInput } from "@/components/insights/LibraryOverview";
 import type { PanelCommand } from "@/components/fees/fee-types";
 import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 
@@ -38,12 +39,15 @@ export default function LibrarianPage() {
   const { view, tab, setView, setTab, retiredNotice } = useConsoleView("librarian");
   const [data, setData] = useState<OpsData | null>(null);
   const [failed, setFailed] = useState(false);
+  const [loadedAt, setLoadedAt] = useState<Date | null>(null);
 
   const load = useCallback(async () => {
     setFailed(false);
     try {
       setData(await getOperationsStaffDashboardData());
+      setLoadedAt(new Date());
     } catch {
+      // SKAI-562: a failed refresh keeps the figures already on screen; the dashboard marks them stale.
       setFailed(true);
     }
   }, []);
@@ -64,14 +68,15 @@ export default function LibrarianPage() {
       ) : !data ? (
         <ConsoleSkeleton label="Loading the library" cards={4} />
       ) : (
-        <LibraryWorkspace data={data} view={view} tab={tab} setView={setView} setTab={setTab} retiredNotice={retiredNotice} />
+        <LibraryWorkspace data={data} freshness={loadedAt ? { loadedAt, refreshFailed: failed, onRefresh: () => void load() } : undefined} view={view} tab={tab} setView={setView} setTab={setTab} retiredNotice={retiredNotice} />
       )}
     </RoleShell>
   );
 }
 
-function LibraryWorkspace({ data, view, tab, setView, setTab, retiredNotice }: {
+function LibraryWorkspace({ data, freshness, view, tab, setView, setTab, retiredNotice }: {
   data: OpsData;
+  freshness?: LibraryFreshnessInput;
   view: string;
   tab: string | null;
   setView: (view: string, tab?: string | null) => void;
@@ -137,7 +142,7 @@ function LibraryWorkspace({ data, view, tab, setView, setTab, retiredNotice }: {
         >
           <SetupPrompt />
           {data.summary?.kind === "LIBRARIAN" ? (
-            <LibraryOverview summary={data.summary} campusLabel={campusLine(data)} onNavigate={(next) => setView(next)} />
+            <LibraryOverview summary={data.summary} campusLabel={campusLine(data)} freshness={freshness} onNavigate={(next) => setView(next)} />
           ) : null}
         </ConsolePage>
       );

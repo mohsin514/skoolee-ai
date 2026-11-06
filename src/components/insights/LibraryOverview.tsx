@@ -32,6 +32,14 @@ import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, StatTile, VizToolti
 import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, SERIES, STATUS, compact } from "./palette";
 import { Button } from "@/components/ui/button";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { libraryDashboardFreshness, libraryFreshnessEnabled } from "@/lib/library/dashboard-freshness";
+
+/** SKAI-562: when the figures were read, whether the last refresh failed, and how to read them again. */
+export interface LibraryFreshnessInput {
+  loadedAt: Date;
+  refreshFailed: boolean;
+  onRefresh: () => void;
+}
 
 
 export interface LibrarySummary {
@@ -64,12 +72,15 @@ export function LibraryOverview({
   summary,
   campusLabel,
   onNavigate,
+  freshness,
 }: {
   summary: LibrarySummary;
   campusLabel: string;
   onNavigate: (view: string) => void;
+  freshness?: LibraryFreshnessInput;
 }) {
   const tr = useUiText();
+  const fresh = freshness && libraryFreshnessEnabled() ? libraryDashboardFreshness(freshness.loadedAt, freshness.refreshFailed) : null;
   const derived = useMemo(() => {
     const shelfRate = summary.copiesTotal > 0
       ? Math.round((summary.copiesAvailable / summary.copiesTotal) * 100)
@@ -93,6 +104,18 @@ export function LibraryOverview({
 
   return (
     <div className="space-y-5">
+      {fresh && freshness ? (
+        <div role="status" aria-live="polite" className="flex flex-wrap items-center justify-between gap-2 text-sm text-ink-subtle">
+          <span className={fresh.tone === "stale" ? "text-warning" : undefined}>
+            {fresh.tone === "stale"
+              ? tr("These figures may be out of date. Last read at {0}.", [fresh.loadedAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })])
+              : tr("Figures read at {0}.", [fresh.loadedAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })])}
+          </span>
+          <Button variant="outline" size="sm" type="button" onClick={freshness.onRefresh}>
+            {tr("Refresh")}
+          </Button>
+        </div>
+      ) : null}
       {/* Spotlight anchor for the librarian tour's first step (role-ux §9.4). */}
       <div data-tour="library.today.summary">
       <CommandHero
