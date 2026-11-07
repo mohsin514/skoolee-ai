@@ -51,6 +51,8 @@ const db = {
   trips: [] as Row[],
   payments: [] as Row[],
   marks: [] as Row[],
+  // SKAI-1793 (#935): a waiver decision settles library charges posted to the invoice.
+  libraryCharges: [] as Row[],
 };
 
 function table(rows: () => Row[]) {
@@ -96,6 +98,7 @@ const fake: Record<string, unknown> = {
   user: table(() => db.users),
   financialAdjustment: table(() => db.adjustments),
   invoice: table(() => db.invoices),
+  libraryCharge: table(() => db.libraryCharges),
   taxActivation: table(() => db.activations),
   taxFixtureRun: table(() => db.runs),
   auditLog: table(() => db.audit),

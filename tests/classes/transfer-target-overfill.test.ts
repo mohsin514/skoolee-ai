@@ -27,6 +27,13 @@ function fakeTx(held: Array<() => void>) {
     },
     class: {
       findUniqueOrThrow: async ({ where }: { where: { id: string } }) => classes.find((c) => c.id === where.id)!,
+      // SKAI-1454 (#909): the route re-reads the section inside the transaction, scoped to the caller's school.
+      findFirst: async ({ where }: { where: { id: string; schoolId?: string } }) => classes.find((c) => c.id === where.id && (!where.schoolId || c.schoolId === where.schoolId)) ?? null,
+      findFirstOrThrow: async ({ where }: { where: { id: string; schoolId?: string } }) => {
+        const found = classes.find((c) => c.id === where.id && (!where.schoolId || c.schoolId === where.schoolId));
+        if (!found) throw new Error("No Class found");
+        return found;
+      },
       update: async () => ({}),
     },
     student: {
