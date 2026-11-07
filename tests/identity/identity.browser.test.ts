@@ -120,7 +120,7 @@ test("setup: group admins only, owner roles never mappable, issuer and metadata 
   assert.equal(bad.json.data.ok, false); assert.match(bad.json.data.problems.join(" "), /different issuer/);
   await idpMode("ok");
   const insecure = await idn("owner", { action: "save", name: "Synthetic Insecure", issuer: "http://insecure.example", clientId: "x" });
-  assert.equal((await idn("owner", { action: "test", id: insecure.json.data.id })).json.data.problems[0], "The issuer must be an HTTPS URL.");
+  assert.equal((await idn("owner", { action: "test", id: insecure.json.data.id })).json.data.problems[0], "The issuer must be HTTPS and resolve to a public address.");
   const ok = await idn("owner", { action: "test", id: ids.conn });
   assert.deepEqual([ok.json.data.ok, ok.json.data.audience], [true, "skoolee-cedar"]);
   assert.match(ok.json.data.callback, /\/sso\/callback$/);
@@ -320,7 +320,9 @@ test("screens: connection and link review, roster review with a conflict, school
   await shot(phone, "06-phone");
   await phone.close();
   // Everyone else is sent home (§6.3), never to an identity screen they cannot use.
-  for (const [key, home] of [["principal", "/principal"], ["campus", "/admin"], ["teacher", "/teacher"]] as const) {
+  // "teacher" shares t.khan@cedar.example with oakTeacher in school B (the two-schools test), so an email-only password
+  // sign-in cannot pick one school; use the school-A teacher with a unique email for the redirect check.
+  for (const [key, home] of [["principal", "/principal"], ["campus", "/admin"], ["namesake", "/teacher"]] as const) {
     const page = await (await context(key)).newPage();
     await page.goto(`${base}/identity`);
     await page.waitForURL((target) => target.pathname === home);

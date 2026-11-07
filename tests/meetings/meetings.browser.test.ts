@@ -172,12 +172,12 @@ test("follow-up: shared summary and owned actions reach the family; staff notes 
   ids.held = held.id;
   const teacher = await context("teacher");
   assert.equal((await call(teacher, "post", "/api/meetings", { action: "followup", bookingId: held.id, summary: "x" })).status, 409, "record the meeting first");
-  assert.equal((await call(teacher, "post", "/api/meetings", { action: "outcome", bookingId: held.id, outcome: "HELD" })).status, 200);
+  assert.equal((await call(teacher, "post", "/api/meetings", { action: "outcome", bookingId: held.id, knownVersion: (await db.meetingBooking.findUniqueOrThrow({ where: { id: held.id } })).version, outcome: "HELD" })).status, 200);
   const secret = "PRIVATE-STAFF-NOTE-420";
   assert.equal((await call(teacher, "post", "/api/meetings", { action: "note", bookingId: held.id, body: `${secret}: synthetic observation for staff only` })).status, 201);
   const actions = [{ text: "Read aloud for ten minutes each evening", ownerRole: "FAMILY", dueDate: localDate(new Date(Date.now() + 7 * DAY)) }, { text: "Share a short reading log on Friday", ownerRole: "FAMILY", dueDate: localDate(new Date(Date.now() + 5 * DAY)) }, { text: "Send home two levelled readers", ownerRole: "STAFF", dueDate: localDate(new Date(Date.now() + 3 * DAY)) }];
-  assert.equal((await call(teacher, "post", "/api/meetings", { action: "followup", bookingId: held.id, summary: "We agreed to practise short explanations of what Sara reads.", actions: [...actions, ...actions] })).status, 400, "a small number of actions");
-  assert.equal((await call(teacher, "post", "/api/meetings", { action: "followup", bookingId: held.id, summary: "We agreed to practise short explanations of what Sara reads.", actions })).status, 200);
+  assert.equal((await call(teacher, "post", "/api/meetings", { action: "followup", bookingId: held.id, summary: "We agreed to practise short explanations of what Sara reads.", knownFollowUpAt: null, actions: [...actions, ...actions] })).status, 400, "a small number of actions");
+  assert.equal((await call(teacher, "post", "/api/meetings", { action: "followup", bookingId: held.id, summary: "We agreed to practise short explanations of what Sara reads.", knownFollowUpAt: null, actions })).status, 200);
   let view = await family("parentS", ids.sara);
   let row = view.bookings.find(b => b.id === held.id)!;
   assert.deepEqual([row.followUp, row.actions.length], [null, 0], "a draft is not visible to the family");

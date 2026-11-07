@@ -20,7 +20,7 @@ let browser: Browser;
 
 async function person(key: string, role: string, language = "en", owner = false) {
   const id = randomUUID(), email = `${id}@example.invalid`;
-  await raw.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId, isActive: true, onboardingComplete: true, isInstitutionOwner: owner, preferredLanguage: language } });
+  await raw.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), isInstitutionOwner: owner, preferredLanguage: language } });
   people.set(key, { id, email });
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
@@ -87,11 +87,13 @@ test("the lead sees required checks, reconciliation and the next step; approval 
 
 test("the practice rehearsal is labelled synthetic and then go-live is approved with an owned follow-up", async () => {
   const { ctx, page } = await open("owner");
-  await page.getByText("Practice — synthetic learners. Nothing is saved, sent or charged.").waitFor();
-  const steps = page.locator("#practice li");
+  await page.getByRole("heading", { name: "Practice rehearsal" }).waitFor();
+  const steps = page.locator("#practice ol > li");
   for (let index = 0; index < 3; index += 1) {
     await steps.nth(index).getByRole("button", { name: "Run" }).click();
     await steps.nth(index).getByText("Done:", { exact: false }).waitFor();
+    // Each practice result is labelled synthetic (the banner sits on the preview, shown once a step has run).
+    await page.locator("#practice").getByText("Practice — synthetic learners. Nothing is saved, sent or charged.").waitFor();
   }
   await page.getByText("What a family sees: Practice learner A").waitFor();
   await shot(page, "readiness-practice-family-en-1440");
@@ -117,7 +119,8 @@ test("the practice rehearsal is labelled synthetic and then go-live is approved 
 test("a teacher sees and closes only the follow-up assigned to them, on a phone", async () => {
   const { ctx, page, errors } = await open("teacher", { width: 390, height: 860 });
   await page.getByRole("heading", { name: "Your setup tasks" }).waitFor();
-  assert.equal(await page.getByRole("listitem").count(), 1);
+  // The role frame adds its own navigation list items; count only the tasks section.
+  assert.equal(await page.getByRole("region", { name: "Your setup tasks" }).getByRole("listitem").count(), 1);
   await page.getByText("Assigned to you").waitFor();
   await page.getByRole("button", { name: "Mark done" }).click();
   await page.getByText("Done", { exact: true }).first().waitFor();
