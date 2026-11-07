@@ -15,6 +15,8 @@ import { FeeReportsTab, REPORT_TABS, type ReportTab } from "@/components/fees/Fe
 import { ACCOUNTS_CREATE, ACCOUNTS_TABS, AccountsTab, accountsSection } from "@/components/fees/AccountsTab";
 import type { PanelCommand } from "@/components/fees/fee-types";
 import { PayrollRunsPanel } from "@/components/payroll/payroll-runs-panel";
+import { PostedPayrollReversal } from "@/components/payroll/posted-payroll-reversal";
+import { HandedLibraryCharges } from "@/components/fees/handed-library-charges";
 import { TaxPackages } from "@/components/tax/tax-packages";
 import { MyLeavePanel } from "@/components/leave/my-leave";
 import { FinanceOverview } from "@/components/insights";
@@ -137,7 +139,7 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
               ]}
           tabs={<ViewTabs ariaLabel="Collect sections" value={section} onChange={(id) => { setCommand(null); setTab(id); }} items={PAYMENT_TABS} />}
         >
-          <FeePaymentsTab campusId={campusId} section={section} hideHeader command={command} />
+          <><FeePaymentsTab campusId={campusId} section={section} hideHeader command={command} />{section === "payments" ? <HandedLibraryCharges /> : null}</>
         </ConsolePage>
       );
     }
@@ -216,7 +218,7 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
           primaryAction={{ id: "prepare-run", label: "Prepare run", icon: Plus, disabled: !payrollReady, disabledReason: "Prepare run is unavailable until a payroll policy is saved.", onClick: () => run("prepare-run") }}
           secondaryActions={[{ id: "export", label: "Export", icon: Download, onClick: () => run("export") }]}
         >
-          <PayrollRunsPanel mode="prepare" hideHeader command={command} onPrepareAvailabilityChange={setPayrollReady} />
+          <><PayrollRunsPanel mode="prepare" hideHeader command={command} onPrepareAvailabilityChange={setPayrollReady} /><PostedPayrollReversal /></>
         </ConsolePage>
       );
     case "fee-structures": {
