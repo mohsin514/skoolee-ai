@@ -1,23 +1,35 @@
 import { test, expect } from "@playwright/test";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
 
 // Use tsx's existing compiler; no test-only package installation or app route is needed.
 const requireFromTsx = createRequire(require.resolve("tsx"));
 const { build } = requireFromTsx("esbuild");
 type FixtureBuilder = {
   onResolve: (options: { filter: RegExp }, callback: () => { path: string; namespace: string }) => void;
-  onLoad: (options: { filter: RegExp; namespace: string }, callback: () => { contents: string; loader: "js" }) => void;
+  onLoad: (options: { filter: RegExp; namespace?: string }, callback: (args: { path: string }) => { contents: string; loader: "js" } | undefined) => void;
+};
+// Next turns a 'use server' module imported by client code into remote references; it never ships the server
+// code. Do the same here (shared-admin/workspace -> ScopeBadge -> super-data-context -> app/actions/dashboard),
+// so the browser bundle does not pull in Prisma, node:crypto or server-only.
+const serverActionStub = (path: string) => {
+  const source = readFileSync(path, "utf8");
+  if (!/^\s*(['"])use server\1/.test(source)) return undefined;
+  const names = [...source.matchAll(/^export\s+(?:async\s+)?(?:function\*?|const|let)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
+  const contents = names.map((name) => `export async function ${name}() { throw new Error("server action ${name} is not available in the fixture"); }`).join("\n");
+  return { contents, loader: "js" as const };
 };
 let fixtureScript: string;
 
 test.beforeAll(async () => {
   const output = await build({
     entryPoints: [resolve("tests/design-system/fixtures/workspace-table.tsx")], bundle: true, write: false,
-    platform: "browser", format: "iife", jsx: "automatic", define: { "process.env.NODE_ENV": '"test"' },
+    platform: "browser", format: "iife", jsx: "automatic", define: { "process.env.NODE_ENV": '"test"', "process.env": "{}" }, // Next also shims `process.env` in the browser
     plugins: [{ name: "synthetic-table-locale", setup(builder: FixtureBuilder) {
       builder.onResolve({ filter: /^@\/components\/locale\/LocaleProvider$/ }, () => ({ path: "locale", namespace: "fixture" }));
       builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: 'export function useLocale() { return {language: window.__tableLanguage || "en"}; } export function useUiText() { return source => source; }', loader: "js" }));
+      builder.onLoad({ filter: /[\\/]src[\\/]app[\\/].*\.tsx?$/ }, ({ path }) => serverActionStub(path));
     } }],
   });
   fixtureScript = output.outputFiles[0].text;

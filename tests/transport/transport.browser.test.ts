@@ -58,7 +58,8 @@ const status = async (tripId: string, studentKey: string) => (await db.tripPasse
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Cedar Transport School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO", timezone: TZ } as never });
   for (const [cid, name] of [[north, "Cedar North"], [south, "Cedar South"]]) { await db.campus.create({ data: { id: cid, schoolId, name, regId: cid, city: "Lahore" } }); await db.academicCycle.create({ data: { schoolId, campusId: cid, label: "2026", academicYear: 2026, status: "ACTIVE" } }); }
-  await user("campusAdmin", "CAMPUS_ADMIN"); // role-ux §7.6: campus operations (the principal is academic and holds none of this) await user("attendant", "RECEPTIONIST"); await user("attendant2", "LIBRARIAN"); await user("teacher", "TEACHER"); await user("southAdmin", "CAMPUS_ADMIN", south);
+  // role-ux §7.6: campus operations (the principal is academic and holds none of this).
+  await user("campusAdmin", "CAMPUS_ADMIN"); await user("attendant", "RECEPTIONIST"); await user("attendant2", "LIBRARIAN"); await user("teacher", "TEACHER"); await user("southAdmin", "CAMPUS_ADMIN", south);
   await user("attendant-ar", "RECEPTIONIST", north, "ar"); await user("mother", "PARENT"); await user("noAttendance", "PARENT"); await user("otherParent", "PARENT");
   await db.class.create({ data: { id: classId, schoolId, campusId: north, name: "Grade 3", section: "C", academicYear: 2026 } });
   ids.southClass = randomUUID(); await db.class.create({ data: { id: ids.southClass, schoolId, campusId: south, name: "Grade 3", section: "S", academicYear: 2026 } });
@@ -302,11 +303,13 @@ test("screens: coordinator planner, crew manifest, handover, offline queue and r
   await ar.close();
   const empty = await (await context("teacher")).newPage();
   await empty.goto(`${base}/transport`);
-  await empty.locator("[data-trip-empty]").waitFor();
+  // role-ux: "Today's trip" is a duty leaf (tripToday), so staff with no trip today get the access notice, not the desk.
+  await empty.getByText("This workspace is not available with your current access.").waitFor();
+  assert.equal(await empty.locator("[data-trip-desk]").count(), 0, "no trip desk without a trip today");
   await shot(empty, "08-no-trip");
   await empty.close();
   const fam = await (await context("mother")).newPage();
-  await fam.goto(`${base}/parent/attendance`);
+  await fam.goto(`${base}/parent/pickup`); // the family journey lives under Pickup & transport
   await fam.locator("[data-family-journey]").waitFor();
   await fam.locator("[data-family-journey]").scrollIntoViewIfNeeded();
   await shot(fam, "09-family-journey");
