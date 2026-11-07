@@ -46,6 +46,12 @@ export function isAuditedModel(delegate: string): boolean {
 
 /** Never copied into an audit row. */
 const REDACTED_KEY = /password|token|secret|hash|otp|mfa|credential|apikey/i;
+/**
+ * SKAI-1796: free-text content (document text, message bodies, prompts, answers, JSON payloads) stays in the
+ * record and its scoped revision history; the audit row only says that it changed. AI PII policy: these fields can
+ * hold learner or guardian text that must not be copied into a general log.
+ */
+const CONTENT_KEY = /^(data|payload|content|body|text|transcript|prompt|response|reply|answers?|answerKey|html|markdown)$|(Text|Content|Body|Html|Markdown|Transcript|Prompt)$/;
 
 export function redact(value: unknown, depth = 0): unknown {
   if (value instanceof Date) return value.toISOString();
@@ -56,7 +62,7 @@ export function redact(value: unknown, depth = 0): unknown {
   if (depth > 3) return "[…]";
   const out: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(value)) {
-    out[key] = REDACTED_KEY.test(key) ? "[redacted]" : redact(entry, depth + 1);
+    out[key] = REDACTED_KEY.test(key) ? "[redacted]" : CONTENT_KEY.test(key) && entry !== null && entry !== undefined ? "[omitted]" : redact(entry, depth + 1);
   }
   return out;
 }
@@ -124,6 +130,40 @@ export function withoutAutoAudit<T>(fn: () => PromiseLike<T>): Promise<T> {
   return inFlight.run(true, async () => await fn());
 }
 
+// ─── Rows written inside an interactive transaction ──────────────
+//
+// SKAI-1796: inside a transaction the automatic rows wait until the callback returns. A route's own row for the same
+// record then replaces the pending one (one row per create, not an automatic row plus a superseding one), and the
+// remaining rows are written as the last statements of the transaction. A failed write there is not swallowed: the
+// transaction is already aborted in PostgreSQL, so it must fail as a whole (and a serialization failure be retried).
+interface PendingRow { schoolId: string; userId?: string; recordId: string; data: Record<string, unknown>; claimed: boolean }
+declare global { var __skooleeAuditPending: AsyncLocalStorage<PendingRow[]> | undefined; }
+const pendingRows = globalThis.__skooleeAuditPending ??= new AsyncLocalStorage<PendingRow[]>();
+
+export async function withTransactionAudit<T>(tx: unknown, fn: () => Promise<T>): Promise<T> {
+  const pending: PendingRow[] = [];
+  const result = await pendingRows.run(pending, fn);
+  const writer = tx as AuditClient;
+  const written: Array<{ schoolId: string; recordId: string; id: string }> = [];
+  await pendingRows.exit(async () => {
+    for (const row of pending) {
+      if (row.claimed) continue;
+      const { id } = await runWithTenantContext({ schoolId: row.schoolId, userId: row.userId }, () =>
+        writer.auditLog.create({ data: row.data, select: { id: true } })
+      );
+      if (row.recordId !== "*") written.push({ schoolId: row.schoolId, recordId: row.recordId, id });
+    }
+  });
+  for (const row of written) remember(row.schoolId, row.recordId, row.id);
+  return result;
+}
+
+function claimPending(schoolId: string, recordId: string): boolean {
+  const row = pendingRows.getStore()?.find((entry) => !entry.claimed && entry.schoolId === schoolId && entry.recordId === recordId);
+  if (row) row.claimed = true;
+  return Boolean(row);
+}
+
 function rowSchool(row: unknown, context: TenantContext): string | null {
   const own = (row as { schoolId?: unknown } | null)?.schoolId;
   if (typeof own === "string" && own) return own;
@@ -179,6 +219,7 @@ export async function auditedOperation({ delegate, operation, args, query, clien
       : null;
 
   const result = await inFlight.run(true, () => query(args));
+  const pending = referenceTransaction.getStore() ? pendingRows.getStore() : undefined;
 
   try {
     const schoolId = rowSchool(single ? result ?? before : null, context);
@@ -200,6 +241,10 @@ export async function auditedOperation({ delegate, operation, args, query, clien
       ipAddress: await actorIp(),
     };
 
+    if (pending) {
+      pending.push({ schoolId, userId: context.userId, recordId, data: row, claimed: false });
+      return result;
+    }
     // SKAI-1358: inside a transaction the row must join it, or it cannot see the uncommitted parent rows.
     const writer = (referenceTransaction.getStore() ?? client) as AuditClient;
     const written = await runWithTenantContext({ schoolId, userId: context.userId }, () =>
@@ -227,6 +272,7 @@ async function mergeManualAudit(
   const link = (entry: unknown) => {
     const data = entry as { schoolId?: string; recordId?: string; newValue?: unknown } | undefined;
     const schoolId = data?.schoolId || context?.schoolId;
+    if (schoolId && data?.recordId && claimPending(schoolId, data.recordId)) return entry;
     const autoId = schoolId && data?.recordId ? claimAutoRow(schoolId, data.recordId) : null;
     if (!autoId) return entry;
     const newValue = data!.newValue;

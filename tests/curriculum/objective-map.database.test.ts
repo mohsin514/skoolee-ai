@@ -97,13 +97,13 @@ test("objectives from two boards stay distinct until a lead records a decision; 
   assert.deepEqual(after.mappings.map(row => row.relation), ["SAME"], "the latest decision is current");
   assert.equal(await raw.curriculumObjectiveMapping.count({ where: { schoolId } }), 2, "earlier decisions remain");
   await assert.rejects(() => raw.curriculumObjectiveMapping.updateMany({ where: { schoolId }, data: { relation: "NOT_EQUIVALENT" } }), /kept/);
-  // SKAI-1159 (3f7c2e881): the audit trail writes an automatic "create" row for every mapping and the decision's own
-  // row is appended after it (supersedesAuditId), so each of the two decisions has exactly two audit rows.
+  // SKAI-1796: the decision's own row replaces the automatic "create" row inside the transaction, so each of the
+  // two decisions has exactly one audit row.
   const audits = await raw.auditLog.findMany({ where: { schoolId, tableName: "curriculum_objective_mappings" }, select: { recordId: true, newValue: true } });
   const mappingIds = (await raw.curriculumObjectiveMapping.findMany({ where: { schoolId }, select: { id: true } })).map(row => row.id).sort();
   assert.deepEqual([...new Set(audits.map(row => row.recordId))].sort(), mappingIds);
-  assert.deepEqual(audits.filter(row => (row.newValue as { supersedesAuditId?: string } | null)?.supersedesAuditId).map(row => (row.newValue as { relation: string }).relation).sort(), ["PARTIAL", "SAME"], "one decision row per recorded decision");
-  assert.equal(audits.length, 4);
+  assert.deepEqual(audits.map(row => (row.newValue as { relation: string }).relation).sort(), ["PARTIAL", "SAME"], "one decision row per recorded decision");
+  assert.equal(audits.length, 2);
 });
 
 test("teachers see their subjects only and link their resources to exact objective versions", async () => {

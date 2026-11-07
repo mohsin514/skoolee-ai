@@ -88,12 +88,10 @@ test("an unsupported device gets an audited supervised alternative, never a sile
   assert.ok(started?.id, "the approved learner starts in a standard browser");
   const metadata = await ctx(other, () => getSchoolAiExam(other, examId));
   assert.equal((metadata.secureBrowser as { via?: string }).via, "SUPERVISED_ALTERNATIVE");
-  // SKAI-1162: the audit-trail extension logs the create, and the service's richer row supersedes it, so the pair
-  // collapses to one approval: exactly one row names the approver's assignment and student.
+  // SKAI-1796: inside the transaction the service's richer row replaces the automatic one, so audit_logs holds
+  // exactly one approval row, naming the approver's assignment and student.
   const audits = await raw.auditLog.findMany({ where: { schoolId, tableName: "secure_browser_exceptions" }, orderBy: { createdAt: "asc" } });
-  const decisions = audits.filter(row => (row.newValue as { supersedesAuditId?: string } | null)?.supersedesAuditId);
-  assert.equal(decisions.length, 1, "one approval decision is recorded");
-  assert.deepEqual([(decisions[0].newValue as { studentId?: string }).studentId, decisions[0].userId], [otherId, coordinator.userId]);
-  assert.equal(audits.length, 2, "the automatic row plus the decision that supersedes it, nothing more");
+  assert.equal(audits.length, 1, "one approval decision is recorded, nothing more");
+  assert.deepEqual([(audits[0].newValue as { studentId?: string }).studentId, audits[0].userId], [otherId, coordinator.userId]);
   await assert.rejects(() => raw.secureBrowserException.updateMany({ where: { schoolId }, data: { reason: "changed" } }), /kept as history/);
 });

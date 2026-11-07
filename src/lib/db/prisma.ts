@@ -12,7 +12,7 @@ import {
 } from "./tenant-context";
 import { GLOBAL_MODELS, TENANT_MODELS } from "./tenant-models";
 import { pooledDatabaseUrl } from "./pool-url";
-import { auditTrail } from "./audit-trail";
+import { auditTrail, withTransactionAudit } from "./audit-trail";
 
 // ─────────────────────────────────────────────────────────────────
 // Tenant guard
@@ -458,7 +458,7 @@ export const prisma = new Proxy(guardedClient, {
         // transaction waits on the rows this one locked and times out (SKAI-1303).
         const context = getTenantContext();
         if (RLS_ENABLED && context?.schoolId) await applySchoolGuc(tx as unknown as { $executeRawUnsafe: (q: string, ...v: unknown[]) => Promise<unknown> }, context.schoolId);
-        return referenceTransaction.run(tx, async () => await first(tx));
+        return referenceTransaction.run(tx, () => withTransactionAudit(tx, async () => await first(tx)));
       }, options);
     };
   },
