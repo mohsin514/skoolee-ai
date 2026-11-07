@@ -19,16 +19,32 @@ export async function getCampusExamReservations(db: TxClient, scope: ExamBooking
   if (rows.length > 5000) fail("This campus needs a narrower exam planning scope.", "EXAM_PLAN_LIMIT");
   return rows.filter(row => !scope.term || termsOverlap(scope.term, row.exam.term));
 }
-export async function getExamBookingSlots(db: TxClient, scope: ExamBookingScope): Promise<Array<{ id: string; dayOfWeek: number; periodNumber: number; startTime: string; endTime: string; teacherId: string | null; roomId: string | null; teacherName: string | null; roomNumber: string | null; examTitle: string; className: string }>> {
+export type ExamBookingSlot = { id: string; dayOfWeek: number; periodNumber: number; startTime: string; endTime: string; teacherId: string | null; roomId: string | null; teacherName: string | null; roomNumber: string | null; examTitle: string; className: string };
+export type UntimedExamBooking = { id: string; dayOfWeek: number; teacherId: string | null; roomId: string | null; teacherName: string | null; roomNumber: string | null; examTitle: string; className: string };
+/**
+ * Room/invigilator reservations from the campus date sheet. SKAI-1787: a row with
+ * no valid time slot used to throw EXAM_PLAN_EXISTING_INVALID (409), so one bad
+ * date-sheet row blocked every timetable save on the campus. It is now returned in
+ * `untimed` for the caller to report against the same room or teacher on that weekday.
+ */
+export async function getExamBookings(db: TxClient, scope: ExamBookingScope): Promise<{ timed: ExamBookingSlot[]; untimed: UntimedExamBooking[] }> {
   const rows = await getCampusExamReservations(db, scope);
-  return rows.flatMap(row => {
+  const timed: ExamBookingSlot[] = [], untimed: UntimedExamBooking[] = [];
+  for (const row of rows) {
     const rooms = row.rooms.map(room => ({ roomId: room.roomId, roomNumber: room.room.roomNumber, teacherId: room.invigilation?.teacherId ?? null, teacherName: room.invigilation?.teacher.fullName ?? null }));
     if (row.room && !rooms.some(room => room.roomId === row.room!.id)) rooms.push({ roomId: row.room.id, roomNumber: row.room.roomNumber, teacherId: null, teacherName: null });
-    if (!rooms.length) return [];
+    const base = { dayOfWeek: examWeekday(row.date.toISOString().slice(0, 10)), examTitle: row.exam.title, className: [row.exam.class.name, row.exam.class.section].filter(Boolean).join(" · ") };
     const period = row.periodDefinition;
-    if (!period || !validExamWindow(period.startTime, period.endTime)) fail("An existing exam reservation has no valid time. Correct its datesheet before scheduling shared resources.", "EXAM_PLAN_EXISTING_INVALID");
-    return rooms.map(room => ({ ...room, id: `${row.id}:${room.roomId}`, dayOfWeek: examWeekday(row.date.toISOString().slice(0, 10)), periodNumber: period.periodNumber, startTime: period.startTime, endTime: period.endTime, examTitle: row.exam.title, className: [row.exam.class.name, row.exam.class.section].filter(Boolean).join(" · ") }));
-  });
+    for (const room of rooms) {
+      if (period && validExamWindow(period.startTime, period.endTime)) timed.push({ ...room, ...base, id: `${row.id}:${room.roomId}`, periodNumber: period.periodNumber, startTime: period.startTime, endTime: period.endTime });
+      else untimed.push({ ...room, ...base, id: `${row.id}:${room.roomId}` });
+    }
+  }
+  return { timed, untimed };
+}
+/** Timed reservations only (the timetable solver compares clocks). */
+export async function getExamBookingSlots(db: TxClient, scope: ExamBookingScope): Promise<ExamBookingSlot[]> {
+  return (await getExamBookings(db, scope)).timed;
 }
 /** Validate exact proposed reservations against one another and current exam/lesson commitments. Caller owns campus fence for writes. */
 export async function assertExamReservations(db: TxClient, scope: { schoolId: string; campusId: string }, proposed: ExamReservation[], excludedIds: string[] = []) {
