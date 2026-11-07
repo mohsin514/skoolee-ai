@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { settleLibraryChargeForInvoice } from "@/lib/library/charge-settlement";
 import {
   ApiError,
   canManageFinance,
@@ -89,6 +90,7 @@ export async function PATCH(
       if (status === "CANCELLED" && (invoice.totalAmountPaid > 0 || invoice._count.paymentAllocations > 0)) throw new ApiError("This invoice has payments recorded. Reverse or refund them through finance corrections before cancelling it.", 409);
       const result = await tx.invoice.updateMany({ where: { id: invoiceId, status: invoice.status, totalAmountPaid: invoice.totalAmountPaid }, data: { status } });
       if (result.count !== 1) throw new ApiError("This invoice changed. Refresh it before trying again.", 409);
+      await settleLibraryChargeForInvoice(tx, invoiceId);
       await tx.auditLog.create({ data: { tableName: "invoice", recordId: invoiceId, newValue: { action: "status_change", from: invoice.status, to: status }, userId: user.userId } });
       return { invoice: await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } }), changed: true };
     });

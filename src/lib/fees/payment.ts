@@ -1,4 +1,5 @@
 import { capturePaymentReceipt } from "./receipt";
+import { settleLibraryChargeForInvoice } from "@/lib/library/charge-settlement";
 import { type TxClient } from "@/lib/db/prisma";
 // ─── Payment recording (single source for collecting fees) ──
 // Used by POST /api/fees/collect, POST /api/fees/payment, and the SafePay
@@ -115,6 +116,7 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
       status: newStatus,
     },
   });
+  await settleLibraryChargeForInvoice(tx, input.invoiceId);
 
   // Overpayment → credit carried forward into the next academic year.
   let credit = 0;

@@ -15,6 +15,6 @@ test("fees queue is staff-only, needs fees view and is school + campus scoped", 
 });
 
 test("the lending desk overview still lists handed charges", () => {
-  assert.match(desk, /const handed = await prisma\.libraryCharge\.findMany\(\{ where: \{ schoolId: user\.schoolId, campusId, status: \{ in: \["HANDED_TO_FEES", "POSTED"\] \} \}/, "SKAI-1669: posted charges stay listed with their invoice link");
+  assert.match(desk, /const handed = await prisma\.libraryCharge\.findMany\(\{ where: \{ schoolId: user\.schoolId, campusId, OR: \[\{ status: \{ in: \["HANDED_TO_FEES", "POSTED"\] \} \}, \{ invoiceId: \{ not: null \} \}\] \}/, "SKAI-1669/1793: posted, paid and waived invoiced charges stay listed");
   assert.match(desk, /charges, handed \};/);
 });

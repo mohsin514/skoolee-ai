@@ -251,7 +251,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
               </div>
             ))}
             {/* SKAI-1665: handed charges stay visible here until the fees office completes them. */}
-            {overview.handed?.length ? <div className="space-y-1 pt-2" data-handed-charges><h4 className="text-sm font-semibold text-ink-strong">{ui("Handed to the fees office")}</h4>{overview.handed.map(c => <p key={c.id} className="flex flex-wrap items-center gap-2 text-sm text-ink-muted"><Receipt aria-hidden="true" className="size-4" />{ui(KIND_LABEL[c.kind] ?? c.kind)} · <bdi>{money(c.amount, c.currency)}</bdi> · <span data-charge-link={c.invoiceId ? "posted" : "waiting"}>{ui(c.invoiceId ? "Invoiced to the family" : "Waiting for the fees office")}</span></p>)}</div> : null}
+            {overview.handed?.length ? <div className="space-y-1 pt-2" data-handed-charges><h4 className="text-sm font-semibold text-ink-strong">{ui("Handed to the fees office")}</h4>{overview.handed.map(c => <p key={c.id} className="flex flex-wrap items-center gap-2 text-sm text-ink-muted"><Receipt aria-hidden="true" className="size-4" />{ui(KIND_LABEL[c.kind] ?? c.kind)} · <bdi>{money(c.amount, c.currency)}</bdi> · <span data-charge-link={c.status === "PAID" ? "paid" : c.status === "WAIVED" ? "waived" : c.invoiceId ? "posted" : "waiting"}>{ui(c.status === "PAID" ? "Paid by the family" : c.status === "WAIVED" ? "Waived by the fees office" : c.invoiceId ? "Invoiced to the family" : "Waiting for the fees office")}</span></p>)}</div> : null}
           </div>
           <div className="space-y-2">
             <h3 className="font-semibold text-ink-strong">{ui("Add barcoded copies")}</h3>

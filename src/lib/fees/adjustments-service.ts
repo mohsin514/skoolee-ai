@@ -5,6 +5,7 @@ import { ApiError, canApproveFinance, canManageFinance, soleChecker } from "@/li
 import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { notifySelfApproval } from "@/lib/notifications/events";
 import { capturePaymentReceipt } from "./receipt";
+import { settleLibraryChargeForInvoice } from "@/lib/library/charge-settlement";
 
 // SKO-433: refunds, credit notes and waivers as controlled financial exceptions.
 //  - A credit note or waiver reduces what is owed on one invoice; it never moves cash.
@@ -144,6 +145,7 @@ export async function decideAdjustment(user: AuthUser, id: string, decision: "ap
       const total = invoice.totalAmount - current.amount, balance = invoice.balanceDue - current.amount;
       if (balance < 0) throw new ApiError("The adjustment is larger than what is still owed.", 409);
       await tx.invoice.update({ where: { id: invoice.id }, data: { totalAmount: total, balanceDue: balance, discountAmount: invoice.discountAmount + current.amount, status: balance === 0 ? "PAID" : invoice.totalAmountPaid > 0 ? "PARTIAL" : invoice.status === "OVERDUE" ? "OVERDUE" : "PENDING" } });
+      await settleLibraryChargeForInvoice(tx, invoice.id);
       status = "APPLIED";
     }
     const decided = await tx.financialAdjustment.update({ where: { id: current.id }, data: { status, approverId: user.userId, approverName: approver?.fullName ?? "Staff", decidedAt: new Date(), ...(status === "APPLIED" ? { executedAt: new Date() } : {}) } });
@@ -191,6 +193,7 @@ export async function recordDisbursement(user: AuthUser, id: string, outcome: "c
     if (current.invoiceAmount) {
       const paid = invoice.totalAmountPaid - current.invoiceAmount, balance = invoice.balanceDue + current.invoiceAmount;
       await tx.invoice.update({ where: { id: invoice.id }, data: { totalAmountPaid: paid, balanceDue: balance, status: balance === 0 ? "PAID" : paid > 0 ? "PARTIAL" : "PENDING" } });
+      await settleLibraryChargeForInvoice(tx, invoice.id);
     }
     if (current.creditAmount) {
       const carry = await tx.feeCarryForward.findFirst({ where: { studentId: invoice.studentId, schoolId: invoice.schoolId, balance: { lt: 0 }, currency: current.currency }, orderBy: { toAcademicYear: "desc" } });
