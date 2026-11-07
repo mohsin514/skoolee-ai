@@ -2,12 +2,13 @@ import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import { assessmentFixture } from "./assessment-fixture";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 const database = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== database || process.env.DIRECT_URL !== database) throw new Error("Use only the isolated local school AI test database.");
 const db = new PrismaClient();
 const tokens = JSON.parse(readFileSync("test-results/school-ai/local-tokens.json", "utf8")) as Record<string, string>;
 const school = "school-ai-browser-a", campusId = `${school}-campus`, subjectId = `${school}-subject`, classId = `${school}-class`;
-const signIn = (context: BrowserContext, role = "a-ADMIN") => context.addCookies([{ name: "skoolee_token", value: tokens[role], url: "http://localhost:3106", httpOnly: true, sameSite: "Lax" }]);
+const signIn = (context: BrowserContext, role = "a-ADMIN") => context.addCookies([{ name: "skoolee_token", value: tokens[role], url: SCHOOL_AI_ORIGIN, httpOnly: true, sameSite: "Lax" }]);
 async function createFixture(page: Page) {
   const fixture = assessmentFixture(subjectId, classId), suffix = crypto.randomUUID().slice(0, 8);
   const create = async (kind: string, title: string, data: unknown, approve: boolean) => {

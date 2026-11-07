@@ -11,7 +11,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 
 // Synthetic local acceptance for SKAI-54. Never run against a shared/production database.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55454" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55454 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55454") || url.pathname !== `/${process.env.QA_DB_NAME || "postgres"}`) throw Error("Only isolated local DB 55454 is allowed");
 const base = process.env.STATES_TEST_APP || "http://localhost:3154";
 const evidence = process.env.STATES_EVIDENCE_DIR || "/tmp/skai54/evidence";
 const db = new PrismaClient(), password = "SyntheticStates308!";

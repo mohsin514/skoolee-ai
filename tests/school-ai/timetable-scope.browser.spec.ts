@@ -4,10 +4,11 @@ import { PrismaClient } from "@prisma/client";
 import { SignJWT } from "jose";
 import { createHash, randomUUID } from "node:crypto";
 import { timetableScopeCopy, addPeriodCopy } from "../../src/lib/timetable/editor-copy";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated timetable browser database.");
-const db = new PrismaClient(), schoolId = `ai-scope-${randomUUID()}`, origin = "http://localhost:3106";
+const db = new PrismaClient(), schoolId = `ai-scope-${randomUUID()}`, origin = SCHOOL_AI_ORIGIN;
 let campusId = "", adminId = "", teacherId = "", classId = "", subjectOne = "", subjectTwo = "", roomId = "", roomTwo = "";
 test.beforeAll(async () => { await db.school.create({ data: { id: schoolId, name: "Synthetic timetable scope academy", slug: schoolId, regId: schoolId, city: "Test", contactEmail: `${schoolId}@example.test`, registrationKind: "GROUP", status: "ACTIVE", plan: "PRO" } }); });
 test.afterAll(async () => { await db.schoolAiExecution.deleteMany({ where: { schoolId } }); await db.school.deleteMany({ where: { id: schoolId } }); await db.$disconnect(); });

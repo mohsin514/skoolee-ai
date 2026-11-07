@@ -2,10 +2,11 @@ import { test, expect } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { SignJWT } from "jose";
 import { createHash, randomUUID } from "node:crypto";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated School AI database.");
-const db = new PrismaClient(), schoolId = `resource-qa-${randomUUID()}`, origin = "http://localhost:3106";
+const db = new PrismaClient(), schoolId = `resource-qa-${randomUUID()}`, origin = SCHOOL_AI_ORIGIN;
 let campusId: string, actorId: string, teacherId: string, classId: string, roomId: string, periodId: string, scheduleId: string;
 const date = "2026-11-11";
 test.beforeAll(async () => { await db.school.create({ data: { id: schoolId, name: "Synthetic resource QA", slug: schoolId, regId: schoolId, city: "Test", contactEmail: `${schoolId}@example.invalid`, status: "ACTIVE", plan: "PRO" } }); });

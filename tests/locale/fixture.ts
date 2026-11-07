@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 const url = process.env.DATABASE_URL || "";
 // The dedicated SKO-201 database, or the shared isolated QA database (55438/postgres) on purpose.
-if (!url.includes("127.0.0.1:55401/sko201") && !url.includes("127.0.0.1:55438/postgres")) throw new Error("Local SKO-201 database required");
+if (!url.includes(`127.0.0.1:${process.env.QA_DB_PORT || "55401"}/${process.env.QA_DB_NAME || "sko201"}`) && !url.includes("127.0.0.1:55438/postgres")) throw new Error("Local SKO-201 database required");
 const db = new PrismaClient();
 async function main() {
  await db.school.upsert({ where: { id: "locale-fixture" }, update: { registrationKind: "GROUP" }, create: { registrationKind: "GROUP", id: "locale-fixture", name: "Locale test school", slug: "locale-fixture", city: "Test", regId: "LOCAL-LOCALE", contactEmail: "locale@example.invalid", status: "ACTIVE", plan: "PRO" } });

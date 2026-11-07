@@ -9,7 +9,7 @@ import bcrypt from "bcryptjs";
 import { totp } from "../../src/lib/auth/mfa-crypto";
 import { conforms, V1 } from "../../src/lib/integrations/contract";
 
-// SKO-445 on the isolated app (started with INTEGRATION_TEST_ALLOWED_HOSTS=127.0.0.1:55463, INTEGRATION_TIMEOUT_MS=1500)
+// SKO-445 on the isolated app (started with INTEGRATION_TEST_ALLOWED_HOSTS=127.0.0.1:$QA_INTEGRATION_RECEIVER_PORT (default 55463), INTEGRATION_TIMEOUT_MS=1500)
 // and synthetic data: scoped keys never see another campus or school; keys show once, rotate with overlap and
 // revoke at once; inbound commands are idempotent; webhooks are signed with a stable event id, retried with
 // backoff to a terminal failure, never sent to internal addresses or through redirects, and replay keeps the id
@@ -29,7 +29,8 @@ const sessions = new Map<string, Awaited<ReturnType<BrowserContext["storageState
 const ids: Record<string, string> = {}, keys: Record<string, string> = {};
 let browser: Browser, receiver: ChildProcess;
 // The synthetic consumer runs in its own process (tests/integrations/receiver.mjs) and applies each event id once.
-const R = "http://127.0.0.1:55463";
+const RECEIVER_PORT = process.env.QA_INTEGRATION_RECEIVER_PORT || "55463", BLOCKED_PORT = process.env.QA_INTEGRATION_BLOCKED_PORT || "55464";
+const R = `http://127.0.0.1:${RECEIVER_PORT}`;
 const setMode = (m: "ok" | "slow" | "500" | "429" | "redirect") => fetch(`${R}/_mode?m=${m}`).then(r => r.text());
 const log = async () => (await fetch(`${R}/_log`).then(r => r.json())) as { received: { id: string; signature: string; body: string; attempt: string }[]; applied: string[] };
 
@@ -90,7 +91,7 @@ test("connections: the institution authority only, safe destinations, secrets sh
   assert.equal((await admin("owner", { action: "create", name: "Synthetic SIS", campusIds: [north], scopes: ["roster.read"], topics: ["student.updated"], webhookUrl: "https://u:p@example.org/hook" })).status, 400, "no credentials in the URL");
   assert.equal((await admin("owner", { action: "create", name: "Synthetic SIS", campusIds: [north], scopes: ["admin.all"] })).status, 400, "only defined scopes");
   assert.equal((await admin("owner", { action: "create", name: "Synthetic SIS", campusIds: [otherCampus], scopes: ["roster.read"] })).status, 400, "never another school's campus");
-  const c = await admin("owner", { action: "create", name: "Synthetic North SIS", campusIds: [north], scopes: ["roster.read", "roster.write"], topics: ["student.updated", "connection.test"], webhookUrl: "http://127.0.0.1:55463/hook" });
+  const c = await admin("owner", { action: "create", name: "Synthetic North SIS", campusIds: [north], scopes: ["roster.read", "roster.write"], topics: ["student.updated", "connection.test"], webhookUrl: `${R}/hook` });
   assert.equal(c.status, 201, c.body);
   ids.conn = c.json.data.id; keys.k1 = c.json.data.apiKey; keys.sign1 = c.json.data.signingSecret;
   assert.match(keys.k1, /^skc_[0-9a-f]{12}\.[A-Za-z0-9_-]{30,}$/); assert.match(keys.sign1, /^whsec_/);
@@ -203,13 +204,13 @@ test("retries back off, honour Retry-After, end in a terminal failure; private d
   assert.equal(red.status, "BLOCKED");
   assert.equal((await db.integrationDeliveryAttempt.findFirstOrThrow({ where: { deliveryId: red.id } })).outcome, "REDIRECT_REFUSED");
   // Destination changed to internal addresses: refused at send time, even when the URL looks fine.
-  for (const target of ["https://10.0.0.5/hook", "https://169.254.169.254/latest", "https://localhost:55463/hook"]) {
+  for (const target of ["https://10.0.0.5/hook", "https://169.254.169.254/latest", `https://localhost:${RECEIVER_PORT}/hook`]) {
     assert.equal((await admin("owner", { action: "webhook", id: ids.conn, webhookUrl: target })).status, 200);
     const t = await admin("owner", { action: "test", id: ids.conn });
     assert.equal(t.json.data.ok, false, target);
     assert.match(t.json.data.reason, /internal or private address/);
   }
-  assert.equal((await admin("owner", { action: "webhook", id: ids.conn, webhookUrl: "http://127.0.0.1:55464/hook" })).status, 400, "plain HTTP only to the allowed test host");
+  assert.equal((await admin("owner", { action: "webhook", id: ids.conn, webhookUrl: `http://127.0.0.1:${BLOCKED_PORT}/hook` })).status, 400, "plain HTTP only to the allowed test host");
   // A queued delivery whose destination changed to a private address is blocked when it is sent.
   await db.integrationDelivery.update({ where: { id: limited.id }, data: { nextAttemptAt: new Date(Date.now() - 1000) } });
   await db.integrationConnection.update({ where: { id: ids.conn }, data: { webhookUrl: "https://10.0.0.5/hook" } });
@@ -217,7 +218,7 @@ test("retries back off, honour Retry-After, end in a terminal failure; private d
   const blocked = await db.integrationDelivery.findUniqueOrThrow({ where: { id: limited.id } });
   assert.match(blocked.lastError ?? "", /internal or private address/);
   assert.equal(blocked.status, "BLOCKED");
-  assert.equal((await admin("owner", { action: "webhook", id: ids.conn, webhookUrl: "http://127.0.0.1:55463/hook" })).status, 200);
+  assert.equal((await admin("owner", { action: "webhook", id: ids.conn, webhookUrl: `${R}/hook` })).status, 200);
   await setMode("ok");
 });
 

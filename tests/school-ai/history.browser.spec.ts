@@ -5,10 +5,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { schoolAICopy } from "../../src/lib/school-ai/copy";
 import { revisionCopy } from "../../src/lib/school-ai/revision-copy";
 import type { AiWorkspaceRecord, WorkspaceKind } from "../../src/lib/school-ai/types";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const localDatabase = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== localDatabase || process.env.DIRECT_URL !== localDatabase) throw new Error("Use only the isolated School AI test database.");
-const db = new PrismaClient(), origin = "http://localhost:3106";
+const db = new PrismaClient(), origin = SCHOOL_AI_ORIGIN;
 const schoolId = `ai-history-${randomUUID()}`, campusId = `${schoolId}-a`, otherCampusId = `${schoolId}-b`;
 const adminId = `${schoolId}-admin`, teacherId = `${schoolId}-teacher`, unrelatedId = `${schoolId}-unrelated`, studentId = `${schoolId}-student`, otherAdminId = `${schoolId}-other-admin`;
 const classId = `${schoolId}-class`, subjectId = `${schoolId}-math`, otherSubjectId = `${schoolId}-science`;

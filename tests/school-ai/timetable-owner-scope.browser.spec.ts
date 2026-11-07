@@ -2,11 +2,12 @@ import { test, expect, type BrowserContext } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { SignJWT } from "jose";
 import { createHash, randomUUID } from "node:crypto";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated timetable owner-scope database.");
 const db = new PrismaClient(), schoolId = `timetable-owner-${randomUUID()}`, foreignSchool = `timetable-foreign-${randomUUID()}`;
-const origin = "http://localhost:3106", headers = { Origin: origin };
+const origin = SCHOOL_AI_ORIGIN, headers = { Origin: origin };
 const alpha = randomUUID(), beta = randomUUID(), foreignCampus = randomUUID(), owner = randomUUID(), manager = randomUUID(), teacher = randomUUID();
 const classA = randomUUID(), classB = randomUUID(), foreignClass = randomUUID(), foreignBoard = randomUUID(), subject = randomUUID(), room = randomUUID();
 const tokens: Record<string, string> = {};

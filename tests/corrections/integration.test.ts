@@ -17,11 +17,12 @@ import { runWithTenantContext } from "../../src/lib/db/tenant-context";
 import { prisma } from "../../src/lib/db/prisma";
 import { recordPayment } from "../../src/lib/fees/payment";
 import { reviewQueue, approveVersions, reviewExam, publishExam } from "../../src/lib/academic/report-versions";
+const CORRECTIONS_APP = (process.env.CORRECTIONS_TEST_APP || "http://127.0.0.1:3213").replace(/\/+$/, "");
 const url = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55413" || url.pathname !== "/sko213")
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55413") || url.pathname !== `/${process.env.QA_DB_NAME || "sko213"}`)
     throw new Error("Use only isolated sko213 on 127.0.0.1:55413");
 const raw = new PrismaClient();
-const base = "http://127.0.0.1:3213";
+const base = CORRECTIONS_APP;
 const schoolId = randomUUID(), campusId = randomUUID(), classId = randomUUID(), studentId = randomUUID(), subjectId = randomUUID(), examId = randomUUID(), reportId = randomUUID();
 const users: Record<string, string> = {}, cookies: Record<string, string> = {}, payments: Record<string, string> = {};
 let markId = "", publishedId = "";

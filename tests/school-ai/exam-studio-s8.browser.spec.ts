@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { resetDemoTenant, DEMO_SCHOOL_ID } from "../../scripts/demo/reset-demo-tenant";
 import { seedLeapArc } from "../../scripts/demo/seed-leap-arc";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 /**
  * SKO-507: the LEAP five-minute arc (plan §10, docs/leap/demo-runbook.md §6) rehearsed twice from a fresh reset in
@@ -16,7 +17,7 @@ const url = process.env.DATABASE_URL ?? "";
 if (!/^postgres(ql)?:\/\/[^@]*@(127\.0\.0\.1|localhost):/.test(url)) throw new Error("Use only a loopback database for this suite.");
 const password = process.env.DEMO_PASSWORD ?? "";
 const shots = process.env.SKO507_SHOTS;
-const origin = process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106";
+const origin = process.env.SCHOOL_AI_TEST_ORIGIN || SCHOOL_AI_ORIGIN;
 const db = new PrismaClient();
 const headers = { Origin: origin };
 test.describe.configure({ mode: "serial" });

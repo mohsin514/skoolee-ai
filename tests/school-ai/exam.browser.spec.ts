@@ -1,9 +1,10 @@
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import { readFileSync } from "node:fs";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const fixture = JSON.parse(readFileSync("test-results/school-ai/exam-fixture.json", "utf8")) as { examId: string; paperId: string; curriculumId: string };
 const tokens = JSON.parse(readFileSync("test-results/school-ai/local-tokens.json", "utf8")) as Record<string, string>;
-const authenticate = (context: BrowserContext, role = "a-STUDENT") => context.addCookies([{ name: "skoolee_token", value: tokens[role], url: "http://localhost:3106", httpOnly: true, sameSite: "Lax" }]);
+const authenticate = (context: BrowserContext, role = "a-STUDENT") => context.addCookies([{ name: "skoolee_token", value: tokens[role], url: SCHOOL_AI_ORIGIN, httpOnly: true, sameSite: "Lax" }]);
 const readiness = async (page: Page) => {
   await page.getByRole("button", { name: "Check readiness", exact: true }).click();
   await expect(page.getByText("Connected to the exam server", { exact: true })).toBeVisible();

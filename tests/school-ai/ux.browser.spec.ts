@@ -1,9 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 test.beforeEach(async ({ context }) => {
   const tokens = JSON.parse(await readFile("test-results/school-ai/local-tokens.json", "utf8"));
-  await context.addCookies([{ name: "skoolee_token", value: tokens["b-ADMIN"], url: "http://localhost:3106", httpOnly: true, sameSite: "Lax" }]);
+  await context.addCookies([{ name: "skoolee_token", value: tokens["b-ADMIN"], url: SCHOOL_AI_ORIGIN, httpOnly: true, sameSite: "Lax" }]);
 });
 
 test("switching workspace tabs protects an unsaved source draft", async ({ page }) => {
@@ -42,7 +43,7 @@ test("denied microphone permission preserves the typed draft and provides a usab
 
 test("a scanned image loads from the authenticated original route into the review viewer", async ({ page }) => {
   await page.goto("/ai");
-  const response = await page.request.post("/api/school-ai/intake", { headers: { Origin: "http://localhost:3106" }, multipart: {
+  const response = await page.request.post("/api/school-ai/intake", { headers: { Origin: SCHOOL_AI_ORIGIN }, multipart: {
     file: { name: "Synthetic scan.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1cAAAAASUVORK5CYII=", "base64") },
     documentKind: "syllabus", language: "en", campusId: "school-ai-browser-b-campus", origin: "camera",
   } });
@@ -73,7 +74,7 @@ test("a manual planning brief can gain real steps and reach reviewed approval", 
 test("closing an unchanged approved setup preserves its approval and version", async ({ page }) => {
   await page.goto("/ai");
   const answers = { schoolName: "Synthetic approved setup", country: "Pakistan", timezone: "Asia/Karachi", campuses: "Learning campus", grades: "Grade 8", academicYear: "2026", startDate: "2026-01-01", endDate: "2026-12-31", workingDays: "Monday to Friday", firstOutcome: "exams", curriculum: "Approved synthetic syllabus", assessmentPolicy: "Teacher review before publication", communications: "Review updates before sending" };
-  const created = await page.request.post("/api/school-ai/workspace", { headers: { Origin: "http://localhost:3106" }, data: { kind: "ONBOARDING", title: "Synthetic approved setup", campusId: "school-ai-browser-b-campus", idempotencyKey: crypto.randomUUID(), data: { path: "new", answers, confirmedKeys: Object.keys(answers), step: "review", currentQuestion: "communications" } } });
+  const created = await page.request.post("/api/school-ai/workspace", { headers: { Origin: SCHOOL_AI_ORIGIN }, data: { kind: "ONBOARDING", title: "Synthetic approved setup", campusId: "school-ai-browser-b-campus", idempotencyKey: crypto.randomUUID(), data: { path: "new", answers, confirmedKeys: Object.keys(answers), step: "review", currentQuestion: "communications" } } });
   expect(created.ok(), await created.text()).toBeTruthy();
   const { record } = await created.json();
   await page.reload();

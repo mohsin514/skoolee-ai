@@ -1,11 +1,12 @@
 import { PrismaClient } from "@prisma/client";
 import { SignJWT } from "jose";
 import assert from "node:assert/strict";
+const LOCALE_APP = (process.env.LOCALE_TEST_APP || "http://localhost:3201").replace(/\/+$/, "");
 async function main() {
- if (!process.env.DATABASE_URL?.includes("127.0.0.1:55401/sko201")) throw new Error("Local database required");
+ if (!process.env.DATABASE_URL?.includes(`127.0.0.1:${process.env.QA_DB_PORT || "55401"}/${process.env.QA_DB_NAME || "sko201"}`)) throw new Error("Local database required");
  const db = new PrismaClient(); const prefix = "locale-bank-identity";
  const token = await new SignJWT({ userId: "locale-ACCOUNTANT", schoolId: "locale-fixture", campusId: "locale-campus-a", role: "ACCOUNTANT", accessVersion: 0, schoolStatus: "ACTIVE", onboardingComplete: true }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("1h").sign(new TextEncoder().encode("local-sko201-fixture"));
- const request = async (path: string, method: string, body: object) => { const response = await fetch(`http://localhost:3201/api/accounts/${path}`, { method, headers: { Cookie: `skoolee_token=${token}`, "Content-Type": "application/json" }, body: JSON.stringify(body) }); return { status: response.status, json: await response.json() }; };
+ const request = async (path: string, method: string, body: object) => { const response = await fetch(`${LOCALE_APP}/api/accounts/${path}`, { method, headers: { Cookie: `skoolee_token=${token}`, "Content-Type": "application/json" }, body: JSON.stringify(body) }); return { status: response.status, json: await response.json() }; };
  try {
   const account = await db.chartOfAccount.create({ data: { schoolId: "locale-fixture", campusId: "locale-campus-a", name: prefix, type: "INCOME" } });
   const created = await request("bank-accounts", "POST", { name: prefix, currency: "KWD", openingBalance: 1234567 });

@@ -1,6 +1,7 @@
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const localDatabase = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== localDatabase || process.env.DIRECT_URL !== localDatabase) throw new Error("Use only the isolated School AI test database.");
@@ -8,7 +9,7 @@ const db = new PrismaClient();
 const school = "school-ai-browser-a";
 async function signIn(context: BrowserContext, role = "ADMIN", suffix = "a") {
   const tokens = JSON.parse(await readFile("test-results/school-ai/local-tokens.json", "utf8"));
-  await context.addCookies([{ name: "skoolee_token", value: tokens[`${suffix}-${role}`], url: "http://localhost:3106", httpOnly: true, sameSite: "Lax" }]);
+  await context.addCookies([{ name: "skoolee_token", value: tokens[`${suffix}-${role}`], url: SCHOOL_AI_ORIGIN, httpOnly: true, sameSite: "Lax" }]);
 }
 async function overview(page: Page) {
   await page.goto("/ai");
@@ -81,7 +82,7 @@ test("Arabic and Urdu layouts fit mobile and retain real translated controls", a
 
 test("real upload is private, replay-safe, scoped and remains pending review", async ({ page, browser }) => {
   await overview(page);
-  const upload = () => page.request.post("/api/school-ai/intake", { headers: { Origin: "http://localhost:3106" }, multipart: { file: { name: "Synthetic curriculum.txt", mimeType: "text/plain", buffer: Buffer.from("Integers: compare positive and negative numbers.") }, documentKind: "syllabus", language: "en", campusId: `${school}-campus`, origin: "upload" } });
+  const upload = () => page.request.post("/api/school-ai/intake", { headers: { Origin: SCHOOL_AI_ORIGIN }, multipart: { file: { name: "Synthetic curriculum.txt", mimeType: "text/plain", buffer: Buffer.from("Integers: compare positive and negative numbers.") }, documentKind: "syllabus", language: "en", campusId: `${school}-campus`, origin: "upload" } });
   const response = await upload();
   expect(response.ok(), await response.text()).toBeTruthy();
   const { record } = await response.json();
@@ -90,7 +91,7 @@ test("real upload is private, replay-safe, scoped and remains pending review", a
   const original = await page.request.get(`/api/school-ai/sources/${record.id}/file`);
   expect(original.ok()).toBeTruthy(); expect(original.headers()["content-disposition"]).toContain("attachment;");
   expect(await original.text()).toBe("Integers: compare positive and negative numbers.");
-  const other = await browser.newContext({ baseURL: "http://localhost:3106" });
+  const other = await browser.newContext({ baseURL: SCHOOL_AI_ORIGIN });
   await signIn(other, "ADMIN", "b");
   expect((await other.request.get(`/api/school-ai/sources/${record.id}/file`)).status()).toBe(404);
   await other.close();
