@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { SignJWT } from "jose";
 import { createHash, randomUUID } from "node:crypto";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
@@ -25,7 +26,7 @@ test.beforeEach(async ({ context }) => {
   await db.examInvigilation.create({ data: { schoolId, campusId, examRoomId: room.id, teacherId, createdById: actorId } });
   const student = await db.student.create({ data: { schoolId, campusId, classId, fullName: "Synthetic pupil", rollNo: "1", gender: "MALE", enrollmentDate: new Date("2026-01-01") } });
   await db.examSeat.create({ data: { schoolId, campusId, examScheduleId: scheduleId, examRoomId: room.id, studentId: student.id, seatNumber: 1, rowNo: 1, benchNo: 1, seatOnBench: 1 } });
-  const token = await new SignJWT({ userId: actorId, schoolId, campusId, role: "ADMIN", email: `${actorId}@example.invalid`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  const token = await new SignJWT({ userId: actorId, schoolId, campusId, role: "ADMIN", email: `${actorId}@example.invalid`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
   await db.loginSession.create({ data: { userId: actorId, schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
   await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]);
 });

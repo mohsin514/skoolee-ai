@@ -41,6 +41,8 @@ before(async () => {
     { id: subjects[1], schoolId, campusId, name: "Science", totalMarks: 100 },
   ] } } });
   await db.class.create({ data: { id: foreignClassId, schoolId, campusId: otherCampusId, name: "Grade 6", section: "B", academicYear: 2026, subjects: { create: [{ id: foreignSubjectId, schoolId, campusId: otherCampusId, name: "Mathematics", totalMarks: 100 }] } } });
+  // SKAI-117: terms activate only inside the campus academic year, so the fixture creates that year.
+  await db.academicCycle.create({ data: { schoolId, campusId, label: "Synthetic 2026", academicYear: 2026, status: "ACTIVE", startDate: new Date("2026-01-01"), endDate: new Date("2026-12-31") } });
   for (const role of ["SUPER_ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "TEACHER", "STUDENT"]) {
     const userId = randomUUID();
     const email = `${userId}@example.invalid`;

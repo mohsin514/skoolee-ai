@@ -9,6 +9,7 @@ import { beginSchoolAiRequest, completeSchoolAiRequest } from "../../src/lib/sch
 import { schoolAiTransaction } from "../../src/lib/school-ai/transaction";
 import { resolveAssistantCatalog } from "../../src/lib/school-ai/assistant-catalog-service";
 import type { AuthUser } from "../../src/lib/auth";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use isolated catalog fixtures only.");
@@ -16,7 +17,7 @@ process.env.EMAIL_DEV_MODE = "true"; process.env.DISABLE_OUTBOUND_MESSAGES = "tr
 const db = new PrismaClient(), schoolId = `catalog-browser-${randomUUID()}`;
 let campusId = "", classId = "", user: AuthUser;
 async function login(context: BrowserContext) {
-  const token = await new SignJWT({ ...user, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  const token = await new SignJWT({ ...user, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
   await db.loginSession.create({ data: { schoolId, userId: user.userId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
   await context.addCookies([{ name: "skoolee_token", value: token, url: SCHOOL_AI_ORIGIN, httpOnly: true, sameSite: "Lax" }]);
 }

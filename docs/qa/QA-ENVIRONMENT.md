@@ -37,3 +37,8 @@ DATABASE_URL=postgresql://$USER@127.0.0.1:55436/postgres node --import tsx --tes
 
 Suites with their own `*_TEST_APP` default (3106/3107/3108 and others) still need that variable set when the app is
 not on the default port; moving them to `qaAppUrl()` is follow-up work.
+
+## Lane notes (SKAI-1797)
+
+- School-AI browser specs sign their own session tokens with `QA_AUTH_SECRET` (default: the fixed CI test secret). Against a lane app, set `QA_AUTH_SECRET="$AUTH_SECRET"` after `eval "$(qa.sh env f)"`, and point `SCHOOL_AI_TEST_ORIGIN` at that app.
+- `tests/assignments/assignments.browser.test.ts` uploads to its own fake S3 on `127.0.0.1:55442`. Lane apps start without S3, so upload and feedback time out there. Start the app with `S3_ENDPOINT=http://127.0.0.1:55442 S3_BUCKET_NAME=synthetic-only S3_REGION=us-east-1 S3_ACCESS_KEY_ID=synthetic S3_SECRET_ACCESS_KEY=synthetic`, and the suite passes 6/6.
