@@ -215,10 +215,10 @@ async function approvedImportCurriculum(label: string, outcomeTitle = `Outcome $
 
 test("real curriculum tool imports missing syllabus topics and records one durable receipt and audit", async () => {
   const record = await approvedImportCurriculum("Import a real topic");
-  const preview = await previewSchoolAiExecution(admin, record.id, "curriculum.import_topics", record.version);
+  const preview = await previewSchoolAiExecution(principal, record.id, "curriculum.import_topics", record.version);
   assert.equal(preview.willCreate.length, 1);
   const request = { operation: "curriculum.import_topics" as const, version: record.version, previewHash: preview.previewHash, idempotencyKey: randomUUID() };
-  const result = await executeSchoolAiTool(admin, record.id, request);
+  const result = await executeSchoolAiTool(principal, record.id, request);
   assert.equal(result.createdCount, 1);
   assert.equal(result.keptCount, 0);
   assert.equal(result.status, "COMPLETED");
@@ -227,11 +227,11 @@ test("real curriculum tool imports missing syllabus topics and records one durab
   assert.equal(topic.schoolId, schoolId);
   assert.equal(topic.status, "NOT_STARTED");
   assert(topic.description?.includes(`version ${record.version}`));
-  assert.equal((await listSchoolAiExecutions(admin, record.id)).length, 1);
+  assert.equal((await listSchoolAiExecutions(principal, record.id)).length, 1);
   assert.equal((await raw.auditLog.findMany({ where: { recordId: result.id } })).length, 1);
-  const replay = await executeSchoolAiTool(admin, record.id, request);
+  const replay = await executeSchoolAiTool(principal, record.id, request);
   assert.equal(replay.id, result.id);
-  const secondKey = await executeSchoolAiTool(admin, record.id, { ...request, idempotencyKey: randomUUID() });
+  const secondKey = await executeSchoolAiTool(principal, record.id, { ...request, idempotencyKey: randomUUID() });
   assert.equal(secondKey.id, result.id);
   assert.equal((await raw.syllabusTopic.count({ where: { id: { in: result.topicIds } } })), 1);
 });
@@ -240,10 +240,10 @@ test("existing manually edited syllabus topic and progress are preserved", async
   const title = `Preserved ${randomUUID()}`;
   const manual = await raw.syllabusTopic.create({ data: { schoolId, subjectId, title: `  ${title.toUpperCase()}  `, description: "Teacher's original explanation", order: 42, status: "COMPLETED", completedAt: new Date("2026-10-01") } });
   const record = await approvedImportCurriculum("Keep manual teaching records", title);
-  const preview = await previewSchoolAiExecution(admin, record.id, "curriculum.import_topics", record.version);
+  const preview = await previewSchoolAiExecution(principal, record.id, "curriculum.import_topics", record.version);
   assert.equal(preview.willCreate.length, 0);
   assert.equal(preview.willKeep[0].topicId, manual.id);
-  const result = await executeSchoolAiTool(admin, record.id, { operation: "curriculum.import_topics", version: record.version, previewHash: preview.previewHash, idempotencyKey: randomUUID() });
+  const result = await executeSchoolAiTool(principal, record.id, { operation: "curriculum.import_topics", version: record.version, previewHash: preview.previewHash, idempotencyKey: randomUUID() });
   assert.equal(result.createdCount, 0);
   assert.equal(result.keptCount, 1);
   assert.deepEqual(await raw.syllabusTopic.findUnique({ where: { id: manual.id } }), manual);
@@ -251,18 +251,18 @@ test("existing manually edited syllabus topic and progress are preserved", async
 
 test("concurrent tool retries produce one set of real topics and the same durable execution", async () => {
   const record = await approvedImportCurriculum("Concurrent topic import");
-  const preview = await previewSchoolAiExecution(admin, record.id, "curriculum.import_topics", record.version);
+  const preview = await previewSchoolAiExecution(principal, record.id, "curriculum.import_topics", record.version);
   const request = { operation: "curriculum.import_topics" as const, version: record.version, previewHash: preview.previewHash, idempotencyKey: randomUUID() };
-  const [a, b] = await Promise.all([executeSchoolAiTool(admin, record.id, request), executeSchoolAiTool(admin, record.id, request)]);
+  const [a, b] = await Promise.all([executeSchoolAiTool(principal, record.id, request), executeSchoolAiTool(principal, record.id, request)]);
   assert.equal(a.id, b.id);
   assert.equal(await raw.syllabusTopic.count({ where: { schoolId, subjectId, title: preview.willCreate[0].title } }), 1);
 });
 
 test("changed syllabus preview blocks execution without creating topics or receipts", async () => {
   const record = await approvedImportCurriculum("Detect changed existing syllabus");
-  const preview = await previewSchoolAiExecution(admin, record.id, "curriculum.import_topics", record.version);
+  const preview = await previewSchoolAiExecution(principal, record.id, "curriculum.import_topics", record.version);
   await raw.syllabusTopic.create({ data: { schoolId, subjectId, title: `Concurrent manual topic ${randomUUID()}` } });
-  await assert.rejects(() => executeSchoolAiTool(admin, record.id, { operation: "curriculum.import_topics", version: record.version, previewHash: preview.previewHash, idempotencyKey: randomUUID() }), { status: 409 });
+  await assert.rejects(() => executeSchoolAiTool(principal, record.id, { operation: "curriculum.import_topics", version: record.version, previewHash: preview.previewHash, idempotencyKey: randomUUID() }), { status: 409 });
   assert.equal(await raw.syllabusTopic.count({ where: { schoolId, title: preview.willCreate[0].title } }), 0);
   assert.equal(await raw.schoolAiExecution.count({ where: { schoolId, recordId: record.id } }), 0);
 });
@@ -270,21 +270,23 @@ test("changed syllabus preview blocks execution without creating topics or recei
 test("tool rejects draft or changed curriculum, unauthorized roles, and another campus", async () => {
   const record = await approvedImportCurriculum("Authorization for real imports");
   await assert.rejects(() => previewSchoolAiExecution(teacher, record.id, "curriculum.import_topics", record.version), { status: 403 });
+  // Academic tools are run by the principal (role-ux); the campus admin is refused with the principal named.
+  await assert.rejects(() => previewSchoolAiExecution(admin, record.id, "curriculum.import_topics", record.version), { status: 403, message: "Your principal runs this academic tool." });
   await assert.rejects(() => previewSchoolAiExecution(foreignAdmin, record.id, "curriculum.import_topics", record.version), { status: 404 });
-  await assert.rejects(() => previewSchoolAiExecution({ ...admin, campusId: otherCampusId }, record.id, "curriculum.import_topics", record.version), { status: 404 });
-  const preview = await previewSchoolAiExecution(admin, record.id, "curriculum.import_topics", record.version);
+  await assert.rejects(() => previewSchoolAiExecution({ ...principal, campusId: otherCampusId }, record.id, "curriculum.import_topics", record.version), { status: 404 });
+  const preview = await previewSchoolAiExecution(principal, record.id, "curriculum.import_topics", record.version);
   await updateWorkspaceRecord(admin, record.id, { version: record.version, title: "Changed after approval" });
-  await assert.rejects(() => executeSchoolAiTool(admin, record.id, { operation: "curriculum.import_topics", version: record.version, previewHash: preview.previewHash, idempotencyKey: randomUUID() }), { status: 409 });
+  await assert.rejects(() => executeSchoolAiTool(principal, record.id, { operation: "curriculum.import_topics", version: record.version, previewHash: preview.previewHash, idempotencyKey: randomUUID() }), { status: 409 });
 });
 
 test("execution key cannot be reused to apply a different approved artifact", async () => {
   const first = await approvedImportCurriculum("First effect");
-  const firstPreview = await previewSchoolAiExecution(admin, first.id, "curriculum.import_topics", first.version);
+  const firstPreview = await previewSchoolAiExecution(principal, first.id, "curriculum.import_topics", first.version);
   const key = randomUUID();
-  await executeSchoolAiTool(admin, first.id, { operation: "curriculum.import_topics", version: first.version, previewHash: firstPreview.previewHash, idempotencyKey: key });
+  await executeSchoolAiTool(principal, first.id, { operation: "curriculum.import_topics", version: first.version, previewHash: firstPreview.previewHash, idempotencyKey: key });
   const second = await approvedImportCurriculum("Second effect");
-  const secondPreview = await previewSchoolAiExecution(admin, second.id, "curriculum.import_topics", second.version);
-  await assert.rejects(() => executeSchoolAiTool(admin, second.id, { operation: "curriculum.import_topics", version: second.version, previewHash: secondPreview.previewHash, idempotencyKey: key }), { status: 409 });
+  const secondPreview = await previewSchoolAiExecution(principal, second.id, "curriculum.import_topics", second.version);
+  await assert.rejects(() => executeSchoolAiTool(principal, second.id, { operation: "curriculum.import_topics", version: second.version, previewHash: secondPreview.previewHash, idempotencyKey: key }), { status: 409 });
   assert.equal(await raw.schoolAiExecution.count({ where: { schoolId, recordId: second.id } }), 0);
 });
 
