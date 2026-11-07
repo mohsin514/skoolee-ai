@@ -35,6 +35,7 @@ export const navigationUiEntries: readonly (readonly [string, string, string])[]
   ["Enter marks", "إدخال الدرجات", "نمبر درج کریں"],
   ["Class roster", "قائمة طلاب الصف", "جماعت کے طلبہ کی فہرست"],
   ["No roll", "بلا رقم طالب", "رول نمبر موجود نہیں"],
+  ["Conversations", "المحادثات", "گفتگو"],
 ];
 export const arabicNavigationUi: Record<string, string> = Object.fromEntries(navigationUiEntries.map(([key, ar]) => [key, ar]));
 export const urduNavigationUi: Record<string, string> = Object.fromEntries(navigationUiEntries.map(([key, , ur]) => [key, ur]));

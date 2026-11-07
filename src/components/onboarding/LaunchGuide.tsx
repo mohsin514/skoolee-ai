@@ -97,7 +97,7 @@ export function LaunchGuide({ context, onFinish, onDismiss }: { context: LaunchC
       </header>
       <div className={styles.body}>
         <GuideStage chapter={chapter} language={context.language} paused={paused} role={stageRole} journey={context.journey} />
-        <div className={styles.content} ref={content} data-guide-scroll>
+        <div className={styles.content} ref={content} data-guide-scroll tabIndex={0}>
           <p className={styles.eyebrow}><span className={styles.liveDot} aria-hidden="true" />{c.eyebrow} · 0{chapter + 1}</p>
           <InkHeading className={styles.title} ref={heading} tabIndex={-1} swashKey={chapter} text={chapter === 0 ? personal.title : chapter === 1 ? institutionSetup ? c.journey("institution") : personal.preparationTitle : personal.chooseTitle} />
           <div className={styles.context}>

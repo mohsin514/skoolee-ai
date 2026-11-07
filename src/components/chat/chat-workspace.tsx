@@ -49,7 +49,7 @@ export function ChatWorkspace({ layout = "split", className }: ChatWorkspaceProp
       {/* Below md there is only room for one pane, so an open thread takes the
           screen and the list steps aside. The docked panel is stacked at every
           width for the same reason. */}
-      <aside
+      <aside aria-label={ui("Conversations")}
         className={cn(
           "min-h-0 w-full shrink-0 border-e border-border bg-card",
           stacked
