@@ -792,6 +792,23 @@ const entries: [string, string, string][] = [
   ["That's every concern you recorded.", "هذه كل المخاوف التي سجّلتها.", "یہ آپ کے درج کردہ تمام خدشات ہیں۔"],
   ["Showing {0} of {1} open items", "عرض {0} من {1} من الأعمال المفتوحة", "{1} میں سے {0} کھلے کام دکھائے جا رہے ہیں"],
   ["See all work", "عرض كل الأعمال", "تمام کام دیکھیں"],
+  ["Posted payroll expenses", "مصروفات الرواتب المرحّلة", "پوسٹ شدہ تنخواہ کے اخراجات"],
+  ["Payroll month", "شهر الرواتب", "تنخواہ کا مہینہ"],
+  ["No posted payroll expenses for this month.", "لا توجد مصروفات رواتب مرحّلة لهذا الشهر.", "اس مہینے کے لیے کوئی پوسٹ شدہ تنخواہ کا خرچ نہیں۔"],
+  ["Reverse posted payroll expense", "عكس مصروف الرواتب المرحّل", "پوسٹ شدہ تنخواہ کا خرچ واپس کریں"],
+  ["This posts an opposite, linked ledger entry and marks the line reversed. The original entry is kept.", "يُرحَّل قيد معاكس مرتبط ويُعلَّم السطر بأنه معكوس. يبقى القيد الأصلي محفوظًا.", "اس سے ایک مخالف، منسلک لیجر اندراج پوسٹ ہوتا ہے اور لائن واپس شدہ نشان زد ہوتی ہے۔ اصل اندراج برقرار رہتا ہے۔"],
+  ["Reverse expense", "عكس المصروف", "خرچ واپس کریں"],
+  ["Reason for the reversal", "سبب العكس", "واپسی کی وجہ"],
+  ["Payroll expense reversed. An opposite ledger entry was posted.", "عُكس مصروف الرواتب. رُحِّل قيد معاكس.", "تنخواہ کا خرچ واپس ہو گیا۔ ایک مخالف لیجر اندراج پوسٹ ہوا۔"],
+  ["The reversal could not be posted. Try again.", "تعذّر ترحيل العكس. حاول مرة أخرى.", "واپسی پوسٹ نہیں ہو سکی۔ دوبارہ کوشش کریں۔"],
+  ["Library charges handed to fees", "رسوم المكتبة المحالة إلى الرسوم", "فیس آفس کو دیے گئے لائبریری چارجز"],
+  ["No library charges are waiting.", "لا توجد رسوم مكتبة بالانتظار.", "کوئی لائبریری چارج منتظر نہیں۔"],
+  ["Return to library", "إعادة إلى المكتبة", "لائبریری کو واپس کریں"],
+  ["The charge goes back to the lending desk with your reason.", "تعود الرسوم إلى مكتب الإعارة مع سببك.", "چارج آپ کی وجہ کے ساتھ لینڈنگ ڈیسک کو واپس جاتا ہے۔"],
+  ["Why it goes back", "سبب الإعادة", "واپسی کی وجہ"],
+  ["Charge accepted. A fee invoice was posted to the family.", "قُبلت الرسوم. أُصدرت فاتورة رسوم للأسرة.", "چارج قبول ہو گیا۔ خاندان کو فیس انوائس جاری ہوئی۔"],
+  ["Charge returned to the library.", "أُعيدت الرسوم إلى المكتبة.", "چارج لائبریری کو واپس ہو گیا۔"],
+  ["The charge could not be updated. Try again.", "تعذّر تحديث الرسوم. حاول مرة أخرى.", "چارج اپ ڈیٹ نہیں ہو سکا۔ دوبارہ کوشش کریں۔"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));
