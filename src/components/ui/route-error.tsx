@@ -11,7 +11,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useDocumentLocale } from "@/hooks/use-document-locale";
-import { translateUi } from "@/lib/locale/ui-messages";
+import { translateUi } from "@/lib/locale/ui-translate";
 import { buttonVariants } from "./button";
 import { ErrorState } from "./error-state";
 import { cn } from "@/lib/utils";

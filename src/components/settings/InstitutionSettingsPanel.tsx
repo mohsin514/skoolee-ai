@@ -50,7 +50,7 @@ import {
   type InstitutionHistoryEntry,
   type InstitutionSettings,
 } from "@/app/actions/settings";
-import { resolveMediaUrl } from "@/lib/storage/s3";
+import { resolveMediaUrl } from "@/lib/storage/media-url";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { phoneProblem } from "@/lib/school/details";
 import { BRAND_PALETTE } from "@/lib/school/branding";

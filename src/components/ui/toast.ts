@@ -9,7 +9,7 @@
  */
 
 import { toast as sonner, type ExternalToast } from "sonner";
-import { translateUi } from "@/lib/locale/ui-messages";
+import { translateUi } from "@/lib/locale/ui-translate";
 
 type Message = Parameters<typeof sonner.error>[0];
 

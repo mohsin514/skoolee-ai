@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { resolveMediaUrl } from "@/lib/storage/s3";
+import { resolveMediaUrl } from "@/lib/storage/media-url";
 
 interface AvatarImageProps {
   src?: string | null;

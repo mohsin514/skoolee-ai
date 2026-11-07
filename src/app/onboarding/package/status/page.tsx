@@ -11,7 +11,7 @@ import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { Activity, Banknote, CalendarClock, Clock, CreditCard, Hash, Landmark, Package, ReceiptText, RefreshCw, Wallet, type LucideIcon } from "lucide-react";
-import { translateUi } from "@/lib/locale/ui-messages";
+import { translateUi } from "@/lib/locale/ui-translate";
 import { getPackageCopy } from "../copy";
 import { formatPackageAmount, packageStatus, type SchoolLifecycle } from "@/lib/billing/package-status";
 

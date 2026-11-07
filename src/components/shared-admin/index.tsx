@@ -86,7 +86,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader, type PageAction } from "@/components/ui/page-header";
 import { ViewTabs } from "@/components/ui/view-tabs";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
-import { translateUi } from "@/lib/locale/ui-messages";
+import { translateUi } from "@/lib/locale/ui-translate";
 import { AiActionPanel, AIReviewQueue, BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { CornerSparkles } from "@/components/CornerSparkles";
@@ -104,7 +104,7 @@ export { TeacherConflictsBanner } from "@/components/shared-admin/teacher-confli
 export { StudentsPanel } from "@/components/shared-admin/students-panel";
 import { SubjectSyllabus } from "@/components/shared-admin/subject-syllabus";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { resolveMediaUrl } from "@/lib/storage/s3";
+import { resolveMediaUrl } from "@/lib/storage/media-url";
 import { Skeleton, SkeletonList, SkeletonRegion } from "@/components/ui/skeleton";
 import { FormField } from "@/components/ui/form-field";
 import { apiErrorMessage } from "@/lib/errors";

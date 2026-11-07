@@ -193,17 +193,8 @@ export function campusLogoKey(
   return `logos/campus/${schoolId}/${campusId}/${crypto.randomUUID()}-${safe}`;
 }
 
-const S3_KEY_PREFIXES = ["profile-images/", "logos/", "student-docs/", "staff-docs/", "chat/", "reports/", "resources/", "submissions/"];
-
-function isS3Key(value: string): boolean {
-  return S3_KEY_PREFIXES.some((prefix) => value.startsWith(prefix));
-}
-
-export function resolveMediaUrl(value: string | null | undefined): string | null {
-  if (!value) return null;
-  if (isS3Key(value)) return `/api/media/${value}`;
-  return value;
-}
+export { resolveMediaUrl } from "./media-url";
+import { isS3Key } from "./media-url";
 
 /** Presigned read for public images (logos, profile pictures) embedded server-side, e.g. in PDFs. */
 async function getDownloadUrl(key: string, expiresIn = 3600): Promise<string> {

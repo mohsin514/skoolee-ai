@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { StaticLocaleProvider } from "@/components/locale/LocaleProvider";
 import { defaultLocale, type Language } from "@/lib/locale/package";
+import { loadUiCatalog } from "@/lib/locale/ui-translate";
 import { EXPLICIT_LANGUAGE_KEY, directionFor, readLanguageCookieClient, writeLanguageCookieClient } from "@/lib/locale/language-cookie";
 
 export type SignInLanguage = { language: Language; languageSource: "explicit" | "cookie" } | Record<string, never>;
@@ -36,7 +37,8 @@ export function AuthLocaleProvider({ initialLanguage, children }: { initialLangu
   const setLanguage = useCallback((lang: Language) => {
     writeLanguageCookieClient(lang);
     try { window.sessionStorage.setItem(EXPLICIT_LANGUAGE_KEY, "1"); } catch { /* storage blocked: the cookie still carries it */ }
-    setState(lang);
+    // SKAI-1004: load the AR/UR catalog first so the switch never suspends the page.
+    void loadUiCatalog(lang).then(() => setState(lang), () => setState(lang));
   }, []);
 
   const signInLanguage = useCallback((): SignInLanguage => {
