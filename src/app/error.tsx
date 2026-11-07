@@ -1,7 +1,8 @@
 "use client";
 
-import { RouteError, type RouteErrorProps } from "@/components/ui/route-error";
+import type { RouteErrorProps } from "@/components/ui/route-error";
+import { LazyRouteError } from "@/components/ui/lazy-boundaries";
 
 export default function GlobalError(props: RouteErrorProps) {
-  return <RouteError {...props} fullPage />;
+  return <LazyRouteError {...props} fullPage />;
 }

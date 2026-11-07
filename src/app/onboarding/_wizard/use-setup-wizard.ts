@@ -30,7 +30,7 @@ import {
 import { logout } from "@/app/actions/auth/logout";
 import { toast } from "@/components/ui/toast";
 import { dashboardPathForRole } from "@/lib/roles";
-import { resolveMediaUrl } from "@/lib/storage/s3";
+import { resolveMediaUrl } from "@/lib/storage/media-url";
 import type { Language } from "@/lib/locale/package";
 import { fill, isRtlLanguage, onboardingCopy, type OnboardingCopy } from "../copy";
 import { WEEK_DAYS, emptyCampus, initialTimezone, timezoneOptions, fieldStep, generateId, sessionLabelFor, toLanguage, type CampusForm } from "./helpers";

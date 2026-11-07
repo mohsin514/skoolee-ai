@@ -9,7 +9,7 @@ import { toast } from "@/components/ui/toast";
 import { loginSchema, type LoginFormData } from "@/lib/validators/schemas";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { resolveMediaUrl } from "@/lib/storage/s3";
+import { resolveMediaUrl } from "@/lib/storage/media-url";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";

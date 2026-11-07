@@ -11,7 +11,7 @@ import { availableNavigation, isNavigationActive, searchNavigation } from "@/lib
 import { ModalSurface } from "@/components/ui/modal";
 import { useNavigationAccess } from "@/components/nav/NavigationAccess";
 import SkooleeLogo from "@/components/SkooleeLogo";
-import { resolveMediaUrl } from "@/lib/storage/s3";
+import { resolveMediaUrl } from "@/lib/storage/media-url";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
