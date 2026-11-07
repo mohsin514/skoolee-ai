@@ -9,7 +9,7 @@ import { createWorkspaceRecord, updateWorkspaceRecord, getWorkspaceRecord } from
 import { createPrivateConversation, deletePrivateConversation, exportPrivateConversation, getPrivateConversation, listPrivateConversations, sweepConversationRetention, updatePrivateConversation } from "../../src/lib/school-ai/conversation-service";
 import { beginSchoolAiRequest, completeSchoolAiRequest, failSchoolAiRequest, type SchoolAiRequestClaim } from "../../src/lib/school-ai/requests";
 import { createSetupTask, getSetupTask, listSetupTasks, setupTaskOptions, updateSetupTask } from "../../src/lib/school-ai/setup-task-service";
-const database = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const database = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== database || process.env.DIRECT_URL !== database) throw new Error("Use only the isolated School AI fixture database.");
 const raw = new PrismaClient(), schoolId = `ai-private-${randomUUID()}`, campusId = randomUUID(), otherCampus = randomUUID(), classId = randomUUID(), subjectId = randomUUID();
 const actor = (role: AuthUser["role"], campus = campusId): AuthUser => ({ userId: randomUUID(), role, campusId: campus, schoolId, email: `${randomUUID()}@example.invalid`, accessVersion: 0 });

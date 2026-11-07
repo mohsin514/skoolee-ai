@@ -10,7 +10,7 @@ import type { AssistantCatalogSelection, AssistantCatalog } from "../../src/lib/
 import { createPrivateConversation, getPrivateConversation, listPrivateConversations } from "../../src/lib/school-ai/conversation-service";
 import { beginSchoolAiRequest, completeSchoolAiRequest, failSchoolAiRequest } from "../../src/lib/school-ai/requests";
 import { schoolAiTransaction } from "../../src/lib/school-ai/transaction";
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only isolated PostgreSQL port 55438.");
 const db = new PrismaClient(), schoolId = `catalog-${randomUUID()}`, campusId = randomUUID(), otherCampus = randomUUID(), classId = randomUUID(), otherClass = randomUUID(), teacherId = randomUUID(), subjectId = randomUUID();
 const admin: AuthUser = { userId: randomUUID(), schoolId, campusId, role: "CAMPUS_ADMIN", email: `${randomUUID()}@example.invalid`, accessVersion: 0 };

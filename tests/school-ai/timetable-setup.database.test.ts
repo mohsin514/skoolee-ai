@@ -14,7 +14,7 @@ import { createDraftTimetableSlot } from "../../src/lib/timetable/draft-slot";
 import { getAvailableRooms, getAvailableTeachers } from "../../src/lib/academic/availability";
 import { createManualTimetable, saveManualTimetable, changeManualTimetableStatus, deleteManualTimetable, applyManualTimetableSuggestion } from "../../src/lib/timetable/manual";
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated school AI PostgreSQL fixture.");
 const db = new PrismaClient(), schoolId = `timetable-ai-${randomUUID()}`;
 before(async () => { await db.school.create({ data: { id: schoolId, name: "Synthetic timetable school", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Test", status: "ACTIVE" } }); });

@@ -7,7 +7,7 @@ import { prisma } from "../../src/lib/db/prisma";
 import { createWorkspaceRecord, updateWorkspaceRecord } from "../../src/lib/school-ai/repository";
 import { previewSchoolAiExecution } from "../../src/lib/school-ai/execution";
 import { createSchoolRun, listSchoolRuns, processSchoolRun, updateSchoolRun, sweepSchoolRuns } from "../../src/lib/school-ai/run-service";
-const url="postgresql://angular_dev_15@127.0.0.1:55438/postgres";if(process.env.DATABASE_URL!==url||process.env.DIRECT_URL!==url)throw new Error("Isolated School AI database only.");
+const url=`postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;if(process.env.DATABASE_URL!==url||process.env.DIRECT_URL!==url)throw new Error("Isolated School AI database only.");
 const db=new PrismaClient(),schoolId=`ai-runs-${randomUUID()}`,campusId=randomUUID(),other=randomUUID(),admin:AuthUser={userId:randomUUID(),schoolId,campusId,role:"CAMPUS_ADMIN",email:`${randomUUID()}@example.invalid`,accessVersion:0};
 before(async()=>{await db.school.create({data:{id:schoolId,slug:schoolId,regId:schoolId,name:"Synthetic runs",contactEmail:admin.email,city:"Test",status:"ACTIVE"}});for(const id of[campusId,other])await db.campus.create({data:{id,schoolId,regId:id,name:"Synthetic campus",city:"Test"}});await db.user.create({data:{id:admin.userId,schoolId,campusId,email:admin.email,role:admin.role,fullName:"Synthetic manager",onboardingComplete:true}});});
 after(async()=>{await db.schoolAiExecution.deleteMany({where:{schoolId}});await db.school.delete({where:{id:schoolId}});await db.$disconnect();await prisma.$disconnect();});

@@ -11,7 +11,7 @@ import { PROCTOR_CONSENT_VERSION, PROCTOR_STREAM_BYTES, ProctorPolicySchema, isP
 import { saveSchoolAiAttempt } from "../../src/lib/school-ai/exam-service";
 import { examProctorFixture, removeProctorFixture, proctorContext as ctx, type ProctorFixture } from "./exam-proctor-fixture";
 import { sweepExamProctorRecordings } from "../../src/lib/school-ai/exam-proctor-sweep";
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use isolated PG55438 only.");
 const db = new PrismaClient(); let root = ""; before(async () => { root = await mkdtemp(join(tmpdir(), "proctor-db-")); process.env.SCHOOL_AI_STORAGE_DIR = root; });
 const schools: string[] = []; after(async () => { for (const schoolId of schools) await removeProctorFixture(db, schoolId); await rm(root, { recursive: true, force: true }); await db.$disconnect(); await prisma.$disconnect(); });

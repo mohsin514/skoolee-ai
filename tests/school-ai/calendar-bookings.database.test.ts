@@ -5,7 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import type { TxClient } from "../../src/lib/db/prisma";
 import { withExamCalendarChange, examsOnWeekend } from "../../src/lib/academic/calendar-bookings";
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated School AI database.");
 const db = new PrismaClient(), schoolId = `calendar-guard-${randomUUID()}`;
 before(async () => { await db.school.create({ data: { id: schoolId, name: "Synthetic calendar QA", slug: schoolId, regId: schoolId, city: "Test", contactEmail: `${schoolId}@example.invalid` } }); });

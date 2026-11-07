@@ -8,7 +8,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/db/prisma";
 import { examProctorFixture, removeProctorFixture, type ProctorFixture } from "../tests/school-ai/exam-proctor-fixture";
 
-const isolated = "postgresql://angular_dev_15@127.0.0.1:55438/postgres", origin = "http://localhost:3106", pupilCount = 32, concurrency = 8, durationMs = 30000;
+const isolated = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`, origin = "http://localhost:3106", pupilCount = 32, concurrency = 8, durationMs = 30000;
 if (process.env.DATABASE_URL !== isolated || process.env.DIRECT_URL !== isolated) throw new Error("This harness only runs against isolated PostgreSQL127.0.0.1:55438/postgres and localhost:3106. It never reads .env.");
 const db = new PrismaClient();
 type Attempt = { id: string; deadlineAt: string; status: string; sequence: number; responses: Record<string, string>; submittedAt: string | null };
