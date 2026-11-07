@@ -1,24 +1,24 @@
 # AI Workflows capability coverage (generated — do not edit)
 
-Total capabilities: **891**; connected: **149**.
+Total capabilities: **892**; connected: **149**.
 
-Risk: ACCESS_GRANT 57 · APPROVAL_DECISION 72 · COMMUNICATION 40 · CREATE 229 · DESTRUCTIVE 79 · FINANCIAL 59 · PUBLISH 29 · READ 49 · UPDATE 277
+Risk: ACCESS_GRANT 57 · APPROVAL_DECISION 72 · COMMUNICATION 40 · CREATE 229 · DESTRUCTIVE 79 · FINANCIAL 60 · PUBLISH 29 · READ 49 · UPDATE 277
 
-Reuse: direct 586 · inline-prisma 230 · wrapper 75
+Reuse: direct 587 · inline-prisma 230 · wrapper 75
 
-Idempotent: no 260 · unknown 50 · versioned 1 · yes 580
+Idempotent: no 260 · unknown 50 · versioned 1 · yes 581
 
 ## By role
 
 | Role | Capabilities | Connected |
 |---|---|---|
 | APP_OWNER | 66 | 14 |
-| SUPER_ADMIN | 672 | 18 |
-| ADMIN | 708 | 89 |
-| CAMPUS_ADMIN | 661 | 87 |
+| SUPER_ADMIN | 673 | 18 |
+| ADMIN | 709 | 89 |
+| CAMPUS_ADMIN | 662 | 87 |
 | PRINCIPAL | 391 | 23 |
 | TEACHER | 250 | 24 |
-| ACCOUNTANT | 140 | 27 |
+| ACCOUNTANT | 141 | 27 |
 | LIBRARIAN | 104 | 20 |
 | RECEPTIONIST | 121 | 25 |
 | STUDENT | 59 | 14 |
@@ -34,7 +34,7 @@ Idempotent: no 260 · unknown 50 · versioned 1 · yes 580
 | C4 Teaching and assessment | 110 | 20 |
 | C5 Attendance, communication and engagement | 71 | 14 |
 | C6 Finance, payroll, purchasing and inventory | 121 | 26 |
-| C7 Campus operations | 112 | 24 |
+| C7 Campus operations | 113 | 24 |
 | C8 Platform, group governance and onboarding | 76 | 14 |
 | C8 Reviewed RAG knowledge | 4 | 1 |
 | C9a school-ai exams and Exam Studio | 95 | 1 |

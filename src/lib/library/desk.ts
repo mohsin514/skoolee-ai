@@ -307,7 +307,8 @@ export async function deskOverview(user: AuthUser) {
     prisma.libraryCharge.findMany({ where: { schoolId: user.schoolId, campusId, status: "OPEN" }, orderBy: { createdAt: "desc" }, take: 200 }),
   ]);
   // SKAI-1665: the desk keeps sight of what it handed to the fees office instead of losing it from view.
-  const handed = await prisma.libraryCharge.findMany({ where: { schoolId: user.schoolId, campusId, status: "HANDED_TO_FEES" }, orderBy: { decidedAt: "desc" }, take: 100 });
+  // SKAI-1669: posted charges stay listed with their invoice link, so the desk sees what finance did with them.
+  const handed = await prisma.libraryCharge.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: ["HANDED_TO_FEES", "POSTED"] } }, orderBy: { decidedAt: "desc" }, take: 100 });
   return { rules, canWaive: canWaiveCharge(user), books, reservations, charges, handed };
 }
 
