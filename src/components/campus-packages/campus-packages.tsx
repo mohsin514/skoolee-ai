@@ -288,6 +288,12 @@ export function CanteenPanel({ embedded = false, command, onCanAddMeal }: { embe
 
 type Leave = { id: string; studentId: string; studentName: string; destination: string; collectedBy: string; expectedReturnAt: string; status: string; overdue: boolean };
 type Roll = { id: string; label: string; takenAt: string; present: number; exceptions: { studentId: string; studentName: string; kind: string; resolvedAt?: string; resolution?: string }[] };
+/** The campus console's Hostel view shows warden operations only while the boarding package is on (or paused). */
+export function HostelBoarding() {
+  const { boarding } = usePackageStates();
+  return boarding ? <BoardingOperations /> : null;
+}
+
 export function BoardingOperations() {
   const { data, error, notice, busy, post, ui, load } = useResource<{ status: string; isWarden: boolean; isApprover: boolean; boarders: { studentId: string; name: string; room: string }[]; leave: Leave[]; rollCalls: Roll[] }>("boarding");
   const { dateTime } = useLocaleFormat();

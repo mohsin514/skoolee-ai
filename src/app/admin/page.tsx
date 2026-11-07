@@ -95,7 +95,7 @@ import { AdmissionsDesk } from "@/components/admissions/admissions-desk";
 import { GuardianAccessManager } from "@/components/GuardianAccessManager";
 import { ConsentStatusPanel } from "@/components/family/guardian-consent";
 import { AnalyticsCharts } from "@/components/analytics/analytics-charts";
-import { CampusPackagesPanel, CanteenPanel } from "@/components/campus-packages/campus-packages";
+import { CampusPackagesPanel, CanteenPanel, HostelBoarding } from "@/components/campus-packages/campus-packages";
 import { AdmissionForm } from "@/components/students/admission-form";
 import { BulkImportDialog } from "@/components/students/bulk-import-dialog";
 import { QuickCreateClass } from "@/components/shared-admin/quick-create-class";
@@ -2091,7 +2091,10 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
           primaryAction={{ id: "add-room-type", label: "Add room type", icon: Plus, onClick: () => sendCommand("dormitory", "add-room-type") }}
           secondaryActions={[{ id: "allocate-bed", label: "Allocate bed", icon: UserCheck, onClick: () => sendCommand("dormitory", "allocate-bed") }]}
         >
-          <DormitoryPanel hideHeader command={commandFor("dormitory")} />
+          <div className="space-y-6">
+            <DormitoryPanel hideHeader command={commandFor("dormitory")} />
+            <HostelBoarding />
+          </div>
         </ViewFrame>
       );
 
