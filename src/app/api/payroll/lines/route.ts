@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { getLocalePackage } from "@/lib/locale/store";
-import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { reversePayrollLine } from "@/lib/payroll-reversal";
+import { ApiError, assertPermission, canManageCampusOps, canManageFinance, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -11,6 +12,8 @@ import { jsonObjectBody } from "@/lib/validators/route-bodies";
 // body (pay):  { id, status: "PAID", paymentMethodId? } — posts an EXPENSE LedgerEntry idempotently
 //                                                          (unique payroll_line_id) against the
 //                                                          campus "Salaries Expense" account.
+// body (reverse): { id, action: "reverse", reason } + optional Idempotency-Key header — SKAI-1506: a finance role
+//                 posts an opposite, linked ledger entry and marks the line REVERSED (see lib/payroll-reversal).
 
 /** SKAI-1326: a payroll amount is a whole, non-negative number of paisa that fits the Int32 column. */
 function payrollAmount(value: unknown, field: string): number {
@@ -24,9 +27,15 @@ function payrollAmount(value: unknown, field: string): number {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    const body = await parseBody(req, jsonObjectBody);
+    if (body.action === "reverse") {
+      if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+      await assertPermission(user, "payroll", "view");
+      const result = await reversePayrollLine(user, String(body.id ?? ""), body.reason, req.headers.get("idempotency-key") ?? body.idempotencyKey);
+      return Response.json({ success: true, data: { line: result.line, reversal: result.entry }, replayed: result.replayed });
+    }
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "payroll", "edit");
-    const body = await parseBody(req, jsonObjectBody);
 
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);
@@ -42,6 +51,8 @@ export async function PATCH(req: NextRequest) {
       if (line.status === "PAID") {
         return Response.json({ success: true, data: line, alreadyPaid: true });
       }
+      // SKAI-1506: a reversed line keeps its original and reversal entries; it is corrected in a new payroll version.
+      if (line.status === "REVERSED") throw new ApiError("This payroll line was reversed. Correct it in a new payroll version.", 409);
       // SKAI-1350: a negative or zero net cannot be paid; it would post a negative expense.
       if (!(line.net > 0)) throw new ApiError("Only a payroll line with a positive net can be paid.", 409);
       const paymentMethodId = body.paymentMethodId ? String(body.paymentMethodId) : null;
