@@ -17,12 +17,15 @@
  *
  * Run:  pnpm run qa:seed            (seed/refresh)
  *       pnpm run qa:seed -- --reset (drop the QA schools first, then seed)
+ *       pnpm run qa:seed -- --platform-owner-only
+ *         (SKAI-1788: upsert only the APP_OWNER account and merge it into an existing
+ *          $QA_CREDENTIALS_FILE; every other account and password is left alone)
  */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
-import { writeFileSync } from "node:fs";
-import { SCHOOLS, rolesFor } from "./pilot-seed-plan";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { PLATFORM_OWNER, SCHOOLS, mergeCredentials, rolesFor, type SeedCredential } from "./pilot-seed-plan";
 
 const prisma = new PrismaClient();
 
@@ -69,12 +72,43 @@ function strongPassword(): string {
 // ─── synthetic tenants: see ./pilot-seed-plan (GROUP x2 + STANDALONE x1) ─────
 const PHONE_BASE = 92300_0000000; // synthetic +92-300 test range
 
+// QA accounts skip the inbox and the factor: email already verified, no password change forced, and no
+// factor enrolled, so privileged roles sign in through the existing "Do it later" MFA deferral.
+const READY_FLAGS = { emailVerifiedAt: new Date(), mustChangePassword: false, onboardingComplete: true, mfaEnabled: false, mfaSecret: null, mfaPendingSecret: null, mfaPendingTicket: null, mfaPendingExpiresAt: null, mfaPendingVerified: false, mfaEnrolledAt: null };
+
+/** SKAI-1788: idempotent synthetic APP_OWNER in the host QA school (created by the main seed). */
+async function seedPlatformOwner(): Promise<SeedCredential> {
+  const host = await prisma.school.findUnique({ where: { slug: PLATFORM_OWNER.hostSchool } });
+  if (!host) throw new Error(`[qa-seed] ${PLATFORM_OWNER.hostSchool} is missing; run the full QA seed first`);
+  const password = strongPassword();
+  const hash = await bcrypt.hash(password, 10);
+  const flags = { role: PLATFORM_OWNER.role, isActive: true, isInstitutionOwner: false, canPurchaseSubscription: false, canManageMemberships: false, campusId: null, ...READY_FLAGS };
+  await prisma.user.upsert({
+    where: { schoolId_email: { schoolId: host.id, email: PLATFORM_OWNER.email } },
+    update: { password: hash, ...flags },
+    create: { email: PLATFORM_OWNER.email, fullName: PLATFORM_OWNER.fullName, password: hash, schoolId: host.id, ...flags },
+  });
+  return { school: PLATFORM_OWNER.school, role: PLATFORM_OWNER.key, email: PLATFORM_OWNER.email, password };
+}
+
+function writeCredentials(out: string, accounts: SeedCredential[]) {
+  writeFileSync(out, JSON.stringify({ generatedAt: new Date().toISOString(), note: "SKAI-999 synthetic QA accounts — move to the team password manager, then delete this file. Do NOT commit.", accounts }, null, 2), { mode: 0o600 });
+}
+
 async function main() {
   const decision = assertSeedAllowed();
   const reset = process.argv.includes("--reset");
+  const out = process.env.QA_CREDENTIALS_FILE || "qa-credentials.json";
+  if (process.argv.includes("--platform-owner-only")) {
+    console.log(`🧪 QA pilot seed (${decision.name} @ ${decision.host}) [--platform-owner-only]`);
+    const existing: SeedCredential[] = existsSync(out) ? JSON.parse(readFileSync(out, "utf8")).accounts ?? [] : [];
+    writeCredentials(out, mergeCredentials(existing, [await seedPlatformOwner()]));
+    console.log(`✅ Platform owner ${PLATFORM_OWNER.email} upserted; credentials merged into ${out} (passwords not printed).`);
+    return;
+  }
   console.log(`🧪 QA pilot seed (${decision.name} @ ${decision.host})${reset ? " [--reset]" : ""}`);
 
-  const credentials: Array<{ school: string; role: string; email: string; password: string }> = [];
+  const credentials: SeedCredential[] = [];
   let phone = PHONE_BASE;
 
   for (const s of SCHOOLS) {
@@ -104,9 +138,7 @@ async function main() {
       const hash = await bcrypt.hash(password, 10);
       // STANDALONE admin = registering owner (register.ts): owner + purchase + membership flags.
       const ownerFlags = { isInstitutionOwner: def.owner === true, canPurchaseSubscription: def.owner === true, canManageMemberships: def.owner === true };
-      // QA accounts skip the inbox and the factor: email already verified, no password change forced, and no
-      // factor enrolled, so privileged roles sign in through the existing "Do it later" MFA deferral.
-      const readyFlags = { emailVerifiedAt: new Date(), mustChangePassword: false, onboardingComplete: true, mfaEnabled: false, mfaSecret: null, mfaPendingSecret: null, mfaPendingTicket: null, mfaPendingExpiresAt: null, mfaPendingVerified: false, mfaEnrolledAt: null };
+      const readyFlags = READY_FLAGS;
       await prisma.user.upsert({
         where: { schoolId_email: { schoolId: school.id, email } },
         update: { password: hash, role: def.role, isActive: true, ...ownerFlags, ...readyFlags },
@@ -121,9 +153,9 @@ async function main() {
     }
   }
 
+  credentials.push(await seedPlatformOwner());
   // Write credentials for the password manager — git-ignored, never committed.
-  const out = process.env.QA_CREDENTIALS_FILE || "qa-credentials.json";
-  writeFileSync(out, JSON.stringify({ generatedAt: new Date().toISOString(), note: "SKAI-999 synthetic QA accounts — move to the team password manager, then delete this file. Do NOT commit.", accounts: credentials }, null, 2), { mode: 0o600 });
+  writeCredentials(out, credentials);
   console.log(`\n✅ Seeded ${credentials.length} QA accounts across ${SCHOOLS.length} schools.`);
   console.log(`   Credentials written to ${out} (git-ignored, mode 600) — transfer to the password manager, then delete.`);
   console.log(`   Passwords are NOT printed here (NFR-SEC-09).`);
