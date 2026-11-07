@@ -2173,6 +2173,8 @@ function PricingView({ stats }: { stats: Stats | null }) {
   const [loadingDefaults, setLoadingDefaults] = useState(true);
   const [savedDefaults, setSavedDefaults] = useState<SavedPrices | null>(null);
   const pricingVersion = useRef(0);
+  // SKAI-1794: the overrides as loaded; sent back as `expected` so a stale save gets 409 instead of overwriting.
+  const pricingLoaded = useRef<unknown>(null);
 
   const loadDefaultPricing = async () => {
     setLoadingDefaults(true);
@@ -2235,6 +2237,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
       if (version !== pricingVersion.current) return;
       if (!res.ok) throw new Error(json.error);
       setPricingValues(priceFields(json.data?.planPricing));
+      pricingLoaded.current = json.data?.planPricing ?? null;
       setPricingSaved(false);
     } catch {
       // R4: shown inline under the school picker, with a retry.
@@ -2261,10 +2264,11 @@ function PricingView({ stats }: { stats: Stats | null }) {
       const res = await fetch(`/api/owner/schools/${pricingSchoolId}/pricing`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pricing }),
+        body: JSON.stringify({ pricing, expected: pricingLoaded.current }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error);
+      pricingLoaded.current = json.data?.planPricing ?? null;
       toast.success(t("This school's prices are saved."));
       setPricingSaved(true);
     } catch (err) {

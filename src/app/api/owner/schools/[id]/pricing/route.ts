@@ -1,48 +1,18 @@
-import { schoolPricingSchema } from "@/lib/owner/pricing";
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
-import { logSuperAdminAction } from "@/lib/audit";
+import { errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { saveSchoolPlanPrices } from "@/lib/owner/school-pricing-service";
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// PUT /api/owner/schools/:id/pricing  body: { pricing: { PLAN: { price? } }, expected?: <overrides as loaded> }
+// SKAI-1795: merges per plan (a plan without a price is cleared, others kept). SKAI-1794: a stale `expected` → 409.
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requirePlatformOwner();
-
     const { id } = await params;
     const body = await parseBody(req, jsonObjectBody);
-    const parsed = schoolPricingSchema.safeParse(body?.pricing);
-    if (!parsed.success) throw new ApiError("Provide valid plan prices: each price must be a finite non-negative number", 400);
-    const pricing = parsed.data;
-
-    const school = await prisma.school.findUnique({
-      where: { id },
-      select: { id: true, name: true },
-    });
-    if (!school) throw new ApiError("School not found", 404);
-
-    await prisma.school.update({
-      where: { id },
-      data: { planPricing: pricing },
-    });
-
-    await logSuperAdminAction({
-      userId: user.userId,
-      action: "plan_pricing_updated",
-      targetType: "school",
-      targetId: id,
-      targetName: school.name,
-      newValues: { pricing },
-    }).catch(() => {});
-
-    return Response.json({
-      success: true,
-      message: "Plan pricing updated successfully",
-    });
+    const pricing = await saveSchoolPlanPrices(user, id, body?.pricing, "expected" in body ? { expected: body.expected } : {});
+    return Response.json({ success: true, data: { planPricing: pricing }, message: "Plan pricing updated successfully" });
   } catch (error) {
     return errorResponse(error, "[owner/schools/id/pricing] PUT failed");
   }
