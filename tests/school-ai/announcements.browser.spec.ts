@@ -6,12 +6,13 @@ import { schoolAICopy } from "../../src/lib/school-ai/copy";
 import { announcementCopy } from "../../src/components/school-ai/announcement-copy";
 import { announcementChannelCopy } from "../../src/components/school-ai/announcement-channel-copy";
 import type { AnnouncementExecutionReceipt, AnnouncementDelivery } from "../../src/lib/school-ai/announcements";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 // Draft saves/approvals use the real local API. Delivery preview, queue and status
 // are controlled browser fixtures; these tests never call a mail provider.
 const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated announcement browser database.");
-const db = new PrismaClient(), schoolId = `ai-announcement-${randomUUID()}`, origin = "http://localhost:3106";
+const db = new PrismaClient(), schoolId = `ai-announcement-${randomUUID()}`, origin = SCHOOL_AI_ORIGIN;
 let campusId = "", adminId = "", classId = "";
 async function signIn(context: BrowserContext, role: "ADMIN" | "PRINCIPAL") {
   const token = await new SignJWT({ userId: adminId, schoolId, campusId, role, email: `${adminId}@example.test`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));

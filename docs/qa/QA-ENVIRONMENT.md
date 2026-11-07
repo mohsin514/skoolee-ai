@@ -10,6 +10,9 @@ sessions.
 | `QA_APP_URL` | `http://localhost:$QA_APP_PORT` | Origin of the app under test, for suites that use `qaAppUrl()` in `tests/support/qa-env.ts`. A suite's own `*_TEST_APP` variable (for example `CHAT_TEST_APP`) still wins. |
 | `QA_APP_PORT` | `3107` | Port part of the default `QA_APP_URL`. |
 | `QA_FAKE_S3_PORT` | `55441` | Fake S3 store started by `tests/chat/reliability.browser.test.ts`. Run the app with `S3_ENDPOINT=http://127.0.0.1:$QA_FAKE_S3_PORT`. |
+| `QA_DB_NAME`, `QA_DB_USER` | each suite's own (`sko201`, `sko223`, `postgres`, …) | Suites with their own dedicated fixture database (SKAI-1792): `tests/locale/*`, `tests/jobs/*`, `tests/corrections`, `tests/academic/api.test.ts`, `tests/assignments`, `tests/states`, `tests/report-versions`. They now read `QA_DB_PORT` with their historical port as the default, plus these two. Unset, every guard is the same as before. |
+| `QA_INTEGRATION_RECEIVER_PORT`, `QA_INTEGRATION_BLOCKED_PORT` | `55463`, `55464` | `tests/integrations` receiver and the refused plain-HTTP webhook port; start the app with `INTEGRATION_TEST_ALLOWED_HOSTS=127.0.0.1:$QA_INTEGRATION_RECEIVER_PORT`. |
+| `SCHOOL_AI_TEST_ORIGIN`, `ONBOARDING_TEST_ORIGIN`, `LOCALE_TEST_APP`, `CORRECTIONS_TEST_APP`, `JOBS_TEST_APP`, `OUTBOX_TEST_APP`, `STANDALONE_TEST_APP` | `http://localhost:3106`, `:3110`, `:3201`, `127.0.0.1:3213`, `:3223`, `127.0.0.1:3220`, `:3107` | App origin for the school-AI specs, onboarding specs and configs, locale checks, corrections, jobs, outbox and standalone suites. The jobs guards also accept `QA_APP_PORT`. |
 
 ## Port ranges
 

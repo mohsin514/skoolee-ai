@@ -8,7 +8,7 @@ export default defineConfig({
   timeout: 120000,
   expect: { timeout: 30000 },
   use: {
-    baseURL: "http://localhost:3110",
+    baseURL: process.env.ONBOARDING_TEST_ORIGIN || "http://localhost:3110",
     viewport: { width: 1440, height: 1000 },
     contextOptions: { reducedMotion: "reduce" },
     screenshot: "only-on-failure",

@@ -38,7 +38,7 @@ import {
 } from "../../src/lib/jobs/receipts";
 import { consume, appendEvent } from "../../src/lib/queue/outbox";
 import { reportDeliveryWorkflow } from "../../src/lib/queue/report-delivery";
-if (process.env.DATABASE_URL !== "postgresql://postgres@127.0.0.1:55423/sko223")
+if (process.env.DATABASE_URL !== `postgresql://${process.env.QA_DB_USER || "postgres"}@127.0.0.1:${process.env.QA_DB_PORT || "55423"}/${process.env.QA_DB_NAME || "sko223"}`)
   throw new Error("Only isolated sko223:55423 is allowed");
 const operateJob = (user: Parameters<typeof operateCurrentJob>[0], id: string, action: "retry" | "cancel", items: string[]) => operateCurrentJob(user, id, action, items, action === "retry" ? "TRANSIENT_FAILURE_RESOLVED" : "NO_LONGER_REQUIRED");
 const raw = new PrismaClient();

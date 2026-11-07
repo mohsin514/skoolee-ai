@@ -4,10 +4,11 @@ import { readFile, writeFile } from "node:fs/promises";
 import { randomUUID, createHash } from "node:crypto";
 import { SignJWT } from "jose";
 import { PrismaClient } from "@prisma/client";
-if (process.env.DATABASE_URL !== "postgresql://postgres@127.0.0.1:55423/sko223")
+const JOBS_APP = (process.env.JOBS_TEST_APP || "http://localhost:3223").replace(/\/+$/, "");
+if (process.env.DATABASE_URL !== `postgresql://${process.env.QA_DB_USER || "postgres"}@127.0.0.1:${process.env.QA_DB_PORT || "55423"}/${process.env.QA_DB_NAME || "sko223"}`)
   throw new Error("Local synthetic database only");
 const db = new PrismaClient(),
-  base = "http://localhost:3223",
+  base = JOBS_APP,
   f = JSON.parse(await readFile(`${tmpdir()}/sko223-job-fixture.json`, "utf8"));
 const evidence = [];
 async function request(

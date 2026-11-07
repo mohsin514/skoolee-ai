@@ -3,13 +3,14 @@ import { createHash } from "node:crypto";
 import { SignJWT } from "jose";
 import { PrismaClient } from "@prisma/client";
 import { studioShellCopy } from "../../src/components/school-ai/exam-studio/studio-shell-copy";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated School AI test database.");
 const db = new PrismaClient();
 
 const admin = "school-ai-browser-a-ADMIN";
-const origin = process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106";
+const origin = process.env.SCHOOL_AI_TEST_ORIGIN || SCHOOL_AI_ORIGIN;
 async function signIn(context: BrowserContext, role = "ADMIN") {
   const user = await db.user.findUniqueOrThrow({ where: { id: `school-ai-browser-a-${role}` } });
   const token = await new SignJWT({ userId: user.id, schoolId: user.schoolId, campusId: user.campusId, role, email: user.email, accessVersion: user.accessVersion, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));

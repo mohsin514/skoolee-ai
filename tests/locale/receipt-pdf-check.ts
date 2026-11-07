@@ -16,7 +16,7 @@ import { translateUi } from "../../src/lib/locale/ui-messages";
 // the issued receipt's bytes.
 async function main(){
  const url=process.env.DATABASE_URL||"";
- if(!url.includes("127.0.0.1:55401/sko201")&&!url.includes("127.0.0.1:55438/postgres"))throw new Error("Local fixture database required");
+ if(!url.includes(`127.0.0.1:${process.env.QA_DB_PORT || "55401"}/${process.env.QA_DB_NAME || "sko201"}`)&&!url.includes("127.0.0.1:55438/postgres"))throw new Error("Local fixture database required");
  const evidence=process.env.LOCALE_EVIDENCE_DIR||"/tmp/sko201-evidence";
  const db=new PrismaClient(),schoolId="locale-receipt-fixture";
  try{

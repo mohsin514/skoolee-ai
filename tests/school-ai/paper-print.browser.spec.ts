@@ -3,13 +3,14 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import { assessmentFixture } from "./assessment-fixture";
 import type { AssessmentLocale } from "../../src/lib/school-ai/assessment";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const database = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== database || process.env.DIRECT_URL !== database) throw new Error("Use only the isolated School AI test database.");
 const db = new PrismaClient();
 const tokens = JSON.parse(readFileSync("test-results/school-ai/local-tokens.json", "utf8")) as Record<string, string>;
 const school = "school-ai-browser-a", campusId = `${school}-campus`;
-const signIn = (context: BrowserContext, role = "a-ADMIN") => context.addCookies([{ name: "skoolee_token", value: tokens[role], url: "http://localhost:3106", httpOnly: true, sameSite: "Lax" }]);
+const signIn = (context: BrowserContext, role = "a-ADMIN") => context.addCookies([{ name: "skoolee_token", value: tokens[role], url: SCHOOL_AI_ORIGIN, httpOnly: true, sameSite: "Lax" }]);
 async function createPaper(page: Page, language: AssessmentLocale = "en", long = false) {
   const fixture = assessmentFixture(`${school}-subject`, `${school}-class`);
   const create = async (kind: string, data: unknown) => {

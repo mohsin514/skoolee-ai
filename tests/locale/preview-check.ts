@@ -2,8 +2,9 @@ import { chromium } from "playwright";
 import { SignJWT } from "jose";
 import { PrismaClient } from "@prisma/client";
 import assert from "node:assert/strict";
+const LOCALE_APP = (process.env.LOCALE_TEST_APP || "http://localhost:3201").replace(/\/+$/, "");
 async function main() {
- if (!process.env.DATABASE_URL?.includes("127.0.0.1:55401/sko201")) throw new Error("Local fixture DB required");
+ if (!process.env.DATABASE_URL?.includes(`127.0.0.1:${process.env.QA_DB_PORT || "55401"}/${process.env.QA_DB_NAME || "sko201"}`)) throw new Error("Local fixture DB required");
  const db = new PrismaClient(); const browser = await chromium.launch();
  try {
   await db.localePolicy.deleteMany({ where: { schoolId: "locale-fixture" } });
@@ -13,8 +14,8 @@ async function main() {
   const period = await db.periodDefinition.create({ data: { id: "locale-preview-period", schoolId: "locale-fixture", campusId: "locale-campus-a", timeType: "EXAM", periodNumber: 91, startTime: "09:00", endTime: "10:00" } });
   const scheduled = await db.examSchedule.create({ data: { schoolId: "locale-fixture", campusId: "locale-campus-a", examId: exam.id, subjectId: subject.id, periodDefinitionId: period.id, date: new Date("2027-04-01T00:00:00Z") } });
   const token = await new SignJWT({ userId: "locale-SUPER_ADMIN", schoolId: "locale-fixture", campusId: null, role: "SUPER_ADMIN", onboardingComplete: true }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("1h").sign(new TextEncoder().encode("local-sko201-fixture"));
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }); await context.addCookies([{ name: "skoolee_token", value: token, url: "http://localhost:3201" }]);
-  const page = await context.newPage(); await page.goto("http://localhost:3201/settings/locale", { waitUntil: "networkidle" });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }); await context.addCookies([{ name: "skoolee_token", value: token, url: LOCALE_APP }]);
+  const page = await context.newPage(); await page.goto(`${LOCALE_APP}/settings/locale`, { waitUntil: "networkidle" });
   await page.locator("section select").first().selectOption("ar");
   await page.waitForFunction(() => !!document.querySelector("section[lang=ar]"));
   await page.locator("#locale-language").selectOption("ar"); await page.locator("#locale-numberingSystem").selectOption("arab"); await page.locator("#locale-timezone").fill("Asia/Riyadh"); await page.locator("#locale-country").selectOption("KW");
@@ -24,8 +25,8 @@ async function main() {
   await page.getByRole("button", { name: "تطبيق الإعدادات المراجعة", exact: true }).click(); await page.getByText("تغيير العملة بانتظار مراجعة مالية مستقلة.").waitFor();
   const pending = await db.localePolicy.findMany({ where: { schoolId: "locale-fixture" } }); assert.equal(pending.length, 1); assert.equal(pending[0].status, "FINANCE_REVIEW"); assert.equal((await db.school.findUniqueOrThrow({ where: { id: "locale-fixture" } })).timezone, "Asia/Karachi");
   const financeToken = await new SignJWT({ userId: "locale-ACCOUNTANT", schoolId: "locale-fixture", campusId: "locale-campus-a", role: "ACCOUNTANT", onboardingComplete: true }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("1h").sign(new TextEncoder().encode("local-sko201-fixture"));
-  const financeContext = await browser.newContext(); await financeContext.addCookies([{ name: "skoolee_token", value: financeToken, url: "http://localhost:3201" }]);
-  const financePage = await financeContext.newPage(); await financePage.goto("http://localhost:3201/settings/locale", { waitUntil: "networkidle" });
+  const financeContext = await browser.newContext(); await financeContext.addCookies([{ name: "skoolee_token", value: financeToken, url: LOCALE_APP }]);
+  const financePage = await financeContext.newPage(); await financePage.goto(`${LOCALE_APP}/settings/locale`, { waitUntil: "networkidle" });
   await financePage.locator("section select").first().selectOption("ar");
   await financePage.waitForFunction(() => !!document.querySelector("section[lang=ar]"));
   await financePage.getByRole("button", { name: "اعتماد العملة", exact: true }).click(); await financePage.getByText("مجدول / نشط", { exact: true }).waitFor();

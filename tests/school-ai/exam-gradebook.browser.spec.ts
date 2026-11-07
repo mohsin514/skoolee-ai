@@ -9,10 +9,11 @@ import { createWorkspaceRecord, updateWorkspaceRecord } from "../../src/lib/scho
 import { createSchoolAiExam, startSchoolAiExam, saveSchoolAiAttempt, reviewSchoolAiAttempt } from "../../src/lib/school-ai/exam-service";
 import { assessmentFixture } from "./assessment-fixture";
 import { examGradebookCopy } from "../../src/components/school-ai/exam-gradebook-copy";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use isolated localhost:55438 only.");
-const db = new PrismaClient(), origin = "http://localhost:3106", schoolId = "school-ai-browser-b", campusId = `${schoolId}-campus`;
+const db = new PrismaClient(), origin = SCHOOL_AI_ORIGIN, schoolId = "school-ai-browser-b", campusId = `${schoolId}-campus`;
 const admin: AuthUser = { userId: `${schoolId}-ADMIN`, schoolId, campusId, role: "ADMIN", email: "synthetic@example.invalid" };
 const ctx = <T>(user: AuthUser, fn: () => Promise<T>) => runWithTenantContext({ schoolId, campusId, userId: user.userId, role: user.role }, fn);
 let tokens: Record<string, string>, oldLanguage: string | null;

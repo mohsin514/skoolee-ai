@@ -3,13 +3,14 @@ import assert from "node:assert/strict";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
 import { chromium } from "playwright";
-if (process.env.DATABASE_URL !== "postgresql://postgres@127.0.0.1:55423/sko223")
+const JOBS_APP = (process.env.JOBS_TEST_APP || "http://localhost:3223").replace(/\/+$/, "");
+if (process.env.DATABASE_URL !== `postgresql://${process.env.QA_DB_USER || "postgres"}@127.0.0.1:${process.env.QA_DB_PORT || "55423"}/${process.env.QA_DB_NAME || "sko223"}`)
   throw new Error("Only isolated local database");
 const fixture = JSON.parse(
   await readFile(`${tmpdir()}/sko223-job-fixture.json`, "utf8"),
 );
 const db = new PrismaClient(),
-  base = "http://localhost:3223",
+  base = JOBS_APP,
   output = "docs/qa/evidence/sko-223";
 await mkdir(output, { recursive: true });
 const invalid = await db.activityJob.findFirstOrThrow({

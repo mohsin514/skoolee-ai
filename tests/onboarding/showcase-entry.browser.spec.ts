@@ -5,11 +5,12 @@ import { SignJWT } from "jose";
 import type { UserRole } from "../../src/lib/roles";
 import { candidateExamUrl } from "../../src/lib/school-ai/exam-boundary";
 import { launchCopy } from "../../src/components/onboarding/launch-copy";
+const ONBOARDING_ORIGIN = (process.env.ONBOARDING_TEST_ORIGIN || "http://localhost:3110").replace(/\/+$/, "");
 
 const database = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== database || process.env.DIRECT_URL !== database) throw Error("Only the isolated local test database is allowed.");
 const db = new PrismaClient();
-const origin = "http://localhost:3110";
+const origin = ONBOARDING_ORIGIN;
 const schoolId = `showcase-entry-${randomUUID()}`;
 const campusId = `${schoolId}-campus`;
 const accounts = new Map<string, { id: string; token: string; expiredToken: string; tokenHash: string }>();

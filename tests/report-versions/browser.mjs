@@ -9,7 +9,7 @@ const pending = await fetch(`${base}/api/reports/${fixture.reportId}`, {method:'
 if(!pending.ok) throw new Error(await pending.text());
 const db = new PrismaClient();
 const url = new URL(process.env.DATABASE_URL || 'http://invalid');
-if(url.hostname!=='127.0.0.1' || url.port!=='55410' || url.pathname!=='/sko210') throw new Error('Local synthetic database required');
+if(url.hostname!=='127.0.0.1' || url.port!==(process.env.QA_DB_PORT||'55410') || url.pathname!==`/${process.env.QA_DB_NAME||'sko210'}`) throw new Error('Local synthetic database required');
 const principal = await db.user.findFirstOrThrow({where:{schoolId:fixture.schoolId,role:'PRINCIPAL'}});
 const browser=await chromium.launch({headless:true});
 const evidence=[];

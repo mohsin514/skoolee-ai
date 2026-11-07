@@ -11,7 +11,7 @@ import {
 import { sha256 } from "../../src/lib/assignments/rules";
 
 // SKO-409 rules against the isolated database: receipts, access, deadlines, rubric versions and feedback.
-const local = "postgresql://angular_dev_15@127.0.0.1:55450/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55450"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only isolated PG55450.");
 const db = new PrismaClient(), schoolIds: string[] = [];
 after(async () => { await db.school.deleteMany({ where: { id: { in: schoolIds } } }); await db.$disconnect(); await prisma.$disconnect(); });

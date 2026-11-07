@@ -1,6 +1,7 @@
 import { test, expect, type BrowserContext } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const isolated = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== isolated || process.env.DIRECT_URL !== isolated) throw new Error("Use only the isolated School AI test database.");
@@ -8,7 +9,7 @@ const db = new PrismaClient();
 const school = "school-ai-browser-a", campusId = `${school}-campus`, classId = `${school}-class`;
 async function signIn(context: BrowserContext, suffix = "a", role = "ADMIN") {
   const tokens = JSON.parse(await readFile("test-results/school-ai/local-tokens.json", "utf8"));
-  await context.addCookies([{ name: "skoolee_token", value: tokens[`${suffix}-${role}`], url: "http://localhost:3106", httpOnly: true, sameSite: "Lax" }]);
+  await context.addCookies([{ name: "skoolee_token", value: tokens[`${suffix}-${role}`], url: SCHOOL_AI_ORIGIN, httpOnly: true, sameSite: "Lax" }]);
 }
 test.beforeEach(async ({ context }) => { await db.user.update({ where: { id: `${school}-ADMIN` }, data: { preferredLanguage: "en" } }); await signIn(context); });
 test.afterAll(async () => { await db.user.update({ where: { id: `${school}-ADMIN` }, data: { preferredLanguage: "en" } }); await db.$disconnect(); });
@@ -55,10 +56,10 @@ test("stale review cannot change or commit a newer roster, and tenant access is 
   expect((await page.request.post(`/api/students?campusId=${campusId}`, { data: { _importBatchId: batch.id, _reviewToken: batch.reviewToken } })).status()).toBe(409);
   const current = await (await page.request.get(url)).json(); expect(current.data.reviewToken).not.toBe(batch.reviewToken);
   expect((await page.request.patch(url, { data: { reviewToken: batch.reviewToken, rows: [{ rowNumber: 2, selected: false }] } })).status()).toBe(409);
-  const other = await browser.newContext({ baseURL: "http://localhost:3106" }); await signIn(other, "b");
+  const other = await browser.newContext({ baseURL: SCHOOL_AI_ORIGIN }); await signIn(other, "b");
   expect((await other.request.get(`/api/import-batches/${batch.id}?campusId=school-ai-browser-b-campus`)).status()).toBe(404);
   await other.close();
-  const teacher = await browser.newContext({ baseURL: "http://localhost:3106" }); await signIn(teacher, "a", "TEACHER");
+  const teacher = await browser.newContext({ baseURL: SCHOOL_AI_ORIGIN }); await signIn(teacher, "a", "TEACHER");
   expect((await teacher.request.get(`/api/school-ai/imports/options?campusId=${campusId}`)).status()).toBe(403);
   await teacher.close();
 });

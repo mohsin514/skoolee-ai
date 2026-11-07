@@ -3,11 +3,12 @@ import { PrismaClient } from "@prisma/client";
 import { SignJWT } from "jose";
 import { createHash, randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Isolated PG55438 only.");
 process.env.SCHOOL_AI_STORAGE_DIR = "/private/tmp/skoolee-ai-test-documents";
-const db = new PrismaClient(), origin = "http://localhost:3106", headers = { Origin: origin }, schools: string[] = [];
+const db = new PrismaClient(), origin = SCHOOL_AI_ORIGIN, headers = { Origin: origin }, schools: string[] = [];
 let schoolId = "", campusId = "", userId = "";
 const restricted = "Synthetic restricted fee amounts 9876.", extraction = { text: restricted, pages: [], uncertainties: [], model: "native-utf8", tokensUsed: 0 };
 test.beforeEach(async ({ context }) => {

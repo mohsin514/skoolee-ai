@@ -10,8 +10,8 @@ import { runWithTenantContext } from "../../src/lib/db/tenant-context";
 
 const dbUrl = new URL(process.env.DATABASE_URL || "http://invalid");
 const appUrl = new URL(process.env.ACADEMIC_MODEL_TEST_APP || "http://127.0.0.1:3216");
-if (dbUrl.hostname !== "127.0.0.1" || dbUrl.port !== "55416" || dbUrl.pathname !== "/skoolee") throw new Error("SKO-216 integration tests require the dedicated local 55416/skoolee database");
-if (appUrl.hostname !== "127.0.0.1" || appUrl.port !== "3216") throw new Error("SKO-216 integration tests require the local app on port 3216");
+if (dbUrl.hostname !== "127.0.0.1" || dbUrl.port !== (process.env.QA_DB_PORT || "55416") || dbUrl.pathname !== `/${process.env.QA_DB_NAME || "skoolee"}`) throw new Error("SKO-216 integration tests require the dedicated local 55416/skoolee database");
+if (appUrl.hostname !== "127.0.0.1" || appUrl.port !== (process.env.QA_APP_PORT || "3216")) throw new Error("SKO-216 integration tests require the local app on port 3216");
 
 const db = new PrismaClient({ datasources: { db: { url: dbUrl.toString() } } });
 const schoolId = `academic-${randomUUID()}`;
