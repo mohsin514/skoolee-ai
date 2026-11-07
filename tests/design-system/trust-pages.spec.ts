@@ -40,3 +40,17 @@ for (const route of ['/privacy', '/terms', '/dpa', '/guardian-notice']) {
     await page.screenshot({ path: `test-results/design-system/evidence/trust-pages/${route.slice(1)}-ur.png`, fullPage: true });
   });
 }
+
+// SKAI-1002: the trust pages follow the skoolee-lang cookie and offer a language switch.
+for (const route of ['/security', '/ai-governance', '/human-review-policy']) {
+  test(`${route} follows the Arabic language cookie and switches back to English`, async ({ page, context, baseURL }) => {
+    await context.addCookies([{ name: 'skoolee-lang', value: 'ar', url: baseURL! }]);
+    await page.goto(route);
+    await expect(page.locator('main')).toHaveAttribute('lang', 'ar');
+    await expect(page.locator('main')).toHaveAttribute('dir', 'rtl');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.getByRole('link', { name: 'English' }).click();
+    await expect(page).toHaveURL(new RegExp(`${route}\\?lang=en$`));
+    await expect(page.locator('main')).toHaveAttribute('dir', 'ltr');
+  });
+}
