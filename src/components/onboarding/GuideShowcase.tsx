@@ -94,7 +94,7 @@ export function GuideShowcase({ language, role, flagships = [], onReturn, onCont
     </header>
     <div className={styles.body}>
       <GuideStage chapter={Math.min(scene, 2)} language={language} paused={stopped} role={role} />
-      <div className={styles.content} ref={content} data-guide-scroll>
+      <div className={styles.content} ref={content} data-guide-scroll tabIndex={0}>
         <p className={styles.eyebrow}><span className={styles.liveDot} />{c.showcaseMode} · {complete ? "✓" : `0${scene + 1}`}</p>
         <InkHeading className={styles.title} ref={heading} tabIndex={-1} swashKey={scene} text={complete ? c.showcaseComplete : titles[scene]} />
         <p className={styles.description} key={scene}>{complete ? completionDescription ?? (personal ? `${personal.scenes[2].caption} ${personal.saveHint}` : publicView ? c.publicCompleteBody : c.showcaseCompleteBody) : descriptions[scene]}</p>
