@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { SignJWT } from "jose";
 import { PrismaClient } from "@prisma/client";
 import { studioShellCopy } from "../../src/components/school-ai/exam-studio/studio-shell-copy";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
@@ -13,7 +14,7 @@ const admin = "school-ai-browser-a-ADMIN";
 const origin = process.env.SCHOOL_AI_TEST_ORIGIN || SCHOOL_AI_ORIGIN;
 async function signIn(context: BrowserContext, role = "ADMIN") {
   const user = await db.user.findUniqueOrThrow({ where: { id: `school-ai-browser-a-${role}` } });
-  const token = await new SignJWT({ userId: user.id, schoolId: user.schoolId, campusId: user.campusId, role, email: user.email, accessVersion: user.accessVersion, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  const token = await new SignJWT({ userId: user.id, schoolId: user.schoolId, campusId: user.campusId, role, email: user.email, accessVersion: user.accessVersion, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
   await db.loginSession.create({ data: { userId: user.id, schoolId: user.schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
   await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]);
 }

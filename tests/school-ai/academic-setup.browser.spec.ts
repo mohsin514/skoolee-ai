@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { SignJWT } from "jose";
 import { createHash, randomUUID } from "node:crypto";
 import { schoolAICopy } from "../../src/lib/school-ai/copy";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const localDatabase = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
@@ -20,7 +21,7 @@ test.beforeAll(async () => {
   await db.academicCycle.create({ data: { schoolId, campusId, academicYear: 2026, label: "Academic QA 2026", startDate: new Date("2026-01-01"), endDate: new Date("2026-12-31"), status: "DRAFT" } });
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Grade 8", section: "A", academicYear: 2026, teachingMode: "SINGLE", classTeacherId: teacherId } });
   await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Synthetic retained learner", gender: "OTHER", rollNo: "RETAIN-1" } });
-  token = await new SignJWT({ userId: adminId, schoolId, campusId, role: "ADMIN", email: `${adminId}@example.test`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  token = await new SignJWT({ userId: adminId, schoolId, campusId, role: "ADMIN", email: `${adminId}@example.test`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
   await db.loginSession.create({ data: { userId: adminId, schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
 });
 test.afterAll(async () => {

@@ -6,6 +6,7 @@ import { schoolAICopy } from "../../src/lib/school-ai/copy";
 import { announcementCopy } from "../../src/components/school-ai/announcement-copy";
 import { announcementChannelCopy } from "../../src/components/school-ai/announcement-channel-copy";
 import type { AnnouncementExecutionReceipt, AnnouncementDelivery } from "../../src/lib/school-ai/announcements";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 // Draft saves/approvals use the real local API. Delivery preview, queue and status
@@ -15,7 +16,7 @@ if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) thro
 const db = new PrismaClient(), schoolId = `ai-announcement-${randomUUID()}`, origin = SCHOOL_AI_ORIGIN;
 let campusId = "", adminId = "", classId = "";
 async function signIn(context: BrowserContext, role: "ADMIN" | "PRINCIPAL") {
-  const token = await new SignJWT({ userId: adminId, schoolId, campusId, role, email: `${adminId}@example.test`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  const token = await new SignJWT({ userId: adminId, schoolId, campusId, role, email: `${adminId}@example.test`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
   await db.loginSession.create({ data: { userId: adminId, schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
   await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]);
 }
@@ -230,7 +231,7 @@ test("guardian profile settings stop an enabled channel using the real API witho
   await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Preferences learner", rollNo: "preferences-1", gender: "OTHER" } });
   await db.guardianRelationship.create({ data: { schoolId, campusId, studentId, guardianUserId: parentId, createdByUserId: adminId, fullName: "Preferences parent", email: `${parentId}@example.test`, phone: "+923001234567", relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { school: { connect: { id: schoolId } }, permissions: { communication: true }, reason: "Synthetic browser guardian right", createdByUserId: adminId } } } });
   await db.guardianChannelPreference.create({ data: { schoolId, campusId, guardianUserId: parentId, channel: "SMS", recipient: "+923001234567", enabled: true, verifiedAt: new Date(), consentAt: new Date(), evidence: "Synthetic prior verified consent", updatedById: adminId } });
-  const token = await new SignJWT({ userId: parentId, schoolId, campusId, role: "PARENT", email: `${parentId}@example.test`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  const token = await new SignJWT({ userId: parentId, schoolId, campusId, role: "PARENT", email: `${parentId}@example.test`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
   await db.loginSession.create({ data: { userId: parentId, schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
   await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]);
   await page.goto("/parent?settings=profile");

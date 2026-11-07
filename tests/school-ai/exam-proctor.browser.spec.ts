@@ -8,6 +8,7 @@ import { prisma } from "../../src/lib/db/prisma";
 import { examProctorFixture, removeProctorFixture, type ProctorFixture } from "./exam-proctor-fixture";
 import { examCameraCopy } from "../../src/components/school-ai/exam-camera-copy";
 import { examProctorCopy } from "../../src/components/school-ai/exam-proctor-copy";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 const origin = process.env.SCHOOL_AI_TEST_ORIGIN || SCHOOL_AI_ORIGIN;
@@ -15,7 +16,7 @@ if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) thro
 process.env.SCHOOL_AI_STORAGE_DIR = "/private/tmp/skoolee-ai-test-documents";
 const db = new PrismaClient(), fixtures: ProctorFixture[] = []; let f: ProctorFixture;
 const api = () => `/api/school-ai/exams/${f.assignment.id}/proctor`;
-async function auth(context: BrowserContext, user: AuthUser) { const token = await new SignJWT({ ...user, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only")); await db.loginSession.create({ data: { userId: user.userId, schoolId: user.schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } }); await context.clearCookies(); await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]); }
+async function auth(context: BrowserContext, user: AuthUser) { const token = await new SignJWT({ ...user, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET)); await db.loginSession.create({ data: { userId: user.userId, schoolId: user.schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } }); await context.clearCookies(); await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]); }
 type CaptureState = { calls: string[]; streams: MediaStream[] };
 async function mockCapture(page: Page) { await page.addInitScript(() => {
   const state: CaptureState = { calls: [], streams: [] }; Object.assign(window, { proctorCaptureTest: state });

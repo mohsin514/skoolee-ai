@@ -6,6 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import type { AuthUser } from "../../src/lib/auth";
 import { prisma } from "../../src/lib/db/prisma";
 import { examProctorFixture, removeProctorFixture, type ProctorFixture } from "./exam-proctor-fixture";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 // This suite exercises the integrated staff route, never the isolated intro probe or saved tokens.
@@ -24,7 +25,7 @@ type AuditedWindow = typeof window & { __integratedIntro: IntroAudit };
 async function signIn(context: BrowserContext, user: AuthUser) {
   const token = await new SignJWT({ ...user, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" })
     .setProtectedHeader({ alg: "HS256" }).setJti(randomUUID()).setIssuedAt().setExpirationTime("2h")
-    .sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+    .sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
   await db.loginSession.create({ data: { userId: user.userId, schoolId: user.schoolId,
     tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
   await context.clearCookies();

@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { SignJWT } from "jose";
 import { createHash, randomUUID } from "node:crypto";
 import { timetableScopeCopy, addPeriodCopy } from "../../src/lib/timetable/editor-copy";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
@@ -20,7 +21,7 @@ test.beforeEach(async ({ context }) => {
   await db.subject.createMany({ data: [{ id: subjectOne, schoolId, campusId, classId, name: "First term Mathematics", teacherId }, { id: subjectTwo, schoolId, campusId, classId, name: "Second term Science", teacherId }] });
   await db.classRoom.createMany({ data: [{ id: roomId, schoolId, campusId, roomNumber: "Scope-101", capacity: 40 }, { id: roomTwo, schoolId, campusId, roomNumber: "Scope-102", capacity: 40 }] });
   await db.periodDefinition.createMany({ data: [{ schoolId, campusId, timeType: "CLASS", periodNumber: 1, startTime: "08:00", endTime: "08:40" }, { schoolId, campusId, timeType: "CLASS", periodNumber: 2, startTime: "08:40", endTime: "09:20" }] });
-  const token = await new SignJWT({ userId: adminId, schoolId, campusId, role: "ADMIN", email: `${adminId}@example.test`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  const token = await new SignJWT({ userId: adminId, schoolId, campusId, role: "ADMIN", email: `${adminId}@example.test`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
   await db.loginSession.create({ data: { userId: adminId, schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
   await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]);
 });

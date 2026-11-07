@@ -4,6 +4,7 @@ import { SignJWT } from "jose";
 import { createHash, randomUUID } from "node:crypto";
 import { examSessionPlanCopy } from "../../src/components/school-ai/exam-session-plan-copy";
 import { schoolAICopy } from "../../src/lib/school-ai/copy";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated School AI database.");
@@ -20,7 +21,7 @@ test.beforeEach(async ({ context }) => {
   await db.classRoom.create({ data: { id: roomId, schoolId, campusId, roomNumber: "Exam-101", capacity: 30 } });
   await db.periodDefinition.create({ data: { id: periodId, schoolId, campusId, timeType: "EXAM", periodNumber: 1, startTime: "09:00", endTime: "10:00" } });
   await db.student.create({ data: { schoolId, campusId, classId, fullName: "Synthetic candidate", rollNo: "1", gender: "MALE" } });
-  const token = await new SignJWT({ userId: actorId, schoolId, campusId, role: "ADMIN", email: `${actorId}@example.invalid`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  const token = await new SignJWT({ userId: actorId, schoolId, campusId, role: "ADMIN", email: `${actorId}@example.invalid`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
   await db.loginSession.create({ data: { userId: actorId, schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
   await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]);
 });
@@ -87,7 +88,7 @@ test("owner without selected campus can edit owned plans while locked papers and
   const t = examSessionPlanCopy("en"); await openPlan(page); await approve(page); await page.getByRole("button", { name: t.preview, exact: true }).click(); await page.getByRole("checkbox", { name: t.confirm, exact: true }).check(); await page.getByRole("button", { name: t.apply, exact: true }).click(); await expect(page.getByRole("heading", { name: t.receipt, exact: true })).toBeVisible();
   const schedule = await db.examSchedule.findFirstOrThrow({ where: { campusId }, include: { exam: true } });
   await db.user.update({ where: { id: actorId }, data: { role: "SUPER_ADMIN", campusId: null } });
-  const token = await new SignJWT({ userId: actorId, schoolId, campusId: null, role: "SUPER_ADMIN", email: `${actorId}@example.invalid`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  const token = await new SignJWT({ userId: actorId, schoolId, campusId: null, role: "SUPER_ADMIN", email: `${actorId}@example.invalid`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
   await db.loginSession.create({ data: { userId: actorId, schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
   await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]);
   for (const url of [`/api/academic/exam-schedule?examId=${schedule.examId}`, `/api/academic/exam-schedule/rooms?scheduleId=${schedule.id}`, `/api/academic/exam-sessions/${schedule.exam.sessionId}`, `/api/academic/exam-schedule/bulk?sessionId=${schedule.exam.sessionId}`]) { const response = await page.request.get(url); expect(response.status(), await response.text()).toBe(200); }
