@@ -24,8 +24,9 @@ export async function reversePayrollLine(user: AuthUser, lineId: string, reasonI
     const campusId = initial.payrollRun.campusId;
     await lockInvoiceGeneration(db, user.schoolId, campusId);
     await assertCurrentAccountsPermission(db, user, "canAdd");
-    const line = await db.payrollLine.findFirst({ where: scope, include: { ledgerEntry: { include: { reversedBy: true } } } });
-    const original = line?.ledgerEntry;
+    // A line may own several postings once reposted; the one to reverse is its latest original (non-correction) posting.
+    const line = await db.payrollLine.findFirst({ where: scope, include: { ledgerEntries: { where: { reversalOfId: null }, include: { reversedBy: true }, orderBy: { createdAt: "desc" }, take: 1 } } });
+    const original = line?.ledgerEntries[0];
     if (!line || !original) throw new ApiError("Only a paid payroll line with a posted expense can be reversed.", 409);
     const requestHash = createHash("sha256").update(JSON.stringify({ lineId, original: original.id })).digest("hex");
     if (key) {

@@ -1363,7 +1363,7 @@ model PayrollLine {
   payrollRun    PayrollRun        @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
   user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   paymentMethod PaymentMethodRef? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
-  ledgerEntry   LedgerEntry?
+  ledgerEntries LedgerEntry[]
 
   @@unique([payrollRunId, userId])
   @@index([schoolId])
@@ -2755,7 +2755,8 @@ model LedgerEntry {
   note          String?
   paymentId     String?        @unique @map("payment_id")
   payment       Payment?       @relation("PaymentLedgerEntry", fields: [paymentId], references: [id], onDelete: SetNull)
-  payrollLineId String?        @unique @map("payroll_line_id")
+  // SKAI-1506: a reversed payroll line can be reposted, so a line may own several postings (at most one unreversed).
+  payrollLineId String?        @map("payroll_line_id")
   payrollLine   PayrollLine?   @relation(fields: [payrollLineId], references: [id], onDelete: SetNull)
   createdById   String?        @map("created_by_id")
   createdAt     DateTime       @default(now()) @map("created_at")
@@ -2768,6 +2769,7 @@ model LedgerEntry {
 
   @@unique([campusId, idempotencyKey])
   @@index([campusId, date])
+  @@index([payrollLineId])
   @@index([kind])
   @@index([accountId])
   @@index([schoolId])

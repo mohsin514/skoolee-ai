@@ -96,3 +96,16 @@ test("another school, another campus and a role without accounts write access ca
   const unpaid = await raw.payrollLine.create({ data: { schoolId: schoolA, payrollRunId: line.payrollRunId, userId: users.admin.userId, net: 5, status: "UNPAID" } });
   await assert.rejects(reversePayrollLine(users.accountant, unpaid.id, REASON), (e: { status?: number }) => e.status === 409, "only a posted line can be reversed");
 });
+
+test("a reversed line can be reposted, and a later reversal reverses the repost, not the original again", async () => {
+  const { line, entry } = await paidLine(schoolA, campusA, 6);
+  const first = await reversePayrollLine(users.accountant, line.id, REASON);
+  // Repost as the payroll route does after a correction: the line is paid again and posts a second expense.
+  await raw.payrollLine.update({ where: { id: line.id }, data: { status: "PAID", net: 90_000 } });
+  const repost = await raw.ledgerEntry.create({ data: { schoolId: schoolA, campusId: campusA, kind: "EXPENSE", currency: "PKR", sourceName: "Payroll", accountId: entry.accountId, date: new Date(Date.now() + 1000), amount: 90_000, payrollLineId: line.id } });
+  const second = await reversePayrollLine(users.accountant, line.id, REASON);
+  assert.equal(second.replayed, false);
+  assert.notEqual(second.entry.id, first.entry.id);
+  assert.deepEqual([second.entry.reversalOfId, second.entry.amount], [repost.id, -90_000]);
+  assert.equal(await raw.ledgerEntry.count({ where: { payrollLineId: line.id } }), 2, "both postings stay linked to the line");
+});
