@@ -78,12 +78,12 @@ test("the canteen adds navigation only after operators, checklist and enablement
   await page.locator('[data-tour="shell.nav-group.services"]').first().click();
   await page.locator('[data-tour="shell.nav.inventory"]').first().waitFor();
   assert.equal(await page.locator('[data-tour="shell.nav.canteen"]').count(), 0, "no canteen navigation while it is off");
-  const canteen = panel.locator("div.rounded-xl", { hasText: "Canteen · Off" });
+  const canteen = panel.locator('[data-package="CANTEEN"][data-package-status="OFF"]');
   await canteen.getByRole("button", { name: "Enable package" }).isDisabled();
   await canteen.getByLabel("Canteen manager").selectOption({ label: "Synthetic admin" });
   await canteen.getByRole("button", { name: "Save" }).first().click();
   await page.getByText("Operator saved.").first().waitFor({ timeout: 30_000 }); // a toast (R4), outside the panel
-  const setup = panel.locator("div.rounded-xl", { hasText: /^Canteen · Setting up/u });
+  const setup = panel.locator('[data-package="CANTEEN"][data-package-status="SETUP"]');
   await setup.getByLabel("Dietary lead").selectOption({ label: "Synthetic dietary" });
   // The first "Operator saved." toast may still be on screen, so wait for this save's own response.
   const dietarySaved = page.waitForResponse((r) => r.url().includes("/api/campus-packages") && r.request().method() === "POST");
@@ -114,8 +114,9 @@ test("a guardian orders the last meal once; the second guardian finds it sold ou
   const added = await manager.request.post(`${base}/api/campus-packages`, { headers: { Origin: base }, data: { action: "menu-item", data: { serviceDate: tomorrow, name: "Chicken rice", price: 1500, currency: "SAR", capacity: 1, allergens: [] } } });
   assert.equal(added.status(), 200);
   const page = await (await context("parent-a")).newPage();
-  await page.goto(`${base}/parent`);
-  const panel = page.locator('section[aria-labelledby="family-canteen"]');
+  await page.goto(`${base}/parent/canteen`);
+  // The family canteen is its own page now (/parent/canteen), embedded without its own heading.
+  const panel = page.locator("section.sk-panel", { has: page.locator("[data-order-meal]") });
   await panel.waitFor({ timeout: 60_000 });
   await panel.getByRole("button", { name: "Order meal" }).first().click();
   await page.getByText("Order received.").first().waitFor({ timeout: 30_000 }); // toast (R4)
@@ -150,8 +151,9 @@ test("the warden's roll call highlights a missing boarder and an overdue return"
 
 test("the family canteen reads right to left on a phone (AR)", async () => {
   const page = await (await context("parent-b", { width: 390, height: 844 })).newPage();
-  await page.goto(`${base}/parent`);
-  const panel = page.locator('section[aria-labelledby="family-canteen"]');
+  await page.goto(`${base}/parent/canteen`);
+  // The family canteen is its own page now (/parent/canteen), embedded without its own heading.
+  const panel = page.locator("section.sk-panel", { has: page.locator("[data-order-meal]") });
   await panel.waitFor({ timeout: 60_000 });
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");
   await panel.getByText("نفدت الكمية").first().waitFor({ timeout: 30_000 });
