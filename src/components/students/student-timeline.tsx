@@ -14,6 +14,7 @@ import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { friendlyErrorMessage } from "@/components/ui/toast";
 import { useLocale, useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { timelineLabels } from "@/lib/students/labels";
+import { readableTimelineDetail } from "@/lib/students/timeline-detail";
 
 // SKAI-166 — a pupil's life-cycle timeline, read from GET /api/students/timeline.
 // The server decides what this reader may see; this view only renders the page
@@ -137,7 +138,7 @@ export function StudentTimeline({ studentId }: { studentId: string }) {
               <time dateTime={event.createdAt} className="text-xs tabular-nums text-ink-subtle">{format.dateTime(event.createdAt)}</time>
             </div>
             <p className="mt-1.5 break-words text-sm font-semibold text-ink-strong"><bdi>{event.title}</bdi></p>
-            {event.detail && <p className="mt-1 whitespace-pre-line break-words text-sm text-ink"><bdi>{event.detail}</bdi></p>}
+            {event.detail && <p className="mt-1 whitespace-pre-line break-words text-sm text-ink"><bdi>{readableTimelineDetail(event.detail, format.money)}</bdi></p>}
             <p className="mt-1.5 text-xs text-ink-muted">{t.by}: {event.actor ? <bdi>{event.actor.name}</bdi> : t.system}</p>
           </li>)}
         </ol>}
