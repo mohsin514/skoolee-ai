@@ -74,7 +74,7 @@ export function LearningActions({ mode = "author" }: { mode?: "author" | "review
       <h3 id="la-followups-title" className="text-sm font-semibold text-ink-strong">{ui("Follow-ups due or missing")}</h3>
       <p className="text-xs text-ink-muted">{ui("Learners without a fresh check stay on this list so missing evidence is not hidden.")}</p>
       <ul className="mt-2 space-y-1 text-sm">{ctx.actions.filter(a => a.followUpGap).map(a => <li key={a.id} data-follow-up-gap={a.followUpGap}>
-        <button type="button" className="text-start underline-offset-2 hover:underline" onClick={() => setOpen(a.id)}><bdi>{a.learner || a.title}</bdi></button> · <span>{a.title}</span> · <span className="font-semibold text-status-warning-text">{ui(GAP[a.followUpGap!])}</span>{a.reviewDate ? <> · {date(a.reviewDate)}</> : null}
+        <Button type="button" variant="link" size="sm" className="h-auto min-h-0 min-w-0 px-0 text-start text-sm text-inherit" onClick={() => setOpen(a.id)}><bdi>{a.learner || a.title}</bdi></Button> · <span>{a.title}</span> · <span className="font-semibold text-status-warning-text">{ui(GAP[a.followUpGap!])}</span>{a.reviewDate ? <> · {date(a.reviewDate)}</> : null}
       </li>)}</ul>
     </section> : null}
     {!ctx.actions.length ? <div data-empty>{review
