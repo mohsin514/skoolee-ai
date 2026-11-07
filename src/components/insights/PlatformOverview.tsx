@@ -123,6 +123,7 @@ export function PlatformOverview({
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <InsightCard
+          headingLevel={2}
           icon={CreditCard}
           title={t("Schools by plan")}
           subtitle={t("{0} of {1} schools are on a paid plan", [number.format(derived.paid), number.format(stats.schoolCount)])}
@@ -147,7 +148,7 @@ export function PlatformOverview({
           )}
         </InsightCard>
 
-        <InsightCard icon={School} title={t("On a paid plan")} subtitle={t("Share of all schools")} delay={180}>
+        <InsightCard headingLevel={2} icon={School} title={t("On a paid plan")} subtitle={t("Share of all schools")} delay={180}>
           <div className="flex min-h-[220px] items-center justify-center">
             {stats.schoolCount > 0 ? (
               <RadialGauge
@@ -165,6 +166,7 @@ export function PlatformOverview({
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <InsightCard
+          headingLevel={2}
           icon={Building2}
           title={t("New schools by month")}
           subtitle={t("Sign-ups over the last year")}
@@ -189,6 +191,7 @@ export function PlatformOverview({
         </InsightCard>
 
         <InsightCard
+          headingLevel={2}
           icon={School}
           title={t("Schools by status")}
           subtitle={t("Where each school's subscription stands")}
@@ -219,6 +222,7 @@ export function PlatformOverview({
         </InsightCard>
 
         <InsightCard
+          headingLevel={2}
           icon={Activity}
           title={t("Sign-in activity")}
           subtitle={t("Sessions opened, last 14 days")}
@@ -259,6 +263,7 @@ export function PlatformOverview({
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <InsightCard
+          headingLevel={2}
           icon={Layers}
           title={t("Roll by school")}
           subtitle={t("Students registered at each school")}
@@ -304,6 +309,7 @@ export function PlatformOverview({
         </InsightCard>
 
         <InsightCard
+          headingLevel={2}
           icon={Users}
           title={t("Accounts by role")}
           subtitle={t("{0} admin actions in the last 30 days", [compact.format(stats.recentAuditActions)])}
