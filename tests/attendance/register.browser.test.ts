@@ -125,6 +125,10 @@ test("a stale write is a conflict to review, never a silent overwrite", async ()
   assert.equal(own.status, 200, `a teacher can change their own mark before submitting: ${JSON.stringify(own.json)}`);
   const stale = await save(lead, { classId: classA, date: d("2026-10-07"), entries: [mark(pupils.bilal, "PRESENT"), mark(pupils.amna, "PRESENT")] });
   assert.equal(stale.status, 409);
+  // SKAI-1691: role defaults V2 keep principals view-only for attendance, so a principal's write (even a stale one)
+  // is refused before any mutation or conflict check; the 409 above is for a role with write access (campus admin).
+  const principal = await save(await context("lead-ar"), { classId: classA, date: d("2026-10-07"), entries: [mark(pupils.bilal, "PRESENT", null, { reviewedConflict: true })] });
+  assert.equal(principal.status, 403, "a default principal is view-only for attendance");
   assert.deepEqual(stale.json.data.conflicts.map((c: { studentId: string; current: string; markedBy: string }) => [c.studentId, c.current, c.markedBy]), [[pupils.bilal, "LEAVE", "Synthetic teacher"]]);
   assert.equal(stale.json.data.written, 1, "the pupil nobody else touched is saved");
   assert.equal((await db.attendance.findFirst({ where: { studentId: pupils.bilal, date: new Date(d("2026-10-07") + "T00:00:00Z") } }))!.status, "LEAVE");
@@ -142,6 +146,7 @@ test("a submitted register changes only with a reason; an absence correction tel
   const noReason = await save(lead, { classId: classA, date: day, entries: [mark(pupils.amna, "PRESENT", "ABSENT")] });
   assert.equal(noReason.status, 400); assert.match(noReason.json.error, /reason/);
   assert.equal((await save(teacher, { classId: classA, date: day, reason: "Teacher tries to correct", entries: [mark(pupils.amna, "PRESENT", "ABSENT")] })).status, 403, "a submitted register is corrected by someone with edit permission");
+  assert.equal((await save(await context("lead-ar"), { classId: classA, date: day, reason: "Principal tries to correct", entries: [mark(pupils.amna, "PRESENT", "ABSENT")] })).status, 403, "SKAI-1691: a default principal cannot correct a submitted register");
   const fixed = await save(lead, { classId: classA, date: day, reason: "Arrived with the sports team, register taken early", entries: [mark(pupils.amna, "PRESENT", "ABSENT")] });
   assert.equal(fixed.status, 200, JSON.stringify(fixed.json));
   const row = await db.attendance.findFirst({ where: { studentId: pupils.amna, date }, include: { editHistory: true } });
