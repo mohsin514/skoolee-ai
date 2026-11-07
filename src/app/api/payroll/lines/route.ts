@@ -51,8 +51,9 @@ export async function PATCH(req: NextRequest) {
       if (line.status === "PAID") {
         return Response.json({ success: true, data: line, alreadyPaid: true });
       }
-      // SKAI-1506: a reversed line keeps its original and reversal entries; it is corrected in a new payroll version.
-      if (line.status === "REVERSED") throw new ApiError("This payroll line was reversed. Correct it in a new payroll version.", 409);
+      // SKAI-1506: a reversed line keeps its original and reversal entries; correct its amounts first (which returns it
+      // to UNPAID), then pay it again to repost.
+      if (line.status === "REVERSED") throw new ApiError("This payroll line was reversed. Correct its amounts, then pay it again to repost.", 409);
       // SKAI-1350: a negative or zero net cannot be paid; it would post a negative expense.
       if (!(line.net > 0)) throw new ApiError("Only a payroll line with a positive net can be paid.", 409);
       const paymentMethodId = body.paymentMethodId ? String(body.paymentMethodId) : null;
@@ -62,7 +63,7 @@ export async function PATCH(req: NextRequest) {
       const currency = (await getLocalePackage(user.schoolId, campusId)).currency;
       const updated = await prisma.$transaction(async (tx) => {
         const claimed = await tx.payrollLine.updateMany({
-          where: { id, status: { not: "PAID" } },
+          where: { id, status: { in: ["DRAFT", "UNPAID"] } },
           data: { status: "PAID", paidAt: now, paymentMethodId },
         });
         if (!claimed.count) return null;
@@ -102,7 +103,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Edit a DRAFT line
-    if (line.status !== "DRAFT" && line.status !== "UNPAID") {
+    if (line.status !== "DRAFT" && line.status !== "UNPAID" && line.status !== "REVERSED") {
       throw new ApiError("Only DRAFT lines can be edited", 409);
     }
     // SKAI-1326: amounts are whole, non-negative paisa within the Int32 column; anything else is rejected, not truncated.
