@@ -2,9 +2,10 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 
 // One muted-purple token drives the border AND the halo of every focused field.
 const FOCUS = 'rgb(155, 122, 184)';
-const HALO = 'rgb(155, 122, 184) 0px 0px 0px 1px inset, rgba(155, 122, 184, 0.22) 0px 0px 0px 3px, rgba(155, 122, 184, 0.24) 0px 0px 16px 2px';
+// Since 1a4f62d8c: one muted focus line (2px inset edge) plus a diffuse glow, no second ring (--field-focus-ring).
+const HALO = 'rgb(155, 122, 184) 0px 0px 0px 2px inset, rgba(129, 39, 207, 0.18) 0px 4px 14px -4px';
 const ERROR = 'rgb(175, 29, 29)';
-const ERROR_HALO = 'rgb(175, 29, 29) 0px 0px 0px 1px inset, rgba(175, 29, 29, 0.16) 0px 0px 0px 3px, rgba(175, 29, 29, 0.16) 0px 0px 16px 2px';
+const ERROR_HALO = 'rgb(175, 29, 29) 0px 0px 0px 2px inset, rgba(175, 29, 29, 0.16) 0px 4px 14px -4px';
 const HOVER = 'rgb(179, 154, 203)';
 const INVALID_FILL = 'rgb(255, 245, 245)';
 const STRONG_VIOLETS = ['rgb(131, 39, 206)', 'rgb(129, 39, 207)'];
