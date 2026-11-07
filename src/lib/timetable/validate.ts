@@ -1,5 +1,5 @@
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { getExamBookingSlots } from "@/lib/academic/exam-bookings";
+import { getExamBookings } from "@/lib/academic/exam-bookings";
 import { SchoolAiError } from "@/lib/school-ai/access";
 import { getSubstituteBookings } from "@/lib/school-ai/school-operations-bookings";
 
@@ -195,7 +195,7 @@ export async function validateTimetableSlots(opts: {
   for (const slot of teaching) for (const duty of substitutes) {
     if (slot.id !== duty.slotId && slot.teacherId === duty.teacherId && overlaps(slot, duty)) conflicts.push({ identity: JSON.stringify(["SUBSTITUTE_BOOKING", duty.id, slot.id ?? `${slot.dayOfWeek}/${slot.periodNumber}`]), type: "TEACHER_DOUBLE_BOOKED", severity: "CRITICAL", message: `This teacher has substitute cover for ${duty.className} on ${duty.date}. Reassign the dated duty first.`, dayOfWeek: slot.dayOfWeek, periodNumber: slot.periodNumber, slotId: slot.id, teacherName: duty.teacherName, otherClass: duty.className });
   }
-  const examBookings = await getExamBookingSlots(db, { schoolId: cls.schoolId, campusId, academicYear: opts.academicYear, term: opts.term });
+  const { timed: examBookings, untimed: untimedExams } = await getExamBookings(db, { schoolId: cls.schoolId, campusId, academicYear: opts.academicYear, term: opts.term });
   for (const slot of teaching) for (const exam of examBookings) {
     // CLASS and EXAM period numbers are separate namespaces; compare clocks.
     if (slot.dayOfWeek !== exam.dayOfWeek || slot.startTime && slot.endTime && slot.startTime < slot.endTime && (slot.startTime >= exam.endTime || exam.startTime >= slot.endTime)) continue;
@@ -203,6 +203,17 @@ export async function validateTimetableSlots(opts: {
       const id = resource === "teacher" ? slot.teacherId : slot.roomId;
       if (!id || id !== (resource === "teacher" ? exam.teacherId : exam.roomId)) continue;
       conflicts.push({ identity: JSON.stringify(["EXAM_BOOKING", resource, id, slot.id ?? `${slot.dayOfWeek}/${slot.periodNumber}`, exam.id]), type: resource === "teacher" ? "TEACHER_DOUBLE_BOOKED" : "ROOM_DOUBLE_BOOKED", severity: "CRITICAL", message: `${resource === "teacher" ? "Teacher" : "Room"} is reserved for ${exam.examTitle} at ${exam.startTime}–${exam.endTime} on ${DAYS[slot.dayOfWeek]}. Review the dated exam before using this weekly period.`, dayOfWeek: slot.dayOfWeek, periodNumber: slot.periodNumber, slotId: slot.id, teacherName: exam.teacherName ?? undefined, roomNumber: exam.roomNumber ?? undefined, otherClass: exam.className });
+    }
+  }
+
+  // SKAI-1787: a dated exam with no time slot cannot be compared by clock. Warn on the same room or teacher that
+  // weekday instead of refusing every save on the campus; the date sheet owner fixes the missing time.
+  for (const slot of teaching) for (const exam of untimedExams) {
+    if (slot.dayOfWeek !== exam.dayOfWeek) continue;
+    for (const resource of ["teacher", "room"] as const) {
+      const id = resource === "teacher" ? slot.teacherId : slot.roomId;
+      if (!id || id !== (resource === "teacher" ? exam.teacherId : exam.roomId)) continue;
+      conflicts.push({ identity: JSON.stringify(["EXAM_BOOKING_UNTIMED", resource, id, slot.id ?? `${slot.dayOfWeek}/${slot.periodNumber}`, exam.id]), type: resource === "teacher" ? "TEACHER_DOUBLE_BOOKED" : "ROOM_DOUBLE_BOOKED", severity: "WARNING", message: `${resource === "teacher" ? "Teacher" : "Room"} is reserved for ${exam.examTitle} on ${DAYS[slot.dayOfWeek]}, but that paper has no time on the date sheet. Set its time to check this period.`, dayOfWeek: slot.dayOfWeek, periodNumber: slot.periodNumber, slotId: slot.id, teacherName: exam.teacherName ?? undefined, roomNumber: exam.roomNumber ?? undefined, otherClass: exam.className });
     }
   }
 
