@@ -198,6 +198,7 @@ export function StaffHierarchyPanel({
       {tab === "chart" ? (
         needsLadder ? (
           <EmptyState
+            headingLevel={2}
             icon={Layers}
             title={ui("Define your ranks first")}
             description={ui("The chart draws who is senior to whom, and it reads that from your rank ladder. Pick the preset for your kind of institution — school, college, university or training institute — and adjust it from there. Nothing is fixed.")}

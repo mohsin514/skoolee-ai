@@ -30,6 +30,8 @@ export interface EmptyStateProps {
   secondaryAction?: React.ReactNode;
   /** `sm` for inside cards and tables; `md` for a whole panel. */
   size?: "sm" | "md";
+  /** 2 when the empty state sits directly under the page h1 (axe heading-order). */
+  headingLevel?: 2 | 3;
   className?: string;
 }
 
@@ -55,8 +57,9 @@ function RepeatedPrimary({ action }: { action: PageAction }) {
   );
 }
 
-export function EmptyState({ icon: Icon = Inbox, title, description, action, primaryAction, secondaryAction, size = "md", className }: EmptyStateProps) {
+export function EmptyState({ icon: Icon = Inbox, title, description, action, primaryAction, secondaryAction, size = "md", headingLevel = 3, className }: EmptyStateProps) {
   const small = size === "sm";
+  const Heading = headingLevel === 2 ? "h2" : "h3";
   const lead = action ?? (primaryAction ? <RepeatedPrimary action={primaryAction} /> : null);
   return (
     <div className={cn("relative isolate flex flex-col items-center justify-center overflow-hidden text-center", small ? "px-4 py-8" : "px-6 py-14 sm:py-16", className)}>
@@ -70,7 +73,7 @@ export function EmptyState({ icon: Icon = Inbox, title, description, action, pri
           <Icon aria-hidden="true" className={small ? "size-6" : "size-7"} strokeWidth={1.9} />
         </div>
       </div>
-      <h3 className={cn("sk-rise font-bold text-ink-strong", small ? "text-sm" : "text-lg")} style={{ animationDelay: "60ms" }}>{title}</h3>
+      <Heading className={cn("sk-rise font-bold text-ink-strong", small ? "text-sm" : "text-lg")} style={{ animationDelay: "60ms" }}>{title}</Heading>
       {description ? (
         <p className={cn("sk-rise mt-1.5 max-w-sm leading-relaxed text-ink-muted", small ? "text-xs" : "text-sm")} style={{ animationDelay: "110ms" }}>
           {description}

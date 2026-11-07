@@ -42,6 +42,8 @@ interface InsightCardProps {
   className?: string;
   /** Entrance stagger, in ms. */
   delay?: number;
+  /** 2 when the card sits directly under the page h1 (axe heading-order). */
+  headingLevel?: 2 | 3;
   children: ReactNode;
 }
 
@@ -53,8 +55,10 @@ export function InsightCard({
   table,
   className,
   delay = 0,
+  headingLevel = 3,
   children,
 }: InsightCardProps) {
+  const Heading = headingLevel === 2 ? "h2" : "h3";
   const t = useUiText();
   const [showTable, setShowTable] = useState(false);
   const headingId = useId();
@@ -76,9 +80,9 @@ export function InsightCard({
             </span>
           ) : null}
           <div className="min-w-0">
-            <h3 id={headingId} className="break-words text-base font-bold tracking-tight text-ink-strong">
+            <Heading id={headingId} className="break-words text-base font-bold tracking-tight text-ink-strong">
               {title}
-            </h3>
+            </Heading>
             {subtitle ? (
               <p className="mt-1 text-xs font-medium text-ink-muted">{subtitle}</p>
             ) : null}

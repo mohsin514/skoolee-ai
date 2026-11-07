@@ -983,19 +983,11 @@ function StudentCard({
   const noContact = !student.guardianPhone && !student.guardianEmail;
 
   return (
+    // Pointer users can click anywhere on the card; keyboard and screen-reader
+    // users get the name button. The card itself is not a control, so the
+    // checkbox and links inside it are not nested in one (axe nested-interactive).
     <div
-      role="button"
-      tabIndex={0}
       onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          onOpen();
-        } else if (e.key === " ") {
-          e.preventDefault();
-          onToggleSelect();
-        }
-      }}
       className={cn(
         "sk-rise sk-panel sk-hover-lift group/student relative cursor-pointer overflow-hidden p-4 transition-all duration-300",
         selected ? "border-primary ring-2 ring-primary/20" : "border-edge/25 hover:border-primary/30",
@@ -1029,12 +1021,15 @@ function StudentCard({
             </div>
           </div>
           <div className="min-w-0 flex-1">
-            <p
-              className="truncate text-base font-bold tracking-tight text-ink-strong transition-colors duration-300 group-hover/student:text-primary"
+            <SystemButton
+              type="button"
+              variant="link"
+              onClick={(e) => { e.stopPropagation(); onOpen(); }}
+              className="h-auto min-h-0 w-full justify-start p-0 text-start text-base font-bold tracking-tight text-ink-strong transition-colors duration-300 group-hover/student:text-primary"
               title={student.fullName}
             >
-              {student.fullName}
-            </p>
+              <span className="truncate">{student.fullName}</span>
+            </SystemButton>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <span className="inline-flex items-center whitespace-nowrap rounded-full bg-brand-50 px-2.5 py-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary">
                 {ui("Roll {0}", [student.rollNo || "—"])}
@@ -1076,7 +1071,7 @@ function StudentCard({
           <div className="mt-3 flex items-center justify-between gap-2">
             <StatusPill status={report ? report.status : "NO_REPORT"} />
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-primary/50 transition-all duration-300 group-hover/student:translate-x-0.5 group-hover/student:bg-primary group-hover/student:text-white">
-              <ArrowRight className="h-3.5 w-3.5" />
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </div>
           </div>
         </div>
