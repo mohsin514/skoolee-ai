@@ -42,7 +42,7 @@ for (const route of ['/privacy', '/terms', '/dpa', '/guardian-notice']) {
 }
 
 // SKAI-1002: the trust pages follow the skoolee-lang cookie and offer a language switch.
-for (const route of ['/security', '/ai-governance', '/human-review-policy']) {
+for (const route of ['/security', '/ai-governance', '/human-review-policy', '/privacy', '/terms', '/dpa', '/guardian-notice']) {
   test(`${route} follows the Arabic language cookie and switches back to English`, async ({ page, context, baseURL }) => {
     await context.addCookies([{ name: 'skoolee-lang', value: 'ar', url: baseURL! }]);
     await page.goto(route);

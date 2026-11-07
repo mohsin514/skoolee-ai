@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { TrustPage } from "./trust-page";
 import { readPublicLanguage, type LangSearchParams } from "./public-lang";
 import {
-  TRUST_PACK_CHROME, TRUST_PACK_VERSION, trustPackDoc, trustPackLang, type TrustPackId,
+  TRUST_PACK_CHROME, TRUST_PACK_VERSION, trustPackDoc, type TrustPackId,
 } from "@/lib/legal/trust-pack";
 
 export function legalDocMetadata(id: TrustPackId, path: string): Metadata {
@@ -17,10 +17,7 @@ export function legalDocMetadata(id: TrustPackId, path: string): Metadata {
 }
 
 export async function LegalDocPage({ id, path, searchParams }: { id: TrustPackId; path: string; searchParams: LangSearchParams }) {
-  const { lang: wanted, carry } = await readPublicLanguage(searchParams);
-  // The Arabic trust-pack documents land in a follow-up SKAI-1002 slice; until
-  // then an Arabic visitor gets the English draft, laid out left-to-right.
-  const lang = trustPackLang(wanted);
+  const { lang, carry } = await readPublicLanguage(searchParams);
   const chrome = TRUST_PACK_CHROME[lang];
   return (
     <TrustPage
