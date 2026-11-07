@@ -58,3 +58,26 @@ export const SCHOOLS: SchoolDef[] = [
   { slug: "qa-solo", name: "QA Solo School / مدرسة سولو المستقلة", city: "Islamabad", kind: "STANDALONE",
     campuses: [{ regId: "QA-S-C1", name: "Solo Campus / الحرم الوحيد", city: "Islamabad", board: "FBISE" }] },
 ];
+
+/**
+ * SKAI-1788: one synthetic platform owner (vendor console, /owner). A User needs a home
+ * school, so it lives in qa-solo like registration's owners do; APP_OWNER is cross-tenant
+ * by role. No factor is enrolled, the same as the other privileged QA accounts: sign-in
+ * offers the app's "Do it later" MFA deferral (/api/auth/mfa action "defer").
+ */
+export const PLATFORM_OWNER = {
+  role: "APP_OWNER" as UserRole,
+  key: "platform-owner",
+  school: "platform",
+  hostSchool: "qa-solo",
+  email: "platform-owner@qa-platform.qa.local",
+  fullName: "QA Platform Owner مالك المنصة",
+};
+
+export type SeedCredential = { school: string; role: string; email: string; password: string };
+
+/** Add or replace accounts by email, keeping every other credential (for --platform-owner-only). */
+export function mergeCredentials(existing: SeedCredential[], updates: SeedCredential[]): SeedCredential[] {
+  const emails = new Set(updates.map((a) => a.email));
+  return [...existing.filter((a) => !emails.has(a.email)), ...updates];
+}
