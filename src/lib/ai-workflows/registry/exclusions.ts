@@ -8,6 +8,7 @@ import type { Exclusion, ExclusionCategory } from "./types";
 interface Rule { category: ExclusionCategory; reason: string; match(key: string): boolean; link?: string }
 
 const RULES: Rule[] = [
+  { category: "internal", reason: "SKAI-1669: accepting a library charge onto a family's fee invoice, or returning it to the library, is the fees office's own posting decision; the assistant must not post or return charges.", match: key => key === "fees.library_charge_decide", link: "/dashboard/fees" },
   { category: "internal", reason: "Exam Studio owns the paper-to-gradebook handoff: an authorized exam-office user must review the mark conversion and current preview, confirm the transfer, and retain its receipt. The assistant must not autonomously write or publish these marks.", match: key => key === "exams.paper.gradebook_send", link: "/ai/studio" },
   { category: "internal", reason: "Knowledge authoring, audience changes and publication require a human review; the assistant cannot publish its own evidence.", match: key => ["knowledge.create", "knowledge.manage"].includes(key), link: "/ai/knowledge" },
   { category: "file-upload", reason: "Knowledge file extraction is user-initiated intake and must be reviewed before publication.", match: key => key === "knowledge.extract", link: "/ai/knowledge" },

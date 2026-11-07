@@ -28,7 +28,7 @@ type Member = { kind: "MEMBER"; member: { id: string; memberNo: string; name: st
 type Copy = { kind: "COPY"; copy: { id: string; barcode: string; status: string; condition: string; heldForReservation: boolean }; book: { id: string; title: string; author: string | null; isbn: string | null } | null; waitingReservations: number };
 type Fine = { overdueDays: number; graceDays: number; closureDays: string[]; chargeableDays: number; perDay: number; uncapped: number; cap: number; amount: number; currency: string };
 type Overview = { rules: { version: number; loanDays: number; maxLoans: number; maxRenewals: number; graceDays: number; finePerDay: number; fineCap: number; lostCharge: number; holdDays: number; currency: string; closures: string[] }; canWaive: boolean;
-  books: { id: string; title: string; copiesTotal: number; copiesAvailable: number }[]; reservations: { id: string; bookId: string; status: string; readyUntil: string | null }[]; charges: { id: string; kind: string; amount: number; currency: string }[]; handed?: { id: string; kind: string; amount: number; currency: string; decidedAt: string | null }[] };
+  books: { id: string; title: string; copiesTotal: number; copiesAvailable: number }[]; reservations: { id: string; bookId: string; status: string; readyUntil: string | null }[]; charges: { id: string; kind: string; amount: number; currency: string }[]; handed?: { id: string; kind: string; amount: number; currency: string; decidedAt: string | null; status?: string; invoiceId?: string | null }[] };
 
 const STATUS_LABEL: Record<string, string> = { AVAILABLE: "On the shelf", ON_LOAN: "On loan", RESERVED_HOLD: "Held for a reservation", DAMAGED: "Damaged", LOST: "Lost", WAITING: "Waiting", READY: "Ready to collect" };
 const STATUS_TONE: Record<string, DeskTone> = { AVAILABLE: "success", ON_LOAN: "brand", RESERVED_HOLD: "info", DAMAGED: "warning", LOST: "danger", WAITING: "neutral", READY: "success" };
@@ -251,7 +251,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
               </div>
             ))}
             {/* SKAI-1665: handed charges stay visible here until the fees office completes them. */}
-            {overview.handed?.length ? <div className="space-y-1 pt-2" data-handed-charges><h4 className="text-sm font-semibold text-ink-strong">{ui("Handed to the fees office")}</h4>{overview.handed.map(c => <p key={c.id} className="flex flex-wrap items-center gap-2 text-sm text-ink-muted"><Receipt aria-hidden="true" className="size-4" />{ui(KIND_LABEL[c.kind] ?? c.kind)} · <bdi>{money(c.amount, c.currency)}</bdi></p>)}</div> : null}
+            {overview.handed?.length ? <div className="space-y-1 pt-2" data-handed-charges><h4 className="text-sm font-semibold text-ink-strong">{ui("Handed to the fees office")}</h4>{overview.handed.map(c => <p key={c.id} className="flex flex-wrap items-center gap-2 text-sm text-ink-muted"><Receipt aria-hidden="true" className="size-4" />{ui(KIND_LABEL[c.kind] ?? c.kind)} · <bdi>{money(c.amount, c.currency)}</bdi> · <span data-charge-link={c.invoiceId ? "posted" : "waiting"}>{ui(c.invoiceId ? "Invoiced to the family" : "Waiting for the fees office")}</span></p>)}</div> : null}
           </div>
           <div className="space-y-2">
             <h3 className="font-semibold text-ink-strong">{ui("Add barcoded copies")}</h3>

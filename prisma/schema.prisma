@@ -8687,6 +8687,10 @@ model LibraryCharge {
   waiverReason String?  @map("waiver_reason")
   decidedAt   DateTime? @map("decided_at")
   createdAt   DateTime  @default(now()) @map("created_at")
+  /// SKAI-1669: the fee invoice finance posted for this charge (status POSTED); one charge posts at most once.
+  invoiceId   String?   @unique @map("invoice_id")
+  /// SKAI-1669: why finance returned the charge to the library (status back to OPEN).
+  financeNote String?   @map("finance_note")
 
   @@unique([issueId, kind])
   @@index([memberId, status])
