@@ -115,9 +115,10 @@ const copy = {
 } satisfies Record<Language, PricingCopy>;
 // salesEmail is sourced from @/lib/config/contact (SKAI-948 / COM-08).
 
-export function PricingPage() {
+/** SKAI-1002: `initialLanguage` comes from ?lang or the skoolee-lang cookie on the server. */
+export function PricingPage({ initialLanguage = "en" }: { initialLanguage?: Language }) {
   const [country, setCountry] = useState<Country>("PK");
-  const [language, setLanguage] = useState<Language>("en");
+  const [language, setLanguage] = useState<Language>(initialLanguage);
   const [period, setPeriod] = useState<BillingPeriod>("monthly");
   const t = copy[language];
   const regionalCurrency = currencyForCountry(country);

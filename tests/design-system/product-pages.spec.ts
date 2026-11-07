@@ -32,3 +32,18 @@ for (const route of routes) {
     // Mail links are inspected only; no message is composed or sent.
   });
 }
+
+// SKAI-1002: product pages and /pricing follow the skoolee-lang cookie.
+for (const route of [...routes, '/pricing']) {
+  test(`${route} renders Arabic right-to-left from the language cookie`, async ({ page, context, baseURL }) => {
+    await page.route('**/api/**', request => request.abort());
+    await context.addCookies([{ name: 'skoolee-lang', value: 'ar', url: baseURL! }]);
+    await page.goto(route);
+    await expect(page.locator('main')).toHaveAttribute('dir', 'rtl');
+    await expect(page.locator('main')).toHaveAttribute('lang', 'ar');
+    for (const width of [320, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+  });
+}
