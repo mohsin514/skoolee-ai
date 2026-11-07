@@ -10,7 +10,7 @@ import { previewSchoolAiExecution, type SchoolAiOperation } from "../../src/lib/
 import { createSchoolRun, listSchoolRuns, processSchoolRun, updateSchoolRun, sweepSchoolRuns } from "../../src/lib/school-ai/run-service";
 import { inspectRiskEvidence } from "../../src/lib/school-ai/school-operations-risk-service";
 import { assessmentFixture } from "./assessment-fixture";
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use isolated synthetic School AI PostgreSQL only.");
 const db = new PrismaClient(), schools: string[] = [];
 after(async () => { await db.school.deleteMany({ where: { id: { in: schools } } }); await db.$disconnect(); await prisma.$disconnect(); });

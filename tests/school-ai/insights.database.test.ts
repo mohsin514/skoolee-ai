@@ -6,7 +6,7 @@ import type { AuthUser } from "../../src/lib/auth";
 import { prisma } from "../../src/lib/db/prisma";
 import { getWorkspaceInsights } from "../../src/lib/school-ai/insights-service";
 import { createWorkspaceRecord, updateWorkspaceRecord } from "../../src/lib/school-ai/repository";
-const url="postgresql://angular_dev_15@127.0.0.1:55438/postgres";if(process.env.DATABASE_URL!==url||process.env.DIRECT_URL!==url)throw new Error("Isolated database only");
+const url=`postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;if(process.env.DATABASE_URL!==url||process.env.DIRECT_URL!==url)throw new Error("Isolated database only");
 const db=new PrismaClient(),schoolId=`ai-insights-${randomUUID()}`,campusId=randomUUID(),admin:AuthUser={userId:randomUUID(),schoolId,campusId,role:"CAMPUS_ADMIN",email:`${randomUUID()}@example.invalid`,accessVersion:0};
 before(async()=>{await db.school.create({data:{id:schoolId,name:"Synthetic observations",slug:schoolId,regId:schoolId,contactEmail:admin.email,city:"Test",status:"ACTIVE"}});await db.campus.create({data:{id:campusId,schoolId,name:"Synthetic campus",regId:campusId,city:"Test"}});await db.user.create({data:{id:admin.userId,schoolId,campusId,email:admin.email,role:admin.role,fullName:"Synthetic observer",onboardingComplete:true}});});
 after(async()=>{await db.school.delete({where:{id:schoolId}});await db.$disconnect();await prisma.$disconnect();});

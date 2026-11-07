@@ -20,7 +20,7 @@ async function replayWelcome(page: Page) {
   } else await page.evaluate(() => window.dispatchEvent(new Event("skoolee:replay-welcome")));
 }
 
-const database = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const database = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== database || process.env.DIRECT_URL !== database) throw Error("Only the isolated local test database is allowed.");
 const db = new PrismaClient();
 const schoolId = `launch-guide-${randomUUID()}`;

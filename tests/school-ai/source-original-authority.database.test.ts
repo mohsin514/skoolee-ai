@@ -9,7 +9,7 @@ import { createDocumentJob, listDocumentJobs, processDocumentJob, updateDocument
 import { schoolAiTransaction } from "../../src/lib/school-ai/transaction";
 import { saveOriginal, readOriginal, removeOriginal } from "../../src/lib/school-ai/source-storage";
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Isolated PG55438 only.");
 process.env.SCHOOL_AI_STORAGE_DIR = "/private/tmp/skoolee-ai-source-authority-tests";
 const db = new PrismaClient(), schoolId = `ai-source-auth-${randomUUID()}`, campusId = randomUUID();

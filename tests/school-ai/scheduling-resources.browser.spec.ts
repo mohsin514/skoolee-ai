@@ -4,7 +4,7 @@ import { SignJWT } from "jose";
 import { createHash, randomUUID } from "node:crypto";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated School AI database.");
 const db = new PrismaClient(), schoolId = `resource-qa-${randomUUID()}`, origin = SCHOOL_AI_ORIGIN;
 let campusId: string, actorId: string, teacherId: string, classId: string, roomId: string, periodId: string, scheduleId: string;

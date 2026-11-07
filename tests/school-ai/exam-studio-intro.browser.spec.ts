@@ -24,7 +24,7 @@ const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost
 // transitions, workspace state, input arrival and every request share `performance.now()`. No
 // assertion depends on a Playwright-side stopwatch, which would fold in protocol round-trips.
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated School AI test database.");
 
 const origin = SCHOOL_AI_ORIGIN;

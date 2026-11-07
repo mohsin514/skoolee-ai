@@ -11,7 +11,7 @@ import { getSetupJourney } from "../../src/lib/school-ai/setup-journey-service";
 import { previewSchoolAiExecution, executeSchoolAiTool } from "../../src/lib/school-ai/execution";
 import type { generateAIDraft } from "../../src/lib/ai/openai";
 const prepareSetupActions: typeof prepare = (user, raw, generate) => runWithTenantContext({ schoolId: user.schoolId, campusId: user.campusId, userId: user.userId, role: user.role }, () => prepare(user, raw, generate));
-const url = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const url = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== url || process.env.DIRECT_URL !== url) throw new Error("Isolated PG55438 only.");
 const db = new PrismaClient(), schoolIds: string[] = [];
 after(async () => { await db.school.deleteMany({ where: { id: { in: schoolIds } } }); await db.$disconnect(); await prisma.$disconnect(); });

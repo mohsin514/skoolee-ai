@@ -9,7 +9,7 @@ import { auditHistoryScope, exportAuditHistory, listAuditHistory } from "../../s
 import { assertPermission } from "../../src/lib/permissions";
 import { purgeExpiredExamIntegrity } from "../../src/lib/school-ai/exam-integrity-service";
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only isolated PG55438.");
 const db = new PrismaClient(), schoolIds: string[] = [];
 after(async () => { await db.school.deleteMany({ where: { id: { in: schoolIds } } }); await db.$disconnect(); await prisma.$disconnect(); });

@@ -14,7 +14,7 @@ import { examProctorFixture, removeProctorFixture } from "../school-ai/exam-proc
  * SKO-451 morning-peak profile on synthetic data: a noisy school floods whole-roster exports while a second school
  * marks attendance and its pupils autosave exam answers. Only the isolated database and a localhost app are allowed.
  */
-export const ISOLATED = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+export const ISOLATED = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 export function assertIsolated(origin: string) {
   if (process.env.DATABASE_URL !== ISOLATED) throw new Error("Only the isolated database 127.0.0.1:55438/postgres is allowed.");
   if (!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) throw new Error("Only a localhost app is allowed.");

@@ -12,7 +12,7 @@ import { lockTimetableCampus } from "../../src/lib/timetable/locking";
 import { createWorkspaceRecord, updateWorkspaceRecord } from "../../src/lib/school-ai/repository";
 import { executeSchoolAiTool, previewSchoolAiExecution } from "../../src/lib/school-ai/execution";
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated school AI PostgreSQL fixture.");
 const db = new PrismaClient(), schoolId = `assignment-sync-${randomUUID()}`;
 before(async () => { await db.school.create({ data: { id: schoolId, name: "Synthetic assignment school", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Test", status: "ACTIVE" } }); });

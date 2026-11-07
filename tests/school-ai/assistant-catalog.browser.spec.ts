@@ -10,7 +10,7 @@ import { schoolAiTransaction } from "../../src/lib/school-ai/transaction";
 import { resolveAssistantCatalog } from "../../src/lib/school-ai/assistant-catalog-service";
 import type { AuthUser } from "../../src/lib/auth";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use isolated catalog fixtures only.");
 process.env.EMAIL_DEV_MODE = "true"; process.env.DISABLE_OUTBOUND_MESSAGES = "true";
 const db = new PrismaClient(), schoolId = `catalog-browser-${randomUUID()}`;

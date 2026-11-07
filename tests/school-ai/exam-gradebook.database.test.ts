@@ -11,7 +11,7 @@ import { getExamGradebookOptions, previewExamGradebook, publishExamGradebook } f
 import type { GradebookPreview } from "../../src/lib/school-ai/exam-gradebook";
 import { assessmentFixture } from "./assessment-fixture";
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only isolated localhost:55438 gradebook fixtures.");
 const db = new PrismaClient(), schoolId = `gradebook-ai-${randomUUID()}`;
 const ctx = <T>(user: AuthUser, fn: () => Promise<T>) => runWithTenantContext({ schoolId: user.schoolId, campusId: user.campusId, userId: user.userId, role: user.role }, fn);

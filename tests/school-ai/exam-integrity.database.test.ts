@@ -13,7 +13,7 @@ import { createSchoolAiExam, startSchoolAiExam, getSchoolAiExam, approveSchoolAi
 import { updateExamProctorPolicy } from "../../src/lib/school-ai/exam-proctor-service";
 import { PROCTOR_CONSENT_VERSION } from "../../src/lib/school-ai/exam-proctor";
 import { auditHistoryScope } from "../../src/lib/audit-history";
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use isolated PG55438 only.");
 const db = new PrismaClient(), schools: string[] = []; let storage = "";
 before(async () => { storage = await mkdtemp(join(tmpdir(), "exam-integrity-test-")); process.env.SCHOOL_AI_STORAGE_DIR = storage; });

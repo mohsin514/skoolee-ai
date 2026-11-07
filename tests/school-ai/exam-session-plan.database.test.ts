@@ -17,7 +17,7 @@ import { validateStoredExamSchedules } from "../../src/lib/academic/exam-booking
 import { allocateExamRooms } from "../../src/lib/academic/exam-rooms";
 import { runWithTenantContext } from "../../src/lib/db/tenant-context";
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated School AI database.");
 const db = new PrismaClient(), schoolId = `exam-plan-${randomUUID()}`;
 before(async () => { await db.school.create({ data: { id: schoolId, name: "Synthetic exam operations", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Test", status: "ACTIVE" } }); });

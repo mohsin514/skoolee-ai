@@ -7,7 +7,7 @@ import { candidateExamUrl } from "../../src/lib/school-ai/exam-boundary";
 import { launchCopy } from "../../src/components/onboarding/launch-copy";
 const ONBOARDING_ORIGIN = (process.env.ONBOARDING_TEST_ORIGIN || "http://localhost:3110").replace(/\/+$/, "");
 
-const database = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const database = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== database || process.env.DIRECT_URL !== database) throw Error("Only the isolated local test database is allowed.");
 const db = new PrismaClient();
 const origin = ONBOARDING_ORIGIN;
