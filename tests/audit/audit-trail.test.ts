@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import { auditedOperation, isAuditedModel, resetAuditTrailState } from "../../src/lib/db/audit-trail";
+import { auditedOperation, isAuditedModel, resetAuditTrailState, withTransactionAudit } from "../../src/lib/db/audit-trail";
+import { referenceTransaction } from "../../src/lib/db/reference-transaction";
 import { runWithTenantContext } from "../../src/lib/db/tenant-context";
 
 // SKAI-1162: every create, update and delete on an audited model writes exactly one audit row,
@@ -134,4 +135,43 @@ test("a failed audit write does not fail the change", async () => {
     auditedOperation({ delegate: "student", operation: "create", args: {}, query: async () => ({ id: "s2", schoolId: "school-a" }), client })
   );
   assert.deepEqual(result, { id: "s2", schoolId: "school-a" });
+});
+
+// SKAI-1796: document text and other free-text content never reach audit_logs.
+test("content fields are omitted from the automatic audit row", async () => {
+  const { audits, client } = fakeClient();
+  const created = { id: "r1", schoolId: "school-a", title: "Synthetic", data: { extractedText: "Synthetic document text" }, extractedText: "Synthetic document text", body: "Synthetic body", messageContent: "Synthetic" };
+  await asUser(() => auditedOperation({ delegate: "student", operation: "create", args: { data: {} }, query: async () => created, client }));
+  const stored = JSON.stringify(audits[0].newValue);
+  assert.equal(stored.includes("Synthetic document text"), false);
+  assert.equal(stored.includes("Synthetic body"), false);
+  assert.deepEqual(audits[0].newValue, { operation: "create", id: "r1", schoolId: "school-a", title: "Synthetic", data: "[omitted]", extractedText: "[omitted]", body: "[omitted]", messageContent: "[omitted]" });
+});
+
+const inTransaction = <T>(client: never, fn: () => Promise<T>) => asUser(() => referenceTransaction.run(client, () => withTransactionAudit(client, fn)));
+const manualAudit = (client: never, recordId: string) => auditedOperation({
+  delegate: "auditLog",
+  operation: "create",
+  args: { data: { schoolId: "school-a", tableName: "student", recordId, newValue: { rich: true }, userId: "user-1" } },
+  query: async (args) => (client as unknown as { auditLog: { create: (a: unknown) => Promise<unknown> } }).auditLog.create(args),
+  client,
+});
+
+test("inside a transaction a route's own audit row replaces the automatic one: one row per create", async () => {
+  const { audits, client } = fakeClient();
+  await inTransaction(client, async () => {
+    await auditedOperation({ delegate: "student", operation: "create", args: { data: {} }, query: async () => ({ id: "s1", schoolId: "school-a" }), client });
+    await auditedOperation({ delegate: "student", operation: "create", args: { data: {} }, query: async () => ({ id: "s2", schoolId: "school-a" }), client });
+    await manualAudit(client, "s1");
+  });
+  assert.deepEqual(audits.map((row) => row.recordId), ["s1", "s2"]);
+  assert.deepEqual(audits[0].newValue, { rich: true });
+});
+
+test("inside a transaction a failed audit write fails the transaction so it can be retried", async () => {
+  const { client } = fakeClient();
+  (client as { auditLog: { create: unknown } }).auditLog.create = async () => { throw new Error("could not serialize access"); };
+  await assert.rejects(() => inTransaction(client, () =>
+    auditedOperation({ delegate: "student", operation: "create", args: {}, query: async () => ({ id: "s3", schoolId: "school-a" }), client })
+  ), /could not serialize/);
 });
