@@ -28,20 +28,20 @@ jobs:
           fi
   development:
     needs: validate-target
-    if: github.ref_name == 'dev'
+    if: contains(fromJSON('["dev","qa","demo"]'), github.ref_name)
     runs-on: ubuntu-latest
     steps:
       - name: Development uses Vercel Git integration
         run: |
-          echo 'Development deploys through the existing Vercel Git integration.' >> "$GITHUB_STEP_SUMMARY"
+          echo "$GITHUB_REF_NAME deploys through the existing Vercel Git integration (SKAI-1799)." >> "$GITHUB_STEP_SUMMARY"
           echo 'No release approval variables or Vercel CLI secrets are needed in GitHub for dev.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Recovery CI runs independently; it does not gate the Vercel Git build.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'This job does not migrate the dev database. Apply required versioned migrations before deploying schema-dependent changes; see docs/ENVIRONMENTS.md.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'This job does not migrate the $GITHUB_REF_NAME database. Apply required versioned migrations before deploying schema-dependent changes; see docs/ENVIRONMENTS.md.' >> "$GITHUB_STEP_SUMMARY"
   recovery:
     needs: validate-target
     uses: ./.github/workflows/recovery.yml
   migrate-and-promote:
-    if: github.ref_name != 'dev'
+    if: contains(fromJSON('["staging","production"]'), github.ref_name)
     needs: recovery
     runs-on: ubuntu-latest
     timeout-minutes: 20

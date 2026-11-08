@@ -3,7 +3,9 @@
   "git": {
     "deploymentEnabled": {
       "*": false,
-      "dev": true
+      "dev": true,
+      "qa": true,
+      "demo": true
     }
   },
   "ignoreCommand": "bash scripts/vercel/ignore-build.sh",

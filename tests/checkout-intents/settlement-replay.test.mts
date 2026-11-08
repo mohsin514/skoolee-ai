@@ -12,7 +12,14 @@ const tx = {
     findFirst: async ({ where }: { where: { id: string; schoolId: string } }) => db.intents.find(r => r.id === where.id && r.schoolId === where.schoolId) ?? null,
     update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => Object.assign(db.intents.find(r => r.id === where.id)!, data),
   },
-  school: { update: async () => undefined },
+  // Node 22 does not apply the entitlements mock to checkout-intents' dynamic import, so the real
+  // activatePlan can run against this client; it records the activation the same way the mock does.
+  school: {
+    findUnique: async () => ({ planEndsAt: null, planStartedAt: null, plan: "FREE", status: "ACTIVE", planPricing: null }),
+    update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+      if (data.plan) db.activations.push(`${where.id}:${data.plan}`);
+    },
+  },
 };
 // Transactions run one at a time, which is what the FOR UPDATE row lock guarantees in Postgres.
 const prisma = { $transaction: (fn: (t: typeof tx) => Promise<unknown>) => { const run = queue.then(() => fn(tx)); queue = run.then(() => undefined, () => undefined); return run; } };

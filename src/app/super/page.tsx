@@ -86,6 +86,8 @@ import { AuditHistoryModal } from "@/components/audit/audit-history-modal";
 import { InstitutionSettingsPanel } from "@/components/settings/InstitutionSettingsPanel";
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { DataLifecyclePanel } from "@/components/settings/DataLifecyclePanel";
+import { WhatsAppConnectionPanel } from "@/components/whatsapp/whatsapp-connection-panel";
+import { ManagedSendingPanel } from "@/components/whatsapp/managed-sending-panel";
 import { GroupPolicy } from "@/components/group-policy/group-policy";
 import { IdentityAdmin } from "@/components/identity/identity-admin";
 import { Integrations } from "@/components/integrations/integrations";
@@ -110,7 +112,7 @@ type LeaderRole = "CAMPUS_ADMIN" | "PRINCIPAL";
 const APPROVAL_TABS = ["support", "tax", "policy"] as const;
 const ACCESS_TABS = ["leadership", "members", "permissions"] as const;
 const STANDARD_TABS = ["templates", "policies"] as const;
-const SETTINGS_TABS = ["profile", "locale", "identity", "integrations", "data", "activity", "setup"] as const;
+const SETTINGS_TABS = ["profile", "locale", "identity", "integrations", "whatsapp", "data", "activity", "setup"] as const;
 
 const searchSnapshot = () => window.location.search;
 const serverSearchSnapshot = () => "";
@@ -853,6 +855,8 @@ function SettingsView({ tab, onTab, userId, onSaved }: { tab: string | null; onT
     { id: "locale", label: "Language and region" },
     { id: "identity", label: "Sign-in and roster" },
     { id: "integrations", label: "Integrations" },
+    // SKAI-746: WhatsApp connection and managed sending are owner-only on the API, so the owner's console carries them.
+    { id: "whatsapp", label: "WhatsApp" },
     { id: "data", label: "Data and privacy" },
     { id: "activity", label: "Activity log" },
     { id: "setup", label: "Setup checklist", hidden: !setupOpen },
@@ -877,6 +881,7 @@ function SettingsView({ tab, onTab, userId, onSaved }: { tab: string | null; onT
   if (active === "locale") panel = <LocaleSettingsPanel scope="school" hideSave command={command} onDirtyChange={reportSave} />;
   else if (active === "identity") panel = <IdentityAdmin />;
   else if (active === "integrations") panel = <Integrations />;
+  else if (active === "whatsapp") panel = <div className="space-y-6"><WhatsAppConnectionPanel /><ManagedSendingPanel /></div>;
   else if (active === "data") panel = userId ? <DataLifecyclePanel userId={userId} hideSave command={command} onDirtyChange={reportSave} /> : <SkeletonCards count={2} label={t("Loading")} />;
   else if (active === "activity") panel = <AuditHistoryPanel exportRequest={exportRequest} />;
   else if (active === "setup") panel = <ReadinessHome />;
