@@ -38,6 +38,6 @@ test("the CI page-weight step blocks: no continue-on-error", async () => {
   const start = yml.indexOf("- name: Page-weight budget");
   assert.ok(start >= 0, "Page-weight budget step is missing");
   const step = yml.slice(start, yml.indexOf("- name:", start + 10));
-  assert.doesNotMatch(step, /continue-on-error/);
+  assert.doesNotMatch(step, /^\s*continue-on-error:/m);
   assert.match(step, /size:check/);
 });
