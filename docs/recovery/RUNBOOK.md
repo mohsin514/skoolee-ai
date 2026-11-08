@@ -314,6 +314,47 @@ this tooling. Never run the synthetic harness against a tunnel to production.
 
 Implementation references: [Vercel Git configuration](https://vercel.com/docs/project-configuration/git-configuration), [prebuilt deployment](https://vercel.com/docs/cli/deploy), and [local build](https://vercel.com/docs/cli/build).
 
+## Post-deploy smoke and incident workflow (SKAI-867)
+
+### Smoke after every promotion
+
+1. Automated, anonymous: `node scripts/deployment/smoke.mjs <origin> <approved-sha>`.
+   It must exit 0; a commit mismatch, database down, an open roster or a
+   broken login page fails it. Keep the JSON report as release evidence.
+2. Manual, synthetic QA-01 accounts only (never real schools):
+   - Sign-in: a QA-01 admin signs in and reaches the dashboard.
+   - Isolation: the QA-01 admin cannot open a QA-02 student by ID (404/403).
+   - Academic journey: a QA-01 teacher records attendance for one class.
+   - Job dispatch: an outbox job (e.g. a report PDF) reaches `completed`.
+   - Provider health: the AI/email providers show configured and healthy in
+     the admin console; messaging goes to sink addresses only.
+3. Record environment, commit, tester, time and each result on the release ticket.
+
+### Failed smoke: containment decision
+
+- Application fault, migration additive: roll the deployment back to the
+  previous prebuilt artifact (Vercel instant rollback). No database change.
+- Migration is the fault: never roll the schema back. Disable the feature flag,
+  then ship a forward-repair migration through the normal reviewed pipeline.
+- Data exposure suspected (isolation check failed): treat as SEV1, stop
+  workers, roll back the application, open an incident below.
+- Do not send customer messages from tooling during containment.
+
+### Incident record
+
+| Field | Content |
+| --- | --- |
+| Severity | SEV1 data exposure or full outage; SEV2 a core journey broken for some schools; SEV3 degraded or workaround exists |
+| Affected | School IDs (not names in public channels), campuses, tasks/journeys |
+| Responder | Accountable incident commander and next owner |
+| Timeline | Detected, contained, recovered (UTC), with the actions taken |
+| Evidence | Smoke report, logs and commit SHAs; no secrets, tokens or pupil content |
+| Customer update | Sent by the support lead through the authorized channel only; time and text recorded |
+| Follow-up | Root cause, fix ticket (SKAI key), runbook change |
+
+SEV1: update affected schools within 1 hour. SEV2: same working day. Close only
+after the follow-up ticket exists.
+
 ## School AI continuation collision (13 October 2026)
 
 The reported `P3009` on `20261012170000_school_ai_continuation` was caused by PostgreSQL `42701`: `school_ai_requests.conversation_id` already existed. A read-only catalog comparison against a clean local replay found all of that migration's columns, indexes and foreign keys present, but its ten new CHECK constraints missing and its execution-operation CHECK still on the earlier four operations. The next migration's nullable `request_language` column also existed, without its language CHECK. This is partial schema adoption, not a reason to reset a database.

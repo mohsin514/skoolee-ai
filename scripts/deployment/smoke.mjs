@@ -15,7 +15,7 @@ export function targetOrigin(value) {
 export async function smoke(origin, request = fetch, expectedCommit) {
   origin = targetOrigin(origin);
   const checks = [];
-  for (const path of ['/login', '/api/auth/session', '/api/public/ready']) {
+  for (const path of ['/login', '/api/auth/session', '/api/public/ready', '/api/students']) {
     try {
       const response = await request(`${origin}${path}`, {
         method: 'GET', redirect: 'manual', credentials: 'omit',
@@ -33,6 +33,10 @@ export async function smoke(origin, request = fetch, expectedCommit) {
         const body = type.includes('application/json') ? await response.json() : null;
         const commitMatches = !expectedCommit || body?.build === String(expectedCommit).slice(0, 12);
         passed = response.status === 200 && body?.ok === true && body?.checks?.database === 'up' && commitMatches;
+      } else if (path === '/api/students') {
+        // Tenant isolation fails closed: no session means no school roster, and nothing cacheable.
+        await response.body?.cancel();
+        passed = [401, 403].includes(response.status);
       } else {
         const body = type.includes('application/json') ? await response.json() : null;
         passed = response.status === 401 && body?.user === null &&
@@ -47,7 +51,7 @@ export async function smoke(origin, request = fetch, expectedCommit) {
   }
   return {
     checkedAt: new Date().toISOString(), origin,
-    scope: expectedCommit ? 'Public login, anonymous session denial, database readiness and deployed commit.' : 'Public login, anonymous session denial and database readiness; deployed commit not certified (no expected commit given).',
+    scope: expectedCommit ? 'Public login, anonymous session and roster denial, database readiness and deployed commit.' : 'Public login, anonymous session and roster denial and database readiness; deployed commit not certified (no expected commit given).',
     passed: checks.every(check => check.passed), checks,
   };
 }
