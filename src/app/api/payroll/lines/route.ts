@@ -1,19 +1,41 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { writeAuditEvent } from "@/lib/audit-events";
+import { getLocalePackage } from "@/lib/locale/store";
+import { reversePayrollLine } from "@/lib/payroll-reversal";
+import { ApiError, assertPermission, canManageCampusOps, canManageFinance, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // PATCH /api/payroll/lines
 // body (edit): { id, basic?, allowances?, deductions?, bonus? } — DRAFT lines only, net recomputed
 // body (pay):  { id, status: "PAID", paymentMethodId? } — posts an EXPENSE LedgerEntry idempotently
 //                                                          (unique payroll_line_id) against the
 //                                                          campus "Salaries Expense" account.
+// body (reverse): { id, action: "reverse", reason } + optional Idempotency-Key header — SKAI-1506: a finance role
+//                 posts an opposite, linked ledger entry and marks the line REVERSED (see lib/payroll-reversal).
+
+/** SKAI-1326: a payroll amount is a whole, non-negative number of paisa that fits the Int32 column. */
+function payrollAmount(value: unknown, field: string): number {
+  const amount = Number(value);
+  if (!Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
+    throw new ApiError(`${field} must be a whole, non-negative amount`, 400);
+  }
+  return amount;
+}
 
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    const body = await parseBody(req, jsonObjectBody);
+    if (body.action === "reverse") {
+      if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+      await assertPermission(user, "payroll", "view");
+      const result = await reversePayrollLine(user, String(body.id ?? ""), body.reason, req.headers.get("idempotency-key") ?? body.idempotencyKey);
+      return Response.json({ success: true, data: { line: result.line, reversal: result.entry }, replayed: result.replayed });
+    }
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "payroll", "edit");
-    const body = await req.json();
 
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);
@@ -29,14 +51,23 @@ export async function PATCH(req: NextRequest) {
       if (line.status === "PAID") {
         return Response.json({ success: true, data: line, alreadyPaid: true });
       }
+      // SKAI-1506: a reversed line keeps its original and reversal entries; correct its amounts first (which returns it
+      // to UNPAID), then pay it again to repost.
+      if (line.status === "REVERSED") throw new ApiError("This payroll line was reversed. Correct its amounts, then pay it again to repost.", 409);
+      // SKAI-1350: a negative or zero net cannot be paid; it would post a negative expense.
+      if (!(line.net > 0)) throw new ApiError("Only a payroll line with a positive net can be paid.", 409);
       const paymentMethodId = body.paymentMethodId ? String(body.paymentMethodId) : null;
       const now = new Date();
 
+      // SKO-468: the ledger posts in the campus currency, and a double-submitted "pay" posts once.
+      const currency = (await getLocalePackage(user.schoolId, campusId)).currency;
       const updated = await prisma.$transaction(async (tx) => {
-        const paid = await tx.payrollLine.update({
-          where: { id },
+        const claimed = await tx.payrollLine.updateMany({
+          where: { id, status: { in: ["DRAFT", "UNPAID"] } },
           data: { status: "PAID", paidAt: now, paymentMethodId },
         });
+        if (!claimed.count) return null;
+        const paid = await tx.payrollLine.findUniqueOrThrow({ where: { id } });
 
         const account = await tx.chartOfAccount.upsert({
           where: { campusId_name: { campusId, name: "Salaries Expense" } },
@@ -48,6 +79,7 @@ export async function PATCH(req: NextRequest) {
           data: {
             campusId,
             kind: "EXPENSE",
+            currency,
             sourceName: "Payroll",
             accountId: account.id,
             paymentMethod: paymentMethodId ? (await tx.paymentMethodRef.findUnique({ where: { id: paymentMethodId } }))?.name : null,
@@ -58,31 +90,42 @@ export async function PATCH(req: NextRequest) {
             createdById: user.userId,
           },
         });
+        await writeAuditEvent(tx, user, {
+          table: "payroll_lines", recordId: paid.id, action: "UPDATE", campusId,
+          before: { status: line.status, net: line.net },
+          after: { status: paid.status, net: paid.net, paymentMethodId, ledgerAccountId: account.id },
+        });
         return paid;
       });
+      if (!updated) return Response.json({ success: true, data: await prisma.payrollLine.findUnique({ where: { id } }), alreadyPaid: true });
 
       return Response.json({ success: true, data: updated, alreadyPaid: false });
     }
 
     // Edit a DRAFT line
-    if (line.status !== "DRAFT" && line.status !== "UNPAID") {
+    if (line.status !== "DRAFT" && line.status !== "UNPAID" && line.status !== "REVERSED") {
       throw new ApiError("Only DRAFT lines can be edited", 409);
     }
-    const basic = body.basic !== undefined ? parseInt(String(body.basic), 10) || 0 : line.basic;
-    const allowances = body.allowances !== undefined ? parseInt(String(body.allowances), 10) || 0 : line.allowances;
-    const deductions = body.deductions !== undefined ? parseInt(String(body.deductions), 10) || 0 : line.deductions;
-    const bonus = body.bonus !== undefined ? parseInt(String(body.bonus), 10) || 0 : line.bonus;
+    // SKAI-1326: amounts are whole, non-negative paisa within the Int32 column; anything else is rejected, not truncated.
+    const basic = body.basic !== undefined ? payrollAmount(body.basic, "basic") : line.basic;
+    const allowances = body.allowances !== undefined ? payrollAmount(body.allowances, "allowances") : line.allowances;
+    const deductions = body.deductions !== undefined ? payrollAmount(body.deductions, "deductions") : line.deductions;
+    const bonus = body.bonus !== undefined ? payrollAmount(body.bonus, "bonus") : line.bonus;
 
-    const updated = await prisma.payrollLine.update({
-      where: { id },
-      data: {
-        basic,
-        allowances,
-        deductions,
-        bonus,
-        net: basic + allowances - deductions + bonus,
-        status: "UNPAID",
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.payrollLine.update({
+        where: { id },
+        data: {
+          basic,
+          allowances,
+          deductions,
+          bonus,
+          net: basic + allowances - deductions + bonus,
+          status: "UNPAID",
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "payroll_lines", recordId: next.id, action: "UPDATE", campusId, before: { status: line.status, basic: line.basic, allowances: line.allowances, deductions: line.deductions, bonus: line.bonus, net: line.net }, after: { status: next.status, basic: next.basic, allowances: next.allowances, deductions: next.deductions, bonus: next.bonus, net: next.net } });
+      return next;
     });
 
     return Response.json({ success: true, data: updated });

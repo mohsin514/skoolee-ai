@@ -1,0 +1,51 @@
+import type { LocalePackage } from "@/lib/locale/package";
+const en = {
+  leave: "You have changes that the server has not saved. Leave this form? Eligible fields remain in this tab for up to 24 hours.",
+  unavailable: "The server could not be reached. Your draft is retained; try again when connected.",
+  changed: "Your account or access changed. Protected drafts were removed. Sign in again to continue.",
+  revoked: "Access to this record was revoked. The protected draft was discarded.",
+  outdated: "The record or draft changed while checking. Review it again before applying.",
+  conflict: "The server record changed again. Review the current values and resolve the conflicts before applying.",
+  saving: "Saving to the server…", storage: "Changes are only in this form. Device recovery is unavailable; keep this tab open.",
+  available: "A draft is available. Review it before restoring.", saved: "Draft saved in this tab at", notServer: "Not yet saved to the server.",
+  checking: "Unsaved changes — checking device recovery…", clean: "No unsaved changes.", acknowledged: "The server accepted these changes.",
+  retention: "Eligible drafts expire after 24 hours, on sign out, or when this tab closes.",
+  boundary: "Recovery is limited to this signed-in account, school, record and form version.",
+  review: "Review recovered draft", discard: "Discard draft", title: "Recover your work", apply: "Apply selected draft",
+  savedAt: "Draft saved", expires: "Expires", discardHelp: "Discarding this draft does not change the school record.",
+  resolve: (count: number) => `This record changed. Resolve ${count} conflicting fields before restoring.`,
+  resolveHelp: "Choose the current or draft value for every conflicting field.",
+  inspect: "Review the saved input before applying it to this form.",
+  current: "Current", draft: "Draft", currentChoice: "Use current value", draftChoice: "Use draft value", empty: "(empty)",
+  reviewFailed: "Recovery could not be verified. Keep this form open and try again.", expired: "The device draft expired. Input still visible in this form has not been saved to the server.",
+};
+type Copy = typeof en;
+const ar: Copy = {
+  leave: "لديك تغييرات لم يحفظها الخادم. هل تريد مغادرة النموذج؟ تبقى الحقول المسموح بها في علامة التبويب لمدة تصل إلى 24 ساعة.",
+  unavailable: "تعذر الاتصال بالخادم. المسودة محفوظة؛ حاول مجدداً عند الاتصال.", changed: "تغيّر حسابك أو صلاحياتك. أُزيلت المسودات المحمية. سجّل الدخول مجدداً للمتابعة.",
+  revoked: "أُلغي الوصول إلى هذا السجل. حُذفت المسودة المحمية.", outdated: "تغيّر السجل أو المسودة أثناء التحقق. راجعها مجدداً قبل التطبيق.",
+  conflict: "تغيّر السجل على الخادم مجدداً. راجع القيم الحالية وحل التعارضات قبل التطبيق.",
+  saving: "جارٍ الحفظ على الخادم…", storage: "التغييرات موجودة في هذا النموذج فقط. استعادة الجهاز غير متاحة؛ أبقِ علامة التبويب مفتوحة.",
+  available: "توجد مسودة. راجعها قبل الاستعادة.", saved: "حُفظت المسودة في علامة التبويب في", notServer: "لم تُحفظ على الخادم بعد.",
+  checking: "تغييرات غير محفوظة — جارٍ التحقق من الاستعادة…", clean: "لا توجد تغييرات غير محفوظة.", acknowledged: "قبل الخادم هذه التغييرات.",
+  retention: "تنتهي المسودات المسموح بها بعد 24 ساعة أو عند تسجيل الخروج أو إغلاق علامة التبويب.", boundary: "الاستعادة تخص هذا الحساب والمدرسة والسجل وإصدار النموذج فقط.",
+  review: "مراجعة المسودة المستعادة", discard: "حذف المسودة", title: "استعادة عملك", apply: "تطبيق المسودة المختارة",
+  savedAt: "حُفظت المسودة", expires: "تنتهي", discardHelp: "حذف المسودة لا يغيّر سجل المدرسة.", resolve: (count: number) => `تغيّر هذا السجل. حل ${count} حقلاً متعارضاً قبل الاستعادة.`, resolveHelp: "اختر القيمة الحالية أو قيمة المسودة لكل حقل متعارض.",
+  inspect: "راجع المدخلات المحفوظة قبل تطبيقها على النموذج.", current: "الحالي", draft: "المسودة", currentChoice: "استخدام القيمة الحالية", draftChoice: "استخدام قيمة المسودة", empty: "(فارغ)",
+  reviewFailed: "تعذر التحقق من الاستعادة. أبقِ النموذج مفتوحاً وحاول مجدداً.", expired: "انتهت صلاحية مسودة الجهاز. المدخلات الظاهرة في النموذج لم تُحفظ على الخادم.",
+};
+const ur: Copy = {
+  leave: "آپ کی تبدیلیاں سرور پر محفوظ نہیں ہوئیں۔ کیا فارم چھوڑنا ہے؟ اجازت یافتہ خانے اس ٹیب میں 24 گھنٹے تک رہتے ہیں۔",
+  unavailable: "سرور سے رابطہ نہیں ہو سکا۔ مسودہ موجود ہے؛ رابطہ بحال ہونے پر دوبارہ کوشش کریں۔", changed: "آپ کا اکاؤنٹ یا اجازت بدل گئی ہے۔ محفوظ مسودے ہٹا دیے گئے ہیں۔ دوبارہ سائن ان کریں۔",
+  revoked: "اس ریکارڈ تک رسائی واپس لے لی گئی ہے۔ محفوظ مسودہ حذف کر دیا گیا۔", outdated: "جانچ کے دوران ریکارڈ یا مسودہ بدل گیا۔ لاگو کرنے سے پہلے دوبارہ جائزہ لیں۔",
+  conflict: "سرور کا ریکارڈ دوبارہ بدل گیا ہے۔ موجودہ قدروں کا جائزہ لے کر اختلافات حل کریں۔",
+  saving: "سرور پر محفوظ کیا جا رہا ہے…", storage: "تبدیلیاں صرف اس فارم میں ہیں۔ آلے سے بحالی دستیاب نہیں؛ یہ ٹیب کھلا رکھیں۔",
+  available: "مسودہ دستیاب ہے۔ بحالی سے پہلے جائزہ لیں۔", saved: "اس ٹیب میں مسودہ محفوظ ہوا", notServer: "ابھی سرور پر محفوظ نہیں ہوا۔",
+  checking: "غیر محفوظ تبدیلیاں — بحالی کی جانچ جاری ہے…", clean: "کوئی غیر محفوظ تبدیلی نہیں۔", acknowledged: "سرور نے یہ تبدیلیاں قبول کر لی ہیں۔",
+  retention: "اجازت یافتہ مسودے 24 گھنٹے بعد، سائن آؤٹ یا ٹیب بند کرنے پر ختم ہو جاتے ہیں۔", boundary: "بحالی صرف اسی اکاؤنٹ، اسکول، ریکارڈ اور فارم کے ورژن کے لیے ہے۔",
+  review: "محفوظ مسودے کا جائزہ", discard: "مسودہ حذف کریں", title: "اپنا کام بحال کریں", apply: "منتخب مسودہ لاگو کریں",
+  savedAt: "مسودہ محفوظ ہوا", expires: "مدت ختم", discardHelp: "مسودہ حذف کرنے سے اسکول کا ریکارڈ تبدیل نہیں ہوتا۔", resolve: (count: number) => `یہ ریکارڈ بدل گیا ہے۔ بحالی سے پہلے ${count} متصادم خانے حل کریں۔`, resolveHelp: "ہر مختلف خانے کے لیے موجودہ یا مسودے کی قدر منتخب کریں۔",
+  inspect: "فارم پر لاگو کرنے سے پہلے محفوظ معلومات کا جائزہ لیں۔", current: "موجودہ", draft: "مسودہ", currentChoice: "موجودہ قدر استعمال کریں", draftChoice: "مسودے کی قدر استعمال کریں", empty: "(خالی)",
+  reviewFailed: "بحالی کی تصدیق نہیں ہو سکی۔ فارم کھلا رکھیں اور دوبارہ کوشش کریں۔", expired: "آلے پر مسودے کی مدت ختم ہو گئی۔ فارم میں نظر آنے والی معلومات سرور پر محفوظ نہیں ہوئیں۔",
+};
+export const draftCopy = (language: LocalePackage["language"]): Copy => language === "ar" ? ar : language === "ur" ? ur : en;

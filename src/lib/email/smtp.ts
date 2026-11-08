@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import net from "node:net";
 import tls from "node:tls";
+import { NOREPLY_EMAIL, SUPPORT_EMAIL } from "@/lib/config/contact";
 
-const DEFAULT_FROM_EMAIL = "noreply@skoolee.ai";
+const DEFAULT_FROM_EMAIL = NOREPLY_EMAIL;
 
 function getFromEmail() {
   return (
@@ -16,7 +17,7 @@ function getFromEmail() {
 function getEmailDomain() {
   const fromEmail = getFromEmail();
   const domain = fromEmail.split('@')[1];
-  return domain || 'skoolee.ai';
+  return domain || 'skooleeai.com';
 }
 
 export interface SmtpConfig {
@@ -41,6 +42,8 @@ export interface SmtpMailInput {
   html: string;
   text?: string;
   replyTo?: string;
+  /** Only for opt-out-able notifications; one-off transactional mail (invites, resets) omits it. */
+  listUnsubscribe?: string;
 }
 
 interface SmtpResponse {
@@ -190,28 +193,26 @@ function plainTextFromHtml(html: string) {
     .trim();
 }
 
-function buildMimeMessage(input: SmtpMailInput, recipients: string[]) {
+export function buildMimeMessage(input: SmtpMailInput, recipients: string[]) {
   const emailDomain = getEmailDomain();
   const messageId = `<${randomUUID()}@${emailDomain}>`;
   const boundary = `skoolee_${randomUUID().replace(/-/g, "")}`;
   const text = input.text?.trim() || plainTextFromHtml(input.html);
+  // SKAI-937/944: always give replies a monitored inbox instead of the no-reply sender.
+  const replyTo = input.replyTo || SUPPORT_EMAIL;
   const headers = [
     `From: ${formatAddress(input.from)}`,
     `To: ${recipients.map((email) => extractEmail(email)).join(", ")}`,
-    input.replyTo ? `Reply-To: ${extractEmail(input.replyTo)}` : undefined,
+    `Reply-To: ${extractEmail(replyTo)}`,
     `Subject: ${encodeHeader(input.subject)}`,
     `Date: ${new Date().toUTCString()}`,
     `Message-ID: ${messageId}`,
     "MIME-Version: 1.0",
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
-    "X-Mailer: Skoolee AI v1.0",
-    "X-Priority: 3",
-    "Importance: normal",
-    // Help prevent spam filtering by marking as transactional
-    "Precedence: bulk",
+    // SKAI-937/944: no "Precedence: bulk" (it marks one-to-one invites as bulk mail) and no
+    // List-Unsubscribe pointing at the support inbox, which filters read as a fake opt-out.
     "Auto-Submitted: auto-generated",
-    // List-Unsubscribe improves deliverability for bulk senders
-    "List-Unsubscribe: <mailto:support@skoolee.ai>",
+    input.listUnsubscribe ? `List-Unsubscribe: ${input.listUnsubscribe}` : undefined,
   ].filter(Boolean);
 
   const body = [
@@ -236,9 +237,8 @@ function buildMimeMessage(input: SmtpMailInput, recipients: string[]) {
 }
 
 async function connect(config: SmtpConfig) {
-  // Use the from email domain for EHLO to improve deliverability
-  const fromEmail = config.user || 'noreply@skoolee.ai';
-  const domain = fromEmail.split('@')[1] || 'skoolee.ai';
+  // SKAI-937/944: EHLO with the sender's domain, not the SMTP login's (e.g. gmail.com).
+  const domain = getEmailDomain();
   
   let socket: net.Socket | tls.TLSSocket;
   if (config.secure) {
@@ -303,6 +303,22 @@ export async function sendSmtpMail(config: SmtpConfig, input: SmtpMailInput) {
     await command(socket, "QUIT", [221]);
 
     return { id: messageId };
+  } finally {
+    socket.end();
+  }
+}
+
+/**
+ * SKO-457: proves the provider accepts our connection, TLS and credentials without sending a
+ * message (connect, EHLO, STARTTLS when configured, AUTH, QUIT). Used for delivery readiness
+ * evidence; actual inbox delivery still needs a mailbox someone checks.
+ */
+export async function verifySmtpConnection(config: SmtpConfig) {
+  const started = Date.now();
+  const socket = await connect(config);
+  try {
+    await command(socket, "QUIT", [221]);
+    return { ok: true as const, host: config.host, port: config.port, secure: config.secure, authenticated: Boolean(config.user && config.pass), elapsedMs: Date.now() - started };
   } finally {
     socket.end();
   }

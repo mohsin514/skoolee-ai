@@ -1,10 +1,19 @@
 "use client";
+import { Button as SystemButton } from "@/components/ui/button";
+import { InputGroup } from "@/components/ui/input-group";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { AlertTriangle, Ban, Search, Sparkles, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AvatarImage } from "@/components/ui/avatar-image";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Progress } from "@/components/ui/progress";
+
+import { checkedListJson, readRequest } from "@/lib/http/request-state";
+import { specialtyMatches } from "@/lib/academic/teacher-load";
 
 export interface PickerTeacher {
   id: string;
@@ -28,32 +37,37 @@ export interface TeacherAvailability {
   classCount: number;
   busySlots: string[];
   conflicts: { day: number; period: number; label: string; classes: string[] }[];
+  weeklyPeriods?: number;
+  weeklyCapacity?: number | null;
 }
 
-/** Fetches campus-wide teacher load/clash data once per mount. */
+/**
+ * Fetches campus-wide teacher load/clash data once per mount. The data only enriches the pickers (clash and
+ * specialty hints), so a failure is reported through `failed` for an inline note — never a toast (R4): several
+ * pickers mount at once and each would have raised its own.
+ */
 export function useTeacherAvailability(enabled = true) {
   const [availability, setAvailability] = useState<TeacherAvailability[]>([]);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const sequence = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!enabled) return;
-    setLoading(true);
+    const version = ++sequence.current;
+    setLoading(true); setFailed(false);
     try {
-      const res = await fetch("/api/teachers/availability");
-      const json = await res.json();
-      if (json.success) setAvailability(json.data || []);
+      const json = await checkedListJson(await readRequest("/api/teachers/availability"));
+      if (version !== sequence.current) return;
+      setAvailability(json.data);
     } catch {
-      toast.error("Failed to load teachers");
-    } finally {
-      setLoading(false);
-    }
+      if (version === sequence.current) { setAvailability([]); setFailed(true); }
+    } finally { if (version === sequence.current) setLoading(false); }
   }, [enabled]);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  useEffect(() => { void refresh(); return () => { sequence.current++; }; }, [refresh]);
 
-  return { availability, loading, refresh };
+  return { availability, loading, failed, refresh };
 }
 
 function teacherAvatar(teacher: { fullName?: string | null; email?: string | null; id: string; profileImageUrl?: string | null }) {
@@ -61,12 +75,12 @@ function teacherAvatar(teacher: { fullName?: string | null; email?: string | nul
   return teacher.profileImageUrl;
 }
 
-/** Case-insensitive check that a teacher is qualified for a given subject. */
-function matchesSpecialty(a: TeacherAvailability | undefined, subjectName?: string) {
-  if (!a || !subjectName) return true;
-  if (a.teachesAllSubjects) return true;
-  if (a.subjectSpecialties.length === 0) return true; // unknown, don't nag
-  return a.subjectSpecialties.some((s) => s.trim().toLowerCase() === subjectName.trim().toLowerCase());
+/** Case-insensitive check that a teacher is qualified for a given subject (shared with the server, SKAI-150). */
+const matchesSpecialty = specialtyMatches;
+
+/** SKAI-150: a teacher whose booked periods already fill the campus week. */
+function atLoadLimit(a: TeacherAvailability | undefined) {
+  return !!a && a.weeklyCapacity != null && (a.weeklyPeriods ?? 0) >= a.weeklyCapacity;
 }
 
 export function TeacherPicker({
@@ -82,6 +96,7 @@ export function TeacherPicker({
   assignmentMode = "subject",
   currentClassId,
   subjectName,
+  initialOpen = false,
 }: {
   label?: string;
   value: string;
@@ -93,8 +108,11 @@ export function TeacherPicker({
   assignmentMode?: "homeroom" | "subject";
   currentClassId?: string;
   subjectName?: string;
+  /** Start with the search list open (used where the picker is already behind its own toggle). */
+  initialOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const ui = useUiText();
+  const [open, setOpen] = useState(initialOpen);
   const [query, setQuery] = useState("");
   const selected = teachers.find((t) => t.id === value);
 
@@ -121,7 +139,7 @@ export function TeacherPicker({
     if (!a) return null;
     const elsewhere = a.wholeSectionClasses.filter((c) => c.id !== currentClassId);
     if (elsewhere.length === 0) return null;
-    return `Already takes every period of ${elsewhere.map((c) => c.label).join(", ")}`;
+    return ui("Already takes every period of {0}", [elsewhere.map((c) => c.label).join(", ")]);
   };
 
   const filtered = useMemo(() => {
@@ -158,43 +176,44 @@ export function TeacherPicker({
 
   return (
     <div className="group/picker">
-      <span className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/picker:text-[#8127cf]">
-        {label}
+      <span className="mb-2 block ps-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle transition-colors duration-200 group-focus-within/picker:text-primary">
+        {ui(label)}
       </span>
 
       {open ? (
-        <div className="relative z-20 rounded-2xl border border-[#8127cf]/30 bg-white shadow-[0_20px_50px_rgba(31,26,35,0.14)] transition-all">
-          <div className="flex items-center gap-2 border-b border-[#cfc2d6]/15 px-3 py-2.5">
-            <Search className="h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
-            <input
+        <div className="relative z-20 rounded-2xl border border-primary/30 bg-card shadow-xl transition-all">
+          <InputGroup className="my-2">
+            <Search data-field-affix="start" className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <SystemInput
               autoFocus
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by name or subject…"
-              className="h-8 w-full bg-transparent text-xs font-bold text-[#1f1a23] outline-none placeholder:text-ink-subtle"
+              placeholder={ui("Search by name or subject…")}
+              aria-label={ui("Search teachers")}
+              className="w-full"
             />
-          </div>
+          </InputGroup>
           <div className="max-h-64 overflow-y-auto custom-scrollbar p-1.5">
             {allowUnassigned ? (
-              <button
+              <SystemButton variant="ghost"
                 type="button"
                 onClick={() => pick("")}
                 className={cn(
-                  "flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
-                  value === "" ? "bg-[#fbf0fe]" : "hover:bg-[#fbf0fe]/60"
+                  "flex w-full items-center gap-3 px-3 py-2.5 text-start justify-start",
+                  value === "" ? "bg-brand-50" : "hover:bg-brand-50/60"
                 )}
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#f3f4f9] text-ink-muted">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-ink-muted">
                   <UserPlus className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-black text-[#1f1a23]">Unassigned</p>
+                  <p className="text-xs font-bold text-ink-strong">{ui("Unassigned")}</p>
                   {showUnassignedHint ? (
-                    <p className="mt-0.5 text-[9px] font-bold text-ink-subtle">No teacher assigned yet</p>
+                    <p className="mt-0.5 text-2xs font-medium text-ink-subtle">{ui("No teacher assigned yet")}</p>
                   ) : null}
                 </div>
-              </button>
+              </SystemButton>
             ) : null}
 
             {filtered.map((t) => {
@@ -203,96 +222,101 @@ export function TeacherPicker({
               const offSpecialty = !matchesSpecialty(a, subjectName);
               const conflictCount = a?.conflicts.length || 0;
               const specialtyLabel = a?.teachesAllSubjects
-                ? "All subjects"
+                ? ui("All subjects")
                 : a?.subjectSpecialties.length
                   ? a.subjectSpecialties.slice(0, 2).join(", ") + (a.subjectSpecialties.length > 2 ? ` +${a.subjectSpecialties.length - 2}` : "")
                   : null;
 
               return (
-                <button
+                <SystemButton variant="ghost"
                   key={t.id}
                   type="button"
                   disabled={!!blocked}
-                  title={blocked || undefined}
                   onClick={() => pick(t.id)}
                   className={cn(
-                    "flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
+                    "flex w-full items-start gap-3 px-3 py-2.5 text-start justify-start",
                     blocked
                       ? "cursor-not-allowed opacity-55"
                       : value === t.id
-                        ? "cursor-pointer bg-[#fbf0fe]"
-                        : "cursor-pointer hover:bg-[#fbf0fe]/60"
+                        ? "cursor-pointer bg-brand-50"
+                        : "cursor-pointer hover:bg-brand-50/60"
                   )}
                 >
-                  <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-[#cfc2d6]/20 bg-white">
-                    <AvatarImage src={teacherAvatar({ ...t, id: t.id })} name={t.fullName} alt="Teacher photo" initialsClassName="text-[10px]" />
+                  <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-edge/20 bg-card">
+                    <AvatarImage src={teacherAvatar({ ...t, id: t.id })} name={t.fullName} alt="" initialsClassName="text-2xs" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <p className="truncate text-xs font-black text-[#1f1a23]">{t.fullName || "Unnamed teacher"}</p>
+                      <p className="truncate text-xs font-bold text-ink-strong"><bdi>{t.fullName || ui("Unnamed teacher")}</bdi></p>
                       {specialtyLabel ? (
-                        <span
-                          className={cn(
-                            "inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[7px] font-black uppercase tracking-wider",
-                            a?.teachesAllSubjects ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"
-                          )}
-                        >
-                          {a?.teachesAllSubjects ? <Sparkles className="h-2 w-2" /> : null}
+                        <Badge variant={a?.teachesAllSubjects ? "success" : "default"} size="sm" className="shrink-0 gap-1">
+                          {a?.teachesAllSubjects ? <Sparkles aria-hidden="true" className="h-2.5 w-2.5" /> : null}
                           {specialtyLabel}
-                        </span>
+                        </Badge>
                       ) : null}
                     </div>
-                    <p className="mt-0.5 truncate text-[9px] font-bold text-ink-muted">
-                      {subjectLoad(t)} subject{subjectLoad(t) !== 1 ? "s" : ""} · {classLoad(t)} class{classLoad(t) !== 1 ? "es" : ""}
+                    <p className="mt-0.5 truncate text-2xs font-medium tabular-nums text-ink-muted">
+                      {ui(subjectLoad(t) === 1 ? "{0} subject" : "{0} subjects", [subjectLoad(t)])} · {ui(classLoad(t) === 1 ? "{0} class" : "{0} classes", [classLoad(t)])}
+                      {a?.weeklyCapacity != null ? ` · ${ui("{0}/{1} periods", [a.weeklyPeriods ?? 0, a.weeklyCapacity])}` : ""}
                     </p>
+                    {/* Weekly load at a glance: the bar warms as the teacher approaches their period capacity. */}
+                    {a?.weeklyCapacity ? (() => {
+                      const share = Math.round(((a.weeklyPeriods ?? 0) / a.weeklyCapacity) * 100);
+                      return <Progress size="sm" className="mt-1.5 max-w-48" value={share} tone={share >= 100 ? "danger" : share >= 85 ? "warning" : "brand"} label={ui("{0}/{1} periods", [a.weeklyPeriods ?? 0, a.weeklyCapacity])} />;
+                    })() : null}
+                    {!blocked && atLoadLimit(a) ? (
+                      <p className="mt-1 flex items-start gap-1 text-xs font-medium leading-relaxed text-status-warning-text">
+                        <AlertTriangle aria-hidden="true" className="mt-px h-2.5 w-2.5 shrink-0" />
+                        {ui("Weekly periods are full")}
+                      </p>
+                    ) : null}
 
                     {blocked ? (
-                      <p className="mt-1 flex items-start gap-1 text-[9px] font-black leading-snug text-rose-600">
+                      <p className="mt-1 flex items-start gap-1 text-xs font-medium leading-relaxed text-status-error-text">
                         <Ban className="mt-px h-2.5 w-2.5 shrink-0" />
                         {blocked}
                       </p>
                     ) : null}
                     {!blocked && conflictCount > 0 ? (
-                      <p className="mt-1 flex items-start gap-1 text-[9px] font-black leading-snug text-rose-600">
+                      <p className="mt-1 flex items-start gap-1 text-xs font-medium leading-relaxed text-status-error-text">
                         <AlertTriangle className="mt-px h-2.5 w-2.5 shrink-0" />
-                        {conflictCount} timetable clash{conflictCount !== 1 ? "es" : ""} ({a!.conflicts.slice(0, 2).map((c) => c.label).join(", ")}
-                        {conflictCount > 2 ? "…" : ""})
+                        {ui(conflictCount === 1 ? "{0} timetable clash ({1})" : "{0} timetable clashes ({1})", [conflictCount, `${a!.conflicts.slice(0, 2).map((c) => c.label).join(", ")}${conflictCount > 2 ? "…" : ""}`])}
                       </p>
                     ) : null}
                     {!blocked && offSpecialty ? (
-                      <p className="mt-1 flex items-start gap-1 text-[9px] font-black leading-snug text-amber-600">
+                      <p className="mt-1 flex items-start gap-1 text-xs font-medium leading-relaxed text-status-warning-text">
                         <AlertTriangle className="mt-px h-2.5 w-2.5 shrink-0" />
-                        Not their specialty{subjectName ? ` (${subjectName})` : ""}
+                        {subjectName ? ui("Not their specialty ({0})", [subjectName]) : ui("Not their specialty")}
                       </p>
                     ) : null}
                   </div>
-                </button>
+                </SystemButton>
               );
             })}
             {filtered.length === 0 ? (
-              <p className="px-3 py-4 text-center text-[10px] font-bold text-ink-subtle">No teachers match your search.</p>
+              <EmptyState size="sm" icon={Search} title={ui("No teachers match your search.")} description={ui("Try a different name or clear the search.")} />
             ) : null}
           </div>
         </div>
       ) : (
         <>
-          <button
+          <SystemButton variant="outline"
             type="button"
             onClick={() => setOpen(true)}
-            className="flex h-14 w-full cursor-pointer items-center justify-between rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-left transition-all duration-200 hover:border-[#cfc2d6]/40 focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+            className="sk-field-trigger flex h-14 w-full items-center justify-between px-4 text-start"
           >
             {value ? (
               <span className="flex min-w-0 items-center gap-3">
-                <span className="flex h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-[#cfc2d6]/20 bg-white">
-                  {selected ? <AvatarImage src={teacherAvatar({ ...selected, id: selected.id })} name={selected.fullName} alt="Teacher photo" initialsClassName="text-[10px]" /> : null}
+                <span className="flex h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-edge/20 bg-card">
+                  {selected ? <AvatarImage src={teacherAvatar({ ...selected, id: selected.id })} name={selected.fullName} alt="" initialsClassName="text-2xs" /> : null}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-black text-[#1f1a23]">{selected?.fullName || "Assigned teacher"}</span>
+                  <span className="block truncate text-sm font-bold text-ink-strong"><bdi>{selected?.fullName || ui("Assigned teacher")}</bdi></span>
                   {selected ? (
-                    <span className="block text-[9px] font-bold text-ink-muted">
-                      {subjectLoad(selected)} subjects · {classLoad(selected)} classes
+                    <span className="block text-2xs font-medium tabular-nums text-ink-muted">
+                      {ui(subjectLoad(selected) === 1 ? "{0} subject" : "{0} subjects", [subjectLoad(selected)])} · {ui(classLoad(selected) === 1 ? "{0} class" : "{0} classes", [classLoad(selected)])}
                       {selectedAvail?.teachesAllSubjects
-                        ? " · All subjects"
+                        ? ` · ${ui("All subjects")}`
                         : selectedAvail?.subjectSpecialties.length
                           ? ` · ${selectedAvail.subjectSpecialties.slice(0, 2).join(", ")}`
                           : ""}
@@ -301,26 +325,25 @@ export function TeacherPicker({
                 </span>
               </span>
             ) : (
-              <span className="text-sm font-bold text-ink-muted">{allowUnassigned ? "Assign / Unassigned" : "Select teacher"}</span>
+              <span className="text-sm font-bold text-ink-muted">{ui(allowUnassigned ? "Choose a teacher (optional)" : "Select teacher")}</span>
             )}
-            <span className="ml-3 shrink-0 rounded-lg bg-[#8127cf]/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-[#8127cf]">
-              Change
-            </span>
-          </button>
+            <Badge size="sm" className="ms-3 shrink-0">
+              {ui("Change")}
+            </Badge>
+          </SystemButton>
 
           {/* Warnings on the current selection stay visible while collapsed, so
               an existing bad assignment isn't hidden behind a closed dropdown. */}
           {selectedAvail && selectedAvail.conflicts.length > 0 ? (
-            <p className="mt-1.5 flex items-start gap-1 pl-2 text-[9px] font-black leading-snug text-rose-600">
+            <p className="mt-1.5 flex items-start gap-1 ps-2 text-xs font-medium leading-relaxed text-status-error-text">
               <AlertTriangle className="mt-px h-2.5 w-2.5 shrink-0" />
-              Double-booked at {selectedAvail.conflicts.slice(0, 3).map((c) => c.label).join(", ")}
-              {selectedAvail.conflicts.length > 3 ? ` +${selectedAvail.conflicts.length - 3} more` : ""}
+              {ui("Double-booked at {0}", [`${selectedAvail.conflicts.slice(0, 3).map((c) => c.label).join(", ")}${selectedAvail.conflicts.length > 3 ? ` +${selectedAvail.conflicts.length - 3}` : ""}`])}
             </p>
           ) : null}
           {selectedOffSpecialty ? (
-            <p className="mt-1.5 flex items-start gap-1 pl-2 text-[9px] font-black leading-snug text-amber-600">
+            <p className="mt-1.5 flex items-start gap-1 ps-2 text-xs font-medium leading-relaxed text-status-warning-text">
               <AlertTriangle className="mt-px h-2.5 w-2.5 shrink-0" />
-              {selected?.fullName} isn&apos;t a {subjectName} specialist
+              {ui("{0} is not a {1} specialist", [selected?.fullName ?? "", subjectName ?? ""])}
             </p>
           ) : null}
         </>

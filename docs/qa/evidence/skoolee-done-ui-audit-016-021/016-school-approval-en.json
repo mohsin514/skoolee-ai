@@ -1,0 +1,45 @@
+{
+  "surface": "016-school-approval",
+  "status": 200,
+  "title": "School Administration | SkooleeAI",
+  "headings": [
+    "Support access approvals"
+  ],
+  "dimensions": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "noOverflow": true,
+      "dir": "ltr",
+      "lang": "en",
+      "screenshot": "016-school-approval-en-1440.png"
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "scrollWidth": 768,
+      "noOverflow": true,
+      "dir": "ltr",
+      "lang": "en",
+      "screenshot": "016-school-approval-en-768.png"
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "noOverflow": true,
+      "dir": "ltr",
+      "lang": "en",
+      "screenshot": "016-school-approval-en-390.png"
+    }
+  ],
+  "focus": {
+    "tag": "BUTTON",
+    "text": "Schools",
+    "visible": true,
+    "outlineStyle": "solid",
+    "outlineWidth": "2px"
+  },
+  "pageErrors": []
+}

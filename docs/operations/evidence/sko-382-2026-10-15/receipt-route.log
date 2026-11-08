@@ -1,0 +1,15 @@
+✔ actual webhook rejects invalid signatures, mutated bytes and unsigned bodies without mutations (52.053042ms)
+✔ signed out-of-order receipts are durable, duplicate-idempotent and preserve the originating intent (12.1135ms)
+✔ signed timestamp validation rejects pre-origin/future/malformed events and permits provider-second precision (4.902ms)
+✔ wrong account/malformed envelope is ignored; unknown or unsent origin requests retry without mutations (5.048834ms)
+✔ ambiguous cross-tenant provider identity fails closed, then a unique origin accepts replay once (5.552542ms)
+✔ callback arriving before provider identity persistence is retried and stores exactly once after recovery (3.360166ms)
+✔ webhook size limit rejects before persistence and missing signing configuration fails closed (3.125333ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 488.478167

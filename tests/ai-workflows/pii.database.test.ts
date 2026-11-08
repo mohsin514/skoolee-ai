@@ -1,0 +1,31 @@
+import { redis } from "../../src/lib/queue/connection";
+import { test, after } from "node:test";
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { PrismaClient } from "@prisma/client";
+import { prisma } from "../../src/lib/db/prisma";
+import type { AuthUser } from "../../src/lib/auth";
+import { startJob, advanceJob } from "../../src/lib/ai-workflows/jobs/job-service";
+import type { generateAIDraft } from "../../src/lib/ai/openai";
+import { aiWorkflowsDestination } from "./support/destination.mjs";
+aiWorkflowsDestination();
+const db = new PrismaClient(), schools: string[] = [];
+after(async () => { await db.school.deleteMany({ where: { id: { in: schools } } }); await db.$disconnect(); await prisma.$disconnect(); redis.disconnect(); });
+
+test("a learner named in the request and class labels: the name never reaches the provider, the label does", async () => {
+  const schoolId = `pii-${randomUUID()}`, campusId = randomUUID(), userId = randomUUID(); schools.push(schoolId);
+  await db.school.create({ data: { id: schoolId, slug: schoolId, regId: schoolId, name: "Synthetic PII school", contactEmail: `${schoolId}@example.invalid`, city: "Test", status: "ACTIVE", plan: "PRO" } });
+  await db.campus.create({ data: { id: campusId, schoolId, regId: campusId, name: "Synthetic campus", city: "Test" } });
+  await db.user.create({ data: { id: userId, schoolId, campusId, email: `${userId}@example.invalid`, fullName: "Synthetic admin", role: "CAMPUS_ADMIN", isActive: true } });
+  await db.academicCycle.create({ data: { schoolId, campusId, academicYear: 2026, label: "2026", status: "ACTIVE" } });
+  const klass = await db.class.create({ data: { schoolId, campusId, name: "7B", academicYear: 2026, status: "ACTIVE" } });
+  await db.student.create({ data: { schoolId, campusId, classId: klass.id, fullName: "Zainab Qureshi", nameUr: "زینب قریشی", rollNo: "R-1", gender: "FEMALE", guardianName: "Imran Qureshi", guardianPhone: "+923001234567" } });
+  const user: AuthUser = { schoolId, campusId, userId, role: "CAMPUS_ADMIN", email: `${userId}@example.invalid`, accessVersion: 0 };
+  const prompts: string[] = [];
+  const generate: typeof generateAIDraft = async ({ prompt }) => { prompts.push(prompt); return { text: JSON.stringify({ kind: "unsupported", steps: [], unsupportedNearest: null }), model: "synthetic:test", tokensUsed: 5, promptVersion: "test" }; };
+  const job = await startJob(user, { message: "Move Zainab to 7B and tell زینب قریشی's father Imran", campusId, language: "en", idempotencyKey: `pii-${randomUUID()}` });
+  await advanceJob(user, job.id, "request", generate);
+  assert.ok(prompts.length > 0);
+  for (const prompt of prompts) for (const name of ["Zainab", "Qureshi", "زینب", "Imran"]) assert.ok(!prompt.includes(name), `${name} reached the provider`);
+  assert.ok(prompts[0].includes("7B"), "class label must stay readable");
+});

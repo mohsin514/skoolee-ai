@@ -1,6 +1,11 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import { writeAuditEvent } from "@/lib/audit-events";
+import { createFeeGroup } from "@/lib/fees/fee-group-command";
+import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -30,19 +35,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "add");
 
-    const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const name = String(body.name ?? "").trim();
-    if (!name) throw new ApiError("name required", 400);
-
-    const existing = await prisma.feeGroup.findFirst({ where: { campusId, name } });
-    if (existing) throw new ApiError("A fee group with this name already exists", 409);
-
-    const group = await prisma.feeGroup.create({
-      data: { campusId, name, description: body.description ?? null },
-    });
+    const body = await parseBody(req, jsonObjectBody);
+    const group = await createFeeGroup(user, body);
     return Response.json({ success: true, data: group }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[fees/groups] POST failed");
@@ -52,20 +49,24 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "edit");
 
-    const body = await req.json();
-    if (!body.id) throw new ApiError("id required", 400);
+    const body = await parseBody(req, idBody);
 
     const existing = await prisma.feeGroup.findFirst({ where: { id: body.id, ...scopedCampusWhere(user) } });
     if (!existing) throw new ApiError("Fee group not found", 404);
 
-    const group = await prisma.feeGroup.update({
-      where: { id: body.id },
-      data: {
-        name: body.name !== undefined ? String(body.name).trim() : undefined,
-        description: body.description !== undefined ? body.description : undefined,
-      },
+    const group = await prisma.$transaction(async (tx) => {
+      const next = await tx.feeGroup.update({
+        where: { id: body.id },
+        data: {
+          name: body.name !== undefined ? String(body.name).trim() : undefined,
+          description: body.description !== undefined ? body.description : undefined,
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "fee_groups", recordId: next.id, action: "UPDATE", campusId: existing.campusId, after: { renamed: body.name !== undefined && next.name !== existing.name } });
+      return next;
     });
     return Response.json({ success: true, data: group });
   } catch (error) {
@@ -74,19 +75,5 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
-
-    const id = new URL(req.url).searchParams.get("id");
-    if (!id) throw new ApiError("id required", 400);
-
-    const existing = await prisma.feeGroup.findFirst({ where: { id, ...scopedCampusWhere(user) } });
-    if (!existing) throw new ApiError("Fee group not found", 404);
-
-    await prisma.feeGroup.delete({ where: { id } });
-    return Response.json({ success: true });
-  } catch (error) {
-    return errorResponse(error, "[fees/groups] DELETE failed");
-  }
+  return operationDeleteResponse(req, "fees/groups");
 }

@@ -2,11 +2,17 @@
 
 import { useMemo, useRef, useState } from "react";
 import { Check, ClipboardCheck, Copy, Loader2, RefreshCw, Send, Sparkles, X } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { BrandButton } from "./BrandButton";
+import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
+import { getAIPrototypeDraft } from "@/lib/ai/prototype";
+import { useLocale } from "@/components/locale/LocaleProvider";
+import { fillAi, getAiWorkflowsCopy } from "@/components/ai-workflows/ai-workflows-copy";
+
 
 export interface AIFeatureOption {
   feature: string;
@@ -24,6 +30,13 @@ interface AiActionPanelProps {
   className?: string;
   compact?: boolean;
   onComplete?: () => void | Promise<void>;
+  /** Controlled workflow, for a page that picks it from its own cards. */
+  feature?: string;
+  onFeatureChange?: (feature: string) => void;
+  /** Id of the context box, so a "Start" elsewhere can move focus into it. */
+  inputId?: string;
+  /** Hide the title row when the page already labels the composer. */
+  hideTitle?: boolean;
 }
 
 export function AiActionPanel({
@@ -34,11 +47,22 @@ export function AiActionPanel({
   className,
   compact,
   onComplete,
+  feature: controlledFeature,
+  onFeatureChange,
+  inputId,
+  hideTitle,
 }: AiActionPanelProps) {
-  const [feature, setFeature] = useState(options[0]?.feature || "");
+  const { language } = useLocale();
+  const copy = getAiWorkflowsCopy(language);
+  const p = copy.panel;
+  const [ownFeature, setOwnFeature] = useState(options[0]?.feature || "");
+  const feature = controlledFeature ?? ownFeature;
+  const setFeature = (next: string) => { setOwnFeature(next); onFeatureChange?.(next); };
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [output, setOutput] = useState("");
+  const [outputMode, setOutputMode] = useState<"live" | "demo">("live");
+  const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -50,7 +74,7 @@ export function AiActionPanel({
   const runAI = async () => {
     if (!selected) return;
     setBusy(true);
-    setOutput("");
+    setError("");
 
     try {
       const payload: Record<string, unknown> = {
@@ -66,17 +90,28 @@ export function AiActionPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "AI request failed");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : p.failed);
 
       setOutput(data.data?.output || "");
-      toast.success("AI draft saved");
+      setOutputMode("live");
+      toast.success(p.saved);
       await onComplete?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "AI request failed");
+      const message = error instanceof Error ? error.message : p.failed;
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
+  };
+
+  const showSample = () => {
+    const sample = getAIPrototypeDraft(selected?.feature ?? "");
+    if (!sample) return;
+    setOutput(sample.output);
+    setOutputMode("demo");
+    setError("");
   };
 
   /* The panel drafts a lesson plan or a set of remarks and then showed it in a
@@ -90,47 +125,50 @@ export function AiActionPanel({
       if (copyTimer.current) clearTimeout(copyTimer.current);
       copyTimer.current = setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Your browser blocked clipboard access — select the text and copy it manually.");
+      toast.error(p.clipboard);
     }
   };
 
   if (options.length === 0) return null;
+  const labelOf = (option?: AIFeatureOption) => (option && copy.features[option.feature]?.label) || option?.label || "";
 
   return (
-    <div className={cn("group", className)}>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative">
-          <div className="absolute -inset-2 bg-[#8127cf]/18 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          <div className="relative h-9 w-9 rounded-2xl bg-[#fbf0fe] text-[#8127cf] flex items-center justify-center sk-float">
-            <Sparkles className="w-5 h-5" />
+    <div className={cn("group min-w-0", className)}>
+      {hideTitle ? null : <div className="mb-[12px] flex min-w-0 items-center gap-[10px]">
+        <div className="relative shrink-0">
+          <div className="absolute -inset-2 bg-primary/18 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <div className="relative h-[36px] w-[36px] rounded-2xl bg-brand-50 text-primary flex items-center justify-center sk-float">
+            <Sparkles className="w-[20px] h-[20px]" />
           </div>
         </div>
-        <h3 className="text-sm font-black text-[#1f1a23] tracking-wider">{title}</h3>
-      </div>
+        <h3 className="min-w-0 text-sm font-bold text-ink-strong [overflow-wrap:anywhere]">{title}</h3>
+      </div>}
 
       <div className="space-y-3">
         {/* The visible caption sits outside this control, so screen-reader
             users would otherwise hear only "combo box". */}
         <Select
           value={feature}
-          aria-label="AI action"
-          onChange={(event) => setFeature(event.target.value)}
+          aria-label={p.action}
+          onChange={(event) => { setFeature(event.target.value); setOutput(""); setError(""); }}
+          disabled={busy}
         >
           {options.map((option) => (
             <option key={option.feature} value={option.feature}>
-              {option.label}
+              {labelOf(option)}
             </option>
           ))}
         </Select>
 
         <Textarea
+          id={inputId}
           value={value}
           onChange={(event) => setValue(event.target.value)}
           /* Same problem the Select above had: the only description of this
              field is its placeholder, which assistive tech does not announce
              as a label. */
-          aria-label={`Context for ${selected?.label || "this AI action"}`}
-          placeholder={selected?.placeholder || selected?.inputLabel || "Optional context"}
+          aria-label={fillAi(p.context, labelOf(selected) || p.action)}
+          placeholder={(selected && copy.features[selected.feature]?.placeholder) || selected?.placeholder || selected?.inputLabel || p.optional}
           rows={compact ? 3 : 4}
           onKeyDown={(event) => {
             if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !busy) {
@@ -138,51 +176,56 @@ export function AiActionPanel({
               runAI();
             }
           }}
-          className="rounded-2xl border-[#cfc2d6]/30 bg-white/80"
+
         />
 
-        <BrandButton className="w-full h-12" onClick={runAI} disabled={busy}
-          title="Run this AI action (⌘↵ from the context box)"
+        <Tooltip content={p.runHint}>
+        <BrandButton className="w-full h-12" onClick={runAI} disabled={busy} aria-busy={busy || undefined}
           icon={busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}>
-          {busy ? "Drafting" : "Run AI"}
+          {busy ? p.running : p.run}
         </BrandButton>
+        </Tooltip>
+        {getAIPrototypeDraft(selected?.feature ?? "") ? <Button variant="outline" className="w-full" type="button" disabled={busy} onClick={showSample}>{p.sample}</Button> : null}
+        {error ? <p role="alert" className="rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-sm text-ink">{error} {p.retryHint}</p> : null}
 
         {output ? (
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-emerald-700">
+          <div className="sk-fade-in rounded-2xl border border-status-success-border bg-status-success-surface p-4" aria-live="polite" data-ai-output-mode={outputMode}>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-status-success-text">
                 <Check className="sk-check-pop w-4 h-4" />
-                <p className="text-[9px] font-black uppercase tracking-wider">Draft saved</p>
+                <p className="text-2xs font-semibold">{outputMode === "demo" ? p.sampleTag : p.savedTag}</p>
               </div>
               <div className="flex items-center gap-1">
-                <button
+                <Tooltip content={p.copyHint}>
+                <Button variant="secondary" size="sm"
                   type="button"
                   onClick={copyOutput}
-                  title="Copy this draft to the clipboard"
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                  className="inline-flex justify-start items-center gap-1"
                 >
                   {copied ? <ClipboardCheck className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                  {copied ? "Copied" : "Copy"}
-                </button>
-                <button
+                  {copied ? p.copied : p.copy}
+                </Button>
+                </Tooltip>
+                <Tooltip content={p.redoHint}>
+                <Button variant="secondary" size="sm"
                   type="button"
-                  onClick={runAI}
+                  onClick={outputMode === "demo" ? showSample : runAI}
                   disabled={busy}
-                  title="Draft this again with the same context"
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                  className="inline-flex justify-start items-center gap-1"
                 >
                   <RefreshCw className={cn("h-3 w-3", busy && "animate-spin")} />
-                  Redo
-                </button>
+                  {p.redo}
+                </Button>
+                </Tooltip>
               </div>
             </div>
             {/* A long lesson plan scrolls inside this box; without the cue the
                 text simply appeared to stop mid-sentence. */}
-            <p className="custom-scrollbar max-h-40 overflow-y-auto whitespace-pre-line text-xs font-semibold leading-relaxed text-[#1f1a23]">
+            <p className="custom-scrollbar max-h-40 overflow-y-auto whitespace-pre-line text-sm font-normal leading-relaxed text-ink">
               {output}
             </p>
-            <p className="mt-2 text-[10px] font-semibold text-emerald-700/70">
-              {output.split(/\s+/).filter(Boolean).length} words · scroll for the rest · always read an AI draft before you use it
+            <p className="mt-2 text-2xs font-semibold text-status-success-text/80">
+              {outputMode === "demo" ? p.sampleFoot : fillAi(p.words, output.split(/\s+/).filter(Boolean).length)}
             </p>
           </div>
         ) : null}
@@ -198,6 +241,8 @@ export function AIReviewQueue({
   items?: Array<{ id: string; title: string; feature: string; status: string }>;
   onComplete?: () => void | Promise<void>;
 }) {
+  const { language } = useLocale();
+  const copy = getAiWorkflowsCopy(language);
   const [busyId, setBusyId] = useState<string | null>(null);
   const visibleItems = items || [];
 
@@ -209,12 +254,12 @@ export function AIReviewQueue({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Review failed");
-      toast.success(action === "approve" ? "AI draft approved" : "AI draft rejected");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || copy.reviewFailed);
+      toast.success(action === "approve" ? copy.approved : copy.rejected);
       await onComplete?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Review failed");
+      toast.error(error instanceof Error ? error.message : copy.reviewFailed);
     } finally {
       setBusyId(null);
     }
@@ -223,7 +268,7 @@ export function AIReviewQueue({
   if (visibleItems.length === 0) {
     return (
       <p className="text-xs font-semibold text-ink-subtle italic">
-        No AI drafts are waiting for review.
+        {copy.reviewEmpty}
       </p>
     );
   }
@@ -231,29 +276,29 @@ export function AIReviewQueue({
   return (
     <div className="space-y-3">
       {visibleItems.slice(0, 5).map((item, index) => (
-        <div key={item.id} className="sk-rise rounded-2xl border border-[#cfc2d6]/25 bg-white p-4 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.08),0_10px_28px_-12px_rgba(129,39,207,0.16)]" style={{ animationDelay: `${index * 60}ms` }}>
-          <p className="text-[9px] font-black text-[#8127cf] uppercase tracking-wider mb-1">
-            {item.feature.replaceAll("_", " ")}
+        <div key={item.id} className="sk-panel sk-rise p-4" style={{ animationDelay: `${index * 60}ms` }}>
+          <p className="text-2xs font-semibold text-primary mb-1">
+            {copy.features[item.feature]?.label ?? item.feature.replaceAll("_", " ")}
           </p>
-          <p className="text-xs font-black text-[#1f1a23] leading-snug mb-3">{item.title}</p>
+          <p className="text-xs font-bold text-ink-strong leading-snug mb-3">{item.title}</p>
           <div className="flex gap-2">
             <BrandButton
               variant="soft"
-              className="h-9 flex-1 text-[11px]"
+              className="h-9 flex-1 text-2xs"
               onClick={() => review(item.id, "approve")}
               disabled={busyId === item.id}
               icon={busyId === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
             >
-              Approve
+              {copy.approve}
             </BrandButton>
             <BrandButton
               variant="danger"
-              className="h-9 flex-1 text-[11px]"
+              className="h-9 flex-1 text-2xs"
               onClick={() => review(item.id, "reject")}
               disabled={busyId === item.id}
               icon={<X className="w-3.5 h-3.5" />}
             >
-              Reject
+              {copy.reject}
             </BrandButton>
           </div>
         </div>

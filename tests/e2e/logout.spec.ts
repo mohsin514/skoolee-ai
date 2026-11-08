@@ -60,15 +60,18 @@ async function signIn(page: Page, fixture: RoleFixture): Promise<void> {
 /**
  * Clicks whichever sign-out control this console actually renders.
  *
- * The consoles were built at different times and there are three distinct
- * controls: the RoleHeader avatar menu (every RoleShell console), the sidebar
- * button on the legacy /dashboard, and onboarding's own button. Trying them in
- * order — and failing loudly if none is present — is what keeps this honest: a
- * console that grows a fourth one, or loses its control entirely, fails here
- * instead of being quietly skipped.
+ * There are two distinct controls: the RoleHeader account menu (every RoleShell
+ * console and framed route; the legacy /dashboard sidebar button is retired,
+ * SPEC §6.1) and onboarding's own button. Trying them in order — and failing
+ * loudly if none is present — is what keeps this honest: a console that grows a
+ * third one, or loses its control entirely, fails here instead of being quietly
+ * skipped.
+ *
+ * The account trigger is the shared `Menu` trigger, named by its `aria-label`
+ * ("Account menu"; it has no `title`), and "Sign out" is a `menuitem` inside it.
  */
 async function clickSignOut(page: Page): Promise<string> {
-  const accountMenu = page.locator('button[title="Account menu"]');
+  const accountMenu = page.getByRole("button", { name: "Account menu", exact: true });
   const directButton = page.getByRole("button", { name: /sign out/i });
 
   // Waiting, not counting. Only /teacher and /student mount their shell from
@@ -202,8 +205,8 @@ test.describe("sign-out in a real browser", () => {
     const fixture = ROLE_FIXTURES.find((f) => f.role === "TEACHER")!;
     await signIn(page, fixture);
 
-    const accountMenu = page.locator('button[title="Account menu"]');
-    await expect(accountMenu.first()).toBeVisible();
+    const accountMenu = page.getByRole("button", { name: "Account menu", exact: true });
+    await expect(accountMenu.first()).toBeVisible({ timeout: 45_000 });
 
     await accountMenu.first().focus();
     await page.keyboard.press("Enter");

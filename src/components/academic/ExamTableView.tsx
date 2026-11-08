@@ -1,5 +1,9 @@
 "use client";
 
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import React from "react";
 import {
   ArrowDownWideNarrow,
@@ -26,6 +30,8 @@ import {
   type ScheduleSummary,
 } from "@/lib/academic/exam-pipeline";
 import type { DetailTab } from "@/components/academic/ExamBoardCard";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 export type SortKey = "manual" | "title" | "class" | "progress" | "date" | "stage";
 
@@ -36,7 +42,7 @@ const HEADERS: { key: SortKey | null; label: string; className?: string }[] = [
   { key: "stage", label: "Stage" },
   { key: "date", label: "Dates" },
   { key: "progress", label: "Marks" },
-  { key: null, label: "Next step", className: "text-right" },
+  { key: null, label: "Next step", className: "text-end" },
 ];
 
 /**
@@ -73,55 +79,57 @@ export function ExamTableView({
   onReject: (exam: ExamItem) => void;
   flagged: Set<string>;
 }) {
+  const ui = useUiText();
   const allSelected = exams.length > 0 && exams.every((e) => selected.has(e.id));
 
   return (
-    <div className="overflow-x-auto rounded-3xl border border-[#cfc2d6]/15 bg-white shadow-sm custom-scrollbar">
-      <table className="w-full min-w-[900px] text-left">
-        <thead>
-          <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
-            <th className="w-10 px-4 py-3">
-              <input
-                type="checkbox"
+
+      <Table containerClassName="custom-scrollbar" className="w-full min-w-[900px] text-start">
+        <TableHeader>
+          <TableRow className="border-b border-edge/10 bg-brand-50/30">
+            <TableHead className="w-10 px-4 py-3">
+              <SystemCheckbox
+
                 checked={allSelected}
                 onChange={onToggleAll}
-                aria-label="Select every exam in this list"
-                className="h-4 w-4 cursor-pointer accent-[#8127cf]"
+                aria-label={ui("Select every exam in this list")}
+                className=""
               />
-            </th>
+            </TableHead>
             {HEADERS.slice(1).map((h) => (
-              <th
+              <TableHead
                 key={h.label}
+                aria-sort={h.key ? (sort.key === h.key ? (sort.dir === "asc" ? "ascending" : "descending") : "none") : undefined}
                 className={cn(
-                  "px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted",
+                  "px-4 py-3 text-xs font-semibold text-ink-muted",
                   h.className,
                 )}
               >
                 {h.key ? (
-                  <button
+                  <Button variant="ghost"
                     type="button"
                     onClick={() => onSort(h.key as SortKey)}
-                    className="inline-flex cursor-pointer items-center gap-1 transition-colors hover:text-[#8127cf]"
+                    className="justify-start inline-flex items-center gap-1"
                   >
-                    {h.label}
+                    {ui(h.label)}
                     {sort.key === h.key ? (
                       sort.dir === "asc" ? (
-                        <ArrowUpWideNarrow className="h-3 w-3 text-[#8127cf]" />
+                        <ArrowUpWideNarrow className="h-3 w-3 text-primary" />
                       ) : (
-                        <ArrowDownWideNarrow className="h-3 w-3 text-[#8127cf]" />
+                        <ArrowDownWideNarrow className="h-3 w-3 text-primary" />
                       )
                     ) : (
-                      <ArrowUpDown className="h-3 w-3 text-[#cfc2d6]" />
+                      <ArrowUpDown className="h-3 w-3 text-edge" />
                     )}
-                  </button>
-                ) : (
-                  h.label
-                )}
-              </th>
+                  </Button>
+                ) : h.label ? (
+                  ui(h.label)
+                ) : null}
+              </TableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {exams.map((exam) => {
             const m = meta[exam.id];
             const sched = schedules[exam.id];
@@ -133,119 +141,117 @@ export function ExamTableView({
               role !== "TEACHER" &&
               (exam.status === "LOCKED" || exam.status === "PRINCIPAL_REVIEWED");
             return (
-              <tr
+              <TableRow
                 key={exam.id}
                 className={cn(
-                  "border-b border-[#cfc2d6]/5 transition-colors hover:bg-[#fbf0fe]/25",
-                  selected.has(exam.id) && "bg-[#fbf0fe]/40",
+                  "border-b border-edge/5 transition-colors hover:bg-brand-50/25",
+                  selected.has(exam.id) && "bg-brand-50/40",
                 )}
               >
-                <td className="px-4 py-3">
-                  <input
-                    type="checkbox"
+                <TableCell className="px-4 py-3">
+                  <SystemCheckbox
+
                     checked={selected.has(exam.id)}
                     onChange={() => onToggleSelect(exam.id)}
-                    aria-label={`Select ${exam.title}`}
-                    className="h-4 w-4 cursor-pointer accent-[#8127cf]"
+                    aria-label={ui("Select {0}", [exam.title])}
+                    className=""
                   />
-                </td>
-                <td className="px-4 py-3">
-                  <button
+                </TableCell>
+                <TableCell className="px-4 py-3">
+                  <Button variant="ghost"
                     type="button"
                     onClick={() => onOpen(exam.id)}
-                    className="flex cursor-pointer items-center gap-1.5 text-left text-sm font-black text-[#1d1b20] transition-colors hover:text-[#8127cf]"
+                    className="justify-start flex items-center gap-1.5 text-start"
                   >
                     {flagged.has(exam.id) ? (
-                      <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                      <TriangleAlert aria-label={ui("Needs your attention")} className="h-3.5 w-3.5 shrink-0 text-status-warning-text" />
                     ) : null}
-                    {exam.title}
-                  </button>
-                  <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
-                    {EXAM_TYPE_LABELS[exam.examType as ExamType] ||
+                    <bdi>{exam.title}</bdi>
+                  </Button>
+                  <p className="mt-0.5 text-2xs font-semibold text-ink-subtle">
+                    {ui(EXAM_TYPE_LABELS[exam.examType as ExamType] ||
                       exam.examType?.replaceAll("_", " ") ||
-                      "Exam"}
+                      "Exam")}
                     {" · "}
                     {exam.term} {exam.academicYear}
                   </p>
-                </td>
-                <td className="px-4 py-3 text-xs font-bold text-ink">{classLabel(exam.class)}</td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell className="px-4 py-3 text-xs font-bold text-ink"><bdi>{classLabel(exam.class)}</bdi></TableCell>
+                <TableCell className="px-4 py-3">
                   <StatusPill status={exam.status} />
-                </td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell className="px-4 py-3">
                   {range ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-teal-700">
-                      <CalendarDays className="h-3 w-3" />
+                    <span className="inline-flex flex-wrap items-center gap-1 text-xs font-semibold text-ink tabular-nums">
+                      <CalendarDays className="h-3 w-3 text-primary" aria-hidden="true" />
                       {range}
                       <span className="text-ink-subtle">
-                        · {sched?.papers} paper{(sched?.papers ?? 0) > 1 ? "s" : ""}
+                        · {ui((sched?.papers ?? 0) > 1 ? "{0} papers" : "{0} paper", [sched?.papers ?? 0])}
                       </span>
                     </span>
                   ) : (
-                    <span className="text-[11px] font-semibold text-ink-subtle">Not scheduled</span>
+                    <span className="text-2xs font-semibold text-ink-subtle">{ui("Not scheduled")}</span>
                   )}
-                </td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell className="px-4 py-3">
                   {m && m.expectedMarks > 0 ? (
                     <div className="w-28">
-                      <div className="mb-1 flex items-center justify-between text-[10px] font-bold">
+                      <div className="mb-1 flex items-center justify-between text-2xs font-semibold tabular-nums">
                         <span className="text-ink-muted">
                           {m.enteredMarks}/{m.expectedMarks}
                         </span>
-                        <span className={pct === 100 ? "text-emerald-600" : "text-amber-600"}>
+                        <span className={pct === 100 ? "text-status-success-text" : "text-status-warning-text"}>
                           {pct}%
                         </span>
                       </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#f3f4f9]">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all",
-                            pct === 100 ? "bg-emerald-500" : "bg-amber-500",
-                          )}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
+                      <Progress
+                        value={pct}
+                        size="sm"
+                        tone={pct === 100 ? "success" : "warning"}
+                        label={ui("Marks entered")}
+                        valueText={ui("{0} of {1} marks entered", [m.enteredMarks, m.expectedMarks])}
+                      />
                     </div>
                   ) : (
-                    <span className="text-[11px] font-semibold text-ink-subtle">—</span>
+                    <span className="text-2xs font-semibold text-ink-subtle">—</span>
                   )}
-                </td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell className="px-4 py-3">
                   <div className="flex items-center justify-end gap-2">
                     {canReject ? (
-                      <button
+                      <Button variant="outline"
                         type="button"
                         onClick={() => onReject(exam)}
-                        className="flex cursor-pointer items-center gap-1 rounded-xl border border-rose-200 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-rose-600 transition-colors hover:bg-rose-50"
+                        className="justify-start flex items-center gap-1 px-2.5 py-1.5"
                       >
-                        <RotateCcw className="h-3 w-3" /> Send back
-                      </button>
+                        <RotateCcw aria-hidden="true" className="h-3 w-3" /> {ui("Send back")}
+                      </Button>
                     ) : null}
                     {action ? (
-                      <button
+                      <Button variant="default"
                         type="button"
                         onClick={() => onAdvance(exam, action)}
-                        className="flex cursor-pointer items-center gap-1 rounded-xl bg-[#8127cf] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#6a1fb0]"
+                        className="justify-start flex items-center gap-1 px-3 py-1.5"
                       >
                         {action.type === "lock" ? (
                           <Lock className="h-3 w-3" />
                         ) : (
                           <CheckCircle2 className="h-3 w-3" />
                         )}
-                        {action.label}
-                      </button>
+                        {ui(action.label)}
+                      </Button>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-600">
-                        <CheckCircle2 className="h-3 w-3" /> Done
-                      </span>
+                      <Badge variant="success">
+                        <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> {ui("Done")}
+                      </Badge>
                     )}
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
-    </div>
+        </TableBody>
+      </Table>
+
   );
 }

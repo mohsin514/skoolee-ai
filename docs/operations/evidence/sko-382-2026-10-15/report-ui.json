@@ -1,0 +1,871 @@
+{
+  "scope": "Actual static operator evidence report; not application UI",
+  "passed": 48,
+  "failed": 0,
+  "results": [
+    {
+      "lang": "en",
+      "width": 320,
+      "height": 720,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 320,
+      "height": 720,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 320,
+      "height": 720,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 320,
+      "height": 720,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 390,
+      "height": 844,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 390,
+      "height": 844,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 768,
+      "height": 1024,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 768,
+      "height": 1024,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 768,
+      "height": 1024,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 768,
+      "height": 1024,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 1440,
+      "height": 1000,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 1440,
+      "height": 1000,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 1440,
+      "height": 1000,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "en",
+      "width": 1440,
+      "height": 1000,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 320,
+      "height": 720,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 320,
+      "height": 720,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 320,
+      "height": 720,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 320,
+      "height": 720,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 390,
+      "height": 844,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 390,
+      "height": 844,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 768,
+      "height": 1024,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 768,
+      "height": 1024,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 768,
+      "height": 1024,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 768,
+      "height": 1024,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 1440,
+      "height": 1000,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 1440,
+      "height": 1000,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 1440,
+      "height": 1000,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ar",
+      "width": 1440,
+      "height": 1000,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 320,
+      "height": 720,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 320,
+      "height": 720,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 320,
+      "height": 720,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 320,
+      "height": 720,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 390,
+      "height": 844,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 390,
+      "height": 844,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 768,
+      "height": 1024,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 768,
+      "height": 1024,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 768,
+      "height": 1024,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 768,
+      "height": 1024,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 1440,
+      "height": 1000,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 1440,
+      "height": 1000,
+      "scale": 1,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 1440,
+      "height": 1000,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "no-preference",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    },
+    {
+      "lang": "ur",
+      "width": 1440,
+      "height": 1000,
+      "scale": 2,
+      "scaling": "CSS layout zoom (not a claim of native browser zoom)",
+      "reducedMotion": "reduce",
+      "status": "passed",
+      "checks": [
+        "locale/direction",
+        "semantic timeline/text status",
+        "isolated IDs",
+        "no horizontal overflow",
+        "keyboard-visible focus",
+        "real local links",
+        "no pretend controls"
+      ]
+    }
+  ]
+}

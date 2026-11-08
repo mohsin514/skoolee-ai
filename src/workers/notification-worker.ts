@@ -1,14 +1,16 @@
+import { assertCommunicationTarget } from "@/lib/auth/communication-policy";
 // ===========================================
 // SkooleeAI - Notification Worker
 // ===========================================
 // Processes WhatsApp, email, and automation jobs.
 
-import { Worker, Job } from "bullmq";
+import { DelayedError, Worker, Job } from "bullmq";
 import { redis } from "@/lib/queue/connection";
 import { prisma } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { sendEmailMessage } from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
+import { whatsappQuietHoursDelayMs } from "@/lib/whatsapp/quiet-hours";
 import { runNotificationAutomationSweep } from "@/lib/notifications/automation";
 import {
   parseNotificationTemplateKey,
@@ -18,7 +20,7 @@ import type { NotificationJobData } from "@/lib/queue/queues";
 
 const worker = new Worker<NotificationJobData>(
   "notifications",
-  async (job: Job<NotificationJobData>) => {
+  async (job: Job<NotificationJobData>, token?: string) => {
     const data = job.data;
     // A queue job has no session, so the school travels on the job payload.
     // The legacy job shape calls the same field `tenantId`.
@@ -30,7 +32,7 @@ const worker = new Worker<NotificationJobData>(
       throw new Error("Notification job is missing schoolId — cannot scope it to a tenant");
     }
 
-    return runWithTenantContext({ schoolId }, () => processNotification(job));
+    return runWithTenantContext({ schoolId }, () => processNotification(job, token));
   },
   {
     connection: redis,
@@ -38,7 +40,15 @@ const worker = new Worker<NotificationJobData>(
   }
 );
 
-async function processNotification(job: Job<NotificationJobData>) {
+/** SKAI-987: hold a guardian WhatsApp message until the school's quiet hours end; BullMQ re-runs it then. */
+async function holdForQuietHours(job: Job<NotificationJobData>, token: string | undefined, input: { schoolId: string; campusId?: string | null; urgent?: boolean }) {
+  const delay = await whatsappQuietHoursDelayMs(input);
+  if (delay <= 0 || !token) return;
+  await job.moveToDelayed(Date.now() + delay, token);
+  throw new DelayedError();
+}
+
+async function processNotification(job: Job<NotificationJobData>, token?: string) {
     const data = job.data;
 
     if ("kind" in data && data.kind === "RUN_AUTOMATION") {
@@ -51,6 +61,7 @@ async function processNotification(job: Job<NotificationJobData>) {
     }
 
     if ("kind" in data && data.kind === "SEND_TEMPLATE") {
+      if (data.channel === "WHATSAPP") await holdForQuietHours(job, token, { schoolId: data.schoolId, campusId: data.campusId, urgent: data.metadata?.urgent === true });
       const templateKey = parseNotificationTemplateKey(data.templateKey);
       if (!templateKey) throw new Error(`Unknown notification template: ${data.templateKey}`);
 
@@ -82,9 +93,12 @@ async function processNotification(job: Job<NotificationJobData>) {
     }
 
     const legacyData = data as Extract<NotificationJobData, { type: "WHATSAPP" | "EMAIL" }>;
+    await assertCommunicationTarget({ schoolId: legacyData.tenantId!, studentId: legacyData.studentId, recipient: legacyData.recipient }, legacyData.type);
+    if (legacyData.type === "WHATSAPP") await holdForQuietHours(job, token, { schoolId: legacyData.tenantId! });
     const result =
       legacyData.type === "WHATSAPP"
         ? await sendWhatsAppMessage({
+            schoolId: legacyData.tenantId,
             to: legacyData.recipient,
             text: legacyData.message,
             pdfUrl: legacyData.attachmentUrl,

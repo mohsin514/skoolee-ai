@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db/prisma";
 import { assertModuleRead, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { gradeForPercentage } from "@/lib/academic/report-cards";
+import { groupedRuleRate } from "@/lib/attendance";
+import { attendanceRuleFor } from "@/lib/attendance/rule";
 
 export async function GET(req: Request) {
   try {
@@ -65,19 +67,42 @@ export async function GET(req: Request) {
         by: ["status"],
         where: {
           ...(campusId ? { campusId } : { campus: { schoolId: user.schoolId } }),
-          date: { gte: new Date(academicYear, 0, 1) },
+          // SKAI-1607: the selected year is closed at both ends, like the exam and report-card filters.
+          date: { gte: new Date(Date.UTC(academicYear, 0, 1)), lt: new Date(Date.UTC(academicYear + 1, 0, 1)) },
         },
         _count: { _all: true },
       }),
     ]);
 
+    // SKAI-1750: pass/at-risk follow each class's published pass mark (as report cards do), not a fixed 50%.
+    const examClassIds = [...new Set(exams.map((e) => e.classId))];
+    const passConfigs = examClassIds.length
+      ? await prisma.gradeWeightConfig.findMany({
+          where: { schoolId: user.schoolId, academicYear, classId: { in: examClassIds } },
+          select: { classId: true, passingPercentage: true },
+        })
+      : [];
+    const passMarkByClass = new Map(passConfigs.map((c) => [c.classId, c.passingPercentage]));
+    const examClassOf = new Map(exams.map((e) => [e.id, e.classId]));
+    const passes = (r: { examId: string; percentage: number }) =>
+      r.percentage >= (passMarkByClass.get(examClassOf.get(r.examId) ?? "") ?? 50);
+
     const allPcts = reportCards.map((r) => r.percentage);
     const avgPerformance = allPcts.length
       ? Math.round(allPcts.reduce((a, b) => a + b, 0) / allPcts.length * 10) / 10
       : 0;
-    const passCount = allPcts.filter((p) => p >= 50).length;
-    const passRate = allPcts.length ? Math.round((passCount / allPcts.length) * 100) : 0;
-    const needsAttention = reportCards.filter((r) => r.percentage < 50).length;
+    // SKAI-1752: pupil-facing counts and lists use one result per pupil: their latest exam (exams are
+    // ordered by lockedAt), so a pupil with several report cards is counted and listed once.
+    const examOrder = new Map(exams.map((e, i) => [e.id, i]));
+    const latestByStudent = new Map<string, (typeof reportCards)[number]>();
+    for (const r of reportCards) {
+      const prev = latestByStudent.get(r.studentId);
+      if (!prev || (examOrder.get(r.examId) ?? -1) >= (examOrder.get(prev.examId) ?? -1)) latestByStudent.set(r.studentId, r);
+    }
+    const pupilResults = [...latestByStudent.values()];
+    const passCount = pupilResults.filter(passes).length;
+    const passRate = pupilResults.length ? Math.round((passCount / pupilResults.length) * 100) : 0;
+    const needsAttention = pupilResults.length - passCount;
 
     const classMap = new Map<string, string>();
     const classExams = await prisma.class.findMany({
@@ -89,8 +114,10 @@ export async function GET(req: Request) {
     }
 
     const classPerfMap = new Map<string, { total: number; count: number }>();
+    // SKAI-1609: a report belongs to the class whose exam produced it, not the pupil's class today.
+    const examClass = new Map(exams.map((e) => [e.id, e.classId]));
     for (const r of reportCards) {
-      const classId = r.student.classId;
+      const classId = examClass.get(r.examId) ?? r.student.classId;
       const className = classMap.get(classId) || "Unknown";
       const prev = classPerfMap.get(className) || { total: 0, count: 0 };
       prev.total += r.percentage;
@@ -149,7 +176,7 @@ export async function GET(req: Request) {
       };
     });
 
-    const topStudents = [...reportCards]
+    const topStudents = [...pupilResults]
       .sort((a, b) => b.percentage - a.percentage)
       .slice(0, 10)
       .map((r) => ({
@@ -159,8 +186,8 @@ export async function GET(req: Request) {
         grade: r.grade || gradeForPercentage(r.percentage),
       }));
 
-    const atRiskStudents = [...reportCards]
-      .filter((r) => r.percentage < 50)
+    const atRiskStudents = [...pupilResults]
+      .filter((r) => !passes(r))
       .sort((a, b) => a.percentage - b.percentage)
       .slice(0, 10)
       .map((r) => ({
@@ -172,9 +199,8 @@ export async function GET(req: Request) {
           : null,
       }));
 
-    const totalAttendance = attendance.reduce((s, a) => s + a._count._all, 0);
-    const presentCount = attendance.find((a) => a.status === "PRESENT")?._count._all || 0;
-    const attendanceRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : null;
+    // SKAI-1604: the dashboard rate follows the school's published counting rule, like monthly and summary reports.
+    const attendanceRate = groupedRuleRate(attendance.map((a) => ({ status: String(a.status), count: a._count._all })), await attendanceRuleFor(user.schoolId));
 
     return Response.json({
       success: true,

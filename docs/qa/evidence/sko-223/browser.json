@@ -1,0 +1,941 @@
+[
+  {
+    "check": "role API read and cross-site mutation denial",
+    "role": "APP_OWNER",
+    "status": 404,
+    "crossSite": 403
+  },
+  {
+    "check": "role API read and cross-site mutation denial",
+    "role": "SUPER_ADMIN",
+    "status": 200,
+    "crossSite": 403
+  },
+  {
+    "check": "role API read and cross-site mutation denial",
+    "role": "CAMPUS_ADMIN",
+    "status": 200,
+    "crossSite": 403
+  },
+  {
+    "check": "role API read and cross-site mutation denial",
+    "role": "ADMIN",
+    "status": 200,
+    "crossSite": 403
+  },
+  {
+    "check": "role API read and cross-site mutation denial",
+    "role": "PRINCIPAL",
+    "status": 200,
+    "crossSite": 403
+  },
+  {
+    "check": "role API read and cross-site mutation denial",
+    "role": "TEACHER",
+    "status": 200,
+    "crossSite": 403
+  },
+  {
+    "check": "role API read and cross-site mutation denial",
+    "role": "PARENT",
+    "status": 404,
+    "crossSite": 403
+  },
+  {
+    "check": "role API read and cross-site mutation denial",
+    "role": "STUDENT",
+    "status": 404,
+    "crossSite": 403
+  },
+  {
+    "check": "role API read and cross-site mutation denial",
+    "role": "ACCOUNTANT",
+    "status": 200,
+    "crossSite": 403
+  },
+  {
+    "check": "role API read and cross-site mutation denial",
+    "role": "LIBRARIAN",
+    "status": 200,
+    "crossSite": 403
+  },
+  {
+    "check": "role API read and cross-site mutation denial",
+    "role": "RECEPTIONIST",
+    "status": 200,
+    "crossSite": 403
+  },
+  {
+    "check": "recovery and receipts",
+    "viewport": "desktop",
+    "language": "en",
+    "keyboard": true,
+    "reopenSameJob": true,
+    "noOverflow": true,
+    "errors": []
+  },
+  {
+    "check": "recovery and receipts",
+    "viewport": "desktop",
+    "language": "ar",
+    "keyboard": true,
+    "reopenSameJob": true,
+    "noOverflow": true,
+    "errors": []
+  },
+  {
+    "check": "recovery and receipts",
+    "viewport": "desktop",
+    "language": "ur",
+    "keyboard": true,
+    "reopenSameJob": true,
+    "noOverflow": true,
+    "errors": []
+  },
+  {
+    "check": "recovery and receipts",
+    "viewport": "tablet",
+    "language": "en",
+    "keyboard": true,
+    "reopenSameJob": true,
+    "noOverflow": true,
+    "errors": []
+  },
+  {
+    "check": "recovery and receipts",
+    "viewport": "tablet",
+    "language": "ar",
+    "keyboard": true,
+    "reopenSameJob": true,
+    "noOverflow": true,
+    "errors": []
+  },
+  {
+    "check": "recovery and receipts",
+    "viewport": "tablet",
+    "language": "ur",
+    "keyboard": true,
+    "reopenSameJob": true,
+    "noOverflow": true,
+    "errors": []
+  },
+  {
+    "check": "recovery and receipts",
+    "viewport": "phone",
+    "language": "en",
+    "keyboard": true,
+    "reopenSameJob": true,
+    "noOverflow": true,
+    "errors": []
+  },
+  {
+    "check": "recovery and receipts",
+    "viewport": "phone",
+    "language": "ar",
+    "keyboard": true,
+    "reopenSameJob": true,
+    "noOverflow": true,
+    "errors": []
+  },
+  {
+    "check": "recovery and receipts",
+    "viewport": "phone",
+    "language": "ur",
+    "keyboard": true,
+    "reopenSameJob": true,
+    "noOverflow": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "APP_OWNER",
+    "viewport": "desktop",
+    "language": "en",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "APP_OWNER",
+    "viewport": "tablet",
+    "language": "en",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "APP_OWNER",
+    "viewport": "phone",
+    "language": "en",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "SUPER_ADMIN",
+    "viewport": "desktop",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "SUPER_ADMIN",
+    "viewport": "tablet",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "SUPER_ADMIN",
+    "viewport": "phone",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "CAMPUS_ADMIN",
+    "viewport": "desktop",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "CAMPUS_ADMIN",
+    "viewport": "tablet",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "CAMPUS_ADMIN",
+    "viewport": "phone",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ADMIN",
+    "viewport": "desktop",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ADMIN",
+    "viewport": "tablet",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ADMIN",
+    "viewport": "phone",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PRINCIPAL",
+    "viewport": "desktop",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PRINCIPAL",
+    "viewport": "tablet",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PRINCIPAL",
+    "viewport": "phone",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "TEACHER",
+    "viewport": "desktop",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "TEACHER",
+    "viewport": "tablet",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "TEACHER",
+    "viewport": "phone",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PARENT",
+    "viewport": "desktop",
+    "language": "en",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PARENT",
+    "viewport": "tablet",
+    "language": "en",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PARENT",
+    "viewport": "phone",
+    "language": "en",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "STUDENT",
+    "viewport": "desktop",
+    "language": "en",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "STUDENT",
+    "viewport": "tablet",
+    "language": "en",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "STUDENT",
+    "viewport": "phone",
+    "language": "en",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ACCOUNTANT",
+    "viewport": "desktop",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ACCOUNTANT",
+    "viewport": "tablet",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ACCOUNTANT",
+    "viewport": "phone",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "LIBRARIAN",
+    "viewport": "desktop",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "LIBRARIAN",
+    "viewport": "tablet",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "LIBRARIAN",
+    "viewport": "phone",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "RECEPTIONIST",
+    "viewport": "desktop",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "RECEPTIONIST",
+    "viewport": "tablet",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "RECEPTIONIST",
+    "viewport": "phone",
+    "language": "en",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "APP_OWNER",
+    "viewport": "desktop",
+    "language": "ar",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "APP_OWNER",
+    "viewport": "tablet",
+    "language": "ar",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "APP_OWNER",
+    "viewport": "phone",
+    "language": "ar",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "SUPER_ADMIN",
+    "viewport": "desktop",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "SUPER_ADMIN",
+    "viewport": "tablet",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "SUPER_ADMIN",
+    "viewport": "phone",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "CAMPUS_ADMIN",
+    "viewport": "desktop",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "CAMPUS_ADMIN",
+    "viewport": "tablet",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "CAMPUS_ADMIN",
+    "viewport": "phone",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ADMIN",
+    "viewport": "desktop",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ADMIN",
+    "viewport": "tablet",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ADMIN",
+    "viewport": "phone",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PRINCIPAL",
+    "viewport": "desktop",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PRINCIPAL",
+    "viewport": "tablet",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PRINCIPAL",
+    "viewport": "phone",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "TEACHER",
+    "viewport": "desktop",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "TEACHER",
+    "viewport": "tablet",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "TEACHER",
+    "viewport": "phone",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PARENT",
+    "viewport": "desktop",
+    "language": "ar",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PARENT",
+    "viewport": "tablet",
+    "language": "ar",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PARENT",
+    "viewport": "phone",
+    "language": "ar",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "STUDENT",
+    "viewport": "desktop",
+    "language": "ar",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "STUDENT",
+    "viewport": "tablet",
+    "language": "ar",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "STUDENT",
+    "viewport": "phone",
+    "language": "ar",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ACCOUNTANT",
+    "viewport": "desktop",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ACCOUNTANT",
+    "viewport": "tablet",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ACCOUNTANT",
+    "viewport": "phone",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "LIBRARIAN",
+    "viewport": "desktop",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "LIBRARIAN",
+    "viewport": "tablet",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "LIBRARIAN",
+    "viewport": "phone",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "RECEPTIONIST",
+    "viewport": "desktop",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "RECEPTIONIST",
+    "viewport": "tablet",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "RECEPTIONIST",
+    "viewport": "phone",
+    "language": "ar",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "APP_OWNER",
+    "viewport": "desktop",
+    "language": "ur",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "APP_OWNER",
+    "viewport": "tablet",
+    "language": "ur",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "APP_OWNER",
+    "viewport": "phone",
+    "language": "ur",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "SUPER_ADMIN",
+    "viewport": "desktop",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "SUPER_ADMIN",
+    "viewport": "tablet",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "SUPER_ADMIN",
+    "viewport": "phone",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "CAMPUS_ADMIN",
+    "viewport": "desktop",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "CAMPUS_ADMIN",
+    "viewport": "tablet",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "CAMPUS_ADMIN",
+    "viewport": "phone",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ADMIN",
+    "viewport": "desktop",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ADMIN",
+    "viewport": "tablet",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ADMIN",
+    "viewport": "phone",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PRINCIPAL",
+    "viewport": "desktop",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PRINCIPAL",
+    "viewport": "tablet",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PRINCIPAL",
+    "viewport": "phone",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "TEACHER",
+    "viewport": "desktop",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "TEACHER",
+    "viewport": "tablet",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "TEACHER",
+    "viewport": "phone",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PARENT",
+    "viewport": "desktop",
+    "language": "ur",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PARENT",
+    "viewport": "tablet",
+    "language": "ur",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "PARENT",
+    "viewport": "phone",
+    "language": "ur",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "STUDENT",
+    "viewport": "desktop",
+    "language": "ur",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "STUDENT",
+    "viewport": "tablet",
+    "language": "ur",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "STUDENT",
+    "viewport": "phone",
+    "language": "ur",
+    "privateRowsVisible": false,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ACCOUNTANT",
+    "viewport": "desktop",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ACCOUNTANT",
+    "viewport": "tablet",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "ACCOUNTANT",
+    "viewport": "phone",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "LIBRARIAN",
+    "viewport": "desktop",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "LIBRARIAN",
+    "viewport": "tablet",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "LIBRARIAN",
+    "viewport": "phone",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "RECEPTIONIST",
+    "viewport": "desktop",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "RECEPTIONIST",
+    "viewport": "tablet",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  },
+  {
+    "check": "role layout",
+    "role": "RECEPTIONIST",
+    "viewport": "phone",
+    "language": "ur",
+    "privateRowsVisible": true,
+    "errors": []
+  }
+]

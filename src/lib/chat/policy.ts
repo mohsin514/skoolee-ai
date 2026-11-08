@@ -13,9 +13,11 @@
 //   2. requireAuthUser(), which re-checks the account on every request.
 // This module handles the third: intra-school reachability.
 // ─────────────────────────────────────────────────────────────────
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { isCampusAdminRole, type UserRole } from "@/lib/roles";
+import type { UserRole } from "@/lib/roles";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
+import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
 
 /** School leadership. Reaches everyone inside its campus scope. */
 export const LEADERSHIP_ROLES: UserRole[] = ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "PRINCIPAL"];
@@ -75,8 +77,8 @@ export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
  * A school's messaging policy, falling back to the conservative defaults
  * when it has never opened the settings screen.
  */
-export async function getChatSettings(schoolId: string): Promise<ChatSettings> {
-  const row = await prisma.chatSetting.findUnique({ where: { schoolId } });
+export async function getChatSettings(schoolId: string, db: TxClient = prisma): Promise<ChatSettings> {
+  const row = await db.chatSetting.findUnique({ where: { schoolId } });
   if (!row) return { ...DEFAULT_CHAT_SETTINGS };
   return {
     studentToStudent: row.studentToStudent,
@@ -113,21 +115,33 @@ function deny(reason: string): PolicyDecision {
 // ─── Relationship lookups ────────────────────────────────────────
 
 /**
- * Every class a teacher is attached to: as class teacher, as a subject
- * teacher, or through a published timetable slot. All three appear in the
- * product as "my classes", so all three grant contact with those families.
+ * A teaching assignment in force today. Allocation (SKAI-1265) records class
+ * and subject teachers here, so a teacher can be attached to a class with
+ * nothing set on Class.classTeacherId or Subject.teacherId.
  */
-export async function teacherClassIds(userId: string): Promise<string[]> {
-  const [led, subjects, slots] = await Promise.all([
-    prisma.class.findMany({ where: { classTeacherId: userId }, select: { id: true } }),
-    prisma.subject.findMany({ where: { teacherId: userId }, select: { classId: true } }),
-    prisma.timetableSlot.findMany({
+export function currentTeachingAssignmentWhere(at = new Date()) {
+  return { teacherId: { not: null }, effectiveFrom: { lte: at }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: at } }] };
+}
+
+/**
+ * Every class a teacher is attached to: as class teacher, as a subject
+ * teacher, through a current teaching assignment, or through a published
+ * timetable slot. All appear in the product as "my classes", so all grant
+ * contact with those families.
+ */
+export async function teacherClassIds(userId: string, db: TxClient = prisma): Promise<string[]> {
+  const [led, subjects, slots, assignments] = await Promise.all([
+    db.class.findMany({ where: { classTeacherId: userId }, select: { id: true } }),
+    db.subject.findMany({ where: { teacherId: userId }, select: { classId: true } }),
+    db.timetableSlot.findMany({
       where: { teacherId: userId },
       select: { timetable: { select: { classId: true } } },
     }),
+    db.teachingAssignment.findMany({ where: { ...currentTeachingAssignmentWhere(), teacherId: userId }, select: { classId: true } }),
   ]);
 
   const ids = new Set<string>();
+  for (const a of assignments) ids.add(a.classId);
   for (const c of led) ids.add(c.id);
   for (const s of subjects) ids.add(s.classId);
   for (const s of slots) if (s.timetable?.classId) ids.add(s.timetable.classId);
@@ -138,16 +152,16 @@ export async function teacherClassIds(userId: string): Promise<string[]> {
  * True when a teacher and a family account meet over at least one child.
  * One query, not one per class: the join is done in the database.
  */
-async function teacherSharesStudent(teacherId: string, family: ChatPeer): Promise<boolean> {
-  const classIds = await teacherClassIds(teacherId);
+async function teacherSharesStudent(teacherId: string, family: ChatPeer, db: TxClient): Promise<boolean> {
+  const classIds = await teacherClassIds(teacherId, db);
   if (classIds.length === 0) return false;
 
-  const link = await prisma.student.findFirst({
+  const link = await db.student.findFirst({
     where: {
       classId: { in: classIds },
       status: "active",
       ...(family.role === "PARENT"
-        ? { parentUserId: family.id }
+        ? { guardianRelationships: { some: liveGuardianRelationshipWhere(family.id, "communication") } }
         : { studentUserId: family.id }),
     },
     select: { id: true },
@@ -157,12 +171,12 @@ async function teacherSharesStudent(teacherId: string, family: ChatPeer): Promis
 }
 
 /** A guardian and a pupil who belong to the same student record. */
-async function sharesStudentRecord(a: ChatPeer, b: ChatPeer): Promise<boolean> {
+async function sharesStudentRecord(a: ChatPeer, b: ChatPeer, db: TxClient): Promise<boolean> {
   const parent = a.role === "PARENT" ? a : b;
   const student = a.role === "STUDENT" ? a : b;
 
-  const link = await prisma.student.findFirst({
-    where: { parentUserId: parent.id, studentUserId: student.id },
+  const link = await db.student.findFirst({
+    where: { guardianRelationships: { some: liveGuardianRelationshipWhere(parent.id, "communication") }, studentUserId: student.id },
     select: { id: true },
   });
 
@@ -182,7 +196,8 @@ async function sharesStudentRecord(a: ChatPeer, b: ChatPeer): Promise<boolean> {
 export async function canDirectMessage(
   actor: AuthUser,
   target: ChatPeer,
-  settings: ChatSettings
+  settings: ChatSettings,
+  db: TxClient = prisma,
 ): Promise<PolicyDecision> {
   if (actor.userId === target.id) {
     return deny("You cannot start a conversation with yourself");
@@ -231,7 +246,7 @@ export async function canDirectMessage(
       const teacherId = actorIsStaff ? actor.userId : target.id;
       const familyPeer = actorIsStaff ? target : actorAsPeer;
 
-      if (await teacherSharesStudent(teacherId, familyPeer)) return ALLOW;
+      if (await teacherSharesStudent(teacherId, familyPeer, db)) return ALLOW;
 
       return deny(
         actorIsStaff
@@ -243,7 +258,7 @@ export async function canDirectMessage(
 
   // Guardian ↔ their own pupil.
   if (!actorIsStaff && !targetIsStaff && actorRole !== targetRole) {
-    if (await sharesStudentRecord(actorAsPeer, target)) return ALLOW;
+    if (await sharesStudentRecord(actorAsPeer, target, db)) return ALLOW;
 
     return deny(
       actorRole === "PARENT"
@@ -312,9 +327,13 @@ export function canCreateAnnouncement(role: UserRole) {
   return isLeadership(role);
 }
 
-/** Who may change the school-wide messaging policy. */
-export function canManageChatSettings(role: UserRole) {
-  return role === "SUPER_ADMIN" || isCampusAdminRole(role) || role === "PRINCIPAL";
+/**
+ * Who may change the school-wide messaging policy (§7.3 G52). There is one ChatSetting row per school, so only the
+ * institution authority — the group admin, or the school admin of a single school — writes it. Everyone keeps
+ * reading it.
+ */
+export function canManageChatSettings(user: Pick<AuthUser, "role"> & Partial<Pick<AuthUser, "institutionKind" | "isInstitutionOwner">>) {
+  return isInstitutionAuthority(user);
 }
 
 /**

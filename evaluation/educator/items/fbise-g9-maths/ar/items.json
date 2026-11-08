@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "pack": "fbise-g9-maths",
+  "language": "ar",
+  "setVersion": "0.0.1",
+  "placeholder": true,
+  "frozen": {
+    "frozenAt": "2026-10-29T00:00:00.000Z",
+    "contentSha256": "fad55e19b9125f81b3a5fa6a72d97dd213fa81323e7797e401ea8619d61e50f4"
+  },
+  "items": [
+    {
+      "id": "placeholder-1",
+      "topic": "PLACEHOLDER",
+      "difficulty": "easy",
+      "stem": "PLACEHOLDER item 1 - not an evaluation item. Educators replace this set (D5-02); solve x + 1 = 4.",
+      "referenceAnswer": "x = 3",
+      "maxMarks": 1,
+      "syntheticResponse": "x = 3",
+      "placeholder": true
+    }
+  ]
+}

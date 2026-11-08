@@ -1,13 +1,16 @@
+import { writeObservedAttendance } from "@/lib/school-ai/school-operations-register-write";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canMarkAttendance, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canMarkAttendance(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { classId, fromDate, toDate } = body;
     if (!classId || !fromDate || !toDate) throw new ApiError("classId, fromDate, and toDate are required", 400);
 
@@ -27,28 +30,7 @@ export async function POST(req: NextRequest) {
     });
     if (!cls) throw new ApiError("Class not found or not assigned to you", 404);
 
-    const from = new Date(fromDate);
-    const to = new Date(toDate);
-    if (isNaN(from.getTime()) || isNaN(to.getTime())) throw new ApiError("Invalid date format", 400);
-
-    // Get previous day's attendance
-    const previousRecords = await prisma.attendance.findMany({
-      where: { campusId, classId, date: from },
-      select: { studentId: true, status: true },
-    });
-
-    if (!previousRecords.length) throw new ApiError("No attendance found for the source date", 404);
-
-    // Upsert for the target date
-    const records = await prisma.$transaction(
-      previousRecords.map(entry =>
-        prisma.attendance.upsert({
-          where: { studentId_date: { studentId: entry.studentId, date: to } },
-          update: { status: entry.status, markedBy: user.userId, campusId, classId, markedAt: new Date() },
-          create: { campusId, classId, studentId: entry.studentId, date: to, status: entry.status, markedBy: user.userId },
-        })
-      )
-    );
+    const records = await writeObservedAttendance(user, { campusId, classId, date: toDate, copyFrom: fromDate });
 
     return Response.json({
       success: true,

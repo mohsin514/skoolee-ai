@@ -1,7 +1,13 @@
 "use client";
 
-import { ChevronDown, Printer, User } from "lucide-react";
+import { CalendarX, ChevronDown, Printer, User } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
 import type { GridDay, GridPeriod, TeacherOption, TimetableData } from "./TimetableStudio";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { useUiText } from "@/components/locale/LocaleProvider";
+
 
 interface TeacherSlot {
   classLabel: string;
@@ -29,6 +35,7 @@ export function TeacherView({
   selectedTeacherId: string;
   onSelectTeacher: (id: string) => void;
 }) {
+  const ui = useUiText();
   const teacherSlotMap = new Map<string, TeacherSlot[]>();
   for (const tt of timetables) {
     const clsLabel = `${tt.class.name}${tt.class.section ? ` ${tt.class.section}` : ""}`;
@@ -54,64 +61,58 @@ export function TeacherView({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative">
-          <select
+          <SystemSelect
             value={selectedTeacherId}
             onChange={(e) => onSelectTeacher(e.target.value)}
-            className="h-11 rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 appearance-none cursor-pointer"
+            className="px-4 pe-10 appearance-none"
+            aria-label={ui("Teacher")}
           >
-            <option value="">— Select teacher —</option>
+            <option value="">{ui("Choose a teacher")}</option>
             {teachers.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.fullName}
               </option>
             ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-subtle" />
+          </SystemSelect>
+
         </div>
         {selectedTeacherId && (
-          <span className="text-[10px] font-bold text-ink-muted">
-            {selectedTeacherSlots.length} slot{selectedTeacherSlots.length !== 1 ? "s" : ""} across all classes
+          <span className="text-2xs font-bold text-ink-muted">
+            {ui(selectedTeacherSlots.length === 1 ? "1 slot across all classes" : "{0} slots across all classes", [selectedTeacherSlots.length])}
           </span>
         )}
         {selectedTeacherId && (
-          <button
+          <Button variant="secondary" size="sm"
             type="button"
             onClick={() => window.print()}
-            className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+            className="flex justify-start items-center gap-1.5"
           >
-            <Printer className="h-3.5 w-3.5" />Print Routine
-          </button>
+            <Printer aria-hidden="true" className="h-3.5 w-3.5" />{ui("Print routine")}
+          </Button>
         )}
       </div>
 
       {!selectedTeacherId && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-[28px] bg-[#fbf0fe]">
-            <User className="h-8 w-8 text-[#8127cf]/30" />
-          </div>
-          <h3 className="text-lg font-black text-[#1f1a23]">Select a Teacher</h3>
-          <p className="mt-2 max-w-sm text-sm font-semibold text-ink-muted">
-            Choose a teacher above to see their full weekly schedule across every class they teach.
-          </p>
+        <div className="py-16">
+          <EmptyState icon={User} title={ui("Select a teacher")} description={ui("Choose a teacher above to see their full weekly schedule across every class they teach.")} />
         </div>
       )}
 
       {selectedTeacherId && (
-        <div className="overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
+        <div className="sk-panel overflow-x-auto">
           <div className="min-w-[760px]">
-            <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: gridCols }}>
+            <div className="grid border-b border-muted" style={{ gridTemplateColumns: gridCols }}>
               <div className="flex items-center justify-center p-3">
-                <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Period</span>
+                <span className="text-xs font-semibold text-ink-subtle">{ui("Period")}</span>
               </div>
               {visibleDays.map((day) => (
                 <div
                   key={day.num}
-                  className={`flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9] ${
-                    weekendDays.includes(day.num) ? "opacity-50 bg-[#f3f4f9]/70" : ""
+                  className={`flex flex-col items-center justify-center py-3 border-s border-muted ${
+                    weekendDays.includes(day.num) ? "opacity-50 bg-muted/70" : ""
                   }`}
                 >
-                  <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{day.short}</span>
-                  <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{day.full}</span>
+                  <span className="text-xs font-semibold text-ink-subtle">{ui(day.full)}</span>
                 </div>
               ))}
             </div>
@@ -120,12 +121,12 @@ export function TeacherView({
               periods.map((period) => (
                 <div
                   key={period.num}
-                  className="grid border-b border-[#f3f4f9] last:border-b-0"
+                  className="grid border-b border-muted last:border-b-0"
                   style={{ gridTemplateColumns: gridCols }}
                 >
-                  <div className="flex flex-col items-center justify-center p-2 border-r border-[#f3f4f9]">
-                    <span className="text-[10px] font-black text-[#8127cf]">P{period.num}</span>
-                    <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{period.start}</span>
+                  <div className="flex flex-col items-center justify-center p-2 border-e border-muted">
+                    <span className="text-2xs font-bold text-primary" title={ui("Period {0}", [period.num])}>{ui("P{0}", [period.num])}</span>
+                    <bdi dir="ltr" className="text-3xs font-bold text-ink-subtle mt-0.5">{period.start}</bdi>
                   </div>
                   {visibleDays.map((day) => {
                     const isOff = weekendDays.includes(day.num);
@@ -135,29 +136,29 @@ export function TeacherView({
                     return (
                       <div
                         key={day.num}
-                        className={`border-l border-[#f3f4f9] p-1 ${isOff ? "opacity-40 bg-[#f3f4f9]/70" : ""}`}
+                        className={`border-s border-muted p-1 ${isOff ? "opacity-40 bg-muted/70" : ""}`}
                       >
                         {slotInfo ? (
                           <div
                             className={`h-full min-h-[48px] rounded-xl p-2 flex flex-col justify-center ${
-                              isConflict ? "bg-rose-100 border border-rose-300" : "bg-emerald-50 border border-emerald-200"
+                              isConflict ? "bg-status-error-surface border border-status-error-border" : "bg-status-success-surface border border-status-success-border"
                             }`}
                           >
-                            <p
-                              className={`text-[10px] font-black leading-tight ${
-                                isConflict ? "text-rose-700" : "text-emerald-700"
+                            <bdi
+                              className={`block text-2xs font-bold leading-tight ${
+                                isConflict ? "text-status-error-text" : "text-status-success-text"
                               }`}
                             >
                               {slotInfo.subject}
-                            </p>
-                            <p className="text-[8px] font-semibold text-ink-muted mt-0.5">{slotInfo.classLabel}</p>
+                            </bdi>
+                            <bdi className="block text-3xs font-semibold text-ink-muted mt-0.5">{slotInfo.classLabel}</bdi>
                             {isConflict && (
-                              <span className="mt-0.5 text-[7px] font-black uppercase text-rose-600">CONFLICT</span>
+                              <Badge variant="danger" size="sm" className="mt-0.5">{ui("Conflict")}</Badge>
                             )}
                           </div>
                         ) : (
-                          <div className="h-full min-h-[48px] rounded-xl border border-dashed border-[#cfc2d6]/15 flex items-center justify-center">
-                            <span className="text-[8px] font-semibold text-ink-subtle">—</span>
+                          <div className="h-full min-h-[48px] rounded-xl border border-dashed border-edge/15 flex items-center justify-center">
+                            <span className="text-3xs font-semibold text-ink-subtle">—</span>
                           </div>
                         )}
                       </div>
@@ -166,8 +167,8 @@ export function TeacherView({
                 </div>
               ))
             ) : (
-              <div className="flex items-center justify-center py-16 text-sm font-semibold text-ink-subtle">
-                No timetable periods found. Create timetables for classes first.
+              <div className="py-10">
+                <EmptyState size="sm" icon={CalendarX} title={ui("No timetable periods yet")} description={ui("Create timetables for classes first.")} />
               </div>
             )}
           </div>

@@ -1,182 +1,229 @@
 "use client";
+import { DepartmentAppeals } from "@/components/school-ai/exam-studio/department-appeals";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { schoolClock } from "@/lib/timetable/school-clock";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { DeskPill, DeskRowButton, DeskStats, StatTile } from "@/components/ui/desk";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import {
-  AlertCircle, ArrowRight, BookOpen, CalendarCheck, CheckCircle2,
-  ClipboardList, GraduationCap, Loader2, UserCheck, Users,
+  AlertCircle, ArrowRight, CalendarCheck, CheckCircle2, type LucideIcon,
+  ClipboardList, GraduationCap, Sun, UserCheck, Users,
 } from "lucide-react";
-import { BrandButton } from "@/components/role-dashboard";
-import { cn } from "@/lib/utils";
 import { TeacherPage } from "@/components/teacher/teacher-page";
-import { StatTiles } from "@/components/shared-admin/workspace";
 import {
   DashboardSkeleton, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
 import { useTeacherData } from "./teacher-data-context";
-import { useGradingTools } from "./use-grading-tools";
-import { GradingModals, GradingToolbar } from "./grading-tools";
 import { TeachingInsights } from "@/components/insights";
 import { ScheduleConflictsBanner } from "@/components/teacher/schedule-conflicts-banner";
 import { TodaySchedule, type TimetableSlot } from "@/components/teacher/today-schedule";
 import { clashingSlotIds } from "@/lib/timetable/clashes";
+import { readTeacherSchedule, scheduleAvailability as availabilityOf } from "@/lib/timetable/teacher-schedule-read";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { useCountLabel, useIsSingular } from "@/components/locale/use-count-label";
+import { useConsoleAccess } from "@/components/nav/ViewGate";
+import { FlagshipCard } from "@/components/ui/flagship";
+import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
+import { DepartmentQueue } from "@/components/school-ai/exam-studio/department-queue";
+import { ModerationQueue } from "@/components/school-ai/exam-studio/moderation-queue";
+import { PapersOwed } from "@/components/school-ai/exam-studio/papers-owed";
+import { TeachingLinePrompt } from "@/components/school-ai/exam-studio/teaching-line-prompt";
 
-export default function TeacherDashboardHub() {
+/**
+ * Today — the teacher's landing screen (SPEC §4.4: one primary action, ≤ 4 KPI tiles, one queue).
+ *
+ * The primary action is **Take register** for the next class that still has unmarked pupils, in the
+ * order of today's lessons. Checking in is a status chip, not a header button; New test, Grade Config
+ * and Final Grades left this screen (New test lives on Tests & quizzes; grading rules belong to the
+ * academic lead).
+ *
+ * Controls that lead into a module follow the registry (§4.5.11, G14): with the school's attendance or exams module
+ * off for teachers, Take register and the "Needs you" rows for it are not offered. Exam Studio — a flagship
+ * (addendum 2026-10-22) — has its card under the queue when the teacher may use it (`schoolAiExams`).
+ */
+export default function TeacherToday() {
   const router = useRouter();
+  const ui = useUiText();
+  const count = useCountLabel();
+  const singular = useIsSingular();
+  const locale = useLocale();
   const { data, loading, error, refetch } = useTeacherData();
+  const access = useConsoleAccess();
+  const canRegister = access.leafVisible("teacher", "attendance");
+  const canMarks = access.leafVisible("teacher", "marks");
+  const canExamStudio = access.leafVisible("teacher", "exam-studio");
 
   const [todaySlots, setTodaySlots] = useState<TimetableSlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
-  const [selfAttendanceStatus, setSelfAttendanceStatus] = useState<"loading" | "unmarked" | "marked">("loading");
+  const [scheduleAvailability, setScheduleAvailability] = useState<"published" | "unpublished" | "failed">("published");
+  const [selfAttendanceStatus, setSelfAttendanceStatus] = useState<"loading" | "unmarked" | "marked" | "failed">("loading");
   const [selfAttendanceTime, setSelfAttendanceTime] = useState<string | null>(null);
-  const [markingSelf, setMarkingSelf] = useState(false);
-  const grading = useGradingTools({ onChanged: refetch });
 
+  const [attendanceRetry, setAttendanceRetry] = useState(0);
   useEffect(() => {
+    let active = true;
+    setSelfAttendanceStatus("loading");
     (async () => {
       try {
-        const today = new Date().toLocaleDateString("en-CA");
+        // API dates follow the school calendar, including when the teacher travels.
+        const today = schoolClock(new Date(), locale.timezone).day;
         const res = await fetch(`/api/teacher-attendance?userId=self&date=${today}`);
         const json = await res.json();
-        if (json.success && json.data?.length > 0) {
+        if (!active) return;
+        if (!res.ok || !json.success || !Array.isArray(json.data)) throw new Error("Attendance unavailable");
+        if (json.data.length > 0) {
           setSelfAttendanceStatus("marked");
           setSelfAttendanceTime(json.data[0].checkInTime);
         } else {
           setSelfAttendanceStatus("unmarked");
         }
-      } catch { setSelfAttendanceStatus("unmarked"); }
+      } catch { if (active) setSelfAttendanceStatus("failed"); }
     })();
-  }, []);
-
-  const handleMarkSelfAttendance = useCallback(async () => {
-    setMarkingSelf(true);
-    try {
-      const res = await fetch("/api/teacher-attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to mark attendance");
-      setSelfAttendanceStatus("marked");
-      setSelfAttendanceTime(json.data?.checkInTime || new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }));
-      toast.success(json.alreadyMarked ? "Already marked today" : "Attendance marked successfully!");
-    } catch (err: any) { toast.error(err.message); }
-    finally { setMarkingSelf(false); }
-  }, []);
+    return () => { active = false; };
+  }, [locale.timezone, attendanceRetry]);
 
   useEffect(() => {
     (async () => {
+      // SKAI-1024: the same read and empty-state rule as /teacher/timetable (an empty week is "unpublished").
       try {
-        const res = await fetch("/api/timetable/teacher");
-        const json = await res.json();
-        if (json.success) {
-          const today = new Date().getDay();
-          const dayNum = today === 0 ? 7 : today;
-          setTodaySlots(
-            (json.data as TimetableSlot[])
-              .filter((s) => s.dayOfWeek === dayNum && s.slotType === "CLASS" && s.subject)
-              .sort((a, b) => a.periodNumber - b.periodNumber)
-          );
-        }
-      } catch { /* timetable not critical */ }
+        const slots = await readTeacherSchedule<TimetableSlot>();
+        setScheduleAvailability(availabilityOf(slots, null));
+        const weekday = new Intl.DateTimeFormat("en", { timeZone: locale.timezone, weekday: "short" }).format(new Date());
+        const dayNum = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(weekday) + 1;
+        setTodaySlots(
+          slots
+            .filter((s) => s.dayOfWeek === dayNum && s.slotType === "CLASS" && s.subject)
+            .sort((a, b) => a.periodNumber - b.periodNumber)
+        );
+      } catch { setScheduleAvailability("failed"); }
       finally { setSlotsLoading(false); }
     })();
-  }, []);
+  }, [locale.timezone]);
 
   const todayClashIds = useMemo(() => clashingSlotIds(todaySlots), [todaySlots]);
 
-  const classHubs = data?.classHubs || [];
-  const teacherSubjects = data?.subjects || [];
+  const classHubs: any[] = data?.classHubs || [];
   const missingMarksTotal = (data?.activeExams || []).reduce((sum: number, exam: any) => sum + (exam.missingMarks || 0), 0);
   const attendanceStats = data?.attendanceSummary || { total: 0, present: 0, absent: 0, leave: 0, unmarked: 0 };
-
   const activeExamCount = data?.activeExams?.length || 0;
 
-  const greeting = (() => {
-    const h = new Date().getHours();
-    if (h < 12) return "Good morning";
-    if (h < 17) return "Good afternoon";
-    return "Good evening";
-  })();
+  /* The register to take next: the first class in today's lesson order that still has unmarked
+     pupils; failing that, any of the teacher's classes with unmarked pupils. */
+  const nextRegisterClassId = useMemo(() => {
+    const students: any[] = data?.students || [];
+    const unmarked = new Map<string, number>();
+    for (const student of students) {
+      const classId = student.class?.id;
+      if (classId && student.todayAttendance == null) unmarked.set(classId, (unmarked.get(classId) ?? 0) + 1);
+    }
+    const nowMinutes = schoolClock(new Date(), locale.timezone).minutes;
+    const byLesson = [...todaySlots].sort((a, b) => {
+      const aDone = toMinutes(a.endTime) <= nowMinutes ? 1 : 0;
+      const bDone = toMinutes(b.endTime) <= nowMinutes ? 1 : 0;
+      return aDone - bDone || a.periodNumber - b.periodNumber;
+    });
+    const fromLessons = byLesson.find((slot) => (unmarked.get(slot.classId) ?? 0) > 0)?.classId;
+    return fromLessons ?? [...unmarked.keys()][0] ?? null;
+  }, [data, todaySlots, locale.timezone]);
 
-  const hasUnmarkedAttendance = attendanceStats.unmarked > 0;
-  const hasMissingMarks = missingMarksTotal > 0;
+  const hasUnmarkedAttendance = canRegister && attendanceStats.unmarked > 0;
+  const hasMissingMarks = canMarks && missingMarksTotal > 0;
 
   if (loading && !data) return <DashboardSkeleton />;
   if (!data) return <TeacherErrorState error={error} onRetry={refetch} />;
 
+  const checkIn = (
+    <span data-tour="teacher.today.checkin" className="inline-flex">
+      {selfAttendanceStatus === "loading" ? (
+        <Skeleton className="h-11 w-36 rounded-xl" />
+      ) : selfAttendanceStatus === "marked" ? (
+        <Badge variant="success" className="min-h-11 rounded-xl px-3 text-xs">
+          <CheckCircle2 aria-hidden="true" />
+          {ui("Checked in")}
+          {selfAttendanceTime ? <bdi data-numeric className="font-medium tabular-nums">{selfAttendanceTime}</bdi> : null}
+        </Badge>
+      ) : selfAttendanceStatus === "failed" ? (
+        <span role="status" className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+          {ui("Check-in status unavailable")}
+          <Button variant="outline" size="sm" onClick={() => setAttendanceRetry(value => value + 1)}>{ui("Try again")}</Button>
+        </span>
+      ) : (
+        // SKAI-1119: teachers cannot mark their own attendance; admins/principals record it.
+        <Badge variant="outline" className="min-h-11 rounded-xl px-3 text-xs">
+          <UserCheck aria-hidden="true" />
+          {ui("Not marked yet")}
+        </Badge>
+      )}
+    </span>
+  );
+
   return (
     <TeacherPage
-      icon={GraduationCap}
-      eyebrow="Faculty Console"
-      /* Viewer-clock values — see the note in RoleHeader. */
-      title={`${greeting}, ${data.teacherName?.split(" ")[0] || "Teacher"}`}
-      summary={
-        <span suppressHydrationWarning>
-          {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-          {` · ${teacherSubjects.length} subject${teacherSubjects.length === 1 ? "" : "s"}`}
-          {` · ${classHubs.length} class${classHubs.length === 1 ? "" : "es"}`}
-          {` · ${data.totalStudents} students`}
-        </span>
-      }
-      actions={
-        <>
-          {/* Checking in was a full-width card of its own for one button. It is
-              a two-second daily action, so it belongs in the header. */}
-          {selfAttendanceStatus === "loading" ? (
-            <span className="skeleton-shimmer h-10 w-32 rounded-xl bg-[#e8e0ec]/50" />
-          ) : selfAttendanceStatus === "marked" ? (
-            <span
-              title={selfAttendanceTime ? `Checked in at ${selfAttendanceTime}` : "Checked in today"}
-              className="flex h-10 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-[11px] font-black uppercase tracking-wider text-emerald-700"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Checked in
-              {selfAttendanceTime ? (
-                <span className="font-bold tabular-nums opacity-70">{selfAttendanceTime}</span>
-              ) : null}
-            </span>
-          ) : (
-            <BrandButton
-              variant="dark"
-              className="min-h-10"
-              icon={markingSelf ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
-              onClick={handleMarkSelfAttendance}
-              disabled={markingSelf}
-            >
-              I&apos;m Present
-            </BrandButton>
-          )}
-          <GradingToolbar grading={grading} classHubs={classHubs} />
-        </>
+      icon={Sun}
+      title="Today"
+      description="Your lessons, the registers still to take and the marks still to enter."
+      status={checkIn}
+      primaryAction={
+        !canRegister ? undefined
+          : classHubs.length === 0
+          ? { id: "take-register", label: "Take register", icon: CalendarCheck, disabled: true, disabledReason: "No classes are assigned to you yet." }
+          : {
+              id: "take-register",
+              label: "Take register",
+              icon: CalendarCheck,
+              href: nextRegisterClassId ? `/teacher/attendance?classId=${encodeURIComponent(nextRegisterClassId)}` : "/teacher/attendance",
+            }
       }
     >
       <div className="space-y-3">
-        {/* ── What needs doing, before anything else ── */}
+        {/* SKO-500: a head of department's approvals and Teaching Line jumps (renders nothing for others). */}
+        <DepartmentQueue />
+        {/* SKO-501: papers waiting for this person's moderation. */}
+        <ModerationQueue />
+        <DepartmentAppeals />
+        {/* SKO-500: papers the exam office asked this teacher to write (renders nothing when none are owed). */}
+        <PapersOwed />
+        {/* ── What needs you, before anything else (the one queue) ── */}
         {(hasUnmarkedAttendance || hasMissingMarks) && (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <section aria-label={ui("Needs you")} className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {hasUnmarkedAttendance && (
               <AlertRow
-                tone="amber"
+                tone="warning"
                 icon={CalendarCheck}
-                title="Unmarked attendance"
-                detail={`${attendanceStats.unmarked} student${attendanceStats.unmarked !== 1 ? "s" : ""} not marked today`}
-                onClick={() => router.push("/teacher/attendance")}
+                title={ui("Unmarked attendance")}
+                detail={ui("{0} not marked today", [count(attendanceStats.unmarked, "pupil")])}
+                onClick={() => router.push(nextRegisterClassId ? `/teacher/attendance?classId=${encodeURIComponent(nextRegisterClassId)}` : "/teacher/attendance")}
               />
             )}
             {hasMissingMarks && (
               <AlertRow
-                tone="rose"
+                tone="danger"
                 icon={AlertCircle}
-                title="Missing marks"
-                detail={`${missingMarksTotal} mark${missingMarksTotal !== 1 ? "s" : ""} pending across ${activeExamCount} active test${activeExamCount !== 1 ? "s" : ""}`}
+                title={ui("Missing marks")}
+                detail={ui("{0} marks still to enter across {1} open tests", [missingMarksTotal, activeExamCount])}
                 onClick={() => router.push("/teacher/marks")}
               />
             )}
-          </div>
+          </section>
         )}
+
+        {/* ── Flagship: AI Workflows first-login setup (per-user, so invited teachers see it too) ── */}
+        <SetupPrompt />
+
+        {/* ── Flagship: Exam Studio (AI-built assessments, secure delivery, marking and recovery) ── */}
+        {canExamStudio ? (
+          // Same card, words and tour sentence as the principal's (one flagship, one voice across consoles).
+          <FlagshipCard
+            kind="exam-studio"
+            title="Exam Studio"
+            description="Create an exam with AI from your source material, review the paper, then deliver it securely and mark it."
+            action={{ label: "Create an exam in Exam Studio", href: "/ai/studio" }}
+            tourAnchor="teacher.today.flagship-exams"
+          />
+        ) : null}
 
         {/* ── Today ── */}
         {!slotsLoading && todaySlots.length > 0 && (
@@ -185,38 +232,22 @@ export default function TeacherDashboardHub() {
         <TodaySchedule
           slots={todaySlots}
           loading={slotsLoading}
+          availability={scheduleAvailability}
           clashIds={todayClashIds}
           onOpenTimetable={() => router.push("/teacher/timetable")}
         />
+        {/* SKO-500: after a lesson, move the Teaching Line by one (renders nothing without a syllabus to move). */}
+        <TeachingLinePrompt slots={todaySlots} />
 
-        {/* ── The numbers, each one a way in ── */}
-        <StatTiles
-          columns={6}
-          tiles={[
-            { key: "subjects", icon: BookOpen, label: "Subjects", value: teacherSubjects.length, tone: "violet", onClick: () => router.push("/teacher/marks") },
-            { key: "classes", icon: GraduationCap, label: "Classes", value: classHubs.length, tone: "rose", onClick: () => router.push("/teacher/classes") },
-            { key: "students", icon: Users, label: "Students", value: data.totalStudents, tone: "emerald", onClick: () => router.push("/teacher/students") },
-            { key: "tests", icon: ClipboardList, label: "Active tests", value: activeExamCount, tone: "violet", onClick: () => router.push("/teacher/tests") },
-            {
-              key: "missing",
-              icon: AlertCircle,
-              label: "Missing marks",
-              value: missingMarksTotal,
-              hint: missingMarksTotal > 0 ? "Needs you" : "All entered",
-              tone: missingMarksTotal > 0 ? "rose" : "emerald",
-              onClick: () => router.push("/teacher/marks"),
-            },
-            {
-              key: "unmarked",
-              icon: CalendarCheck,
-              label: "Unmarked today",
-              value: attendanceStats.unmarked,
-              hint: attendanceStats.unmarked > 0 ? "Needs you" : "All marked",
-              tone: attendanceStats.unmarked > 0 ? "amber" : "emerald",
-              onClick: () => router.push("/teacher/attendance"),
-            },
-          ]}
-        />
+        {/* ── Four figures for the day ── */}
+        {/* Each figure opens the screen it counts. */}
+        <DeskStats aria-label={ui("Today")}>
+          <StatTile index={0} icon={GraduationCap} tone="brand" label={singular(classHubs.length) ? ui("Class") : ui("Classes")} value={<bdi>{classHubs.length}</bdi>} valueProps={{ "data-count": "classes" }} />
+          <StatTile index={1} icon={Users} tone="info" label={singular(data.totalStudents) ? ui("Pupil") : ui("Pupils")} value={<bdi>{data.totalStudents}</bdi>} valueProps={{ "data-count": "students" }} />
+          <StatTile index={2} icon={CheckCircle2} tone="success" label={ui("Present today")} value={<bdi>{attendanceStats.present}</bdi>} valueProps={{ "data-count": "present" }}
+            hint={attendanceStats.unmarked > 0 ? ui("{0} not marked today", [count(attendanceStats.unmarked, "pupil")]) : undefined} />
+          <StatTile index={3} icon={ClipboardList} tone={missingMarksTotal > 0 ? "warning" : "brand"} label={ui("Open tests")} value={<bdi>{activeExamCount}</bdi>} valueProps={{ "data-count": "tests" }} />
+        </DeskStats>
 
         {/* ── How the term is going, under what needs doing today ── */}
         <TeachingInsights
@@ -227,51 +258,46 @@ export default function TeacherDashboardHub() {
           onNavigate={(path) => router.push(path)}
         />
       </div>
-
-      <GradingModals grading={grading} classHubs={classHubs} />
     </TeacherPage>
   );
 }
 
-/** A one-line "this needs you" row. Reads faster than a card and costs less. */
+function toMinutes(hhmm: string) {
+  const [h, m] = hhmm.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+/** A one-line "this needs you" row: a toned desk row with its count as the trailing pill. */
 function AlertRow({
   tone,
-  icon: Icon,
+  icon,
   title,
   detail,
   onClick,
 }: {
-  tone: "amber" | "rose";
-  icon: React.ComponentType<{ className?: string }>;
+  tone: "warning" | "danger";
+  icon: LucideIcon;
   title: string;
   detail: string;
   onClick: () => void;
 }) {
-  const tones = {
-    amber: "border-amber-200/70 bg-gradient-to-r from-amber-50 to-amber-50/20 text-amber-800",
-    rose: "border-rose-200/70 bg-gradient-to-r from-rose-50 to-rose-50/20 text-rose-800",
-  } as const;
-  const chips = {
-    amber: "bg-amber-100 text-amber-600",
-    rose: "bg-rose-100 text-rose-600",
-  } as const;
+  const ui = useUiText();
   return (
-    <button
-      type="button"
+    <DeskRowButton
+      tone={tone}
+      icon={icon}
       onClick={onClick}
-      className={cn(
-        "group flex cursor-pointer items-center gap-3 rounded-[18px] border p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-14px_rgba(31,26,35,0.5)] active:scale-[0.99]",
-        tones[tone],
-      )}
+      className="group sk-nudge-trigger"
+      trailing={
+        <span className="inline-flex items-center gap-2">
+          <DeskPill tone={tone}>{tone === "danger" ? ui("Needs you") : ui("Today")}</DeskPill>
+          {/* Points forward in the reading direction and leans that way on hover. */}
+          <ArrowRight aria-hidden="true" className="sk-nudge size-4 shrink-0 text-ink-subtle group-hover:text-primary rtl:rotate-180" />
+        </span>
+      }
     >
-      <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", chips[tone])}>
-        <Icon className="h-4 w-4" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-black leading-tight">{title}</span>
-        <span className="block truncate text-[11px] font-semibold opacity-70">{detail}</span>
-      </span>
-      <ArrowRight className="h-4 w-4 shrink-0 opacity-50 transition-all group-hover:translate-x-1 group-hover:opacity-100" />
-    </button>
+      <span className="block text-sm font-semibold leading-snug text-ink-strong">{title}</span>
+      <span className="block text-xs font-normal text-ink-muted">{detail}</span>
+    </DeskRowButton>
   );
 }

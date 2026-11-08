@@ -2,8 +2,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # setup-vercel-envs.sh — stand up 5 Vercel projects for SkooleeAI, one per env.
 #
-# MODEL: separate Vercel project per environment, ONE shared Supabase DB.
-# See docs/ENVIRONMENTS.md for the full rationale and the shared-DB caveat.
+# MODEL: separate Vercel project AND Supabase database per environment.
+# See docs/ENVIRONMENTS.md and docs/recovery/RUNBOOK.md for isolation and gates.
 #
 # PREREQS:
 #   - Vercel CLI:  npm i -g vercel   (or: npx vercel ...)
@@ -34,16 +34,16 @@ ENVS=(
   "demo|skoolee-ai-demo|demo"
 )
 
-# Secrets that must be set in EVERY project (shared DB → shared values).
-# NEXT_PUBLIC_APP_URL is the one value that differs per project.
-SHARED_VARS=(
+# Variable NAMES required per project. Values come from that environment's
+# secret store; this list is never permission to reuse production credentials.
+ENV_VARS=(
   DATABASE_URL DIRECT_URL POSTGRES_PRISMA_URL POSTGRES_URL_NON_POOLING
   NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
   SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY SUPABASE_JWT_SECRET
   AUTH_SECRET
   AI_PROVIDER AI_PROVIDER_ORDER OPENAI_API_KEY
   SMTP_HOST SMTP_PORT SMTP_SECURE SMTP_USER SMTP_PASS SMTP_FROM_EMAIL SMTP_FROM_NAME
-  REDIS_URL EMAIL_DEV_MODE
+  REDIS_URL EMAIL_DEV_MODE DISABLE_OUTBOUND_MESSAGES
 )
 
 print_runbook() {
@@ -56,14 +56,20 @@ MANUAL RUNBOOK (Vercel dashboard) — repeat for each of the 5 projects
       dev → dev,  staging → staging,  qa → qa,
       production → production,  demo → demo
 4. Settings → Environment Variables → add every var from
-   .env.<env>.example (values from your secure store / .env.supabase-backup).
+   .env.<env>.example (values from THAT environment's protected secret store).
    Set NEXT_PUBLIC_APP_URL to THAT project's URL.
-5. Deployments → Redeploy (or push the branch) to trigger the first build.
+   Use a distinct Supabase DB, AUTH_SECRET, object store and queue per environment.
+   For synthetic nonproduction tests set EMAIL_DEV_MODE=true and
+   DISABLE_OUTBOUND_MESSAGES=true; withhold live provider credentials.
+5. Keep Git auto-deploy disabled for staging, qa, production and demo. Follow
+   docs/recovery/RUNBOOK.md for exact-SHA approval, migration/recovery evidence,
+   and controlled promotion. Only dev uses automatic Git deployment.
 
 Build command is `prisma generate && next build` (from package.json) — no change.
 
-⚠  All 5 projects point DATABASE_URL at the SAME Supabase DB. Do not run
-   db:reset / db:seed from any non-production project.
+Never copy a generic .env or .env.supabase-backup into a new environment.
+Confirm source and target identity before migrations. Do not reset or seed an
+existing environment to bypass adoption or migration errors.
 EOF
 }
 
@@ -79,8 +85,8 @@ if ! command -v vercel >/dev/null 2>&1; then
 fi
 
 echo "This links 5 Vercel projects to this repo. You'll set secrets after."
-echo "Vars each project needs (shared DB → same values, except NEXT_PUBLIC_APP_URL):"
-printf '  %s\n' "${SHARED_VARS[@]}" NEXT_PUBLIC_APP_URL
+echo "Variable names each project needs (environment-specific values; never share production credentials):"
+printf '  %s\n' "${ENV_VARS[@]}" NEXT_PUBLIC_APP_URL
 echo
 
 for row in "${ENVS[@]}"; do
@@ -101,5 +107,5 @@ for row in "${ENVS[@]}"; do
 done
 
 echo
-echo "Done linking. Finish env vars + Production Branch per project, then push:"
-echo "  git push origin dev staging qa production demo"
+echo "Done linking. Verify isolated secrets and the matching branch per project."
+echo "Follow docs/recovery/RUNBOOK.md before any controlled-environment promotion."

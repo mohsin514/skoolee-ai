@@ -1,0 +1,112 @@
+{
+  "formatVersion": 1,
+  "environment": "isolated-synthetic-staging",
+  "dataClass": "synthetic",
+  "status": "ready-for-synthetic-rehearsal",
+  "networkActions": "none",
+  "checks": [
+    {
+      "name": "PGHOST",
+      "purpose": "Disposable loopback database; never a remote host",
+      "state": "valid"
+    },
+    {
+      "name": "PGPORT",
+      "purpose": "Explicit disposable database port",
+      "state": "valid"
+    },
+    {
+      "name": "PGUSER",
+      "purpose": "Explicit synthetic database role",
+      "state": "valid"
+    },
+    {
+      "name": "PGCONNECT_TIMEOUT",
+      "purpose": "Bounded local connection wait",
+      "state": "valid"
+    },
+    {
+      "name": "SUBPROCESS_ENVIRONMENT",
+      "purpose": "Only approved process and loopback database variables; no app/provider credentials",
+      "state": "valid"
+    }
+  ],
+  "application": {
+    "fields": [
+      {
+        "name": "DATABASE_URL",
+        "purpose": "Runtime database connection",
+        "state": "missing"
+      },
+      {
+        "name": "DIRECT_URL",
+        "purpose": "Migration database connection",
+        "state": "missing"
+      },
+      {
+        "name": "AUTH_SECRET",
+        "purpose": "Environment-specific session signing material",
+        "state": "missing"
+      },
+      {
+        "name": "NEXT_PUBLIC_APP_URL",
+        "purpose": "Built application origin",
+        "state": "missing"
+      }
+    ],
+    "integrations": [
+      {
+        "name": "AI generation",
+        "variables": [
+          "AI_PROVIDER",
+          "AI_PROVIDER_ORDER"
+        ],
+        "state": "missing",
+        "runtimeProbe": "not-run"
+      },
+      {
+        "name": "Private source storage",
+        "variables": [
+          "S3_BUCKET_NAME",
+          "S3_ACCESS_KEY_ID",
+          "S3_SECRET_ACCESS_KEY"
+        ],
+        "state": "missing",
+        "runtimeProbe": "not-run"
+      },
+      {
+        "name": "Email delivery",
+        "variables": [
+          "SMTP_HOST",
+          "SMTP_USER",
+          "SMTP_PASS"
+        ],
+        "state": "missing",
+        "runtimeProbe": "not-run"
+      },
+      {
+        "name": "Stripe payments",
+        "variables": [
+          "STRIPE_SECRET_KEY",
+          "STRIPE_WEBHOOK_SECRET"
+        ],
+        "state": "missing",
+        "runtimeProbe": "not-run"
+      },
+      {
+        "name": "Durable queue",
+        "variables": [
+          "REDIS_URL"
+        ],
+        "state": "missing",
+        "runtimeProbe": "not-run"
+      }
+    ],
+    "runtimeProbes": "not-run",
+    "applicationReadiness": "unverified",
+    "nextStep": "Confirm isolated destination and secrets ownership, then run provider-owned sandbox, storage, queue and application smoke checks. No value or valid-looking credential proves access."
+  },
+  "executionBoundary": "The rehearsal starts no application server, worker entrypoint, payment, AI or notification SDK. Post-restore smoke invokes providerless handlers only. Missing app configuration is intentional for this profile.",
+  "providerHealth": "not-tested",
+  "productionReadiness": "unverified"
+}

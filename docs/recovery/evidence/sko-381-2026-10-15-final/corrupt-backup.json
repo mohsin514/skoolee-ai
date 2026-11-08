@@ -1,0 +1,181 @@
+{
+  "formatVersion": 2,
+  "startedAt": "2026-10-15T10:37:30.169429+00:00",
+  "status": "blocked",
+  "dataClass": "synthetic",
+  "notificationIsolation": "No app server, worker entrypoint or provider SDK is executed; subprocess environment excludes all provider credentials. Post-restore smoke uses providerless in-process handlers only.",
+  "operatorSignOff": null,
+  "schoolReopenDecision": "Requires operator review; synthetic proof is not production readiness.",
+  "limitations": [
+    "Local synthetic database and files only; provider PITR, storage/KMS, credentials and traffic recovery require separate evidence.",
+    "Schema fingerprint excludes object ownership; deployed roles and grants require independent environment verification.",
+    "Pending job receipts are reconciled without running workers; provider-side effects and controlled replay require domain-owner review.",
+    "A dirty worktree is test evidence only, not evidence for promoting the recorded commit."
+  ],
+  "checks": [
+    {
+      "name": "redacted-environment-preflight",
+      "passed": true
+    },
+    {
+      "name": "clean-provisioning-and-schema-drift",
+      "passed": true
+    },
+    {
+      "name": "populated-schema-push-adoption-and-upgrade",
+      "passed": true
+    },
+    {
+      "name": "additive-migration-tables-initially-empty",
+      "passed": true
+    },
+    {
+      "name": "enrollment-backfill-complete",
+      "passed": true
+    },
+    {
+      "name": "backup-artifact-checksum",
+      "passed": false
+    }
+  ],
+  "fault": "corrupt-backup",
+  "destination": {
+    "host": "127.0.0.1",
+    "port": 55439,
+    "databases": {
+      "clean": "rehearsal_a71e1f95f0f9_clean",
+      "upgrade": "rehearsal_a71e1f95f0f9_upgrade",
+      "restored": "rehearsal_a71e1f95f0f9_restored",
+      "failure": "rehearsal_a71e1f95f0f9_failure"
+    }
+  },
+  "currentStage": "database-and-object-backup",
+  "environmentPreflight": {
+    "formatVersion": 1,
+    "environment": "isolated-synthetic-staging",
+    "dataClass": "synthetic",
+    "status": "ready-for-synthetic-rehearsal",
+    "networkActions": "none",
+    "checks": [
+      {
+        "name": "PGHOST",
+        "purpose": "Disposable loopback database; never a remote host",
+        "state": "valid"
+      },
+      {
+        "name": "PGPORT",
+        "purpose": "Explicit disposable database port",
+        "state": "valid"
+      },
+      {
+        "name": "PGUSER",
+        "purpose": "Explicit synthetic database role",
+        "state": "valid"
+      },
+      {
+        "name": "PGCONNECT_TIMEOUT",
+        "purpose": "Bounded local connection wait",
+        "state": "valid"
+      },
+      {
+        "name": "SUBPROCESS_ENVIRONMENT",
+        "purpose": "Only approved process and loopback database variables; no app/provider credentials",
+        "state": "valid"
+      }
+    ],
+    "application": {
+      "fields": [
+        {
+          "name": "DATABASE_URL",
+          "purpose": "Runtime database connection",
+          "state": "missing"
+        },
+        {
+          "name": "DIRECT_URL",
+          "purpose": "Migration database connection",
+          "state": "missing"
+        },
+        {
+          "name": "AUTH_SECRET",
+          "purpose": "Environment-specific session signing material",
+          "state": "missing"
+        },
+        {
+          "name": "NEXT_PUBLIC_APP_URL",
+          "purpose": "Built application origin",
+          "state": "missing"
+        }
+      ],
+      "integrations": [
+        {
+          "name": "AI generation",
+          "variables": [
+            "AI_PROVIDER",
+            "AI_PROVIDER_ORDER"
+          ],
+          "state": "missing",
+          "runtimeProbe": "not-run"
+        },
+        {
+          "name": "Private source storage",
+          "variables": [
+            "S3_BUCKET_NAME",
+            "S3_ACCESS_KEY_ID",
+            "S3_SECRET_ACCESS_KEY"
+          ],
+          "state": "missing",
+          "runtimeProbe": "not-run"
+        },
+        {
+          "name": "Email delivery",
+          "variables": [
+            "SMTP_HOST",
+            "SMTP_USER",
+            "SMTP_PASS"
+          ],
+          "state": "missing",
+          "runtimeProbe": "not-run"
+        },
+        {
+          "name": "Stripe payments",
+          "variables": [
+            "STRIPE_SECRET_KEY",
+            "STRIPE_WEBHOOK_SECRET"
+          ],
+          "state": "missing",
+          "runtimeProbe": "not-run"
+        },
+        {
+          "name": "Durable queue",
+          "variables": [
+            "REDIS_URL"
+          ],
+          "state": "missing",
+          "runtimeProbe": "not-run"
+        }
+      ],
+      "runtimeProbes": "not-run",
+      "applicationReadiness": "unverified",
+      "nextStep": "Confirm isolated destination and secrets ownership, then run provider-owned sandbox, storage, queue and application smoke checks. No value or valid-looking credential proves access."
+    },
+    "executionBoundary": "The rehearsal starts no application server, worker entrypoint, payment, AI or notification SDK. Post-restore smoke invokes providerless handlers only. Missing app configuration is intentional for this profile.",
+    "providerHealth": "not-tested",
+    "productionReadiness": "unverified"
+  },
+  "source": {
+    "commit": "1b366664ed5c4ea3b453df8077bf0cb81e273ce5",
+    "worktreeDirty": true,
+    "inputsSha256": "534b6d451ac0621b81347b0ce5182badabb3062358aedc8eb83d86f1a8ba393c"
+  },
+  "releaseEvidenceEligible": false,
+  "supportedUpgradePaths": [
+    "dev-9c5193d-schema-push-to-versioned-baseline",
+    "verified-baseline-to-head"
+  ],
+  "databaseBackupSha256": "ab5978c2ac483e88fc947ea85eb1db7d3732e3c80ed147dc7de5c6e4cfd042e4",
+  "error": "backup-artifact-checksum",
+  "cleanup": "retained-for-diagnosis",
+  "elapsedSeconds": 22.933,
+  "completedAt": "2026-10-15T10:37:53.102713+00:00",
+  "diagnostics": "diagnostics.log"
+}

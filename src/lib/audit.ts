@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 import { headers } from "next/headers";
 import { createHash } from "crypto";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
+import { clientIp } from "@/lib/http/client-ip";
 
 export async function logSuperAdminAction(params: {
   userId: string;
@@ -15,21 +16,21 @@ export async function logSuperAdminAction(params: {
   errorMessage?: string;
   ipAddress?: string;
   userAgent?: string;
-}) {
+}, db: Pick<typeof prisma, "superAdminAuditLog"> = prisma) {
   let ip = params.ipAddress;
   let ua = params.userAgent;
 
   if (!ip || !ua) {
     try {
       const h = await headers();
-      ip = ip || h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || undefined;
+      ip = ip || clientIp(h);
       ua = ua || h.get("user-agent") || undefined;
     } catch {
       // headers() may throw outside request context
     }
   }
 
-  await prisma.superAdminAuditLog.create({
+  await db.superAdminAuditLog.create({
     data: {
       userId: params.userId,
       action: params.action,
@@ -69,7 +70,7 @@ export async function recordLoginSession(params: {
   if (!ip || !ua) {
     try {
       const h = await headers();
-      ip = ip || h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || undefined;
+      ip = ip || clientIp(h);
       ua = ua || h.get("user-agent") || undefined;
     } catch {}
   }
@@ -102,10 +103,8 @@ export async function recordLoginSession(params: {
  * live session is invisible there and unrevocable, because revocation works by
  * closing a row that in this case was never written.
  *
- * Deliberately swallows its own failures. Session bookkeeping must never be the
- * reason a password change or an onboarding completion fails; a missing row
- * degrades to an unrevocable session, which is the pre-existing behaviour, not
- * a regression.
+ * Recording is required before returning the new cookie. An unavailable store
+ * fails the request instead of creating a session that cannot be revoked.
  */
 export async function rotateLoginSession(params: {
   /** The token being replaced, if there is one. */
@@ -129,5 +128,6 @@ export async function rotateLoginSession(params: {
     });
   } catch (error) {
     console.warn("[audit] could not rotate the login session record", error);
+    throw error;
   }
 }

@@ -1,0 +1,5 @@
+import { z } from "zod";
+export const publishTimetablesProposalSchema = z.strictObject({ operation: z.literal("timetable.publish_reviewed"), timetableIds: z.array(z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/)).min(1).max(24), reason: z.string().trim().min(10).max(1000) }).refine(value => new Set(value.timetableIds).size === value.timetableIds.length, "Choose each timetable once.");
+export type PublishTimetablesProposal = z.infer<typeof publishTimetablesProposalSchema>;
+export type PublishTimetablesPreview = { operation: "timetable.publish_reviewed"; recordId: string; version: number; campusId: string; previewHash: string; reason: string; timetables: Array<{ id: string; className: string; academicYear: number; term: string; updatedAt: string; studentCount: number; slots: Array<{ id: string; dayOfWeek: number; periodNumber: number; startTime: string; endTime: string; subjectName: string; teacherName: string; roomNumber: string; roomCapacity: number }> }> };
+export type PublicationOptions = Array<{ id: string; className: string; academicYear: number; term: string; lessons: number }>;

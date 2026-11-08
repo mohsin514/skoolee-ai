@@ -1,10 +1,20 @@
 "use client";
 
+import { PathwayPanel } from "@/components/pathways/pathway-panel";
+import { DeskFilterStatus, DeskPill, DeskStats, StatTile, type DeskTone } from "@/components/ui/desk";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { IconButton } from "@/components/ui/icon-button";
+import { Menu } from "@/components/ui/menu";
+import Link from "next/link";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { LearningActions } from "@/components/learning/learning-actions";
+import { csvCell } from "@/lib/csv";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import {
-  CalendarCheck, FileText, LayoutGrid, MessageCircle, Phone, Star, Table2, Users, X,
+  CalendarCheck, CalendarX2, CircleDashed, Download, FileText, LayoutGrid, MessageCircle, MoreHorizontal, Phone, Plane, Table2, UserCheck, Users, X,
 } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import {
@@ -13,18 +23,20 @@ import {
   SortDirButton,
   ToolbarSelect,
   ViewSwitch,
+  additionalWorkspaceViews,
   WorkspaceToolbar,
   useWorkspacePrefs,
 } from "@/components/shared-admin/workspace";
 import { cn } from "@/lib/utils";
+import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { useTeacherData } from "../teacher-data-context";
 import {
   classLabel, StudentDetailModal, StudentsSkeleton, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
 
 export default function TeacherStudentsPage() {
+  const ui = useUiText();
   const { data, loading, error, refetch } = useTeacherData();
-  const router = useRouter();
   const [search, setSearch] = useState("");
   const [prefs, patchPrefs] = useWorkspacePrefs("teacher-students", {
     view: "cards",
@@ -39,12 +51,14 @@ export default function TeacherStudentsPage() {
   // Arriving from a class card should show that class, not everyone; the
   // command palette additionally carries the name it was searching for, so the
   // roster opens already narrowed to the one person the teacher asked for.
+  const requestedClass = searchParams.get("classId");
+  const requestedQuery = searchParams.get("q");
   useEffect(() => {
-    const requested = searchParams.get("classId");
+    const requested = requestedClass;
     if (requested) setClassFilter(requested);
-    const q = searchParams.get("q");
+    const q = requestedQuery;
     if (q) setSearch(q);
-  }, [searchParams]);
+  }, [requestedClass, requestedQuery]);
 
   const classHubs = data?.classHubs || [];
   const allStudents: any[] = data?.students || [];
@@ -56,10 +70,10 @@ export default function TeacherStudentsPage() {
   const todayCounts = useMemo(() => {
     const scope = classFilter ? allStudents.filter((s) => s.class?.id === classFilter) : allStudents;
     return {
-      PRESENT: scope.filter((s) => s.todayAttendance === "PRESENT").length,
-      ABSENT: scope.filter((s) => s.todayAttendance === "ABSENT").length,
-      LEAVE: scope.filter((s) => s.todayAttendance === "LEAVE").length,
-      UNMARKED: scope.filter((s) => !s.todayAttendance).length,
+      PRESENT: scope.filter((s) => todayBucket(s.todayAttendance) === "PRESENT").length,
+      ABSENT: scope.filter((s) => todayBucket(s.todayAttendance) === "ABSENT").length,
+      LEAVE: scope.filter((s) => todayBucket(s.todayAttendance) === "LEAVE").length,
+      UNMARKED: scope.filter((s) => todayBucket(s.todayAttendance) === "UNMARKED").length,
     };
   }, [allStudents, classFilter]);
 
@@ -67,9 +81,7 @@ export default function TeacherStudentsPage() {
     let list = allStudents;
     if (classFilter) list = list.filter((s) => s.class?.id === classFilter);
     if (todayFilter) {
-      list = list.filter((s) =>
-        todayFilter === "UNMARKED" ? !s.todayAttendance : s.todayAttendance === todayFilter,
-      );
+      list = list.filter((s) => todayBucket(s.todayAttendance) === todayFilter);
     }
     if (search) {
       const q = search.toLowerCase();
@@ -99,21 +111,25 @@ export default function TeacherStudentsPage() {
   if (loading && !data) return <StudentsSkeleton />;
   if (!data) return <TeacherErrorState error={error} onRetry={refetch} />;
 
+  const exportCsv = () => {
+    const rows = [[ui("Pupil"), ui("Roll number"), ui("Class"), ui("Today"), ui("Guardian"), ui("Phone")]];
+    // Today's status in words (translated), never the stored enum (R7).
+    for (const st of filtered) rows.push([st.fullName || "", st.rollNo || "", classLabel(st.class) || "", todayLabel(ui, st.todayAttendance), st.guardianName || "", st.guardianPhone || ""]);
+    // UTF-8 BOM so Arabic and Urdu names open correctly in spreadsheet apps.
+    const blob = new Blob(["\uFEFF" + rows.map((r) => r.map(csvCell).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "my-students.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <TeacherPage
-      tone="students"
       icon={Users}
-      eyebrow="Student Directory"
-      title="My Students"
-      /* The filter list marks out-of-cycle classes, so a bare "across N
-         classes" total silently disagreed with it. Call the split out. */
-      summary={
-        <>
-          {allStudents.length} student{allStudents.length !== 1 ? "s" : ""} across {classHubs.length} class
-          {classHubs.length !== 1 ? "es" : ""}
-          {outOfCycleCount > 0 ? ` · ${outOfCycleCount} outside the active cycle` : ""}
-        </>
-      }
+      title="Students"
+      description={outOfCycleCount > 0
+        ? ui("{0} pupils across {1} classes · {2} outside the active cycle", [allStudents.length, classHubs.length, outOfCycleCount])
+        : ui("{0} pupils across {1} classes", [allStudents.length, classHubs.length])}
+      secondaryActions={filtered.length ? [{ id: "export", label: "Export", icon: Download, onClick: exportCsv }] : []}
     >
       <div className="space-y-3">
 
@@ -126,6 +142,7 @@ export default function TeacherStudentsPage() {
               options={[
                 { value: "cards", label: "Cards", icon: LayoutGrid },
                 { value: "table", label: "List", icon: Table2 },
+                ...additionalWorkspaceViews,
               ]}
             />
           }
@@ -133,19 +150,19 @@ export default function TeacherStudentsPage() {
           <SearchField
             value={search}
             onChange={setSearch}
-            placeholder="Name, roll no or guardian…"
+            placeholder={ui("Name, roll number or guardian…")}
           />
           <ToolbarSelect
             value={classFilter}
             onChange={setClassFilter}
-            label="Class"
+            label={ui("Class")}
             options={[
-              ["", "All classes"],
+              ["", ui("All classes")],
               ...classHubs.map(
                 (cls: any) =>
                   [
                     cls.id,
-                    `${classLabel(cls)}${cls.inActiveCycle === false ? " (outside active cycle)" : ""}`,
+                    `${classLabel(cls)}${cls.inActiveCycle === false ? ` ${ui("(outside active cycle)")}` : ""}`,
                   ] as [string, string],
               ),
             ]}
@@ -153,58 +170,46 @@ export default function TeacherStudentsPage() {
           <ToolbarSelect
             value={prefs.sortKey}
             onChange={(v) => patchPrefs({ sortKey: v })}
-            label="Sort"
+            label={ui("Sort")}
             options={[
-              ["roll", "Roll no"],
-              ["name", "Name"],
-              ["class", "Class"],
-              ["grade", "Latest grade"],
+              ["roll", ui("Roll number")],
+              ["name", ui("Name")],
+              ["class", ui("Class")],
+              ["grade", ui("Latest grade")],
             ]}
           />
           <SortDirButton
             dir={prefs.sortDir}
             onToggle={() => patchPrefs({ sortDir: prefs.sortDir === "asc" ? "desc" : "asc" })}
           />
-          <span className="text-[11px] font-bold uppercase tracking-wider text-ink-subtle">
-            {filtered.length} student{filtered.length !== 1 ? "s" : ""}
+          <span aria-live="polite" className="text-xs font-medium text-ink-subtle">
+            {ui("{0} pupils", [filtered.length])}
           </span>
         </WorkspaceToolbar>
 
-        {/* Today's roll call as filter chips. The directory already knows who is
-            in; making that clickable turns "who do I chase up?" into one tap. */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Today</span>
+        {/* Today's roll call as filter tiles. The directory already knows who is
+            in; making each count a toggle turns "who do I chase up?" into one tap. */}
+        <DeskStats role="group" aria-label={ui("Today")}>
           {([
-            ["", "Everyone", allStudents.length, "border-[#cfc2d6]/30 bg-white text-ink-muted"],
-            ["PRESENT", "Present", todayCounts.PRESENT, "border-emerald-200 bg-emerald-50 text-emerald-700"],
-            ["ABSENT", "Absent", todayCounts.ABSENT, "border-rose-200 bg-rose-50 text-rose-700"],
-            ["LEAVE", "Leave", todayCounts.LEAVE, "border-amber-200 bg-amber-50 text-amber-700"],
-            ["UNMARKED", "Unmarked", todayCounts.UNMARKED, "border-[#8127cf]/20 bg-[#fbf0fe] text-[#8127cf]"],
-          ] as [string, string, number, string][]).map(([key, label, count, tone]) => (
-            <button
-              key={key || "all"}
-              type="button"
-              onClick={() => setTodayFilter(key)}
-              aria-pressed={todayFilter === key}
-              title={`Show ${label.toLowerCase()}`}
-              className={cn(
-                "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[11px] font-black uppercase tracking-wider transition-all active:scale-[0.96]",
-                "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
-                todayFilter === key
-                  ? "border-[#8127cf] bg-[#8127cf] text-white shadow-[0_6px_16px_-6px_rgba(129,39,207,0.7)]"
-                  : `${tone} hover:brightness-95`,
-              )}
-            >
-              {label}
-              <span className="tabular-nums opacity-70">{count}</span>
-            </button>
+            ["PRESENT", ui("Present"), todayCounts.PRESENT, "success", UserCheck],
+            ["ABSENT", ui("Absent"), todayCounts.ABSENT, "danger", CalendarX2],
+            ["LEAVE", ui("Leave"), todayCounts.LEAVE, "warning", Plane],
+            ["UNMARKED", ui("Unmarked"), todayCounts.UNMARKED, "neutral", CircleDashed],
+          ] as [string, string, number, DeskTone, typeof Users][]).map(([key, label, count, tone, icon], index) => (
+            <StatTile key={key} index={index} icon={icon} tone={tone} label={label} value={<bdi>{count}</bdi>}
+              valueProps={{ "data-count": key.toLowerCase() }}
+              onSelect={() => setTodayFilter((current) => (current === key ? "" : key))} selected={todayFilter === key} />
           ))}
-        </div>
+        </DeskStats>
+        <DeskFilterStatus shown={filtered.length} total={allStudents.length} onClear={() => { setSearch(""); setClassFilter(""); setTodayFilter(""); }} />
 
         {/* A class of forty is a scanning job, not a browsing one — the table
             puts roll number, grade and attendance in comparable columns. */}
-        {filtered.length > 0 && prefs.view === "table" ? (
+        {filtered.length > 0 && prefs.view !== "cards" ? (
           <DataTable
+          view={prefs.view}
+          calendarLabel="Enrollment date"
+          getCalendarDate={(row) => ({ value: row.enrollmentDate, kind: "date" })}
             rows={filtered}
             rowKey={(st: any) => st.id}
             minWidth={720}
@@ -212,16 +217,16 @@ export default function TeacherStudentsPage() {
             columns={[
               {
                 key: "name",
-                label: "Student",
+                label: ui("Pupil"),
                 render: (st: any) => (
                   <div className="flex items-center gap-2.5">
-                    <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-[#cfc2d6]/30 bg-[#fbf0fe]">
-                      <AvatarImage src={st.profileImageUrl} name={st.fullName} initialsClassName="text-[10px]" />
+                    <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-edge/30 bg-brand-50">
+                      <AvatarImage src={st.profileImageUrl} name={st.fullName} initialsClassName="text-2xs" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-black text-[#1d1b20]">{st.fullName}</span>
-                      <span className="block text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
-                        {st.rollNo || "No roll"}
+                      <span className="block truncate text-sm font-semibold text-ink-strong">{st.fullName}</span>
+                      <span className="block text-xs text-ink-subtle tabular-nums">
+                        {st.rollNo || ui("No roll number")}
                       </span>
                     </span>
                   </div>
@@ -229,69 +234,73 @@ export default function TeacherStudentsPage() {
               },
               {
                 key: "class",
-                label: "Class",
+                label: ui("Class"),
                 render: (st: any) => (
-                  <span className="text-xs font-bold text-ink">{classLabel(st.class)}</span>
+                  <span className="text-sm font-medium text-ink">{classLabel(st.class)}</span>
                 ),
               },
               {
                 key: "grade",
-                label: "Latest grade",
+                label: ui("Latest grade"),
                 align: "center",
                 render: (st: any) => {
                   const report = st.reportCards?.[0];
                   return report?.grade || report?.percentage != null ? (
-                    <span className="text-sm font-black text-[#8127cf]">
+                    <span data-numeric className="text-sm font-bold tabular-nums text-primary">
                       {report.grade || `${Math.round(report.percentage)}%`}
                     </span>
                   ) : (
-                    <span className="text-[11px] font-semibold text-ink-subtle">—</span>
+                    <span className="text-xs text-ink-subtle">
+                      <span aria-hidden="true">—</span>
+                      <span className="sr-only">{ui("No grade yet")}</span>
+                    </span>
                   );
                 },
               },
               {
                 key: "today",
-                label: "Today",
+                label: ui("Today"),
                 align: "center",
                 render: (st: any) => <TodayChip status={st.todayAttendance} />,
               },
               {
                 key: "guardian",
-                label: "Guardian",
+                label: ui("Guardian"),
                 secondary: true,
                 render: (st: any) => (
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-ink">{st.guardianName || "Not linked"}</p>
-                    {/* A phone number on a screen a teacher uses on a phone
-                        should dial. Printing it as inert text meant copying it
-                        out by hand every time a guardian had to be called. */}
+                    <p className="truncate text-sm font-medium text-ink"><bdi>{st.guardianName || ui("Not linked")}</bdi></p>
                     {st.guardianPhone ? (
-                      <a
-                        href={`tel:${String(st.guardianPhone).replace(/\s+/g, "")}`}
-                        onClick={(e) => e.stopPropagation()}
-                        title={`Call ${st.guardianName || "guardian"}`}
-                        className="inline-flex items-center gap-1 truncate text-[10px] font-bold text-[#8127cf] hover:underline"
-                      >
-                        <Phone className="h-2.5 w-2.5" />
-                        {st.guardianPhone}
-                      </a>
+                      <p className="truncate text-xs text-ink-subtle"><bdi dir="ltr" className="tabular-nums">{st.guardianPhone}</bdi></p>
                     ) : (
-                      <p className="truncate text-[10px] font-semibold text-ink-subtle">No phone</p>
+                      <p className="truncate text-xs text-ink-subtle">{ui("No phone")}</p>
                     )}
+                  </div>
+                ),
+              },
+              {
+                /* §4.4b teacher · Students: one inline row action — a message on the school record (D6) — and the
+                   rest (a call, the report card, the register) in the row overflow, as on the cards (§4.5.2). */
+                key: "actions",
+                label: ui("Actions"),
+                align: "end",
+                render: (st: any) => (
+                  <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                    <Link href="/messages" className={buttonVariants({ variant: "outline", size: "sm" })}>
+                      <MessageCircle aria-hidden="true" />
+                      {ui("Message guardian")}
+                    </Link>
+                    <StudentRowMenu student={st} />
                   </div>
                 ),
               },
             ]}
           />
         ) : filtered.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((student: any, index: number) => {
+          <div className="sk-stagger grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((student: any) => {
               const report = student.reportCards?.[0];
               const avatar = student.profileImageUrl;
-              const phone = student.guardianPhone ? String(student.guardianPhone).replace(/\s+/g, "") : "";
-              const whatsapp = student.guardianWhatsapp
-                ? String(student.guardianWhatsapp).replace(/[^\d+]/g, "")
-                : phone;
               return (
                 /* The card was one big <button>, so nothing inside it could be a
                    control of its own — calling a guardian or opening a report
@@ -299,29 +308,27 @@ export default function TeacherStudentsPage() {
                    body opens the profile; the footer carries real actions. */
                 <div
                   key={student.id}
-                  className="sk-rise group flex flex-col rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5 text-left shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
-                  style={{ animationDelay: `${index * 60}ms` }}
+                  className="sk-panel sk-hover-lift group flex min-w-0 flex-col p-5 text-start"
                 >
-                  <button
+                  <Button variant="ghost"
                     type="button"
                     onClick={() => setSelectedStudent(student)}
-                    title={`Open ${student.fullName}'s profile`}
-                    className="cursor-pointer text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25 rounded-2xl"
+                    className="block justify-start p-0 text-start actionable-hover:bg-transparent"
                   >
                     <div className="mb-4 flex items-start gap-4">
-                      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-[#fbf0fe] bg-[#fbf0fe] shadow-sm">
+                      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-brand-50 bg-brand-50 shadow-sm">
                         <AvatarImage src={avatar} name={student.fullName} initialsClassName="text-base" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h4 className="truncate text-base font-bold text-[#1d1b20] transition-colors group-hover:text-[#8127cf]">
-                          {student.fullName}
-                        </h4>
-                        <div className="mt-1 flex items-center gap-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
-                            {student.rollNo || "No roll"}
+                        <h3 className="truncate text-base font-bold text-ink-strong transition-colors group-hover:text-primary">
+                          <bdi>{student.fullName}</bdi>
+                        </h3>
+                        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <span className="text-xs text-ink-subtle tabular-nums">
+                            {student.rollNo || ui("No roll number")}
                           </span>
-                          <span className="text-[10px] text-ink-subtle">|</span>
-                          <span className="text-[10px] font-semibold text-[#8127cf]">
+                          <span aria-hidden="true" className="text-xs text-ink-faint">|</span>
+                          <span className="truncate text-xs font-semibold text-primary">
                             {classLabel(student.class)}
                           </span>
                         </div>
@@ -332,115 +339,63 @@ export default function TeacherStudentsPage() {
                     </div>
 
                     <div className="mb-4 grid grid-cols-2 gap-2">
-                      <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Latest Grade</p>
-                        <p className="text-sm font-bold text-[#8127cf]">
+                      <div className="rounded-xl bg-brand-50/70 px-3 py-2">
+                        <p className="sk-eyebrow">{ui("Latest grade")}</p>
+                        <p data-numeric className="text-sm font-bold tabular-nums text-primary">
                           {report ? report.grade || `${Math.round(report.percentage || 0)}%` : "—"}
                         </p>
                       </div>
-                      <div className="rounded-xl bg-[#fbf0fe]/70 px-3 py-2">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Status</p>
+                      <div className="rounded-xl bg-brand-50/70 px-3 py-2">
+                        <p className="sk-eyebrow">{ui("Status")}</p>
                         {/* Stored casing varies ("active" / "ACTIVE"), which
                             rendered raw as lowercase text among title-cased UI. */}
-                        <p className={`text-sm font-bold capitalize ${(student.status || "").toUpperCase() === "ACTIVE" ? "text-emerald-600" : "text-ink-subtle"}`}>
-                          {(student.status || "Active").toLowerCase()}
+                        <p className={`text-sm font-bold ${(student.status || "ACTIVE").toUpperCase() === "ACTIVE" ? "text-status-success-text" : "text-ink-subtle"}`}>
+                          {(student.status || "ACTIVE").toUpperCase() === "ACTIVE" ? ui("Active") : ui("Inactive")}
                         </p>
                       </div>
                     </div>
 
                     {student.guardianName ? (
-                      <div className="rounded-xl bg-[#f3f4f9]/50 px-3 py-2">
-                        <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-ink-subtle">Guardian</p>
-                        <p className="truncate text-xs font-semibold text-[#1d1b20]">{student.guardianName}</p>
+                      <div className="rounded-xl bg-muted/50 px-3 py-2">
+                        <p className="sk-eyebrow mb-1">{ui("Guardian")}</p>
+                        <p className="truncate text-sm font-medium text-ink-strong"><bdi>{student.guardianName}</bdi></p>
                         {student.guardianPhone ? (
-                          <p className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-ink-subtle">
-                            <Phone className="h-3 w-3" /> {student.guardianPhone}
+                          <p className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-ink-subtle">
+                            <Phone aria-hidden="true" className="h-3 w-3 shrink-0" />
+                            <span dir="ltr" className="truncate tabular-nums">{student.guardianPhone}</span>
                           </p>
                         ) : null}
                       </div>
                     ) : null}
-                  </button>
+                  </Button>
 
-                  {/* Everything a teacher actually does next, without leaving. */}
-                  <div className="mt-4 grid grid-cols-4 gap-1.5 border-t border-[#cfc2d6]/15 pt-3">
-                    {phone ? (
-                      <a
-                        href={`tel:${phone}`}
-                        title={`Call ${student.guardianName || "guardian"}`}
-                        className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
-                      >
-                        <Phone className="h-3.5 w-3.5" />
-                        Call
-                      </a>
-                    ) : (
-                      <span className="flex flex-col items-center gap-1 rounded-xl bg-[#f3f4f9]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-ink-faint" title="No guardian phone on file">
-                        <Phone className="h-3.5 w-3.5" />
-                        Call
-                      </span>
-                    )}
-                    {whatsapp ? (
-                      <a
-                        href={`https://wa.me/${whatsapp.replace(/^\+/, "")}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={`Message ${student.guardianName || "guardian"} on WhatsApp`}
-                        className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
-                      >
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        Chat
-                      </a>
-                    ) : (
-                      <span className="flex flex-col items-center gap-1 rounded-xl bg-[#f3f4f9]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-ink-faint" title="No guardian number on file">
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        Chat
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        router.push(
-                          `/teacher/reports?studentId=${encodeURIComponent(student.id)}&classId=${encodeURIComponent(student.class?.id || "")}`,
-                        )
-                      }
-                      title={`Open ${student.fullName}'s report card`}
-                      className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                      Report
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        router.push(`/teacher/attendance?classId=${encodeURIComponent(student.class?.id || "")}`)
-                      }
-                      title={`Mark attendance for ${classLabel(student.class)}`}
-                      className="flex cursor-pointer flex-col items-center gap-1 rounded-xl bg-[#fbf0fe]/60 px-2 py-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
-                    >
-                      <CalendarCheck className="h-3.5 w-3.5" />
-                      Attend
-                    </button>
+                  {/* One inline action — a message on the school record (D6) — and the rest in the
+                      row overflow: a call, the report card and the register (§4.5.2). */}
+                  <div className="mt-4 flex items-center gap-2 border-t border-border-subtle pt-3">
+                    <Link href="/messages" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "flex-1")}>
+                      <MessageCircle aria-hidden="true" />
+                      {ui("Message guardian")}
+                    </Link>
+                    <StudentRowMenu student={student} />
                   </div>
                 </div>
               );
             })}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-[#fbf0fe] text-[#8127cf] mb-4">
-              <Users className="h-8 w-8" />
-            </div>
-            <h3 className="text-lg font-bold text-[#1d1b20]">No students found</h3>
-            <p className="text-sm font-semibold text-ink-muted mt-1">
-              {search || classFilter || todayFilter ? "Try adjusting your search or filter" : "No students are assigned to your classes yet"}
-            </p>
+          <div className="sk-panel">
             {/* Telling someone to adjust a filter without giving them a way to
                 clear it leaves them to hunt for the two controls themselves. */}
-            {search || classFilter || todayFilter ? (
-              <button type="button" onClick={() => { setSearch(""); setClassFilter(""); setTodayFilter(""); }}
-                className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] cursor-pointer active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
-                <X className="h-3.5 w-3.5" /> Clear filters
-              </button>
-            ) : null}
+            <EmptyState
+              icon={Users}
+              title={ui("No pupils found")}
+              description={search || classFilter || todayFilter ? ui("Try adjusting your search or filter.") : ui("No pupils are assigned to your classes yet.")}
+              action={search || classFilter || todayFilter ? (
+                <Button variant="secondary" type="button" onClick={() => { setSearch(""); setClassFilter(""); setTodayFilter(""); }}>
+                  <X aria-hidden="true" /> {ui("Clear filters")}
+                </Button>
+              ) : undefined}
+            />
           </div>
         )}
       </div>
@@ -453,30 +408,71 @@ export default function TeacherStudentsPage() {
           onClose={() => setSelectedStudent(null)}
         />
       ) : null}
+      {/* M65: the support plans teachers propose for their pupils live with the pupils. */}
+      <section aria-label={ui("Learning actions")} className="mt-6">
+        <LearningActions />
+      </section>
+      <div className="mt-6"><PathwayPanel /></div>
     </TeacherPage>
   );
 }
 
 
-/** Today's attendance, rendered where the teacher is already looking. */
-const TODAY_TONE: Record<string, { label: string; className: string }> = {
-  PRESENT: { label: "In today", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  ABSENT: { label: "Absent today", className: "bg-rose-50 text-rose-700 border-rose-200" },
-  LEAVE: { label: "On leave", className: "bg-amber-50 text-amber-700 border-amber-200" },
+/**
+ * Today's attendance, rendered where the teacher is already looking. Every register status has its own word
+ * (late, part day and excused days are not "Unmarked").
+ */
+const TODAY_TONE: Record<string, { label: string; variant: DeskTone }> = {
+  PRESENT: { label: "In today", variant: "success" },
+  LATE: { label: "Late today", variant: "warning" },
+  PARTIAL: { label: "Part day", variant: "info" },
+  ABSENT: { label: "Absent today", variant: "danger" },
+  EXCUSED: { label: "Excused absence", variant: "info" },
+  LEAVE: { label: "On leave", variant: "warning" },
 };
 
-function TodayChip({ status }: { status?: string | null }) {
+/** The filter chip a status counts under: in school (present, late, part day), absent, away with leave, unmarked. */
+function todayBucket(status?: string | null): "PRESENT" | "ABSENT" | "LEAVE" | "UNMARKED" {
+  if (status === "PRESENT" || status === "LATE" || status === "PARTIAL") return "PRESENT";
+  if (status === "ABSENT") return "ABSENT";
+  if (status === "LEAVE" || status === "EXCUSED") return "LEAVE";
+  return "UNMARKED";
+}
+
+function todayLabel(ui: (key: string, values?: unknown[]) => string, status?: string | null) {
   const tone = status ? TODAY_TONE[status] : null;
-  if (!tone) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#cfc2d6]/30 bg-[#faf7fc] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
-        Unmarked
-      </span>
-    );
-  }
+  return tone ? ui(tone.label) : ui("Unmarked");
+}
+
+function TodayChip({ status }: { status?: string | null }) {
+  const ui = useUiText();
+  const tone = status ? TODAY_TONE[status] : null;
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider", tone.className)}>
-      {tone.label}
-    </span>
+    <DeskPill tone={tone?.variant ?? "neutral"}>
+      {todayLabel(ui, status)}
+    </DeskPill>
+  );
+}
+
+/** The row overflow for one pupil: call the guardian (tel:), the report card and the register — each only when offered. */
+function StudentRowMenu({ student }: { student: any }) {
+  const ui = useUiText();
+  const router = useRouter();
+  const access = useConsoleAccess();
+  const phone = student.guardianPhone ? String(student.guardianPhone).replace(/\s+/g, "") : "";
+  const classId = encodeURIComponent(student.class?.id || "");
+  const items = [
+    ...(phone ? [{ id: "call", label: "Call guardian", icon: Phone, href: `tel:${phone}` }] : []),
+    ...(access.leafVisible("teacher", "report-cards") ? [{ id: "report", label: "Report card", icon: FileText, onSelect: () => router.push(`/teacher/reports?studentId=${encodeURIComponent(student.id)}&classId=${classId}`) }] : []),
+    ...(access.leafVisible("teacher", "attendance") ? [{ id: "attendance", label: "Attendance", icon: CalendarCheck, onSelect: () => router.push(`/teacher/attendance?classId=${classId}`) }] : []),
+  ];
+  if (!items.length) return null;
+  return (
+    <Menu
+      label="More actions"
+      align="end"
+      trigger={<IconButton size="sm" variant="ghost" label={ui("More actions for {0}", [student.fullName])}><MoreHorizontal aria-hidden="true" /></IconButton>}
+      items={items}
+    />
   );
 }

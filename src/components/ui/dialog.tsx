@@ -7,7 +7,10 @@
 import * as React from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useOverlayMessages } from "@/hooks/use-overlay-messages";
 import { ModalSurface, useModalSurface, type ModalSize } from "./modal";
+import { Button } from "./button";
+import { IconButton } from "./icon-button";
 
 /**
  * The trigger/content compound API, for the handful of screens written against
@@ -20,7 +23,10 @@ import { ModalSurface, useModalSurface, type ModalSize } from "./modal";
  * — under the account dropdowns, which sit at `z-[999]`.
  *
  * `Modal` is the better starting point for anything new; this stays for the
- * call sites that compose their own header.
+ * call sites that compose their own header. It is a thin adapter: every part
+ * below renders on `ModalSurface` (the same shell `Modal` uses) and on the
+ * shared `Button`, so it cannot drift from the one dialog API (§8.1 R2). New
+ * imports of `DialogContent` are counted by the check:ui ratchet.
  */
 
 interface DialogContextType {
@@ -34,7 +40,7 @@ const DialogContext = React.createContext<DialogContextType>({
 });
 
 /** Lets DialogContent hand its close action down to a nested DialogClose. */
-const DialogCloseContext = React.createContext<() => void>(() => {});
+const DialogCloseContext = React.createContext({ close: () => {}, dismissible: true });
 
 function Dialog({
   children,
@@ -72,18 +78,22 @@ function DialogTrigger({
   }
 
   return (
-    <button type="button" onClick={() => setOpen(true)}>
+    <Button type="button" variant="outline" onClick={() => setOpen(true)}>
       {children}
-    </button>
+    </Button>
   );
 }
 
+/** @deprecated Use `Modal` (or `ModalSurface` for a custom sheet). Kept as an adapter for existing call sites. */
 function DialogContent({
   children,
   className,
   size,
   dirty,
   dirtyMessage,
+  dismissible,
+  initialFocusRef,
+  returnFocusRef,
 }: {
   children: React.ReactNode;
   className?: string;
@@ -91,6 +101,9 @@ function DialogContent({
   /** Holds typed-but-unsaved input — closing then asks before discarding. */
   dirty?: boolean;
   dirtyMessage?: string;
+  dismissible?: boolean;
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
+  returnFocusRef?: React.RefObject<HTMLElement | null>;
 }) {
   const { open, setOpen } = React.useContext(DialogContext);
 
@@ -102,6 +115,9 @@ function DialogContent({
       size={size}
       dirty={dirty}
       dirtyMessage={dirtyMessage}
+      dismissible={dismissible}
+      initialFocusRef={initialFocusRef}
+      returnFocusRef={returnFocusRef}
       className={className}
     >
       <DialogBody>{children}</DialogBody>
@@ -110,25 +126,28 @@ function DialogContent({
 }
 
 function DialogBody({ children }: { children: React.ReactNode }) {
-  const { requestClose, dragHandleProps } = useModalSurface();
+  const copy = useOverlayMessages();
+  const { requestClose, dismissible, dragHandleProps } = useModalSurface();
 
   return (
-    <DialogCloseContext.Provider value={requestClose}>
+    <DialogCloseContext.Provider value={{ close: requestClose, dismissible }}>
       {/* No pinned header here — these call sites compose their own with
           DialogHeader. The grab strip is still the phone's drag target, so
           the sheet stays dismissable by gesture. */}
       <div {...dragHandleProps} className="shrink-0 touch-none pt-3 sm:hidden">
-        <div className="mx-auto h-1.5 w-11 rounded-full bg-[#1f1a23]/15" aria-hidden />
+        <div className="mx-auto h-1.5 w-11 rounded-full bg-ink-strong/15" aria-hidden />
       </div>
 
-      <button
-        type="button"
-        className="absolute right-4 top-4 z-20 rounded-xl p-2 text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/20"
+      <IconButton
+        label={copy.close}
+        tooltip={copy.closeEscape}
+        size="sm"
+        className="absolute end-4 top-4 z-20 text-ink-subtle"
         onClick={requestClose}
+        disabled={!dismissible}
       >
-        <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
-      </button>
+        <X aria-hidden="true" />
+      </IconButton>
 
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:pb-6">
         {children}
@@ -145,18 +164,20 @@ function DialogClose({
   children: React.ReactNode;
   asChild?: boolean;
 }) {
-  const close = React.useContext(DialogCloseContext);
+  const { close, dismissible } = React.useContext(DialogCloseContext);
 
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement<{ onClick?: () => void }>, {
+    const child = children as React.ReactElement<{ onClick?: () => void; disabled?: boolean }>;
+    return React.cloneElement(child, {
       onClick: close,
+      disabled: child.props.disabled || !dismissible,
     });
   }
 
   return (
-    <button type="button" onClick={close}>
+    <Button type="button" variant="outline" onClick={close} disabled={!dismissible}>
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -166,7 +187,7 @@ function DialogHeader({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("mb-5 flex flex-col space-y-1.5 pr-10 text-left", className)}
+      className={cn("mb-5 flex flex-col space-y-1.5 pe-10 text-start", className)}
       {...props}
     />
   );
@@ -176,10 +197,12 @@ function DialogTitle({
   className,
   ...props
 }: React.HTMLAttributes<HTMLHeadingElement>) {
+  const { titleId } = useModalSurface();
   return (
     <h2
-      className={cn("text-2xl font-black leading-tight text-[#1f1a23]", className)}
+      className={cn("text-2xl font-bold leading-tight text-foreground", className)}
       {...props}
+      id={titleId}
     />
   );
 }

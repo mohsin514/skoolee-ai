@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageAcademics, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { getReportingChain } from "@/lib/staff/hierarchy";
 
 // A staff member's service record (Module 8b).
@@ -14,7 +14,7 @@ import { getReportingChain } from "@/lib/staff/hierarchy";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageAcademics(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "view");
     const userId = req.nextUrl.searchParams.get("userId");
     if (!userId) throw new ApiError("userId is required", 400);

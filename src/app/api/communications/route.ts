@@ -3,11 +3,16 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
-  canManageOperations,
+  canManageAcademics,
+  canManageCampusOps,
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
 import { runNotificationAutomationSweep } from "@/lib/notifications/automation";
+import { announcementHistoryRestriction } from "@/lib/school-ai/announcement-history";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { coarseDeliveryState, deliveryState } from "@/lib/notifications/delivery-state";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,23 +23,50 @@ const automationSchema = z.object({
   campusId: z.string().optional(),
 });
 
+/** What the academic lead may read: report and exam delivery to families ("Report delivery", §2.2 #44).
+ *  Fee reminders, announcements and inbound chats stay with campus operations. */
+const ACADEMIC_DELIVERY_SCOPE = {
+  OR: [
+    { templateKey: { in: ["REPORT_CARD_PUBLISHED", "REPORT_CARD_GENERATED", "EXAM_SCHEDULE", "MARKS_ENTRY_DEADLINE_NEAR"] } },
+    { relatedType: { in: ["REPORT_CARD", "EXAM"] } },
+  ],
+};
+
+const RECEIPT_FAILED = { deliveryReceipts: { some: { state: "failed" } } };
+
+/** SKAI-1783: filter on the effective outcome — a receipt-confirmed failure is FAILED, not SENT. */
+function statusFilter(status: string) {
+  if (status === "FAILED") return { OR: [{ status }, RECEIPT_FAILED] };
+  return { status, deliveryReceipts: { none: { state: "failed" } } };
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageAcademics(user)) throw new ApiError("Insufficient permissions", 403);
 
     const { searchParams } = new URL(req.url);
+    // Campus operations see the whole family-communication log; everyone else (the principal) only the
+    // academic delivery log. `scope=academic` lets an operator ask for the narrow view too.
+    const academicOnly = !canManageCampusOps(user) || searchParams.get("scope") === "academic";
     const status = searchParams.get("status");
     const channel = searchParams.get("channel");
     const studentId = searchParams.get("studentId");
     const parentUserId = searchParams.get("parentUserId");
     const campusId = user.role === "SUPER_ADMIN" ? searchParams.get("campusId") : user.campusId;
+    // Announcement bodies, recipients and guardian proofs retain their live
+    // permission boundary when shown through the older communication history.
+    const historyScope = {
+      schoolId: user.schoolId,
+      ...(campusId ? { campusId } : {}),
+      // AND, not a spread: both the announcement boundary and the academic scope are OR clauses.
+      AND: [await announcementHistoryRestriction(user), ...(academicOnly ? [ACADEMIC_DELIVERY_SCOPE] : [])],
+    };
 
     const communications = await prisma.parentCommunication.findMany({
       where: {
-        schoolId: user.schoolId,
-        ...(campusId ? { campusId } : {}),
-        ...(status && status !== "ALL" ? { status } : {}),
+        ...historyScope,
+        ...(status && status !== "ALL" ? statusFilter(status) : {}),
         ...(channel && channel !== "ALL" ? { channel } : {}),
         ...(studentId ? { studentId } : {}),
         ...(parentUserId ? { parentUserId } : {}),
@@ -49,6 +81,7 @@ export async function GET(req: NextRequest) {
         },
         parent: { select: { fullName: true, email: true, phone: true } },
         campus: { select: { name: true } },
+        deliveryReceipts: { select: { state: true } },
       },
       orderBy: { createdAt: "desc" },
       take: 200,
@@ -56,21 +89,34 @@ export async function GET(req: NextRequest) {
 
     const summary = await prisma.parentCommunication.groupBy({
       by: ["status"],
-      where: {
-        schoolId: user.schoolId,
-        ...(campusId ? { campusId } : {}),
-      },
+      where: historyScope,
+      _count: { _all: true },
+    });
+    // SKAI-1783: a provider receipt that says "failed" makes the row FAILED wherever it is counted.
+    // Rows already FAILED are not moved, so nothing is counted twice.
+    const receiptFailed = await prisma.parentCommunication.groupBy({
+      by: ["status"],
+      where: { AND: [historyScope, { status: { not: "FAILED" } }, RECEIPT_FAILED] },
       _count: { _all: true },
     });
 
     return Response.json({
       success: true,
-      communications,
-      summary: summary.reduce<Record<string, number>>((acc, item) => {
+      scope: academicOnly ? "academic" : "office",
+      communications: communications.map(({ deliveryReceipts, ...row }) => {
+        const state = deliveryState({ ...row, receiptStates: deliveryReceipts.map((item) => item.state) });
+        // SKAI-800: `deliveryState` carries OPENED; `delivery` keeps the existing log label.
+        return { ...row, delivery: coarseDeliveryState(state), deliveryState: state };
+      }),
+      summary: receiptFailed.reduce<Record<string, number>>((acc, item) => {
+        acc[item.status] = (acc[item.status] ?? 0) - item._count._all;
+        acc.FAILED = (acc.FAILED ?? 0) + item._count._all;
+        return acc;
+      }, summary.reduce<Record<string, number>>((acc, item) => {
         acc[item.status] = item._count._all;
         return acc;
-      }, {}),
-    });
+      }, {})),
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return errorResponse(error, "[communications] GET failed");
   }
@@ -79,9 +125,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    // The manual reminder run (fees, marks deadlines, report notices) is a campus-operations act (M46).
+    if (!canManageCampusOps(user)) throw new ApiError("Reminders are run by your campus admin.", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = automationSchema.safeParse(body);
     if (!parsed.success) return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
 

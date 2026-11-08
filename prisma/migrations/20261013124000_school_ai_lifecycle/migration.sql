@@ -1,0 +1,2 @@
+ALTER TABLE school_ai_executions DROP CONSTRAINT school_ai_executions_operation_check;
+ALTER TABLE school_ai_executions ADD CONSTRAINT school_ai_executions_operation_check CHECK (operation IN ('curriculum.import_topics','academics.setup_year','timetable.create_draft','communications.queue_announcement','exams.create_session_plan','fees.generate_invoices','finance.apply_operation','timetable.create_school_drafts','attendance.record_register','timetable.assign_substitutes','academics.transition_year','students.promote_enrollment'));

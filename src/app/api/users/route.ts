@@ -1,25 +1,28 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import {
   ApiError,
-  canManageOperations,
-  errorResponse,
+  canManageCampusOps,
   requireAuthUser,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { id, ...updates } = body;
     if (!id) throw new ApiError("User id is required", 400);
 
     const existing = await prisma.user.findFirst({
       where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? null : user.campusId) },
-      select: { id: true, fullName: true, phone: true },
+      select: { id: true, fullName: true, phone: true, campusId: true },
     });
     if (!existing) throw new ApiError("User not found", 404);
 
@@ -35,6 +38,14 @@ export async function PATCH(req: NextRequest) {
       "cnic", "gender", "qualification", "specialization", "experience",
       "address", "city", "province", "postalCode", "emergencyContact", "emergencyPhone",
     ] as const;
+    // Same rule as teacher onboarding: 7 to 15 digits, or blank to clear.
+    if (updates.emergencyPhone) {
+      const digits = String(updates.emergencyPhone).match(/\d/g)?.length ?? 0;
+      const validShape = /^\+?[\d\s().-]+$/.test(String(updates.emergencyPhone).trim());
+      if (!validShape || digits < 7 || digits > 15) {
+        throw new ApiError("Enter a phone number with 7 to 15 digits", 400);
+      }
+    }
     for (const field of optionalStringFields) {
       if (updates[field] !== undefined) {
         data[field] = updates[field] ? String(updates[field]).trim() : null;
@@ -58,37 +69,45 @@ export async function PATCH(req: NextRequest) {
 
     if (!Object.keys(data).length) throw new ApiError("No valid fields to update", 400);
 
-    const updated = await prisma.user.update({
-      where: { id },
-      data,
-      select: {
-        id: true,
-        fullName: true,
-        email: true,
-        phone: true,
-        role: true,
-        isActive: true,
-        profileImageUrl: true,
-        cnic: true,
-        dateOfBirth: true,
-        gender: true,
-        qualification: true,
-        specialization: true,
-        subjectSpecialties: true,
-        teachesAllSubjects: true,
-        experience: true,
-        address: true,
-        city: true,
-        province: true,
-        postalCode: true,
-        joiningDate: true,
-        emergencyContact: true,
-        emergencyPhone: true,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.user.update({
+        where: { id },
+        data,
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          role: true,
+          isActive: true,
+          profileImageUrl: true,
+          cnic: true,
+          dateOfBirth: true,
+          gender: true,
+          qualification: true,
+          specialization: true,
+          subjectSpecialties: true,
+          teachesAllSubjects: true,
+          experience: true,
+          address: true,
+          city: true,
+          province: true,
+          postalCode: true,
+          joiningDate: true,
+          emergencyContact: true,
+          emergencyPhone: true,
+        },
+      });
+      // Field names only: the values are personal profile data.
+      await writeAuditEvent(tx, user, {
+        table: "users", recordId: next.id, action: "UPDATE", campusId: existing.campusId,
+        after: { fieldsChanged: Object.keys(data).sort().join(","), ...(data.teachesAllSubjects !== undefined ? { teachesAllSubjects: data.teachesAllSubjects } : {}) },
+      });
+      return next;
     });
 
-    return Response.json({ success: true, data: updated });
+    return ok(updated);
   } catch (error) {
-    return errorResponse(error, "[users] PATCH failed");
+    return failFrom(error, "[users] PATCH failed");
   }
 }

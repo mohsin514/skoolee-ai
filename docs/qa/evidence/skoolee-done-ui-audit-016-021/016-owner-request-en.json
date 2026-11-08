@@ -1,0 +1,47 @@
+{
+  "surface": "016-owner-request",
+  "status": 200,
+  "title": "Platform Owner | SkooleeAI",
+  "headings": [
+    "Audited support access",
+    "Request scoped access",
+    "Incidents and grants"
+  ],
+  "dimensions": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "noOverflow": true,
+      "dir": "ltr",
+      "lang": "en",
+      "screenshot": "016-owner-request-en-1440.png"
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "scrollWidth": 768,
+      "noOverflow": true,
+      "dir": "ltr",
+      "lang": "en",
+      "screenshot": "016-owner-request-en-768.png"
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "noOverflow": true,
+      "dir": "ltr",
+      "lang": "en",
+      "screenshot": "016-owner-request-en-390.png"
+    }
+  ],
+  "focus": {
+    "tag": "BUTTON",
+    "text": "Schools",
+    "visible": true,
+    "outlineStyle": "solid",
+    "outlineWidth": "2px"
+  },
+  "pageErrors": []
+}

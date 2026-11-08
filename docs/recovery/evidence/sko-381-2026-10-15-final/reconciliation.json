@@ -1,0 +1,2888 @@
+{
+  "academic_cycles": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "label",
+      "academic_year",
+      "status",
+      "start_date",
+      "end_date",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "academic_model_versions": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "academic_year",
+      "cohort_key",
+      "cohort_label",
+      "title",
+      "version",
+      "status",
+      "effective_from",
+      "effective_to",
+      "configuration",
+      "template_source_id",
+      "inherited_configuration",
+      "delegated_override_keys",
+      "local_override_keys",
+      "is_shared_template",
+      "template_approved_at",
+      "template_approved_by",
+      "approved_at",
+      "approved_by",
+      "created_by",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "activity_items": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "job_id",
+      "reference_id",
+      "label",
+      "version_id",
+      "workflow_id",
+      "communication_id",
+      "payload",
+      "state",
+      "reason",
+      "result",
+      "updated_at"
+    ]
+  },
+  "activity_jobs": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "class_id",
+      "actor_id",
+      "kind",
+      "identity",
+      "source_id",
+      "source_label",
+      "created_at",
+      "cancel_requested_at"
+    ]
+  },
+  "admission_queries": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "phone",
+      "email",
+      "class_interested_id",
+      "source",
+      "status",
+      "assigned_to_id",
+      "next_follow_up",
+      "note",
+      "converted_student_id",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "admission_query_follow_ups": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "query_id",
+      "date",
+      "note",
+      "next_date",
+      "actor_id"
+    ]
+  },
+  "ai_insights": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "user_id",
+      "role",
+      "feature",
+      "action",
+      "title",
+      "summary",
+      "output",
+      "prompt_version",
+      "model",
+      "tokens_used",
+      "approval_status",
+      "status",
+      "approved_by",
+      "approved_at",
+      "created_at"
+    ]
+  },
+  "ai_review_items": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "user_id",
+      "feature",
+      "related_type",
+      "related_id",
+      "title",
+      "draft",
+      "status",
+      "prompt_version",
+      "model",
+      "tokens_used",
+      "approved_by",
+      "approved_at",
+      "created_at"
+    ]
+  },
+  "ai_usage_logs": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "user_id",
+      "feature",
+      "action",
+      "prompt_version",
+      "model",
+      "tokens_used",
+      "approval_status",
+      "output",
+      "metadata",
+      "created_at"
+    ]
+  },
+  "attendance": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "class_id",
+      "student_id",
+      "date",
+      "status",
+      "notes",
+      "marked_by",
+      "marked_at",
+      "is_locked",
+      "locked_at",
+      "enrollment_id"
+    ]
+  },
+  "attendance_edit_history": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "attendance_id",
+      "old_status",
+      "new_status",
+      "edited_by",
+      "edited_at"
+    ]
+  },
+  "audit_logs": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "table_name",
+      "record_id",
+      "old_value",
+      "new_value",
+      "user_id",
+      "ip_address",
+      "created_at",
+      "campus_id",
+      "retention_until"
+    ]
+  },
+  "auth_attempts": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "key",
+      "count",
+      "expires_at"
+    ]
+  },
+  "bank_accounts": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "bank_name",
+      "account_number",
+      "opening_balance",
+      "is_active",
+      "currency"
+    ]
+  },
+  "bank_reconciliations": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "import_date",
+      "bank_file_url_s3",
+      "bank_account",
+      "statement_period_from",
+      "statement_period_to",
+      "total_transactions",
+      "matched_count",
+      "unmatched_count",
+      "reconciliation_details_json",
+      "unmatched_json",
+      "status",
+      "reconciled_by",
+      "reconciled_at",
+      "created_at"
+    ]
+  },
+  "book_categories": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "created_at"
+    ]
+  },
+  "book_issues": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "book_id",
+      "member_id",
+      "issued_at",
+      "due_at",
+      "returned_at",
+      "fine",
+      "created_at"
+    ]
+  },
+  "books": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "category_id",
+      "title",
+      "author",
+      "isbn",
+      "subject",
+      "copies_total",
+      "copies_available",
+      "created_at"
+    ]
+  },
+  "campus_weekends": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "day_of_week"
+    ]
+  },
+  "campuses": {
+    "rows": 2,
+    "sha256": "d3e41f514544589575c537f4f99c2b75b962c264eed700d06b42ff8a8f74a91d",
+    "columns": [
+      "id",
+      "school_id",
+      "name",
+      "city",
+      "address",
+      "phone",
+      "email",
+      "website",
+      "principal_name",
+      "reg_id",
+      "board",
+      "logo_url",
+      "created_at",
+      "locale_delegated_fields",
+      "archived_at",
+      "archive_reason"
+    ]
+  },
+  "certificate_templates": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "kind",
+      "name",
+      "background_key",
+      "layout_json",
+      "page_size",
+      "created_at"
+    ]
+  },
+  "chart_of_accounts": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "type",
+      "is_system"
+    ]
+  },
+  "chat_attachments": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "message_id",
+      "storage_key",
+      "file_name",
+      "content_type",
+      "size_bytes",
+      "created_at"
+    ]
+  },
+  "chat_messages": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "conversation_id",
+      "sender_id",
+      "kind",
+      "body",
+      "reply_to_id",
+      "edited_at",
+      "deleted_at",
+      "deleted_by_id",
+      "client_key",
+      "created_at"
+    ]
+  },
+  "chat_settings": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "student_to_student",
+      "parent_to_parent",
+      "student_to_support",
+      "parent_to_support",
+      "attachments_enabled",
+      "quiet_hours_enabled",
+      "quiet_hours_start",
+      "quiet_hours_end",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "class_rooms": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "room_number",
+      "capacity",
+      "note",
+      "building",
+      "floor",
+      "wing",
+      "room_type",
+      "rows",
+      "benchesPerRow",
+      "seatsPerBench",
+      "exam_seats_per_bench",
+      "is_exam_hall",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "classes": {
+    "rows": 2,
+    "sha256": "021ebc542052d1e1ee1d1b2c98e23853a4640254b1d375a88f70b683e5d250f1",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "section",
+      "class_teacher_id",
+      "academic_year",
+      "status",
+      "teaching_mode",
+      "archived_at",
+      "archive_reason",
+      "archive_previous_status"
+    ]
+  },
+  "complaints": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "complainant_name",
+      "type",
+      "phone",
+      "date",
+      "description",
+      "action_taken",
+      "status",
+      "created_at"
+    ]
+  },
+  "consent_logs": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "user_id",
+      "feature",
+      "consent_type",
+      "status",
+      "metadata",
+      "created_at"
+    ]
+  },
+  "conversation_members": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "conversation_id",
+      "user_id",
+      "member_role",
+      "unread_count",
+      "last_read_at",
+      "is_muted",
+      "is_pinned",
+      "is_archived",
+      "joined_at",
+      "left_at"
+    ]
+  },
+  "conversations": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "kind",
+      "title",
+      "topic",
+      "class_id",
+      "pair_key",
+      "created_by_id",
+      "is_locked",
+      "last_message_at",
+      "last_message_preview",
+      "last_message_sender_id",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "correction_notes": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "correction_id",
+      "text"
+    ]
+  },
+  "corrections": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "student_id",
+      "kind",
+      "source_id",
+      "source_version",
+      "before",
+      "after",
+      "preview_hash",
+      "reason",
+      "public_explanation",
+      "requester_id",
+      "requester_name",
+      "requested_at",
+      "separate_approver",
+      "status",
+      "approver_id",
+      "approver_name",
+      "decided_at",
+      "successor_id",
+      "report_version_ids"
+    ]
+  },
+  "delivery_receipts": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "communication_id",
+      "provider_message_id",
+      "state",
+      "occurred_at",
+      "received_at"
+    ]
+  },
+  "department_members": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "department_id",
+      "user_id",
+      "role",
+      "is_primary",
+      "is_acting",
+      "started_at",
+      "ended_at",
+      "created_at"
+    ]
+  },
+  "departments": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "parent_id",
+      "name",
+      "code",
+      "kind",
+      "head_id",
+      "description",
+      "color_token",
+      "is_active",
+      "sort_order",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "dorm_room_types": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "description",
+      "cost_per_term",
+      "created_at"
+    ]
+  },
+  "dorm_rooms": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "room_type_id",
+      "number",
+      "capacity",
+      "created_at"
+    ]
+  },
+  "enrollment_proposals": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "student_id",
+      "campus_id",
+      "from_enrollment_id",
+      "target_class_id",
+      "roll_no",
+      "effective_date",
+      "reason",
+      "created_by",
+      "confirmed_by",
+      "status",
+      "created_at",
+      "confirmed_at"
+    ]
+  },
+  "exam_invigilations": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "exam_room_id",
+      "teacher_id",
+      "created_by_id",
+      "created_at"
+    ]
+  },
+  "exam_rooms": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "exam_schedule_id",
+      "room_id",
+      "is_primary",
+      "created_at"
+    ]
+  },
+  "exam_schedules": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "exam_id",
+      "subject_id",
+      "date",
+      "period_definition_id",
+      "room_id"
+    ]
+  },
+  "exam_seats": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "exam_schedule_id",
+      "exam_room_id",
+      "student_id",
+      "seat_number",
+      "row_no",
+      "bench_no",
+      "seat_on_bench",
+      "created_at"
+    ]
+  },
+  "exam_sessions": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "title",
+      "term",
+      "academic_year",
+      "exam_type",
+      "start_date",
+      "end_date",
+      "status",
+      "notes",
+      "created_by",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "exams": {
+    "rows": 2,
+    "sha256": "269bf18ec87ebe410007098c7dbc110d882132b9a2e461907f412bb51a3495f5",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "class_id",
+      "title",
+      "term",
+      "academic_year",
+      "exam_type",
+      "session_id",
+      "subject_id",
+      "total_marks",
+      "status",
+      "is_locked",
+      "locked_by",
+      "locked_at",
+      "activated_at",
+      "marks_entry_at",
+      "reviewed_by",
+      "reviewed_at",
+      "published_at",
+      "rejection_reason",
+      "rejected_by",
+      "rejected_at",
+      "rejection_count",
+      "academic_model_version_id"
+    ]
+  },
+  "fee_carry_forwards": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "student_id",
+      "from_academic_year",
+      "to_academic_year",
+      "balance",
+      "note",
+      "currency"
+    ]
+  },
+  "fee_discount_assignments": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "discount_id",
+      "student_id"
+    ]
+  },
+  "fee_discounts": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "code",
+      "type",
+      "value",
+      "category_id",
+      "currency"
+    ]
+  },
+  "fee_fine_rules": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "grace_days",
+      "type",
+      "value",
+      "is_active",
+      "created_at"
+    ]
+  },
+  "fee_group_assignments": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "fee_group_id",
+      "class_id",
+      "academic_year"
+    ]
+  },
+  "fee_groups": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "description",
+      "currency"
+    ]
+  },
+  "fee_structures": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "class_id",
+      "monthly_fee",
+      "one_time_fees_json",
+      "installment_type",
+      "discount_rules_json",
+      "late_fee_percentage",
+      "compound_late_fee",
+      "tax_percentage",
+      "active_from",
+      "active_to",
+      "created_by",
+      "updated_by",
+      "created_at",
+      "updated_at",
+      "currency"
+    ]
+  },
+  "fee_types": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "code",
+      "description"
+    ]
+  },
+  "fees_master_lines": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "fee_group_id",
+      "fee_type_id",
+      "amount",
+      "due_date"
+    ]
+  },
+  "grade_weight_configs": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "class_id",
+      "academic_year",
+      "quiz_weight",
+      "class_test_weight",
+      "mid_term_weight",
+      "final_weight",
+      "passing_percentage",
+      "weight_mode",
+      "grade_aplus",
+      "grade_a",
+      "grade_b",
+      "grade_c",
+      "grade_d",
+      "is_active",
+      "created_at",
+      "updated_at",
+      "missing_mark_policy",
+      "absent_mark_policy",
+      "exempt_mark_policy",
+      "rounding_rule",
+      "academic_model_version_id"
+    ]
+  },
+  "guardian_access_events": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "relationship_id",
+      "actor_user_id",
+      "action",
+      "reason",
+      "before_state",
+      "after_state",
+      "effective_at",
+      "created_at"
+    ]
+  },
+  "guardian_access_versions": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "relationship_id",
+      "permissions",
+      "effective_from",
+      "effective_until",
+      "reason",
+      "created_by_user_id",
+      "created_at"
+    ]
+  },
+  "guardian_channel_preferences": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "guardian_user_id",
+      "channel",
+      "recipient",
+      "enabled",
+      "verified_at",
+      "consent_at",
+      "evidence",
+      "version",
+      "updated_by_id",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "guardian_relationships": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "student_id",
+      "guardian_user_id",
+      "created_by_user_id",
+      "full_name",
+      "email",
+      "phone",
+      "relationship",
+      "status",
+      "valid_from",
+      "valid_until",
+      "verified_at",
+      "invitation_expires_at",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "guardian_review_queue": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "student_id",
+      "contact_name",
+      "email",
+      "phone",
+      "legacy_relationship",
+      "reason",
+      "status",
+      "reviewed_by_user_id",
+      "reviewed_at",
+      "created_at"
+    ]
+  },
+  "holidays": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "from_date",
+      "to_date"
+    ]
+  },
+  "import_batches": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "kind",
+      "fingerprint",
+      "target_scope",
+      "source_name",
+      "state",
+      "data",
+      "receipt",
+      "created_by_id",
+      "created_at",
+      "expires_at",
+      "committed_at",
+      "reversed_at"
+    ]
+  },
+  "intervention_plans": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "student_id",
+      "created_by",
+      "title",
+      "summary",
+      "recommendations",
+      "status",
+      "approved_by",
+      "approved_at",
+      "created_at"
+    ]
+  },
+  "invoices": {
+    "rows": 2,
+    "sha256": "e6a927a3dbf18f78ada680eca30fd61536e6ec819fd336250905faf269fa31ec",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "student_id",
+      "invoice_number",
+      "invoice_date",
+      "due_date",
+      "monthly_fee",
+      "one_time_fees",
+      "subtotal",
+      "discount_amount",
+      "late_fee_amount",
+      "tax_amount",
+      "total_amount",
+      "total_amount_paid",
+      "balance_due",
+      "status",
+      "pdf_url_s3",
+      "sent_whatsapp",
+      "whatsapp_sent_at",
+      "sent_email",
+      "email_sent_at",
+      "generated_at",
+      "currency",
+      "locale_snapshot",
+      "enrollment_id",
+      "carry_forward_amount"
+    ]
+  },
+  "item_categories": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "created_at"
+    ]
+  },
+  "item_stock": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "item_id",
+      "store_id",
+      "quantity"
+    ]
+  },
+  "item_stores": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "created_at"
+    ]
+  },
+  "item_transactions": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "item_id",
+      "store_id",
+      "kind",
+      "quantity",
+      "unit_price",
+      "supplier_id",
+      "issued_to_user_id",
+      "date",
+      "note",
+      "created_at"
+    ]
+  },
+  "items": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "category_id",
+      "name",
+      "unit",
+      "created_at"
+    ]
+  },
+  "leave_allocations": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "leave_type_id",
+      "role",
+      "user_id",
+      "days",
+      "academic_year",
+      "created_at"
+    ]
+  },
+  "leave_requests": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "user_id",
+      "leave_type_id",
+      "from_date",
+      "to_date",
+      "days",
+      "reason",
+      "status",
+      "reviewed_by_id",
+      "reviewed_at",
+      "review_note",
+      "attachment_key",
+      "created_at"
+    ]
+  },
+  "leave_types": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "default_days",
+      "created_at"
+    ]
+  },
+  "ledger_entries": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "kind",
+      "source_name",
+      "account_id",
+      "payment_method",
+      "bank_account_id",
+      "date",
+      "amount",
+      "note",
+      "payment_id",
+      "payroll_line_id",
+      "created_by_id",
+      "created_at",
+      "currency"
+    ]
+  },
+  "library_members": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "user_id",
+      "member_no",
+      "created_at"
+    ]
+  },
+  "locale_policies": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "scope_key",
+      "status",
+      "settings",
+      "effective_at",
+      "created_at",
+      "created_by",
+      "finance_reviewed_by"
+    ]
+  },
+  "login_sessions": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "user_id",
+      "token_hash",
+      "ip_address",
+      "user_agent",
+      "login_at",
+      "last_activity_at",
+      "expires_at",
+      "is_active",
+      "logout_at"
+    ]
+  },
+  "marks": {
+    "rows": 2,
+    "sha256": "d22553ca8358e1d4c9757c195879369c72942a282a683e1d361693bb58d51bac",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "exam_id",
+      "student_id",
+      "subject_id",
+      "marks_obtained",
+      "is_absent",
+      "grade",
+      "entered_by",
+      "correction_version",
+      "is_exempt"
+    ]
+  },
+  "notification_templates": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "key",
+      "channel",
+      "title",
+      "subject",
+      "body",
+      "variables",
+      "is_sensitive",
+      "requires_approved_data",
+      "status",
+      "is_active",
+      "created_at",
+      "updated_at",
+      "language"
+    ]
+  },
+  "notifications": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "user_id",
+      "type",
+      "title",
+      "message",
+      "icon",
+      "link",
+      "metadata",
+      "is_read",
+      "read_at",
+      "actor_id",
+      "actor_name",
+      "created_at"
+    ]
+  },
+  "onboarding_checkout_intents": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "user_id",
+      "idempotency_key",
+      "plan",
+      "billing_period",
+      "catalogue_version",
+      "contract_snapshot",
+      "expected_campuses",
+      "expected_enrollment",
+      "return_step",
+      "provider",
+      "provider_reference",
+      "checkout_url",
+      "status",
+      "amount",
+      "currency",
+      "failure_reason",
+      "settled_at",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "online_payment_orders": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "invoice_id",
+      "student_id",
+      "amount",
+      "order_ref",
+      "gateway",
+      "status",
+      "payment_id",
+      "created_at",
+      "completed_at"
+    ]
+  },
+  "parent_communications": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "student_id",
+      "parent_user_id",
+      "created_by_id",
+      "template_key",
+      "channel",
+      "recipient_name",
+      "recipient",
+      "subject",
+      "body",
+      "attachment_url",
+      "related_type",
+      "related_id",
+      "status",
+      "provider_message_id",
+      "failed_reason",
+      "metadata",
+      "approved_data",
+      "idempotency_key",
+      "sent_at",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "parent_conversations": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "user_id",
+      "student_id",
+      "question",
+      "answer",
+      "source",
+      "status",
+      "created_at"
+    ]
+  },
+  "password_history": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "user_id",
+      "old_password_hash",
+      "changed_by",
+      "change_reason",
+      "ip_address",
+      "created_at"
+    ]
+  },
+  "password_resets": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "email",
+      "user_id",
+      "token",
+      "expires_at",
+      "created_at"
+    ]
+  },
+  "payment_allocations": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "payment_id",
+      "invoice_id",
+      "amount",
+      "credit",
+      "currency",
+      "created_at"
+    ]
+  },
+  "payment_method_refs": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "is_active"
+    ]
+  },
+  "payment_plans": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "student_id",
+      "original_amount_due",
+      "installment_count",
+      "installments_json",
+      "status",
+      "completed_at",
+      "created_at"
+    ]
+  },
+  "payment_receipts": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "payment_id",
+      "snapshot",
+      "document_bytes",
+      "captured_at"
+    ]
+  },
+  "payments": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "invoice_id",
+      "student_id",
+      "amount",
+      "fine_amount",
+      "discount_amount",
+      "payment_date",
+      "payment_method",
+      "reference_number",
+      "note",
+      "receipt_no",
+      "receipt_url_s3",
+      "recorded_by",
+      "recorded_at",
+      "created_at",
+      "currency",
+      "reversal_of_id"
+    ]
+  },
+  "payroll_lines": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "payroll_run_id",
+      "user_id",
+      "basic",
+      "allowances",
+      "deductions",
+      "bonus",
+      "net",
+      "breakdown_json",
+      "status",
+      "paid_at",
+      "payment_method_id",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "payroll_runs": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "month",
+      "year",
+      "status",
+      "generated_by_id",
+      "generated_at",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "pending_registrations": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "email",
+      "registration_type",
+      "created_at"
+    ]
+  },
+  "period_definitions": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "time_type",
+      "period_number",
+      "start_time",
+      "end_time",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "phone_call_logs": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "phone",
+      "direction",
+      "date",
+      "follow_up_date",
+      "note",
+      "created_at"
+    ]
+  },
+  "platform_config": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "key",
+      "value",
+      "updated_at",
+      "updated_by"
+    ]
+  },
+  "postal_records": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "direction",
+      "from_name",
+      "to_name",
+      "reference_no",
+      "date",
+      "note",
+      "file_key",
+      "created_at"
+    ]
+  },
+  "prompt_templates": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "role",
+      "feature",
+      "version",
+      "system_prompt",
+      "user_prompt",
+      "content",
+      "is_active",
+      "status",
+      "created_at"
+    ]
+  },
+  "recovery_marker": {
+    "rows": 1,
+    "sha256": "02dcceacbdd83e2304bfd840f3e2c0c930bd56bbbdb3b18fa7ba2837a85c0d21",
+    "columns": [
+      "point"
+    ]
+  },
+  "report_cards": {
+    "rows": 1,
+    "sha256": "d21705f65995b042c5253b0a29a7c0134ba4144bf494a3f82b66cd83cc1dae5b",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "student_id",
+      "exam_id",
+      "total_marks",
+      "obtained_marks",
+      "percentage",
+      "grade",
+      "rank",
+      "attendance_present",
+      "attendance_total",
+      "remarks_en",
+      "remarks_ur",
+      "remarks_approved",
+      "approved_by",
+      "approved_at",
+      "pdf_url",
+      "status",
+      "is_sent",
+      "sent_via",
+      "sent_at",
+      "delivery_status",
+      "delivery_error",
+      "generated_at",
+      "locale_snapshot",
+      "current_version_id",
+      "published_version_id",
+      "remarks_ar",
+      "report_language",
+      "source_revision",
+      "enrollment_id"
+    ]
+  },
+  "report_versions": {
+    "rows": 1,
+    "sha256": "354fa5c15ef59bf1200550b0207da159b7a98e66ad1e0dc065e6dab3366d8cbd",
+    "columns": [
+      "id",
+      "school_id",
+      "report_card_id",
+      "number",
+      "content_hash",
+      "document_identity",
+      "document_bytes",
+      "language",
+      "snapshot",
+      "blockers",
+      "changed_sections",
+      "approved_by",
+      "approved_at",
+      "published_at",
+      "predecessor_id",
+      "correction_reason",
+      "reviewer_note",
+      "created_at"
+    ]
+  },
+  "role_permissions": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "role",
+      "module",
+      "can_view",
+      "can_add",
+      "can_edit",
+      "can_delete",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "route_vehicles": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "route_id",
+      "vehicle_id"
+    ]
+  },
+  "school_ai_conversations": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "actor_id",
+      "actor_role",
+      "subject_id",
+      "class_id",
+      "purpose",
+      "topic_key",
+      "title",
+      "idempotency_key",
+      "request_hash",
+      "version",
+      "archived_at",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "school_ai_document_jobs": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "record_id",
+      "record_version",
+      "kind",
+      "status",
+      "version",
+      "actor_id",
+      "actor_role",
+      "access_version",
+      "scheduled_at",
+      "lease_token",
+      "lease_until",
+      "attempts",
+      "result",
+      "error_code",
+      "applied_version",
+      "completed_at",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "school_ai_exam_appeals": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "assignment_id",
+      "attempt_id",
+      "result_version",
+      "student_id",
+      "user_id",
+      "reason",
+      "status",
+      "version",
+      "resolution",
+      "resolved_by_id",
+      "resolved_at",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "school_ai_exam_assignments": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "class_id",
+      "paper_id",
+      "paper_version",
+      "paper_snapshot",
+      "created_by_id",
+      "title",
+      "starts_at",
+      "ends_at",
+      "student_ids",
+      "status",
+      "mode",
+      "version",
+      "created_at",
+      "updated_at",
+      "accommodations",
+      "gradebook_publication",
+      "proctor_policy",
+      "form_set_id",
+      "form_label"
+    ]
+  },
+  "school_ai_exam_attempts": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "assignment_id",
+      "student_id",
+      "user_id",
+      "started_at",
+      "deadline_at",
+      "sequence",
+      "responses",
+      "status",
+      "submitted_at",
+      "score_proposal",
+      "reviewed_at",
+      "reviewed_by_id",
+      "review",
+      "created_at",
+      "updated_at",
+      "review_version"
+    ]
+  },
+  "school_ai_exam_form_releases": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "form_set_id",
+      "paper_id",
+      "paper_version",
+      "form_label",
+      "language",
+      "content_hash",
+      "hash_scheme",
+      "rehearsal_id",
+      "released_by_id",
+      "released_at"
+    ]
+  },
+  "school_ai_exam_form_sets": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "brief_record_id",
+      "blueprint_hash",
+      "max_forms",
+      "status",
+      "version",
+      "created_by_id",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "school_ai_exam_integrity_events": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "assignment_id",
+      "attempt_id",
+      "user_id",
+      "client_event_id",
+      "kind",
+      "observed_at",
+      "received_at",
+      "details",
+      "version",
+      "decision",
+      "review_reason",
+      "reviewed_by_id",
+      "reviewed_at",
+      "retention_until"
+    ]
+  },
+  "school_ai_exam_result_revisions": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "assignment_id",
+      "attempt_id",
+      "version",
+      "review",
+      "reason",
+      "created_by_id",
+      "created_at"
+    ]
+  },
+  "school_ai_executions": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "record_id",
+      "record_version",
+      "operation",
+      "preview_hash",
+      "requested_by_id",
+      "idempotency_key",
+      "status",
+      "receipt",
+      "created_at",
+      "completed_at"
+    ]
+  },
+  "school_ai_exposure_entries": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "item_group_id",
+      "question_id",
+      "item_revision",
+      "paper_id",
+      "paper_version",
+      "form_set_id",
+      "form_label",
+      "cohort_ids",
+      "exam_date",
+      "created_at"
+    ]
+  },
+  "school_ai_proctor_clips": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "session_id",
+      "sequence",
+      "storage_key",
+      "checksum",
+      "mime_type",
+      "bytes",
+      "status",
+      "created_at",
+      "deleted_at"
+    ]
+  },
+  "school_ai_proctor_sessions": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "assignment_id",
+      "attempt_id",
+      "user_id",
+      "kind",
+      "client_key",
+      "status",
+      "consent_version",
+      "consented_at",
+      "retention_until",
+      "ended_at",
+      "bytes",
+      "clip_count",
+      "review_note",
+      "reviewed_by_id",
+      "reviewed_at"
+    ]
+  },
+  "school_ai_records": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "kind",
+      "title",
+      "version",
+      "status",
+      "data",
+      "subject_id",
+      "class_id",
+      "created_by_id",
+      "updated_by_id",
+      "approved_by_id",
+      "approved_at",
+      "idempotency_key",
+      "request_hash",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "school_ai_requests": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "actor_id",
+      "actor_role",
+      "subject_id",
+      "class_id",
+      "feature",
+      "idempotency_key",
+      "request_hash",
+      "status",
+      "claim_token",
+      "lease_expires_at",
+      "attempts",
+      "reply",
+      "record_id",
+      "context_record_ids",
+      "created_at",
+      "updated_at",
+      "completed_at",
+      "conversation_id",
+      "conversation_version",
+      "user_message",
+      "context_versions",
+      "request_language",
+      "catalog_context",
+      "reserved_credits",
+      "dispatched_at"
+    ]
+  },
+  "school_ai_revisions": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "record_id",
+      "version",
+      "action",
+      "title",
+      "status",
+      "data",
+      "actor_id",
+      "created_at"
+    ]
+  },
+  "school_ai_runs": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "title",
+      "actor_id",
+      "actor_role",
+      "access_version",
+      "policy_id",
+      "policy_version",
+      "idempotency_key",
+      "request_hash",
+      "status",
+      "version",
+      "steps",
+      "next_step",
+      "receipts",
+      "error_code",
+      "scheduled_at",
+      "expires_at",
+      "completed_at",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "school_ai_setup_task_revisions": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "task_id",
+      "version",
+      "action",
+      "actor_id",
+      "data",
+      "created_at"
+    ]
+  },
+  "school_ai_setup_tasks": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "record_id",
+      "field_key",
+      "question",
+      "instructions",
+      "requested_by_id",
+      "assignee_id",
+      "assignee_role",
+      "status",
+      "answer",
+      "version",
+      "accepted_record_version",
+      "idempotency_key",
+      "request_hash",
+      "created_at",
+      "updated_at",
+      "answered_at",
+      "accepted_at"
+    ]
+  },
+  "school_ai_substitute_duties": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "timetable_slot_id",
+      "date",
+      "original_teacher_id",
+      "teacher_id",
+      "reason",
+      "status",
+      "version",
+      "assigned_by_id",
+      "created_at",
+      "updated_at",
+      "lesson_snapshot"
+    ]
+  },
+  "schools": {
+    "rows": 2,
+    "sha256": "c893f7a93164dc73575a8b387247c66cc46d1d80fe3c3be2ec60a5efc1714cd6",
+    "columns": [
+      "id",
+      "name",
+      "slug",
+      "status",
+      "deleted_at",
+      "timezone",
+      "plan",
+      "plan_started_at",
+      "plan_ends_at",
+      "last_payment_at",
+      "ai_credits_used",
+      "ai_credits_limit",
+      "stripe_customer_id",
+      "stripe_subscription_id",
+      "plan_pricing",
+      "city",
+      "address",
+      "reg_id",
+      "contact_email",
+      "phone",
+      "website",
+      "logo_url",
+      "established_year",
+      "tagline",
+      "institution_type",
+      "created_at",
+      "correction_separate_approver",
+      "registration_kind",
+      "commercial_contract",
+      "subscription_lifecycle_state",
+      "cancellation_effective_at",
+      "grace_ends_at",
+      "last_stripe_event_created",
+      "ai_credits_reserved"
+    ]
+  },
+  "staff_appointments": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "user_id",
+      "change_kind",
+      "designation_id",
+      "department_id",
+      "reports_to_id",
+      "designation_name",
+      "department_name",
+      "reports_to_name",
+      "level",
+      "employment_type",
+      "employment_status",
+      "basic_salary",
+      "is_acting",
+      "effective_from",
+      "effective_to",
+      "order_ref",
+      "notes",
+      "approved_by_id",
+      "created_at"
+    ]
+  },
+  "staff_designations": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "name",
+      "short_name",
+      "level",
+      "track",
+      "can_head_department",
+      "is_institution_head",
+      "promotes_to_id",
+      "min_years_in_rank",
+      "color_token",
+      "description",
+      "is_active",
+      "sort_order",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "staff_documents": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "user_id",
+      "kind",
+      "file_key",
+      "file_name",
+      "uploaded_at"
+    ]
+  },
+  "staff_invitations": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "email",
+      "role",
+      "campus_id",
+      "token",
+      "expires_at",
+      "status",
+      "profile",
+      "created_at",
+      "delivery_status",
+      "last_delivery_at",
+      "can_purchase_subscription",
+      "can_manage_memberships",
+      "invited_by"
+    ]
+  },
+  "staff_profiles": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "user_id",
+      "designation",
+      "contract_type",
+      "basic_salary",
+      "allowances_json",
+      "deductions_json",
+      "bank_account_name",
+      "bank_account_number",
+      "bank_name",
+      "social_links_json",
+      "designation_id",
+      "seniority_level",
+      "primary_department_id",
+      "reports_to_id",
+      "employee_code",
+      "employment_type",
+      "employment_status",
+      "probation_ends_at",
+      "contract_ends_at",
+      "rank_since",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "staff_reporting_lines": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "user_id",
+      "manager_id",
+      "kind",
+      "label",
+      "started_at",
+      "ended_at",
+      "created_at"
+    ]
+  },
+  "staff_timeline_events": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "user_id",
+      "kind",
+      "title",
+      "detail",
+      "actor_id",
+      "created_at"
+    ]
+  },
+  "stripe_webhook_receipts": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "event_id",
+      "event_type",
+      "event_created",
+      "state",
+      "attempt_count",
+      "error",
+      "received_at",
+      "processed_at"
+    ]
+  },
+  "student_categories": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "description",
+      "is_active"
+    ]
+  },
+  "student_class_history": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "student_id",
+      "class_id",
+      "campus_id",
+      "roll_no",
+      "academic_year",
+      "status",
+      "final_grade",
+      "final_percentage",
+      "promoted_to_class_id",
+      "created_at"
+    ]
+  },
+  "student_documents": {
+    "rows": 2,
+    "sha256": "fff94597370328d2aca73a2352351e850970d0a5e9be02fde8519bca00614876",
+    "columns": [
+      "id",
+      "school_id",
+      "student_id",
+      "kind",
+      "file_key",
+      "file_name",
+      "uploaded_at"
+    ]
+  },
+  "student_enrollments": {
+    "rows": 4,
+    "sha256": "9bed021d02769f1a073f9c3a9de11895beba5b0fb08cd366c0b7ce220f14a7f3",
+    "columns": [
+      "id",
+      "school_id",
+      "student_id",
+      "campus_id",
+      "class_id",
+      "campus_name",
+      "class_name",
+      "curriculum",
+      "academic_year",
+      "roll_no",
+      "status",
+      "start_date",
+      "end_date",
+      "origin"
+    ]
+  },
+  "student_groups": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "description"
+    ]
+  },
+  "student_timeline_events": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "student_id",
+      "kind",
+      "title",
+      "detail",
+      "actor_id",
+      "created_at"
+    ]
+  },
+  "students": {
+    "rows": 2,
+    "sha256": "8a1d6677042479b88a0a2c05df739306b7ee1ee262427f80265aef63c1e9375b",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "class_id",
+      "student_user_id",
+      "parent_user_id",
+      "admission_no",
+      "full_name",
+      "name_ur",
+      "roll_no",
+      "gender",
+      "date_of_birth",
+      "blood_type",
+      "nationality",
+      "phone",
+      "guardian_name",
+      "guardian_name_ur",
+      "guardian_phone",
+      "guardian_whatsapp",
+      "guardian_email",
+      "guardian_relationship",
+      "guardian_occupation",
+      "profile_image_url",
+      "address",
+      "city",
+      "province",
+      "postal_code",
+      "medical_notes",
+      "special_needs",
+      "allergies",
+      "medications",
+      "previous_school",
+      "enrollment_date",
+      "status",
+      "sibling_group_id",
+      "category_id",
+      "group_id",
+      "transport_route_id",
+      "dorm_room_id",
+      "consolidated_into_id",
+      "archived_at",
+      "archive_reason"
+    ]
+  },
+  "subjects": {
+    "rows": 2,
+    "sha256": "fa8c2b78b620036ced7435cd13113e2962b4316be1a17f96b089b505eeea8626",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "class_id",
+      "name",
+      "teacher_id",
+      "total_marks"
+    ]
+  },
+  "subscription_requests": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "requested_by_id",
+      "idempotency_key",
+      "kind",
+      "state",
+      "requested_plan",
+      "effective_at",
+      "details",
+      "reviewed_by_id",
+      "reviewed_at",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "super_admin_audit_logs": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "user_id",
+      "action",
+      "target_type",
+      "target_id",
+      "target_name",
+      "old_values",
+      "new_values",
+      "ip_address",
+      "user_agent",
+      "status",
+      "error_message",
+      "created_at"
+    ]
+  },
+  "suppliers": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "phone",
+      "email",
+      "address",
+      "created_at"
+    ]
+  },
+  "support_actions": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "grant_id",
+      "actor_id",
+      "domain",
+      "action",
+      "status",
+      "payload",
+      "created_at",
+      "completed_at"
+    ]
+  },
+  "support_grants": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "incident_id",
+      "requested_by_id",
+      "approved_by_id",
+      "purpose",
+      "scope",
+      "actions",
+      "status",
+      "expires_at",
+      "started_at",
+      "revoked_at",
+      "emergency_reason",
+      "review_due_at",
+      "reviewed_at",
+      "review_evidence",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "support_incidents": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "reference",
+      "purpose",
+      "impact",
+      "status",
+      "owner_actor_id",
+      "closure_evidence",
+      "created_at",
+      "updated_at",
+      "closed_at"
+    ]
+  },
+  "syllabus_topics": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "subject_id",
+      "title",
+      "description",
+      "order",
+      "status",
+      "completed_at",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "teacher_attendance": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "user_id",
+      "date",
+      "status",
+      "check_in_time",
+      "notes",
+      "marked_at"
+    ]
+  },
+  "timetable_slots": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "timetable_id",
+      "day_of_week",
+      "period_number",
+      "subject_id",
+      "teacher_id",
+      "room_id",
+      "room_number",
+      "start_time",
+      "end_time",
+      "slot_type"
+    ]
+  },
+  "timetables": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "class_id",
+      "academic_year",
+      "term",
+      "status",
+      "published_at",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "transport_routes": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "title",
+      "description",
+      "fare",
+      "created_at"
+    ]
+  },
+  "users": {
+    "rows": 11,
+    "sha256": "ec502953766d142a713affeed13ead739a70127c3a43fb27245262d44be5298c",
+    "columns": [
+      "id",
+      "campus_id",
+      "school_id",
+      "email",
+      "password",
+      "username",
+      "full_name",
+      "role",
+      "phone",
+      "profile_image_url",
+      "cnic",
+      "date_of_birth",
+      "gender",
+      "qualification",
+      "specialization",
+      "subject_specialties",
+      "teaches_all_subjects",
+      "experience",
+      "address",
+      "city",
+      "province",
+      "postal_code",
+      "joining_date",
+      "emergency_contact",
+      "emergency_phone",
+      "is_active",
+      "onboarding_complete",
+      "must_change_password",
+      "created_at",
+      "last_login",
+      "last_password_change",
+      "preferred_language",
+      "mfa_secret",
+      "mfa_enabled",
+      "mfa_last_step",
+      "recovery_code_hashes",
+      "mfa_pending_secret",
+      "mfa_pending_ticket",
+      "mfa_pending_expires_at",
+      "mfa_pending_verified",
+      "is_institution_owner",
+      "can_purchase_subscription",
+      "can_manage_memberships",
+      "access_version",
+      "mfa_enrolled_at"
+    ]
+  },
+  "vehicles": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "number",
+      "model",
+      "driver_name",
+      "driver_phone",
+      "capacity",
+      "created_at"
+    ]
+  },
+  "visitor_logs": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "columns": [
+      "id",
+      "school_id",
+      "campus_id",
+      "name",
+      "phone",
+      "purpose",
+      "to_meet",
+      "in_time",
+      "out_time",
+      "note",
+      "created_at"
+    ]
+  },
+  "workflow_effects": {
+    "rows": 1,
+    "sha256": "38cad9e81ed6c27c8239958c9a90aa1f17281dbbdb057ce265df09c1740a57c1",
+    "columns": [
+      "id",
+      "school_id",
+      "job_id",
+      "identity",
+      "state",
+      "created_at",
+      "completed_at"
+    ]
+  },
+  "workflow_events": {
+    "rows": 1,
+    "sha256": "44454055108fca7e5f3bef4ffbffc5b8e824cdb1446550839b8764d23c33aac8",
+    "columns": [
+      "id",
+      "school_id",
+      "kind",
+      "version",
+      "reference_id",
+      "actor_id",
+      "identity",
+      "created_at",
+      "available_at",
+      "lease_token",
+      "lease_until",
+      "dispatch_count",
+      "dispatched_at"
+    ]
+  },
+  "workflow_jobs": {
+    "rows": 1,
+    "sha256": "2b5ef554c4d48c314e8d05c513e5f1ff630fc01291ba408c0a2c687aa4141366",
+    "columns": [
+      "id",
+      "school_id",
+      "state",
+      "attempts",
+      "max_attempts",
+      "checkpoint",
+      "next_attempt_at",
+      "reason",
+      "lease_token",
+      "lease_until",
+      "cancel_requested_at",
+      "created_at",
+      "updated_at",
+      "started_at",
+      "finished_at",
+      "support_grant_id"
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+name: Conversation retention sweep
+# SKO-460: daily retention sweep for private School AI conversations. The route is POST-only and
+# authorised by CRON_SECRET, so it is called from here rather than by Vercel cron (which sends GET).
+# Skips quietly until both CRON_APP_URL and CRON_SECRET are configured for the repository.
+on:
+  schedule:
+    - cron: '40 2 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      APP_URL: ${{ secrets.CRON_APP_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Run retention sweep
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then echo "CRON_APP_URL or CRON_SECRET not set; skipping."; exit 0; fi
+          curl --fail-with-body --silent --show-error --max-time 90 -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${APP_URL%/}/api/cron/conversation-retention"

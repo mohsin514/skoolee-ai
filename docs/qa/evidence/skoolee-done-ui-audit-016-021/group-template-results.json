@@ -1,0 +1,20 @@
+[
+  {
+    "surface": "019-group-template",
+    "language": "en",
+    "failure": "TimeoutError: locator.waitFor: Timeout 60000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#academic-model-subject-mapping') to be visible\u001b[22m\n",
+    "pageErrors": []
+  },
+  {
+    "surface": "019-group-template",
+    "language": "ar",
+    "failure": "TimeoutError: locator.waitFor: Timeout 60000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#academic-model-subject-mapping') to be visible\u001b[22m\n",
+    "pageErrors": []
+  },
+  {
+    "surface": "019-group-template",
+    "language": "ur",
+    "failure": "TimeoutError: locator.waitFor: Timeout 60000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#academic-model-subject-mapping') to be visible\u001b[22m\n",
+    "pageErrors": []
+  }
+]

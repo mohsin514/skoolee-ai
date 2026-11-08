@@ -1,18 +1,28 @@
+import { applyEnrollment, dateOnly } from "@/lib/students/enrollment";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { notify } from "@/lib/notifications/in-app";
 import {
   ApiError,
-  canManageOperations,
+  assertStaffRole,
+  canLeadAcademics,
+  canManageAcademics,
+  canManageCampusOps,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
 import { getYearClosureReport } from "@/lib/academic/year-closure";
+import { admissionNumberAllocator } from "@/lib/students/admission-number";
+import { writeAuditEvent } from "@/lib/audit-events";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // SKAI-1768: campus-wide classes, class teachers and cohort counts are staff data; families use /parent and /student.
+    assertStaffRole(user);
     const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
 
     const classes = await prisma.class.findMany({
@@ -48,11 +58,20 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageAcademics(user)) throw new ApiError("Forbidden", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { action, campusId: rawCampusId } = body;
     const campusId = await resolveCampusId(user, rawCampusId);
+    // §0.3 rule 5: promotion batches are campus operations (§2.2 #30 "run batches": PR —, G23); closing a ready
+    // year is the campus operator's or the academic lead's (§2.3 #70, §4.4b principal "Close year"), and only the
+    // academic lead force-closes (G35, below).
+    if ((action === "promote" || action === "bulk-promote") && !canManageCampusOps(user)) {
+      throw new ApiError("Your campus admin runs promotion.", 403);
+    }
+    if (action === "close-year" && !canManageCampusOps(user) && !(await canLeadAcademics(user, campusId))) {
+      throw new ApiError("Forbidden", 403);
+    }
 
     if (action === "close-year") {
       const { academicYear, force } = body;
@@ -65,13 +84,20 @@ export async function POST(req: NextRequest) {
        */
       const closure = await getYearClosureReport(campusId, Number(academicYear));
       if (!closure.canClose) {
-        const isPrincipal = user.role === "SUPER_ADMIN" || user.role === "PRINCIPAL";
-        if (!force || !isPrincipal) {
+        // G35: force-closing an unready year is the academic lead's call (SA removed) — the principal,
+        // or a campus operator only while the campus has no principal.
+        const leadsAcademics = Boolean(force) && await canLeadAcademics(user, campusId);
+        if (!force || !leadsAcademics) {
           throw new ApiError(
             `Academic year ${academicYear} is not ready to close. ${closure.blockingReasons.join(" ")}`,
             409,
           );
         }
+      }
+      // A forced close overrides outstanding checklist items, so the academic lead must say why on the server too.
+      const overrideReason = !closure.canClose ? String(body.reason ?? "").trim() : "";
+      if (!closure.canClose && overrideReason.length < 10) {
+        throw new ApiError("Give a reason of at least 10 characters to close a year with outstanding work.", 400);
       }
 
       const classes = await prisma.class.findMany({
@@ -97,6 +123,12 @@ export async function POST(req: NextRequest) {
       if (classes.length === 0) throw new ApiError("No active classes found for this year", 404);
 
       await prisma.$transaction(async (tx) => {
+        // SKAI-1680: one close per campus/year. The lock serialises simultaneous closes; claiming the classes
+        // ACTIVE -> COMPLETED up front means a second close finds them gone, rolls back and never re-notifies.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`academic-year-close:${user.schoolId}:${campusId}:${academicYear}`}))`;
+        const claimed = await tx.class.updateMany({ where: { id: { in: classes.map((cls) => cls.id) }, campusId, status: "ACTIVE" }, data: { status: "COMPLETED" } });
+        if (claimed.count !== classes.length) throw new ApiError(`Academic year ${academicYear} was just closed in another session. Reload to see the closed year.`, 409);
+        let nextAdmissionNo: (() => string) | undefined;
         for (const cls of classes) {
           for (const student of cls.students) {
             const latestReport = student.reportCards[0];
@@ -125,17 +157,21 @@ export async function POST(req: NextRequest) {
             });
 
             if (!student.admissionNo) {
-              const count = await tx.student.count({ where: { campusId, admissionNo: { not: null } } });
-              await tx.student.update({
-                where: { id: student.id },
-                data: { admissionNo: `ADM-${academicYear}-${String(count + 1).padStart(4, "0")}` },
-              });
+              nextAdmissionNo ??= await admissionNumberAllocator(tx, user.schoolId, academicYear);
+              await tx.student.update({ where: { id: student.id }, data: { admissionNo: nextAdmissionNo() } });
             }
           }
+        }
 
-          await tx.class.update({
-            where: { id: cls.id },
-            data: { status: "COMPLETED" },
+        // The academic cycle must end with its classes, or active-year gates stay open after "closed".
+        await tx.academicCycle.updateMany({
+          where: { campusId, academicYear, status: { not: "ENDED" } },
+          data: { status: "ENDED" },
+        });
+        if (!closure.canClose) {
+          await writeAuditEvent(tx, user, {
+            table: "academic_years", recordId: `${campusId}:${academicYear}`, action: "UPDATE", campusId,
+            after: { status: "CLOSED", forced: true, overrideReason: overrideReason.slice(0, 1000), overrideReasons: closure.blockingReasons.join(" ").slice(0, 1000) },
           });
         }
       });
@@ -168,14 +204,15 @@ export async function POST(req: NextRequest) {
           const { studentId, targetClassId, newRollNo } = promo;
           if (!studentId || !targetClassId) continue;
 
-          const student = await tx.student.findUnique({
-            where: { id: studentId },
+          const student = await tx.student.findFirst({
+            // SKAI-1401: promotions stay inside the caller school and campus.
+            where: { id: studentId, schoolId: user.schoolId, campusId },
             select: { id: true, classId: true, rollNo: true, campusId: true, class: { select: { academicYear: true } } },
           });
           if (!student) continue;
 
-          const targetClass = await tx.class.findUnique({
-            where: { id: targetClassId },
+          const targetClass = await tx.class.findFirst({
+            where: { id: targetClassId, schoolId: user.schoolId, campusId },
             select: { id: true, academicYear: true, name: true, section: true, campusId: true },
           });
           if (!targetClass) continue;
@@ -204,10 +241,10 @@ export async function POST(req: NextRequest) {
           });
 
           const rollNo = newRollNo || await generateRollNo(tx, targetClass);
-          await tx.student.update({
-            where: { id: studentId },
-            data: { classId: targetClassId, rollNo },
-          });
+          const enrollment = await tx.studentEnrollment.findFirst({ where: { studentId: studentId, status: "ACTIVE", endDate: null } });
+          if (!enrollment) throw new ApiError("Current enrollment missing", 409);
+          await applyEnrollment(tx, { studentId: studentId, fromId: enrollment.id, targetClassId: targetClassId,
+            effectiveDate: dateOnly(body.effectiveDate || new Date().toISOString().slice(0,10)), rollNo, actorId: user.userId, reason: "Reviewed year-end promotion" });
 
           promoted++;
         }
@@ -220,12 +257,12 @@ export async function POST(req: NextRequest) {
       const { fromClassId, toClassId } = body;
       if (!fromClassId || !toClassId) throw new ApiError("fromClassId and toClassId required", 400);
 
-      const fromClass = await prisma.class.findUnique({
-        where: { id: fromClassId },
+      const fromClass = await prisma.class.findFirst({
+        where: { id: fromClassId, schoolId: user.schoolId, campusId },
         select: { id: true, academicYear: true, campusId: true },
       });
-      const toClass = await prisma.class.findUnique({
-        where: { id: toClassId },
+      const toClass = await prisma.class.findFirst({
+        where: { id: toClassId, schoolId: user.schoolId, campusId },
         select: { id: true, academicYear: true, name: true, section: true, campusId: true },
       });
       if (!fromClass || !toClass) throw new ApiError("Class not found", 404);
@@ -267,10 +304,10 @@ export async function POST(req: NextRequest) {
           });
 
           const rollNo = await generateRollNo(tx, toClass, i);
-          await tx.student.update({
-            where: { id: student.id },
-            data: { classId: toClassId, rollNo },
-          });
+          const enrollment = await tx.studentEnrollment.findFirst({ where: { studentId: student.id, status: "ACTIVE", endDate: null } });
+          if (!enrollment) throw new ApiError("Current enrollment missing", 409);
+          await applyEnrollment(tx, { studentId: student.id, fromId: enrollment.id, targetClassId: toClassId,
+            effectiveDate: dateOnly(body.effectiveDate || new Date().toISOString().slice(0,10)), rollNo, actorId: user.userId, reason: "Reviewed year-end promotion" });
 
           promoted++;
         }

@@ -1,0 +1,33 @@
+{
+  "feature": "F61",
+  "issue": "SKO-208",
+  "date": "2026-10-08",
+  "status": "ready for code review; staging verification pending",
+  "unit_tests": {
+    "passed": 5,
+    "failed": 0
+  },
+  "browser_tests": {
+    "passed": 8,
+    "failed": 0
+  },
+  "visual_baselines": [
+    "staff-workspace-darwin.png",
+    "form-recovery-darwin.png"
+  ],
+  "typecheck": "passed",
+  "lint": "no errors; one existing unused suppression warning",
+  "production_build": "passed on the final SKO-208 change set",
+  "manifest_identity": "unchanged",
+  "source_paths": "validated",
+  "deployed": false,
+  "release_gates": [
+    "Authenticated all-role and admissions/reports/fees staging journeys",
+    "Authoritative independent school-module enablement source",
+    "Complete locale and Arabic PDF verification in F49",
+    "School-user task observation"
+  ],
+  "latest_ui_polish": "workflow strip, task tiles/actions, side-by-side impact preview, shared checkbox, calendar keyboard and high-contrast checks",
+  "global_ui_checks": "Arabic typography/language metadata, local calendar copy/numerals/week start, RTL keys, ISO persistence, 320px layout",
+  "cleanup": "Disposable screenshots/debug outputs removed; two required visual baselines retained; future run artifacts use ignored test-results/design-system"
+}

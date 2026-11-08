@@ -1,0 +1,10 @@
+JOINED_FLOW_FINAL /setup/readiness
+✔ joined new SUPER_ADMIN signup activation defer and full onboarding (10130.102042ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10677.164667
