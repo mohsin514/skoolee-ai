@@ -341,7 +341,8 @@ async function acceptInvitation(token: string, password: string, fullName?: stri
   const placeholderName = fullName?.trim().slice(0, 160) || text("fullName") || invite.email.split("@")[0].replace(/[._-]/g, " ");
 
   const user = await runWithTenantContext({ schoolId: campus.schoolId }, () => prisma.$transaction(async (tx) => {
-    const claimed = await tx.staffInvitation.updateMany({ where: { id: invite.id, token, campusId: invite.campusId, role: invite.role, canManageMemberships: invite.canManageMemberships, canPurchaseSubscription: invite.canPurchaseSubscription, status: "pending", expiresAt: { gt: new Date() } }, data: { status: "accepted" } });
+    const claimed = await tx.staffInvitation.updateMany({ where: { id: invite.id, token, campusId: invite.campusId, role: invite.role, canManageMemberships: invite.canManageMemberships, canPurchaseSubscription: invite.canPurchaseSubscription, status: "pending", expiresAt: { gt: new Date() }, campus: { archivedAt: null, pausedAt: null, school: { status: { notIn: ["SUSPENDED", "DELETED"] } } } }, data: { status: "accepted" } });
+    // SKAI-1375: the claim re-checks campus and school lifecycle inside the transaction, so a suspension racing the accept still leaves the invitation pending and creates no user.
     if (claimed.count !== 1) throw new ApiError("Invitation is no longer active", 409);
     if (existingUser) await tx.loginSession.updateMany({ where: { userId: existingUser.id }, data: { isActive: false, logoutAt: new Date() } });
     const acceptedUser = existingUser
