@@ -74,7 +74,7 @@ async function main() {
       // studentUserId is unique, so only link it when no other student row already holds it.
       const linked = ci === 0 && si === 0 && !!studentUser
         && !(await prisma.student.findFirst({ where: { schoolId, studentUserId: studentUser.id } }));
-      const existing = await prisma.student.findFirst({ where: { schoolId, classId: cls.id, rollNo: st.rollNo } });
+      const existing = await prisma.student.findFirst({ where: { schoolId, admissionNo: st.admissionNo } });
       students.push(existing ?? await prisma.student.create({ data: {
         schoolId, campusId, classId: cls.id, ...st, guardianName: "QA Guardian",
         parentUserId: si < 2 && ci === 0 ? guardian?.id : undefined,
