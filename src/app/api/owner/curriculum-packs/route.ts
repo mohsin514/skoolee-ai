@@ -1,4 +1,5 @@
-import { errorResponse, requirePlatformOwner } from "@/lib/api/scope";
+import { requirePlatformOwner } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { platformCatalogue } from "@/lib/school-ai/curriculum-pack-service";
 
 export const dynamic = "force-dynamic";
@@ -7,8 +8,8 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requirePlatformOwner();
-    return Response.json({ success: true, data: await platformCatalogue() }, { headers: { "Cache-Control": "no-store" } });
+    return ok(await platformCatalogue(), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    return errorResponse(error, "[owner/curriculum-packs] GET failed");
+    return failFrom(error, "[owner/curriculum-packs] GET failed");
   }
 }

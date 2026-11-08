@@ -1,5 +1,6 @@
 "use client";
 
+import { isApiOk } from "@/lib/api/envelope-client";
 /**
  * SKAI-1102 read-only pilot go/no-go board. One card per pilot school: each criterion with its existing
  * metric, the threshold from `go-no-go-config.ts` and a red/amber/green state, plus the overall verdict.
@@ -49,7 +50,7 @@ export function PilotGoNoGoBoard() {
     setFailed(false);
     const res = await fetch("/api/owner/pilot-go-no-go", { cache: "no-store" }).catch(() => null);
     const json = res?.ok ? await res.json().catch(() => null) : null;
-    if (!json?.success) { setFailed(true); return; }
+    if (!isApiOk(json)) { setFailed(true); return; }
     setRows(json.data);
   }, []);
   useEffect(() => { void load(); }, [load]);

@@ -3,7 +3,8 @@ import { assertListBudget } from "@/lib/lists/access";
 import { ownerPagination } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
+import { ApiError, requirePlatformOwner } from "@/lib/api/scope";
+import { failFrom, ok, okPage } from "@/lib/api/envelope";
 import { logSuperAdminAction } from "@/lib/audit";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -36,13 +37,9 @@ export async function GET(req: NextRequest) {
         take: limit,
       });
 
-    return Response.json({
-      success: true,
-      data: sessions,
-      pagination: { page, limit, total, pages },
-    });
+    return okPage(sessions, { page, limit, total, pages });
   } catch (error) {
-    return errorResponse(error, "[owner/sessions] GET failed");
+    return failFrom(error, "[owner/sessions] GET failed");
   }
 }
 
@@ -73,8 +70,8 @@ export async function DELETE(req: NextRequest) {
       targetName: session.user.email,
     }).catch(() => {});
 
-    return Response.json({ success: true, message: "Session terminated" });
+    return ok({ message: "Session terminated" });
   } catch (error) {
-    return errorResponse(error, "[owner/sessions] DELETE failed");
+    return failFrom(error, "[owner/sessions] DELETE failed");
   }
 }
