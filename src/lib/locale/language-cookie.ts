@@ -1,4 +1,4 @@
-import { LANGUAGES, type Language } from "./package";
+import { LANGUAGES, type Language } from "./package-core";
 
 /**
  * Pre-login display language. Non-HttpOnly on purpose: it is a non-sensitive

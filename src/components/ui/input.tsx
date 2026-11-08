@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
-import { localeTag } from "@/lib/locale/package";
+import { localeTag } from "@/lib/locale/package-core";
 import { datePickerMessages } from "@/lib/locale/date-picker-messages";
 import * as React from "react";
 import { Input as NativeInput } from "./input-base";

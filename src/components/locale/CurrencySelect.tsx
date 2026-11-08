@@ -1,6 +1,6 @@
 "use client";
 import { Select } from "@/components/ui/select";
-import { CURRENCIES } from "@/lib/locale/package";
+import { CURRENCIES } from "@/lib/locale/package-core";
 import { useUiText } from "./LocaleProvider";
 export function CurrencySelect({ value, onChange }: { value: string; onChange: (currency: string) => void }) {
  const t = useUiText();
