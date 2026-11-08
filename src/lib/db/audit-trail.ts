@@ -164,7 +164,13 @@ function claimPending(schoolId: string, recordId: string): boolean {
   return Boolean(row);
 }
 
-function rowSchool(row: unknown, context: TenantContext): string | null {
+function rowSchool(row: unknown, context: TenantContext, delegate: string, operation: string): string | null {
+  // SKAI-1358: a new school is its own tenant, so its row is filed under its own id (the platform owner creating it
+  // has no school context).
+  if (delegate === "school") {
+    const id = (row as { id?: unknown } | null)?.id;
+    return operation === "create" && typeof id === "string" && id ? id : null;
+  }
   const own = (row as { schoolId?: unknown } | null)?.schoolId;
   if (typeof own === "string" && own) return own;
   // An unscoped (platform owner) bulk change can span schools; there is no one school to file it under.
@@ -202,7 +208,9 @@ export async function auditedOperation({ delegate, operation, args, query, clien
   }
 
   const single = SINGLE_OPERATIONS.has(operation);
-  if (inFlight.getStore() || !isAuditedModel(delegate) || (!single && !BULK_OPERATIONS.has(operation))) {
+  // SKAI-1358: schools are a global model, but provisioning one must leave an entity row like its campus and owner.
+  const audited = isAuditedModel(delegate) || (delegate === "school" && operation === "create");
+  if (inFlight.getStore() || !audited || (!single && !BULK_OPERATIONS.has(operation))) {
     return query(args);
   }
 
@@ -222,7 +230,7 @@ export async function auditedOperation({ delegate, operation, args, query, clien
   const pending = referenceTransaction.getStore() ? pendingRows.getStore() : undefined;
 
   try {
-    const schoolId = rowSchool(single ? result ?? before : null, context);
+    const schoolId = rowSchool(single ? result ?? before : null, context, delegate, operation);
     if (!schoolId) return result;
 
     const recordId = single
