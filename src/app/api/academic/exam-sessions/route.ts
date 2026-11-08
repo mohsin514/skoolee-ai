@@ -1,4 +1,5 @@
 import { withExamSchedulingWrite, resolveExamSchedulingCampus } from "@/lib/academic/exam-scheduling-write";
+import { assertExamSessionTransition } from "@/lib/academic/exam-session-transition";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -115,15 +116,8 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (body.status !== undefined && !["PLANNING", "SCHEDULED", "SEATED", "RUNNING", "COMPLETED"].includes(String(body.status))) throw new ApiError("Invalid exam session status", 400);
-    // SKAI-1306: the lifecycle moves one step forward at a time and COMPLETED is terminal.
-    if (body.status !== undefined && String(body.status) !== existing.status) {
-      const order = ["PLANNING", "SCHEDULED", "SEATED", "RUNNING", "COMPLETED"];
-      const from = order.indexOf(existing.status);
-      const to = order.indexOf(String(body.status));
-      if (from === order.length - 1 || to !== from + 1) {
-        throw new ApiError(`An exam session moves from ${existing.status} to ${order[from + 1] ?? "nothing further"} only, one step at a time.`, 409);
-      }
-    }
+    // SKAI-1306: forward one step at a time, COMPLETED terminal, readiness checked per step.
+    if (body.status !== undefined) await assertExamSessionTransition(prisma as never, campusId, id, existing.status, String(body.status));
     if (body.title !== undefined && (!String(body.title).trim() || String(body.title).trim().length > 160)) throw new ApiError("A session title of up to 160 characters is required", 400);
     const schedules = await prisma.examSchedule.findMany({ where: { campusId, exam: { sessionId: id } }, select: { date: true } });
     if (schedules.some(item => finalStart && item.date.toISOString().slice(0, 10) < finalStart || finalEnd && item.date.toISOString().slice(0, 10) > finalEnd)) throw new ApiError("The session dates must include all scheduled papers.", 409);
