@@ -13,6 +13,7 @@ const CAMPUSES = [{ id: "campus-a1", schoolId: "school-a" }, { id: "campus-b1", 
 
 mock.module(src("lib/api/scope.ts"), { namedExports: {
   ApiError,
+  ValidationError: class ValidationError extends Error {},
   requireAuthUser: async () => { if (!h.user) throw new ApiError("Unauthorized", 401); return h.user; },
   errorResponse: (error: unknown) => Response.json({ error: (error as Error).message }, { status: error instanceof ApiError ? error.status : 500 }),
 } });

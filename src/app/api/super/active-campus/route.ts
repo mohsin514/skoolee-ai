@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, requireAuthUser } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { ACTIVE_CAMPUS_COOKIE, activeCampusCookieAttributes, encodeActiveCampus } from "@/lib/auth/active-campus";
 import { lookupSchoolCampus } from "@/lib/auth/active-campus-server";
@@ -18,8 +19,8 @@ export async function GET() {
   try {
     const user = await requireSuperAdmin();
     const campuses = await prisma.campus.findMany({ where: { schoolId: user.schoolId, archivedAt: null }, select: { id: true, name: true, city: true }, orderBy: { name: "asc" } });
-    return NextResponse.json({ success: true, data: { activeCampusId: user.activeCampusId ?? null, campuses } });
-  } catch (error) { return errorResponse(error, "[super/active-campus] GET failed"); }
+    return ok({ activeCampusId: user.activeCampusId ?? null, campuses });
+  } catch (error) { return failFrom(error, "[super/active-campus] GET failed"); }
 }
 
 export async function POST(request: Request) {
@@ -29,7 +30,8 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null) as { campusId?: unknown } | null;
     const campusId = body?.campusId ?? null;
     if (campusId !== null && typeof campusId !== "string") throw new ApiError("Choose a campus or All campuses.", 400);
-    const response = NextResponse.json({ success: true, data: { activeCampusId: campusId } });
+    // A NextResponse, not ok(), because this answer also sets the campus cookie.
+    const response = new NextResponse(JSON.stringify({ data: { activeCampusId: campusId } }), { headers: { "content-type": "application/json" } });
     if (campusId === null) {
       response.cookies.set(ACTIVE_CAMPUS_COOKIE, "", activeCampusCookieAttributes(0));
       return response;
@@ -38,5 +40,5 @@ export async function POST(request: Request) {
     if (!(await lookupSchoolCampus(user.schoolId, campusId))) throw new ApiError("Campus not found.", 404);
     response.cookies.set(ACTIVE_CAMPUS_COOKIE, encodeActiveCampus(user.userId, campusId), activeCampusCookieAttributes());
     return response;
-  } catch (error) { return errorResponse(error, "[super/active-campus] POST failed"); }
+  } catch (error) { return failFrom(error, "[super/active-campus] POST failed"); }
 }

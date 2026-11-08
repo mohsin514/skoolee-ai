@@ -58,6 +58,11 @@ export function ok<T>(data: T, init?: ResponseInit) {
   return Response.json({ data }, init);
 }
 
+/** A paged list: `{ data, pagination }`, the envelope plus the page window the list callers already read. */
+export function okPage<T, P>(data: T, pagination: P, init?: ResponseInit) {
+  return Response.json({ data, pagination }, init);
+}
+
 export function created<T>(data: T) {
   return ok(data, { status: 201 });
 }
