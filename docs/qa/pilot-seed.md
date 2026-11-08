@@ -67,3 +67,13 @@ accepts `qa-*` schools and creates no credentials. Plan: `scripts/qa/academics-s
 4. Run `pnpm run qa:seed -- --reset` to restore a known state.
 
 Source of truth: PRD v2.0 · QA-01 · E1-FR-03.
+
+## Large class fixture (SKAI-1199 / SKO-166)
+
+After `pnpm run qa:seed`, run `pnpm run qa:seed:large-class` (optionally `-- --size 250`, 100 to 1000)
+to add a "QA Large Class L" with 120 synthetic students to the first campus of qa-alpha, qa-beta and qa-solo.
+It uses the same seed guard, is idempotent (replaces only `QAL-` roll numbers) and touches no accounts.
+
+Checks to run against it, per school, as admin, principal and teacher, in EN and AR:
+student roster paging and search, attendance marking for the whole class, marks entry, report cards,
+CSV/PDF exports, and the class picker. Confirm a qa-beta admin cannot see qa-alpha's large class.
