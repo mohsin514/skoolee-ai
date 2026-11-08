@@ -1,4 +1,5 @@
-import { errorResponse, ApiError, requirePlatformOwner } from "@/lib/api/scope";
+import { ApiError, requirePlatformOwner } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { excludeObservation, pilotDetail, PilotError, proposeClaim, recordMeasure, recordObservation, reviewClaim, updateCharter } from "@/lib/pilots/service";
 import { readJsonBody } from "@/lib/api/validate";
 
@@ -9,9 +10,9 @@ const rethrow = (error: unknown): never => { throw error instanceof PilotError ?
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     await requirePlatformOwner();
-    return Response.json({ success: true, data: await pilotDetail((await context.params).id).catch(rethrow) }, { headers: noStore });
+    return ok(await pilotDetail((await context.params).id).catch(rethrow), { headers: noStore });
   } catch (error) {
-    return errorResponse(error, "[owner/pilots/:id] GET failed");
+    return failFrom(error, "[owner/pilots/:id] GET failed");
   }
 }
 
@@ -33,8 +34,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
     };
     const { status, result } = await run().catch(rethrow);
-    return Response.json({ success: true, data: result }, { status, headers: noStore });
+    return ok(result, { status, headers: noStore });
   } catch (error) {
-    return errorResponse(error, "[owner/pilots/:id] POST failed");
+    return failFrom(error, "[owner/pilots/:id] POST failed");
   }
 }
