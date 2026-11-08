@@ -2,6 +2,7 @@ import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@
 import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import { roomCapacity, roomLocation } from "@/lib/academic/room-capacity";
+import { resolveMediaUrlAsync } from "@/lib/storage/s3";
 
 /**
  * The two documents that leave the building (§80).
@@ -474,9 +475,9 @@ const CAMPUS_BRANDING_SELECT = {
   },
 } as const;
 
-function letterhead(campus: CampusBranding): Letterhead {
+async function letterhead(campus: CampusBranding): Promise<Letterhead> {
   const school = campus?.school ?? null;
-  const logo = campus?.logoUrl || school?.logoUrl || null;
+  const logo = await resolveMediaUrlAsync(campus?.logoUrl || school?.logoUrl || null);
   return {
     schoolName: school?.name ?? "School",
     campusName: [campus?.name, campus?.city].filter(Boolean).join(", "),
@@ -518,6 +519,8 @@ interface DateSheetData {
   academicYear: number;
   window: string;
   classes: DateSheetClass[];
+  /** SKO-413: which published version this sheet shows, or that it is a draft. */
+  versionLabel?: string;
 }
 
 /** Roughly the number of table rows that fit under a masthead on one A4 page. */
@@ -641,7 +644,7 @@ function DateSheetDocument({ data, withLogo }: { data: DateSheetData; withLogo: 
 
         <Signatures left="Controller of Examinations" right="Principal" />
 
-        <Footer label={`${data.title} · Date Sheet · generated ${prettyDate(todayLocal())}`} />
+        <Footer label={`${data.title} · Date Sheet · ${data.versionLabel ? `${data.versionLabel} · ` : ""}generated ${prettyDate(todayLocal())}`} />
       </Page>
     </Document>
   );
@@ -659,9 +662,12 @@ export async function buildDateSheetData(opts: {
   sessionId?: string;
   examId?: string;
   classId?: string;
+  /** SKO-413: build from a published snapshot (families) instead of live drafts. */
+  published?: { papers: PublishedPaper[] };
 }): Promise<DateSheetData> {
   const { campusId, sessionId, examId, classId } = opts;
   if (!sessionId && !examId) throw new ApiError("sessionId or examId is required", 400);
+  if (opts.published) return buildPublishedDateSheet(campusId, sessionId, opts.published.papers);
 
   const campus = await prisma.campus.findFirst({
     where: { id: campusId },
@@ -730,7 +736,7 @@ export async function buildDateSheetData(opts: {
       : "";
 
   return {
-    brand: letterhead(campus),
+    brand: await letterhead(campus),
     title: session?.title ?? first?.title ?? "Examination",
     term: session?.term ?? first?.term ?? "",
     academicYear: session?.academicYear ?? first?.academicYear ?? new Date().getFullYear(),
@@ -741,13 +747,31 @@ export async function buildDateSheetData(opts: {
   };
 }
 
+type PublishedPaper = { classLabel: string; subjectName: string; totalMarks: number; date: string; startTime: string | null; endTime: string | null; rooms: { roomNumber: string }[]; candidates: number; examTitle: string };
+
+async function buildPublishedDateSheet(campusId: string, sessionId: string | undefined, papers: PublishedPaper[]): Promise<DateSheetData> {
+  const campus = await prisma.campus.findFirst({ where: { id: campusId }, select: CAMPUS_BRANDING_SELECT });
+  const session = sessionId ? await prisma.examSession.findFirst({ where: { id: sessionId, campusId }, select: { title: true, term: true, academicYear: true, startDate: true, endDate: true } }) : null;
+  const grouped = new Map<string, DateSheetClass>();
+  for (const paper of [...papers].sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`))) {
+    const bucket = grouped.get(paper.classLabel) ?? { label: paper.classLabel, students: paper.candidates, papers: [] as DateSheetPaper[] };
+    bucket.papers.push({ date: prettyDate(paper.date), day: dayName(paper.date), time: paper.startTime && paper.endTime ? `${paper.startTime} – ${paper.endTime}` : "To be announced", subject: paper.subjectName, marks: paper.totalMarks, rooms: paper.rooms.length ? paper.rooms.map(r => r.roomNumber).join(", ") : "—" });
+    grouped.set(paper.classLabel, bucket);
+  }
+  const window = session?.startDate && session?.endDate ? `${prettyDate(session.startDate.toISOString().slice(0, 10))} – ${prettyDate(session.endDate.toISOString().slice(0, 10))}` : "";
+  return { brand: await letterhead(campus), title: session?.title ?? papers[0]?.examTitle ?? "Examination", term: session?.term ?? "", academicYear: session?.academicYear ?? new Date().getFullYear(), window,
+    classes: [...grouped.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true })) };
+}
+
 export async function renderDateSheetPdf(opts: {
   campusId: string;
   sessionId?: string;
   examId?: string;
   classId?: string;
+  published?: { papers: PublishedPaper[] };
+  versionLabel?: string;
 }) {
-  const data = await buildDateSheetData(opts);
+  const data = { ...(await buildDateSheetData(opts)), versionLabel: opts.versionLabel };
   return {
     buffer: await renderDoc(
       (withLogo) => <DateSheetDocument data={data} withLogo={withLogo} />,
@@ -792,6 +816,7 @@ interface SeatingData {
   brand: Letterhead;
   title: string;
   papers: SeatingPaper[];
+  versionLabel?: string;
 }
 
 /**
@@ -954,7 +979,7 @@ function SeatingDocument({ data, withLogo }: { data: SeatingData; withLogo: bool
           ]}
         />
 
-        <Footer label={`${data.title} · Seating Plan · generated ${prettyDate(todayLocal())}`} />
+        <Footer label={`${data.title} · Seating Plan · ${data.versionLabel ? `${data.versionLabel} · ` : ""}generated ${prettyDate(todayLocal())}`} />
       </Page>
     </Document>
   );
@@ -1076,7 +1101,7 @@ export async function buildSeatingData(opts: {
     });
 
   return {
-    brand: letterhead(campus),
+    brand: await letterhead(campus),
     title: session?.title ?? schedules[0]?.exam.title ?? "Examination",
     papers,
   };
@@ -1087,8 +1112,9 @@ export async function renderSeatingPdf(opts: {
   sessionId?: string;
   examId?: string;
   scheduleId?: string;
+  versionLabel?: string;
 }) {
-  const data = await buildSeatingData(opts);
+  const data = { ...(await buildSeatingData(opts)), versionLabel: opts.versionLabel };
   return {
     buffer: await renderDoc(
       (withLogo) => <SeatingDocument data={data} withLogo={withLogo} />,

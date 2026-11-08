@@ -4,9 +4,10 @@ import { ApiError, errorResponse } from "@/lib/api/scope";
 import {
   createGroupConversation,
   getOrCreateDirect,
-  listConversations,
+  listConversationsPage,
   requireChatUser,
 } from "@/lib/chat/service";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,13 +33,14 @@ export async function GET(req: NextRequest) {
     const filter =
       filterParam === "unread" || filterParam === "archived" ? filterParam : "all";
 
-    const conversations = await listConversations(user, {
+    const { conversations, nextCursor } = await listConversationsPage(user, {
       filter,
       query: searchParams.get("q") ?? undefined,
       limit: Number(searchParams.get("limit")) || undefined,
+      cursor: searchParams.get("cursor") ?? undefined,
     });
 
-    return Response.json({ success: true, conversations });
+    return Response.json({ success: true, conversations, nextCursor });
   } catch (error) {
     return errorResponse(error, "[chat] list conversations failed");
   }
@@ -47,7 +49,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireChatUser();
-    const parsed = createSchema.safeParse(await req.json());
+    const parsed = createSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid request", 400);
 
     const conversation =

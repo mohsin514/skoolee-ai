@@ -1,6 +1,7 @@
 import { PrismaClient, UserRole, AttendanceStatus, InvoiceStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { TENANT_MODELS } from "../src/lib/db/tenant-models";
+import { assertSeedAllowed, seedSecret } from "./seed-guard";
 
 /** Set once the demo school exists, then stamped onto every tenant-scoped row
  *  the seed writes. The seed predates the school_id migration and threads only
@@ -269,8 +270,11 @@ const SPECIALTY_INDEX: Record<string, number> = {
 const TEACHER_FIRST = ["Mohammad", "Abdul", "Syed", "Muhammad", "Khalid", "Naveed", "Aamir", "Zeeshan", "Kamran", "Javed"] as const;
 
 async function seedUsers(schoolId: string, campusId: string, campusIdx: number) {
-  const adminPassword = await bcrypt.hash("Admin@123", 10);
-  const ownerPassword = await bcrypt.hash("Hussain?512", 10);
+  // NFR-SEC-09: credentials come from the environment, never hardcoded here.
+  // Local/dev falls back to throwaway values (the guard has already proven we
+  // are off any internet-facing environment before we reach this point).
+  const adminPassword = await bcrypt.hash(seedSecret(process.env, "SEED_DEMO_PASSWORD", "Admin@123"), 10);
+  const ownerPassword = await bcrypt.hash(seedSecret(process.env, "SEED_OWNER_PASSWORD", "ChangeMe!Local1"), 10);
 
   const owner = await upsertUser({
     email: "mohsin@skooleeai.com",
@@ -279,7 +283,7 @@ async function seedUsers(schoolId: string, campusId: string, campusIdx: number) 
     password: ownerPassword,
     schoolId,
   });
-  console.log(`  ✓ Owner: ${owner.email} / Hussain?512`);
+  console.log(`  ✓ Owner: ${owner.email} (password from SEED_OWNER_PASSWORD)`);
 
   // Super Admin is school-wide; attach to the first campus so dashboards load.
   const admin = await upsertUser({
@@ -290,7 +294,7 @@ async function seedUsers(schoolId: string, campusId: string, campusIdx: number) 
     schoolId,
     campusId: campusIdx === 0 ? campusId : undefined,
   });
-  if (campusIdx === 0) console.log(`  ✓ Super Admin: ${admin.email} / Admin@123`);
+  if (campusIdx === 0) console.log(`  ✓ Super Admin: ${admin.email} (password from SEED_DEMO_PASSWORD)`);
 
   // ── Per-campus leadership ──
   const campusAdmin = await upsertUser({
@@ -570,6 +574,27 @@ async function seedStudents(
     select: { id: true, rollNo: true, classId: true },
     orderBy: { rollNo: "asc" },
   });
+
+  // `db push` fixtures do not install the admission trigger from the enrollment
+  // migration. Populate the same initial ledger so dated registers can see the
+  // seeded pupils. Existing enrollment history is always left intact.
+  const withoutEnrollment = await prisma.student.findMany({
+    where: { campusId, enrollments: { none: {} } },
+    select: {
+      id: true, schoolId: true, campusId: true, classId: true, rollNo: true, enrollmentDate: true,
+      campus: { select: { name: true, board: true } },
+      class: { select: { name: true, section: true, academicYear: true } },
+    },
+  });
+  for (const batch of chunkRows(withoutEnrollment)) {
+    await prisma.studentEnrollment.createMany({ data: batch.map((student) => ({
+      id: `initial-${student.id}`, schoolId: student.schoolId, studentId: student.id,
+      campusId: student.campusId, classId: student.classId, campusName: student.campus.name,
+      className: [student.class.name, student.class.section].filter(Boolean).join(" "),
+      curriculum: student.campus.board || "Unspecified", academicYear: student.class.academicYear,
+      rollNo: student.rollNo, startDate: student.enrollmentDate, origin: "DEMO_SEED",
+    })), skipDuplicates: true });
+  }
 
   // Roll numbers are per-class; find the created first student to link logins.
   const linked = await prisma.student.findUnique({ where: { id: rows[0].id } });
@@ -956,10 +981,13 @@ async function seedFees(campusId: string, campusIdx: number, recordedById: strin
   const classFees = new Map(classes.map((c, i) => [c.id, 4000 + i * 300]));
 
   for (const cls of classes) {
-    await prisma.feeStructure.upsert({
-      where: { classId_activeFrom: { classId: cls.id, activeFrom: new Date(ACADEMIC_YEAR, 0, 1) } },
-      update: {},
-      create: {
+    // SKAI-1123: the unique key now includes a nullable academicYearId, so upsert-by-key is not available.
+    const existingStructure = await prisma.feeStructure.findFirst({
+      where: { classId: cls.id, academicYearId: null, activeFrom: new Date(ACADEMIC_YEAR, 0, 1) },
+      select: { id: true },
+    });
+    if (!existingStructure) await prisma.feeStructure.create({
+      data: {
         campusId,
         classId: cls.id,
         monthlyFee: classFees.get(cls.id) ?? 5000,
@@ -1256,7 +1284,10 @@ async function seedAIInsights(schoolId: string, campusId: string, campusName: st
 // ---------------------------------------------------------------------------
 
 async function main() {
-  console.log("🌱 Seeding database...");
+  // NFR-SEC-09 (SKAI-947): fail closed before writing anything if this is an
+  // internet-facing environment. Demo seed accounts must never exist there.
+  const decision = assertSeedAllowed(process.env);
+  console.log(`🌱 Seeding database... (${decision.reason})`);
 
   const { school, campuses } = await seedSchool();
 
@@ -1287,8 +1318,11 @@ async function main() {
 
   console.log("\n✅ Seeding complete!");
   console.log("");
-  console.log("   Login accounts (password Admin@123 unless noted):");
-  console.log("   - mohsin@skooleeai.com      / Hussain?512  → App Owner console (/owner)");
+  console.log("   Demo login accounts (passwords are NOT printed — NFR-SEC-09):");
+  console.log("   Owner password  = $SEED_OWNER_PASSWORD (fallback ChangeMe!Local1 in local dev)");
+  console.log("   Demo password   = $SEED_DEMO_PASSWORD  (fallback Admin@123 in local dev)");
+  console.log("");
+  console.log("   - mohsin@skooleeai.com      → App Owner console (/owner)");
   console.log("   - admin@demo.com            → Super Admin (/super)");
   console.log("");
   console.log("   Main Campus (/admin):");

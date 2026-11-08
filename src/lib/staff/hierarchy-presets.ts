@@ -255,7 +255,7 @@ export function isInstitutionType(value: unknown): value is InstitutionType {
 /** Track colours for chart nodes and rank chips. Kept out of the DB so a
  *  tenant's ladder inherits the palette without storing a hex on every row. */
 export const TRACK_TONES: Record<StaffTrack, { hex: string; chip: string; label: string }> = {
-  LEADERSHIP: { hex: "#8127cf", chip: "bg-[#fbf0fe] text-[#8127cf]", label: "Leadership" },
+  LEADERSHIP: { hex: "#8127cf", chip: "bg-brand-50 text-primary", label: "Leadership" },
   ACADEMIC: { hex: "#4f46e5", chip: "bg-indigo-50 text-indigo-600", label: "Academic" },
   // cyan-700, not cyan-600: this hex is painted onto 10px bold rank labels, and
   // cyan-600 sits at 3.68:1 on white — under AA for text that small.

@@ -4,6 +4,7 @@
 // ===========================================
 
 import { z } from "zod";
+import { isRealDate } from "./fields";
 
 // ─── DIAGRAM 2: Registration Flow ─────────────────────────
 
@@ -75,6 +76,10 @@ export const loginSchema = z.object({
   // Sent on the second attempt when one address holds accounts at more than
   // one school and the user has picked which to sign in to.
   schoolId: z.string().optional(),
+  // Display language picked on the login page. Invalid values are dropped,
+  // never rejected: a preference must not fail sign-in (design §B.1.3).
+  language: z.enum(["en", "ar", "ur"]).optional().catch(undefined),
+  languageSource: z.enum(["explicit", "cookie"]).optional().catch(undefined),
 });
 
 // Legacy combined onboarding (kept for existing routes)
@@ -157,7 +162,16 @@ export const studentSchema = z.object({
     });
   }
 
-  // Address is required
+  // SKAI-942: the guardian is the student's primary contact, so a name and phone are both required.
+  if (!data.guardianName || !data.guardianName.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["guardianName"],
+      message: "Guardian name is required",
+    });
+  }
+
+  // SKAI-943: address is required
   if (!data.address || !data.address.trim()) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -227,7 +241,8 @@ export const classSchema = z.object({
   academicYear: z.coerce.number().int().min(2000).max(2100),
   teacherId: z.string().optional(),
   classTeacherId: z.string().optional(),
-  capacity: z.coerce.number().int().min(1).default(40),
+  // SKAI-148: blank = not set; the route validates the range (parseClassCapacity).
+  capacity: z.union([z.number(), z.string(), z.null()]).optional(),
 });
 
 export const subjectSchema = z.object({
@@ -287,6 +302,7 @@ export const bulkMarksSchema = z.object({
     // An absent pupil still gets a row — the paper was set, they did not sit
     // it — so absence travels alongside the mark rather than instead of it.
     isAbsent: z.coerce.boolean().optional().default(false),
+    isExempt: z.coerce.boolean().optional().default(false),
   })).min(1),
 });
 
@@ -344,12 +360,23 @@ export const aiFeatureRequestSchema = z.object({
 
 export const reportActionSchema = z.object({
   examId: z.string().min(1),
-  action: z.enum(["generate", "pdf", "review", "publish", "send"]),
+  action: z.enum(["generate", "pdf", "approve", "review", "publish", "send"]),
+  versions: z.array(z.object({ reportCardId: z.string().min(1), versionId: z.string().min(1) })).max(500).optional(),
+  reviewerNote: z.string().max(4000).optional(),
+  correctionReason: z.string().max(1000).optional(),
 });
 
 export const reportRemarkSchema = z.object({
+  versionId: z.string().optional(),
+  requestCorrection: z.boolean().optional(),
+  correctionReason: z.string().max(1000).optional(),
+  reviewerNote: z.string().max(4000).optional(),
+  reportLanguage: z.enum(["en", "ar", "ur"]).optional(),
+  remarksAr: z.string().optional().nullable(),
   remarksEn: z.string().optional().nullable(),
   remarksUr: z.string().optional().nullable(),
+  // SKAI-1491: the remarks the editor loaded; a save against a newer draft is refused.
+  expectedRemarks: z.object({ remarksEn: z.string().nullable(), remarksUr: z.string().nullable(), remarksAr: z.string().nullable().optional() }).strict().optional(),
   approve: z.boolean().optional(),
 });
 
@@ -358,6 +385,9 @@ export const feeStructureSchema = z.object({
   campusId: z.string().optional(),
   classId: z.string().min(1),
   monthlyFee: z.coerce.number().int().min(0),
+  // SKAI-1154: regulator-approved monthly fee (minor units) and permit reference; null clears them.
+  approvedFee: z.coerce.number().int().min(0).nullable().optional(),
+  approvedFeeReference: z.string().trim().max(120).nullable().optional(),
   oneTimeFeesJson: z.string().optional(),
   installmentType: z.enum(["11-month", "6-month", "quarterly", "one-time"]).optional(),
   discountRulesJson: z.string().optional(),
@@ -372,7 +402,7 @@ export const feeStructureSchema = z.object({
 export const generateInvoicesSchema = z.object({
   campusId: z.string().optional(),
   classId: z.string().optional(),
-  generationMonth: z.string().min(1),
+  generationMonth: z.string().regex(/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/),
   includeLateFees: z.boolean().default(true),
 });
 
@@ -386,11 +416,18 @@ export const paymentSchema = z.object({
 });
 
 // Bank import
-export const bankImportSchema = z.object({
-  accountName: z.string().min(1),
-  statementFrom: z.string().min(1),
-  statementTo: z.string().min(1),
-});
+// A statement period names real calendar dates (2026-11-31 is refused, not rolled into December), and it runs forward.
+const statementDate = z.string().refine(isRealDate, "Use a real calendar date (YYYY-MM-DD).");
+export const bankImportSchema = z
+  .object({
+    accountName: z.string().min(1),
+    statementFrom: statementDate,
+    statementTo: statementDate,
+  })
+  .refine((v) => v.statementFrom <= v.statementTo, {
+    message: "The statement must end on or after its start date.",
+    path: ["statementTo"],
+  });
 
 // ─── Type exports ──────────────────────────────────────────
 export type SchoolGroupFormData = z.infer<typeof schoolGroupSchema>;

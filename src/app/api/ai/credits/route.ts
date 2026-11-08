@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getAICreditSnapshot } from "@/lib/ai/openai";
+import { isStaffRole } from "@/lib/roles";
 
 export async function GET() {
   try {
@@ -14,6 +15,10 @@ export async function GET() {
     const userId = user?.userId;
     if (!userId || !user) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    // School-wide AI usage is staff information; guardians and students have no AI features.
+    if (!isStaffRole(user.role) && user.role !== "SUPER_ADMIN") {
+      return Response.json({ error: "AI credits are not available for your role" }, { status: 403 });
     }
 
     const schoolId = user.schoolId;

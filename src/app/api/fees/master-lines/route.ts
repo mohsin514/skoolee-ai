@@ -1,6 +1,11 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import { writeAuditEvent } from "@/lib/audit-events";
+import { createMasterLine } from "@/lib/fees/master-line-command";
+import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // FeesMasterLine rows: priced (type, amount) inside a fee group.
 // Amounts arrive as paisa from the client (rupeesToPaisa before sending).
@@ -29,31 +34,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "fees", "edit");
 
-    const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    if (!body.feeGroupId || !body.feeTypeId) throw new ApiError("feeGroupId and feeTypeId required", 400);
-    const amount = Number(body.amount);
-    if (!Number.isInteger(amount) || amount < 0) throw new ApiError("amount must be a non-negative integer (paisa)", 400);
-
-    const [group, type] = await Promise.all([
-      prisma.feeGroup.findFirst({ where: { id: body.feeGroupId, campusId } }),
-      prisma.feeType.findFirst({ where: { id: body.feeTypeId, campusId } }),
-    ]);
-    if (!group) throw new ApiError("Fee group not found", 404);
-    if (!type) throw new ApiError("Fee type not found", 404);
-
-    const existing = await prisma.feesMasterLine.findUnique({
-      where: { feeGroupId_feeTypeId: { feeGroupId: body.feeGroupId, feeTypeId: body.feeTypeId } },
-    });
-    if (existing) throw new ApiError("This fee type already exists in the group", 409);
-
-    const line = await prisma.feesMasterLine.create({
-      data: { campusId, feeGroupId: body.feeGroupId, feeTypeId: body.feeTypeId, amount, dueDate: body.dueDate ? new Date(body.dueDate) : null },
-      include: { feeType: { select: { id: true, name: true, code: true } } },
-    });
+    const body = await parseBody(req, jsonObjectBody);
+    const line = await createMasterLine(user, body);
     return Response.json({ success: true, data: line }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[fees/master-lines] POST failed");
@@ -63,11 +48,10 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "fees", "edit");
 
-    const body = await req.json();
-    if (!body.id) throw new ApiError("id required", 400);
+    const body = await parseBody(req, idBody);
 
     const existing = await prisma.feesMasterLine.findFirst({ where: { id: body.id, ...scopedCampusWhere(user) } });
     if (!existing) throw new ApiError("Master line not found", 404);
@@ -77,13 +61,17 @@ export async function PATCH(req: NextRequest) {
       throw new ApiError("amount must be a non-negative integer (paisa)", 400);
     }
 
-    const line = await prisma.feesMasterLine.update({
-      where: { id: body.id },
-      data: {
-        amount,
-        dueDate: body.dueDate !== undefined ? (body.dueDate ? new Date(body.dueDate) : null) : undefined,
-      },
-      include: { feeType: { select: { id: true, name: true, code: true } } },
+    const line = await prisma.$transaction(async (tx) => {
+      const next = await tx.feesMasterLine.update({
+        where: { id: body.id },
+        data: {
+          amount,
+          dueDate: body.dueDate !== undefined ? (body.dueDate ? new Date(body.dueDate) : null) : undefined,
+        },
+        include: { feeType: { select: { id: true, name: true, code: true } } },
+      });
+      await writeAuditEvent(tx, user, { table: "fees_master_lines", recordId: next.id, action: "UPDATE", campusId: existing.campusId, before: { amount: existing.amount, dueDate: existing.dueDate?.toISOString() ?? null }, after: { amount: next.amount, dueDate: next.dueDate?.toISOString() ?? null } });
+      return next;
     });
     return Response.json({ success: true, data: line });
   } catch (error) {
@@ -92,20 +80,5 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
-        await assertPermission(user, "fees", "delete");
-
-    const id = new URL(req.url).searchParams.get("id");
-    if (!id) throw new ApiError("id required", 400);
-
-    const existing = await prisma.feesMasterLine.findFirst({ where: { id, ...scopedCampusWhere(user) } });
-    if (!existing) throw new ApiError("Master line not found", 404);
-
-    await prisma.feesMasterLine.delete({ where: { id } });
-    return Response.json({ success: true });
-  } catch (error) {
-    return errorResponse(error, "[fees/master-lines] DELETE failed");
-  }
+  return operationDeleteResponse(req, "fees/master-lines");
 }

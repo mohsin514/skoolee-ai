@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 /**
@@ -56,6 +56,27 @@ export interface NavGuard {
 export function useNavGuard(dirty: boolean, message: string): NavGuard {
   const router = useRouter();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const traversal = useRef<string | null>(null);
+  const allowTraversal = useRef(false);
+  // Navigation API lets supported browsers cancel Back/Forward before the
+  // route unmounts. Other browsers still preserve the eligible tab draft.
+  useEffect(() => {
+    if (!dirty) return;
+    type NavigationEvent = Event & { navigationType: string; destination: { url: string; key: string } };
+    const navigation = (window as Window & { navigation?: EventTarget }).navigation;
+    if (!navigation) return;
+    const onNavigate = (raw: Event) => {
+      const event = raw as NavigationEvent;
+      if (allowTraversal.current) { allowTraversal.current = false; return; }
+      if (event.navigationType !== "traverse" || !event.cancelable) return;
+      const target = new URL(event.destination.url);
+      if (target.pathname === location.pathname && target.search === location.search) return;
+      event.preventDefault(); traversal.current = event.destination.key;
+      setPendingHref(event.destination.url);
+    };
+    navigation.addEventListener("navigate", onNavigate);
+    return () => navigation.removeEventListener("navigate", onNavigate);
+  }, [dirty]);
 
   useEffect(() => {
     if (!dirty) {
@@ -67,15 +88,18 @@ export function useNavGuard(dirty: boolean, message: string): NavGuard {
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
       const trigger = target?.closest<HTMLElement>("a[href],[data-href]");
-      if (!trigger) return;
+      if (!trigger || trigger.hasAttribute("download") || trigger.getAttribute("target") === "_blank") return;
 
       const href = trigger.getAttribute("href") || trigger.getAttribute("data-href");
       if (!href || href.startsWith("#")) return;
       // Same URL is not a navigation.
-      if (href === window.location.pathname) return;
+      const destination = new URL(href, window.location.href);
+      if (!["http:", "https:"].includes(destination.protocol)) return;
+      if (destination.pathname === window.location.pathname && destination.search === window.location.search) return;
 
       event.preventDefault();
       event.stopPropagation();
+      traversal.current = null;
       setPendingHref(href);
     };
     document.addEventListener("click", onClick, true);
@@ -84,14 +108,23 @@ export function useNavGuard(dirty: boolean, message: string): NavGuard {
 
   const proceed = useCallback(() => {
     const href = pendingHref;
+    if (traversal.current) {
+      const navigation = (window as Window & { navigation?: { traverseTo: (key: string) => unknown } }).navigation;
+      const key = traversal.current; traversal.current = null; setPendingHref(null);
+      if (navigation) { allowTraversal.current = true; navigation.traverseTo(key); return; }
+    }
     setPendingHref(null);
     // The guard reads `dirty` from the render that registered the listener, so
     // navigating on the next tick lets the caller clear its dirty state first
     // if it wants to.
-    if (href) router.push(href);
+    if (href) {
+      const destination = new URL(href, window.location.href);
+      if (destination.origin === window.location.origin) router.push(href);
+      else window.location.assign(destination.href);
+    }
   }, [pendingHref, router]);
 
-  const cancel = useCallback(() => setPendingHref(null), []);
+  const cancel = useCallback(() => { traversal.current = null; setPendingHref(null); }, []);
 
   return { pendingHref, message, proceed, cancel };
 }

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { campusScope } from "@/lib/auth/policy";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
     if (!Number.isInteger(requestedYear) || requestedYear < 2000) throw new ApiError("invalid academicYear", 400);
 
     const student = await prisma.student.findFirst({
-      where: { id: studentId, campus: { schoolId: user.schoolId } },
+      where: { id: studentId, ...campusScope(user) },
       select: {
         id: true,
         fullName: true,
@@ -61,13 +62,13 @@ export async function GET(req: NextRequest) {
       const categoryDiscounts = student.categoryId
         ? await prisma.feeDiscount.findMany({
             where: { campusId: student.campusId, categoryId: student.categoryId },
-            select: { id: true, name: true, code: true, type: true, value: true },
+            select: { id: true, name: true, code: true, type: true, value: true, currency: true },
           })
         : [];
 
       const explicitDiscounts = await prisma.feeDiscountAssignment.findMany({
         where: { studentId: student.id },
-        include: { discount: { select: { id: true, name: true, code: true, type: true, value: true } } },
+        include: { discount: { select: { id: true, name: true, code: true, type: true, value: true, currency: true } } },
       });
 
       const seen = new Set(categoryDiscounts.map((d) => d.id));
@@ -82,12 +83,15 @@ export async function GET(req: NextRequest) {
         where: { studentId_toAcademicYear: { studentId: student.id, toAcademicYear: requestedYear } },
       });
 
+      const currency = assignment.feeGroup.currency;
+      if (discounts.some((d) => d.type === "FLAT" && d.currency !== currency) || (carryForward && carryForward.balance !== 0 && carryForward.currency !== currency)) throw new ApiError("Currencies cannot be combined in fee resolution", 409);
       const resolved = resolveStudentFees(lines, discounts, carryForward?.balance ?? 0);
 
       return Response.json({
         success: true,
         data: {
           mode: "layers",
+          currency,
           student: { id: student.id, fullName: student.fullName, rollNo: student.rollNo },
           feeGroup: { id: assignment.feeGroup.id, name: assignment.feeGroup.name },
           academicYear: requestedYear,
@@ -144,6 +148,7 @@ export async function GET(req: NextRequest) {
       success: true,
       data: {
         mode: "legacy",
+        currency: legacy.currency,
         student: { id: student.id, fullName: student.fullName, rollNo: student.rollNo },
         legacyStructure: { id: legacy.id, activeFrom: legacy.activeFrom },
         academicYear: requestedYear,

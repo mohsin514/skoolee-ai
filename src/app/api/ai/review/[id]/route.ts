@@ -4,12 +4,16 @@ import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import { assertPermission } from "@/lib/permissions";
+import { canLeadAcademics } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** Coarse role pre-check; the decision itself needs the academic lead seat on the item's campus (G42). */
 function canReviewAI(user: AuthUser) {
-  return user.role === "SUPER_ADMIN" || user.role === "PRINCIPAL" || isCampusAdminRole(user.role);
+  return user.role === "PRINCIPAL" || isCampusAdminRole(user.role);
 }
 
 function stringFromDraft(draft: unknown, key: string) {
@@ -32,7 +36,7 @@ export async function PATCH(
     }
     await assertPermission(user, "ai", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const action = body?.action;
     if (action !== "approve" && action !== "reject") {
       return Response.json({ error: "action must be approve or reject" }, { status: 400 });
@@ -48,6 +52,11 @@ export async function PATCH(
     });
 
     if (!item) return Response.json({ error: "Review item not found" }, { status: 404 });
+    // G42: AI-written remarks and insights are approved by the academic lead — the principal, or a campus
+    // operator only while the campus has no principal. The group admin no longer reviews campus AI drafts (M5).
+    if (!(await canLeadAcademics(user, item.campusId))) {
+      return Response.json({ error: "AI drafts are reviewed by your principal." }, { status: 403 });
+    }
     if (item.status !== "PENDING") {
       return Response.json({ error: "Review item is already closed" }, { status: 409 });
     }
@@ -66,31 +75,11 @@ export async function PATCH(
       });
 
       if (item.relatedType === "REPORT_CARD") {
-        if (action === "approve") {
-          await tx.reportCard.update({
-            where: { id: item.relatedId },
-            data: {
-              remarksEn: stringFromDraft(item.draft, "remarkEn"),
-              remarksUr: stringFromDraft(item.draft, "remarkUr"),
-              remarksApproved: true,
-              approvedBy: user.userId,
-              approvedAt: now,
-              status: "REVIEWED",
-              pdfUrl: null,
-            },
-          });
-        } else {
-          await tx.reportCard.update({
-            where: { id: item.relatedId },
-            data: {
-              remarksApproved: false,
-              approvedBy: null,
-              approvedAt: null,
-              status: "GENERATED",
-              pdfUrl: null,
-            },
-          });
-        }
+        // AI draft review is not approval of the final document version.
+        await tx.reportCard.update({ where: { id: item.relatedId }, data: {
+          ...(action === "approve" ? { remarksEn: stringFromDraft(item.draft, "remarkEn"), remarksUr: stringFromDraft(item.draft, "remarkUr") } : {}),
+          remarksApproved: false, approvedBy: null, approvedAt: null, pdfUrl: null,
+        } });
       }
 
       if (item.relatedType === "AI_INSIGHT") {
@@ -106,14 +95,10 @@ export async function PATCH(
       }
 
       if (item.relatedType === "INTERVENTION_PLAN") {
-        await tx.interventionPlan.update({
-          where: { id: item.relatedId },
-          data: {
-            status,
-            approvedBy: action === "approve" ? user.userId : null,
-            approvedAt: action === "approve" ? now : null,
-          },
-        });
+        // SKO-425: approving AI text keeps the plan an editable draft; activation needs a
+        // leader, evidence, a goal, an owner and dates (src/lib/learning/actions.ts).
+        if (action === "reject") await tx.interventionPlan.updateMany({ where: { id: item.relatedId, status: "DRAFT" }, data: { status: "REJECTED" } });
+        await tx.interventionEvent.create({ data: { schoolId: user.schoolId, planId: item.relatedId, version: 1, kind: action === "approve" ? "SUGGESTION_REVIEWED" : "SUGGESTION_REJECTED", actorId: user.userId } });
       }
 
       await tx.aIUsageLog.updateMany({
@@ -131,6 +116,10 @@ export async function PATCH(
 
     return Response.json({ success: true, reviewItem: updated });
   } catch (error) {
+    const status = (error as { status?: unknown })?.status;
+    if (typeof status === "number" && status >= 400 && status < 500) {
+      return Response.json({ error: error instanceof Error ? error.message : "Insufficient permissions" }, { status });
+    }
     console.error("[ai/review/[id]] PATCH failed", error);
     return Response.json({ error: "Operation failed" }, { status: 500 });
   }

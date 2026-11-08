@@ -1,93 +1,154 @@
 'use client'
 
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { CheckCircle, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
-import SkooleeLogo from "@/components/SkooleeLogo";
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { ArrowRight, Check, CirclePause, ShieldCheck } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { useAuthLanguage } from '@/components/locale/AuthLocaleProvider';
+import { AuthShell } from '@/components/auth/AuthShell';
+import { AuthTopBar } from '@/components/auth/AuthTopBar';
+import { AuthMascot } from '@/components/auth/AuthMascot';
+import { WaxSeal } from '@/components/auth/WaxSeal';
+import { CountdownRing } from '@/components/auth/CountdownRing';
+import { useCountdown } from '@/components/auth/use-countdown';
+import { authCopy } from '@/lib/auth/auth-copy';
+import { fillText } from '@/lib/auth/fill-nodes';
+import type { Language } from '@/lib/locale/package';
+
+/** Seconds before the page opens sign in on its own (WCAG 2.2.1: "Stay on this page" pauses it). */
+const REDIRECT_SECONDS = 5;
+
+type VerifyCopy = {
+  eyebrow: string; title: string; body: string; continue: string; redirect: string; complete: string;
+  stay: string; paused: string; pausedBody: string;
+};
+
+// The eyebrow names what changed (the verify route sets isActive before it
+// redirects here), so it never repeats the h1: in ur the old eyebrow and the
+// title were the identical string, stacked one above the other.
+const copy: Record<Language, VerifyCopy> = {
+  en: {
+    eyebrow: "Account activated",
+    title: "Email verified",
+    body: "Your email address has been confirmed. Sign in to continue setting up or using your school account.",
+    continue: "Continue to Login",
+    redirect: "Auto-redirecting in {0}s",
+    complete: "Email confirmation complete",
+    stay: "Stay on this page",
+    paused: "Redirect paused.",
+    pausedBody: "Continue whenever you’re ready.",
+  },
+  ar: {
+    eyebrow: "تم تفعيل الحساب",
+    title: "تم التحقق من البريد الإلكتروني",
+    body: "تم تأكيد عنوان بريدك الإلكتروني. سجّل الدخول لمتابعة إعداد حساب مدرستك أو استخدامه.",
+    continue: "المتابعة لتسجيل الدخول",
+    redirect: "إعادة التوجيه تلقائياً خلال {0} ث",
+    complete: "اكتمل تأكيد البريد الإلكتروني",
+    stay: "البقاء في هذه الصفحة",
+    paused: "تم إيقاف إعادة التوجيه.",
+    pausedBody: "تابع متى كنت مستعداً.",
+  },
+  ur: {
+    eyebrow: "اکاؤنٹ فعال ہو گیا",
+    title: "ای میل کی تصدیق ہو گئی",
+    body: "آپ کے ای میل ایڈریس کی تصدیق ہو گئی ہے۔ اپنے اسکول اکاؤنٹ کو سیٹ اپ کرنے یا استعمال کرنے کے لیے سائن اِن کریں۔",
+    continue: "سائن اِن پر جائیں",
+    redirect: "{0} سیکنڈ میں خودکار طور پر منتقل کیا جا رہا ہے",
+    complete: "ای میل کی تصدیق مکمل",
+    stay: "اسی صفحے پر رہیں",
+    paused: "خودکار منتقلی روک دی گئی۔",
+    pausedBody: "جب تیار ہوں، آگے بڑھیں۔",
+  },
+};
 
 export default function VerifySuccessPage() {
   const router = useRouter();
-  const [countdown, setCountdown] = useState(5);
+  const { language, setLanguage } = useAuthLanguage();
+  const t = copy[language];
+  const ac = authCopy[language];
+  const continueRef = useRef<HTMLAnchorElement>(null);
+  // One interval, cleared on pause, at zero and on unmount, so an early click
+  // on "Continue to Login" never leaves a timer to hijack a later navigation.
+  const { remaining, running, pause } = useCountdown(REDIRECT_SECONDS);
+  const paused = !running && remaining > 0;
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    if (remaining === 0) router.push('/login');
+  }, [remaining, router]);
 
-    return () => clearInterval(timer);
-  }, []);
+  const stay = () => {
+    pause();
+    // The button unmounts with this render; focus lands on the one next step.
+    continueRef.current?.focus();
+  };
 
+  // Switching language means the visitor is reading this page: hold the
+  // redirect so it never fires mid-read (focus stays on the picker).
+  const changeLanguage = (next: Language) => {
+    pause();
+    setLanguage(next);
+  };
+
+  // WCAG 2.2.1: five seconds is less than a keyboard or screen-reader user
+  // needs to Tab to "Stay on this page" (the third stop). The first Tab is
+  // the visitor taking over, so it holds the redirect; Continue to Login is
+  // then the next step, one Tab later.
   useEffect(() => {
-    if (countdown === 0) {
-      router.push('/login');
-    }
-  }, [countdown, router]);
+    if (!running) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Tab') pause(); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [running, pause]);
 
   return (
-    <main className="w-full h-screen grid grid-cols-1 md:grid-cols-2 overflow-hidden bg-[#fff7fe] font-sans">
-      
-      {/* ─── LEFT SIDE: Visual Narrative ─── */}
-      <section className="hidden md:block relative overflow-hidden h-screen">
-        <div className="absolute inset-0 bg-emerald-500/10 mix-blend-multiply z-10"></div>
-        <Image src="/login.svg" alt="Skoolee Verification" fill className="object-cover" priority />
-        <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/20 to-transparent z-20"></div>
-        <div className="absolute bottom-12 left-12 z-30 max-w-md">
-          <div className="bg-white/70 backdrop-blur-[24px] p-8 rounded-xl border border-white/20 shadow-2xl">
-            <span className="text-[12px] font-bold tracking-normal text-emerald-600 uppercase mb-2 block">Identity Confirmed</span>
-            <h2 className="text-3xl font-extrabold text-[#1f1a23] leading-tight mb-4">"Trust is the glue of life. It’s the most essential ingredient in effective communication."</h2>
-            <p className="text-ink font-medium text-sm">Your institutional authority has been verified. Welcome to the Skoolee ecosystem.</p>
-          </div>
+    <AuthShell
+      language={language}
+      layout="center"
+      topBar={<AuthTopBar languageId="verify-language" label={ac.language} value={language} onChange={changeLanguage} />}
+      footer={
+        // ink-muted, not ink-subtle: this 12px line sits in the card's lilac
+        // shadow halo, where ink-subtle measures 3.6–4.2:1 (below AA).
+        <p className="sk-fade-in mt-8 flex items-center justify-center gap-2 text-center text-xs font-medium text-ink-muted" style={{ "--sk-delay": "210ms" } as CSSProperties}>
+          <ShieldCheck aria-hidden className="size-4 shrink-0 text-status-success-text" /> {t.complete}
+        </p>
+      }
+    >
+      {/* The ONE face. The server renders it idle; after mount it tosses its cap once (the page's single ceremony).
+          mt-14, not mt-6: the toss rises ~1.1em above the seated cap, and in RTL the language
+          select sits right over the first "o", so a tighter gap flies the cap across the select. */}
+      <AuthMascot className="sk-enter mt-14" signals={{ celebrate: true }} />
+
+      <div className="sk-enter-scale sk-panel sk-gradient-border mt-7 flex flex-col items-center p-6 text-center shadow-xl sm:p-9">
+        <WaxSeal size={72} finish="wax" state="press" className="mb-4" />
+        <p className="sk-eyebrow inline-flex items-center gap-1.5 rounded-full bg-status-success-surface px-3 py-1 text-status-success-text">
+          <Check aria-hidden className="size-3.5 shrink-0" strokeWidth={2.5} />{t.eyebrow}
+        </p>
+        {/* Static wrapper: the heading's parent carries no transform (pinned). */}
+        <div className="mt-5">
+          <h1 className="text-2xl font-bold tracking-tight text-ink-strong text-balance sm:text-3xl">{t.title}</h1>
+          <p className="mt-3 px-2 text-md leading-relaxed text-ink-muted text-balance">{t.body}{paused ? ` ${t.pausedBody}` : ""}</p>
         </div>
-      </section>
 
-      {/* ─── RIGHT SIDE: Interaction Canvas ─── */}
-      <section className="flex flex-col items-center justify-center p-6 md:p-8 bg-[#f6fdf9] relative h-screen overflow-y-auto w-full">
-        <div className="w-full max-w-md">
-          
-          <div className="flex flex-col items-center mb-10">
-            <div className="mb-4">
-              <SkooleeLogo size="1.6rem" />
-            </div>
-            <div className="h-1 w-12 bg-emerald-500 rounded-full"></div>
+        <Link ref={continueRef} href="/login" className={buttonVariants({ size: "lg", className: "sk-nudge-trigger mt-8 w-full" })}>
+          {t.continue}
+          <span aria-hidden className="sk-nudge inline-flex">
+            <ArrowRight className="size-4 rtl:rotate-180" />
+          </span>
+        </Link>
+
+        {/* The card's foot: the redirect status and its pause, on a quiet tinted strip. */}
+        <div className="-mx-6 -mb-6 mt-8 flex min-h-16 flex-wrap items-center justify-center gap-x-3 gap-y-1 self-stretch rounded-b-[calc(var(--radius-panel)-1px)] border-t border-border-subtle bg-surface-subtle px-4 py-2.5 sm:-mx-9 sm:-mb-9 sm:mt-9 sm:gap-x-4 sm:px-9">
+          <div role="status" aria-atomic="true" className="flex items-center gap-2 text-xs font-medium tabular-nums text-ink-muted">
+            {paused
+              ? <CirclePause aria-hidden className="size-4 shrink-0 text-ink-subtle" />
+              : <CountdownRing total={REDIRECT_SECONDS} remaining={remaining} tone="success" />}
+            {paused ? t.paused : fillText(t.redirect, remaining)}
           </div>
-
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }} 
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-[#ffffff] rounded-[40px] p-10 text-center shadow-xl border border-emerald-100 flex flex-col items-center"
-          >
-            <div className="w-20 h-20 bg-emerald-50 rounded-[32px] flex items-center justify-center text-emerald-500 mb-8 shadow-inner">
-              <CheckCircle className="w-12 h-12" />
-            </div>
-            
-            <h2 className="text-3xl font-extrabold text-[#1f1a23] mb-4 tracking-normal">Authority Verified</h2>
-            <p className="text-sm font-medium text-ink mb-10 leading-relaxed px-2">
-              Your email identity has been synchronized with the institutional registry. You now have full access to your command console.
-            </p>
-
-            <Link href="/login" className="w-full h-16 bg-emerald-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-200/50 group">
-              Continue to Login <ArrowRight className="h-5 w-5 group-hover:translate-x-1" />
-            </Link>
-
-            <div className="mt-8 flex items-center gap-3 text-ink-subtle font-bold text-[10px] uppercase tracking-normal">
-               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Auto-redirecting in {countdown}s
-            </div>
-          </motion.div>
-
-          <p className="mt-8 text-center text-xs font-bold text-ink-subtle uppercase tracking-normal flex items-center justify-center gap-2">
-            <ShieldCheck className="w-4 h-4" /> End-to-End Encryption Verified
-          </p>
+          {!paused && <Button variant="ghost" size="sm" type="button" className="text-primary" onClick={stay}>{t.stay}</Button>}
         </div>
-      </section>
-    </main>
+      </div>
+    </AuthShell>
   );
 }

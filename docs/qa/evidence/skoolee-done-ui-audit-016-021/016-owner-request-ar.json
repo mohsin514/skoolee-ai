@@ -1,0 +1,47 @@
+{
+  "surface": "016-owner-request",
+  "status": 200,
+  "title": "Platform Owner | SkooleeAI",
+  "headings": [
+    "وصول الدعم المسجّل",
+    "طلب وصول محدود النطاق",
+    "الحوادث والموافقات"
+  ],
+  "dimensions": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "noOverflow": true,
+      "dir": "rtl",
+      "lang": "ar",
+      "screenshot": "016-owner-request-ar-1440.png"
+    },
+    {
+      "width": 768,
+      "height": 1024,
+      "scrollWidth": 768,
+      "noOverflow": true,
+      "dir": "rtl",
+      "lang": "ar",
+      "screenshot": "016-owner-request-ar-768.png"
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "noOverflow": true,
+      "dir": "rtl",
+      "lang": "ar",
+      "screenshot": "016-owner-request-ar-390.png"
+    }
+  ],
+  "focus": {
+    "tag": "BUTTON",
+    "text": "المدارس",
+    "visible": true,
+    "outlineStyle": "solid",
+    "outlineWidth": "2px"
+  },
+  "pageErrors": []
+}

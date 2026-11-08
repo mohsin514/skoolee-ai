@@ -32,8 +32,12 @@ import {
   type StaffEmploymentType,
 } from "@prisma/client";
 import { prisma, tenantTransaction, type TxClient } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { ApiError } from "@/lib/api/scope";
+import { getLocalePackage } from "@/lib/locale/store";
+import type { LocalePackage } from "@/lib/locale/package";
+import { salaryChangeDetail } from "@/lib/staff/salary-detail";
 import type { AuthUser } from "@/lib/auth";
 import {
   ENDED_STATUSES,
@@ -54,7 +58,7 @@ const MAX_CHAIN_DEPTH = 64;
  * working around it.
  */
 function inTenant<T>(user: AuthUser, fn: (tx: TxClient) => Promise<T>): Promise<T> {
-  return runWithTenantContext({ schoolId: user.schoolId, userId: user.userId }, () =>
+  return runWithTenantContext({ schoolId: user.schoolId, userId: user.userId, campusId: user.campusId, role: user.role }, () =>
     tenantTransaction(fn)
   );
 }
@@ -115,6 +119,7 @@ export async function applyInstitutionPreset(opts: {
       });
       rankIdByName.set(created.name.toLowerCase(), created.id);
       designationsAdded += 1;
+      await writeAuditEvent(tx, opts.user, { table: "staff_designations", recordId: created.id, action: "CREATE", after: { level: seed.level, track: seed.track, isInstitutionHead: isHead, preset: opts.type } });
     }
 
     // Second pass: the ladder's own links, now that every rank has an id.
@@ -160,12 +165,15 @@ export async function applyInstitutionPreset(opts: {
       });
       unitIdByName.set(created.name.toLowerCase(), created.id);
       departmentsAdded += 1;
+      await writeAuditEvent(tx, opts.user, { table: "departments", recordId: created.id, action: "CREATE", campusId: opts.campusId, after: { kind: seed.kind, parentId, preset: opts.type } });
     }
 
+    const previous = await tx.school.findUnique({ where: { id: opts.user.schoolId }, select: { institutionType: true } });
     await tx.school.update({
       where: { id: opts.user.schoolId },
       data: { institutionType: opts.type },
     });
+    await writeAuditEvent(tx, opts.user, { table: "schools", recordId: opts.user.schoolId, action: "UPDATE", before: { institutionType: previous?.institutionType ?? null }, after: { institutionType: opts.type, designationsAdded, departmentsAdded } });
 
     return { designationsAdded, departmentsAdded };
   });
@@ -322,7 +330,7 @@ function inferChangeKind(before: PositionSnapshot | null, after: PositionSnapsho
 }
 
 /** Human-readable summary for the staff timeline. */
-function describeChange(before: PositionSnapshot | null, after: PositionSnapshot): string {
+function describeChange(before: PositionSnapshot | null, after: PositionSnapshot, locale: LocalePackage): string {
   const parts: string[] = [];
   const moved = (label: string, a: string | null, b: string | null) => {
     if ((a ?? "") === (b ?? "")) return;
@@ -339,9 +347,7 @@ function describeChange(before: PositionSnapshot | null, after: PositionSnapshot
     parts.push(`Status: ${before.employmentStatus} → ${after.employmentStatus}`);
   }
   if (before && before.basicSalary !== after.basicSalary) {
-    parts.push(
-      `Basic salary: Rs. ${(before.basicSalary / 100).toLocaleString("en-PK")} → Rs. ${(after.basicSalary / 100).toLocaleString("en-PK")}`
-    );
+    parts.push(`Basic salary: ${salaryChangeDetail(before.basicSalary, after.basicSalary, locale)}`);
   }
 
   return parts.join(" · ");
@@ -399,6 +405,10 @@ export async function setStaffPosition(opts: {
         select: { id: true, fullName: true },
       });
       if (!manager) throw new ApiError("That manager is not an active member of this school", 400);
+      // SKO-399: two simultaneous changes (A→B and B→A) would each pass the walk below on their own
+      // snapshot. One school-wide lock per transaction serialises reporting changes, so the second sees
+      // the first and is refused as a loop.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`staff-reporting:${user.schoolId}`}))`;
       await assertNoReportingCycle(tx, userId, manager.id);
     }
 
@@ -474,7 +484,7 @@ export async function setStaffPosition(opts: {
     // the rank itself moves.
     if (rankMoved || !existing) profileData.rankSince = effectiveFrom;
 
-    await tx.staffProfile.upsert({
+    const profile = await tx.staffProfile.upsert({
       where: { userId },
       create: {
         userId,
@@ -512,6 +522,9 @@ export async function setStaffPosition(opts: {
           data: { userId, departmentId: after.departmentId, role: "MEMBER", isPrimary: true, startedAt: effectiveFrom },
         });
       }
+    } else if (has("primaryDepartmentId")) {
+      // SKAI-1567: "No department" clears the primary designation too; the membership itself stays.
+      await tx.departmentMember.updateMany({ where: { userId, isPrimary: true, endedAt: null }, data: { isPrimary: false } });
     }
 
     // Someone who has left holds no posts and no reports' lines should point
@@ -528,7 +541,15 @@ export async function setStaffPosition(opts: {
       });
     }
 
+    // Ids, states and amounts only; names and notes stay in the appointment.
+    const auditPosition = (appointmentId: string | null) => writeAuditEvent(tx, user, {
+      table: "staff_profiles", recordId: profile.id, action: existing ? "UPDATE" : "CREATE", campusId: staff.campusId,
+      ...(before ? { before: { designationId: before.designationId, level: before.level, departmentId: before.departmentId, reportsToId: before.reportsToId, employmentType: before.employmentType, employmentStatus: before.employmentStatus, basicSalary: before.basicSalary } } : {}),
+      after: { userId, designationId: after.designationId, level: after.level, departmentId: after.departmentId, reportsToId: after.reportsToId, employmentType: after.employmentType, employmentStatus: after.employmentStatus, basicSalary: after.basicSalary, changeKind, appointmentId, effectiveFrom: effectiveFrom.toISOString() },
+    });
+
     if (!changeKind) {
+      await auditPosition(null);
       return { appointment: null, changeKind: null };
     }
 
@@ -565,11 +586,12 @@ export async function setStaffPosition(opts: {
         userId,
         kind: "DESIGNATION",
         title: CHANGE_TITLES[changeKind],
-        detail: describeChange(before, after) || null,
+        detail: describeChange(before, after, await getLocalePackage(user.schoolId, staff.campusId, new Date(), undefined, tx)) || null,
         actorId: user.userId,
       },
     });
 
+    await auditPosition(appointment.id);
     return { appointment, changeKind };
   });
 }
@@ -631,6 +653,7 @@ export async function setDepartmentHead(opts: {
 
     if (!userId) {
       await tx.department.update({ where: { id: departmentId }, data: { headId: null } });
+      await writeAuditEvent(tx, user, { table: "departments", recordId: departmentId, action: "UPDATE", campusId: department.campusId, before: { headId: department.headId }, after: { headId: null } });
       return { headId: null };
     }
 
@@ -666,6 +689,7 @@ export async function setDepartmentHead(opts: {
     }
 
     await tx.department.update({ where: { id: departmentId }, data: { headId: userId } });
+    await writeAuditEvent(tx, user, { table: "departments", recordId: departmentId, action: "UPDATE", campusId: department.campusId, before: { headId: department.headId }, after: { headId: userId, isActing: opts.isActing ?? false } });
 
     await tx.staffTimelineEvent.create({
       data: {
@@ -707,16 +731,16 @@ export async function setDepartmentMembership(opts: {
       await tx.staffProfile.updateMany({ where: { userId }, data: { primaryDepartmentId: departmentId } });
     }
 
-    if (existing) {
-      return tx.departmentMember.update({
-        where: { id: existing.id },
-        data: { role, ...(opts.isPrimary === undefined ? {} : { isPrimary: opts.isPrimary }) },
-      });
-    }
-
-    return tx.departmentMember.create({
-      data: { departmentId, userId, role, isPrimary: opts.isPrimary ?? false },
-    });
+    const member = existing
+      ? await tx.departmentMember.update({
+          where: { id: existing.id },
+          data: { role, ...(opts.isPrimary === undefined ? {} : { isPrimary: opts.isPrimary }) },
+        })
+      : await tx.departmentMember.create({
+          data: { departmentId, userId, role, isPrimary: opts.isPrimary ?? false },
+        });
+    await writeAuditEvent(tx, user, { table: "department_members", recordId: member.id, action: existing ? "UPDATE" : "CREATE", after: { departmentId, userId, role: member.role, isPrimary: member.isPrimary } });
+    return member;
   });
 }
 

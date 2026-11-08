@@ -1,10 +1,12 @@
-import { Worker, Job } from "bullmq";
+import { runAsCurrentActor } from "@/lib/auth/job-policy";
+import { Worker, Job, UnrecoverableError } from "bullmq";
 import type { Prisma } from "@prisma/client";
 import { redis } from "@/lib/queue/connection";
 import { prisma } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { consumeAICreditAndLog, ensureAICreditsAvailable, generateRemark, getAIModel } from "@/lib/ai/openai";
 import { isLockedStatus } from "@/lib/academic/report-cards";
+import { isRemarkFrozen } from "@/lib/ai/remark-policy";
 import type { RemarkJobData } from "@/lib/queue/queues";
 
 function jsonValue(value: unknown): Prisma.InputJsonValue {
@@ -15,7 +17,8 @@ const worker = new Worker<RemarkJobData>(
   "ai-remarks",
   async (job: Job<RemarkJobData>) => {
     const { tenantId, userId } = job.data;
-    // A queue job has no session, so the school travels on the job payload.
+    if (userId) return runAsCurrentActor(tenantId, userId, "ai", "add", () => processRemark(job));
+    // Trusted school automation identity when no human actor is attached.
     return runWithTenantContext({ schoolId: tenantId, userId }, () => processRemark(job));
   },
   {
@@ -39,8 +42,15 @@ async function processRemark(job: Job<RemarkJobData>) {
     }
 
     const student = await prisma.student.findUnique({ where: { id: studentId } });
-    if (!student || student.campusId !== exam.campusId) {
+    if (!student || (student.campusId !== exam.campusId || student.classId !== exam.classId)) {
       throw new Error(`Student ${studentId} not found`);
+    }
+
+    // SKAI-738: a rerun must not replace remarks a teacher approved or a family has already received,
+    // and must not spend credits trying. Unrecoverable, so the queue does not retry it either.
+    const existing = await prisma.reportCard.findUnique({ where: { studentId_examId: { studentId, examId } }, select: { remarksApproved: true, status: true, publishedVersionId: true } });
+    if (existing && isRemarkFrozen(existing)) {
+      throw new UnrecoverableError("This report card's remarks are approved or published. Reopen it before generating a new draft.");
     }
 
     const marks = await prisma.mark.findMany({

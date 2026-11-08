@@ -1,0 +1,350 @@
+/* ═══ The walkthrough guide in the Front Desk language (2026-10-21) ═══
+   Same vocabulary as login and register: the stage is the clothbound plum ink cover
+   (.sk-ink-cover, masthead, embossed seal) and the story sits on the lilac paper desk
+   with the editorial 200/800 heading (.sk-ink-heading), dot leaders and folio numbers.
+   On the cover, the guide stands in a spotlit cameo; scene cards are letterhead slips
+   pinned with a wax seal. Desktop and tablet: cover beside the desk. Phone: stacked. */
+
+.surface {
+  position: relative;
+  isolation: isolate;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  color: var(--ink);
+  background:
+    radial-gradient(60rem 34rem at 100% -8%, color-mix(in srgb, var(--brand-600) 12%, transparent), transparent 62%),
+    radial-gradient(48rem 30rem at 55% 115%, color-mix(in srgb, var(--berry) 7%, transparent), transparent 62%),
+    linear-gradient(180deg, color-mix(in srgb, var(--brand-50) 70%, white), white);
+  display: grid;
+  grid-template-columns: minmax(0, .96fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+/* The desk's dot grid, fading out below the header (the app canvas, inside the modal). */
+.surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(color-mix(in srgb, var(--brand-600) 14%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent 26rem);
+  mask-image: linear-gradient(to bottom, black, transparent 26rem);
+}
+.body { display: contents; }
+.topbar { grid-column: 2; grid-row: 1; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; padding: 1.25rem clamp(1.25rem, 3.5vw, 3.5rem) .5rem; }
+.topActions { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; }
+
+/* ── The cover ── */
+.stage { grid-column: 1; grid-row: 1 / -1; min-width: 0; min-height: 0; margin: 1rem; margin-inline-end: 0; padding: clamp(1.25rem, 2.4vw, 2.25rem); display: flex; flex-direction: column; gap: 1rem; text-align: center; }
+.coverMasthead { flex: none; text-align: start; }
+.coverMasthead :global(.sk-folio):last-child { color: var(--brand-100); }
+.stageArtwork { position: relative; isolation: isolate; flex: none; aspect-ratio: 1; width: min(100%, calc(100dvh - 13.5rem)); margin: auto; }
+.stageGrid { position: absolute; inset: 2%; opacity: .5; background-image: radial-gradient(rgb(255 255 255 / .55) .8px, transparent .9px); background-size: 22px 22px; -webkit-mask-image: radial-gradient(ellipse, black 20%, transparent 68%); mask-image: radial-gradient(ellipse, black 20%, transparent 68%); }
+.aurora { position: absolute; inset: -6% -4%; z-index: -1; filter: blur(48px); pointer-events: none; }
+.aurora > span { position: absolute; border-radius: 50%; opacity: .5; mix-blend-mode: screen; transition: background-color 1.2s ease; animation: guide-drift 18s ease-in-out infinite; }
+.aurora > span:nth-child(1) { inset: 4% 44% 46% 0; background-color: var(--brand-500); }
+.aurora > span:nth-child(2) { inset: 30% 0 24% 52%; background-color: var(--berry); opacity: .32; animation-delay: -6s; }
+.aurora > span:nth-child(3) { inset: 56% 26% 0 14%; background-color: var(--brand-400); opacity: .34; animation-delay: -12s; }
+.stage[data-scene="1"] .aurora > span:nth-child(1) { background-color: var(--brand-400); }
+.stage[data-scene="1"] .aurora > span:nth-child(2) { background-color: var(--brand-600); }
+.stage[data-scene="2"] .aurora > span:nth-child(1) { background-color: var(--berry); }
+.stage[data-scene="2"] .aurora > span:nth-child(2) { background-color: var(--brand-300); }
+/* A sunburst behind the cameo, like a poster's printed rays. */
+.rays { position: absolute; inset: 0; border-radius: 50%; opacity: .9; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, rgb(255 255 255 / .06) 0 4deg, transparent 4deg 14deg);
+  -webkit-mask-image: radial-gradient(circle, black 18%, transparent 68%); mask-image: radial-gradient(circle, black 18%, transparent 68%);
+  animation: guide-orbit 90s linear infinite; }
+/* The stage light: a soft cone falling on the cameo from the top of the cover. */
+.spotlight { position: absolute; inset: -14% 20% 22%; pointer-events: none; mix-blend-mode: screen; filter: blur(10px);
+  background: linear-gradient(180deg, rgb(255 255 255 / .2), rgb(255 255 255 / .04) 70%, transparent);
+  clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%);
+  animation: guide-light 7s ease-in-out infinite; }
+/* The cameo: a lit lilac disc, so the plum-suited guide reads against the dark cover. */
+.halo { position: absolute; inset: 13% 12% 15%; border-radius: 50%;
+  background: radial-gradient(circle at 34% 26%, white, var(--brand-100) 36%, var(--brand-200) 62%, color-mix(in srgb, var(--brand-400) 70%, var(--brand-200)) 100%);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / .4), 0 0 0 12px rgb(255 255 255 / .04), 0 0 90px -8px color-mix(in srgb, var(--brand-400) 75%, transparent), inset 0 -36px 60px -26px color-mix(in srgb, var(--brand-600) 50%, transparent); }
+.halo > span { position: absolute; inset: -8%; border: 1px solid rgb(255 255 255 / .18); border-radius: 50%; animation: guide-orbit 24s linear infinite; }
+.halo > span::after { content: ""; position: absolute; top: 18%; left: 14%; width: 7px; height: 7px; border-radius: 50%; background: var(--berry); box-shadow: 0 0 0 3px rgb(255 255 255 / .15), 0 0 16px var(--berry); }
+.halo > span:nth-child(2) { inset: -16%; border-style: dashed; border-color: rgb(255 255 255 / .12); animation-direction: reverse; animation-duration: 32s; }
+.halo > span:nth-child(2)::after { background: var(--brand-200); box-shadow: 0 0 14px var(--brand-300); }
+.halo > span:nth-child(3) { inset: 5%; border-color: rgb(255 255 255 / .7); animation-duration: 19s; }
+.halo > span:nth-child(3)::after { display: none; }
+.constellation { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--brand-200); }
+.connection { stroke: color-mix(in srgb, var(--brand-300) 55%, transparent); stroke-width: 1.2; }
+.signal { stroke: white; stroke-width: 2.5; stroke-dasharray: 8 95; stroke-linecap: round; filter: drop-shadow(0 0 4px var(--brand-300)); animation: guide-signal 9s linear infinite; }
+.campusDrawing { opacity: .4; }
+.sparkleOne, .sparkleTwo { color: white; transform-box: fill-box; transform-origin: center; animation: guide-sparkle 5s ease-in-out infinite; }
+.sparkleTwo { animation-delay: -2.5s; }
+/* A lit pedestal: white top, lilac rim, a pool of shadow on the cover. */
+.platform { position: absolute; bottom: 8%; left: 12%; width: 76%; height: 12%; border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 32%, white, var(--brand-100) 46%, var(--brand-300));
+  box-shadow: 0 8px 0 var(--brand-400), 0 9px 0 var(--brand-600), 0 34px 44px -14px color-mix(in srgb, var(--brand-950) 95%, transparent), 0 0 60px -10px color-mix(in srgb, var(--brand-300) 70%, transparent); }
+.platform > span { position: absolute; inset: 15%; border-radius: 50%; border: 1px solid rgb(255 255 255 / .9); }
+.platform::after { content: ""; position: absolute; inset: -8% -3%; border-radius: 50%; border: 1.5px solid rgb(255 255 255 / .35); box-shadow: 0 0 24px color-mix(in srgb, var(--brand-300) 55%, transparent); animation: guide-rim 4.5s ease-in-out infinite; }
+.heroCharacter { position: absolute; width: 72%; left: 14%; bottom: 8%; z-index: 2; filter: drop-shadow(0 10px 10px color-mix(in srgb, var(--brand-950) 35%, transparent)); }
+.character { position: relative; width: min(100%, 370px); margin: auto; }
+.heroCharacter .character { max-width: 100%; }
+.character svg { display: block; width: 100%; height: auto; overflow: visible; }
+.character[data-paused] *, .surface[data-paused] *, .stage[data-paused] *, .surface[data-paused] *::after, .surface[data-paused] *::before, .stage[data-paused] *::before { animation-play-state: paused !important; }
+.compactCharacter { width: 78px; flex-shrink: 0; }
+.compactCharacter svg { margin-block: -12px; }
+
+/* Letterhead slips: white paper, the double hairline of a letterhead, a wax seal pin. */
+.workflowCard { position: absolute; z-index: 3; display: flex; align-items: flex-start; gap: .6rem; max-width: 44%; padding: 1rem .9rem .8rem; border-radius: 1rem; background: white; color: var(--ink-strong); text-align: start;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand-200) 80%, transparent), 0 2px 0 rgb(255 255 255 / .4), 0 28px 50px -24px color-mix(in srgb, var(--brand-950) 90%, transparent);
+  animation: guide-float 6s ease-in-out infinite; }
+.workflowCard::before { content: ""; position: absolute; inset-inline: .9rem 2.4rem; inset-block-start: .45rem; height: 3px; border-block: 1px solid var(--brand-200); }
+.workflowCard:nth-child(1) { rotate: -2deg; }
+.workflowCard:nth-child(2) { rotate: 1.5deg; animation-delay: -2s; }
+.workflowCard:nth-child(3) { rotate: -1deg; animation-delay: -4s; }
+.cardSeal { position: absolute; inset-block-start: -.55rem; inset-inline-end: .6rem; }
+.workflowCard small { display: block; font-size: .5rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--brand-700); }
+.workflowCard strong { display: block; margin-top: .25rem; font-size: .7rem; font-weight: 700; line-height: 1.45; color: var(--ink-strong); }
+:lang(ar) .workflowCard small, :lang(ur) .workflowCard small { letter-spacing: normal; text-transform: none; }
+.cardIcon { display: grid; place-items: center; flex-shrink: 0; width: 1.9rem; height: 1.9rem; border-radius: .65rem; color: var(--brand-200); background: linear-gradient(180deg, var(--brand-800), var(--brand-900)); box-shadow: inset 0 1px 0 rgb(255 255 255 / .14), 0 6px 12px -6px var(--brand-900); }
+.cardIcon > svg { width: 1.1rem; height: 1.1rem; }
+
+/* Narration: a white paper note with the Front Desk gradient hairline. */
+.guideSpeech { position: absolute; z-index: 4; top: 4%; left: 15%; width: 74%; display: flex; align-items: center; justify-content: center; gap: .55rem; padding: .75rem 1.1rem; border: 1px solid transparent; border-radius: 1.1rem; color: var(--ink-strong); font-size: .76rem; font-weight: 600;
+  background: linear-gradient(white, white) padding-box, linear-gradient(120deg, var(--brand-400), var(--berry) 55%, var(--brand-300)) border-box;
+  box-shadow: 0 24px 48px -24px color-mix(in srgb, var(--brand-950) 90%, transparent);
+  animation: guide-content .6s .4s both; }
+.guideSpeech svg { width: 1rem; height: 1rem; flex-shrink: 0; color: var(--berry); }
+.stageSignature { position: relative; flex: none; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: .3rem 1rem; font-size: .73rem; font-weight: 600; color: var(--brand-200); }
+.stageSignature > span { display: flex; align-items: center; gap: .45rem; }
+.stageSignature button { color: white; }
+.stageSignature button:is(:hover, :focus-visible):not(:disabled) { color: white; background: rgb(255 255 255 / .1); }
+.stageSignature button:disabled { color: rgb(255 255 255 / .45); background: transparent; }
+.stageSignature button svg { color: var(--brand-200); }
+.stageSignature .liveDot { background: var(--berry); box-shadow: 0 0 0 4px rgb(255 255 255 / .1), 0 0 12px var(--berry); }
+
+/* ── The desk ── */
+.content { grid-column: 2; grid-row: 2; align-self: center; justify-self: center; width: min(100%, 46rem); min-width: 0; min-height: 0; max-height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: .5rem clamp(1.25rem, 3.5vw, 3.5rem) 1rem; scroll-behavior: auto; }
+.liveDot { display: inline-block; width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--berry); box-shadow: 0 0 0 4px color-mix(in srgb, var(--berry) 14%, transparent); }
+.eyebrow { display: inline-flex; align-items: center; gap: .6rem; max-width: 100%; margin: 0 0 1.5rem; padding: .375rem .875rem; border: 1px solid var(--brand-200); border-radius: var(--radius-pill); background: rgb(255 255 255 / .75); color: var(--brand-700); font-size: var(--text-2xs); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+:lang(ar) .eyebrow, :lang(ur) .eyebrow { letter-spacing: normal; text-transform: none; font-size: .75rem; }
+.title { margin: 0; font-size: clamp(2.25rem, 1.1rem + 2.6vw, 4rem); overflow-wrap: anywhere; }
+/* A reading destination, never a keyboard control; controls keep shared focus rings. */
+.title:focus { outline: none; }
+.description { max-width: 36rem; margin: 1.5rem 0; font-size: var(--text-md); line-height: 1.8; color: var(--ink-muted); }
+.context { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1.5rem 0 0; }
+.context span { display: inline-flex; align-items: center; gap: .4rem; min-height: 2rem; padding: .35rem .8rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); background: rgb(255 255 255 / .75); font-size: .75rem; color: var(--brand-800); overflow-wrap: anywhere; }
+.notes { display: grid; gap: .75rem; margin: 1.5rem 0; }
+.note { display: flex; gap: .9rem; align-items: flex-start; padding: 1rem 1.1rem; border: 1px solid transparent; border-radius: var(--radius-control); background: linear-gradient(white, white) padding-box, linear-gradient(135deg, color-mix(in srgb, var(--brand-600) 55%, transparent), color-mix(in srgb, var(--berry) 30%, transparent) 50%, var(--brand-200)) border-box; box-shadow: var(--shadow-xs); }
+.note > svg { box-sizing: content-box; width: 1.05rem; height: 1.05rem; flex-shrink: 0; padding: .45rem; border-radius: var(--radius-control-small); color: var(--brand-200); background: linear-gradient(180deg, var(--brand-800), var(--brand-900)); }
+.note strong { display: block; color: var(--ink-strong); font-size: .85rem; }
+.note p { font-size: .78rem; line-height: 1.6; margin: .3rem 0 0; color: var(--ink-muted); }
+.choices { display: grid; gap: .65rem; margin: 1.5rem 0; }
+.choice { width: 100%; justify-content: flex-start; text-align: start; padding: 1rem; gap: .9rem; border-radius: var(--radius-control); background: white; }
+.choiceText { flex: 1; min-width: 0; }
+.choiceText small { display: block; margin-top: .25rem; font-size: .68rem; font-weight: 500; color: var(--ink-muted); }
+/* SkooleeAI's two flagships (addendum 2026-10-22): AI Workflows and Exam Studio, introduced on the welcome's first
+   chapter in the note's gradient-hairline look, and marked with the shared FlagshipChip on the choices and scenes. */
+.flagships { margin: 1.25rem 0 0; }
+.flagshipsTitle { margin: 0 0 .6rem; font-size: .72rem; font-weight: 700; line-height: 1.6; color: var(--brand-800); }
+.flagshipList { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .65rem; margin: 0; padding: 0; list-style: none; }
+.flagship { display: grid; align-content: start; gap: .35rem; min-width: 0; padding: .9rem 1rem; border: 1px solid transparent; border-radius: var(--radius-control); background: linear-gradient(white, white) padding-box, linear-gradient(135deg, color-mix(in srgb, var(--brand-600) 55%, transparent), color-mix(in srgb, var(--berry) 30%, transparent) 50%, var(--brand-200)) border-box; box-shadow: var(--shadow-xs); }
+.flagship p { margin: 0; font-size: .78rem; line-height: 1.6; color: var(--ink-muted); overflow-wrap: anywhere; }
+.flagship .flagshipName { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; font-size: .88rem; font-weight: 700; line-height: 1.4; color: var(--ink-strong); }
+.choiceChip { display: inline-flex; vertical-align: middle; margin-inline-start: .45rem; }
+.featureChip { flex: none; }
+.flagshipStrip { display: flex; flex-wrap: wrap; gap: .5rem; margin: -.75rem 0 1.25rem; padding: 0; list-style: none; }
+.flagshipStrip > li { display: inline-flex; align-items: center; gap: .45rem; min-height: 2rem; padding-block: .3rem; padding-inline: .35rem .8rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); background: rgb(255 255 255 / .8); font-size: .78rem; font-weight: 600; color: var(--brand-900); }
+.setupPath, .nextStep { padding: 1rem 1.1rem; border: 1px dashed var(--field-border); border-radius: var(--radius-control); background: rgb(255 255 255 / .75); font-size: .8rem; line-height: 1.65; color: var(--ink); }
+.setupPath strong { color: var(--ink-strong); }
+.setupPath ol { padding-inline-start: 1.2rem; margin: .5rem 0 0; }
+.setupPath li + li { margin-top: .35rem; }
+.setupPath li::marker { color: var(--brand-600); font-weight: 700; }
+.nextStep .eyebrow { margin-bottom: .5rem; font-size: .62rem; }
+.nextStep > p:last-child { margin: 0; }
+
+/* The showcase's feature index: icon, label, dot leader, folio — like the cover index. */
+.demoFeatures { display: grid; gap: .4rem; margin-block: 1.75rem; }
+.demoFeatures > div { position: relative; overflow: hidden; display: flex; align-items: center; gap: .85rem; padding: .7rem .9rem; border: 1px solid transparent; border-radius: var(--radius-control); color: var(--ink-muted); font-size: .9rem; transition: background-color .3s ease, border-color .3s ease, box-shadow .3s ease, color .3s ease; }
+.demoFeatures > div > svg { box-sizing: content-box; width: 1.1rem; height: 1.1rem; flex-shrink: 0; padding: .5rem; border-radius: var(--radius-control-small); color: var(--brand-700); background: var(--brand-100); transition: color .3s ease, background-color .3s ease; }
+.demoFeatures > div > span:first-of-type { min-width: 0; }
+.leader { flex: 1; min-width: 1.5rem; border-block-end: 1px dotted var(--field-border); translate: 0 -.28em; }
+.featureNumber { flex: none; font-size: var(--text-2xs); font-weight: 600; letter-spacing: .14em; font-variant-numeric: tabular-nums; color: var(--brand-600); }
+.demoFeatures > div[data-active] { color: var(--ink-strong); font-weight: 600; background: linear-gradient(white, white) padding-box, linear-gradient(135deg, color-mix(in srgb, var(--brand-600) 55%, transparent), color-mix(in srgb, var(--berry) 30%, transparent) 50%, var(--brand-200)) border-box; box-shadow: 0 16px 32px -24px var(--brand-700); }
+.demoFeatures > div[data-active] > svg { color: var(--brand-200); background: linear-gradient(180deg, var(--brand-800), var(--brand-900)); }
+.demoFeatures > div[data-active] .featureNumber { color: var(--berry); }
+.demoFeatures > div[data-active]::after { content: ""; position: absolute; inset-inline-start: 0; inset-block-end: 0; height: 3px; width: 100%; transform-origin: left; background: linear-gradient(90deg, var(--brand-700), var(--berry)); animation: guide-progress 9s linear both; }
+.surface[dir="rtl"] .demoFeatures > div[data-active]::after { transform-origin: right; }
+
+/* ── The footer: a dotted rule, folio chapters, the plum action ── */
+.bottom { grid-column: 2; grid-row: 3; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem 1rem; margin-inline: clamp(1.25rem, 3.5vw, 3.5rem); padding: .9rem 0 max(1rem, env(safe-area-inset-bottom)); border-block-start: 1px dotted var(--field-border); }
+.footerStatus { min-width: 0; }
+.footerStatus .replayHint { margin: .45rem 0 0; max-width: 32rem; }
+.chapters { display: flex; gap: .75rem; align-items: center; list-style: none; padding: 0; margin: 0; }
+.chapter { display: flex; gap: .45rem; align-items: center; font-size: .72rem; color: var(--ink-muted); }
+.chapterNumber { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border: 1px solid var(--field-border); border-radius: 50%; background: white; font-size: .62rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.chapter[aria-current="step"] { color: var(--brand-900); font-weight: 700; }
+.chapter[aria-current="step"] .chapterNumber { color: white; border-color: var(--brand-900); background: linear-gradient(180deg, var(--brand-800), var(--brand-900)); box-shadow: 0 6px 14px -8px var(--brand-900); }
+.chapter:has(svg) .chapterNumber { color: var(--brand-700); border-color: var(--brand-200); background: var(--brand-100); }
+.replayHint { font-size: .7rem; color: var(--ink-muted); line-height: 1.6; max-width: 22rem; }
+.actions { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: .6rem; margin-inline-start: auto; }
+.actions > button { white-space: normal; height: auto; min-height: 2.75rem; }
+/* Chapter 3 can carry three actions: Back, "Show me around" and the chosen task. Where the footer is narrower than one
+   comfortable line (phones, tablets, the desk column), the task takes a full-width line of its own under the other two
+   — reading order kept — instead of squeezing long AR/UR labels side by side. */
+.bottom { container-type: inline-size; }
+.tourChoice { min-width: 0; }
+@container (max-width: 46rem) {
+  .actions:has(.tourChoice) { flex-wrap: wrap; width: 100%; margin-inline-start: 0; }
+  .actions:has(.tourChoice) > button { flex: 1 1 auto; }
+  .actions:has(.tourChoice) > button:first-child { flex: 0 1 auto; }
+  .actions:has(.tourChoice) > button:last-child { flex: 1 0 100%; }
+}
+
+/* The companion beside long forms: paper with the gradient hairline. */
+.companion { display: flex; align-items: center; gap: 1rem; margin-block: 1rem; padding: .8rem 1.2rem; border: 1px solid transparent; border-radius: var(--radius-control); background: linear-gradient(110deg, color-mix(in srgb, var(--brand-50) 60%, white), white) padding-box, linear-gradient(135deg, color-mix(in srgb, var(--brand-600) 45%, transparent), color-mix(in srgb, var(--berry) 25%, transparent) 50%, var(--brand-200)) border-box; box-shadow: var(--shadow-xs); }
+.companion p { font-size: .78rem; line-height: 1.6; margin: .25rem 0 0; color: var(--ink-muted); }
+.companion strong { font-size: .88rem; color: var(--ink-strong); }
+
+.interviewLayout { display: grid; grid-template-columns: 250px minmax(0, 780px); gap: clamp(1.5rem, 4vw, 4rem); width: min(1140px, 100%); margin-inline: auto; padding: 2rem 1.25rem; align-items: start; }
+.interviewAside { position: sticky; top: 1.5rem; padding: 1.5rem; border: 1px solid var(--edge); border-radius: 1.5rem; background: linear-gradient(150deg, white, var(--brand-100)); }
+.interviewAside .character { width: 160px; }
+.interviewAside h2 { font-size: 1.12rem; font-weight: 800; color: var(--ink-strong); line-height: 1.4; }
+.interviewAside p { font-size: .78rem; line-height: 1.7; color: var(--ink-muted); margin: .8rem 0; }
+.interviewSection { display: flex; align-items: center; gap: .5rem; font-size: .75rem; padding: .6rem 0; color: var(--ink-muted); }
+.interviewSection[aria-current="step"] { color: var(--brand-800); font-weight: 800; }
+.interviewSection svg { width: 1rem; height: 1rem; flex-shrink: 0; }
+.interviewMain { min-width: 0; }
+
+/* ── Showcase ── */
+.showcase { width: 100%; }
+.publicShowcase { height: 100dvh; min-height: 0; }
+.showcase .title { font-size: clamp(2.5rem, 1.2rem + 3vw, 4.75rem); }
+.showcase .description { animation: guide-content .5s ease both; }
+.showcaseBottom .replayHint { max-width: 38rem; }
+.sceneProgress { display: flex; width: min(230px, 100%); gap: .5rem; }
+.sceneProgress > span { flex: 1; height: 4px; overflow: hidden; border-radius: 10px; background: var(--brand-200); }
+.sceneProgress i { display: block; height: 100%; background: linear-gradient(90deg, var(--brand-700), var(--berry)); transform: scaleX(0); transform-origin: left; }
+.sceneProgress [data-active] i { animation: guide-progress 9s linear both; }
+.sceneProgress [data-complete] i { transform: scaleX(1); }
+.surface[dir="rtl"] .sceneProgress i { transform-origin: right; }
+
+/* The final scene celebrates once as it arrives. */
+.confetti { position: absolute; inset-inline-start: 50%; inset-block-start: 42%; z-index: 4; inline-size: 0; block-size: 0; pointer-events: none; }
+.confetti > i { position: absolute; inline-size: .5rem; block-size: .8rem; border-radius: 2px; background: var(--c); opacity: 0; animation: guide-confetti 1.6s cubic-bezier(.15, .8, .3, 1) var(--d) 1 both; }
+.confetti > i:nth-child(odd) { inline-size: .55rem; block-size: .55rem; border-radius: 50%; }
+
+@keyframes guide-content { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes guide-orbit { to { transform: rotate(360deg); } }
+@keyframes guide-signal { to { stroke-dashoffset: -412; } }
+@keyframes guide-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+@keyframes guide-sparkle { 0%, 100% { opacity: .35; transform: scale(.85); } 50% { opacity: 1; transform: scale(1.1); } }
+@keyframes guide-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes guide-drift { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(4%, -3%) scale(1.06); } 66% { transform: translate(-3%, 4%) scale(.96); } }
+@keyframes guide-rim { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes guide-light { 0%, 100% { opacity: .75; } 50% { opacity: 1; } }
+@keyframes guide-confetti { 0% { opacity: 0; transform: translate(0, 0) rotate(0) scale(.4); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(calc(var(--x) * 4), calc(var(--y) * 1.6)) rotate(var(--r)) scale(1); } }
+
+@media (min-width: 1600px) {
+  .showcase .heroCharacter .character { width: 440px; }
+  .showcase .workflowCard { padding: 1.2rem 1.1rem 1rem; }
+  .showcase .workflowCard strong { font-size: .9rem; }
+  .showcase .workflowCard small { font-size: .65rem; }
+  .showcase .guideSpeech { font-size: 1rem; }
+}
+/* The desk column is narrow below 1600px: keep the footer on one line with folio-only
+   chapters, an icon-only loop toggle (its text stays its name) and no hint. */
+@media (min-width: 761px) and (max-width: 1599px) {
+  .footerStatus .replayHint { display: none; }
+  .chapter:not([aria-current="step"]) { font-size: 0; gap: 0; }
+  .showcaseBottom .actions > button[aria-pressed]:first-child { font-size: 0; gap: 0; padding-inline: .75rem; }
+}
+@media (min-width: 761px) and (max-height: 700px) {
+  .topbar { padding-block: .7rem .25rem; }
+  .stage { padding: 1rem 1.25rem; gap: .5rem; }
+  .stageArtwork { width: min(100%, calc(100dvh - 11rem)); }
+  .title, .showcase .title { font-size: clamp(2rem, 1rem + 2.2vw, 3rem); }
+  .description { margin: 1rem 0; }
+  .eyebrow { margin-bottom: 1rem; }
+  .bottom { padding-block: .65rem; }
+}
+@media (max-width: 760px) {
+  .surface { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  .topbar { grid-column: 1; padding: .8rem 1rem .6rem; }
+  .topActions { gap: .1rem; }
+  .stage { grid-column: 1; grid-row: 2; margin: 0 .75rem; padding: .6rem .75rem .35rem; gap: .25rem; border-radius: 1.5rem; }
+  .coverMasthead { display: none; }
+  .stageArtwork { width: min(240px, 29dvh); }
+  .character { width: 240px; }
+  .workflowCard { gap: .35rem; padding: .5rem; border-radius: .8rem; rotate: none !important; }
+  .workflowCard::before, .cardSeal { display: none; }
+  .workflowCard small { font-size: .42rem; letter-spacing: 0; }
+  .workflowCard strong { font-size: .58rem; }
+  .cardIcon { width: 1.4rem; height: 1.4rem; border-radius: .45rem; }
+  .cardIcon > svg { width: .8rem; height: .8rem; }
+  .guideSpeech { font-size: .62rem; padding: .5rem .6rem; }
+  .stageSignature { gap: 0 .4rem; font-size: .62rem; }
+  .stageSignature button { font-size: .65rem; }
+  .aurora { filter: blur(30px); }
+  .content { grid-column: 1; grid-row: 3; align-self: stretch; width: 100%; padding: .75rem 1rem .5rem; }
+  .eyebrow { margin-bottom: .75rem; }
+  .title, .showcase .title { font-size: clamp(1.75rem, 7.5vw, 2.25rem); }
+  .description { margin: .8rem 0; font-size: .85rem; }
+  .context { margin-top: .75rem; }
+  .bottom { grid-column: 1; grid-row: 4; flex-direction: column-reverse; align-items: stretch; gap: .6rem; margin-inline: 1rem; padding: .7rem 0 max(.7rem, env(safe-area-inset-bottom)); }
+  .footerStatus .replayHint { display: none; }
+  .chapters { justify-content: center; }
+  .showcaseBottom .footerStatus { width: 100%; display: flex; justify-content: center; }
+  .motionLabel { display: none; }
+  .replayHint { max-width: none; }
+  .chapter { font-size: .65rem; }
+  .chapterNumber { width: 1.5rem; height: 1.5rem; flex-shrink: 0; }
+  .actions { flex-wrap: nowrap; margin-inline-start: 0; }
+  .actions > button { flex: 1; font-size: .78rem; padding-inline: .65rem; }
+  .chapter:not([aria-current="step"]) { font-size: 0; gap: 0; }
+  .actions > button:first-child:not(:only-child) { flex: 0 1 auto; }
+  /* Phone controls: loop and pause become compact icon buttons so "Next scene" stays on one line. */
+  .showcaseBottom .actions > button { flex: 0 0 auto; white-space: nowrap; }
+  .showcaseBottom .actions > button:last-child { flex: 1 1 auto; }
+  .showcaseBottom .actions > button[aria-pressed]:first-child { font-size: 0; gap: 0; padding-inline: .65rem; }
+  .showcaseBottom .actions > button[aria-pressed]:first-child svg { width: 1rem; height: 1rem; }
+  .compactCharacter { width: 64px; }
+  .interviewLayout { grid-template-columns: 1fr; padding-top: .7rem; gap: 1rem; }
+  .interviewAside { position: static; padding: .8rem 1rem; }
+  .interviewAside .character, .interviewAside > p, .interviewSection { display: none; }
+  .interviewAside h2 { font-size: .8rem; margin-bottom: .6rem; }
+}
+@media (max-width: 380px) {
+  .stageArtwork { width: min(210px, 27dvh); }
+  .topActions { width: 100%; justify-content: space-between; }
+  .workflowCard { max-width: 47%; }
+  .cardIcon { display: none; }
+  .stageSignature > span { font-size: .6rem; }
+}
+@media (max-width: 760px) and (max-height: 600px) {
+  .topbar { padding-block: .4rem; gap: .25rem; }
+  .stageArtwork { width: 23dvh; }
+  .stageSignature > span { display: none; }
+  .eyebrow { margin-bottom: .4rem; }
+}
+/* At extreme zoom or very short landscape heights, preserve a readable document
+   instead of squeezing the text between the stage and pinned navigation. */
+@media (max-height: 420px) {
+  .surface { display: block; overflow-y: auto; }
+  .stage { margin: .5rem .75rem; padding: .5rem; border-radius: 1.25rem; }
+  .coverMasthead { display: none; }
+  .stageArtwork { width: min(220px, 100%); }
+  .content { overflow: visible; max-height: none; width: 100%; padding: .75rem 1rem .5rem; }
+  .title, .showcase .title { font-size: 1.75rem; }
+  .bottom { flex-direction: column-reverse; align-items: stretch; margin-inline: 1rem; }
+  .actions { justify-content: center; }
+  .footerStatus .replayHint { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .surface *, .surface *::before, .surface *::after, .character *, .content, .stage *, .stage *::before, .stage *::after { animation: none !important; transition: none !important; }
+  .sceneProgress [data-active] i, .demoFeatures > div[data-active]::after { transform: scaleX(1); }
+  .confetti { display: none; }
+}
+@media (forced-colors: active) {
+  .aurora, .rays, .spotlight, .confetti, .stageGrid { display: none; }
+  .workflowCard, .guideSpeech, .note, .flagship, .demoFeatures > div[data-active] { border: 1px solid CanvasText; }
+  .stageSignature button { color: ButtonText; }
+}

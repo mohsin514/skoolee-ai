@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "*": false,
+      "dev": true
+    }
+  },
+  "ignoreCommand": "bash scripts/vercel/ignore-build.sh",
+  "crons": [
+    {
+      "path": "/api/cron/notification-automation",
+      "schedule": "0 4 * * *"
+    }
+  ]
+}

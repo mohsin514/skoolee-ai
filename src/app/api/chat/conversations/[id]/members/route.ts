@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ApiError, errorResponse } from "@/lib/api/scope";
 import { addMembers, getConversation, removeMember, requireChatUser } from "@/lib/chat/service";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const user = await requireChatUser();
     const { id } = await ctx.params;
 
-    const parsed = addSchema.safeParse(await req.json());
+    const parsed = addSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid request", 400);
 
     return Response.json({

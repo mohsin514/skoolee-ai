@@ -1,3 +1,4 @@
+import { arabicNotificationCopy, urduNotificationCopy } from "@/lib/locale/notification-catalog";
 export const NOTIFICATION_CHANNELS = ["WHATSAPP", "EMAIL", "SMS"] as const;
 
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
@@ -46,7 +47,7 @@ const parentTemplates: Record<NotificationTemplateKey, TemplateSeed> = {
     title: "Fee due reminder",
     subject: "Fee reminder for {{studentName}}",
     body:
-      "Dear {{parentName}},\n\nThis is a reminder that {{studentName}}'s {{term}} fee of Rs {{balanceDue}} is due on {{dueDate}}.\n\nPlease ignore this message if payment has already been made.\n\n{{schoolName}}",
+      "Dear {{parentName}},\n\nThis is a reminder that {{studentName}}'s {{term}} fee of {{balanceDue}} is due on {{dueDate}}.\n\nPlease ignore this message if payment has already been made.\n\n{{schoolName}}",
     variables: ["parentName", "studentName", "term", "balanceDue", "dueDate", "schoolName"],
     isSensitive: true,
     requiresApprovedData: true,
@@ -56,7 +57,7 @@ const parentTemplates: Record<NotificationTemplateKey, TemplateSeed> = {
     title: "Fee overdue reminder",
     subject: "Overdue fee reminder for {{studentName}}",
     body:
-      "Dear {{parentName}},\n\n{{studentName}}'s {{term}} fee of Rs {{balanceDue}} was due on {{dueDate}} and is now overdue.\n\nPlease contact {{campusName}} for payment support.\n\n{{schoolName}}",
+      "Dear {{parentName}},\n\n{{studentName}}'s {{term}} fee of {{balanceDue}} was due on {{dueDate}} and is now overdue.\n\nPlease contact {{campusName}} for payment support.\n\n{{schoolName}}",
     variables: ["parentName", "studentName", "term", "balanceDue", "dueDate", "campusName", "schoolName"],
     isSensitive: true,
     requiresApprovedData: true,
@@ -148,6 +149,7 @@ export function isNotificationTemplateKey(value: unknown): value is Notification
   return typeof value === "string" && NOTIFICATION_TEMPLATE_KEYS.includes(value as NotificationTemplateKey);
 }
 
-export function defaultTemplateFor(key: NotificationTemplateKey, channel: NotificationChannel) {
-  return DEFAULT_NOTIFICATION_TEMPLATES.find((template) => template.key === key && template.channel === channel);
+export function defaultTemplateFor(key: NotificationTemplateKey, channel: NotificationChannel, language: "en" | "ar" | "ur" = "en") {
+  const template = DEFAULT_NOTIFICATION_TEMPLATES.find((template) => template.key === key && template.channel === channel);
+  return template && language !== "en" ? { ...template, ...(language === "ur" ? urduNotificationCopy : arabicNotificationCopy)[key] } : template;
 }

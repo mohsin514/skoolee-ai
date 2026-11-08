@@ -1,0 +1,66 @@
+const en = {
+  live: "Exceptional live extension", liveHelp: "For a running attempt only. The approver, reason and old and new deadline are recorded and shown here.", liveMinutes: "Minutes to add", liveReason: "Reason", liveApply: "Extend this attempt", liveHistory: "Live adjustments", liveRow: "+{n} min · {reason} · {old} → {new}", adjustmentSource: "Source",
+  title: "Assessment access plans", eyebrow: "Inclusion", summary: "Approved operational adjustments for assessments. Supporting records stay restricted to designated staff.",
+  staffTitle: "Learner access adjustments", staffSummary: "Adjustments to apply for the learners you teach. Only the instructions needed to deliver them are shown.",
+  learnerTitle: "Your assessment access", learnerSummary: "The adjustments approved for you, and a practice check before assessment day.", guardianSummary: "Assessment adjustments approved for your child.",
+  loading: "Loading…", failed: "Could not load access plans.", saved: "Saved.", class: "Class", none: "No approved adjustments are recorded.", noStaff: "None of your learners has an active access plan.",
+  review: "Plans needing review", reviewExpired: "expired", reviewSoon: "ends", noReview: "No plans need review in the next 14 days.",
+  active: "Active plan", version: "Version", validity: "Valid", types: { EXAM: "Exams", ASSIGNMENT: "Assignments", PRACTICE: "Practice" }, statuses: { ACTIVE: "Active", SUPERSEDED: "Superseded", REVOKED: "Revoked" },
+  caps: { reader: "Reader", scribe: "Scribe", largeText: "Large text", highContrast: "High contrast", screenReader: "Screen reader", cameraExempt: "Camera exemption" },
+  submission: "Submission mode", submissionModes: { STANDARD: "Standard", TYPED: "Typed instead of handwritten", ORAL: "Oral response", PAPER: "Paper copy" },
+  extraMinutes: "Extra minutes", extraPercent: "Extra time (%)", breakMinutes: "Approved break minutes", assistive: "Assistive technology (comma-separated)", instructions: "Instructions for staff",
+  instructionsHelp: "Describe the adjustment only. Do not enter diagnosis or medical context here.", validFrom: "Valid from", validUntil: "Valid until", appliesTo: "Applies to",
+  editPlan: "Review access plan", newPlan: "Create access plan", savePlan: "Approve plan version", cancel: "Cancel", revoke: "Revoke", revokeReason: "Reason for revoking", confirmRevoke: "Revoke plan",
+  history: "Plan history", support: "Supporting records (restricted)", supportHelp: "Visible only to designated staff. Each read is recorded.", addNote: "Add supporting note", note: "Note", showSupport: "Open restricted records", noSupport: "No supporting records.",
+  preview: "Effective settings", baseMinutes: "Base duration (minutes)", steps: { base: "Base time", fixed: "Approved extra minutes", percent: "Extra time ({percent}%)", break: "Approved breaks", examApproval: "Exam-specific extra time", total: "Effective time" },
+  minutes: "{n} min", startedNote: "Attempts already started keep the settings they started with.",
+  includes: "Your assessment includes {n} additional minutes.", noExtra: "No extra time is approved.", upcoming: "Upcoming assessments", practice: "Practice check",
+  practiceHelp: "Try the exact mode you will use. If anything does not work, tell your coordinator before assessment day.", sample: "Sample question: What is 12 + 30?", works: "This works for me", rehearsed: "Practice check completed {date}.", notRehearsed: "Practice check not done yet.",
+  source: { EXAM_APPROVAL: "Exam-specific approval", PLAN: "Access plan v{v}", NONE: "No adjustment" },
+};
+export type AccessCopy = typeof en;
+
+const ar: AccessCopy = {
+  live: "تمديد استثنائي أثناء الامتحان", liveHelp: "لمحاولة جارية فقط. يُسجَّل المعتمِد والسبب والموعد القديم والجديد ويُعرض هنا.", liveMinutes: "الدقائق المضافة", liveReason: "السبب", liveApply: "تمديد هذه المحاولة", liveHistory: "تعديلات أثناء الامتحان", liveRow: "+{n} دقيقة · {reason} · {old} ← {new}", adjustmentSource: "المصدر",
+  title: "خطط إتاحة التقييم", eyebrow: "الدمج", summary: "تعديلات تشغيلية معتمدة للتقييمات. تبقى السجلات الداعمة مقيدة بالموظفين المعيّنين.",
+  staffTitle: "تعديلات إتاحة الطلاب", staffSummary: "التعديلات المطلوب تطبيقها للطلاب الذين تدرّسهم. تظهر التعليمات اللازمة للتنفيذ فقط.",
+  learnerTitle: "إتاحة التقييم الخاصة بك", learnerSummary: "التعديلات المعتمدة لك، وفحص تدريبي قبل يوم التقييم.", guardianSummary: "تعديلات التقييم المعتمدة لطفلك.",
+  loading: "جارٍ التحميل…", failed: "تعذّر تحميل خطط الإتاحة.", saved: "تم الحفظ.", class: "الصف", none: "لا توجد تعديلات معتمدة مسجلة.", noStaff: "لا يوجد لدى طلابك خطة إتاحة فعّالة.",
+  review: "خطط تحتاج إلى مراجعة", reviewExpired: "منتهية", reviewSoon: "تنتهي", noReview: "لا توجد خطط تحتاج إلى مراجعة خلال 14 يوماً.",
+  active: "الخطة الفعّالة", version: "الإصدار", validity: "سارية", types: { EXAM: "الامتحانات", ASSIGNMENT: "الواجبات", PRACTICE: "التدريب" }, statuses: { ACTIVE: "فعّالة", SUPERSEDED: "مستبدلة", REVOKED: "ملغاة" },
+  caps: { reader: "قارئ", scribe: "كاتب", largeText: "خط كبير", highContrast: "تباين عالٍ", screenReader: "قارئ الشاشة", cameraExempt: "إعفاء من الكاميرا" },
+  submission: "طريقة التسليم", submissionModes: { STANDARD: "عادية", TYPED: "كتابة بالحاسوب بدل اليد", ORAL: "إجابة شفهية", PAPER: "نسخة ورقية" },
+  extraMinutes: "دقائق إضافية", extraPercent: "وقت إضافي (%)", breakMinutes: "دقائق الاستراحة المعتمدة", assistive: "التقنيات المساعدة (مفصولة بفواصل)", instructions: "تعليمات للموظفين",
+  instructionsHelp: "صف التعديل فقط. لا تُدخل تشخيصاً أو سياقاً طبياً هنا.", validFrom: "ساري من", validUntil: "ساري حتى", appliesTo: "ينطبق على",
+  editPlan: "مراجعة خطة الإتاحة", newPlan: "إنشاء خطة إتاحة", savePlan: "اعتماد إصدار الخطة", cancel: "إلغاء", revoke: "إلغاء الخطة", revokeReason: "سبب الإلغاء", confirmRevoke: "تأكيد الإلغاء",
+  history: "سجل الخطة", support: "السجلات الداعمة (مقيدة)", supportHelp: "مرئية للموظفين المعيّنين فقط. تُسجَّل كل قراءة.", addNote: "إضافة ملاحظة داعمة", note: "ملاحظة", showSupport: "فتح السجلات المقيدة", noSupport: "لا توجد سجلات داعمة.",
+  preview: "الإعدادات الفعلية", baseMinutes: "المدة الأساسية (دقائق)", steps: { base: "الوقت الأساسي", fixed: "دقائق إضافية معتمدة", percent: "وقت إضافي ({percent}%)", break: "استراحات معتمدة", examApproval: "وقت إضافي خاص بالامتحان", total: "الوقت الفعلي" },
+  minutes: "{n} دقيقة", startedNote: "تحتفظ المحاولات التي بدأت بالإعدادات التي بدأت بها.",
+  includes: "يتضمن تقييمك {n} دقيقة إضافية.", noExtra: "لا يوجد وقت إضافي معتمد.", upcoming: "التقييمات القادمة", practice: "الفحص التدريبي",
+  practiceHelp: "جرّب الوضع نفسه الذي ستستخدمه. إن لم يعمل شيء، أخبر المنسق قبل يوم التقييم.", sample: "سؤال تجريبي: ما ناتج 12 + 30؟", works: "هذا مناسب لي", rehearsed: "اكتمل الفحص التدريبي {date}.", notRehearsed: "لم يُجرَ الفحص التدريبي بعد.",
+  source: { EXAM_APPROVAL: "اعتماد خاص بالامتحان", PLAN: "خطة الإتاحة الإصدار {v}", NONE: "لا يوجد تعديل" },
+};
+
+const ur: AccessCopy = {
+  live: "دورانِ امتحان غیر معمولی توسیع", liveHelp: "صرف جاری کوشش کے لیے۔ منظوری دینے والا، وجہ اور پرانی و نئی آخری مہلت درج ہو کر یہاں دکھائی جاتی ہے۔", liveMinutes: "شامل کرنے کے منٹ", liveReason: "وجہ", liveApply: "اس کوشش میں توسیع کریں", liveHistory: "دورانِ امتحان تبدیلیاں", liveRow: "+{n} منٹ · {reason} · {old} ← {new}", adjustmentSource: "ماخذ",
+  title: "جانچ تک رسائی کے منصوبے", eyebrow: "شمولیت", summary: "جانچ کے لیے منظور شدہ عملی سہولیات۔ معاون ریکارڈ صرف نامزد عملے تک محدود رہتے ہیں۔",
+  staffTitle: "طلبہ کی رسائی کی سہولیات", staffSummary: "آپ جن طلبہ کو پڑھاتے ہیں ان کے لیے لاگو سہولیات۔ صرف عمل درآمد کے لیے ضروری ہدایات دکھائی جاتی ہیں۔",
+  learnerTitle: "آپ کی جانچ تک رسائی", learnerSummary: "آپ کے لیے منظور شدہ سہولیات، اور جانچ کے دن سے پہلے مشقی جانچ۔", guardianSummary: "آپ کے بچے کے لیے منظور شدہ جانچ کی سہولیات۔",
+  loading: "لوڈ ہو رہا ہے…", failed: "رسائی کے منصوبے لوڈ نہ ہو سکے۔", saved: "محفوظ ہو گیا۔", class: "کلاس", none: "کوئی منظور شدہ سہولت درج نہیں۔", noStaff: "آپ کے کسی طالب علم کا فعال رسائی منصوبہ نہیں۔",
+  review: "جائزہ طلب منصوبے", reviewExpired: "ختم شدہ", reviewSoon: "ختم ہوگا", noReview: "اگلے 14 دن میں کسی منصوبے کا جائزہ درکار نہیں۔",
+  active: "فعال منصوبہ", version: "ورژن", validity: "مؤثر", types: { EXAM: "امتحانات", ASSIGNMENT: "اسائنمنٹس", PRACTICE: "مشق" }, statuses: { ACTIVE: "فعال", SUPERSEDED: "تبدیل شدہ", REVOKED: "منسوخ" },
+  caps: { reader: "پڑھ کر سنانے والا", scribe: "لکھنے والا", largeText: "بڑا متن", highContrast: "زیادہ کنٹراسٹ", screenReader: "اسکرین ریڈر", cameraExempt: "کیمرے سے استثنا" },
+  submission: "جمع کرانے کا طریقہ", submissionModes: { STANDARD: "معمول کے مطابق", TYPED: "ہاتھ کے بجائے ٹائپ", ORAL: "زبانی جواب", PAPER: "کاغذی نسخہ" },
+  extraMinutes: "اضافی منٹ", extraPercent: "اضافی وقت (%)", breakMinutes: "منظور شدہ وقفے کے منٹ", assistive: "معاون ٹیکنالوجی (کاما سے الگ)", instructions: "عملے کے لیے ہدایات",
+  instructionsHelp: "صرف سہولت بیان کریں۔ یہاں تشخیص یا طبی تفصیل درج نہ کریں۔", validFrom: "مؤثر از", validUntil: "مؤثر تا", appliesTo: "لاگو برائے",
+  editPlan: "رسائی منصوبے کا جائزہ", newPlan: "رسائی منصوبہ بنائیں", savePlan: "منصوبے کا ورژن منظور کریں", cancel: "منسوخ", revoke: "منسوخ کریں", revokeReason: "منسوخی کی وجہ", confirmRevoke: "منصوبہ منسوخ کریں",
+  history: "منصوبے کی تاریخ", support: "معاون ریکارڈ (محدود)", supportHelp: "صرف نامزد عملہ دیکھ سکتا ہے۔ ہر بار دیکھنا درج ہوتا ہے۔", addNote: "معاون نوٹ شامل کریں", note: "نوٹ", showSupport: "محدود ریکارڈ کھولیں", noSupport: "کوئی معاون ریکارڈ نہیں۔",
+  preview: "مؤثر ترتیبات", baseMinutes: "بنیادی دورانیہ (منٹ)", steps: { base: "بنیادی وقت", fixed: "منظور شدہ اضافی منٹ", percent: "اضافی وقت ({percent}%)", break: "منظور شدہ وقفے", examApproval: "امتحان کے لیے مخصوص اضافی وقت", total: "مؤثر وقت" },
+  minutes: "{n} منٹ", startedNote: "شروع ہو چکی کوششیں اپنی ابتدائی ترتیبات برقرار رکھتی ہیں۔",
+  includes: "آپ کی جانچ میں {n} اضافی منٹ شامل ہیں۔", noExtra: "کوئی اضافی وقت منظور نہیں۔", upcoming: "آنے والی جانچ", practice: "مشقی جانچ",
+  practiceHelp: "وہی طریقہ آزمائیں جو آپ استعمال کریں گے۔ اگر کچھ کام نہ کرے تو جانچ کے دن سے پہلے رابطہ کار کو بتائیں۔", sample: "نمونہ سوال: 12 + 30 کتنے ہوتے ہیں؟", works: "یہ میرے لیے ٹھیک ہے", rehearsed: "مشقی جانچ مکمل {date}۔", notRehearsed: "مشقی جانچ ابھی نہیں ہوئی۔",
+  source: { EXAM_APPROVAL: "امتحان کے لیے مخصوص منظوری", PLAN: "رسائی منصوبہ ورژن {v}", NONE: "کوئی سہولت نہیں" },
+};
+
+export function getAccessCopy(language: string): AccessCopy { return language === "ar" ? ar : language === "ur" ? ur : en; }
+export const fillAccess = (text: string, values: Record<string, string | number>) => text.replace(/\{(\w+)\}/g, (match, key) => key in values ? String(values[key]) : match);

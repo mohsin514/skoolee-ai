@@ -1,7 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
-import { dashboardPathForRole, roleLabel } from "@/lib/roles";
+import { dashboardPathForRole, roleLabelFor, type UserRole } from "@/lib/roles";
+import type { InstitutionKind } from "@/lib/auth/institution";
+import { getDisplayLocale } from "@/lib/locale/display";
+import type { Language } from "@/lib/locale/package";
+import { deleteFile } from "@/lib/storage/s3";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 function cleanOptionalText(value: unknown) {
   if (value === null) return null;
@@ -15,10 +21,15 @@ function cleanProfileImage(value: unknown) {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  if (trimmed.length > 1_500_000) throw new ApiError("Profile image is too large", 413);
+  if (/^profile-images\/\S+$/i.test(trimmed)) return trimmed;
+  if (trimmed.length > 5_000_000) throw new ApiError("Profile image is too large", 413);
   if (/^https?:\/\/\S+$/i.test(trimmed)) return trimmed;
   if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(trimmed)) return trimmed;
   throw new ApiError("Use an image upload, data image, or a valid image URL", 400);
+}
+
+function isS3Key(value: string | null): value is string {
+  return !!value && value.startsWith("profile-images/");
 }
 
 /**
@@ -61,14 +72,17 @@ type ProfileUser = {
   city: string | null;
 };
 
-function toProfile(user: ProfileUser) {
+function toProfile(user: ProfileUser, institutionKind?: InstitutionKind, language: Language = "en") {
   return {
     id: user.id,
     email: user.email,
     fullName: user.fullName,
     phone: user.phone || "",
     role: user.role,
-    roleLabel: roleLabel(user.role),
+    // Mode-aware (§1.5): "School admin" in a standalone school, "Campus admin" in a group, in the viewer's display
+    // language; roleLabelKey is the EN key for a client that re-translates after a language switch.
+    roleLabel: roleLabelFor({ role: user.role as UserRole, institutionKind }, language),
+    roleLabelKey: roleLabelFor({ role: user.role as UserRole, institutionKind }),
     dashboardPath: dashboardPathForRole(user.role),
     profileImageUrl: user.profileImageUrl || "",
     qualification: user.qualification || "",
@@ -85,14 +99,15 @@ function toProfile(user: ProfileUser) {
 
 export async function GET() {
   try {
-    const session = await requireAuthUser();
+    // A shell read: the suspended minimal shell still shows who is signed in (G43, K-I14).
+    const session = await requireAuthUser({ allowSuspended: true });
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
       select: PROFILE_SELECT,
     });
 
     if (!user) throw new ApiError("Profile not found", 404);
-    return Response.json({ success: true, profile: toProfile(user) });
+    return Response.json({ success: true, profile: toProfile(user, session.institutionKind, (await getDisplayLocale(session)).language) });
   } catch (error) {
     return errorResponse(error, "[profile] GET failed");
   }
@@ -101,10 +116,10 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const session = await requireAuthUser();
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const currentUser = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { fullName: true },
+      select: { fullName: true, profileImageUrl: true },
     });
     const data: {
       fullName?: string;
@@ -126,16 +141,23 @@ export async function PATCH(req: NextRequest) {
       data.profileImageUrl = cleanProfileImage(body.profileImageUrl);
     }
 
+    // SKAI-1655: the replaced photo is removed only after the profile update commits, so a failed save keeps it.
+    const prevImage = currentUser?.profileImageUrl ?? null;
+    const replacedImage = data.profileImageUrl !== undefined && isS3Key(prevImage) && prevImage !== data.profileImageUrl ? prevImage : null;
+
     const user = await prisma.user.update({
       where: { id: session.userId },
       data,
       select: PROFILE_SELECT,
     });
+    if (replacedImage) void deleteFile(replacedImage).catch(() => { });
 
-    if (session.role === "STUDENT" && currentUser?.fullName && Object.keys(data).length > 0) {
+    // SKAI-1652: mirror the edit only onto the student record linked to this account (studentUserId is unique).
+    // Never match by name: namesakes in the same campus must keep their own identity, photo and contact details.
+    if (session.role === "STUDENT" && Object.keys(data).length > 0) {
       await prisma.student.updateMany({
         where: {
-          fullName: currentUser.fullName,
+          studentUserId: session.userId,
           campus: { schoolId: session.schoolId },
           ...(session.campusId ? { campusId: session.campusId } : {}),
         },
@@ -147,7 +169,7 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
-    return Response.json({ success: true, profile: toProfile(user) });
+    return Response.json({ success: true, profile: toProfile(user, session.institutionKind, (await getDisplayLocale(session)).language) });
   } catch (error) {
     return errorResponse(error, "[profile] PATCH failed");
   }

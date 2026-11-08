@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 
 /**
  * Closing an academic year is the point of no return: marks stop being
@@ -47,6 +47,17 @@ export interface YearClosureReport {
 /** Exams whose marks are still being worked on. */
 const UNFINISHED_MARK_STATUSES = ["DRAFT", "ACTIVE", "MARKS_ENTRY"];
 
+/** Exams the principal has signed off. */
+const REVIEWED_STATUSES = ["PRINCIPAL_REVIEWED", "PUBLISHED"];
+
+/** "Quiz 1 in 10 classes, Midterm" instead of repeating one exam title per class. */
+function groupTitles(titles: string[]) {
+  const counts = new Map<string, number>();
+  for (const t of titles) counts.set(t, (counts.get(t) ?? 0) + 1);
+  const parts = [...counts].map(([t, n]) => (n > 1 ? `${t} in ${n} classes` : t));
+  return parts.slice(0, 3).join(", ") + (parts.length > 3 ? "…" : "");
+}
+
 function plural(n: number, one: string, many: string) {
   return `${n} ${n === 1 ? one : many}`;
 }
@@ -54,8 +65,9 @@ function plural(n: number, one: string, many: string) {
 export async function getYearClosureReport(
   campusId: string,
   academicYear: number,
+  db: TxClient = prisma,
 ): Promise<YearClosureReport> {
-  const exams = await prisma.exam.findMany({
+  const exams = await db.exam.findMany({
     where: { campusId, academicYear },
     select: {
       id: true,
@@ -70,18 +82,19 @@ export async function getYearClosureReport(
   // 1 — Marks finished and locked by the teachers.
   const marksOutstanding = exams.filter((e) => UNFINISHED_MARK_STATUSES.includes(e.status));
 
-  // 2 — Report cards generated. Only meaningful once an exam is locked, since
-  // locking is what generates them.
-  const lockedOrLater = exams.filter((e) => !UNFINISHED_MARK_STATUSES.includes(e.status));
-  const missingReportCards = lockedOrLater.filter((e) => e._count.reportCards === 0);
+  // 2 — Report cards generated. Locking is what generates them, so an exam still in
+  // marks entry has none yet and counts as outstanding too (SKAI-1289: counting only
+  // locked exams let an empty set read as "all generated").
+  const missingReportCards = exams.filter((e) => e._count.reportCards === 0);
 
-  // 3 — Principal has reviewed. Anything still sitting at LOCKED is awaiting them.
-  const awaitingPrincipal = exams.filter((e) => e.status === "LOCKED");
+  // 3 — Principal has reviewed. Every exam not yet PRINCIPAL_REVIEWED or PUBLISHED is
+  // outstanding, including ones that have not reached LOCKED (SKAI-1289).
+  const awaitingPrincipal = exams.filter((e) => !REVIEWED_STATUSES.includes(e.status));
 
   // 4 — Results released to families.
   const notPublished = exams.filter((e) => e.status !== "PUBLISHED");
 
-  const studentsWithReportCards = await prisma.reportCard.count({
+  const studentsWithReportCards = await db.reportCard.count({
     where: { campusId, exam: { academicYear } },
   });
 
@@ -98,10 +111,7 @@ export async function getYearClosureReport(
         ? "No exams exist for this year, so there is nothing to close."
         : marksOutstanding.length === 0
           ? "Every exam is marked and locked."
-          : `${plural(marksOutstanding.length, "exam is", "exams are")} still awaiting marks: ${marksOutstanding
-              .slice(0, 3)
-              .map((e) => e.title)
-              .join(", ")}${marksOutstanding.length > 3 ? "…" : ""}`,
+          : `${plural(marksOutstanding.length, "exam is", "exams are")} still awaiting marks: ${groupTitles(marksOutstanding.map((e) => e.title))}`,
       view: "exam-cycles",
       owner: "Teachers",
     },

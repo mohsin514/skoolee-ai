@@ -1,14 +1,29 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { inviteStaff, removeStaff, cancelInvitation, resendInvitation } from "@/app/actions/invite";
-import { ApiError, assertModuleRead, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertModuleRead, canManageAcademics, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody, requiredIdBody } from "@/lib/validators/route-bodies";
 
 const STAFF_ROLES = new Set(["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER"]);
+
+/** Staff writes are campus operations (§7.6 G23) AND a membership right (§2.2 #6: the institution authority, or a
+ *  campus admin holding the delegated `canManageMemberships` flag; PR —). The flag never opens the path to a role
+ *  outside campus operations (a principal holding a stale delegated flag is refused). The invite actions below
+ *  still apply their own membership gates. */
+async function assertStaffWriter() {
+  const user = await requireAuthUser();
+  if (!canManageCampusOps(user) || !(isInstitutionAuthority(user) || user.canManageMemberships === true)) {
+    throw new ApiError("Staff invitations are managed by your campus admin.", 403);
+  }
+}
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    // The principal reads the staff list (academic oversight); writes are campus operations.
+    if (!canManageAcademics(user)) throw new ApiError("Insufficient permissions", 403);
     // The role gate alone ignored the staff.view bit, so revoking it in the
     // permission matrix had no effect on this list (§10.2).
     await assertModuleRead(user, "staff");
@@ -48,7 +63,7 @@ export async function GET(req: NextRequest) {
           status: "pending",
           campus: { schoolId: user.schoolId },
         },
-        select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true },
+        select: { id: true, email: true, role: true, status: true, deliveryStatus: true, lastDeliveryAt: true, expiresAt: true, createdAt: true },
         orderBy: { createdAt: "desc" },
       }),
     ]);
@@ -61,8 +76,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const result = await inviteStaff(body);
+    await assertStaffWriter();
+    const body = await parseBody(req, jsonObjectBody);
+    const result = await inviteStaff(body as Parameters<typeof inviteStaff>[0]);
     return Response.json(result, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[staff] POST failed");
@@ -71,8 +87,8 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const body = await req.json();
-    if (!body.userId) throw new ApiError("userId is required", 400);
+    await assertStaffWriter();
+    const body = await parseBody(req, requiredIdBody("userId"));
     const result = await removeStaff(body.userId);
     return Response.json(result);
   } catch (error) {
@@ -82,8 +98,8 @@ export async function PATCH(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const body = await req.json();
-    if (!body.inviteId) throw new ApiError("inviteId is required", 400);
+    await assertStaffWriter();
+    const body = await parseBody(req, requiredIdBody("inviteId"));
     const result = await resendInvitation(body.inviteId);
     return Response.json(result);
   } catch (error) {
@@ -93,6 +109,7 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    await assertStaffWriter();
     const { searchParams } = new URL(req.url);
     const inviteId = searchParams.get("inviteId");
     if (!inviteId) throw new ApiError("inviteId is required", 400);

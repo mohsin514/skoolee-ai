@@ -26,11 +26,15 @@ export async function GET(req: NextRequest) {
 
   const cls = await prisma.class.findFirst({
     where: { id: classId, campus: { schoolId: user.schoolId } },
-    select: { id: true, campusId: true, name: true, section: true },
+    select: { id: true, campusId: true, name: true, section: true, classTeacherId: true, subjects: { select: { teacherId: true } } },
   });
   if (!cls) return Response.json({ error: "Class not found" }, { status: 404 });
   if (user.campusId && cls.campusId !== user.campusId) {
     return Response.json({ error: "Class is outside your campus" }, { status: 403 });
+  }
+  // Teachers export grades only for a class they lead or teach.
+  if (user.role === "TEACHER" && cls.classTeacherId !== user.userId && !cls.subjects.some(subject => subject.teacherId === user.userId)) {
+    return Response.json({ error: "Class is outside your classes" }, { status: 403 });
   }
 
   try {
@@ -39,6 +43,7 @@ export async function GET(req: NextRequest) {
     return new Response(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/pdf",
+        "Cache-Control": "private, no-store", // SKAI-744: pupil grades and family finance PDFs never sit in a shared or browser cache
         "Content-Disposition": `attachment; filename="final-grades-${className || "class"}.pdf"`,
       },
     });

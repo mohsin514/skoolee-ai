@@ -1,0 +1,75 @@
+{
+  "startedAt": "2026-10-08T07:24:03.911440+00:00",
+  "status": "verified-awaiting-sign-off",
+  "dataClass": "synthetic",
+  "notificationIsolation": "No app, worker or notification SDK is executed; subprocess environment excludes all provider credentials.",
+  "operatorSignOff": null,
+  "schoolReopenDecision": "Requires operator review; synthetic proof is not production readiness.",
+  "checks": [
+    {
+      "name": "clean-provisioning-and-schema-drift",
+      "passed": true
+    },
+    {
+      "name": "populated-schema-push-adoption-and-upgrade",
+      "passed": true
+    },
+    {
+      "name": "additive-migration-tables-initially-empty",
+      "passed": true
+    },
+    {
+      "name": "all-record-counts-and-content-hashes",
+      "passed": true
+    },
+    {
+      "name": "invoice-balance-and-grade",
+      "passed": true
+    },
+    {
+      "name": "referenced-files-have-matching-manifest",
+      "passed": true
+    },
+    {
+      "name": "file-reconciliation:synthetic/attachment.txt",
+      "passed": true
+    },
+    {
+      "name": "interrupted-migration-rolled-back",
+      "passed": true
+    },
+    {
+      "name": "failed-migration-blocks-replay",
+      "passed": true
+    },
+    {
+      "name": "reviewed-forward-repair",
+      "passed": true
+    }
+  ],
+  "fault": null,
+  "destination": {
+    "host": "127.0.0.1",
+    "port": 55409,
+    "databases": {
+      "clean": "rehearsal_507b61307ac6_clean",
+      "upgrade": "rehearsal_507b61307ac6_upgrade",
+      "restored": "rehearsal_507b61307ac6_restored",
+      "failure": "rehearsal_507b61307ac6_failure"
+    }
+  },
+  "supportedUpgradePaths": [
+    "dev-9c5193d-schema-push-to-versioned-baseline",
+    "verified-baseline-to-head"
+  ],
+  "actualRestoredPointUtc": "2026-10-08 07:24:23.329662 UTC",
+  "backupStartedAt": "2026-10-08T07:24:23.331263+00:00",
+  "backupAgeSecondsAtRestore": 0.52897,
+  "verifiedRestoreElapsedSeconds": 11.984,
+  "restoreAttemptElapsedSeconds": 11.984,
+  "databaseBackupSha256": "db1fb06b55625594ad5eaafaa46570b01fc4a885b33baf638623868d73855164",
+  "baselineSqlSha256": "3e653920ef9312aa574bb53cfdffc5d1d302eda10bb57613afa4296d47cae01d",
+  "elapsedSeconds": 39.838,
+  "completedAt": "2026-10-08T07:24:43.749966+00:00",
+  "diagnostics": "diagnostics.log"
+}

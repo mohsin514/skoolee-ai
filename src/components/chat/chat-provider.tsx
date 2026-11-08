@@ -53,6 +53,12 @@ interface ChatContextValue {
   unreadTotal: number;
   isConnected: boolean;
   isLoadingList: boolean;
+  /** SKAI-1530: the list could not be loaded; the cached list (if any) stays and retryList reloads it. */
+  listFailed: boolean;
+  retryList: () => void;
+  /** SKAI-1696: more conversations exist beyond the loaded pages; loadMoreConversations rejects on failure. */
+  hasMoreConversations: boolean;
+  loadMoreConversations: () => Promise<void>;
 
   filter: ConversationFilter;
   setFilter: (filter: ConversationFilter) => void;
@@ -63,18 +69,24 @@ interface ChatContextValue {
   detail: ConversationDetail | null;
   messages: ChatMessageView[];
   isLoadingThread: boolean;
+  /** SKAI-1432: the thread could not be loaded (network failure); retryThread reloads it. */
+  threadFailed: boolean;
+  retryThread: () => void;
   hasOlder: boolean;
 
   openConversation: (id: string) => void;
   closeConversation: () => void;
   loadOlder: () => Promise<void>;
 
-  sendMessage: (input: {
-    body: string;
-    replyToId?: string;
-    attachments?: SendAttachment[];
-  }) => Promise<void>;
-  editMessage: (messageId: string, body: string) => Promise<void>;
+  sendMessage: (input: SendInput) => Promise<boolean>;
+  /** SKO-415: delivery state of the sender's own messages that the server has not confirmed yet. */
+  sendStates: Record<string, SendState>;
+  retryMessage: (clientKey: string) => Promise<boolean>;
+  discardMessage: (clientKey: string) => void;
+  /** When the thread was last brought in line with stored history (after load or reconnect). */
+  lastSyncedAt: string | null;
+  /** Resolves false when the edit was not saved, so the composer can keep the draft (SKAI-1583). */
+  editMessage: (messageId: string, body: string) => Promise<boolean>;
   deleteMessage: (messageId: string) => Promise<void>;
 
   startDirect: (userId: string) => Promise<string | null>;
@@ -90,7 +102,7 @@ interface ChatContextValue {
   setPreference: (
     id: string,
     prefs: { isMuted?: boolean; isPinned?: boolean; isArchived?: boolean }
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   leaveConversation: (id: string) => Promise<void>;
 
   typingUsers: TypingUser[];
@@ -100,6 +112,22 @@ interface ChatContextValue {
   refresh: () => Promise<void>;
   error: string | null;
   clearError: () => void;
+}
+
+export interface SendInput {
+  body: string;
+  replyToId?: string;
+  attachments?: SendAttachment[];
+  urgent?: boolean;
+}
+
+/** "sending": in flight; "failed": the server refused it; "unconfirmed": the connection dropped, so it
+ *  may or may not have been stored — retrying reuses the same send identifier and cannot duplicate it. */
+export interface SendState {
+  status: "sending" | "failed" | "unconfirmed";
+  error?: string;
+  input: SendInput;
+  conversationId: string;
 }
 
 export interface SendAttachment {
@@ -135,14 +163,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoadingList, setIsLoadingList] = useState(true);
+  const [listFailed, setListFailed] = useState(false);
 
   const [filter, setFilter] = useState<ConversationFilter>("all");
   const [search, setSearch] = useState("");
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
+  // SKAI-1542: read by setPreference to roll an optimistic change back to the values before it.
+  const conversationsRef = useRef<ConversationView[]>([]);
+  const detailRef = useRef<ConversationDetail | null>(null);
+  useEffect(() => { conversationsRef.current = conversations; detailRef.current = detail; }, [conversations, detail]);
   const [messages, setMessages] = useState<ChatMessageView[]>([]);
   const [isLoadingThread, setIsLoadingThread] = useState(false);
+  const [threadFailed, setThreadFailed] = useState(false);
+  const [threadAttempt, setThreadAttempt] = useState(0);
   const [olderCursor, setOlderCursor] = useState<string | null>(null);
 
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
@@ -152,6 +187,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // dropped stream itself, but once it gives up and lands in CLOSED it never
   // reopens on its own.
   const [connectionEpoch, setConnectionEpoch] = useState(0);
+  const [sendStates, setSendStates] = useState<Record<string, SendState>>({});
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const messagesRef = useRef<ChatMessageView[]>([]);
+  const disconnectedRef = useRef(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Read inside the SSE handler, which is created once per connection and
@@ -163,27 +202,95 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [activeId]);
 
   const lastTypingSentRef = useRef(0);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const clearSendState = useCallback((clientKey: string | null | undefined) => {
+    if (!clientKey) return;
+    setSendStates((prev) => {
+      if (!(clientKey in prev)) return prev;
+      const next = { ...prev };
+      delete next[clientKey];
+      return next;
+    });
+  }, []);
+
+  /** Merge server-confirmed messages: replace an optimistic copy by clientKey, never add a second copy. */
+  const mergeConfirmed = useCallback((incoming: ChatMessageView[]) => {
+    if (incoming.length === 0) return;
+    setMessages((prev) => {
+      let next = [...prev];
+      for (const message of incoming) {
+        const byKey = message.clientKey ? next.findIndex((m) => m.clientKey === message.clientKey) : -1;
+        const byId = next.findIndex((m) => m.id === message.id);
+        if (byKey >= 0) next[byKey] = message;
+        else if (byId >= 0) next[byId] = message;
+        else next = [...next, message];
+      }
+      return next;
+    });
+    for (const message of incoming) clearSendState(message.clientKey);
+  }, [clearSendState]);
 
   const clearError = useCallback(() => setError(null), []);
 
   // ─── Conversation list ─────────────────────────────────────────
 
+  // SKAI-1595: the list on screen belongs to one filter + search. A new query shows loading, and if it fails the
+  // old query's rows are cleared rather than shown as results for the new one.
+  const listQueryRef = useRef<string | null>(null);
+  // SKAI-1696: the cursor for the next inbox page; a reload bumps the request id so a late page is dropped.
+  const [listCursor, setListCursor] = useState<string | null>(null);
+  const listRequestRef = useRef(0);
   const loadConversations = useCallback(async () => {
+    const query = `${filter}|${search.trim()}`;
+    listRequestRef.current += 1;
+    const sameQuery = listQueryRef.current === query;
+    if (!sameQuery) setIsLoadingList(true);
     try {
       const params = new URLSearchParams({ filter });
       if (search.trim()) params.set("q", search.trim());
 
       const res = await fetch(`/api/chat/conversations?${params}`);
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`conversations ${res.status}`);
 
       const json = await res.json();
-      if (json.success) setConversations(json.conversations);
+      if (!json.success || !Array.isArray(json.conversations)) throw new Error("conversations payload");
+      setConversations(json.conversations);
+      listQueryRef.current = query;
+      setListCursor(typeof json.nextCursor === "string" ? json.nextCursor : null);
+      setListFailed(false);
     } catch {
-      // Offline; the list on screen stays valid until the network returns.
+      // Offline or failed: keep the same query's list on screen and say so, never pretend the inbox is empty.
+      if (!sameQuery) setListCursor(null);
+      if (!sameQuery) { setConversations([]); listQueryRef.current = null; }
+      setListFailed(true);
     } finally {
       setIsLoadingList(false);
     }
   }, [filter, search]);
+
+  const loadMoreConversations = useCallback(async () => {
+    if (!listCursor) return;
+    const query = `${filter}|${search.trim()}`;
+    const requestId = listRequestRef.current;
+    const params = new URLSearchParams({ filter });
+    if (search.trim()) params.set("q", search.trim());
+    params.set("cursor", listCursor);
+    const res = await fetch(`/api/chat/conversations?${params}`);
+    if (!res.ok) throw new Error("Older conversations could not be loaded.");
+    const json = await res.json();
+    if (!json.success || !Array.isArray(json.conversations)) throw new Error("Older conversations could not be loaded.");
+    if (listQueryRef.current !== query || listRequestRef.current !== requestId) return;
+    setConversations((prev) => {
+      const seen = new Set(prev.map((c) => c.id));
+      return [...prev, ...(json.conversations as ConversationView[]).filter((c) => !seen.has(c.id))];
+    });
+    setListCursor(typeof json.nextCursor === "string" ? json.nextCursor : null);
+  }, [filter, search, listCursor]);
+
+  const retryList = useCallback(() => { setIsLoadingList(true); void loadConversations(); }, [loadConversations]);
 
   const loadUnread = useCallback(async () => {
     try {
@@ -216,9 +323,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // ─── Open thread ───────────────────────────────────────────────
 
   const markRead = useCallback(async (id: string) => {
+    // SKAI-1404: clear the badge only once the server has confirmed the thread is read.
     try {
-      await fetch(`/api/chat/conversations/${id}/read`, { method: "POST" });
-    } catch {}
+      const res = await fetch(`/api/chat/conversations/${id}/read`, { method: "POST" });
+      if (!res.ok) return;
+    } catch {
+      return;
+    }
 
     setConversations((prev) =>
       prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
@@ -234,6 +345,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setTypingUsers([]);
   }, []);
 
+  const retryThread = useCallback(() => setThreadAttempt((attempt) => attempt + 1), []);
+
   const closeConversation = useCallback(() => {
     setActiveId(null);
     setDetail(null);
@@ -246,6 +359,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false;
     setIsLoadingThread(true);
+    setThreadFailed(false);
     setMessages([]);
     setDetail(null);
 
@@ -265,13 +379,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
 
         const detailJson = await detailRes.json();
-        const messagesJson = messagesRes.ok ? await messagesRes.json() : { messages: [] };
+        // SKAI-1404: a failed message load is an error, not an empty thread.
+        if (!messagesRes.ok) {
+          setError(await readError(messagesRes, "Messages could not be loaded. Try again."));
+          return;
+        }
+        const messagesJson = await messagesRes.json();
 
         if (cancelled) return;
 
         setDetail(detailJson.conversation);
         setMessages(messagesJson.messages ?? []);
+        setLastSyncedAt(new Date().toISOString());
         setOlderCursor(messagesJson.nextCursor ?? null);
+      } catch {
+        // SKAI-1432: a rejected fetch (offline, connection reset) shows an inline error with retry. List and unread state are left as they were.
+        if (!cancelled) setThreadFailed(true);
       } finally {
         if (!cancelled) setIsLoadingThread(false);
       }
@@ -280,7 +403,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [activeId]);
+  }, [activeId, threadAttempt]);
 
   // Clearing the badge is a side effect of having the thread open, so it also
   // fires when a message arrives while the reader is already looking at it.
@@ -299,16 +422,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const loadOlder = useCallback(async () => {
     if (!activeId || !olderCursor) return;
 
-    try {
-      const res = await fetch(
-        `/api/chat/conversations/${activeId}/messages?limit=40&cursor=${olderCursor}`
-      );
-      if (!res.ok) return;
+    // SKAI-1586: a failed page rejects so the thread can show it and offer a retry; the cursor is kept.
+    const res = await fetch(
+      `/api/chat/conversations/${activeId}/messages?limit=40&cursor=${olderCursor}`
+    );
+    if (!res.ok) throw new Error("Earlier messages could not be loaded.");
 
-      const json = await res.json();
-      setMessages((prev) => [...(json.messages ?? []), ...prev]);
-      setOlderCursor(json.nextCursor ?? null);
-    } catch {}
+    const json = await res.json();
+    setMessages((prev) => [...(json.messages ?? []), ...prev]);
+    setOlderCursor(json.nextCursor ?? null);
   }, [activeId, olderCursor]);
 
   // ─── Live stream ───────────────────────────────────────────────
@@ -329,6 +451,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             next[byKey] = message;
             return next;
           }
+          if (prev.some((m) => m.id === message.id)) return prev.map((m) => (m.id === message.id ? message : m));
           if (prev.some((m) => m.id === message.id)) return prev;
           return [...prev, message];
         });
@@ -354,11 +477,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return [...rest.slice(0, at), updated, ...rest.slice(at)];
       });
 
+      if (message.clientKey) clearSendState(message.clientKey);
       if (!isOpen) setUnreadTotal((prev) => prev + 1);
       return;
     }
 
     if (event.type === "message-updated") {
+      // SKAI-1291: an edit to the latest message refreshes its inbox preview too.
+      const edited = event.payload;
+      if (edited.isEdited && !edited.isDeleted) {
+        setConversations((prev) => prev.map((c) => (c.id === event.conversationId && c.lastMessageAt === edited.createdAt ? { ...c, lastMessagePreview: edited.body || c.lastMessagePreview } : c)));
+      }
       if (activeIdRef.current !== event.conversationId) return;
       setMessages((prev) =>
         prev.map((m) => (m.id === event.payload.id ? event.payload : m))
@@ -393,15 +522,59 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       loadConversations();
       loadUnread();
     }
-  }, [loadConversations, loadUnread]);
+  }, [loadConversations, loadUnread, clearSendState]);
+
+  // SKO-415 gap recovery: after any outage, fetch every message stored after the last confirmed one
+  // the thread holds, then re-read the list and unread totals from the server, so nothing missed while
+  // offline is lost and nothing is shown twice.
+  const resync = useCallback(async () => {
+    await refresh();
+    const conversationId = activeIdRef.current;
+    if (!conversationId) return;
+    const confirmed = messagesRef.current.filter((m) => !m.id.startsWith("pending-"));
+    let after: string | undefined = confirmed[confirmed.length - 1]?.id;
+    try {
+      if (!after) {
+        const res = await fetch(`/api/chat/conversations/${conversationId}/messages?limit=40`, { cache: "no-store" });
+        if (!res.ok) return;
+        const json = await res.json();
+        mergeConfirmed(json.messages ?? []);
+      } else {
+        for (let page = 0; page < 20 && after; page++) {
+          const res: Response = await fetch(`/api/chat/conversations/${conversationId}/messages?after=${encodeURIComponent(after)}&limit=100`, { cache: "no-store" });
+          if (!res.ok) return;
+          const json: { messages?: ChatMessageView[]; hasMoreAfter?: boolean } = await res.json();
+          const batch: ChatMessageView[] = json.messages ?? [];
+          mergeConfirmed(batch);
+          after = json.hasMoreAfter ? batch[batch.length - 1]?.id : undefined;
+        }
+      }
+      if (activeIdRef.current === conversationId) setLastSyncedAt(new Date().toISOString());
+    } catch {
+      // Still offline; the next restore runs this again.
+    }
+  }, [refresh, mergeConfirmed]);
+  const resyncRef = useRef(resync);
+  useEffect(() => {
+    resyncRef.current = resync;
+  }, [resync]);
 
   useEffect(() => {
     const source = new EventSource("/api/chat/stream");
     eventSourceRef.current = source;
 
-    source.addEventListener("ready", () => setIsConnected(true));
+    source.addEventListener("ready", () => {
+      setIsConnected(true);
+      if (disconnectedRef.current) {
+        disconnectedRef.current = false;
+        void resyncRef.current();
+      }
+    });
     source.addEventListener("open", () => setIsConnected(true));
-    source.addEventListener("error", () => setIsConnected(false));
+    source.addEventListener("error", () => {
+      setIsConnected(false);
+      disconnectedRef.current = true;
+    });
 
     source.addEventListener("chat", (e) => {
       try {
@@ -428,7 +601,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onRestored = () => {
-      refresh();
+      void resyncRef.current();
       if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
         setConnectionEpoch((n) => n + 1);
       }
@@ -439,19 +612,57 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // ─── Writes ────────────────────────────────────────────────────
 
+  // One POST per attempt, always with the message's own send identifier: the server returns the stored
+  // message for a repeated identifier, so a retry after a lost response can never post twice.
+  const postMessage = useCallback(async (conversationId: string, clientKey: string, input: SendInput): Promise<boolean> => {
+    setSendStates((prev) => ({ ...prev, [clientKey]: { status: "sending", input, conversationId } }));
+    try {
+      const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: input.body, replyToId: input.replyToId, clientKey, attachments: input.attachments, urgent: input.urgent || undefined }),
+      });
+      if (!res.ok) {
+        const error = await readError(res, "Message could not be sent");
+        setSendStates((prev) => ({ ...prev, [clientKey]: { status: "failed", error, input, conversationId } }));
+        return false;
+      }
+      const json = await res.json();
+      if (activeIdRef.current === conversationId) mergeConfirmed([json.message]);
+      else clearSendState(clientKey);
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? { ...c, lastMessageAt: json.message.createdAt, lastMessagePreview: json.message.body || "Attachment" }
+            : c
+        )
+      );
+      return true;
+    } catch {
+      // The live stream may already have delivered the stored copy; then nothing is uncertain.
+      if (messagesRef.current.some((m) => m.clientKey === clientKey && !m.id.startsWith("pending-"))) {
+        clearSendState(clientKey);
+        return true;
+      }
+      setSendStates((prev) => ({
+        ...prev,
+        [clientKey]: { status: "unconfirmed", error: "We could not confirm this message was sent. Retrying is safe: it will not be sent twice.", input, conversationId },
+      }));
+      return false;
+    }
+  }, [mergeConfirmed, clearSendState]);
+
   const sendMessage = useCallback<ChatContextValue["sendMessage"]>(
-    async ({ body, replyToId, attachments }) => {
-      if (!activeId) return;
+    async (input) => {
+      if (!activeId) return false;
+      const clientKey = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-      const clientKey = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-
-      // Optimistic: the message appears immediately and is reconciled when the
-      // server echoes it back over the stream, keyed on clientKey.
+      // Shown as "Sending…", never as delivered, until the server confirms it.
       const optimistic: ChatMessageView = {
         id: `pending-${clientKey}`,
         conversationId: activeId,
-        kind: attachments?.length ? "FILE" : "TEXT",
-        body,
+        kind: input.attachments?.length ? "FILE" : "TEXT",
+        body: input.body,
         sender: null,
         replyTo: null,
         attachments: [],
@@ -459,57 +670,42 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         isDeleted: false,
         createdAt: new Date().toISOString(),
         clientKey,
+        isUrgent: Boolean(input.urgent),
       };
       setMessages((prev) => [...prev, optimistic]);
-
-      try {
-        const res = await fetch(`/api/chat/conversations/${activeId}/messages`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body, replyToId, clientKey, attachments }),
-        });
-
-        if (!res.ok) {
-          setMessages((prev) => prev.filter((m) => m.clientKey !== clientKey));
-          setError(await readError(res, "Message could not be sent"));
-          return;
-        }
-
-        const json = await res.json();
-        setMessages((prev) =>
-          prev.map((m) => (m.clientKey === clientKey ? json.message : m))
-        );
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === activeId
-              ? {
-                  ...c,
-                  lastMessageAt: json.message.createdAt,
-                  lastMessagePreview: json.message.body || "Attachment",
-                }
-              : c
-          )
-        );
-      } catch {
-        setMessages((prev) => prev.filter((m) => m.clientKey !== clientKey));
-        setError("Message could not be sent — check your connection");
-      }
+      return postMessage(activeId, clientKey, input);
     },
-    [activeId]
+    [activeId, postMessage]
   );
+
+  const retryMessage = useCallback(async (clientKey: string) => {
+    const state = sendStates[clientKey];
+    if (!state) return false;
+    return postMessage(state.conversationId, clientKey, state.input);
+  }, [sendStates, postMessage]);
+
+  const discardMessage = useCallback((clientKey: string) => {
+    setMessages((prev) => prev.filter((m) => !(m.clientKey === clientKey && m.id.startsWith("pending-"))));
+    clearSendState(clientKey);
+  }, [clearSendState]);
 
   const editMessage = useCallback(async (messageId: string, body: string) => {
     const res = await fetch(`/api/chat/messages/${messageId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ body }),
-    });
-    if (!res.ok) {
-      setError(await readError(res, "Could not edit that message"));
-      return;
+    }).catch(() => null);
+    if (!res?.ok) {
+      setError(res ? await readError(res, "Could not edit that message") : "Could not edit that message");
+      return false;
     }
-    const json = await res.json();
+    const json = await res.json().catch(() => null);
+    if (!json?.message) {
+      setError("Could not edit that message");
+      return false;
+    }
     setMessages((prev) => prev.map((m) => (m.id === messageId ? json.message : m)));
+    return true;
   }, []);
 
   const deleteMessage = useCallback(async (messageId: string) => {
@@ -566,18 +762,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const setPreference = useCallback(
     async (id: string, prefs: { isMuted?: boolean; isPinned?: boolean; isArchived?: boolean }) => {
-      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, ...prefs } : c)));
+      // SKAI-1542: the list and the open thread change together, and both roll back on any failure.
+      const keys = Object.keys(prefs) as (keyof typeof prefs)[];
+      const before: typeof prefs = {};
+      const listRow = conversationsRef.current.find((c) => c.id === id);
+      for (const key of keys) before[key] = (listRow ?? (detailRef.current?.id === id ? detailRef.current : undefined))?.[key];
+      const apply = (values: typeof prefs) => {
+        setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, ...values } : c)));
+        setDetail((prev) => (prev && prev.id === id ? { ...prev, ...values } : prev));
+      };
+      apply(prefs);
 
-      const res = await fetch(`/api/chat/conversations/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(prefs),
-      });
-
-      if (!res.ok) {
-        setError(await readError(res, "Could not update that conversation"));
+      let ok = false;
+      try {
+        const res = await fetch(`/api/chat/conversations/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(prefs),
+        });
+        ok = res.ok;
+        if (!ok) setError(await readError(res, "Could not update that conversation"));
+      } catch {
+        setError("Could not update that conversation");
       }
+      if (!ok) apply(before);
       await loadConversations();
+      return ok;
     },
     [loadConversations]
   );
@@ -606,19 +816,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     fetch(`/api/chat/conversations/${activeId}/typing`, { method: "POST" }).catch(() => {});
   }, [activeId]);
 
+  // SKAI-1540: a failed directory load rejects, so the dialog can show an error and Retry
+  // instead of "0 people you can reach".
   const searchDirectory = useCallback(async (query: string) => {
-    try {
-      const params = new URLSearchParams({ limit: "50" });
-      if (query.trim()) params.set("q", query.trim());
+    const params = new URLSearchParams({ limit: "50" });
+    if (query.trim()) params.set("q", query.trim());
 
-      const res = await fetch(`/api/chat/directory?${params}`);
-      if (!res.ok) return [];
+    const res = await fetch(`/api/chat/directory?${params}`);
+    if (!res.ok) throw new Error(`directory ${res.status}`);
 
-      const json = await res.json();
-      return (json.contacts ?? []) as DirectoryContact[];
-    } catch {
-      return [];
-    }
+    const json = await res.json();
+    if (!Array.isArray(json?.contacts)) throw new Error("directory payload");
+    return json.contacts as DirectoryContact[];
   }, []);
 
   const value = useMemo<ChatContextValue>(
@@ -628,6 +837,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       unreadTotal,
       isConnected,
       isLoadingList,
+      listFailed,
+      retryList,
+      hasMoreConversations: listCursor !== null,
+      loadMoreConversations,
       filter,
       setFilter,
       search,
@@ -636,11 +849,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       detail,
       messages,
       isLoadingThread,
+      threadFailed,
+      retryThread,
       hasOlder: olderCursor !== null,
       openConversation,
       closeConversation,
       loadOlder,
       sendMessage,
+      sendStates,
+      retryMessage,
+      discardMessage,
+      lastSyncedAt,
       editMessage,
       deleteMessage,
       startDirect,
@@ -660,17 +879,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       unreadTotal,
       isConnected,
       isLoadingList,
+      listFailed,
+      retryList,
+      listCursor,
+      loadMoreConversations,
       filter,
       search,
       activeId,
       detail,
       messages,
       isLoadingThread,
+      threadFailed,
+      retryThread,
       olderCursor,
       openConversation,
       closeConversation,
       loadOlder,
       sendMessage,
+      sendStates,
+      retryMessage,
+      discardMessage,
+      lastSyncedAt,
       editMessage,
       deleteMessage,
       startDirect,

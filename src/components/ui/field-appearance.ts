@@ -1,0 +1,3 @@
+// Shared visual contract: callers may adjust layout, never fork the field skin.
+// Focus border and halo live in the unlayered field contract in globals.css.
+export const fieldAppearance = "rounded-2xl border border-field-border bg-field-surface text-base font-semibold text-foreground shadow-(--field-shadow-rest) transition-[background-color,border-color,box-shadow] duration-200 enabled:hover:border-field-border-hover focus:bg-white placeholder:font-normal placeholder:text-ink-subtle disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-ink-muted disabled:shadow-none aria-[invalid=true]:border-destructive aria-[invalid=true]:bg-red-50/60";

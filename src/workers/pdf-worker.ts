@@ -18,7 +18,7 @@ const worker = new Worker<BulkPdfJobData>(
   "pdf-generation",
   async (job: Job<BulkPdfJobData>) => {
     // A queue job has no session, so the school travels on the job payload.
-    return runWithTenantContext({ schoolId: job.data.tenantId }, () => processPdfJob(job));
+    return runWithTenantContext({ schoolId: job.data.tenantId, ...(job.data.campusId ? { campusId: job.data.campusId, role: "SERVICE" } : {}) }, () => processPdfJob(job));
   },
   {
     connection: redis,
@@ -39,7 +39,6 @@ async function processPdfJob(job: Job<BulkPdfJobData>) {
     }
 
     await generateReportCardsForLockedExam(examId);
-    await notifyReportCardsGenerated({ examId });
     const reportCards = await prisma.reportCard.findMany({
       where: { examId },
       select: { id: true },
@@ -57,6 +56,9 @@ async function processPdfJob(job: Job<BulkPdfJobData>) {
       await job.updateProgress(Math.round((generated / reportCards.length) * 100));
     }
 
+    // SKAI-737: staff hear "generated" only once every PDF is saved; a failed render retries
+    // instead of announcing cards that cannot be opened. The notice is idempotent per exam.
+    await notifyReportCardsGenerated({ examId });
     return { generated, total: reportCards.length };
 }
 

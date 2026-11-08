@@ -1,0 +1,22 @@
+DELETE_FAILURE {"dialogCount":0,"campusCount":1,"alerts":["Your setup could not be loaded. Refresh to try again; nothing you saved has been lost.",""],"focus":"<button class=\"relative inline-flex cursor-pointer items-center justify-center gap-2 whitespace-normal text-sm font-semibold tracking-[-0.005em] trans"}
+SESSION_RESET 2026-27
+✔ supplemental: campus delete failure, keyboard controls and mobile group layout (13024.665625ms)
+MFA_DEFER {"fresh":200,"enrolled":400}
+✔ supplemental: real MFA defer and enrolled refusal (3165.559375ms)
+BAD_LOGO [ 'Please choose an image file' ]
+LARGE_LOGO [ 'Use a logo image under 1.5 MB', 'Please choose an image file' ]
+UPLOAD_FAILURE [
+  'The logo could not be uploaded. Check your connection and try again.',
+  'Use a logo image under 1.5 MB',
+  'Please choose an image file'
+]
+INVALID_WEBSITE_SAVED "not a valid website"
+✔ supplemental: identity invalid website and upload validation (6301.509792ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 23418.371333

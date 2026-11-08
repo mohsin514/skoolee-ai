@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { runUnscoped } from "@/lib/db/tenant-context";
+import { runUnscoped, runWithTenantContext } from "@/lib/db/tenant-context";
 import { recordPayment } from "@/lib/fees/payment";
-import { activatePlan } from "@/lib/billing/entitlements";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Simulates a completed SafePay order. Used by the sandbox card form.
-// Supports both plan purchases (schoolId + plan) and fee payments (orderRef).
+// The development simulator accepts only an existing synthetic fee order.
 
 export async function POST(req: NextRequest) {
   // Gateway callbacks carry no session; the signature check inside is
@@ -20,19 +21,16 @@ export async function POST(req: NextRequest) {
 }
 
 async function handleWebhook(req: NextRequest) {
-  // The sandbox simulator must NEVER be reachable in production — it activates
-  // paid plans (and settles fee payments) without a real charge. In production
-  // the only path into the license record is the SafePay webhook, which is
-  // authenticated by SafePay's signature.
+  // The sandbox simulator must NEVER be reachable in production. It accepts
+  // only fee orders in development; institutional plans require provider callbacks.
   if (process.env.NODE_ENV === "production") {
     return Response.json({ error: "Not available in production" }, { status: 403 });
   }
 
   try {
-    const { orderRef, schoolId, plan, billingPeriod } = await req.json();
-    if (orderRef && schoolId && plan) {
-      await activatePlan(schoolId, plan as any, prisma, billingPeriod === "annual" ? 365 : undefined);
-      return Response.json({ success: true });
+    const { orderRef, schoolId, plan } = await parseBody(req, jsonObjectBody);
+    if (schoolId || plan) {
+      return Response.json({ error: "Browser-submitted plan details cannot settle a subscription." }, { status: 403 });
     }
 
     if (orderRef) {
@@ -43,8 +41,10 @@ async function handleWebhook(req: NextRequest) {
         return Response.json({ success: true, message: "Already settled" });
       }
 
-      const settled = await prisma.$transaction(
+      const settled = await runWithTenantContext({ schoolId: order.schoolId }, () => prisma.$transaction(
         async (tx) => {
+        // SKO-431: concurrent or replayed confirmations wait here and then see COMPLETED.
+        await tx.$queryRaw`SELECT id FROM online_payment_orders WHERE id=${order.id} FOR UPDATE`;
         const current = await tx.onlinePaymentOrder.findUnique({ where: { id: order.id } });
         if (current?.status === "COMPLETED") return null;
 
@@ -68,7 +68,7 @@ async function handleWebhook(req: NextRequest) {
         return result;
       },
         { timeout: 20000 }
-      );
+      ));
 
       return Response.json({ success: true, data: settled });
     }
@@ -89,16 +89,19 @@ export async function GET(req: NextRequest) {
   const kind = searchParams.get("kind");
   const invoiceId = searchParams.get("invoiceId");
   const billingPeriod = searchParams.get("billingPeriod");
+  const contract = searchParams.get("contract");
 
   const appBase = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  if (schoolId || plan) {
+    return NextResponse.redirect(new URL("/pricing?checkout=unavailable", req.url));
+  }
   const payUrl = new URL("/safepay", req.url);
   if (orderRef) payUrl.searchParams.set("orderRef", orderRef);
-  if (schoolId) payUrl.searchParams.set("schoolId", schoolId);
-  if (plan) payUrl.searchParams.set("plan", plan);
   if (amountLabel) payUrl.searchParams.set("amountLabel", amountLabel);
   if (kind) payUrl.searchParams.set("kind", kind);
   if (invoiceId) payUrl.searchParams.set("invoiceId", invoiceId);
   if (billingPeriod) payUrl.searchParams.set("billingPeriod", billingPeriod);
+  if (contract) payUrl.searchParams.set("contract", contract);
 
   return NextResponse.redirect(payUrl);
 }

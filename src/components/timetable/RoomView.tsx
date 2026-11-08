@@ -1,6 +1,8 @@
 "use client";
 
 import { DoorOpen } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import type {
   GridDay,
   GridPeriod,
@@ -38,6 +40,7 @@ export function RoomView({
   periods: GridPeriod[];
   weekendDays: number[];
 }) {
+  const ui = useUiText();
   const colorMap = classColorMap(timetables);
 
   // roomId -> list of occupancies resolved from all timetables
@@ -59,33 +62,32 @@ export function RoomView({
   const gridCols = `160px repeat(${visibleDays.length}, minmax(120px, 1fr))`;
 
   return (
-    <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+    <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "160ms" }}>
       <div className="min-w-[760px]">
         {/* Header */}
-        <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: gridCols }}>
+        <div className="grid border-b border-muted" style={{ gridTemplateColumns: gridCols }}>
           <div className="flex items-center gap-1.5 p-3">
-            <DoorOpen className="w-4 h-4 text-ink-subtle" />
-            <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Room</span>
+            <DoorOpen aria-hidden="true" className="w-4 h-4 text-ink-subtle" />
+            <span className="text-xs font-semibold text-ink-subtle">{ui("Room")}</span>
           </div>
           {visibleDays.map((day) => {
             const isOff = weekendDays.includes(day.num);
             return (
               <div
                 key={day.num}
-                className={`flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9] ${
-                  isOff ? "opacity-50 bg-[#f3f4f9]/70" : ""
+                className={`flex flex-col items-center justify-center py-3 border-s border-muted ${
+                  isOff ? "opacity-50 bg-muted/70" : ""
                 }`}
               >
-                <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{day.short}</span>
-                <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{day.full}</span>
+                <span className="text-xs font-semibold text-ink-subtle">{ui(day.full)}</span>
               </div>
             );
           })}
         </div>
 
         {rooms.length === 0 ? (
-          <div className="flex items-center justify-center py-16 text-sm font-semibold text-ink-subtle">
-            No rooms configured. Add rooms in Academic settings.
+          <div className="py-10">
+            <EmptyState size="sm" icon={DoorOpen} title={ui("No rooms configured")} description={ui("Your campus admin adds rooms under Campus setup; room occupancy appears here.")} />
           </div>
         ) : (
           rooms.map((room) => {
@@ -93,13 +95,13 @@ export function RoomView({
             return (
               <div
                 key={room.id}
-                className="grid border-b border-[#f3f4f9] last:border-b-0 hover:bg-[#fbf0fe]/20 transition-colors"
+                className="grid border-b border-muted last:border-b-0 hover:bg-brand-50/20 transition-colors"
                 style={{ gridTemplateColumns: gridCols }}
               >
-                <div className="flex flex-col justify-center p-3 border-r border-[#f3f4f9]">
-                  <span className="text-[11px] font-black text-[#1f1a23]">{room.roomNumber}</span>
-                  <span className="text-[8px] font-bold text-ink-subtle mt-0.5">
-                    cap {room.capacity || "—"}
+                <div className="flex flex-col justify-center p-3 border-e border-muted">
+                  <bdi className="text-2xs font-bold text-ink-strong">{room.roomNumber}</bdi>
+                  <span className="text-3xs font-bold text-ink-subtle mt-0.5">
+                    {ui("Capacity {0}", [room.capacity || "—"])}
                   </span>
                 </div>
                 {visibleDays.map((day) => {
@@ -111,24 +113,24 @@ export function RoomView({
                   return (
                     <div
                       key={day.num}
-                      className={`border-l border-[#f3f4f9] p-1.5 ${isOff ? "opacity-40 bg-[#f3f4f9]/70" : ""}`}
+                      className={`border-s border-muted p-1.5 ${isOff ? "opacity-40 bg-muted/70" : ""}`}
                     >
                       {occupied ? (
                         <div className="space-y-1">
                           {daySlots.map((u, i) => (
                             <div
                               key={i}
-                              className={`rounded-lg ${u.color.bg} ${u.color.border} border px-2 py-1`}
+                              className={`rounded-lg ${u.color.bg}  ${u.color.border} border px-2 py-1`}
                             >
-                              <p className={`text-[9px] font-black leading-tight ${u.color.text}`}>
-                                P{u.period} · {u.clsLabel}
+                              <p className={`text-2xs font-bold leading-tight ${u.color.text}`}>
+                                {ui("P{0}", [u.period])} · <bdi>{u.clsLabel}</bdi>
                               </p>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <div className="flex h-full min-h-[40px] items-center justify-center rounded-lg border border-dashed border-[#cfc2d6]/15">
-                          <span className="text-[8px] font-semibold text-ink-subtle">free</span>
+                        <div className="flex h-full min-h-[40px] items-center justify-center rounded-lg border border-dashed border-edge/15">
+                          <span className="text-3xs font-semibold text-ink-subtle">{ui("Free")}</span>
                         </div>
                       )}
                     </div>

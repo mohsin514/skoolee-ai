@@ -1,0 +1,66 @@
+{
+  "formatVersion": 1,
+  "dataClass": "synthetic",
+  "environment": "isolated-synthetic-staging",
+  "status": "passed",
+  "checks": [
+    {
+      "name": "failure-recorded-with-sanitized-reason",
+      "passed": true
+    },
+    {
+      "name": "retry-and-duplicate-preserve-one-effect",
+      "passed": true
+    },
+    {
+      "name": "cross-tenant-reference-cannot-run",
+      "passed": true
+    },
+    {
+      "name": "uncertain-external-outcome-is-not-replayed",
+      "passed": true
+    },
+    {
+      "name": "bounded-two-tenant-load-completes-without-cross-effects",
+      "passed": true
+    },
+    {
+      "name": "declared-local-recovery-smoke-budget",
+      "passed": true
+    },
+    {
+      "name": "reconciliation-exposes-failure-and-tenant-scoped-correlations",
+      "passed": true
+    }
+  ],
+  "load": {
+    "threshold": {
+      "totalJobs": 32,
+      "noisyTenantJobs": 28,
+      "quietTenantJobs": 4,
+      "concurrency": 4,
+      "maxPerJobMs": 5000,
+      "maxTotalMs": 30000
+    },
+    "elapsedMs": 44.707,
+    "tenantA": {
+      "jobs": 28,
+      "p95Ms": 10.056
+    },
+    "tenantB": {
+      "jobs": 4,
+      "p95Ms": 4.447
+    }
+  },
+  "localSinkCalls": 1,
+  "actualProviderCalls": 0,
+  "elapsedMs": 121.194,
+  "correlations": {
+    "retryEventId": "2da197bf-cc8d-4a30-bbf7-3cc9738c51fc",
+    "uncertainEventId": "1753c71b-0f5d-4824-8925-71a17edafdea"
+  },
+  "limitations": [
+    "In-process providerless handlers against the restored PostgreSQL database. No Redis, app server, worker entry point, live provider or scheduler fairness/capacity claim.",
+    "Thresholds are checked-in development regression budgets, not an agreed customer SLA or production RPO/RTO."
+  ]
+}

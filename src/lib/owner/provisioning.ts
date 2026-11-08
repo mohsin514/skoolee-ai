@@ -5,9 +5,9 @@
 // school and every account, so these helpers are the single place
 // where new credentials come into existence.
 // ─────────────────────────────────────────────────────────────────
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
-import { PLANS } from "@/config/plans";
+import { getSchoolPlanContract } from "@/config/commercial-contract";
 import type { PlanType } from "@/types";
 import type { UserRole } from "@/lib/roles";
 
@@ -19,6 +19,9 @@ export const OWNER_CREATABLE_ROLES: UserRole[] = [
   "ADMIN",
   "PRINCIPAL",
   "TEACHER",
+  "ACCOUNTANT",
+  "LIBRARIAN",
+  "RECEPTIONIST",
 ];
 
 // Omits look-alike characters (0/O, 1/l/I) so a password read off a
@@ -93,21 +96,21 @@ export function normalizePlan(plan: unknown): PlanType {
  * Seat check for staff roles. Mirrors billing/entitlements.ts but counts
  * only what this endpoint can add, and treats ENTERPRISE (-1) as unlimited.
  */
-export async function assertSeatAvailable(schoolId: string, role: UserRole) {
+export async function assertSeatAvailable(schoolId: string, role: UserRole, db: TxClient = prisma) {
   if (role !== "TEACHER") return; // only teacher seats are metered
 
-  const school = await prisma.school.findUnique({
+  const school = await db.school.findUnique({
     where: { id: schoolId },
-    select: { plan: true },
+    select: { plan: true, commercialContract: true },
   });
   if (!school) throw new ApiError("School not found", 404);
 
-  const limit = PLANS[normalizePlan(school.plan)].maxTeachers;
+  const limit = getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).maxTeachers;
   if (limit < 0) return; // unlimited
 
   const [active, pending] = await Promise.all([
-    prisma.user.count({ where: { schoolId, role: "TEACHER", isActive: true } }),
-    prisma.staffInvitation.count({
+    db.user.count({ where: { schoolId, role: "TEACHER", isActive: true } }),
+    db.staffInvitation.count({
       where: { role: "TEACHER", status: "pending", campus: { schoolId } },
     }),
   ]);

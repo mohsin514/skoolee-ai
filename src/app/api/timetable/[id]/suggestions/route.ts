@@ -1,7 +1,10 @@
 import { NextRequest } from "next/server";
-import { canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { applySuggestion, buildSuggestions, type SuggestionAction } from "@/lib/timetable/suggest";
 import { prisma } from "@/lib/db/prisma";
+import { resolveTimetableCampus } from "@/lib/timetable/manual";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 
@@ -20,7 +23,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     if (!canManageOperations(user)) return Response.json({ error: "Forbidden" }, { status: 403 });
 
     const { id } = await params;
-    const campusId = await resolveCampusId(user);
+    const campusId = await resolveTimetableCampus(user, id);
 
     // Answer 404 for a timetable outside this campus. buildSuggestions() is
     // already campus-scoped and returns an empty report, so nothing leaked —
@@ -44,14 +47,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!canManageOperations(user)) return Response.json({ error: "Forbidden" }, { status: 403 });
 
     const { id } = await params;
-    const campusId = await resolveCampusId(user);
-    const body = await req.json();
+    const campusId = await resolveTimetableCampus(user, id);
+    const body = await parseBody(req, jsonObjectBody);
     const action = body?.action as SuggestionAction | undefined;
     if (!action?.type || !action?.slotId) {
       return Response.json({ error: "action { type, slotId } is required" }, { status: 400 });
     }
 
-    const result = await applySuggestion({ campusId, timetableId: id, action });
+    const result = await applySuggestion({ user, campusId, timetableId: id, action });
     return Response.json({ success: true, data: result });
   } catch (error) {
     return errorResponse(error, "[timetable/suggestions] POST failed");

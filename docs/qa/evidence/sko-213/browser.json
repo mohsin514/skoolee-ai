@@ -1,0 +1,335 @@
+[
+  {
+    "role": "PRINCIPAL",
+    "viewport": "desktop",
+    "language": "en",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "ACCOUNTANT",
+    "viewport": "desktop",
+    "language": "en",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "PRINCIPAL",
+    "viewport": "desktop",
+    "language": "ar",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "ACCOUNTANT",
+    "viewport": "desktop",
+    "language": "ar",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "PRINCIPAL",
+    "viewport": "desktop",
+    "language": "ur",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "ACCOUNTANT",
+    "viewport": "desktop",
+    "language": "ur",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "PRINCIPAL",
+    "viewport": "tablet",
+    "language": "en",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "ACCOUNTANT",
+    "viewport": "tablet",
+    "language": "en",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "PRINCIPAL",
+    "viewport": "tablet",
+    "language": "ar",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "ACCOUNTANT",
+    "viewport": "tablet",
+    "language": "ar",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "PRINCIPAL",
+    "viewport": "tablet",
+    "language": "ur",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "ACCOUNTANT",
+    "viewport": "tablet",
+    "language": "ur",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "PRINCIPAL",
+    "viewport": "mobile",
+    "language": "en",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "ACCOUNTANT",
+    "viewport": "mobile",
+    "language": "en",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "PRINCIPAL",
+    "viewport": "mobile",
+    "language": "ar",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "ACCOUNTANT",
+    "viewport": "mobile",
+    "language": "ar",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "PRINCIPAL",
+    "viewport": "mobile",
+    "language": "ur",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "ACCOUNTANT",
+    "viewport": "mobile",
+    "language": "ur",
+    "overflow": false,
+    "keyboardReview": true,
+    "draftRecovered": true,
+    "errors": []
+  },
+  {
+    "role": "APP_OWNER",
+    "viewport": "desktop",
+    "status": 200
+  },
+  {
+    "role": "APP_OWNER",
+    "viewport": "tablet",
+    "status": 200
+  },
+  {
+    "role": "APP_OWNER",
+    "viewport": "mobile",
+    "status": 200
+  },
+  {
+    "role": "SUPER_ADMIN",
+    "viewport": "desktop",
+    "status": 200
+  },
+  {
+    "role": "SUPER_ADMIN",
+    "viewport": "tablet",
+    "status": 200
+  },
+  {
+    "role": "SUPER_ADMIN",
+    "viewport": "mobile",
+    "status": 200
+  },
+  {
+    "role": "CAMPUS_ADMIN",
+    "viewport": "desktop",
+    "status": 200
+  },
+  {
+    "role": "CAMPUS_ADMIN",
+    "viewport": "tablet",
+    "status": 200
+  },
+  {
+    "role": "CAMPUS_ADMIN",
+    "viewport": "mobile",
+    "status": 200
+  },
+  {
+    "role": "ADMIN",
+    "viewport": "desktop",
+    "status": 200
+  },
+  {
+    "role": "ADMIN",
+    "viewport": "tablet",
+    "status": 200
+  },
+  {
+    "role": "ADMIN",
+    "viewport": "mobile",
+    "status": 200
+  },
+  {
+    "role": "PRINCIPAL",
+    "viewport": "desktop",
+    "status": 200
+  },
+  {
+    "role": "PRINCIPAL",
+    "viewport": "tablet",
+    "status": 200
+  },
+  {
+    "role": "PRINCIPAL",
+    "viewport": "mobile",
+    "status": 200
+  },
+  {
+    "role": "TEACHER",
+    "viewport": "desktop",
+    "status": 200
+  },
+  {
+    "role": "TEACHER",
+    "viewport": "tablet",
+    "status": 200
+  },
+  {
+    "role": "TEACHER",
+    "viewport": "mobile",
+    "status": 200
+  },
+  {
+    "role": "PARENT",
+    "viewport": "desktop",
+    "status": 200,
+    "noPrivateLeak": true
+  },
+  {
+    "role": "PARENT",
+    "viewport": "tablet",
+    "status": 200,
+    "noPrivateLeak": true
+  },
+  {
+    "role": "PARENT",
+    "viewport": "mobile",
+    "status": 200,
+    "noPrivateLeak": true
+  },
+  {
+    "role": "STUDENT",
+    "viewport": "desktop",
+    "status": 200,
+    "noPrivateLeak": true
+  },
+  {
+    "role": "STUDENT",
+    "viewport": "tablet",
+    "status": 200,
+    "noPrivateLeak": true
+  },
+  {
+    "role": "STUDENT",
+    "viewport": "mobile",
+    "status": 200,
+    "noPrivateLeak": true
+  },
+  {
+    "role": "ACCOUNTANT",
+    "viewport": "desktop",
+    "status": 200
+  },
+  {
+    "role": "ACCOUNTANT",
+    "viewport": "tablet",
+    "status": 200
+  },
+  {
+    "role": "ACCOUNTANT",
+    "viewport": "mobile",
+    "status": 200
+  },
+  {
+    "role": "LIBRARIAN",
+    "viewport": "desktop",
+    "status": 200
+  },
+  {
+    "role": "LIBRARIAN",
+    "viewport": "tablet",
+    "status": 200
+  },
+  {
+    "role": "LIBRARIAN",
+    "viewport": "mobile",
+    "status": 200
+  },
+  {
+    "role": "RECEPTIONIST",
+    "viewport": "desktop",
+    "status": 200
+  },
+  {
+    "role": "RECEPTIONIST",
+    "viewport": "tablet",
+    "status": 200
+  },
+  {
+    "role": "RECEPTIONIST",
+    "viewport": "mobile",
+    "status": 200
+  }
+]

@@ -1,15 +1,19 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   assertModuleRead,
   assertPermission,
-  canManageOperations,
-  errorResponse,
+  canManageCampusOps,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { created, failFrom, ok } from "@/lib/api/envelope";
 import { daysToTenths, tenthsToDays } from "@/lib/leave";
+import { createLeaveType } from "@/lib/leave/create-type-command";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Leave types per campus.
 // GET           — list (any signed-in staff)
@@ -35,47 +39,31 @@ export async function GET(req: NextRequest) {
       orderBy: { name: "asc" },
     });
 
-    return Response.json({
-      success: true,
-      data: types.map((t) => ({ ...t, defaultDaysDisplay: tenthsToDays(t.defaultDays) })),
-    });
+    return ok(types.map((t) => ({ ...t, defaultDaysDisplay: tenthsToDays(t.defaultDays) })));
   } catch (error) {
-    return errorResponse(error, "[leave/types] GET failed");
+    return failFrom(error, "[leave/types] GET failed");
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "leave", "add");
-    const body = await req.json();
-    const name = String(body.name ?? "").trim();
-    if (!name) throw new ApiError("name is required", 400);
-
-    const campusId = await resolveCampusId(user, body.campusId);
-
-    const existing = await prisma.leaveType.findUnique({
-      where: { campusId_name: { campusId, name } },
-    });
-    if (existing) throw new ApiError(`Leave type "${name}" already exists`, 409);
-
-    const type = await prisma.leaveType.create({
-      data: { campusId, name, defaultDays: daysToTenths(Number(body.defaultDays ?? 0)) },
-    });
-    return Response.json({ success: true, data: type }, { status: 201 });
+    const body = await parseBody(req, jsonObjectBody);
+    const type = await createLeaveType(user, body);
+    return created(type);
   } catch (error) {
-    return errorResponse(error, "[leave/types] POST failed");
+    return failFrom(error, "[leave/types] POST failed");
   }
 }
 
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "leave", "edit");
-    const body = await req.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(req, idBody);
 
     const type = await prisma.leaveType.findFirst({
       where: { id: body.id, campus: { schoolId: user.schoolId } },
@@ -95,35 +83,12 @@ export async function PATCH(req: NextRequest) {
     if (body.defaultDays !== undefined) data.defaultDays = daysToTenths(Number(body.defaultDays));
 
     const updated = await prisma.leaveType.update({ where: { id: type.id }, data });
-    return Response.json({ success: true, data: updated });
+    return ok(updated);
   } catch (error) {
-    return errorResponse(error, "[leave/types] PATCH failed");
+    return failFrom(error, "[leave/types] PATCH failed");
   }
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, "leave", "delete");
-    const id = req.nextUrl.searchParams.get("id");
-    if (!id) throw new ApiError("id required", 400);
-
-    const type = await prisma.leaveType.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-      include: { _count: { select: { requests: true } } },
-    });
-    if (!type) throw new ApiError("Leave type not found", 404);
-    if (type._count.requests > 0) {
-      throw new ApiError(
-        `Cannot delete "${type.name}" — ${type._count.requests} leave request${type._count.requests === 1 ? "" : "s"} reference it`,
-        409
-      );
-    }
-
-    await prisma.leaveType.delete({ where: { id } });
-    return Response.json({ success: true });
-  } catch (error) {
-    return errorResponse(error, "[leave/types] DELETE failed");
-  }
+  return operationDeleteResponse(req, "leave/types");
 }

@@ -1,0 +1,1289 @@
+[
+  {
+    "file": "src/app/(auth)/apply/[token]/page.tsx",
+    "confirmations": [
+      189
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/admin/page.tsx",
+    "confirmations": [
+      1086
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/academic/calendar/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      105
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/academic/exam-schedule/bulk/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      438
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/academic/exam-schedule/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      290
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/academic/exam-sessions/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      136
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/academic/periods/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      173
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/academic/rooms/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      190
+    ],
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
+  },
+  {
+    "file": "src/app/api/accounts/bank-accounts/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      107
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/accounts/chart/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      110
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/accounts/ledger/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      113
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/accounts/payment-methods/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      97
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/admission-queries/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      119
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/auth/sessions/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      16
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/chat/conversations/[id]/members/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      28
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/chat/conversations/[id]/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      66
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/chat/messages/[id]/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      25
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/classes/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      226
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/dormitory/room-types/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      108
+    ],
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
+  },
+  {
+    "file": "src/app/api/dormitory/rooms/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      146
+    ],
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
+  },
+  {
+    "file": "src/app/api/fees/assignments/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      43
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/fees/carry-forwards/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      83
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/fees/discount-assignments/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      48
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/fees/discounts/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      89
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/fees/fine-rules/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      76
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/fees/groups/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      75
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/fees/master-lines/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      80
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/fees/structure/[structureId]/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      87
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/fees/types/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      80
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/front-desk/certificates/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      89
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/front-desk/complaints/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      111
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/front-desk/phone-calls/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      81
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/front-desk/postal/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      80
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/front-desk/visitors/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      102
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/inventory/categories/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      90
+    ],
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
+  },
+  {
+    "file": "src/app/api/inventory/items/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      104
+    ],
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
+  },
+  {
+    "file": "src/app/api/inventory/stores/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      85
+    ],
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
+  },
+  {
+    "file": "src/app/api/inventory/suppliers/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      88
+    ],
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
+  },
+  {
+    "file": "src/app/api/leave/allocations/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      80
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/leave/types/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      93
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/library/books/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      75
+    ],
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
+  },
+  {
+    "file": "src/app/api/library/categories/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      60
+    ],
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
+  },
+  {
+    "file": "src/app/api/library/members/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      49
+    ],
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
+  },
+  {
+    "file": "src/app/api/owner/schools/[id]/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      129
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/owner/sessions/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      45
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/owner/support/grants/[id]/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      9
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/school-ai/conversations/[id]/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      14
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/staff/departments/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      215
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/staff/designations/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      176
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/staff/documents/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      101
+    ],
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
+  },
+  {
+    "file": "src/app/api/staff/reporting-lines/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      65
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/staff/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      110
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/student-categories/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      101
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/student-groups/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      99
+    ],
+    "review": "shared-review-contract-implemented"
+  },
+  {
+    "file": "src/app/api/students/documents/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      125
+    ],
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
+  },
+  {
+    "file": "src/app/api/students/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      534
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/subjects/[subjectId]/syllabus/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      119
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/subjects/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      112
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/super/sessions/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      45
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/timetable/[id]/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      76
+    ],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/api/transport/routes/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      107
+    ],
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
+  },
+  {
+    "file": "src/app/api/transport/vehicles/route.ts",
+    "confirmations": [],
+    "delete_handlers": [
+      108
+    ],
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
+  },
+  {
+    "file": "src/app/corrections/view.tsx",
+    "confirmations": [
+      179
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/owner/page.tsx",
+    "confirmations": [
+      938,
+      1961,
+      2665,
+      2888,
+      2892
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/principal/page.tsx",
+    "confirmations": [
+      926
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/super/page.tsx",
+    "confirmations": [
+      242,
+      1036
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/app/teacher/marks/page.tsx",
+    "confirmations": [
+      684,
+      689
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/academic/ReportCardPipeline.tsx",
+    "confirmations": [
+      605,
+      616
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/academic/RoomsManager.tsx",
+    "confirmations": [
+      317
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/academic/YearClosureChecklist.tsx",
+    "confirmations": [
+      301,
+      312
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/academic/exams/ExamsWorkspace.tsx",
+    "confirmations": [
+      1036
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/academic/exams/MasterDatesheet.tsx",
+    "confirmations": [
+      561
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/academic/exams/ReportCardsPanel.tsx",
+    "confirmations": [
+      611,
+      622
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/academic/rollover-review.tsx",
+    "confirmations": [
+      289
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/academic-year/AcademicYearPanel.tsx",
+    "confirmations": [
+      315
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/activities/activities.tsx",
+    "confirmations": [
+      70,
+      186,
+      197
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/ai-workflows/role-setup.tsx",
+    "confirmations": [
+      926
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/ai-workflows/run-header.tsx",
+    "confirmations": [
+      97
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/assignments/AssignmentWorkspace.tsx",
+    "confirmations": [
+      182
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/billing/SubscriptionWorkspace.tsx",
+    "confirmations": [
+      548,
+      563,
+      575
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/campus-packages/campus-packages.tsx",
+    "confirmations": [
+      121,
+      377
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/care/care.tsx",
+    "confirmations": [
+      284,
+      438,
+      449
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/communications/engagement-panel.tsx",
+    "confirmations": [
+      320
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/family/family-digest.tsx",
+    "confirmations": [
+      95
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/family/family-requests.tsx",
+    "confirmations": [
+      81
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/fees/AccountsTab.tsx",
+    "confirmations": [
+      311,
+      487,
+      695,
+      1005,
+      1023
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/fees/FeeInvoicesTab.tsx",
+    "confirmations": [
+      446,
+      456
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/fees/FeeLayersTab.tsx",
+    "confirmations": [
+      171,
+      326,
+      519,
+      682,
+      937,
+      1194,
+      1457
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/fees/FeePaymentsTab.tsx",
+    "confirmations": [
+      839
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/fees/FeeReportsTab.tsx",
+    "confirmations": [
+      181
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/fees/FeeStructuresTab.tsx",
+    "confirmations": [
+      310
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/fees/adjustments-panel.tsx",
+    "confirmations": [
+      71,
+      91
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/fees/installment-plan-panel.tsx",
+    "confirmations": [
+      85,
+      96
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/fees/reconciliations-panel.tsx",
+    "confirmations": [
+      68
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/group-policy/group-policy.tsx",
+    "confirmations": [
+      161,
+      200,
+      221
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/identity/identity-admin.tsx",
+    "confirmations": [
+      78
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/improvement/improvement-workspace.tsx",
+    "confirmations": [
+      261
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/institution/support-approvals.tsx",
+    "confirmations": [
+      162
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/integrations/integrations.tsx",
+    "confirmations": [
+      130
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/learning/learning-transfer.tsx",
+    "confirmations": [
+      159,
+      209
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/leave/my-leave.tsx",
+    "confirmations": [
+      549
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/library/lending-desk.tsx",
+    "confirmations": [
+      119
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/marks/mark-scan-panel.tsx",
+    "confirmations": [
+      120
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/meetings/family-meetings.tsx",
+    "confirmations": [
+      123
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/meetings/meeting-desk.tsx",
+    "confirmations": [
+      116,
+      127
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/memberships/memberships-panel.tsx",
+    "confirmations": [
+      324
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/operations/certificates-desk.tsx",
+    "confirmations": [
+      260
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/operations/dormitory-allocations.tsx",
+    "confirmations": [
+      227
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/operations/index.tsx",
+    "confirmations": [
+      134
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/operations/visitor-register.tsx",
+    "confirmations": [
+      161
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/owner/CapacityReport.tsx",
+    "confirmations": [
+      176
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/owner/PilotEvidence.tsx",
+    "confirmations": [
+      321
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/owner/SubscriptionRequestReview.tsx",
+    "confirmations": [
+      133
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/payroll/payroll-runs-panel.tsx",
+    "confirmations": [
+      206
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/pickup/pickup.tsx",
+    "confirmations": [
+      73,
+      215
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/policies/policy-manager.tsx",
+    "confirmations": [
+      87
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/portfolio/portfolio.tsx",
+    "confirmations": [
+      113,
+      124
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/purchasing/purchasing-panel.tsx",
+    "confirmations": [
+      107,
+      123,
+      139
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/readiness/ReadinessHome.tsx",
+    "confirmations": [
+      319
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/resources/ResourceLibrary.tsx",
+    "confirmations": [
+      183
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/role-dashboard/RoleHeader.tsx",
+    "confirmations": [
+      319
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/school-ai/assessment-repair-panel.tsx",
+    "confirmations": [
+      130,
+      145
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/school-ai/draft-safety.tsx",
+    "confirmations": [
+      27
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/school-ai/exam-integrity-desk.tsx",
+    "confirmations": [
+      128
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/school-ai/private-assistant.tsx",
+    "confirmations": [
+      165
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/school-ai/revision-history.tsx",
+    "confirmations": [
+      130
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/school-ai/runs-panel.tsx",
+    "confirmations": [
+      47
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/school-ai/secure-browser.tsx",
+    "confirmations": [
+      76
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/settings/LocaleSettingsPanel.tsx",
+    "confirmations": [
+      196
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/settings/campus-lifecycle.tsx",
+    "confirmations": [
+      52,
+      93
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/shared-admin/archived-classes-panel.tsx",
+    "confirmations": [
+      56
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/shared-admin/index.tsx",
+    "confirmations": [
+      2284,
+      4498,
+      5659,
+      6379,
+      6746,
+      7177
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/shared-admin/restore-student-dialog.tsx",
+    "confirmations": [
+      35
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/shared-admin/role-permissions-panel.tsx",
+    "confirmations": [
+      108
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/shared-admin/students-panel.tsx",
+    "confirmations": [
+      910
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/shared-admin/subject-syllabus.tsx",
+    "confirmations": [
+      239
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/staff/department-manager.tsx",
+    "confirmations": [
+      421,
+      436
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/staff/designation-ladder.tsx",
+    "confirmations": [
+      375
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/staff/position-dialog.tsx",
+    "confirmations": [
+      628
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/students/bulk-import-dialog.tsx",
+    "confirmations": [
+      153
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/tax/tax-packages.tsx",
+    "confirmations": [
+      105
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/teacher/teacher-components.tsx",
+    "confirmations": [
+      938
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/timetable/TimetablePanel.tsx",
+    "confirmations": [
+      519,
+      520
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/timetable/TimetableStudio.tsx",
+    "confirmations": [
+      1042,
+      1044,
+      1045
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/ui/confirm-action.tsx",
+    "confirmations": [
+      77,
+      226
+    ],
+    "delete_handlers": [],
+    "review": "pending"
+  },
+  {
+    "file": "src/components/ui/reviewed-delete.tsx",
+    "review": "shared-adapter-implemented",
+    "evidence": [
+      "tests/destructive/confirm.browser.test.ts"
+    ],
+    "boundary": "Real-app library path; other domain-specific UI paths remain pending."
+  }
+]

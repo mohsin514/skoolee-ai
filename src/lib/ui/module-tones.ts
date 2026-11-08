@@ -47,17 +47,17 @@ export interface ToneSpec {
 
 export const MODULE_TONES: Record<ModuleTone, ToneSpec> = {
   brand: {
-    tile: "from-[#8127cf] to-[#6a1fb0]",
-    rail: "from-[#8127cf] via-[#9c48ea] to-[#8127cf]",
-    chip: "bg-[#fbf0fe] text-[#8127cf]",
-    text: "text-[#8127cf]",
+    tile: "from-primary to-brand-700",
+    rail: "from-primary via-brand-400 to-primary",
+    chip: "bg-brand-50 text-primary",
+    text: "text-primary",
     hex: "#8127cf",
   },
   students: {
-    tile: "from-[#8127cf] to-[#6a1fb0]",
-    rail: "from-[#8127cf] via-[#b876f0] to-[#8127cf]",
-    chip: "bg-[#fbf0fe] text-[#8127cf]",
-    text: "text-[#8127cf]",
+    tile: "from-primary to-brand-700",
+    rail: "from-primary via-brand-300 to-primary",
+    chip: "bg-brand-50 text-primary",
+    text: "text-primary",
     hex: "#8127cf",
   },
   classes: {
@@ -98,10 +98,10 @@ export const MODULE_TONES: Record<ModuleTone, ToneSpec> = {
   fees: {
     // The school's second brand colour. Money is the one domain worth
     // spending it on.
-    tile: "from-[#b10e6b] to-[#8a0a53]",
-    rail: "from-[#b10e6b] via-[#d4318c] to-[#b10e6b]",
-    chip: "bg-[#fdf0f7] text-[#b10e6b]",
-    text: "text-[#b10e6b]",
+    tile: "from-berry to-[#8a0a53]",
+    rail: "from-berry via-[#d4318c] to-berry",
+    chip: "bg-[#fdf0f7] text-berry",
+    text: "text-berry",
     hex: "#b10e6b",
   },
   staff: {

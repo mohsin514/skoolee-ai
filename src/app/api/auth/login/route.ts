@@ -1,3 +1,7 @@
+import { needsMfaChallenge } from "@/lib/auth/mfa-crypto";
+import { startMfa } from "@/lib/auth/mfa-ticket";
+import { issueSession } from "@/lib/auth/issue-session";
+import { applySignInLanguage } from "@/lib/locale/sign-in-language";
 // ─────────────────────────────────────────────────────────────────
 // POST /api/auth/login  — Email + password login
 // POST /api/auth/logout — Clear session
@@ -6,17 +10,42 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { loginSchema } from "@/lib/validators/schemas";
 import bcrypt from "bcryptjs";
-import { SignJWT } from "jose";
-import { logSuperAdminAction, hashToken, recordLoginSession } from "@/lib/audit";
-import { rateLimit } from "@/lib/rate-limit";
+import { logSuperAdminAction } from "@/lib/audit";
+import { checkLoginThrottle } from "@/lib/auth/login-throttle";
 import { runUnscoped } from "@/lib/db/tenant-context";
+import { isPendingVerification } from "@/lib/auth/verification";
 
-import { JWT_SECRET } from "@/lib/auth/secret";
+type FailReason = "INVALID_PASSWORD" | "INACTIVE_ACCOUNT" | "ARCHIVED_CAMPUS" | "SCHOOL_DELETED" | "THROTTLED";
+
+/**
+ * SKAI-852: a failed password sign-in against a known school account leaves a
+ * school-scoped record, the same SIGN_IN_FAILED event SSO writes. Only matched
+ * accounts are recorded; never the password or an unknown address. A failed
+ * write is logged and never changes the response.
+ */
+async function recordFailedSignIn(accounts: { id: string; schoolId: string; role: string }[], reason: (a: { id: string }) => FailReason, ip: string, ua?: string) {
+  for (const a of accounts) {
+    if (a.role === "SUPER_ADMIN" || !a.schoolId) continue;
+    try {
+      await prisma.identityEvent.create({ data: { schoolId: a.schoolId, kind: "SIGN_IN_FAILED", actorId: a.id, connectionId: null, detail: { method: "PASSWORD", reason: reason(a), userId: a.id, ipAddress: ip, userAgent: ua ?? null } } });
+    } catch (error) {
+      console.error("[auth/login] failed sign-in audit write failed", error instanceof Error ? error.message : error);
+    }
+  }
+}
+
+// A valid bcrypt digest of a random value, compared against when no candidate exists.
+const TIMING_HASH = "$2a$12$utCRA1dXQTT8A9JBh4zQcO9TcVl2Hmaznnf01qUhQ5.w6D/T6LQ6e";
+
 import {
   SESSION_COOKIE_NAME,
   SESSION_DAYS,
-  sessionCookieAttributes,
 } from "@/lib/auth/session-cookie";
+import { endSession } from "@/lib/auth/session-revocation";
+import { clientIp } from "@/lib/http/client-ip";
+import { ApiError, errorResponse } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function POST(req: NextRequest) {
   // Login is inherently cross-tenant: the school is unknown until the
@@ -29,14 +58,27 @@ export async function POST(req: NextRequest) {
 
 async function handleLogin(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-    const body = await req.json();
-    const rateKeyEmail = typeof body?.email === "string" ? body.email.toLowerCase().trim() : "";
-    const { ok, remaining } = rateLimit(`login:${ip}:${rateKeyEmail}`, { limit: 10, windowMs: 60_000 });
-    if (!ok) {
+    const contentType = req.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+    const fetchSite = req.headers.get("sec-fetch-site")?.toLowerCase();
+    const origin = req.headers.get("origin");
+    const requestOrigin = new URL(req.url).origin;
+    if (contentType !== "application/json" || fetchSite === "cross-site" || (origin && origin !== requestOrigin)) {
+      return Response.json({ error: "Unsupported login request" }, { status: 403 });
+    }
+    const ip = clientIp(req.headers);
+    const body = await parseBody(req, jsonObjectBody, { preserve: ["password"] });
+    const throttle = await checkLoginThrottle(ip, typeof body?.email === "string" ? body.email : "");
+    if (!throttle.ok) {
+      if (typeof body?.email === "string" && body.email) {
+        const known = await prisma.user.findMany({ where: { email: body.email }, select: { id: true, schoolId: true, role: true } }).catch(() => []);
+        await recordFailedSignIn(known, () => "THROTTLED", ip, req.headers.get("user-agent") || undefined);
+      }
+      const error = throttle.retryAfterSeconds > 60
+        ? "Too many login attempts. Please try again in 15 minutes."
+        : "Too many login attempts. Please try again in a minute.";
       return NextResponse.json(
-        { error: "Too many login attempts. Please try again in a minute." },
-        { status: 429, headers: { "Retry-After": "60", "X-RateLimit-Remaining": String(remaining) } }
+        { error },
+        { status: 429, headers: { "Retry-After": String(throttle.retryAfterSeconds), "X-RateLimit-Remaining": String(throttle.remaining) } }
       );
     }
     const parsed = loginSchema.safeParse(body);
@@ -77,11 +119,14 @@ async function handleLogin(req: NextRequest) {
     // to, which would be an enumeration oracle if it were shown to someone who
     // only guessed the address. Checking the password first means the prompt is
     // only ever seen by whoever already holds the credentials (AUTH-1.2).
-    const matched = [];
+    const matched: typeof candidates = [];
     for (const candidate of candidates) {
       if (!candidate.password) continue;
       if (await bcrypt.compare(password, candidate.password)) matched.push(candidate);
     }
+    // SKO-457: an unknown address costs the same bcrypt work as a wrong password,
+    // so response time does not reveal whether the address has an account.
+    if (!candidates.some((c) => c.password)) await bcrypt.compare(password, TIMING_HASH);
 
     if (matched.length === 0) {
       const known = candidates.find((c) => c.role === "SUPER_ADMIN");
@@ -97,12 +142,26 @@ async function handleLogin(req: NextRequest) {
           targetName: email,
         }).catch(() => {});
       }
+      await recordFailedSignIn(candidates, () => "INVALID_PASSWORD", ip, ua);
       return Response.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
     // A soft-deleted tenant is not a place anyone can sign in to.
-    const usable = matched.filter((c) => String(c.school?.status || "").toUpperCase() !== "DELETED");
+    // SKAI-1361: membership in an archived campus cannot sign in.
+    const usable = matched.filter((c) => c.isActive && !c.campus?.archivedAt && String(c.school?.status || "").toUpperCase() !== "DELETED");
     if (usable.length === 0) {
+      const deniedReason = (a: { id: string }): FailReason => {
+        const c = matched.find((m) => m.id === a.id);
+        if (String(c?.school?.status || "").toUpperCase() === "DELETED") return "SCHOOL_DELETED";
+        return c?.isActive ? "ARCHIVED_CAMPUS" : "INACTIVE_ACCOUNT";
+      };
+      // The password is proven, so saying "verify first" tells the holder nothing new,
+      // and the sign-in screen can offer a fresh link. Deactivated accounts stay generic.
+      if (matched.some((c) => isPendingVerification(c) && String(c.school?.status || "").toUpperCase() !== "DELETED")) {
+        await recordFailedSignIn(matched.filter((c) => !isPendingVerification(c)), deniedReason, ip, ua);
+        return Response.json({ error: "Account not verified. Please check your email inbox to activate it.", code: "EMAIL_NOT_VERIFIED" }, { status: 403 });
+      }
+      await recordFailedSignIn(matched, deniedReason, ip, ua);
       return Response.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
@@ -124,79 +183,21 @@ async function handleLogin(req: NextRequest) {
 
     const user = usable[0];
 
-    if (!user.isActive) {
-      return Response.json({ error: "Account not verified. Please check your email inbox to activate it." }, { status: 403 });
-    }
+    // SKAI-1021: whatever session this browser still carries (a sign-out whose
+    // request never landed, a second tab, a stale cookie) is closed server-side
+    // before a new identity is issued, so it can never be resumed afterwards —
+    // even if an in-flight response later re-delivers that cookie.
+    const priorToken = req.cookies.get(SESSION_COOKIE_NAME)?.value;
+    if (priorToken) await endSession(priorToken);
 
-    // 3. Create JWT token
-    const expiresAt = new Date(Date.now() + sessionDays * 24 * 60 * 60 * 1000);
-    const token = await new SignJWT({
-      userId: user.id,
-      email: user.email,
-      fullName: user.fullName,
-      role: user.role,
-      schoolId: user.schoolId,
-      campusId: user.campusId,
-      schoolSlug: user.school?.slug,
-      schoolStatus: user.school?.status,
-      onboardingComplete: user.onboardingComplete,
-      mustChangePassword: user.mustChangePassword,
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setExpirationTime(`${sessionDays}d`)
-      .sign(JWT_SECRET);
-
-    // 4. Track login session & audit log (fire-and-forget)
-    const sessionPromise = recordLoginSession({
-      userId: user.id,
-      schoolId: user.schoolId,
-      tokenHash: hashToken(token),
-      expiresAt,
-      ipAddress: ip,
-      userAgent: ua,
-    }).catch(() => {});
-
-    const updatePromise = prisma.user.update({
-      where: { id: user.id },
-      data: { lastLogin: new Date() },
-    }).catch(() => {});
-
-    const auditPromise = user.role === "SUPER_ADMIN"
-      ? logSuperAdminAction({
-          userId: user.id,
-          action: "login",
-          status: "success",
-          ipAddress: ip,
-          userAgent: ua,
-          targetType: "user",
-          targetName: email,
-        }).catch(() => {})
-      : Promise.resolve();
-
-    Promise.all([sessionPromise, updatePromise, auditPromise]).catch(() => {});
-
-    // 5. Set cookie
-    const res = NextResponse.json({
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        role: user.role,
-        schoolId: user.schoolId,
-        campusId: user.campusId,
-        schoolName: user.school?.name,
-        campusName: user.campus?.name,
-        schoolStatus: user.school?.status,
-        onboardingComplete: user.onboardingComplete,
-        mustChangePassword: user.mustChangePassword,
-      },
-    });
-
-    res.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieAttributes(sessionDays));
-
+    // MFA users get their language applied only after the second factor (AC7).
+    if (needsMfaChallenge(user)) return startMfa(user, sessionDays);
+    const res = await issueSession(user, sessionDays, false, req);
+    await applySignInLanguage(user, body, res);
     return res;
   } catch (error) {
+    // Input rejected by the validation boundary keeps its 4xx instead of a generic 500.
+    if (error instanceof ApiError) return errorResponse(error);
     console.error("[auth/login]", error);
     return Response.json({ error: "Login failed" }, { status: 500 });
   }

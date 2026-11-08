@@ -1,0 +1,9 @@
+# Public auth feedback and aliases
+
+Baseline: signed-out `/verify-success` redirected to `/login?redirect=%2Fverify-success`. Source audit of the existing signed-token verification endpoint confirmed it activates the token's account then redirects to `/verify-success` without creating a session. The destination is informational, with no data fetch or protected action. `/sign-in` and its existing catchall likewise could not reach their intended `/login` redirect when signed out. Register-split and sign-up aliases were already public.
+
+Root read the installed Next16 proxy guide before editing. Added only the existing `/verify-success` and `/sign-in` paths to PUBLIC_PATHS. No JWT/session/MFA/token/role/data-route authorization logic changed. Token verification endpoint was not invoked; no activation was performed.
+
+Read-only routing tests cover base/nested sign-in and sign-up plus register-split destinations, public verification feedback, and preserved authentication requirements for `/dashboard`, `/first-login`, `/verify-success-private`, `/sign-internal` and `/api/auth/first-password`. An initial test assumed an absolute Location header; Next returned a relative URL, so the assertion now resolves it against the response URL. All six read-only alias/gating cases passed. A separate public-entry case passed:390px loading announcement, no page overflow and forwarding to Login. Authenticated history behavior is not inferred from that test. Final combined execution is recorded in the consolidated evidence.
+
+Limits: no authenticated back-history/forced-role/suspension cases or signed-token verification transaction. UI success/countdown behavior is owned by the separate verification page report. Alias routes and the public entry remain PARTIAL against the complete acceptance matrix.

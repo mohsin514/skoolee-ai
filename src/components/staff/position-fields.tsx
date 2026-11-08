@@ -13,9 +13,12 @@
  * sees a short line saying so and carries on inviting people.
  */
 
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { useEffect, useState } from "react";
 import { Network } from "lucide-react";
 import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { TRACK_TONES, DEPARTMENT_KIND_LABELS, EMPLOYMENT_TYPE_LABELS } from "@/lib/staff/hierarchy-presets";
 
@@ -49,13 +52,18 @@ export function usePositionOptions(campusId?: string) {
   const [departments, setDepartments] = useState<Option[]>([]);
   const [managers, setManagers] = useState<Option[]>([]);
   const [ready, setReady] = useState(false);
+  // SKAI-1628: a failed lookup is its own state, never "No ranks set up yet".
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setReady(false);
+      setFailed(false);
       try {
         const res = await fetch(`/api/staff/hierarchy${campusId ? `?campusId=${campusId}` : ""}`);
-        if (!res.ok) return;
+        if (!res.ok) throw new Error("hierarchy options failed");
         const data = await res.json();
         if (cancelled) return;
         setDesignations(data.designations ?? []);
@@ -74,7 +82,7 @@ export function usePositionOptions(campusId?: string) {
             }))
         );
       } catch {
-        // The wizard still works without a ladder — leave the lists empty.
+        if (!cancelled) setFailed(true);
       } finally {
         if (!cancelled) setReady(true);
       }
@@ -82,9 +90,9 @@ export function usePositionOptions(campusId?: string) {
     return () => {
       cancelled = true;
     };
-  }, [campusId]);
+  }, [campusId, attempt]);
 
-  return { designations, departments, managers, ready };
+  return { designations, departments, managers, ready, failed, retry: () => setAttempt((n) => n + 1) };
 }
 
 export function PositionFields({
@@ -96,20 +104,28 @@ export function PositionFields({
   onChange: (next: PositionValue) => void;
   options: ReturnType<typeof usePositionOptions>;
 }) {
-  const { designations, departments, managers, ready } = options;
+  const ui = useUiText();
+  const { designations, departments, managers, ready, failed, retry } = options;
   const set = <K extends keyof PositionValue>(key: K, next: PositionValue[K]) =>
     onChange({ ...value, [key]: next });
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Field label="Rank" hint={designations.length === 0 && ready ? "No ranks set up yet — you can add one later under Staff → Hierarchy." : "Their designation on the ladder."}>
+      {failed ? (
+        <div className="sm:col-span-2">
+          <Alert tone="danger" compact live="polite">
+            {ui("Could not load ranks, departments and managers. Try again before sending the invitation.")} <Button type="button" variant="link" size="sm" onClick={retry}>{ui("Try again")}</Button>
+          </Alert>
+        </div>
+      ) : null}
+      <Field label={ui("Rank")} hint={designations.length === 0 && ready && !failed ? ui("No ranks set up yet. Add them later in Staff structure › Rank ladder.") : ui("Their designation on the ladder.")}>
         <Select value={value.designationId} onChange={(e) => set("designationId", e.target.value)} disabled={designations.length === 0}>
-          <option value="">Not set</option>
+          <option value="">{ui("Not set")}</option>
           {Object.entries(TRACK_TONES).map(([track, tone]) => {
             const inTrack = designations.filter((d) => d.track === track);
             if (inTrack.length === 0) return null;
             return (
-              <optgroup key={track} label={tone.label}>
+              <optgroup key={track} label={ui(tone.label)}>
                 {inTrack.map((d) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
@@ -119,22 +135,22 @@ export function PositionFields({
         </Select>
       </Field>
 
-      <Field label="Home department" hint="They can be added to more departments afterwards.">
+      <Field label={ui("Home department")} hint={ui("They can be added to more departments afterwards.")}>
         <Select value={value.primaryDepartmentId} onChange={(e) => set("primaryDepartmentId", e.target.value)} disabled={departments.length === 0}>
-          <option value="">Not set</option>
+          <option value="">{ui("Not set")}</option>
           {departments.map((d) => (
             <option key={d.id} value={d.id}>
               {d.parentId ? "— " : ""}
               {d.name}
-              {d.kind ? ` (${DEPARTMENT_KIND_LABELS[d.kind as keyof typeof DEPARTMENT_KIND_LABELS]})` : ""}
+              {d.kind ? ` (${ui(DEPARTMENT_KIND_LABELS[d.kind as keyof typeof DEPARTMENT_KIND_LABELS])})` : ""}
             </option>
           ))}
         </Select>
       </Field>
 
-      <Field label="Reports to" hint="Who they answer to day to day. Leave empty for the head of the institution.">
+      <Field label={ui("Reports to")} hint={ui("Who they answer to day to day. Leave empty for the head of the institution.")}>
         <Select value={value.reportsToId} onChange={(e) => set("reportsToId", e.target.value)}>
-          <option value="">Not set</option>
+          <option value="">{ui("Not set")}</option>
           {managers.map((m) => (
             <option key={m.id} value={m.id}>
               {m.name}
@@ -144,17 +160,17 @@ export function PositionFields({
         </Select>
       </Field>
 
-      <Field label="Employment type">
+      <Field label={ui("Employment type")}>
         <Select value={value.employmentType} onChange={(e) => set("employmentType", e.target.value)}>
           {Object.entries(EMPLOYMENT_TYPE_LABELS).map(([key, label]) => (
-            <option key={key} value={key}>{label}</option>
+            <option key={key} value={key}>{ui(label)}</option>
           ))}
         </Select>
       </Field>
 
       <div className="sm:col-span-2">
-        <Field label="Staff code" hint="Your own employee number, if you use one.">
-          <Input value={value.employeeCode} onChange={(e) => set("employeeCode", e.target.value)} placeholder="e.g. EMP-0142" />
+        <Field label={ui("Staff code")} hint={ui("Your own employee number, if you use one.")}>
+          <Input value={value.employeeCode} onChange={(e) => set("employeeCode", e.target.value)} placeholder={ui("e.g. EMP-0142")} />
         </Field>
       </div>
     </div>
@@ -166,9 +182,9 @@ export { Network as PositionIcon };
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-[11px] font-black text-ink">{label}</label>
+      <label className="block text-2xs font-bold text-ink">{label}</label>
       {children}
-      {hint ? <p className="text-[10px] font-semibold text-ink-muted">{hint}</p> : null}
+      {hint ? <p className="text-2xs font-semibold text-ink-muted">{hint}</p> : null}
     </div>
   );
 }

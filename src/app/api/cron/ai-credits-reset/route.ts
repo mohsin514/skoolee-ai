@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
+import { creditResetMonthKey, resetCreditUsage } from "@/lib/billing/credit-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,9 +21,9 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return runUnscoped("ai-credit-reset cron: cross-tenant credit rollover", async () => {
+  return runUnscoped("ai-credit-reset cron: cross-tenant monthly credit expiry", async () => {
     const now = new Date();
-    const resetKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const resetKey = creditResetMonthKey(now);
 
     const marker = await prisma.platformConfig.findUnique({
       where: { key: "ai_credits_reset_month" },
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await prisma.school.updateMany({
-      data: { aiCreditsUsed: 0 },
+      data: { aiCreditsUsed: resetCreditUsage(0) },
     });
 
     await prisma.platformConfig.upsert({

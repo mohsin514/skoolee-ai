@@ -5,14 +5,19 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  /** Put scroll bounds on the shared wrapper so sticky cells have one scroll owner. */
+  containerClassName?: string;
+}
+
 const Table = React.forwardRef<
   HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto rounded-[24px] border border-[#cfc2d6]/15 bg-white">
+  TableProps
+>(({ className, containerClassName, ...props }, ref) => (
+  <div className={cn("relative w-full overflow-auto rounded-(--radius-table) border border-border-subtle bg-white", containerClassName)}>
     <table
       ref={ref}
-      className={cn("w-full caption-bottom text-sm", className)}
+      className={cn("sk-data-table w-full caption-bottom text-sm", className)}
       {...props}
     />
   </div>
@@ -25,7 +30,7 @@ const TableHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <thead
     ref={ref}
-    className={cn("[&_tr]:border-b bg-[#f3f4f9]/60", className)}
+    className={cn("[&_tr]:border-b bg-surface-subtle", className)}
     {...props}
   />
 ));
@@ -50,7 +55,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "border-b border-[#cfc2d6]/12 transition-colors hover:bg-[#fbf0fe]/55 data-[state=selected]:bg-[#fbf0fe]",
+      "border-b border-border-subtle transition-colors hover:bg-surface-hover focus-within:bg-surface-hover data-[state=selected]:bg-surface-selected",
       className
     )}
     {...props}
@@ -64,8 +69,9 @@ const TableHead = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <th
     ref={ref}
+    scope="col"
     className={cn(
-      "h-12 px-4 text-left align-middle text-xs font-black text-ink-muted [&:has([role=checkbox])]:pr-0",
+      "h-11 px-4 text-start align-middle text-xs font-semibold text-ink-muted [&:has([role=checkbox])]:pe-0",
       className
     )}
     {...props}
@@ -80,7 +86,7 @@ const TableCell = React.forwardRef<
   <td
     ref={ref}
     className={cn(
-      "p-4 align-middle text-[#1f1a23] [&:has([role=checkbox])]:pr-0",
+      "p-4 align-middle text-foreground [&:has([role=checkbox])]:pe-0",
       className
     )}
     {...props}

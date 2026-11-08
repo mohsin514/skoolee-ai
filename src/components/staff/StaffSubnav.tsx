@@ -1,21 +1,19 @@
 "use client";
 
-import { Award, Network, Plane, Shield, Users } from "lucide-react";
+import { Award, Network, Plane, Users } from "lucide-react";
 import { SectionSubnav, type SectionNavItem } from "@/components/nav/SectionSubnav";
 
 /**
- * The staff area, on the same strip as Academics.
- *
- * Grouped by what the screens are for rather than by data model: who works
- * here and how they are organised ("People"), then the recurring management
- * jobs — leave, appraisal, access ("Manage").
+ * @deprecated No console renders a section strip any more (SPEC §4.3, F14): the Staff group lives in the
+ * role registry (`src/lib/navigation/role-nav.ts`) and each view opens with one PageHeader. Kept, with the
+ * registry's names, only so an out-of-tree caller keeps compiling for one release. Permissions moved to the
+ * authority's People & access (M20), so it is no longer listed here.
  */
 export const STAFF_NAV: SectionNavItem[] = [
   { view: "teachers", label: "Teachers", icon: Users, group: "People", tone: "staff" },
-  { view: "staff-hierarchy", label: "Staff Hierarchy", icon: Network, group: "People", tone: "staff" },
-  { view: "leave", label: "Leave", icon: Plane, group: "Manage", tone: "leave" },
-  { view: "teacher-performance", label: "Performance", icon: Award, group: "Manage", tone: "reports" },
-  { view: "permissions", label: "Permissions", icon: Shield, group: "Manage", tone: "brand" },
+  { view: "staff-hierarchy", label: "Staff structure", icon: Network, group: "People", tone: "staff" },
+  { view: "leave", label: "Leave approvals", icon: Plane, group: "Manage", tone: "leave" },
+  { view: "teacher-performance", label: "Teacher performance", icon: Award, group: "Manage", tone: "reports" },
 ];
 
 export const STAFF_VIEWS = new Set(STAFF_NAV.map((i) => i.view));
@@ -26,7 +24,6 @@ export const STAFF_VIEW_MODULE: Record<string, string> = {
   "staff-hierarchy": "staff",
   leave: "leave",
   "teacher-performance": "staff",
-  permissions: "staff",
 };
 
 export function StaffSubnav({
