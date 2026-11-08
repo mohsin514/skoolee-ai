@@ -149,14 +149,24 @@ Each of the GitHub environments `staging` and `production` needs:
 | Variable | `RELEASE_APPROVED_SHA` | the exact commit being released, set per release |
 | Variable | `AI_FEATURES_ENABLED` | `false` until AI-05 passes |
 
-## Deploy flow
+## Deploy flow (SKAI-1799)
 
 ```
-feature branch → dev → staging → qa → production
-                                        └→ demo (independent, from main or production)
+feature branch → dev → qa → staging → production
+                                         └→ demo (refreshed from production)
 ```
 
-Merge forward; never push straight to `production` without going through QA.
+| Step | Branch | How it deploys | Gate before merging forward |
+| --- | --- | --- | --- |
+| 1 | `dev` | Vercel Git, on every merged feature PR | CI green on the feature PR |
+| 2 | `qa` | Vercel Git, on the dev → qa PR | Migrations applied to the QA DB; QA passes the tickets in **Deployed to Dev** |
+| 3 | `staging` | Gated `Migrate & Deploy` | QA sign-off; `RELEASE_APPROVED_SHA` set to the staging commit |
+| 4 | `production` | Gated `Migrate & Deploy` | Staging checked; `RELEASE_APPROVED_SHA` set to the production commit |
+| — | `demo` | Vercel Git, on the production → demo PR | Only released code; reset the synthetic demo tenant after |
+
+- Promote with a PR from the previous branch only (dev → qa → staging → production → demo). Never skip a step or push straight to `staging` or `production`.
+- Staging rehearses the exact production release (same gated workflow, migrations and AI-05 check), which is why it sits right before production.
+- Demo follows production, so sales never shows unreleased work.
 
 ## Demo tenant (exam chain, SKO-500)
 
