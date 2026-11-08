@@ -10,6 +10,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge as UiBadge } from "@/components/ui/badge";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ErrorState } from "@/components/ui/error-state";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 import { Modal } from "@/components/ui/modal";
 import { PageHeader } from "@/components/ui/page-header";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -58,7 +59,7 @@ const PILOT_RANK: Record<string, number> = { ACTIVE: 0, PLANNED: 1, CLOSED: 3 };
 async function call(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } }).catch(() => null);
   const json = await response?.json().catch(() => null);
-  if (!response?.ok || !json?.success) throw new Error(json?.error || "Request failed");
+  if (!response?.ok || !isApiOk(json)) throw new Error(readApiError(json));
   return json.data;
 }
 
