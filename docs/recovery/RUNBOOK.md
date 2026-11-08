@@ -63,6 +63,9 @@ baseline an existing environment. CI intentionally cannot perform adoption.
 | Queues and integrations | Redis/BullMQ pending jobs, delivery deduplication state, SMTP/WhatsApp/payment/AI credentials and webhook events | Operations: keep workers stopped; inventory in-flight effects and reconcile provider-side actions before selective replay |
 | External state | Payment gateway settlement, email/WhatsApp already sent, provider auth/config and external files | Domain owners: these are not rolled back by PostgreSQL restore; reconciliation and duplicate-prevention approval required |
 
+The operated drill, owners, schedule and school templates live in
+[OPERATED-DRILL.md](OPERATED-DRILL.md).
+
 Provider retention/PITR promises are not measured application RPO/RTO. Contractual
 targets remain unset until actual full-environment drills and operating commitments
 exist. Synthetic local-file restoration tests the manifest contract; it does not
