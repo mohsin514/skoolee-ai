@@ -154,6 +154,9 @@ export interface FeeStructure {
   classId: string;
   campusId: string;
   monthlyFee: number;
+  /** SKAI-1154: regulator-approved monthly fee (minor units) and permit reference. */
+  approvedFee?: number | null;
+  approvedFeeReference?: string | null;
   oneTimeFeesJson: Record<string, number> | null;
   installmentType: string | null;
   discountRulesJson: Record<string, number> | null;

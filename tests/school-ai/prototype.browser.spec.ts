@@ -3,8 +3,9 @@ import { readFile } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { assessmentFixture } from "./assessment-fixture";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
-const database = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const database = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== database || process.env.DIRECT_URL !== database) throw new Error("Use only the isolated School AI test database.");
 const db = new PrismaClient();
 const actor = "school-ai-browser-a-ADMIN";
@@ -17,7 +18,7 @@ async function screenshot(page: Page, name: string) {
 
 async function signIn(context: BrowserContext, role = "ADMIN") {
   const tokens = JSON.parse(await readFile("test-results/school-ai/local-tokens.json", "utf8"));
-  await context.addCookies([{ name: "skoolee_token", value: tokens[`a-${role}`], url: "http://localhost:3106", httpOnly: true, sameSite: "Lax" }]);
+  await context.addCookies([{ name: "skoolee_token", value: tokens[`a-${role}`], url: SCHOOL_AI_ORIGIN, httpOnly: true, sameSite: "Lax" }]);
 }
 test.beforeEach(async ({ context }) => {
   await db.user.update({ where: { id: actor }, data: { preferredLanguage: "en" } });
@@ -82,7 +83,7 @@ test("sample is available when workspace data cannot load", async ({ page }) => 
 
 test("paper generation can be cancelled while its editor is disabled", async ({ page }) => {
   const fixture = assessmentFixture("school-ai-browser-a-subject", "school-ai-browser-a-class");
-  const headers = { Origin: "http://localhost:3106" };
+  const headers = { Origin: SCHOOL_AI_ORIGIN };
   const created = await page.request.post("/api/school-ai/workspace", { headers, data: { kind: "CURRICULUM", campusId: "school-ai-browser-a-campus", title: "Synthetic cancellation check", data: fixture.curriculum, idempotencyKey: randomUUID() } });
   expect(created.ok()).toBe(true);
   const curriculum = (await created.json()).record;

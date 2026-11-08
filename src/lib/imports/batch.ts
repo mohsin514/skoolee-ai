@@ -9,6 +9,8 @@ export type ImportRow = {
   matchKey: string | null;
   matchLabel?: string | null;
   errors: string[];
+  /** Non-blocking review notes (SKAI-913), e.g. a name repeated under another roll number. */
+  notes?: string[];
   result?: Record<string, unknown>;
 };
 

@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,6 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { InfoTip } from "@/components/ui/tooltip";
 import { Modal } from "@/components/ui/modal";
 import { PageHeader, type PageAction } from "@/components/ui/page-header";
@@ -18,7 +17,12 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ClipboardCheck, FileDown, Layers, Plus } from "lucide-react";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { AlarmClock, CheckCircle2, ClipboardCheck, FileDown, KeyRound, Layers, Plus, SearchX, Target } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskStats, RelativeTime, StatTile, deskRow, deskTimeline, urgencyFirst } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 
 // SKO-450: improvement evidence workspace. Frameworks are school-configured references and no accreditation outcome
 // is implied. Every claim keeps its source, date and freshness beside it; gaps are shown, not hidden. Actions link to
@@ -59,16 +63,24 @@ function CriteriaPicker({ criteria, value, onChange, name }: { criteria: Criteri
 
 function EvidenceForm({ view, preset, onDone }: { view: View; preset: string | null; onDone: () => void }) {
   const ui = useUiText();
-  const [sources, setSources] = useState<{ type: string; id: string; label: string }[]>([]);
+  type Source = { type: string; id: string; label: string };
+  // SKAI-1722: a failed load is an error with Try again, not an empty picker; each type loads more past 50.
+  const [sources, setSources] = useState<Source[] | null>(null), [more, setMore] = useState<Record<string, number | null>>({});
+  const [sourceError, setSourceError] = useState(false), [paging, setPaging] = useState<"idle" | "loading" | "failed">("idle");
   const [f, setF] = useState({ criterionIds: preset ? [preset] : [] as string[], sourceType: "INTERVENTION", sourceId: "", title: "", note: "", reviewBy: inDays(180), audience: "STAFF", stance: "SUPPORTS", pupilData: false });
   const [busy, setBusy] = useState(false);
-  useEffect(() => { call("/api/improvement?view=sources").then(setSources).catch(() => setSources([])); }, []);
-  const options = sources.filter(s => s.type === f.sourceType);
+  const loadSources = useCallback(() => { setSourceError(false); call("/api/improvement?view=sources").then((page: { items: Source[]; more: Record<string, number | null> }) => { setSources(page.items); setMore(page.more); setPaging("idle"); }).catch(() => setSourceError(true)); }, []);
+  useEffect(() => { loadSources(); }, [loadSources]);
+  const loadMoreSources = (type: string, offset: number) => { setPaging("loading"); call(`/api/improvement?view=sources&type=${encodeURIComponent(type)}&offset=${offset}`).then((page: { items: Source[]; more: Record<string, number | null> }) => { setSources(current => [...(current ?? []), ...page.items]); setMore(current => ({ ...current, ...page.more })); setPaging("idle"); }).catch(() => setPaging("failed")); };
+  const options = (sources ?? []).filter(s => s.type === f.sourceType);
+  const nextOffset = more[f.sourceType];
   return <div className="space-y-3" data-evidence-form>
     <FormField name="ev-criteria" label={ui("Criteria this evidence supports")}><CriteriaPicker criteria={view.criteria} value={f.criterionIds} onChange={v => setF({ ...f, criterionIds: v })} name="evidence" /></FormField>
     <div className="grid gap-2 sm:grid-cols-2">
       <FormField name="ev-type" label={ui("Source")}><Select value={f.sourceType} onChange={e => setF({ ...f, sourceType: e.target.value, sourceId: "" })} data-evidence-type>{["INTERVENTION", "REPORT_CARD", "DOCUMENT"].map(t => <option key={t} value={t}>{sourceLabel(ui, t)}</option>)}</Select></FormField>
       {f.sourceType !== "DOCUMENT" ? <FormField name="ev-source" label={ui("Record")}><Select value={f.sourceId} onChange={e => setF({ ...f, sourceId: e.target.value })} data-evidence-source><option value="">{ui("Choose the source record")}</option>{options.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</Select></FormField> : null}
+      {f.sourceType !== "DOCUMENT" && sourceError ? <div className="sm:col-span-2"><ErrorState description={ui("Source records could not be loaded.")} onRetry={loadSources} retryLabel={ui("Try again")} /></div> : null}
+      {f.sourceType !== "DOCUMENT" && !sourceError && nextOffset != null ? <div className="flex flex-wrap items-center gap-2 sm:col-span-2" aria-live="polite" data-evidence-more>{paging === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("More records could not be loaded. The list shown is kept.")}</p> : null}<Button type="button" size="sm" variant="outline" disabled={paging === "loading"} aria-busy={paging === "loading"} onClick={() => loadMoreSources(f.sourceType, nextOffset)}>{paging === "loading" ? ui("Loading more records…") : paging === "failed" ? ui("Try again") : ui("Load more records")}</Button></div> : null}
     </div>
     <FormField name="ev-title" label={ui("What this evidence shows")}><Input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} dir="auto" data-evidence-title /></FormField>
     {f.sourceType === "DOCUMENT" ? <FormField name="ev-note" label={ui("Evidence note")} hint={ui("A narrative stays unverified until someone else reviews it.")}><Textarea value={f.note} onChange={e => setF({ ...f, note: e.target.value })} rows={3} dir="auto" data-evidence-note /></FormField> : null}
@@ -95,17 +107,17 @@ function ItemRow({ item, data, reload }: { item: Item; data: Data; reload: () =>
     try { await call("/api/improvement", "POST", { action: "review", itemId: item.id, decision, note: note || null }); toast.success(decision === "ACCEPT" ? ui("Evidence note approved.") : ui("More evidence requested.")); setReviewing(false); await reload(); }
     catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); }
   };
-  return <li className="rounded-xl border border-border p-3 text-sm" data-evidence-item={item.id} data-freshness={item.freshness} data-review-state={item.reviewState} data-restricted={item.restricted ? "true" : "false"}>
+  return <li className={cn(deskRow, "text-sm")} data-tone={item.stance === "CONTRADICTS" ? "danger" : item.freshness === "CURRENT" ? undefined : "warning"} data-evidence-item={item.id} data-freshness={item.freshness} data-review-state={item.reviewState} data-restricted={item.restricted ? "true" : "false"}>
     <div className="flex flex-wrap items-center gap-2">
       <span className="font-semibold">{item.restricted ? ui("Restricted source · {0}", [sourceLabel(ui, item.sourceType)]) : <bdi>{item.title}</bdi>}</span>
-      <Badge size="sm" variant={item.freshness === "CURRENT" ? "success" : "warning"} data-freshness-label>{freshLabel(ui, item.freshness)}</Badge>
-      <Badge size="sm" variant="neutral">{reviewLabel(ui, item.reviewState)}</Badge>
-      {item.stance === "CONTRADICTS" ? <Badge size="sm" variant="danger">{ui("Contradicts the criterion")}</Badge> : null}
+      <DeskPill tone={item.freshness === "CURRENT" ? "success" : "warning"} data-freshness-label>{freshLabel(ui, item.freshness)}</DeskPill>
+      <DeskPill tone={item.reviewState === "ACCEPTED" ? "success" : "neutral"}>{reviewLabel(ui, item.reviewState)}</DeskPill>
+      {item.stance === "CONTRADICTS" ? <DeskPill tone="danger">{ui("Contradicts the criterion")}</DeskPill> : null}
       {item.narrativeOnly ? <span className="text-xs text-ink-muted">{ui("Narrative only · not verified")}</span> : null}
     </div>
     <p className="mt-1 text-xs text-ink-muted">{sourceLabel(ui, item.sourceType)} · <bdi dir="ltr">{item.sourceVersion}</bdi> · {ui("Source date {0}", [date(item.sourceDate)])} · {ui("Review by {0}", [date(item.reviewBy)])} · {ui("Owner")}: <bdi>{item.owner}</bdi> · {audienceLabel(ui, item.audience)}</p>
     {item.reviewNote ? <p className="mt-1 text-xs" data-review-note>{ui("Reviewer")}: <bdi>{item.reviewer}</bdi> — <bdi>{item.reviewNote}</bdi></p> : null}
-    {opened ? <p className="mt-1 rounded-lg bg-surface-muted p-2 text-xs" data-source-preview>{opened}</p> : null}
+    {opened ? <p className="mt-2 rounded-(--radius-control-small) border border-border-subtle bg-surface-subtle p-2.5 text-xs" data-source-preview>{opened}</p> : null}
     <div className="mt-2 flex flex-wrap gap-2">
       <Button size="sm" variant="ghost" data-open-source onClick={async () => {
         try { const s = await call(`/api/improvement?view=source&itemId=${item.id}`); setOpened(s.content ? `${s.content.label ?? s.content.note ?? ""}${s.current ? "" : ` · ${ui("Source changed since linked")}`}` : ui(s.message ?? "This evidence source is unavailable. The criterion remains incomplete.")); }
@@ -129,13 +141,13 @@ function ActionCard({ action, view, data, reload }: { action: Action; view: View
   const [evidenceId, setEvidenceId] = useState("");
   const codes = view.criteria.filter(c => action.criterionIds.includes(c.id)).map(c => c.code);
   const post = async (body: Record<string, unknown>, done: string) => { try { await call("/api/improvement", "POST", body); toast.success(done); setMode(null); await reload(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } };
-  return <li className="sk-panel space-y-2 p-4 text-sm" data-action={action.id} data-action-status={action.status} data-outcome={action.outcome.state}>
+  return <li className={cn(deskRow, "space-y-2 p-4 text-sm")} data-tone={action.overdue ? "danger" : action.status === "COMPLETED" ? "success" : undefined} data-action={action.id} data-action-status={action.status} data-outcome={action.outcome.state}>
     <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold"><bdi>{action.title}</bdi></h3>
-      <div className="flex flex-wrap gap-1">{action.overdue ? <Badge size="sm" variant="danger" data-action-overdue>{ui("Overdue")}</Badge> : null}<Badge size="sm" variant={action.status === "COMPLETED" ? "success" : "neutral"}>{action.status === "COMPLETED" ? ui("Completed") : ui("Open")}</Badge></div></div>
-    <p className="text-xs text-ink-muted">{ui("Owner")}: <bdi>{action.owner}</bdi> · {ui("Due {0}", [date(action.dueDate)])} · {ui("Criteria")}: <bdi dir="ltr">{codes.join(", ")}</bdi></p>
+      <div className="flex flex-wrap gap-1">{action.overdue ? <DeskPill tone="danger" data-action-overdue>{ui("Overdue")}</DeskPill> : null}<DeskPill tone={action.status === "COMPLETED" ? "success" : "brand"}>{action.status === "COMPLETED" ? ui("Completed") : ui("Open")}</DeskPill></div></div>
+    <p className="text-xs text-ink-muted">{ui("Owner")}: <bdi>{action.owner}</bdi> · {ui("Due {0}", [date(action.dueDate)])}{action.status !== "COMPLETED" ? <> (<RelativeTime iso={action.dueDate} full={date(action.dueDate)} />)</> : null} · {ui("Criteria")}: <bdi dir="ltr">{codes.join(", ")}</bdi></p>
     <p>{ui("Expected measure")}: <bdi>{action.expectedMeasure}</bdi></p>
     {action.learningAction ? <p className="text-xs" data-learning-action>{ui("Linked learning action")}: {action.learningAction.status}{action.learningAction.version ? ` · v${action.learningAction.version}` : ""} · {ui("Managed in learning actions; not changed here.")}</p> : null}
-    {action.milestones.length ? <ul className="text-xs">{action.milestones.map((m, i) => <li key={i}><span aria-hidden="true">{m.done ? "✓" : "○"}</span><span className="sr-only">{m.done ? ui("Done") : ui("Open")}</span> <bdi>{m.label}</bdi> · {date(m.date)}</li>)}</ul> : null}
+    {action.milestones.length ? <ol className={cn(deskTimeline, "text-xs")}>{action.milestones.map((m, i) => <li key={i} data-tone={m.done ? "success" : "neutral"} className={m.done ? undefined : "text-ink-muted"}><span className="sr-only">{m.done ? ui("Done") : ui("Open")}</span> <bdi>{m.label}</bdi> · {date(m.date)}</li>)}</ol> : null}
     <p className="font-semibold" data-outcome-text>{outcomeLabel(ui, action.outcome)}</p>
     {action.reflection ? <p className="text-xs"><bdi>{action.reflection}</bdi></p> : null}
     {action.status === "OPEN" && (data.mode === "LEAD" || data.mode === "STAFF") ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setMode(mode === "follow" ? null : "follow")} data-follow-open>{ui("Record follow-up measure")}</Button><Button size="sm" onClick={() => setMode(mode === "complete" ? null : "complete")} data-complete-open>{ui("Complete with evidence")}</Button></div> : null}
@@ -159,14 +171,25 @@ export function ImprovementWorkspace() {
   const { date, dateTime } = useLocaleFormat();
   const [data, setData] = useState<Data | null>(null), [error, setError] = useState<{ status: number; message: string } | null>(null), [frameworkId, setFrameworkId] = useState<string | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
+  // SKAI-1724: staff load separately from the workspace; a failure is shown with Try again and lists page past 300.
+  const [peopleCursor, setPeopleCursor] = useState<string | null>(null), [peopleState, setPeopleState] = useState<"idle" | "loading" | "failed" | "more-failed">("idle");
+  const loadPeople = useCallback((cursor?: string) => {
+    setPeopleState("loading");
+    call(`/api/improvement?view=staff${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`).then((page: { people: Person[]; nextCursor: string | null }) => { setPeople(current => cursor ? [...current, ...page.people] : page.people); setPeopleCursor(page.nextCursor); setPeopleState("idle"); }).catch(() => setPeopleState(cursor ? "more-failed" : "failed"));
+  }, []);
   const [modal, setModal] = useState<null | { kind: "framework" | "evidence" | "action" | "grant" | "export" | "interpret"; criterionId?: string }>(null);
   const [onlyGaps, setOnlyGaps] = useState(false), [open, setOpen] = useState<Record<string, boolean>>({});
+  // The overdue tile narrows the action list; the quick filter matches criterion codes and titles.
+  const [overdueOnly, setOverdueOnly] = useState(false), [q, setQ] = useState("");
   const [revoking, setRevoking] = useState<Data["grants"][number] | null>(null), [revokeBusy, setRevokeBusy] = useState(false);
   const load = useCallback(async () => {
-    try { const d: Data = await call(`/api/improvement?view=workspace${frameworkId ? `&frameworkId=${encodeURIComponent(frameworkId)}` : ""}`); setData(d); setError(null); if (d.mode === "LEAD" && !people.length) setPeople(await call("/api/improvement?view=staff").catch(() => [])); }
+    try { const d: Data = await call(`/api/improvement?view=workspace${frameworkId ? `&frameworkId=${encodeURIComponent(frameworkId)}` : ""}`); setData(d); setError(null); if (d.mode === "LEAD" && !people.length) loadPeople(); }
     catch (e) { setError({ status: e instanceof RequestError ? e.status : 0, message: e instanceof Error ? e.message : "Unavailable" }); }
-  }, [frameworkId, people.length]);
+  }, [frameworkId, people.length, loadPeople]);
   useEffect(() => { void load(); }, [load]);
+  const peopleControl = peopleState === "failed"
+    ? <ErrorState description={ui("Staff could not be loaded.")} onRetry={() => loadPeople()} retryLabel={ui("Try again")} />
+    : peopleCursor ? <div className="flex flex-wrap items-center gap-2" aria-live="polite" data-people-more>{peopleState === "more-failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("More staff could not be loaded. The list shown is kept.")}</p> : null}<Button type="button" size="sm" variant="outline" disabled={peopleState === "loading"} aria-busy={peopleState === "loading"} onClick={() => loadPeople(peopleCursor)}>{peopleState === "loading" ? ui("Loading more staff…") : peopleState === "more-failed" ? ui("Try again") : ui("Load more staff")}</Button></div> : null;
 
   const title = "Improvement evidence";
   const description = "School-configured framework. No accreditation outcome is implied.";
@@ -201,6 +224,10 @@ export function ImprovementWorkspace() {
     finally { setRevokeBusy(false); }
   };
 
+  const needle = q.trim().toLowerCase();
+  const criteria = (view?.criteria ?? []).filter(c => (!onlyGaps || c.status !== "CURRENT" || !c.interpretationApproved) && (!needle || `${c.code} ${c.title}`.toLowerCase().includes(needle)));
+  // Overdue work first, then open actions by due date; completed ones last.
+  const actions = urgencyFirst((view?.actions ?? []).filter(a => !overdueOnly || a.overdue), a => a.overdue ? 0 : a.status === "COMPLETED" ? 2 : 1);
   return <div className="min-w-0 space-y-5" data-improvement data-mode={data.mode}>
     <PageHeader
       title={title}
@@ -220,12 +247,20 @@ export function ImprovementWorkspace() {
           {data.mode === "REVIEWER" ? <p className="text-xs text-ink-muted" data-reviewer-scope>{ui("You can review the criteria you were granted. Restricted sources stay closed.")}</p> : null}</div>
         <Button variant={onlyGaps ? "default" : "outline"} onClick={() => setOnlyGaps(!onlyGaps)} aria-pressed={onlyGaps} data-review-gaps>{ui("Review gaps")}</Button>
       </section>
+      <DeskStats data-improvement-pulse>
+        <StatTile index={0} icon={CheckCircle2} tone={view.summary.current === view.summary.total ? "success" : "brand"} value={<bdi>{view.summary.current}/{view.summary.total}</bdi>} label={ui("Current evidence")} hint={<Progress size="sm" value={view.summary.current} max={Math.max(view.summary.total, 1)} tone={view.summary.current === view.summary.total ? "success" : "brand"} aria-label={ui("Current: {0} of {1}", [String(view.summary.current), String(view.summary.total)])} />} />
+        <StatTile index={1} icon={SearchX} tone={view.summary.needsEvidence ? "warning" : "success"} value={view.summary.needsEvidence} label={ui("Needs evidence")} onSelect={() => setOnlyGaps(!onlyGaps)} selected={onlyGaps} />
+        <StatTile index={2} icon={AlarmClock} tone={view.summary.overdueActions ? "danger" : "neutral"} value={view.summary.overdueActions} label={ui("Overdue")} onSelect={view.summary.overdueActions ? () => setOverdueOnly(v => !v) : undefined} selected={overdueOnly} />
+        <StatTile index={3} icon={Target} tone="info" value={view.actions.filter(a => a.status !== "COMPLETED").length} label={ui("Improvement actions")} />
+      </DeskStats>
 
       <section className="space-y-2" aria-labelledby="criteria-h"><h2 id="criteria-h" className="text-base font-bold">{ui("Evidence map")}</h2>
-        <ul className="space-y-2">{view.criteria.filter(c => !onlyGaps || c.status !== "CURRENT" || !c.interpretationApproved).map(c => <li key={c.id} className="sk-panel p-4" data-criterion={c.code} data-criterion-status={c.status}>
+        {view.criteria.length > 8 ? <DeskQuickFilter value={q} onChange={setQ} label={ui("Filter this list")} /> : null}
+        <DeskFilterStatus shown={criteria.length} total={view.criteria.length} onClear={() => { setOnlyGaps(false); setQ(""); }} />
+        <ul className="space-y-2.5">{criteria.map(c => <li key={c.id} className={cn(deskRow, "p-4")} data-tone={c.status === "CURRENT" && c.interpretationApproved ? undefined : statusTone(c.status)} data-criterion={c.code} data-criterion-status={c.status}>
           <Button variant="ghost" type="button" className="flex w-full flex-wrap items-center justify-between gap-2 text-start" aria-expanded={!!open[c.id]} onClick={() => setOpen({ ...open, [c.id]: !open[c.id] })} data-criterion-toggle={c.code}>
             <span className="font-bold"><bdi dir="ltr">{c.code}</bdi> · <bdi>{c.title}</bdi></span>
-            <Badge size="sm" variant={statusTone(c.status)} data-criterion-status-label>{statusLabel(ui, c.status)}</Badge>
+            <DeskPill tone={statusTone(c.status)} data-criterion-status-label>{statusLabel(ui, c.status)}</DeskPill>
           </Button>
           <p className="mt-1 text-xs text-ink-muted"><bdi>{view.framework.name}</bdi> · <bdi dir="ltr">{view.framework.version}</bdi> · {c.interpretationApproved ? <>{ui("School interpretation approved")} · <bdi>{c.interpretationApprovedBy}</bdi></> : <span data-interpretation-pending>{ui("Interpretation not yet approved")}</span>}</p>
           {open[c.id] ? <div className="mt-3 space-y-2">
@@ -239,7 +274,8 @@ export function ImprovementWorkspace() {
       </section>
 
       <section className="space-y-2" aria-labelledby="actions-h"><div className="flex flex-wrap items-center justify-between gap-2"><h2 id="actions-h" className="text-base font-bold">{ui("Improvement actions")}</h2>{lead ? <Button size="sm" variant="outline" onClick={() => setModal({ kind: "action" })} data-action-new>{ui("Create an improvement action")}</Button> : null}</div>
-        {view.actions.length ? <ul className="space-y-2">{view.actions.map(a => <ActionCard key={`${a.id}:${a.version}`} action={a} view={view} data={data} reload={load} />)}</ul> : <p className="text-sm text-ink-muted">{ui("No improvement actions yet.")}</p>}
+        {overdueOnly ? <DeskFilterStatus shown={actions.length} total={view.actions.length} onClear={() => setOverdueOnly(false)} /> : null}
+        {view.actions.length ? <ul className="space-y-2.5">{actions.map(a => <ActionCard key={`${a.id}:${a.version}`} action={a} view={view} data={data} reload={load} />)}</ul> : <EmptyState size="sm" icon={Target} title={ui("No improvement actions yet.")} action={lead ? <Button size="sm" onClick={() => setModal({ kind: "action" })}>{ui("Create an improvement action")}</Button> : undefined} />}
       </section>
 
       {lead ? <section className="sk-panel space-y-2 p-4" data-grants><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-bold">{ui("Reviewer access")}</h2><Button size="sm" variant="outline" onClick={() => setModal({ kind: "grant" })} data-grant-open>{ui("Grant reviewer access")}</Button></div>
@@ -254,10 +290,10 @@ export function ImprovementWorkspace() {
 
     {modal?.kind === "framework" ? <Modal title={ui("New framework version")} icon={Layers} size="lg" onClose={() => setModal(null)}><FrameworkForm data={data} onDone={close} /></Modal> : null}
     {modal?.kind === "evidence" && view ? <Modal title={ui("Add evidence")} icon={Plus} size="lg" onClose={() => setModal(null)}><EvidenceForm view={view} preset={modal.criterionId ?? null} onDone={close} /></Modal> : null}
-    {modal?.kind === "action" && view ? <Modal title={ui("Create an improvement action")} size="lg" onClose={() => setModal(null)}><ActionForm view={view} people={people} onDone={close} /></Modal> : null}
-    {modal?.kind === "grant" && view ? <Modal title={ui("Grant reviewer access")} size="lg" onClose={() => setModal(null)}><GrantForm view={view} people={people} onDone={close} /></Modal> : null}
+    {modal?.kind === "action" && view ? <Modal title={ui("Create an improvement action")} icon={Target} size="lg" onClose={() => setModal(null)}><ActionForm view={view} people={people} peopleControl={peopleControl} onDone={close} /></Modal> : null}
+    {modal?.kind === "grant" && view ? <Modal title={ui("Grant reviewer access")} icon={KeyRound} tone="amber" size="lg" onClose={() => setModal(null)}><GrantForm view={view} people={people} peopleControl={peopleControl} onDone={close} /></Modal> : null}
     {modal?.kind === "export" && view ? <Modal title={ui("Export a versioned pack")} icon={FileDown} size="lg" onClose={() => setModal(null)}><ExportForm view={view} onDone={close} /></Modal> : null}
-    {modal?.kind === "interpret" && view ? <Modal title={ui("Approve interpretation")} size="lg" onClose={() => setModal(null)}><InterpretForm criterion={view.criteria.find(c => c.id === modal.criterionId)!} onDone={close} /></Modal> : null}
+    {modal?.kind === "interpret" && view ? <Modal title={ui("Approve interpretation")} icon={ClipboardCheck} tone="sky" size="lg" onClose={() => setModal(null)}><InterpretForm criterion={view.criteria.find(c => c.id === modal.criterionId)!} onDone={close} /></Modal> : null}
     <ConfirmAction
       open={Boolean(revoking)}
       tone="danger"
@@ -300,25 +336,29 @@ function InterpretForm({ criterion, onDone }: { criterion: Criterion; onDone: ()
     <Button disabled={busy || text.trim().length < 5} data-interpret-save onClick={() => submit({ action: "interpretation", criterionId: criterion.id, interpretation: text }, ui("Interpretation approved."))}>{ui("Approve interpretation")}</Button></div>;
 }
 
-function ActionForm({ view, people, onDone }: { view: View; people: Person[]; onDone: () => void }) {
+function ActionForm({ view, people, peopleControl, onDone }: { view: View; people: Person[]; peopleControl: ReactNode; onDone: () => void }) {
   const ui = useUiText();
   const { busy, submit } = useSubmit(onDone);
   const [f, setF] = useState({ title: "", ownerId: "", dueDate: inDays(60), expectedMeasure: "", criterionIds: [] as string[] });
+  const draft = useFormDraft({ record: `principal:improvement-action:${view.framework.id}`, schema: 1, values: f, baseline: { title: "", ownerId: "", dueDate: inDays(60), expectedMeasure: "", criterionIds: [] }, fields: ["title", "ownerId", "dueDate", "expectedMeasure", "criterionIds"] as const, apply: (values) => setF({ title: String(values.title ?? ""), ownerId: String(values.ownerId ?? ""), dueDate: String(values.dueDate ?? inDays(60)), expectedMeasure: String(values.expectedMeasure ?? ""), criterionIds: Array.isArray(values.criterionIds) ? values.criterionIds.map(String) : [] }) });
   return <div className="space-y-3" data-action-form>
+    <DraftRecovery recordLabel={ui("Improvement action")} draft={draft} saving={busy} excluded={ui("Only action fields are stored in this signed-in browser draft.")} />
     <FormField name="ac-title" label={ui("Action")}><Input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} dir="auto" data-action-title /></FormField>
     <div className="grid gap-2 sm:grid-cols-2"><FormField name="ac-owner" label={ui("Owner")}><Select value={f.ownerId} onChange={e => setF({ ...f, ownerId: e.target.value })} data-action-owner><option value="">{ui("Choose an owner")}</option>{people.map(p => <option key={p.id} value={p.id}>{p.fullName}</option>)}</Select></FormField><FormField name="ac-due" label={ui("Due date")}><Input type="date" value={f.dueDate} onChange={e => setF({ ...f, dueDate: e.target.value })} data-action-due /></FormField></div>
+    {peopleControl}
     <FormField name="ac-measure" label={ui("Expected measure")}><Textarea value={f.expectedMeasure} onChange={e => setF({ ...f, expectedMeasure: e.target.value })} rows={2} dir="auto" data-action-measure /></FormField>
     <FormField name="ac-criteria" label={ui("Criteria")}><CriteriaPicker criteria={view.criteria} value={f.criterionIds} onChange={v => setF({ ...f, criterionIds: v })} name="action" /></FormField>
-    <Button disabled={busy || !f.title || !f.ownerId || f.expectedMeasure.length < 5 || !f.criterionIds.length} data-action-save onClick={() => submit({ action: "improvement", frameworkId: view.framework.id, ...f }, ui("Improvement action created."))}>{ui("Create an improvement action")}</Button>
+    <Button disabled={busy || !f.title || !f.ownerId || f.expectedMeasure.length < 5 || !f.criterionIds.length} data-action-save onClick={async () => { const result = await submit({ action: "improvement", frameworkId: view.framework.id, ...f }, ui("Improvement action created.")); if (result) draft.markSaved(); }}>{ui("Create an improvement action")}</Button>
   </div>;
 }
 
-function GrantForm({ view, people, onDone }: { view: View; people: Person[]; onDone: () => void }) {
+function GrantForm({ view, people, peopleControl, onDone }: { view: View; people: Person[]; peopleControl: ReactNode; onDone: () => void }) {
   const ui = useUiText();
   const { busy, submit } = useSubmit(onDone);
   const [f, setF] = useState({ userId: "", criterionIds: [] as string[], expiresAt: inDays(30) });
   return <div className="space-y-3" data-grant-form>
     <FormField name="gr-user" label={ui("Reviewer")}><Select value={f.userId} onChange={e => setF({ ...f, userId: e.target.value })} data-grant-user><option value="">{ui("Choose a reviewer")}</option>{people.map(p => <option key={p.id} value={p.id}>{p.fullName}</option>)}</Select></FormField>
+    {peopleControl}
     <FormField name="gr-criteria" label={ui("Criteria they may review")}><CriteriaPicker criteria={view.criteria} value={f.criterionIds} onChange={v => setF({ ...f, criterionIds: v })} name="grant" /></FormField>
     <FormField name="gr-exp" label={ui("Access ends")}><Input type="date" value={f.expiresAt} onChange={e => setF({ ...f, expiresAt: e.target.value })} data-grant-expires /></FormField>
     <p className="text-xs text-ink-muted">{ui("Reviewers never open pupil or clinic records and see only evidence shared with reviewers.")}</p>

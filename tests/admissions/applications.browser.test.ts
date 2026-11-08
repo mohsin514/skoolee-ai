@@ -14,7 +14,7 @@ import { starterDefinition, type FormDefinition } from "../../src/lib/admissions
 // work and stop when revoked; possible duplicates need an explicit recorded choice; a retried conversion
 // creates one pupil and closes the linked enquiry.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.ADMISSIONS_TEST_APP || "http://localhost:3107";
 const evidence = process.env.ADMISSIONS_EVIDENCE_DIR || "/tmp/sko398-evidence";
 const db = new PrismaClient(), password = "SyntheticAdmit398!";
@@ -63,7 +63,9 @@ before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Lotus Admissions School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Karachi", status: "ACTIVE", plan: "PRO" } });
   for (const [id, name] of [[campusId, "Lotus Clifton"], [otherCampusId, "Lotus Gulshan"]]) await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Karachi" } });
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Prep", section: "A", academicYear: 2026 } });
-  const lead = await user("lead", "CAMPUS_ADMIN"); await user("desk", "RECEPTIONIST"); await user("other", "CAMPUS_ADMIN", otherCampusId); // role-ux G37: decisions are the campus admin's await user("teacher", "TEACHER"); await user("parent", "PARENT");
+  const lead = await user("lead", "CAMPUS_ADMIN"); await user("desk", "RECEPTIONIST"); await user("other", "CAMPUS_ADMIN", otherCampusId);
+  // role-ux G37: decisions are the campus admin's. The teacher and parent are the denied roles in the pipeline test.
+  await user("teacher", "TEACHER"); await user("parent", "PARENT");
   await db.localePolicy.create({ data: { schoolId, scopeKey: "school", settings: { timezone: "Asia/Karachi", currency: "PKR" }, effectiveAt: new Date("2026-01-01T00:00:00Z"), createdBy: lead, financeReviewedBy: lead } });
   // An existing pupil with the same name and date of birth as one applicant (a possible duplicate).
   await db.student.create({ data: { schoolId, campusId, classId, fullName: "Synthetic Child Hamza Ali", rollNo: "P-1", gender: "MALE", dateOfBirth: new Date("2019-06-01T00:00:00Z"), enrollmentDate: new Date("2025-04-01Z") } });

@@ -12,7 +12,7 @@ import type { OnboardingData } from "../../src/lib/school-ai/types";
 import type { generateAIDraft } from "../../src/lib/ai/openai";
 
 const url = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient();
 const schoolId = `setupgen-${randomUUID()}`, campusId = randomUUID(), otherCampusId = randomUUID();
 const admin: AuthUser = { userId: randomUUID(), schoolId, campusId, role: "CAMPUS_ADMIN", email: "setup-lead@example.invalid", fullName: "Synthetic setup lead", accessVersion: 0 };

@@ -22,8 +22,10 @@ export async function GET(req: NextRequest) {
       : await resolveCampusId(user, user.campusId);
 
     const [year, mon] = month.split("-").map(Number);
-    const startDate = new Date(year, mon - 1, 1);
-    const endDate = new Date(year, mon, 0); // last day of month
+    // SKAI-1351: attendance dates are stored at UTC midnight, so the month is built in UTC; local midnight
+    // in a positive UTC offset would drop the last day.
+    const startDate = new Date(Date.UTC(year, mon - 1, 1));
+    const endDate = new Date(Date.UTC(year, mon, 0)); // last day of month
 
     if (studentId) {
       // Student monthly report
@@ -92,17 +94,23 @@ export async function GET(req: NextRequest) {
       });
       if (!cls) throw new ApiError("Class not found", 404);
 
-      const students = await prisma.student.findMany({
+      // SKAI-1407: a row belongs to the class it was taken in. Pupils who moved out mid-month keep their earlier rows here.
+      const classRecords = await prisma.attendance.findMany({
+        where: { classId, campusId, date: { gte: startDate, lte: endDate } },
+        select: { studentId: true, status: true, date: true },
+      });
+      const currentStudents = await prisma.student.findMany({
         where: { classId, campusId },
         select: { id: true, fullName: true, rollNo: true, profileImageUrl: true },
         orderBy: { rollNo: "asc" },
       });
-
-      const studentIds = students.map(s => s.id);
-      const records = await prisma.attendance.findMany({
-        where: { studentId: { in: studentIds }, campusId, date: { gte: startDate, lte: endDate } },
-        select: { studentId: true, status: true, date: true },
-      });
+      const currentIds = new Set(currentStudents.map(s => s.id));
+      const movedOutIds = [...new Set(classRecords.map(r => r.studentId))].filter(id => !currentIds.has(id));
+      const movedOut = movedOutIds.length
+        ? await prisma.student.findMany({ where: { id: { in: movedOutIds }, campusId }, select: { id: true, fullName: true, rollNo: true, profileImageUrl: true }, orderBy: { rollNo: "asc" } })
+        : [];
+      const students = [...currentStudents, ...movedOut];
+      const records = classRecords;
 
       // Group by student
       const studentStats = students.map(student => {
@@ -162,12 +170,13 @@ export async function GET(req: NextRequest) {
       }),
       prisma.attendance.findMany({
         where: { campusId, date: { gte: startDate, lte: endDate } },
-        select: { studentId: true, status: true, student: { select: { classId: true } } },
+        select: { studentId: true, status: true, classId: true, student: { select: { classId: true } } },
       }),
     ]);
 
+    // SKAI-1407: group by the class each row was taken in. Rows without a stored class fall back to the current class.
     const classSummaries = classes.map(cls => {
-      const classRecords = allRecords.filter(r => r.student.classId === cls.id);
+      const classRecords = allRecords.filter(r => (r.classId ?? r.student.classId) === cls.id);
       const present = classRecords.filter(r => r.status === "PRESENT").length;
       const absent = classRecords.filter(r => r.status === "ABSENT").length;
       const leave = classRecords.filter(r => r.status === "LEAVE").length;

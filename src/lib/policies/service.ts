@@ -46,8 +46,9 @@ const toDoc = (p: PolicyRow): PolicyDoc => ({ id: p.id, topic: p.topic, title: p
 const effectiveOn = (p: PolicyRow, on: Date) => p.effectiveFrom <= on && (!p.effectiveUntil || p.effectiveUntil > on);
 
 /** Approved versions this audience may see on this campus, split into in-effect and not-in-effect. */
+// A superseded version still answers questions dated inside its own effective window; the dates decide.
 async function eligible(schoolId: string, campusId: string | null, audience: string, on: Date) {
-  const rows = await prisma.schoolPolicy.findMany({ where: { schoolId, status: "APPROVED", audience: audience === "FAMILY" ? { in: ["FAMILY", "ALL"] } : undefined, OR: [{ campusId: null }, ...(campusId ? [{ campusId }] : [])] }, take: 500 });
+  const rows = await prisma.schoolPolicy.findMany({ where: { schoolId, status: { in: ["APPROVED", "SUPERSEDED"] }, audience: audience === "FAMILY" ? { in: ["FAMILY", "ALL"] } : undefined, OR: [{ campusId: null }, ...(campusId ? [{ campusId }] : [])] }, take: 500 });
   return { current: rows.filter((p) => effectiveOn(p, on)), notCurrent: rows.filter((p) => !effectiveOn(p, on)) };
 }
 

@@ -108,14 +108,27 @@ export async function setRouteVehicles(user: AuthUser, routeId: string, vehicleI
   });
 }
 
+/**
+ * SKAI-1756: a capacity or active change takes the same per-route lock as rider assignment, for every route the
+ * vehicle serves (in a fixed order), and re-checks seats against riders inside that transaction before writing.
+ */
+export async function changeVehicleWithinCapacity<T>(user: AuthUser, vehicleId: string, next: { capacity?: number | null; active?: boolean }, write: (tx: TxClient) => Promise<T>) {
+  return schoolAiTransaction(user, async tx => {
+    const links = await tx.routeVehicle.findMany({ where: { vehicleId, schoolId: user.schoolId }, select: { routeId: true } });
+    for (const routeId of [...new Set(links.map(l => l.routeId))].sort()) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`route:${routeId}`}))`;
+    await assertVehicleChange(user, vehicleId, next, tx);
+    return write(tx);
+  });
+}
+
 /** A vehicle cannot shrink below, or be deactivated from under, a route that depends on its seats. */
-export async function assertVehicleChange(user: AuthUser, vehicleId: string, next: { capacity?: number | null; active?: boolean }) {
-  const links = await prisma.routeVehicle.findMany({ where: { vehicleId, schoolId: user.schoolId }, select: { routeId: true, route: { select: { title: true } } } });
+export async function assertVehicleChange(user: AuthUser, vehicleId: string, next: { capacity?: number | null; active?: boolean }, db: TxClient | typeof prisma = prisma) {
+  const links = await db.routeVehicle.findMany({ where: { vehicleId, schoolId: user.schoolId }, select: { routeId: true, route: { select: { title: true } } } });
   for (const link of links) {
-    const riders = await prisma.student.count({ where: { schoolId: user.schoolId, transportRouteId: link.routeId, archivedAt: null } });
+    const riders = await db.student.count({ where: { schoolId: user.schoolId, transportRouteId: link.routeId, archivedAt: null } });
     if (!riders) continue;
-    const others = await prisma.routeVehicle.findMany({ where: { routeId: link.routeId, vehicleId: { not: vehicleId }, vehicle: { active: true } }, select: { vehicle: { select: { capacity: true } } } });
-    const current = await prisma.vehicle.findFirst({ where: { id: vehicleId }, select: { capacity: true, active: true } });
+    const others = await db.routeVehicle.findMany({ where: { routeId: link.routeId, vehicleId: { not: vehicleId }, vehicle: { active: true } }, select: { vehicle: { select: { capacity: true } } } });
+    const current = await db.vehicle.findFirst({ where: { id: vehicleId }, select: { capacity: true, active: true } });
     const capacity = next.capacity !== undefined ? next.capacity : current?.capacity;
     const active = next.active !== undefined ? next.active : current?.active;
     const seats = Math.max(active ? capacity ?? 0 : 0, ...others.map(o => o.vehicle.capacity ?? 0));
@@ -169,8 +182,10 @@ export async function findStudents(user: AuthUser, q: string) {
 
 // ─── Trips: publish, amend, coordinate ───────────────────────────────────
 
-async function today(schoolId: string, campusId: string) {
-  return calendarDateIn((await getLocalePackage(schoolId, campusId)).timezone, new Date());
+/** Inside a transaction, pass its client: a top-level query there waits for a second pooled connection, and with
+ *  one connection per serverless instance (SKAI-1038) it never gets one (SKAI-1029, P2024). */
+async function today(schoolId: string, campusId: string, db: TxClient | typeof prisma = prisma) {
+  return calendarDateIn((await getLocalePackage(schoolId, campusId, new Date(), null, db)).timezone, new Date());
 }
 
 export async function publishTrip(user: AuthUser, body: Record<string, unknown>) {
@@ -183,7 +198,7 @@ export async function publishTrip(user: AuthUser, body: Record<string, unknown>)
     return await schoolAiTransaction(user, async tx => {
       const route = await ownRoute(user, tx, String(body.routeId ?? ""));
       if (!route.active) throw new ApiError("This route is inactive.", 409);
-      if (serviceDate < await today(user.schoolId, route.campusId)) throw new ApiError("A trip cannot be published for a past day.", 400);
+      if (serviceDate < await today(user.schoolId, route.campusId, tx)) throw new ApiError("A trip cannot be published for a past day.", 400);
       const link = await tx.routeVehicle.findFirst({ where: { routeId: route.id, vehicleId: String(body.vehicleId ?? "") }, include: { vehicle: true } });
       if (!link || !link.vehicle.active || link.vehicle.campusId !== route.campusId) throw new ApiError("Choose an active vehicle assigned to this route.", 400);
       if (!link.vehicle.capacity) throw new ApiError("Record the vehicle's capacity before publishing a trip.", 400);
@@ -254,12 +269,18 @@ export async function listTrips(user: AuthUser, date?: string | null) {
   return { serviceDate, lead, trips: trips.map(t => ({ id: t.id, label: t.label, direction: t.direction, vehicleNumber: t.vehicleNumber, status: t.status, ...counts(t.passengers), openExceptions: t.exceptions.length })) };
 }
 
+const STALE_LIST = "The trip's passenger list changed. Reload it and check before amending again.";
+
 /** Coordinator-only amendments after publication: the original manifest rows are kept. */
 export async function amend(user: AuthUser, body: Record<string, unknown>) {
   const reason = required(body.reason, 300, "Give the reason for the change.");
   return schoolAiTransaction(user, async tx => {
     const { trip } = await tripFor(user, tx, String(body.tripId ?? ""), "coordinator");
+    // SKAI-611: a replayed amendment (same device event id) changes nothing; one made from a stale list is refused.
+    const clientEventId = text(body.clientEventId, 80) || null;
+    if (clientEventId && await tx.tripEvent.findFirst({ where: { tripId: trip.id, clientEventId }, select: { id: true } })) return { id: trip.id, overflow: null, ownerId: user.userId, campusId: trip.campusId, repeated: true };
     if (!OPEN.includes(trip.status)) throw new ApiError("This trip is closed.", 409);
+    if (body.knownVersion != null && Number(body.knownVersion) !== trip.version) throw new ApiError(STALE_LIST, 409);
     const studentId = String(body.studentId ?? "");
     const existing = await tx.tripPassenger.findFirst({ where: { tripId: trip.id, studentId } });
     const late = trip.status === "DEPARTED";
@@ -277,9 +298,11 @@ export async function amend(user: AuthUser, body: Record<string, unknown>) {
       if (existing.status !== "EXPECTED" && existing.status !== "ABSENT") throw new ApiError("A student who has boarded cannot be removed; record their handover or resolve an exception.", 409);
       await tx.tripPassenger.update({ where: { id: existing.id }, data: { status: "REMOVED", note: reason } });
     } else throw new ApiError("Choose to add or remove a student.", 400);
-    await tx.tripEvent.create({ data: { schoolId: user.schoolId, tripId: trip.id, studentId, kind: body.change === "add" ? "AMENDED_ADD" : "AMENDED_REMOVE", occurredAt: new Date(), actorId: user.userId, detail: { reason, late } } });
-    await tx.transportTrip.update({ where: { id: trip.id }, data: { version: { increment: 1 } } });
-    return { id: trip.id, overflow, ownerId: user.userId, campusId: trip.campusId };
+    // Bump only the version this amendment was checked against, so a concurrent amendment rolls back.
+    const bumped = await tx.transportTrip.updateMany({ where: { id: trip.id, version: trip.version }, data: { version: { increment: 1 } } });
+    if (!bumped.count) throw new ApiError(STALE_LIST, 409);
+    await tx.tripEvent.create({ data: { schoolId: user.schoolId, tripId: trip.id, studentId, kind: body.change === "add" ? "AMENDED_ADD" : "AMENDED_REMOVE", occurredAt: new Date(), actorId: user.userId, clientEventId, detail: { reason, late } } });
+    return { id: trip.id, overflow, ownerId: user.userId, campusId: trip.campusId, repeated: false };
   });
 }
 
@@ -357,12 +380,16 @@ export async function board(user: AuthUser, body: Record<string, unknown>) {
 
 /** Opens the double-boarding exception (outside the refused transaction) for the trip's coordinator. */
 export async function recordDoubleBoarding(user: AuthUser, tripId: string, e: DoubleBoarding) {
-  const trip = await prisma.transportTrip.findFirst({ where: { id: tripId, schoolId: user.schoolId }, select: { id: true, coordinatorId: true, campusId: true } });
-  if (!trip) return null;
-  const open = await prisma.tripException.findFirst({ where: { tripId: trip.id, studentId: e.studentId, kind: "DOUBLE_BOARDING", status: "OPEN" } });
-  if (open) return null;
-  const row = await prisma.tripException.create({ data: { schoolId: user.schoolId, tripId: trip.id, studentId: e.studentId, kind: "DOUBLE_BOARDING", note: `Already on board ${e.otherLabel}.`, ownerId: trip.coordinatorId, createdById: user.userId } });
-  return { id: row.id, ownerId: trip.coordinatorId, campusId: trip.campusId };
+  // SKAI-613: serialise per trip and child so retried or concurrent refusals open one exception, not several.
+  return schoolAiTransaction(user, async tx => {
+    const trip = await tx.transportTrip.findFirst({ where: { id: tripId, schoolId: user.schoolId }, select: { id: true, coordinatorId: true, campusId: true } });
+    if (!trip) return null;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`trip-exception:${trip.id}:${e.studentId}:DOUBLE_BOARDING`}))`;
+    const open = await tx.tripException.findFirst({ where: { tripId: trip.id, studentId: e.studentId, kind: "DOUBLE_BOARDING", status: "OPEN" } });
+    if (open) return null;
+    const row = await tx.tripException.create({ data: { schoolId: user.schoolId, tripId: trip.id, studentId: e.studentId, kind: "DOUBLE_BOARDING", note: `Already on board ${e.otherLabel}.`, ownerId: trip.coordinatorId, createdById: user.userId } });
+    return { id: row.id, ownerId: trip.coordinatorId, campusId: trip.campusId };
+  });
 }
 
 export async function markAbsent(user: AuthUser, body: Record<string, unknown>) {
@@ -471,9 +498,11 @@ export async function emergencyClose(user: AuthUser, body: Record<string, unknow
   return schoolAiTransaction(user, async tx => {
     const { trip } = await tripFor(user, tx, String(body.tripId ?? ""), "coordinator");
     if (!OPEN.includes(trip.status)) return { id: trip.id, repeated: true, created: 0, campusId: trip.campusId };
+    // SKAI-612: claim the closure first, so a concurrent second closure records no event or exceptions.
+    const claimed = await tx.transportTrip.updateMany({ where: { id: trip.id, status: { in: OPEN } }, data: { status: "CLOSED_EMERGENCY", closedAt: new Date(), closedById: user.userId, emergencyReason: reason, version: { increment: 1 } } });
+    if (!claimed.count) return { id: trip.id, repeated: true, created: 0, campusId: trip.campusId };
     const unresolved = await tx.tripPassenger.findMany({ where: { tripId: trip.id, status: { in: UNRESOLVED } }, select: { studentId: true, studentName: true, status: true } });
     for (const p of unresolved) await tx.tripException.create({ data: { schoolId: user.schoolId, tripId: trip.id, studentId: p.studentId, kind: p.status === "BOARDED" ? "MISSING_RECIPIENT" : "MISSING_CHILD", note: `Unresolved at emergency closure (${p.status === "BOARDED" ? "on board, no handover" : "not boarded, no absence"}).`, ownerId: user.userId, createdById: user.userId } });
-    await tx.transportTrip.update({ where: { id: trip.id }, data: { status: "CLOSED_EMERGENCY", closedAt: new Date(), closedById: user.userId, emergencyReason: reason, version: { increment: 1 } } });
     await tx.tripEvent.create({ data: { schoolId: user.schoolId, tripId: trip.id, kind: "CLOSED_EMERGENCY", occurredAt: new Date(), actorId: user.userId, detail: { reason, unresolved: unresolved.length } } });
     return { id: trip.id, repeated: false, created: unresolved.length, campusId: trip.campusId };
   });

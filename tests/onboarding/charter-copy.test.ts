@@ -79,5 +79,5 @@ test("existing pinned strings are byte-identical", () => {
   assert.equal(t.activate, "Activate setup");
   assert.equal(t.activateEligible, "Activate eligible setup");
   assert.equal(t.activateNote, "Activated now: {0}. Kept as drafts until you change package: {1}.");
-  assert.equal(t.overLimit, "{0} campus drafts are beyond this package. They stay saved as drafts; change package when you are ready to activate them.");
+  assert.equal(t.overLimit, "{0} campus drafts exceed this package limit. They stay saved as drafts; upgrade your package to activate them.");
 });

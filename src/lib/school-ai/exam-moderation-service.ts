@@ -8,7 +8,7 @@ import { ApiError } from "@/lib/api/scope";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { schoolAiTransaction } from "./transaction";
 import { resultDecisionAccess, scopedAssignment, staffExamAccess } from "./exam-service";
-import { examReviewSchema, responsesSchema, validateExamReview } from "./exam";
+import { examReviewSchema, objectiveOverrides, responsesSchema, validateExamReview } from "./exam";
 import { applyResultRevision } from "./exam-results";
 
 /**
@@ -55,6 +55,9 @@ async function proposeIn(tx: TxClient, user: AuthUser, assignmentId: string, inp
   if (!attempt) throw new ApiError("The result changed. Reload its current version before proposing a correction.", 409);
   const issues = validateExamReview(paper, responsesSchema.parse(attempt.responses), input.review);
   if (issues.length) throw new ApiError(issues.join(" "), 422);
+  // SKAI-1014: refused here too, so a silent objective change never waits in the approval queue.
+  const { errors: overrideErrors } = objectiveOverrides(paper, responsesSchema.parse(attempt.responses), input.review, attempt.review as { marks?: { questionId: string; marks: number }[] } | null);
+  if (overrideErrors.length) throw new ApiError(overrideErrors.join(" "), 422);
   if (input.appealId && !(await tx.schoolAiExamAppeal.findFirst({ where: { id: input.appealId, attemptId: attempt.id, schoolId: user.schoolId, resultVersion: input.version }, select: { id: true } }))) throw new ApiError("That review request belongs to another result.", 400);
   const pending = await tx.schoolAiResultCorrection.findFirst({ where: { schoolId: user.schoolId, attemptId: attempt.id, fromVersion: input.version, status: "PENDING" } });
   if (pending) {
@@ -109,12 +112,20 @@ export async function decideResultCorrection(user: AuthUser, assignmentId: strin
   return result;
 }
 
+/** A matching sample created by the same lead within this window is treated as a retry of that create. */
+export const SAMPLE_REPLAY_WINDOW_MS = 2 * 60 * 1000;
+
 /** Choose a second-marking sample by a recorded rule; the reviewer never second-marks their own scripts. */
 export async function createModerationSample(user: AuthUser, assignmentId: string, raw: unknown) {
   const input = parse(SampleInput, raw);
   return schoolAiTransaction(user, async (tx) => {
     const { assignment } = await scopedAssignment(user, assignmentId, tx);
     await staffExamAccess(user, assignment, "edit", tx);
+    // SKAI-1606: a retried create (lost response, double click) returns the sample it already made rather
+    // than drawing a second, differently randomised one. Creates by one lead on one exam run one at a time.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`moderation-sample:${user.schoolId}:${assignmentId}:${user.userId}`}))`;
+    const replay = await tx.schoolAiModerationSample.findFirst({ where: { schoolId: user.schoolId, assignmentId, createdById: user.userId, method: input.method, threshold: input.threshold, blind: input.blind, reviewerId: input.reviewerId, createdAt: { gte: new Date(Date.now() - SAMPLE_REPLAY_WINDOW_MS) } }, orderBy: { createdAt: "desc" } });
+    if (replay) return replay;
     // Reviewers must be able to open every sampled script, which teachers can only do for exams they
     // set themselves; second marking is therefore assigned to an academic lead on this campus.
     const reviewer = await tx.user.findFirst({ where: { id: input.reviewerId, schoolId: user.schoolId, campusId: assignment.campusId, isActive: true, role: { in: ["CAMPUS_ADMIN", "PRINCIPAL", "ADMIN", "SUPER_ADMIN"] } }, select: { id: true } });

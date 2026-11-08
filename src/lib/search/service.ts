@@ -75,12 +75,12 @@ export function resultHref(role: string, type: SearchType, record: { id: string;
 export async function allowedTypes(user: AuthUser) {
   if (!canSearchRecords(user.role)) return [] as SearchType[];
   const openable = TYPES_FOR_ROLE[user.role as (typeof RECORD_SEARCH_ROLES)[number]];
-  const allowed: SearchType[] = [];
-  for (const type of TYPES) {
-    if (!openable.includes(type)) continue;
-    try { await assertModuleRead(user, MODULE[type]); allowed.push(type); } catch { /* not offered */ }
-  }
-  return allowed;
+  // SKAI-1245: the permission checks are independent reads, so they run together rather than one round trip each.
+  const checks = await Promise.all(TYPES.map(async type => {
+    if (!openable.includes(type)) return false;
+    try { await assertModuleRead(user, MODULE[type]); return true; } catch { return false; /* not offered */ }
+  }));
+  return TYPES.filter((_, index) => checks[index]);
 }
 
 async function teacherClassIds(user: AuthUser) {
@@ -121,12 +121,14 @@ async function searchStudents(user: AuthUser, filters: Filters, campusIds: strin
     ${filters.academicYear ? Prisma.sql`AND c.academic_year = ${filters.academicYear}` : Prisma.empty}
     ${q ? Prisma.sql`AND (lower(s.roll_no) = lower(${q}) OR lower(coalesce(s.admission_no, '')) = lower(${q}) OR s.id = ${q} OR search_fold(s.full_name) LIKE search_fold(${like(q)}) OR search_fold(coalesce(s.name_ur, '')) LIKE search_fold(${like(q)}))` : Prisma.empty}`;
   const exact = q ? Prisma.sql`(lower(s.roll_no) = lower(${q}) OR lower(coalesce(s.admission_no, '')) = lower(${q}) OR s.id = ${q})` : Prisma.sql`false`;
+  // SKAI-1740: PostgreSQL rejects a bare constant in ORDER BY ("non-integer constant"), so a blank query skips the exact-match key.
+  const exactFirst = q ? Prisma.sql`${exact} DESC,` : Prisma.empty;
   const [rows, [{ total }]] = await Promise.all([
     prisma.$queryRaw<{ id: string; full_name: string; name_ur: string | null; roll_no: string; admission_no: string | null; archived_at: Date | null; consolidated_into_id: string | null; class_name: string; section: string | null; academic_year: number; campus_name: string; exact: boolean }[]>`
       SELECT s.id, s.full_name, s.name_ur, s.roll_no, s.admission_no, s.archived_at, s.consolidated_into_id, c.name AS class_name, c.section, c.academic_year, cp.name AS campus_name, ${exact} AS exact
       FROM students s JOIN classes c ON c.id = s.class_id JOIN campuses cp ON cp.id = s.campus_id
       WHERE ${where}
-      ORDER BY ${exact} DESC, s.archived_at IS NOT NULL, search_fold(s.full_name) ${filters.sort === "name-desc" ? Prisma.sql`DESC` : Prisma.sql`ASC`}, s.roll_no, s.id
+      ORDER BY ${exactFirst} s.archived_at IS NOT NULL, search_fold(s.full_name) ${filters.sort === "name-desc" ? Prisma.sql`DESC` : Prisma.sql`ASC`}, s.roll_no, s.id
       LIMIT ${limit} OFFSET ${offset}`,
     prisma.$queryRaw<{ total: bigint }[]>`SELECT count(*) AS total FROM students s JOIN classes c ON c.id = s.class_id WHERE ${where}`,
   ]);
@@ -197,10 +199,15 @@ const SEARCHERS = { student: searchStudents, class: searchClasses, staff: search
 export async function searchRecords(user: AuthUser, filters: Filters) {
   if (isFamilyRole(user)) throw new ApiError("Search covers school records for staff. Families find their children's information in their own portal.", 403);
   if (!canSearchRecords(user.role)) throw new ApiError("Record search is not part of your workspace.", 403);
+  // SKAI-1245: resolve the campus scope alongside the permission checks; a missing permission still wins.
+  const scoped = scope(user, filters.campusId);
+  scoped.catch(() => undefined);
   const allowed = await allowedTypes(user);
   if (!allowed.length) throw new ApiError("Your role has no searchable records.", 403);
   const types = filters.types.length ? filters.types.filter(type => allowed.includes(type)) : allowed;
-  const { campusIds } = await scope(user, filters.campusId);
+  const { campusIds } = await scoped;
+  const header = Promise.all([prisma.school.findUnique({ where: { id: user.schoolId }, select: { name: true } }), campusIds?.length === 1 ? prisma.campus.findUnique({ where: { id: campusIds[0] }, select: { name: true } }) : null]);
+  header.catch(() => undefined);
   const single = types.length === 1;
   const limit = single ? PAGE : 8;
   let page = boundedInteger(String(filters.page), 1, 100_000);
@@ -220,7 +227,7 @@ export async function searchRecords(user: AuthUser, filters: Filters) {
     }
     catch { console.error(`[search] ${type} source failed`); sources[type] = "failed"; return { type, rows: [] as Result[], total: 0 }; }
   }));
-  const [school, campus] = await Promise.all([prisma.school.findUnique({ where: { id: user.schoolId }, select: { name: true } }), campusIds?.length === 1 ? prisma.campus.findUnique({ where: { id: campusIds[0] }, select: { name: true } }) : null]);
+  const [school, campus] = await header;
   return {
     scope: { school: school?.name ?? "", campus: campus?.name ?? null, allCampuses: !campusIds },
     allowedTypes: allowed, types, groups, sources, partial: Object.values(sources).includes("failed"),

@@ -24,6 +24,7 @@ import { MailHandoff } from "@/components/auth/MailHandoff";
 import { EmailTypoHint } from "@/components/auth/EmailTypoHint";
 import { RequirementChecklist } from "@/components/auth/RequirementChecklist";
 import { authCopy } from "@/lib/auth/auth-copy";
+import { passwordRules, RESET_PASSWORD_UNMET } from "@/lib/auth/reset-password-policy";
 import { stashAuthEmail, takeAuthEmail } from "@/lib/auth/auth-handoff";
 import type { Language } from "@/lib/locale/package";
 
@@ -40,7 +41,7 @@ const resetSchema = z.object({
   path: ["confirmPassword"],
 });
 
-const UNMET = "Please satisfy all security requirements.";
+const UNMET = RESET_PASSWORD_UNMET;
 
 const en = {
   eyebrow: "Account recovery",
@@ -204,15 +205,6 @@ const copy: Record<Language, RecoveryCopy> = {
 };
 
 /** The five reset rules, in checklist order. */
-function passwordRules(password: string, confirm: string) {
-  return [
-    password.length >= 8,
-    /[A-Z]/.test(password),
-    /[0-9]/.test(password),
-    /[^A-Za-z0-9]/.test(password),
-    password === confirm && password !== "",
-  ];
-}
 
 /** Arrival choreography offset (the only inline style pages may set). */
 const delay = (ms: number) => ({ ["--sk-delay" as string]: `${ms}ms` }) as CSSProperties;
@@ -269,8 +261,8 @@ export default function ForgotPasswordPage() {
     let active = true;
     verifyToken(token).then(res => {
       if (!active) return;
-      setVerification({ token, status: res.valid ? "valid" : "invalid" });
-      if (!res.valid) announceInvalidLink();
+      setVerification({ token, status: res.valid ? "valid" : res.limited ? "error" : "invalid" });
+      if (!res.valid && !res.limited) announceInvalidLink();
     }).catch(() => {
       if (active) setVerification({ token, status: "error" });
     });

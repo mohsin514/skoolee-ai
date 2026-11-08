@@ -102,14 +102,56 @@ export function enterTenantContext(context: TenantContext) {
  * This covers server actions that rely on the tenant guard for data access.
  */
 export async function resolveTenantFromRequest(): Promise<TenantContext | null> {
+  let token: string | undefined;
   try {
     // Imported lazily so non-Next runtimes (BullMQ workers, scripts) never
     // pull in next/headers.
     const { cookies } = await import("next/headers");
-    const { SESSION_COOKIE_NAME, hashSessionToken } = await import("@/lib/auth/session-cookie");
-    const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
-    if (!token) return null;
+    const { SESSION_COOKIE_NAME } = await import("@/lib/auth/session-cookie");
+    token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+  } catch {
+    // No request scope (worker, script, test): there is no session to derive from.
+    return null;
+  }
+  if (!token) return null;
+  return resolveTenantForToken(token);
+}
 
+/**
+ * SKAI-1034/1028/1030: the guard calls the resolver once per *query*. A page
+ * firing ten queries in a Promise.all re-ran JWT verification, the revocation
+ * lookup and the principal lookup ten times over, on a pool of 1–5
+ * connections. Pool waits made the revocation check fail closed, the resolver
+ * returned null, and the user saw "No tenant context in scope". The resolution
+ * is now shared per token for the life of the in-flight lookup plus a short
+ * window, so one request (and its parallel queries) resolves once.
+ */
+const RESOLUTION_TTL_MS = 2_000;
+const resolutions = new Map<string, { at: number; value: Promise<TenantContext | null> }>();
+
+export function resolveTenantForToken(token: string, now = Date.now()): Promise<TenantContext | null> {
+  const hit = resolutions.get(token);
+  if (hit && now - hit.at < RESOLUTION_TTL_MS) return hit.value;
+  if (resolutions.size > 500) {
+    for (const [key, entry] of resolutions) if (now - entry.at >= RESOLUTION_TTL_MS) resolutions.delete(key);
+  }
+  const value = resolveTenantUncached(token).then((context) => {
+    // A failed resolution is not remembered: the next query retries.
+    if (!context) resolutions.delete(token);
+    return context;
+  });
+  resolutions.set(token, { at: now, value });
+  return value;
+}
+
+/** Test seam: forget memoised resolutions. */
+export function clearTenantResolutionCache() {
+  resolutions.clear();
+}
+
+async function resolveTenantUncached(token: string): Promise<TenantContext | null> {
+  try {
+    const { hashSessionToken } = await import("@/lib/auth/session-cookie");
     const { jwtVerify } = await import("jose");
     const { JWT_SECRET } = await import("@/lib/auth/secret");
     const { payload } = await jwtVerify(token, JWT_SECRET);
@@ -129,9 +171,28 @@ export async function resolveTenantFromRequest(): Promise<TenantContext | null> 
       return { schoolId, userId, unscoped: true, reason: "current platform operator" };
     }
     return { schoolId, userId, campusId: principal.campusId, role: principal.role };
-  } catch {
+  } catch (error) {
+    // Logged by name only: never the token, payload or a database message.
+    console.warn("[tenant-context] request tenant resolution failed", { name: error instanceof Error ? error.name : typeof error });
     return null;
   }
+}
+
+/**
+ * The tenant context for an already-authenticated user. Entry points that
+ * have just called getAuthUser()/requireAuthUser() bind this explicitly with
+ * runAsUser() instead of making every query re-derive it from the cookie.
+ * The platform operator is the one cross-school role and is bound unscoped.
+ */
+export function tenantContextForUser(user: { schoolId: string; userId: string; campusId?: string | null; role: string }): TenantContext {
+  if (!user.schoolId) throw new TenantContextError(NO_CONTEXT_MESSAGE);
+  if (user.role === "APP_OWNER") return { schoolId: user.schoolId, userId: user.userId, unscoped: true, reason: "current platform operator" };
+  return { schoolId: user.schoolId, userId: user.userId, campusId: user.campusId ?? null, role: user.role };
+}
+
+/** Runs `fn` bound to the authenticated user's school. */
+export function runAsUser<T>(user: { schoolId: string; userId: string; campusId?: string | null; role: string }, fn: () => Promise<T>): Promise<T> {
+  return runWithTenantContext(tenantContextForUser(user), fn);
 }
 
 /**

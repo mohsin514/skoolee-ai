@@ -10,6 +10,10 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
+import { recomputePendingInvoices, resolveFeeStructureYearId } from "@/lib/fees/structure-year";
+import { evaluateFeeCap, feeCapDecision } from "@/lib/fees/regulator-cap";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function PUT(
   req: NextRequest,
@@ -26,7 +30,7 @@ export async function PUT(
     });
     if (!existing) throw new ApiError("Fee structure not found", 404);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = feeStructureSchema.safeParse(body);
     if (!parsed.success) {
       const flat = parsed.error.flatten().fieldErrors;
@@ -34,14 +38,30 @@ export async function PUT(
       return Response.json({ error: msg || "Validation failed" }, { status: 400 });
     }
 
+
+    // SKAI-1154: the school's opt-in regulator fee cap.
+    const capSchool = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { feeCapMode: true } });
+    const capMode = capSchool?.feeCapMode ?? "OFF";
+    const approvedFee = parsed.data.approvedFee !== undefined ? parsed.data.approvedFee : existing.approvedFee;
+    const cap = feeCapDecision(evaluateFeeCap({ mode: capMode, fee: parsed.data.monthlyFee, approvedFee }), capMode);
+    if (cap.error) return Response.json({ error: cap.error, feeCap: "blocked" }, { status: 422 });
+
     const oneTimeFeesJson = parsed.data.oneTimeFeesJson ? JSON.parse(parsed.data.oneTimeFeesJson) : undefined;
     const discountRulesJson = parsed.data.discountRulesJson ? JSON.parse(parsed.data.discountRulesJson) : undefined;
 
-    const structure = await prisma.feeStructure.update({
+    // SKAI-1123: the structure edit, the year, and the re-pricing of unpaid PENDING invoices commit together.
+    const { structure, recomputed } = await prisma.$transaction(async (tx) => {
+    const academicYearId = body.academicYearId !== undefined
+      ? await resolveFeeStructureYearId(tx, user.schoolId, existing.campusId, body.academicYearId)
+      : existing.academicYearId;
+    const structure = await tx.feeStructure.update({
       where: { id: structureId },
       data: {
+        academicYearId,
         classId: parsed.data.classId,
         monthlyFee: parsed.data.monthlyFee,
+        approvedFee,
+        approvedFeeReference: parsed.data.approvedFeeReference !== undefined ? parsed.data.approvedFeeReference || null : undefined,
         oneTimeFeesJson: oneTimeFeesJson as any,
         installmentType: parsed.data.installmentType ?? undefined,
         discountRulesJson: discountRulesJson as any,
@@ -53,17 +73,22 @@ export async function PUT(
         updatedBy: user.userId,
       },
       include: {
-        class: { select: { id: true, name: true, section: true } },
+        class: { select: { id: true, name: true, section: true, academicYear: true } },
       },
     });
 
-    await prisma.auditLog.create({
+    const recomputed = await recomputePendingInvoices(tx, user, structure);
+
+    await tx.auditLog.create({
       data: {
         tableName: "fee_structure",
         recordId: structure.id,
-        newValue: { action: "update", classId: parsed.data.classId, monthlyFee: parsed.data.monthlyFee },
+        oldValue: { classId: existing.classId, monthlyFee: existing.monthlyFee, academicYearId: existing.academicYearId },
+        newValue: { action: "update", classId: parsed.data.classId, monthlyFee: parsed.data.monthlyFee, approvedFee, feeCapMode: capMode, academicYearId, invoicesRecomputed: recomputed.updated },
         userId: user.userId,
       },
+    });
+    return { structure, recomputed };
     });
 
     notify("FEE_STRUCTURE_UPDATED", {
@@ -77,6 +102,8 @@ export async function PUT(
     return Response.json({
       success: true,
       data: structure,
+      invoicesRecomputed: recomputed.updated,
+      ...(cap.warning ? { feeCapWarning: cap.warning } : {}),
       message: `Fee structure updated for ${structure.class.name}`,
     });
   } catch (error) {

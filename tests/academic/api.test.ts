@@ -10,8 +10,8 @@ import { runWithTenantContext } from "../../src/lib/db/tenant-context";
 
 const dbUrl = new URL(process.env.DATABASE_URL || "http://invalid");
 const appUrl = new URL(process.env.ACADEMIC_MODEL_TEST_APP || "http://127.0.0.1:3216");
-if (dbUrl.hostname !== "127.0.0.1" || dbUrl.port !== "55416" || dbUrl.pathname !== "/skoolee") throw new Error("SKO-216 integration tests require the dedicated local 55416/skoolee database");
-if (appUrl.hostname !== "127.0.0.1" || appUrl.port !== "3216") throw new Error("SKO-216 integration tests require the local app on port 3216");
+if (dbUrl.hostname !== "127.0.0.1" || dbUrl.port !== (process.env.QA_DB_PORT || "55416") || dbUrl.pathname !== `/${process.env.QA_DB_NAME || "skoolee"}`) throw new Error("SKO-216 integration tests require the dedicated local 55416/skoolee database");
+if (appUrl.hostname !== "127.0.0.1" || appUrl.port !== (process.env.QA_APP_PORT || "3216")) throw new Error("SKO-216 integration tests require the local app on port 3216");
 
 const db = new PrismaClient({ datasources: { db: { url: dbUrl.toString() } } });
 const schoolId = `academic-${randomUUID()}`;
@@ -41,6 +41,8 @@ before(async () => {
     { id: subjects[1], schoolId, campusId, name: "Science", totalMarks: 100 },
   ] } } });
   await db.class.create({ data: { id: foreignClassId, schoolId, campusId: otherCampusId, name: "Grade 6", section: "B", academicYear: 2026, subjects: { create: [{ id: foreignSubjectId, schoolId, campusId: otherCampusId, name: "Mathematics", totalMarks: 100 }] } } });
+  // SKAI-117: terms activate only inside the campus academic year, so the fixture creates that year.
+  await db.academicCycle.create({ data: { schoolId, campusId, label: "Synthetic 2026", academicYear: 2026, status: "ACTIVE", startDate: new Date("2026-01-01"), endDate: new Date("2026-12-31") } });
   for (const role of ["SUPER_ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "TEACHER", "STUDENT"]) {
     const userId = randomUUID();
     const email = `${userId}@example.invalid`;
@@ -115,11 +117,16 @@ test("draft preview and activation retain a pinned version and prevent overlaps"
   overlapping.terms[0].startDate = "2026-06-01";
   overlapping.terms[0].endDate = "2026-08-01";
   overlapping.terms[1].startDate = "2026-08-02";
+  overlapping.grading.thresholds[1].minimum = 89; // the recorded 88 moves from A to B
   const duplicate = await request("", "CAMPUS_ADMIN", { action: "create", campusId, academicYear: 2026, title: "Overlapping draft", effectiveFrom: "2026-06-01", configuration: overlapping }, "POST");
   assert.equal(duplicate.status, 201);
   const conflict = await request(`/${(await duplicate.json()).model.id}`, "PRINCIPAL", { action: "preview", campusId }, "POST");
   assert.equal(conflict.status, 409);
-  assert.equal((await conflict.json()).problems[0].code, "period_conflict");
+  const conflictReview = await conflict.json();
+  assert.equal(conflictReview.problems[0].code, "period_conflict");
+  // The exempt mark is left out; the scored one is re-graded against the active version's bands.
+  assert.deepEqual({ evaluated: conflictReview.regrade.evaluated, gradeChanges: conflictReview.regrade.gradeChanges }, { evaluated: 1, gradeChanges: 1 });
+  assert.equal(conflictReview.needsAcknowledgement, true);
 });
 
 test("campus cannot bind a class from another campus and templates require group role", async () => {

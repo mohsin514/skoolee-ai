@@ -47,7 +47,9 @@ const newSigningSecret = () => `whsec_${randomBytes(24).toString("base64url")}`;
 
 export async function createConnection(user: AuthUser, body: Record<string, unknown>) {
   admin(user);
-  const name = text(body.name, 120);
+  // SKAI-1360: a name must be text within 120 characters; numbers and longer values are refused, not coerced or cut.
+  if (typeof body.name !== "string" || body.name.trim().length > 120) throw new ApiError("The connection name must be text of up to 120 characters.", 400);
+  const name = body.name.trim();
   if (name.length < 3) throw new ApiError("Name the connection after the system it connects.", 400);
   const campusIds = list(body.campusIds), scopes = list(body.scopes), topics = list(body.topics);
   if (!campusIds.length) throw new ApiError("Choose at least one campus this connection may see.", 400);
@@ -74,10 +76,20 @@ async function ownConnection(user: AuthUser, id: string, mode: "write" | "read" 
   return c;
 }
 
+/** Overlap windows are whole minutes between 0 and one day; anything else is rejected rather than coerced. */
+export function overlapMinutesOf(value: unknown): number {
+  if (value === undefined || value === null) return 60;
+  const minutes = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1440) {
+    throw new ApiError("overlapMinutes must be a whole number of minutes from 0 to 1440", 400);
+  }
+  return minutes;
+}
+
 export async function rotateKey(user: AuthUser, body: Record<string, unknown>) {
   const c = await ownConnection(user, String(body.id ?? ""));
   if (c.status === "REVOKED") throw new ApiError("This connection is revoked.", 409);
-  const overlap = Math.max(0, Math.min(1440, Number(body.overlapMinutes ?? 60)));
+  const overlap = overlapMinutesOf(body.overlapMinutes);
   const key = newKey(), until = new Date(Date.now() + overlap * 60_000);
   await prisma.$transaction([
     prisma.integrationCredential.updateMany({ where: { connectionId: c.id, status: "ACTIVE", OR: [{ expiresAt: null }, { expiresAt: { gt: until } }] }, data: overlap ? { expiresAt: until } : { status: "REVOKED", revokedAt: new Date() } }),
@@ -89,7 +101,7 @@ export async function rotateKey(user: AuthUser, body: Record<string, unknown>) {
 export async function rotateSigningSecret(user: AuthUser, body: Record<string, unknown>) {
   const c = await ownConnection(user, String(body.id ?? ""));
   if (!c.webhookUrl || !c.signingSecret) throw new ApiError("This connection has no webhook.", 409);
-  const overlap = Math.max(0, Math.min(1440, Number(body.overlapMinutes ?? 60)));
+  const overlap = overlapMinutesOf(body.overlapMinutes);
   const secret = newSigningSecret();
   await prisma.integrationConnection.update({ where: { id: c.id }, data: { signingSecret: protectSecret(secret), previousSigningSecret: overlap ? c.signingSecret : null, previousSecretUntil: overlap ? new Date(Date.now() + overlap * 60_000) : null } });
   return { id: c.id, signingSecret: secret };
@@ -299,7 +311,10 @@ const studentSelect = { id: true, admissionNo: true, fullName: true, campusId: t
 
 export async function listStudents(caller: Caller, params: URLSearchParams) {
   return runWithTenantContext({ schoolId: caller.schoolId }, async () => {
-    const limit = Math.min(Math.max(Number(params.get("limit") ?? V1.pagination.defaultLimit) || V1.pagination.defaultLimit, 1), V1.pagination.maxLimit);
+    // SKAI-1337: the frozen contract takes whole-number limits; anything else is a 400, not a silent clamp.
+    const rawLimit = params.get("limit");
+    if (rawLimit !== null && !/^[1-9]\d*$/.test(rawLimit)) throw new PublicError(400, "VALIDATION_FAILED", "limit must be a positive whole number.");
+    const limit = Math.min(rawLimit === null ? V1.pagination.defaultLimit : Number(rawLimit), V1.pagination.maxLimit);
     const campusId = params.get("campusId");
     if (campusId && !caller.campusIds.includes(campusId)) throw new PublicError(404, "NOT_FOUND", "Campus not found.");
     const cursor = params.get("cursor");

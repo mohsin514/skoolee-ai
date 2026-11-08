@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
       case "students": return ok(await care.findStudents(user, p.get("q") ?? ""));
       case "summary": return ok(await care.careSummary(user, p.get("studentId") ?? ""));
       case "settings": return ok(await care.settings(user, p.get("campusId")));
-      case "my-reports": return ok(await care.myReports(user));
-      case "messages": return ok(await care.messagesForMe(user));
+      case "my-reports": { const page = await care.myReports(user, p.get("cursor")); return Response.json({ success: true, data: page.items, nextCursor: page.nextCursor }, { headers }); }
+      case "messages": { const page = await care.messagesForMe(user, p.get("cursor")); return Response.json({ success: true, data: page.items, nextCursor: page.nextCursor }, { headers }); }
       case "staff": return ok(await care.disclosureStaff(user));
       case "clinic": return ok(p.get("studentId") ? await care.clinicRecord(user, p.get("studentId")!) : await care.clinicQueue(user));
       case "safeguarding": return ok(p.get("concernId") ? await care.concernDetail(user, p.get("concernId")!) : p.get("studentId") ? await care.concernsForStudent(user, p.get("studentId")!) : await care.safeguardingQueue(user));
@@ -43,7 +43,10 @@ export async function POST(request: NextRequest) {
       case "care-plan": return ok(await care.saveCarePlan(user, body));
       case "instruction": return ok(await care.addInstruction(user, body), 201);
       case "end-instruction": return ok(await care.endInstruction(user, String(body.id ?? "")));
-      case "dose": return ok(await care.recordDose(user, body), 201);
+      case "dose": {
+        const r = await care.recordDose(user, body);
+        return ok({ id: r.id, replayed: r.replayed }, r.replayed ? 200 : 201);
+      }
       case "concern": {
         const r = await care.reportConcern(user, body);
         if (r.created) await notifyConcern(base(r.campusId));
@@ -60,6 +63,7 @@ export async function POST(request: NextRequest) {
       case "close": return ok({ id: (await care.closeConcern(user, body)).id });
       case "propose-disclosure": {
         const r = await care.proposeDisclosure(user, body);
+        if (r.replayed) return ok({ id: r.id, replayed: true });
         await notifyDisclosureReview(base(r.campusId));
         return ok({ id: r.id }, 201);
       }

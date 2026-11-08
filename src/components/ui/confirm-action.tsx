@@ -10,7 +10,7 @@ import { FieldError } from "./form-field";
 import { cn } from "@/lib/utils";
 import { useOverlayMessages } from "@/hooks/use-overlay-messages";
 import { useDocumentLocale } from "@/hooks/use-document-locale";
-import { translateUi } from "@/lib/locale/ui-messages";
+import { translateUi } from "@/lib/locale/ui-translate";
 
 /** A typed reason the decision is recorded with (money, permissions, self-approval, record merges — §8.1 R3). */
 export interface ConfirmReason {

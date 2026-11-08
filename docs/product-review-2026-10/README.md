@@ -1,3 +1,5 @@
+> **Archived tracker note (29 October 2026):** Linear (SKO-) is now a read-only archive; Jira SKAI is the tracker of record (decision D6, `docs/product-review-2026-10/d6-tracker-of-record.md`). SKO references and Linear statuses below are historical. See `docs/archive/linear/` for the export and open-item crosswalk.
+
 # Product audit and flagship implementation handoff
 
 15 October 2026. Launch audience: global international schools and local Pakistani, Saudi and UAE schools. This package separates product hypotheses, source inspection, locally tested behavior and external release gates.

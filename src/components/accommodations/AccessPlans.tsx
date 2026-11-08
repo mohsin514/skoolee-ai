@@ -1,20 +1,23 @@
 "use client";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Lock } from "lucide-react";
+import { Accessibility, CalendarClock, CheckCircle2, CircleDashed, Lock, PlayCircle, ShieldCheck } from "lucide-react";
+import { ErrorState } from "@/components/ui/error-state";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowIcon, DeskSection, DeskStats, StatTile, deskRow, urgencyFirst } from "@/components/ui/desk";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { useLocale } from "@/components/locale/LocaleProvider";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { effectiveSettings, type Capabilities, type EffectiveSettings, type PlanRow } from "@/lib/accommodations/plan";
 import { fillAccess, getAccessCopy, type AccessCopy } from "./access-copy";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 
 // SKO-410 screens: coordinator plans, teacher/invigilator adjustments and the learner practice check.
-type Plan = { id: string; version: number; validFrom: string; validUntil: string; assessmentTypes: Array<"EXAM" | "ASSIGNMENT" | "PRACTICE">; extraMinutes: number; extraPercent: number; breakMinutes: number; capabilities: Capabilities; instructions: string; approvedAt: string; status?: "ACTIVE" | "SUPERSEDED" | "REVOKED"; endReason?: string | null; supportRecords?: number; rehearsals?: number; rehearsedAt?: string | null };
+type Plan = { id: string; version: number; validFrom: string; validUntil: string; assessmentTypes: Array<"EXAM" | "ASSIGNMENT" | "PRACTICE">; extraMinutes: number; extraPercent: number; breakMinutes: number; capabilities: Capabilities; instructions: string; approvedAt: string; status?: "ACTIVE" | "SUPERSEDED" | "REVOKED"; phase?: "CURRENT" | "UPCOMING" | "EXPIRED" | "SUPERSEDED" | "REVOKED"; endReason?: string | null; supportRecords?: number; rehearsals?: number; rehearsedAt?: string | null };
 type Student = { id: string; fullName: string; rollNo: string; plans: Plan[] };
 type Coordinator = { classId: string | null; classes: Array<{ id: string; name: string; section: string | null }>; students: Student[]; review: Array<{ planId: string; studentId: string; fullName: string; validUntil: string; expired: boolean }> };
 
@@ -52,23 +55,37 @@ export function CoordinatorAccess() {
   const [classId, setClassId] = useState("");
   const [editing, setEditing] = useState<Student | null>(null);
   const [status, setStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  // SKAI-1277: the counters filter the roster; pupils whose plan needs review come first.
+  const ui = useUiText();
+  const [show, setShow] = useState<"" | "active" | "none" | "review">(""), [query, setQuery] = useState("");
   const load = useCallback(async () => { const data = await call(`/api/accommodations?view=coordinator${classId ? `&classId=${classId}` : ""}`); setView(data); }, [classId]);
   useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
   const run = async (work: () => Promise<unknown>) => { setStatus(null); try { await work(); await load(); setStatus({ tone: "ok", text: t.saved }); return true; } catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); return false; } };
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
-  if (!view) return <div dir={rtl ? "rtl" : "ltr"}><Status status={status} />{!status && <SkeletonList rows={3} label={t.loading} />}</div>;
+  if (!view) return <div dir={rtl ? "rtl" : "ltr"}>{status?.tone === "error" ? <ErrorState description={status.text} onRetry={() => { setStatus(null); return load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }} /> : <SkeletonList rows={3} label={t.loading} />}</div>;
+  const reviewIds = new Set(view.review.map(row => row.studentId));
+  // SKAI-1487: only a plan inside its window counts as current; expired and upcoming ones are labelled.
+  const hasPlan = (student: Student) => student.plans.some(plan => plan.status === "ACTIVE" && (plan.phase ?? "CURRENT") === "CURRENT");
+  const needle = query.trim().toLocaleLowerCase();
+  const students = urgencyFirst(view.students.filter(student => (show === "" || (show === "review" ? reviewIds.has(student.id) : show === "active" ? hasPlan(student) : !hasPlan(student))) && (!needle || `${student.fullName} ${student.rollNo}`.toLocaleLowerCase().includes(needle))), student => reviewIds.has(student.id) ? 0 : 1);
+  const tiles = [{ key: "active", label: t.active, icon: ShieldCheck, tone: "success", value: view.students.filter(hasPlan).length }, { key: "none", label: ui("No plan"), icon: CircleDashed, tone: "neutral", value: view.students.filter(student => !hasPlan(student)).length }, { key: "review", label: t.review, icon: CalendarClock, tone: view.review.length ? "warning" : "neutral", value: view.review.length }] as const;
   return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-5">
-    <section aria-labelledby="review-heading" className="rounded-xl border bg-card p-4 text-sm">
-      <h2 id="review-heading" className="text-base font-semibold">{t.review}</h2>
-      {view.review.length ? <ul className="mt-2 grid gap-1">{view.review.map(row => <li key={row.planId}><span dir="auto">{row.fullName}</span> · {row.expired ? t.reviewExpired : t.reviewSoon} {date(row.validUntil)}</li>)}</ul> : <p className="text-ink-muted">{t.noReview}</p>}
-    </section>
+    <DeskStats>{tiles.map((tile, index) => <StatTile key={tile.key} index={index} icon={tile.icon} tone={tile.tone} label={tile.label} value={tile.value} selected={show === tile.key} onSelect={() => setShow(current => current === tile.key ? "" : tile.key)} />)}</DeskStats>
+    {/* Expired plans lead the review list: they no longer apply to anything until renewed. */}
+    <DeskSection aria-labelledby="review-heading" icon={CalendarClock} tone={view.review.length ? "warning" : "success"} title={<span id="review-heading">{t.review}</span>} className="text-sm">
+      {view.review.length ? <ul className="mt-2 grid gap-2">{urgencyFirst(view.review, row => (row.expired ? 0 : 1)).map(row => <li key={row.planId} className="flex flex-wrap items-center gap-2"><span dir="auto" className="font-semibold text-ink-strong">{row.fullName}</span><DeskPill tone={row.expired ? "danger" : "warning"}>{row.expired ? t.reviewExpired : t.reviewSoon} {date(row.validUntil)}</DeskPill></li>)}</ul> : <p className="text-ink-muted">{t.noReview}</p>}
+    </DeskSection>
     <label className="grid max-w-sm gap-1 text-xs font-semibold">{t.class}<Select value={view.classId ?? ""} onChange={event => { setClassId(event.target.value); setEditing(null); }}>{view.classes.map(row => <option key={row.id} value={row.id}>{row.name}{row.section ? ` ${row.section}` : ""}</option>)}</Select></label>
     <Status status={status} />
-    <ul className="grid gap-3" aria-label={t.title}>{view.students.map(student => {
+    {view.students.length > 8 && <DeskQuickFilter value={query} onChange={setQuery} label={ui("Filter pupils")} />}
+    <DeskFilterStatus shown={students.length} total={view.students.length} onClear={() => { setShow(""); setQuery(""); }} />
+    {!view.students.length && <EmptyState size="sm" icon={Accessibility} title={t.none} />}
+    <ul className="grid gap-3" aria-label={t.title}>{students.map(student => {
       const active = student.plans.find(plan => plan.status === "ACTIVE");
-      return <li key={student.id} className="rounded-xl border bg-card p-4">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0"><p className="font-semibold" dir="auto">{student.fullName}</p>
+      return <li key={student.id} data-tone={reviewIds.has(student.id) ? "warning" : active ? "success" : "muted"} className={deskRow}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <DeskRowIcon icon={active ? ShieldCheck : CircleDashed} />
+          <div className="min-w-0 flex-1 basis-48"><p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong"><span dir="auto">{student.fullName}</span>{active ? (active.phase === "EXPIRED" ? <DeskPill tone="warning">{ui("Expired")}</DeskPill> : active.phase === "UPCOMING" ? <DeskPill tone="neutral">{ui("Upcoming")}</DeskPill> : <DeskPill tone="success">{t.statuses.ACTIVE}</DeskPill>) : null}</p>
             {active ? <p className="text-xs text-ink-subtle">{t.active} · {t.version} {active.version} · {t.validity} {date(active.validFrom)} – {date(active.validUntil)} · {active.assessmentTypes.map(type => t.types[type]).join(", ")}</p> : <p className="text-xs text-ink-subtle">{t.none}</p>}
           </div>
           <Button type="button" variant="outline" onClick={() => setEditing(editing?.id === student.id ? null : student)}>{active ? t.editPlan : t.newPlan}</Button>
@@ -120,7 +137,7 @@ function SupportRecords({ t, planId, language }: { t: AccessCopy; planId: string
   return <details className="mt-3 rounded-lg border border-status-warning-border bg-status-warning-surface p-3 text-sm" onToggle={event => { if ((event.target as HTMLDetailsElement).open && !records) void open(); }}>
     <summary className="flex cursor-pointer items-center gap-2 font-semibold"><Lock className="h-4 w-4" aria-hidden />{t.support}</summary>
     <p className="mt-1 text-xs text-status-warning-text">{t.supportHelp}</p>
-    {error && <p role="alert" className="text-status-error-text">{error}</p>}
+    {error && <Alert tone="danger" compact className="mt-2">{error}</Alert>}
     {records && (records.length ? <ul className="mt-2 grid gap-1">{records.map(row => <li key={row.id} dir="auto">{new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(row.createdAt))} · {row.note}</li>)}</ul> : <p className="mt-2 text-ink-muted">{t.noSupport}</p>)}
     <div className="mt-2 flex flex-wrap items-end gap-2"><label className="grid flex-1 gap-1 text-xs font-semibold">{t.note}<Input value={note} onChange={event => setNote(event.target.value)} maxLength={4000} /></label><Button type="button" variant="outline" disabled={note.trim().length < 3} onClick={() => void open({ note })}>{t.addNote}</Button></div>
   </details>;
@@ -131,13 +148,15 @@ export function StaffAccess() {
   const { language, t, rtl } = useAccess();
   const [plans, setPlans] = useState<Array<{ student: { id: string; fullName: string; rollNo: string }; plan: Plan }> | null>(null);
   const [error, setError] = useState("");
-  useEffect(() => { call("/api/accommodations?view=staff").then(data => setPlans(data.plans)).catch(cause => setError(cause instanceof Error ? cause.message : t.failed)); }, [t.failed]);
+  const load = useCallback(() => call("/api/accommodations?view=staff").then(data => { setError(""); setPlans(data.plans); }).catch(cause => setError(cause instanceof Error ? cause.message : t.failed)), [t.failed]);
+  useEffect(() => { void load(); }, [load]);
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
-  if (error) return <p role="alert" className="text-sm text-status-error-text">{error}</p>;
+  // SKAI-1277: a failed load offers a retry; each learner is a toned row with the plan's icon.
+  if (error) return <ErrorState description={error} onRetry={load} />;
   if (!plans) return <SkeletonList rows={2} label={t.loading} />;
-  return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">{plans.length === 0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-ink-muted">{t.noStaff}</p>
-    : <ul className="grid gap-3" aria-label={t.staffTitle}>{plans.map(({ student, plan }) => <li key={plan.id} className="space-y-2 rounded-xl border bg-card p-4">
-      <p className="font-semibold" dir="auto">{student.fullName}</p>
+  return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">{plans.length === 0 ? <EmptyState size="sm" icon={Accessibility} title={t.noStaff} />
+    : <ul className="grid gap-3" aria-label={t.staffTitle}>{plans.map(({ student, plan }) => <li key={plan.id} data-tone="info" className={`${deskRow} space-y-2`}>
+      <p className="flex flex-wrap items-center gap-3 font-semibold text-ink-strong"><DeskRowIcon icon={ShieldCheck} /><span dir="auto" className="min-w-0 flex-1">{student.fullName}</span><DeskPill tone="success">{t.statuses.ACTIVE}</DeskPill></p>
       <p className="text-xs text-ink-subtle">{t.validity} {date(plan.validFrom)} – {date(plan.validUntil)} · {plan.assessmentTypes.map(type => t.types[type]).join(", ")}</p>
       <Capability t={t} plan={plan} />
       {plan.instructions && <p className="text-sm" dir="auto">{plan.instructions}</p>}
@@ -157,29 +176,28 @@ export function LearnerAccess() {
   useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
   const date = (value: string, time = false) => new Intl.DateTimeFormat(language, time ? { dateStyle: "medium", timeStyle: "short" } : { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
   if (!view) return <div dir={rtl ? "rtl" : "ltr"}><Status status={status} />{!status && <SkeletonList rows={3} label={t.loading} />}</div>;
-  if (view.mode === "guardian") return <ul dir={rtl ? "rtl" : "ltr"} className="grid gap-3" aria-label={t.learnerTitle}>{view.children.map(child => <li key={child.fullName} className="space-y-2 rounded-xl border bg-card p-4">
-    <p className="font-semibold" dir="auto">{child.fullName}</p>
+  if (view.mode === "guardian") return <ul dir={rtl ? "rtl" : "ltr"} className="grid gap-3" aria-label={t.learnerTitle}>{view.children.map(child => <li key={child.fullName} data-tone={child.plan ? "info" : "muted"} className={`${deskRow} space-y-2`}>
+    <p className="flex flex-wrap items-center gap-3 font-semibold text-ink-strong"><DeskRowIcon icon={child.plan ? ShieldCheck : CircleDashed} /><span dir="auto" className="min-w-0 flex-1">{child.fullName}</span>{child.plan ? <DeskPill tone="success">{t.statuses.ACTIVE}</DeskPill> : null}</p>
     {child.plan ? <><p className="text-xs text-ink-subtle">{t.validity} {date(child.plan.validFrom)} – {date(child.plan.validUntil)} · {child.plan.assessmentTypes.map(type => t.types[type]).join(", ")}</p><Capability t={t} plan={child.plan} /><p className="text-sm">{child.plan.extraMinutes || child.plan.extraPercent ? `${t.extraMinutes}: ${child.plan.extraMinutes}${child.plan.extraPercent ? ` + ${child.plan.extraPercent}%` : ""}` : t.noExtra}</p></> : <p className="text-sm text-ink-muted">{t.none}</p>}
   </li>)}</ul>;
   const plan = view.plan;
   const sample = view.exams[0]?.effective ?? (plan ? effectiveSettings({ baseMinutes: 45, type: "PRACTICE", at: new Date(), plan: { ...asRow(plan), assessmentTypes: [...plan.assessmentTypes, "PRACTICE"] } }) : null);
   return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-4">
     <Status status={status} />
-    {!plan ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-ink-muted">{t.none}</p> : <>
-      <section className="space-y-2 rounded-xl border bg-card p-4">
-        <p className="text-lg font-bold">{sample && sample.extraMinutes + sample.breakMinutes > 0 ? fillAccess(t.includes, { n: sample.extraMinutes + sample.breakMinutes }) : t.noExtra}</p>
+    {!plan ? <EmptyState size="sm" icon={Accessibility} title={t.none} /> : <>
+      <section data-tone="success" className={`${deskRow} space-y-2`}>
+        <p className="flex flex-wrap items-center gap-3 text-lg font-bold text-ink-strong"><DeskRowIcon icon={ShieldCheck} />{sample && sample.extraMinutes + sample.breakMinutes > 0 ? fillAccess(t.includes, { n: sample.extraMinutes + sample.breakMinutes }) : t.noExtra}</p>
         <Capability t={t} plan={plan} />
         <p className="text-xs text-ink-subtle">{t.validity} {date(plan.validFrom)} – {date(plan.validUntil)}</p>
       </section>
-      {view.exams.length > 0 && <section aria-labelledby="upcoming-heading" className="space-y-2 rounded-xl border bg-card p-4"><h2 id="upcoming-heading" className="font-semibold">{t.upcoming}</h2>
-        <ul className="grid gap-3">{view.exams.map(exam => <li key={exam.id} className="space-y-1"><p className="text-sm font-semibold"><bdi>{exam.title}</bdi> · <bdi>{date(exam.startsAt, true)}</bdi></p><Breakdown t={t} effective={exam.effective} /></li>)}</ul></section>}
-      <section aria-labelledby="practice-heading" className="space-y-3 rounded-xl border bg-card p-4">
-        <h2 id="practice-heading" className="font-semibold">{t.practice}</h2>
+      {view.exams.length > 0 && <DeskSection aria-labelledby="upcoming-heading" icon={CalendarClock} tone="info" title={<span id="upcoming-heading">{t.upcoming}</span>} className="space-y-2">
+        <ul className="grid gap-3">{view.exams.map(exam => <li key={exam.id} className="space-y-1 border-t border-border-subtle pt-3 first:border-0 first:pt-0"><p className="text-sm font-semibold"><bdi>{exam.title}</bdi> · <bdi>{date(exam.startsAt, true)}</bdi></p><Breakdown t={t} effective={exam.effective} /></li>)}</ul></DeskSection>}
+      <DeskSection aria-labelledby="practice-heading" icon={plan.rehearsedAt ? CheckCircle2 : PlayCircle} tone={plan.rehearsedAt ? "success" : "brand"} title={<span id="practice-heading">{t.practice}</span>} className="space-y-3">
         <p className="text-sm text-ink-muted">{t.practiceHelp}</p>
         <div className={`rounded-lg border p-4 ${plan.capabilities.largeText ? "text-2xl" : "text-base"} ${plan.capabilities.highContrast ? "bg-black text-white" : "bg-surface-subtle"}`}>{t.sample}</div>
         <p className="text-sm">{plan.rehearsedAt ? fillAccess(t.rehearsed, { date: date(plan.rehearsedAt, true) }) : t.notRehearsed}</p>
-        <Button type="button" onClick={async () => { setStatus(null); try { await call("/api/accommodations", { op: "rehearse", planId: plan.id, baseMinutes: sample?.baseMinutes || 45 }); await load(); setStatus({ tone: "ok", text: t.saved }); } catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); } }}>{t.works}</Button>
-      </section>
+        <Button type="button" disabled={!!plan.rehearsedAt} onClick={async () => { if (plan.rehearsedAt) return; setStatus(null); try { await call("/api/accommodations", { op: "rehearse", planId: plan.id, baseMinutes: sample?.baseMinutes || 45 }); await load(); setStatus({ tone: "ok", text: t.saved }); } catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); } }}>{t.works}</Button>
+      </DeskSection>
     </>}
   </div>;
 }

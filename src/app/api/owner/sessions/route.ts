@@ -5,6 +5,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { logSuperAdminAction } from "@/lib/audit";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +50,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const user = await requirePlatformOwner();
 
-    const { sessionId } = await req.json();
+    const { sessionId } = await parseBody(req, jsonObjectBody);
     if (!sessionId) throw new ApiError("sessionId required", 400);
 
     const session = await prisma.loginSession.findUnique({

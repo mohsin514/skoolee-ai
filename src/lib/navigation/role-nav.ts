@@ -9,9 +9,9 @@
  */
 import type { LucideIcon } from "lucide-react";
 import {
-  Accessibility, Archive, ArrowRightLeft, Award, BadgeCheck, Banknote, BarChart3, BedDouble, BookCopy, BookOpen, Building2,
+  Accessibility, Archive, ArrowRightLeft, Award, BadgeCheck, Banknote, BarChart3, BedDouble, BookCheck, BookCopy, BookOpen, Building2,
   Bus, CalendarCheck, CalendarClock, CalendarDays, CalendarRange, ClipboardCheck, ClipboardList, Clock, Compass, ConciergeBell,
-  Contact, CreditCard, Crown, DollarSign, DoorOpen, FileCheck2, FileText, FlaskConical, FolderOpen, Gauge, GraduationCap,
+  Coins, Contact, CreditCard, Crown, DollarSign, DoorOpen, FileCheck2, FileText, FlaskConical, FolderOpen, Gauge, GraduationCap,
   HeartHandshake, History, House, Inbox, Landmark, Layers, LayoutDashboard, LayoutGrid, Library, Lightbulb, Lock, Mail,
   MessageCircle, MessageSquareWarning, MonitorCheck, Network, Package, PenLine, PhoneCall, Plane, Receipt, ScanLine, Scale,
   School, ScrollText, Send, Settings, Shield, ShieldCheck, SlidersHorizontal, Sparkles, Sun, Tag, Target, Trophy, UserCheck,
@@ -119,6 +119,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
       leaf("approvals", "Approvals", ShieldCheck, v("approvals"), { tier: "D", mobile: 3, badge: "approvals", visible: { all: ["institutionAuthority"] }, summary: "Support access, tax sign-off and policy reviews waiting for you." }),
       leaf("access", "People & access", UsersRound, v("access"), { tier: "T", visible: { all: ["institutionAuthority"] }, summary: "Campus leaders, who may manage members, and role permissions." }),
       leaf("standards", "Group standards", Layers, v("standards"), { tier: "T", visible: { all: ["groupConsole"] }, summary: "Curriculum templates and group policy every campus follows." }),
+      leaf("curriculum-packs", "Curriculum packs", BookCheck, h("/curriculum-packs"), { tier: "T", visible: { all: ["institutionAuthority"] }, summary: "Board curriculum packs: request, evidence, educator approval and activation per campus." }), // SKAI-1008
       leaf("billing", "Billing & plan", CreditCard, v("billing"), { tier: "T", visible: { all: ["billing"] }, deniedReason: "The subscription is managed by the account owner.", summary: "Your SkooleeAI plan, AI credits and payment method." }),
       messages(4),
       leaf("settings", "Settings", Settings, v("settings"), { tier: "R", visible: { all: ["institutionAuthority"] }, summary: "School profile, language, sign-in, integrations, data and activity." }),
@@ -141,6 +142,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
         leaf("student-list", "Student list", GraduationCap, v("students"), { tier: "D", mobile: 2, mobileVisible: { none: ["groupCampus"] }, visible: { module: "students" } }),
         leaf("admissions", "Admissions", UserPlus, v("admissions"), { visible: { module: "admissions" }, summary: "Enquiries, applications and the online form." }),
         leaf("guardians", "Guardians & access", Contact, v("guardians"), { visible: { module: "students", all: ["campusOps"] }, summary: "Link guardians to children and choose what each can see." }),
+        leaf("guardian-consent", "Guardian consent", ShieldCheck, v("guardian-consent"), { visible: { module: "students", all: ["campusOps"] }, summary: "Who agreed to what for each pupil, when, and in which language." }),
         leaf("family-communication", "Family communication", Inbox, v("communications"), { visible: { module: "reports", all: ["campusOps"] }, summary: "Messages sent to families, failed deliveries and reminders." }),
         leaf("learning-actions", "Learning actions", Target, v("learning-actions"), { visible: { all: ["academicLead"] } }),
         leaf("year-end", "Year end & promotion", ArrowRightLeft, v("promote-archive"), { tier: "T", visible: { module: "students" } }),
@@ -243,6 +245,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
         leaf("access-plans", "Access plans", Accessibility, h("/accommodations"), { visible: { module: "exams" } }),
         leaf("secure-exams", "Secure exam delivery", Lock, h("/exam-delivery"), { hiddenInNav: true, visible: { module: "exams" } }), // reached from Exam Studio
         leaf("objective-map", "Objective map", Target, h("/curriculum"), { visible: { module: "exams" } }),        // [K-I7]
+        leaf("curriculum-packs", "Curriculum packs", BookCheck, h("/curriculum-packs"), { visible: { module: "exams" } }), // SKAI-1008
         leaf("resources", "Learning resources", FolderOpen, h("/resources"), { hiddenInNav: true, visible: { module: "timetable" } }), // [K-I7]
         leaf("improvement", "Improvement evidence", ClipboardCheck, h("/improvement"), { visible: { all: ["improvementLead"] } }),
         leaf("care", "Care & safeguarding", HeartHandshake, h("/care"), { visible: { all: ["careMember"] } }),
@@ -376,6 +379,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
         leaf("timetable", "Timetable & exams", Clock, h("/parent/timetable"), { visible: { module: "timetable" } }),
         leaf("homework", "Homework & resources", ClipboardCheck, h("/parent/assignments"), { activePaths: ["/parent/resources"], visible: { module: "timetable" } }),
         leaf("activities", "Activities & trips", Trophy, h("/parent/activities")),
+        leaf("consent", "Consent", ShieldCheck, h("/parent/consent")),
         leaf("pickup", "Pickup & transport", Bus, h("/parent/pickup"), { visible: { all: ["pickupGuardian"] } }),
         leaf("canteen", "Canteen", UtensilsCrossed, h("/parent/canteen"), { visible: { all: ["pkgCanteen"] } }),
         leaf("support-plans", "Support plans", Accessibility, h("/parent/access"), { visible: { all: ["accessPlans"] } }),
@@ -430,7 +434,11 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
       ]),
       group("insights", "Insights", Gauge, "primary", [
         leaf("pilots", "Pilot evidence", FlaskConical, v("pilots")),
+        leaf("pilot-readiness", "Pilot readiness", ShieldCheck, v("pilot-readiness")),
+        leaf("pilot-go-no-go", "Pilot go/no-go", Gauge, v("pilot-go-no-go")),
+        leaf("curriculum-packs", "Curriculum catalogue", BookCheck, v("curriculum-packs")),
         leaf("capacity", "Capacity", Gauge, v("capacity")),
+        leaf("ai-cost", "AI cost per credit", Coins, v("ai-cost")),
       ]),
     ],
     accountMenu: [], aliases: {}, retired: {},

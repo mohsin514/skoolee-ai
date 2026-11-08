@@ -5,20 +5,21 @@ import { importReviewToken } from "../../src/lib/imports/review-token";
 import { mapRosterCsv, parseRosterSource, suggestRosterMapping, RosterMappingError } from "../../src/lib/school-ai/roster-import";
 
 test("Arabic and Urdu roster headings map only exact known fields and preserve quoted multilingual values", () => {
-  const source = parseRosterSource('نام,رول نمبر,سرپرست کا فون,پتہ,شہر,طبی معلومات,جنس\n"علی، احمد",R-8,03000000000,"12, Main Road",کراچی,معلوم نہیں,لڑکا');
+  const source = parseRosterSource('نام,رول نمبر,سرپرست کا فون,پتہ,شہر,طبی معلومات,سرپرست کا نام,جنس\n"علی، احمد",R-8,03000000000,"12, Main Road",کراچی,معلوم نہیں,احمد خان,لڑکا');
   const mapping = suggestRosterMapping(source.headers);
   const rows = parseImportCsv(mapRosterCsv(source, mapping));
-  assert.deepEqual(rows[0], ["fullName", "rollNo", "guardianPhone", "address", "city", "medicalNotes", "gender"]);
-  assert.equal(rows[1][0], "علی، احمد"); assert.equal(rows[1][3], "12, Main Road"); assert.equal(rows[1][5], "معلوم نہیں"); assert.equal(rows[1][6], "MALE");
+  assert.deepEqual(rows[0], ["fullName", "rollNo", "guardianPhone", "address", "city", "medicalNotes", "guardianName", "gender"]);
+  assert.equal(rows[1][0], "علی، احمد"); assert.equal(rows[1][3], "12, Main Road"); assert.equal(rows[1][5], "معلوم نہیں"); assert.equal(rows[1][6], "احمد خان"); assert.equal(rows[1][7], "MALE");
   assert.deepEqual(suggestRosterMapping(["اسم الطالب", "رقم الطالب", "هاتف ولي الأمر"]), { fullName: 0, rollNo: 1, guardianPhone: 2 });
 });
 
 test("ambiguous aliases and missing sensitive facts require explicit correction", () => {
   assert.deepEqual(suggestRosterMapping(["name", "studentName", "Maybe the pupil", "Health guess"]), {});
-  const source = parseRosterSource("name,rollNo,guardianPhone,address,city,medicalNotes\nOne,1,123,Street,City,");
+  const source = parseRosterSource("name,rollNo,guardianPhone,address,city,medicalNotes,guardianName\nOne,1,123,Street,City,,Guardian");
   const mapping = suggestRosterMapping(source.headers);
   assert.equal(parseImportCsv(mapRosterCsv(source, mapping))[1][5], ""); // No guessed 'None'.
   assert.throws(() => mapRosterCsv(source, { ...mapping, medicalNotes: undefined }), (error) => error instanceof RosterMappingError && error.code === "required");
+  assert.throws(() => mapRosterCsv(source, { ...mapping, guardianName: undefined }), (error) => error instanceof RosterMappingError && error.code === "required");
   assert.throws(() => mapRosterCsv(source, { ...mapping, medicalNotes: mapping.city }), (error) => error instanceof RosterMappingError && error.code === "mapping");
   assert.throws(() => mapRosterCsv(source, { ...mapping, medicalNotes: 90 }), RosterMappingError);
 });

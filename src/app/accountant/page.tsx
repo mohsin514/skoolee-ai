@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Download, FileText, Plus, Upload, Wallet } from "lucide-react";
+import { Banknote, BarChart3, CalendarDays, Download, FileText, Landmark, LayoutDashboard, Layers, Plus, Receipt, Upload, Wallet } from "lucide-react";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { getOperationsStaffDashboardData } from "@/app/actions/dashboard";
 import { RoleShell } from "@/components/role-dashboard";
@@ -15,6 +15,8 @@ import { FeeReportsTab, REPORT_TABS, type ReportTab } from "@/components/fees/Fe
 import { ACCOUNTS_CREATE, ACCOUNTS_TABS, AccountsTab, accountsSection } from "@/components/fees/AccountsTab";
 import type { PanelCommand } from "@/components/fees/fee-types";
 import { PayrollRunsPanel } from "@/components/payroll/payroll-runs-panel";
+import { PostedPayrollReversal } from "@/components/payroll/posted-payroll-reversal";
+import { HandedLibraryCharges } from "@/components/fees/handed-library-charges";
 import { TaxPackages } from "@/components/tax/tax-packages";
 import { MyLeavePanel } from "@/components/leave/my-leave";
 import { FinanceOverview } from "@/components/insights";
@@ -137,7 +139,7 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
               ]}
           tabs={<ViewTabs ariaLabel="Collect sections" value={section} onChange={(id) => { setCommand(null); setTab(id); }} items={PAYMENT_TABS} />}
         >
-          <FeePaymentsTab campusId={campusId} section={section} hideHeader command={command} />
+          <><FeePaymentsTab campusId={campusId} section={section} hideHeader command={command} />{section === "payments" ? <HandedLibraryCharges /> : null}</>
         </ConsolePage>
       );
     }
@@ -160,6 +162,7 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
         <ConsolePage
           consoleId="accountant"
           view="fee-reports"
+          icon={BarChart3}
           description={DESCRIPTIONS["fee-reports"]}
           primaryAction={{ id: "send-reminders", label: "Send reminders", disabled: report === "defaulters" && defaulterCount === 0, disabledReason: "No families are behind on payments.", onClick: () => run("send-reminders") }}
           // The payment-method breakdown has no export; the defaulters and collection reports do.
@@ -183,6 +186,7 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
         <ConsolePage
           consoleId="accountant"
           view="accounts"
+          icon={Landmark}
           description={DESCRIPTIONS.accounts}
           primaryAction={create ? { id: "create", label: create, icon: Plus, onClick: () => run("create") } : undefined}
           secondaryActions={[{ id: "export-ledger", label: "Export ledger", icon: Download, onClick: () => (filteredExport ? run("export") : window.location.assign(ledgerUrl)) }]}
@@ -197,6 +201,7 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
         <ConsolePage
           consoleId="accountant"
           view="tax"
+          icon={Receipt}
           description={DESCRIPTIONS.tax}
           primaryAction={{ id: "new-package", label: "New tax package", icon: Plus, onClick: () => run("new-package") }}
           secondaryActions={[{ id: "export", label: "Export", icon: Download, onClick: () => run("export") }]}
@@ -209,10 +214,11 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
         <ConsolePage
           consoleId="accountant"
           view="payroll"
+          icon={Banknote}
           primaryAction={{ id: "prepare-run", label: "Prepare run", icon: Plus, disabled: !payrollReady, disabledReason: "Prepare run is unavailable until a payroll policy is saved.", onClick: () => run("prepare-run") }}
           secondaryActions={[{ id: "export", label: "Export", icon: Download, onClick: () => run("export") }]}
         >
-          <PayrollRunsPanel mode="prepare" hideHeader command={command} onPrepareAvailabilityChange={setPayrollReady} />
+          <><PayrollRunsPanel mode="prepare" hideHeader command={command} onPrepareAvailabilityChange={setPayrollReady} /><PostedPayrollReversal /></>
         </ConsolePage>
       );
     case "fee-structures": {
@@ -224,6 +230,7 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
         <ConsolePage
           consoleId="accountant"
           view="fee-structures"
+          icon={Layers}
           description={DESCRIPTIONS["fee-structures"]}
           primaryAction={{ id: "create", label: FEE_SETUP_CREATE[section], icon: Plus, onClick: () => run("create") }}
           tabs={<ViewTabs ariaLabel="Fee setup sections" value={section} onChange={(id) => { setCommand(null); setTab(id); }} items={FEE_SETUP_TABS} />}
@@ -234,7 +241,7 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
     }
     case "my-leave":
       return (
-        <ConsolePage consoleId="accountant" view="my-leave">
+        <ConsolePage consoleId="accountant" view="my-leave" icon={CalendarDays}>
           <MyLeavePanel />
         </ConsolePage>
       );
@@ -248,6 +255,7 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
         <ConsolePage
           consoleId="accountant"
           view="dashboard"
+          icon={LayoutDashboard}
           notice={retiredNotice}
           primaryAction={{ id: "record-payment", label: "Record payment", icon: Plus, onClick: () => run("record-payment", "payments") }}
           secondaryActions={[{ id: "generate-invoices", label: "Generate invoices", icon: FileText, onClick: () => run("generate-invoices", "invoices") }]}

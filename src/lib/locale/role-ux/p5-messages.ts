@@ -7,6 +7,31 @@
  * اسکول منتظم, group admin = مدير المجموعة / ادارے کا منتظم, principal = المدير / پرنسپل.
  */
 const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
+  // SKAI-168: student categories — stale edit and deactivation impact.
+  ["This category was changed by someone else. The latest version is now shown.", "غيّر شخص آخر هذه الفئة. تُعرض الآن أحدث نسخة.", "یہ زمرہ کسی اور نے تبدیل کر دیا ہے۔ اب تازہ ترین ورژن دکھایا جا رہا ہے۔"],
+  ["Deactivating this category", "إلغاء تفعيل هذه الفئة", "اس زمرے کو غیر فعال کرنا"],
+  ["{0} students keep it and {1} fee discounts still apply to them. It can't be chosen for new admissions or moves.", "يحتفظ بها {0} من الطلاب وتظل {1} من خصومات الرسوم سارية عليهم. لا يمكن اختيارها للقبول الجديد أو النقل.", "{0} طلبہ پر یہ برقرار رہے گا اور فیس کی {1} رعایتیں ان پر لاگو رہیں گی۔ اسے نئے داخلوں یا منتقلی کے لیے منتخب نہیں کیا جا سکتا۔"],
+  // SKAI-165: student documents — file checks, denied and failed list states.
+  ["{0} is larger than 10 MB. Choose a smaller file.", "حجم {0} أكبر من 10 ميغابايت. اختر ملفًا أصغر.", "{0} کا سائز 10 MB سے زیادہ ہے۔ چھوٹی فائل منتخب کریں۔"],
+  ["{0} is empty. Choose another file.", "الملف {0} فارغ. اختر ملفًا آخر.", "{0} خالی ہے۔ کوئی اور فائل منتخب کریں۔"],
+  ["{0} is not a supported file. Use PDF, JPG, PNG, WebP or Word.", "{0} ليس ملفًا مدعومًا. استخدم PDF أو JPG أو PNG أو WebP أو Word.", "{0} معاون فائل نہیں۔ PDF، JPG، PNG، WebP یا Word استعمال کریں۔"],
+  ["Choose a document to upload", "اختر وثيقة لرفعها", "اپ لوڈ کے لیے دستاویز منتخب کریں"],
+  ["PDF, JPG, PNG, WebP or Word, up to 10 MB. Files are private to this school.", "PDF أو JPG أو PNG أو WebP أو Word، حتى 10 ميغابايت. الملفات خاصة بهذه المدرسة.", "PDF، JPG، PNG، WebP یا Word، زیادہ سے زیادہ 10 MB۔ فائلیں صرف اسی اسکول کے لیے نجی ہیں۔"],
+  ["You don't have access to these documents.", "ليس لديك صلاحية الوصول إلى هذه الوثائق.", "آپ کو ان دستاویزات تک رسائی نہیں ہے۔"],
+  ["The file could not be stored. Your choice is kept; try again.", "تعذّر حفظ الملف. اختيارك محفوظ؛ حاول مرة أخرى.", "فائل محفوظ نہیں ہو سکی۔ آپ کا انتخاب برقرار ہے؛ دوبارہ کوشش کریں۔"],
+  ["Could not load the documents.", "تعذّر تحميل الوثائق.", "دستاویزات لوڈ نہیں ہو سکیں۔"],
+  ["Ask a school administrator for student access.", "اطلب من مدير المدرسة صلاحية الوصول إلى الطلاب.", "طلبہ تک رسائی کے لیے اسکول منتظم سے رابطہ کریں۔"],
+  // SKAI-1149: regulator field set on student and staff records.
+  ["Emirates ID", "رقم الهوية الإماراتية", "امارات آئی ڈی"],
+  ["eSIS / MOE ID", "رقم eSIS / وزارة التربية", "eSIS / MOE آئی ڈی"],
+  ["Regulator record number", "رقم السجل لدى الجهة التنظيمية", "ریگولیٹر ریکارڈ نمبر"],
+  ["Regulator IDs", "أرقام الجهات التنظيمية", "ریگولیٹر آئی ڈیز"],
+  ["Optional. Used for UAE regulator returns (KHDA, ADEK, SPEA, MOE).", "اختياري. يُستخدم في تقارير الجهات التنظيمية في الإمارات (KHDA وADEK وSPEA ووزارة التربية).", "اختیاری۔ متحدہ عرب امارات کے ریگولیٹر گوشواروں (KHDA، ADEK، SPEA، MOE) کے لیے۔"],
+  ["Emirates ID may contain only digits, spaces and dashes.", "يجب أن يحتوي رقم الهوية الإماراتية على أرقام ومسافات وشرطات فقط.", "امارات آئی ڈی میں صرف ہندسے، خالی جگہ اور ڈیش ہو سکتے ہیں۔"],
+  ["Emirates ID must be 15 digits starting with 784.", "يجب أن يتكوّن رقم الهوية الإماراتية من 15 رقمًا يبدأ بـ 784.", "امارات آئی ڈی 784 سے شروع ہونے والے 15 ہندسوں کی ہونی چاہیے۔"],
+  ["Emirates ID check digit does not match. Check the number on the card.", "رقم التحقق في الهوية الإماراتية غير مطابق. تحقّق من الرقم على البطاقة.", "امارات آئی ڈی کا چیک ہندسہ میل نہیں کھاتا۔ کارڈ پر نمبر دیکھیں۔"],
+  ["eSIS / MOE ID may contain only letters, digits and dashes (up to 30).", "يجب أن يحتوي رقم eSIS / وزارة التربية على حروف وأرقام وشرطات فقط (حتى 30).", "eSIS / MOE آئی ڈی میں صرف حروف، ہندسے اور ڈیش ہو سکتے ہیں (زیادہ سے زیادہ 30)۔"],
+  ["Nationality must be 60 characters or fewer.", "يجب ألا تتجاوز الجنسية 60 حرفًا.", "قومیت 60 حروف یا اس سے کم ہونی چاہیے۔"],
   ["Login ready", "الدخول جاهز", "لاگ اِن تیار ہے"],
   ["Enrolment history", "سجل التسجيل", "داخلے کی تاریخ"],
   ["\"{0}\" created with no sections", "تم إنشاء \"{0}\" بدون شُعب", "\"{0}\" بغیر سیکشن کے بنا دی گئی"],
@@ -651,8 +676,9 @@ const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["of {0} on roll", "من {0} مسجلين", "{0} میں سے زیرِ اندراج"],
   ["Onboarding pending", "الإعداد معلّق", "آغاز زیر التوا"],
   ["Out of school today", "غائبون عن المدرسة اليوم", "آج اسکول سے باہر"],
-  ["Overlapping times within a type are rejected. Changing a period's time after a timetable exists warns you and leaves existing slots untouched.", "تُرفض الأوقات المتداخلة ضمن النوع نفسه. تغيير وقت حصة بعد وجود جدول ينبّهك ويترك الحصص الحالية كما هي.", "ایک ہی قسم میں متداخل اوقات قبول نہیں ہوتے۔ ٹائم ٹیبل بننے کے بعد پیریڈ کا وقت بدلنے پر انتباہ ملتا ہے اور موجودہ خانے نہیں بدلتے۔"],
   ["Override balance", "تجاوز الرصيد", "بقایا کو نظرانداز کریں"],
+  ["Waiting for the principal", "بانتظار المدير", "پرنسپل کے فیصلے کا انتظار"],
+  ["Waiting for the campus admin", "بانتظار مدير الفرع", "کیمپس منتظم کے فیصلے کا انتظار"],
   ["Payroll · Bank · Documents · Timeline", "الرواتب · البنك · الوثائق · السجل", "تنخواہ · بینک · دستاویزات · ٹائم لائن"],
   ["Please select a different class or section to move the student.", "اختر صفاً أو شعبة مختلفة لنقل الطالب.", "طالب علم کو منتقل کرنے کے لیے کوئی دوسری جماعت یا سیکشن منتخب کریں۔"],
   ["Rename category", "إعادة تسمية الفئة", "زمرے کا نام بدلیں"],
@@ -801,6 +827,9 @@ const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["{0} staff members have no reporting line yet, so they sit at the top of the chart. Open a card and set who they report to.", "{0} موظفين بلا خط تبعية بعد، لذا يظهرون أعلى المخطط. افتح البطاقة وحدّد مرجع كل منهم.", "{0} ملازمین کی ابھی کوئی رپورٹنگ لائن نہیں، اس لیے وہ چارٹ کے اوپر ہیں۔ کارڈ کھول کر مقرر کریں کہ وہ کسے رپورٹ کرتے ہیں۔"],
   ["All departments", "كل الأقسام", "تمام شعبے"],
   ["All tracks", "كل المسارات", "تمام ٹریک"],
+  ["Filter by department", "التصفية حسب القسم", "شعبے کے لحاظ سے فلٹر کریں"],
+  ["Filter by track", "التصفية حسب المسار", "ٹریک کے لحاظ سے فلٹر کریں"],
+  ["Role of {0}", "دور {0}", "{0} کا کردار"],
   ["Find a name, rank, department or staff code…", "ابحث عن اسم أو رتبة أو قسم أو رمز موظف…", "نام، رینک، شعبہ یا عملے کا کوڈ تلاش کریں…"],
   ["Fit to screen", "ملاءمة الشاشة", "اسکرین کے مطابق"],
   ["Has served the usual time in this rank", "أمضى المدة المعتادة في هذه الرتبة", "اس رینک میں معمول کی مدت پوری کر چکا"],
@@ -871,7 +900,7 @@ const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Engineer, Doctor, Teacher...", "مهندس، طبيب، معلم...", "انجینئر، ڈاکٹر، استاد..."],
   ["Enter details or write 'None' if not applicable", "أدخل التفاصيل أو اكتب «لا يوجد»", "تفصیل لکھیں یا «کوئی نہیں» لکھیں"],
   ["Fee / scholarship eligibility tag", "وسم أهلية الرسوم / المنحة", "فیس / وظیفے کی اہلیت کا ٹیگ"],
-  ["Filled in from the English name as you type. Check the spelling.", "يُملأ من الاسم الإنجليزي أثناء الكتابة. تحقّق من الإملاء.", "انگریزی نام لکھتے ہی بھر جاتا ہے۔ ہجے چیک کریں۔"],
+  ["Type the name in Urdu, or use the Urdu keyboard.", "اكتب الاسم بالأردية، أو استخدم لوحة المفاتيح الأردية.", "نام اردو میں لکھیں، یا اردو کی بورڈ استعمال کریں۔"],
   ["Full name (English)", "الاسم الكامل (بالإنجليزية)", "پورا نام (انگریزی)"],
   ["Full name (Urdu)", "الاسم الكامل (بالأردية)", "پورا نام (اردو)"],
   ["Guardian email", "بريد ولي الأمر", "سرپرست کی ای میل"],
@@ -1084,7 +1113,6 @@ const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Select all {0}", "تحديد الكل ({0})", "تمام {0} منتخب کریں"],
   ["Set up staff record", "إعداد سجل الموظف", "عملے کا ریکارڈ ترتیب دیں"],
   ["Tap to filter", "انقر للتصفية", "فلٹر کے لیے ٹیپ کریں"],
-  ["The {0}–{1} slot disappears from every class timetable row on this campus. Lessons already placed in it are not moved anywhere — they stop being shown.", "تختفي الفترة {0}–{1} من كل صف في جداول الحصص في هذا الفرع. لا تُنقل الحصص الموضوعة فيها إلى أي مكان — بل تتوقف عن الظهور.", "{0}–{1} کا وقفہ اس کیمپس کی ہر جماعتی ٹائم ٹیبل قطار سے ہٹ جائے گا۔ اس میں رکھے گئے اسباق کہیں منتقل نہیں ہوں گے — بس دکھائی دینا بند ہو جائیں گے۔"],
   ["The {0}–{1} slot disappears from every exam date sheet row on this campus. Nothing already placed in it is moved anywhere — it stops being shown.", "تختفي الفترة {0}–{1} من كل صف في جداول الامتحانات في هذا الفرع. لا يُنقل ما وُضع فيها إلى أي مكان — بل يتوقف عن الظهور.", "{0}–{1} کا وقفہ اس کیمپس کی ہر امتحانی ڈیٹ شیٹ قطار سے ہٹ جائے گا۔ اس میں رکھی گئی کوئی چیز کہیں منتقل نہیں ہوگی — بس دکھائی دینا بند ہو جائے گی۔"],
   ["Upload (max 10 MB)", "رفع (بحد أقصى 10 ميغابايت)", "اپ لوڈ کریں (زیادہ سے زیادہ 10 MB)"],
   ["Upload document", "رفع مستند", "دستاویز اپ لوڈ کریں"],
@@ -1352,6 +1380,16 @@ const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Their record in this unit is kept, and you can add them back at any time. Their rank and salary do not change.", "يبقى سجله في هذه الوحدة محفوظًا، ويمكنك إعادته في أي وقت، ولا تتغير رتبته ولا راتبه.", "اس شعبے میں ان کا ریکارڈ محفوظ رہتا ہے اور آپ انہیں کسی بھی وقت دوبارہ شامل کر سکتے ہیں۔ ان کا عہدہ اور تنخواہ نہیں بدلتی۔"],
   // Integration round 1: the admin Classes & subjects view's one-sentence description (§4.3).
   ["Create classes and sections, and choose who teaches each class and subject.", "أنشئ الصفوف والشُّعب، واختر من يُدرّس كل صف وكل مادة.", "جماعتیں اور سیکشن بنائیں، اور طے کریں کہ ہر جماعت اور ہر مضمون کون پڑھائے گا۔"],
+  // SKAI-146 period setup
+  ["Overlapping times within a type are rejected. Changing the time of a period that timetables use asks first, then moves those lessons; a period in use cannot be renumbered or deleted.", "تُرفض الأوقات المتداخلة ضمن النوع نفسه. تغيير وقت حصة تستخدمها الجداول يطلب التأكيد أولًا ثم ينقل تلك الدروس؛ ولا يمكن إعادة ترقيم حصة مستخدمة أو حذفها.", "ایک ہی قسم میں متداخل اوقات قبول نہیں ہوتے۔ جس پیریڈ کو ٹائم ٹیبل استعمال کرتے ہیں اس کا وقت بدلنے سے پہلے تصدیق مانگی جاتی ہے، پھر وہ اسباق منتقل ہوتے ہیں؛ زیرِ استعمال پیریڈ کا نمبر بدلا یا حذف نہیں کیا جا سکتا۔"],
+  ["The {0}–{1} period is removed from this campus's bell schedule. If any timetable still has lessons in it, the delete is refused until they are cleared.", "تُزال الحصة {0}–{1} من جدول الحصص في هذا الفرع. إذا كان أي جدول لا يزال يحتوي على دروس فيها، يُرفض الحذف حتى تُفرَّغ.", "پیریڈ {0}–{1} اس کیمپس کے گھنٹی شیڈول سے ہٹا دیا جاتا ہے۔ اگر کسی ٹائم ٹیبل میں اب بھی اس میں اسباق ہوں تو انہیں خالی کرنے تک حذف قبول نہیں ہوگا۔"],
+  ["Move timetable lessons to the new time?", "نقل دروس الجدول إلى الوقت الجديد؟", "ٹائم ٹیبل کے اسباق نئے وقت پر منتقل کریں؟"],
+  ["Timetables already have lessons in this period. Confirming moves those lessons to the new time in every draft; published timetables keep the old time until you republish them.", "تحتوي الجداول بالفعل على دروس في هذه الحصة. التأكيد ينقل تلك الدروس إلى الوقت الجديد في كل مسودة؛ وتحتفظ الجداول المنشورة بالوقت القديم حتى تعيد نشرها.", "ٹائم ٹیبلز میں اس پیریڈ میں پہلے سے اسباق موجود ہیں۔ تصدیق کرنے سے وہ اسباق ہر مسودے میں نئے وقت پر منتقل ہو جائیں گے؛ شائع شدہ ٹائم ٹیبل دوبارہ شائع کرنے تک پرانا وقت رکھیں گے۔"],
+  ["Move lessons", "نقل الدروس", "اسباق منتقل کریں"],
+  ["Keep current time", "الإبقاء على الوقت الحالي", "موجودہ وقت رکھیں"],
+  ["Timetables still have lessons in this period. Clear them first, then remove it.", "لا تزال الجداول تحتوي على دروس في هذه الحصة. فرّغها أولًا ثم أزلها.", "ٹائم ٹیبلز میں اب بھی اس پیریڈ میں اسباق ہیں۔ پہلے انہیں خالی کریں، پھر اسے ہٹائیں۔"],
+  ["Remove period {0}?", "إزالة الحصة {0}؟", "پیریڈ {0} ہٹائیں؟"],
+  ["{0}–{1} is removed from this campus's bell schedule.", "تُزال {0}–{1} من جدول الحصص في هذا الفرع.", "{0}–{1} اس کیمپس کے گھنٹی شیڈول سے ہٹا دیا جاتا ہے۔"],
 ];
 
 export const arabicP5Ui: Record<string, string> = Object.fromEntries(P5_COPY.map(([en, ar]) => [en, ar]));

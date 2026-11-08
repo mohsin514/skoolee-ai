@@ -2,6 +2,7 @@ import type { TxClient } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import { getLocalePackage } from "@/lib/locale/store";
 import { calendarDateIn } from "@/lib/datetime";
+import { outsideAcademicYears, overlapMessage, type HolidayRange } from "@/lib/academic/holiday-rules";
 
 /** Shared by reviewed setup and manual routes while holding the campus scheduling fence. */
 export async function inspectWeekendChange(tx: TxClient, scope: { schoolId: string; campusId: string }, days: number[]) {
@@ -29,4 +30,12 @@ export async function inspectHolidayRange(tx: TxClient, scope: { schoolId: strin
   if (exams.length || substitutes.length) throw new ApiError("Move scheduled exams and cancel dated substitute cover before closing these dates.", 409);
   if (holidays.length > 500) throw new ApiError("Review duplicate calendar records before adding holidays.", 409);
   return { holidays };
+}
+/** SKAI-145: the manual route's stricter fence — no overlapping holiday and inside the campus's dated academic years. */
+export async function assertHolidayWritable(tx: TxClient, scope: { schoolId: string; campusId: string }, range: HolidayRange, excludeId?: string) {
+  const { holidays } = await inspectHolidayRange(tx, scope, range.start, range.end, excludeId);
+  const overlap = overlapMessage(holidays);
+  if (overlap) throw new ApiError(overlap, 409);
+  const cycles = await tx.academicCycle.findMany({ where: { ...scope, status: { not: "ENDED" } }, select: { startDate: true, endDate: true } });
+  if (outsideAcademicYears(range, cycles)) throw new ApiError("Holiday dates must fall inside a current academic year. Check the year's start and end dates first.", 400);
 }

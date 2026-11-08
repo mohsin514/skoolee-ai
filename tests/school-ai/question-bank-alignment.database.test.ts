@@ -14,7 +14,7 @@ import { assessmentFixture } from "./assessment-fixture";
 
 // SKO-407: reuse across curriculum versions and boards follows the SKO-406 lead decisions.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PG55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PG55438.");
 const raw = new PrismaClient();
 const schoolId = `bank407-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), subjectId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid`, accessVersion: 0 });

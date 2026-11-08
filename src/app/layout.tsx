@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Noto_Sans_Arabic, Plus_Jakarta_Sans } from "next/font/google";
 import { AppToaster } from "@/components/ui/app-toaster";
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { AppLoaderProvider } from "@/components/providers/app-loader-provider";
 import BootSplash from "@/components/BootSplash";
 import { NetworkProvider } from "@/components/providers/network-provider";
@@ -75,11 +76,17 @@ export const viewport: Viewport = {
   themeColor: "#8127CF",
 };
 
-export default function RootLayout({
+// SKAI-951: the proxy issues a per-request CSP nonce (script-src 'nonce-X'
+// 'strict-dynamic'). Next.js can only stamp that nonce onto its scripts when the
+// page renders per request; a prerendered page ships nonce-less scripts that the
+// CSP blocks, so the page never hydrates. Waiting on connection() here opts every
+// route into dynamic rendering (see next/dist/docs content-security-policy.md).
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  await connection();
   return (
     <html
       lang="en"

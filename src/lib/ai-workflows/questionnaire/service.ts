@@ -43,11 +43,15 @@ function definitionFor(user: AuthUser, key: string) {
   return definition;
 }
 
+// Families and students act on their own campus; the group owner and platform owner set up without one.
+async function setupCampus(user: AuthUser): Promise<string | null> {
+  if (user.role === "PARENT" || user.role === "STUDENT") return user.campusId ?? null;
+  if (user.role === "SUPER_ADMIN" || user.role === "APP_OWNER") return null;
+  return resolveWorkspaceCampus(user, user.campusId);
+}
+
 async function setupContext(user: AuthUser, locale: Locale) {
-  // Families and students act on their own campus; they hold no workspace scope to resolve.
-  // Families and students act on their own campus; the group owner and platform owner set up without one.
-  const campusId = user.role === "PARENT" || user.role === "STUDENT" ? user.campusId : user.role === "SUPER_ADMIN" || user.role === "APP_OWNER" ? null : await resolveWorkspaceCampus(user, user.campusId);
-  return capabilityContext(user, campusId, locale);
+  return capabilityContext(user, await setupCampus(user), locale);
 }
 
 export interface SheetView {
@@ -72,17 +76,18 @@ export interface LaunchTile { campusId: string; campus: string; leader: "NONE" |
  */
 async function launchBoard(user: AuthUser): Promise<LaunchTile[]> {
   const [campuses, admins, invites, responses] = await Promise.all([
-    prisma.campus.findMany({ where: { schoolId: user.schoolId }, select: { id: true, name: true }, orderBy: { createdAt: "asc" }, take: 50 }),
+    // SKAI-1728: every campus gets a tile — a fixed cap hid campus 51+ and capped the progress count at 50.
+    prisma.campus.findMany({ where: { schoolId: user.schoolId }, select: { id: true, name: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
     prisma.user.findMany({ where: { schoolId: user.schoolId, role: "CAMPUS_ADMIN", isActive: true }, select: { id: true, campusId: true } }),
     prisma.staffInvitation.findMany({ where: { schoolId: user.schoolId, role: "CAMPUS_ADMIN", status: "pending" }, select: { campusId: true } }).catch(() => []),
-    prisma.aiSetupResponse.findMany({ where: { schoolId: user.schoolId, role: "CAMPUS_ADMIN" }, select: { userId: true, status: true } }),
+    prisma.aiSetupResponse.findMany({ where: { schoolId: user.schoolId, role: "CAMPUS_ADMIN" }, select: { userId: true, campusId: true, status: true } }),
   ]);
   return campuses.map(campus => {
     const admin = admins.find(row => row.campusId === campus.id);
     return {
       campusId: campus.id, campus: campus.name,
       leader: admin ? "JOINED" : invites.some(row => row.campusId === campus.id) ? "INVITED" : "NONE",
-      setup: admin ? responses.find(row => row.userId === admin.id)?.status ?? "NEW" : null,
+      setup: admin ? responses.find(row => row.userId === admin.id && row.campusId === campus.id)?.status ?? "NEW" : null,
     };
   });
 }
@@ -121,12 +126,21 @@ function countBy(steps: CompiledStep[]) {
   return [...counts];
 }
 
+/**
+ * SKAI-1730: the response is scoped to the actor's current campus. After a transfer the old campus's row
+ * stays as history but is never loaded, shown or built from; the new campus starts a fresh sheet.
+ */
 async function loadResponse(user: AuthUser, definition: QuestionnaireDefinition<any>, campusId: string | null) {
-  return prisma.aiSetupResponse.upsert({
-    where: { schoolId_userId_questionnaireKey: { schoolId: user.schoolId, userId: user.userId, questionnaireKey: definition.key } },
-    create: { schoolId: user.schoolId, campusId, userId: user.userId, role: user.role, questionnaireKey: definition.key, definitionVersion: definition.version },
-    update: {},
-  });
+  const where = { schoolId: user.schoolId, userId: user.userId, questionnaireKey: definition.key, campusId };
+  const existing = await prisma.aiSetupResponse.findFirst({ where });
+  if (existing) return existing;
+  try {
+    return await prisma.aiSetupResponse.create({ data: { ...where, role: user.role, definitionVersion: definition.version } });
+  } catch (error) {
+    // A second tab created it first.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return prisma.aiSetupResponse.findFirstOrThrow({ where });
+    throw error;
+  }
 }
 
 export function getSheet(user: AuthUser, key: string, locale: Locale): Promise<SheetView> {
@@ -214,12 +228,16 @@ export function saveAnswers(user: AuthUser, key: string, raw: unknown) {
   });
 }
 
+const DEFER_RETRY_WINDOW_MS = 10_000;
+
 /** "Not now": the sheet stays resumable and the first-login prompt backs off. */
 export function deferSheet(user: AuthUser, key: string) {
   return inTenant(user, async () => {
     const definition = definitionFor(user, key);
-    const response = await loadResponse(user, definition, user.campusId);
+    const response = await loadResponse(user, definition, await setupCampus(user));
     if (response.status === "APPLYING" || response.status === "READY") return response;
+    // SKAI-1372: a retry of the same "Not now" (client or network) within the window is one choice, not another deferral.
+    if (response.status === "DEFERRED" && Date.now() - response.updatedAt.getTime() < DEFER_RETRY_WINDOW_MS) return response;
     return prisma.aiSetupResponse.update({ where: { id: response.id }, data: { status: "DEFERRED", deferrals: { increment: 1 } } });
   });
 }
@@ -288,7 +306,7 @@ export function setupStatus(user: AuthUser) {
     // With AI Workflows off for this school there is no sheet to offer (the earlier setup paths remain).
     const school = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { slug: true } });
     if (!aiWorkflowsV2Enabled(school?.slug)) return { key: definition.key, status: "OFF", show: false };
-    const response = await prisma.aiSetupResponse.findUnique({ where: { schoolId_userId_questionnaireKey: { schoolId: user.schoolId, userId: user.userId, questionnaireKey: definition.key } }, select: { status: true, deferrals: true, definitionVersion: true } });
+    const response = await prisma.aiSetupResponse.findFirst({ where: { schoolId: user.schoolId, userId: user.userId, questionnaireKey: definition.key, campusId: await setupCampus(user) }, select: { status: true, deferrals: true, definitionVersion: true } });
     const status = response?.status ?? "NEW";
     const show = status === "NEW" || status === "DRAFT" || status === "PARTIAL" || status === "APPLYING" || (status === "DEFERRED" && (response?.deferrals ?? 0) < 3) || (status === "READY" && response!.definitionVersion < definition.version);
     return { key: definition.key, status, show };

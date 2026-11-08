@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Prisma, type Campus } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { withoutAutoAudit } from "@/lib/db/audit-trail";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { defaultBoardFor } from "@/config/boards";
 import { schoolCountry } from "@/lib/school/country";
@@ -58,6 +59,14 @@ export interface CampusCreateFields {
   /** Omit to have one generated. */
   regId?: string;
 }
+// SKAI-113: the campus ID is printed on letters and used in links, so it keeps a plain, typeable shape.
+const CAMPUS_REG_ID = /^[A-Z0-9][A-Z0-9-]{2,19}$/;
+export function normalizeCampusRegId(value?: string | null) {
+  const id = optional(value ?? undefined)?.toUpperCase() ?? null;
+  if (id && !CAMPUS_REG_ID.test(id)) throw new Error("Use 3 to 20 letters, digits or dashes for the campus ID, like BR-NORTH.");
+  return id;
+}
+
 export type ValidCampusFields = ReturnType<typeof validateCampusInput>;
 
 /** SKO-402: the same validators as editing a campus, so a campus can always be saved as it was created. */
@@ -67,7 +76,7 @@ export function validateCampusInput(input: CampusCreateFields) {
   const email = assertEmail(optional(input.email), "campus email address");
   const phone = assertPhone(optional(input.phone), "Phone number");
   const website = assertWebsite(optional(input.website), "website");
-  return { name, city, email, phone, website, address: optional(input.address), principalName: optional(input.principalName), board: optional(input.board), regId: optional(input.regId) };
+  return { name, city, email, phone, website, address: optional(input.address), principalName: optional(input.principalName), board: optional(input.board), regId: normalizeCampusRegId(input.regId) };
 }
 
 /**
@@ -76,7 +85,6 @@ export function validateCampusInput(input: CampusCreateFields) {
  */
 export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid: ValidCampusFields): Promise<Campus> {
   const schoolId = String(user.schoolId);
-  await assertPlanCapacity({ schoolId, metric: "campuses" });
 
   const finalRegId = (valid.regId || `BR-${Math.random().toString(36).substring(2, 6).toUpperCase()}`).toUpperCase();
 
@@ -90,7 +98,11 @@ export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid
 
   let newCampus;
   try {
-    newCampus = await prisma.campus.create({
+    // Lock the school row so two concurrent creates cannot both read the same campus usage and pass the plan limit.
+    newCampus = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`;
+      await assertPlanCapacity({ schoolId, metric: "campuses", client: tx });
+      return tx.campus.create({
       data: {
         name: valid.name,
         regId: finalRegId,
@@ -105,6 +117,7 @@ export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid
         principalName: valid.principalName,
         board: valid.board || defaultBoardFor(await schoolCountry(schoolId)),
       }
+      });
     });
   } catch (error) {
     if ((error as { code?: string })?.code === "P2002") {
@@ -150,6 +163,7 @@ export async function seedCampusCalendar(schoolId: string, campusId: string) {
     const year = template?.academicYear ?? new Date().getFullYear();
     await prisma.academicCycle.create({
       data: {
+        schoolId,
         campusId,
         label: template?.label ?? `${year}-${String((year + 1) % 100).padStart(2, "0")}`,
         academicYear: year,
@@ -169,7 +183,7 @@ export async function seedCampusCalendar(schoolId: string, campusId: string) {
     // Sunday is the sane default when there is no sibling to copy.
     const days = siblingWeekends.length > 0 ? siblingWeekends.map((w) => w.dayOfWeek) : [7];
     await prisma.weekend.createMany({
-      data: days.map((dayOfWeek) => ({ campusId, dayOfWeek })),
+      data: days.map((dayOfWeek) => ({ schoolId, campusId, dayOfWeek })),
       skipDuplicates: true,
     });
   } catch (error) {
@@ -198,9 +212,11 @@ export async function assertCanEditCampus(session: Pick<AuthUser, "schoolId" | "
   // Scoped read, so a campus id from another school simply is not found.
   const campus = await prisma.campus.findFirst({
     where: { id: campusId, schoolId: session.schoolId },
-    select: { id: true },
+    select: { id: true, archivedAt: true },
   });
   if (!campus) throw new Error("Campus not found.");
+  // SKAI-113: an archived campus is read-only until the group admin restores it.
+  if (campus.archivedAt) throw new Error("Restore this campus before editing it.");
 
   if (session.role === "SUPER_ADMIN") return;
   if ((session.role === "CAMPUS_ADMIN" || session.role === "ADMIN") && session.campusId === campusId) return;
@@ -219,7 +235,7 @@ export async function updateCampusDetailsCommand(session: AuthUser, input: Campu
   const phone = input.phone === undefined ? undefined : assertPhone(optionalText(input.phone), "Phone number");
   const website = input.website === undefined ? undefined : assertWebsite(optionalText(input.website), "website");
 
-  const newLogoUrl = input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl);
+  const newLogoUrl = input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl, { schoolId: session.schoolId, campusId });
   // A board is never left blank: clearing it falls back to the first board for the school's country.
   const board = input.board === undefined ? undefined : optionalText(input.board) || defaultBoardFor(await schoolCountry(session.schoolId));
   const result = await prisma.$transaction(async (tx) => {
@@ -238,7 +254,8 @@ export async function updateCampusDetailsCommand(session: AuthUser, input: Campu
     };
     const diff = diffOf(current as unknown as Record<string, unknown>, data);
     if (!Object.keys(diff).length) return { campus: current, changed: [] as string[] };
-    const campus = await tx.campus.update({ where: { id: campusId }, data });
+    // The DETAILS row below is the one audit entry for this save (changed fields only, before and after).
+    const campus = await withoutAutoAudit(() => tx.campus.update({ where: { id: campusId }, data }));
     await tx.auditLog.create({ data: { schoolId: session.schoolId, campusId, tableName: "campus", recordId: campusId, userId: session.userId, oldValue: { kind: "DETAILS", fields: AUDIT_FIELDS(diff, "from") } as Prisma.InputJsonValue, newValue: { kind: "DETAILS", fields: AUDIT_FIELDS(diff, "to") } as Prisma.InputJsonValue } });
     return { campus, changed: Object.keys(diff) };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

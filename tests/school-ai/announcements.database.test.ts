@@ -15,7 +15,7 @@ import { consume, type Database } from "../../src/lib/queue/outbox";
 import { announcementDeliveryWorkflow, type AnnouncementEmailAdapter } from "../../src/lib/queue/announcement-delivery";
 import type { AnnouncementProposal } from "../../src/lib/school-ai/announcements";
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated PostgreSQL fixture on port 55438.");
 const old = { SMTP_AUTH: process.env.SMTP_AUTH, SMTP_HOST: process.env.SMTP_HOST, EMAIL_DEV_MODE: process.env.EMAIL_DEV_MODE, DISABLE_OUTBOUND_MESSAGES: process.env.DISABLE_OUTBOUND_MESSAGES };
 process.env.SMTP_AUTH = "false"; process.env.SMTP_HOST = "synthetic-never-send.invalid"; delete process.env.EMAIL_DEV_MODE; delete process.env.DISABLE_OUTBOUND_MESSAGES;

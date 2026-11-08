@@ -5,6 +5,8 @@ import {
   closeAssignment, confirmDraftFile, getAssignment, grantExtension, prepareDraftFile, previewRelease, recordPaperSubmission, releaseAssignment,
   reopenSubmission, returnFeedback, saveDraft, saveFeedback, submitWork, updateAssignment,
 } from "@/lib/assignments/service";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store" };
@@ -27,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const user = await requireAuthUser();
     const { id } = await params;
-    const { op, ...input } = await req.json();
+    const { op, ...input } = await parseBody(req, jsonObjectBody);
     const result = op === "update" ? await updateAssignment(user, id, input)
       : op === "preview" ? await previewRelease(user, id)
       : op === "release" ? await releaseAssignment(user, id, input)

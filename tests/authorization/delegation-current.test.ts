@@ -9,7 +9,7 @@ import { ACCESS_DENIED } from "../../src/lib/auth/policy";
 // No .env, production database, outbound transport, or shared fixture reset.
 const database = new URL(process.env.DATABASE_URL || "http://invalid");
 const app = new URL(process.env.AUTHZ_TEST_APP_URL || "http://localhost:3107");
-if (!["127.0.0.1", "localhost"].includes(database.hostname) || database.pathname !== "/postgres" || database.port !== "55438" || process.env.DIRECT_URL !== process.env.DATABASE_URL) throw new Error("Use isolated PG55438 with matching DATABASE_URL and DIRECT_URL");
+if (!["127.0.0.1", "localhost"].includes(database.hostname) || database.pathname !== "/postgres" || database.port !== (process.env.QA_DB_PORT || "55438") || process.env.DIRECT_URL !== process.env.DATABASE_URL) throw new Error("Use isolated PG55438 with matching DATABASE_URL and DIRECT_URL");
 if (!["127.0.0.1", "localhost"].includes(app.hostname) || app.port !== "3107" || !process.env.AUTH_SECRET) throw new Error("Use local app3107 and explicit local-only AUTH_SECRET");
 const db = new PrismaClient(), school = `delegation-${randomUUID()}`, foreignSchool = `delegation-${randomUUID()}`;
 const campus = randomUUID(), otherCampus = randomUUID(), foreignCampus = randomUUID();

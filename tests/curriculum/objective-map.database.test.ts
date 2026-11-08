@@ -12,7 +12,7 @@ import { assessmentFixture } from "../school-ai/assessment-fixture";
 
 // SKO-406 against the isolated database, using the real School AI record lifecycle.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PG55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PG55438.");
 const raw = new PrismaClient();
 const schoolId = `cur406-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), subjectId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid`, accessVersion: 0 });
@@ -22,7 +22,9 @@ let curriculumId = "", otherId = "", latest = 0, first = 0;
 function data(): CurriculumData {
   const { curriculum } = assessmentFixture(subjectId, classId);
   curriculum.board = "Synthetic Board A";
-  curriculum.pack = { authority: "Synthetic Board A", edition: "2026", language: "en", rights: "APPROVED" };
+  curriculum.pack = { packId: "synthetic-board-a-maths", version: 1, authority: "Synthetic Board A", edition: "2026", language: "en", rights: "APPROVED" };
+  // SKAI-1010 (2dc1ba140): an approved pack is versioned, and its sources carry URL, checksum, rights scope and review.
+  curriculum.sources = curriculum.sources.map(source => ({ ...source, url: "https://example.invalid/synthetic-syllabus.pdf", checksum: "a".repeat(64), rightsScope: "Synthetic test-only syllabus", reviewedAt: "2026-09-01T00:00:00.000Z" }));
   curriculum.outcomes = [
     { id: "o-add", code: "SBA.M.1", title: "Add whole numbers", sourceId: "source-1", sourcePage: "1", included: true, taught: true },
     { id: "o-sub", code: "SBA.M.2", title: "Subtract whole numbers", sourceId: "source-1", sourcePage: "1", included: true, taught: true, prerequisiteIds: ["o-add"] },
@@ -95,12 +97,18 @@ test("objectives from two boards stay distinct until a lead records a decision; 
   assert.deepEqual(after.mappings.map(row => row.relation), ["SAME"], "the latest decision is current");
   assert.equal(await raw.curriculumObjectiveMapping.count({ where: { schoolId } }), 2, "earlier decisions remain");
   await assert.rejects(() => raw.curriculumObjectiveMapping.updateMany({ where: { schoolId }, data: { relation: "NOT_EQUIVALENT" } }), /kept/);
-  assert.equal(await raw.auditLog.count({ where: { schoolId, tableName: "curriculum_objective_mappings" } }), 2);
+  // SKAI-1796: the decision's own row replaces the automatic "create" row inside the transaction, so each of the
+  // two decisions has exactly one audit row.
+  const audits = await raw.auditLog.findMany({ where: { schoolId, tableName: "curriculum_objective_mappings" }, select: { recordId: true, newValue: true } });
+  const mappingIds = (await raw.curriculumObjectiveMapping.findMany({ where: { schoolId }, select: { id: true } })).map(row => row.id).sort();
+  assert.deepEqual([...new Set(audits.map(row => row.recordId))].sort(), mappingIds);
+  assert.deepEqual(audits.map(row => (row.newValue as { relation: string }).relation).sort(), ["PARTIAL", "SAME"], "one decision row per recorded decision");
+  assert.equal(audits.length, 2);
 });
 
 test("teachers see their subjects only and link their resources to exact objective versions", async () => {
-  assert.deepEqual((await listCurricula(teacher)).map(row => row.id).sort(), [curriculumId, otherId].sort());
-  assert.deepEqual(await listCurricula(outsider), [], "a teacher without the subject sees no curricula");
+  assert.deepEqual((await listCurricula(teacher)).curricula.map(row => row.id).sort(), [curriculumId, otherId].sort());
+  assert.deepEqual((await listCurricula(outsider)).curricula, [], "a teacher without the subject sees no curricula");
   await assert.rejects(() => objectiveMap(outsider, { recordId: curriculumId }), (error: { status?: number }) => error.status === 403 || error.status === 404);
   const view = await objectiveMap(teacher, { recordId: curriculumId });
   assert.equal(view.canDecide, false);

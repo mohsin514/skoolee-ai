@@ -1,12 +1,15 @@
 import { withSchedulingResourceWrite, resourceScope } from "@/lib/academic/resource-write";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canLeadAcademics, canManageAcademics, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, assertPermission, canLeadAcademics, canManageAcademics, requireAuthUser } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { isCampusOperator } from "@/lib/auth/institution";
 import { getLeaveBalances, tenthsToDays } from "@/lib/leave";
 import { notify } from "@/lib/notifications/in-app";
 import { resolveSourceActions } from "@/lib/notifications/actions";
 import { reconcileMeetings } from "@/lib/meetings/notify";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // PATCH /api/leave/review
 // body: { id, status: APPROVED | REJECTED, reviewNote?, override? }
@@ -17,7 +20,7 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageAcademics(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "leave", "edit");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
 
     const id = String(body.id ?? "");
     const status = String(body.status ?? "").toUpperCase();
@@ -105,8 +108,8 @@ export async function PATCH(req: NextRequest) {
     // SKO-420: meetings booked during approved leave need a new time; both sides are told.
     if (status === "APPROVED") await reconcileMeetings(user.schoolId, [request.userId], user.userId).catch(error => console.error("[leave/review] meeting recheck failed", error));
 
-    return Response.json({ success: true, data: updated });
+    return ok(updated);
   } catch (error) {
-    return errorResponse(error, "[leave/review] PATCH failed");
+    return failFrom(error, "[leave/review] PATCH failed");
   }
 }

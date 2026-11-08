@@ -108,7 +108,7 @@ async function loadContext(campusId: string, timetableId: string) {
       select: { id: true, dayOfWeek: true, periodNumber: true, teacherId: true, roomId: true },
     }),
     prisma.classRoom.findMany({
-      where: { campusId },
+      where: { campusId, archivedAt: null },
       select: { id: true, roomNumber: true, capacity: true },
       orderBy: { capacity: "asc" },
     }),

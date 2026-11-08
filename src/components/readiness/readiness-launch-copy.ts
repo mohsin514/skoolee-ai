@@ -1,5 +1,5 @@
 /** Strings for the readiness "launch control" layout (ReadinessHome); the base copy lives in readiness-copy.ts. */
-type CheckKey = "campus" | "locale" | "academic" | "staff" | "roster" | "imports" | "guardians" | "fees" | "rehearsal";
+type CheckKey = "campus" | "locale" | "academic" | "staff" | "roster" | "campusCoverage" | "imports" | "guardians" | "fees" | "rehearsal";
 type PhaseKey = "foundation" | "people" | "money" | "rehearse";
 
 export type LaunchCopy = {
@@ -14,6 +14,10 @@ export type LaunchCopy = {
   delegated: string;          // group admin: campus-level work done by each campus admin
   handledElsewhere: string;   // any other viewer without a screen for the check
   optionalTag: string;
+  laterTag: string;          // SKAI-912: not needed for this mode's first class, needed for full operations
+  switchMode: Record<"EXAM_STUDIO" | "FULL_OPERATIONS", string>;  // button: switch *to* this mode
+  switchTitle: string;
+  switchBody: string;
   doneTag: string;
   todoTag: string;
   liveTitle: string;
@@ -21,7 +25,7 @@ export type LaunchCopy = {
   approveBar: string;
   practiceHint: string;
   sectionsLabel: string;
-  nav: { checks: string; practice: string; reconcile: string; tasks: string };
+  nav: { setupAreas: string; checks: string; practice: string; reconcile: string; tasks: string };
 };
 
 const en: LaunchCopy = {
@@ -33,6 +37,7 @@ const en: LaunchCopy = {
   goApprove: "Approve go-live",
   phases: { foundation: "Foundation", people: "People", money: "Money & data", rehearse: "Rehearse" },
   why: {
+    campusCoverage: "A campus with no class or pupils cannot take attendance or run exams on day one.",
     campus: "Every class, pupil and fee belongs to a campus.",
     locale: "Dates, report cards and receipts follow the school's language, timezone and currency.",
     academic: "Attendance and marks are filed under an active session and a class.",
@@ -46,6 +51,10 @@ const en: LaunchCopy = {
   delegated: "Done by each campus admin in their campus console. Open a campus from Campuses.",
   handledElsewhere: "Your campus admin completes this step in their console. It turns green here once it is done.",
   optionalTag: "Optional",
+  laterTag: "Later — for full operations",
+  switchMode: { EXAM_STUDIO: "Start with Exam Studio only", FULL_OPERATIONS: "Switch to full operations" },
+  switchTitle: "Change how your school uses Skoolee?",
+  switchBody: "Only the checks for the first class change. Classes, pupils, follow-ups and rehearsal results are kept, and you can switch back before go-live.",
   doneTag: "Done",
   todoTag: "To do",
   liveTitle: "Your school is live",
@@ -53,7 +62,7 @@ const en: LaunchCopy = {
   approveBar: "All required checks are done.",
   practiceHint: "Runs on your real classes with synthetic learners. Nothing is saved, sent or charged.",
   sectionsLabel: "Readiness sections",
-  nav: { checks: "Checks", practice: "Practice", reconcile: "Reconcile", tasks: "Follow-ups" },
+  nav: { setupAreas: "Setup steps", checks: "Checks", practice: "Practice", reconcile: "Reconcile", tasks: "Follow-ups" },
 };
 
 const ar: LaunchCopy = {
@@ -65,6 +74,7 @@ const ar: LaunchCopy = {
   goApprove: "اعتماد التشغيل",
   phases: { foundation: "الأساس", people: "الأشخاص", money: "المال والبيانات", rehearse: "التدريب" },
   why: {
+    campusCoverage: "الفرع بلا صف أو طلاب لا يستطيع تسجيل الحضور أو إجراء الاختبارات في اليوم الأول.",
     campus: "كل صف وطالب ورسوم ينتمي إلى فرع.",
     locale: "التواريخ والشهادات والإيصالات تتبع لغة المدرسة ومنطقتها الزمنية وعملتها.",
     academic: "يُسجّل الحضور والدرجات ضمن دورة نشطة وصف.",
@@ -78,6 +88,10 @@ const ar: LaunchCopy = {
   delegated: "يُنجزه مدير كل فرع في لوحة الفرع. افتح فرعاً من قائمة الفروع.",
   handledElsewhere: "يُكمل مدير الفرع هذه الخطوة في لوحته. تظهر هنا مكتملة بعد إنجازها.",
   optionalTag: "اختياري",
+  laterTag: "لاحقاً — للتشغيل الكامل",
+  switchMode: { EXAM_STUDIO: "البدء باستوديو الاختبارات فقط", FULL_OPERATIONS: "التحويل إلى التشغيل الكامل" },
+  switchTitle: "تغيير طريقة استخدام المدرسة لـ Skoolee؟",
+  switchBody: "تتغير فقط فحوص الصف الأول. تبقى الصفوف والطلاب والمتابعات ونتائج التدريب، ويمكنك العودة قبل التشغيل.",
   doneTag: "مكتمل",
   todoTag: "مطلوب",
   liveTitle: "مدرستك تعمل الآن",
@@ -85,7 +99,7 @@ const ar: LaunchCopy = {
   approveBar: "اكتملت كل الفحوص المطلوبة.",
   practiceHint: "يعمل على صفوفك الحقيقية بطلاب افتراضيين. لا يُحفظ أو يُرسل أو يُحصَّل أي شيء.",
   sectionsLabel: "أقسام الجاهزية",
-  nav: { checks: "الفحوص", practice: "التدريب", reconcile: "المطابقة", tasks: "المتابعات" },
+  nav: { setupAreas: "خطوات الإعداد", checks: "الفحوص", practice: "التدريب", reconcile: "المطابقة", tasks: "المتابعات" },
 };
 
 const ur: LaunchCopy = {
@@ -97,6 +111,7 @@ const ur: LaunchCopy = {
   goApprove: "گو لائیو کی منظوری",
   phases: { foundation: "بنیاد", people: "لوگ", money: "رقم اور ڈیٹا", rehearse: "مشق" },
   why: {
+    campusCoverage: "جس کیمپس میں کوئی جماعت یا طالب علم نہ ہو وہ پہلے دن حاضری یا امتحان نہیں لے سکتا۔",
     campus: "ہر جماعت، طالب علم اور فیس کسی کیمپس سے متعلق ہوتی ہے۔",
     locale: "تاریخیں، رپورٹ کارڈ اور رسیدیں اسکول کی زبان، ٹائم زون اور کرنسی پر چلتی ہیں۔",
     academic: "حاضری اور نمبر فعال سیشن اور جماعت میں درج ہوتے ہیں۔",
@@ -110,6 +125,10 @@ const ur: LaunchCopy = {
   delegated: "ہر کیمپس منتظم اپنے کیمپس کنسول میں کرتا ہے۔ کیمپسز سے کیمپس کھولیں۔",
   handledElsewhere: "آپ کا کیمپس منتظم یہ مرحلہ اپنے کنسول میں مکمل کرتا ہے۔ مکمل ہونے پر یہ یہاں سبز ہو جاتا ہے۔",
   optionalTag: "اختیاری",
+  laterTag: "بعد میں — مکمل آپریشنز کے لیے",
+  switchMode: { EXAM_STUDIO: "صرف ایگزام اسٹوڈیو سے شروع کریں", FULL_OPERATIONS: "مکمل آپریشنز پر منتقل کریں" },
+  switchTitle: "اسکول کے Skoolee استعمال کا طریقہ بدلیں؟",
+  switchBody: "صرف پہلی کلاس کی جانچیں بدلتی ہیں۔ کلاسیں، طلبہ، فالو اپس اور مشق کے نتائج محفوظ رہتے ہیں، اور لائیو ہونے سے پہلے آپ واپس جا سکتے ہیں۔",
   doneTag: "مکمل",
   todoTag: "باقی",
   liveTitle: "آپ کا اسکول فعال ہے",
@@ -117,7 +136,7 @@ const ur: LaunchCopy = {
   approveBar: "تمام لازمی جانچیں مکمل ہیں۔",
   practiceHint: "آپ کی حقیقی جماعتوں پر فرضی طلبہ کے ساتھ چلتی ہے۔ کچھ محفوظ، ارسال یا وصول نہیں ہوتا۔",
   sectionsLabel: "تیاری کے حصے",
-  nav: { checks: "جانچیں", practice: "مشق", reconcile: "مطابقت", tasks: "فالو اپس" },
+  nav: { setupAreas: "سیٹ اپ کے مراحل", checks: "جانچیں", practice: "مشق", reconcile: "مطابقت", tasks: "فالو اپس" },
 };
 
 export function getLaunchCopy(language: string): LaunchCopy {

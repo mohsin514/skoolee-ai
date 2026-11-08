@@ -163,6 +163,14 @@ export async function actOnItem(user: AuthUser, campusId: string, body: Record<s
         if (next !== item[field]) { changes[field] = { from: item[field], to: next }; data[field] = next; }
       }
       if (!Object.keys(changes).length) throw new ApiError("Nothing changed. Edit a value before saving the correction.", 400);
+      // SKAI-1555: a corrected reference obeys the same open-item uniqueness rule as a new entry,
+      // under the same per-campus lock, so a typo fix cannot create a second active record for one parcel.
+      if (data.referenceNo && !closed) {
+        await db.$queryRaw`SELECT id FROM campuses WHERE id = ${campusId} AND school_id = ${user.schoolId} FOR UPDATE`;
+        const open = await db.postalRecord.findMany({ where: { campusId, schoolId: user.schoolId, direction: item.direction, status: { notIn: CLOSED }, referenceNo: { not: null }, id: { not: id } }, select: { itemCode: true, referenceNo: true } });
+        const same = open.find(row => row.referenceNo && comparable(row.referenceNo) === comparable(data.referenceNo!));
+        if (same) throw new ApiError(`An open item with this reference is already recorded as ${same.itemCode}. Update that item instead.`, 409);
+      }
       const updated = await db.postalRecord.update({ where: { id }, data: { ...data, ...bump } });
       await db.postalEvent.create({ data: { ...event, kind: "CORRECTED", changes, note: reason } });
       return { updated, assignment: null };
@@ -182,10 +190,14 @@ export async function listItems(user: AuthUser, campusId: string, filters: { vie
     ...(q ? { OR: [{ itemCode: { contains: q, mode: "insensitive" } }, { referenceNo: { contains: q, mode: "insensitive" } }, { fromName: { contains: q, mode: "insensitive" } }, { toName: { contains: q, mode: "insensitive" } }, { courier: { contains: q, mode: "insensitive" } }] } : {}),
   };
   const [rows, active] = await Promise.all([
-    prisma.postalRecord.findMany({ where, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 300, include: { owner: { select: { id: true, fullName: true } } } }),
+    // SKAI-1675: one past the cap tells the client the list (and so its export) is not complete.
+    prisma.postalRecord.findMany({ where, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 301, include: { owner: { select: { id: true, fullName: true } } } }),
     prisma.postalRecord.findMany({ where: { campusId, schoolId: user.schoolId, status: { notIn: CLOSED } }, select: { direction: true, status: true, ownerId: true } }),
   ]);
+  const truncated = rows.length > 300;
+  rows.splice(300);
   return {
+    truncated,
     // Owner candidates for the pickers (G40): campus admins and receptionists of this campus.
     owners: await ownerCandidates(user, campusId),
     data: rows.map(({ requestHash: _hash, idempotencyKey: _key, fileKey: _file, ...row }) => row),

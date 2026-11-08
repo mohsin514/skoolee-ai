@@ -12,7 +12,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // a material change asks again and keeps the earlier answer, stale and late answers are refused, a guardian
 // without the consent right cannot answer, retries return the same receipt, and records cannot be edited.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.FAMILY_TEST_APP || "http://localhost:3107";
 const evidence = process.env.FAMILY_EVIDENCE_DIR || "/tmp/sko421-evidence";
 const db = new PrismaClient(), password = "SyntheticFamily421!";
@@ -67,7 +67,9 @@ before(async () => {
 after(async () => { await browser?.close(); await db.school.delete({ where: { id: schoolId } }).catch(() => undefined); await db.$disconnect(); });
 
 test("leave for future days: the school decides, the register is untouched, the notice carries no reason", async () => {
-  const parent = await context("parent"), lead = await context("lead"), teacher = await context("teacher");
+  // Learner leave is decided with attendance.edit. Role defaults V2 keep a default principal view-only for attendance
+  // (SKAI-1691 decision), so the campus admin decides; the principal sees the queue but is refused and changes nothing.
+  const parent = await context("parent"), lead = await context("lead"), office = await context("office"), teacher = await context("teacher");
   const asked = await call(parent, "post", "/api/family/leave", { studentId: ids.ali, fromDate: ymd(3), toDate: ymd(4), reason: "Synthetic family wedding out of town" });
   assert.equal(asked.status, 201, JSON.stringify(asked.json));
   assert.equal((await call(parent, "post", "/api/family/leave", { studentId: ids.ali, fromDate: ymd(4), toDate: ymd(5), reason: "Overlapping" })).status, 409);
@@ -77,10 +79,12 @@ test("leave for future days: the school decides, the register is untouched, the 
   const row = queue.json.data.find((r: { id: string }) => r.id === asked.json.data.id);
   assert.ok(row);
   assert.equal((await call(teacher, "post", "/api/attendance/leave", { id: row.id, action: "approve" })).status, 403);
-  assert.equal((await call(lead, "post", "/api/attendance/leave", { id: row.id, action: "clarify", note: "Please confirm the return day" })).status, 200);
+  assert.equal((await call(lead, "post", "/api/attendance/leave", { id: row.id, action: "approve" })).status, 403, "a default principal cannot decide");
+  assert.equal((await db.learnerLeaveRequest.findUniqueOrThrow({ where: { id: row.id } })).version, 1, "the refused decision changed nothing");
+  assert.equal((await call(office, "post", "/api/attendance/leave", { id: row.id, action: "clarify", note: "Please confirm the return day" })).status, 200);
   assert.equal((await call(parent, "patch", "/api/family/leave", { id: row.id, action: "reply", reason: "Back on the second day by noon" })).status, 200);
-  assert.equal((await call(lead, "post", "/api/attendance/leave", { id: row.id, action: "approve", knownVersion: 1 })).status, 409, "a stale review is refused");
-  assert.equal((await call(lead, "post", "/api/attendance/leave", { id: row.id, action: "approve" })).status, 200);
+  assert.equal((await call(office, "post", "/api/attendance/leave", { id: row.id, action: "approve", knownVersion: 1 })).status, 409, "a stale review is refused");
+  assert.equal((await call(office, "post", "/api/attendance/leave", { id: row.id, action: "approve" })).status, 200);
   assert.equal((await db.learnerLeaveRequest.findUniqueOrThrow({ where: { id: row.id } })).status, "APPROVED");
   assert.equal(await db.attendance.count({ where: { schoolId, studentId: ids.ali } }), 0, "approval never marks the register");
   const notices = await db.notification.findMany({ where: { userId: users.get("parent")!.id, type: "LEARNER_LEAVE_DECIDED" } });

@@ -8,10 +8,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { FormField } from "@/components/ui/form-field";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { toast, friendlyErrorMessage } from "@/components/ui/toast";
-import { CheckCheck, ClipboardCheck, Eye, FileDown, FileText, Send, Upload } from "lucide-react";
+import { CheckCheck, ClipboardCheck, Eye, FileDown, FileText, Send, ShieldAlert, Upload } from "lucide-react";
+import { DeskPill, DeskStats, StatTile, deskRow } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
@@ -249,7 +250,8 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
       const d = await r.json();
       if (!alive.current) return;
       if (r.status === 401 || r.status === 403) { setCards([]); setCanReview(false); setCanDeliver(false); setCanEdit(false); setActive(null); setLoadFailed(typeof d.error === "string" ? d.error : ui(copy.loadFailed)); }
-      if (r.status === 409) { await load(); return; }
+      // A stale approval reloads the changed content and says why nothing was approved.
+      if (r.status === 409) { await load(); if (alive.current) setFailure(typeof d.error === "string" ? d.error : ui(copy.actionFailed)); return; }
       if (!r.ok) throw new Error(typeof d.error === "string" ? d.error : "");
       if (d.jobId) {
         // Background work reports through one toast with a link to its progress (R4), not a page jump.
@@ -315,28 +317,24 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
   useEffect(() => {
     onSelectionChange?.({ examId: exam.id, selected: canReview ? selected.length : 0, canApprove: canReview && !approveBlocked, reason: selectionReason });
     // selectionKey captures every input; the callback identity may change on each host render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectionKey]);
   const seenRequests = useRef({ approve: approveRequest, preview: previewRequest, deliver: deliverRequest, generate: generateRequest });
   const deliveryKey = `${canDeliver && cards.length > 0}:${canDeliver && anyPublished}:${busy}`;
   useEffect(() => {
     onDeliveryState?.({ examId: exam.id, canGenerate: canDeliver && cards.length > 0 && !busy, canDeliver: canDeliver && anyPublished && !busy });
     // deliveryKey captures every input; the callback identity may change on each host render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deliveryKey]);
   useEffect(() => {
     if (deliverRequest === undefined || seenRequests.current.deliver === deliverRequest) return;
     seenRequests.current.deliver = deliverRequest;
     if (canDeliver && anyPublished && !busy) setPending("send");
     // Only a new number opens the confirmation.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deliverRequest]);
   useEffect(() => {
     if (generateRequest === undefined || seenRequests.current.generate === generateRequest) return;
     seenRequests.current.generate = generateRequest;
     if (canDeliver && !busy) void action("generate");
     // Only a new number builds the PDFs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generateRequest]);
   useEffect(() => {
     if (approveRequest === undefined || seenRequests.current.approve === approveRequest) return;
@@ -345,7 +343,6 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
     if (needsReason) { setMessage(""); setFailure(ui("Add the family-facing correction reason first.")); return; }
     if (!approveBlocked) void action("approve");
     // Only a new number runs the approval.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [approveRequest]);
   useEffect(() => {
     if (previewRequest === undefined || seenRequests.current.preview === previewRequest) return;
@@ -355,7 +352,6 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
     setActive(card.id); setLanguage(card.review.language); setNote(card.review.reviewerNote || ""); setRemark(remarkFor(card, card.review.language));
     requestAnimationFrame(() => document.getElementById(`report-inspect-${exam.id}`)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
     // Only a new number opens the preview.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewRequest]);
   const visibleCards = cards
     .filter((c) => !reviewerFilter || c.review.lastReviewerId === reviewerFilter)
@@ -395,16 +391,16 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
           icon={FileText}
           title={ui(copy.emptyTitle)}
           description={ui(canDeliver ? copy.empty : copy.emptyWaiting)}
-          action={canDeliver ? <Button type="button" variant="outline" disabled={busy} onClick={() => void action("generate")}><FileDown aria-hidden="true" />{ui(copy.generate)}</Button> : undefined}
+          action={canDeliver ? <Button type="button" disabled={busy} onClick={() => void action("generate")}><FileDown aria-hidden="true" />{ui(copy.generate)}</Button> : undefined}
         />
       ) : (
         <>
-          <div className="flex flex-wrap gap-2 tabular-nums">
-            <Badge variant="danger" dot>{ui(copy.blocked)}: <bdi>{blocked}</bdi></Badge>
-            <Badge variant="info" dot>{ui(copy.eligible)}: <bdi>{cards.length - blocked}</bdi></Badge>
-            <Badge variant="success" dot>{ui(copy.approved)}: <bdi>{approvedCount}</bdi></Badge>
-            {mode === "delivery" && !allApproved ? <Badge variant="neutral">{ui(copy.waiting)}</Badge> : null}
-          </div>
+          {/* The counters are the readiness filter's shortcuts: pressing one narrows the list, pressing it again shows all. */}
+          <DeskStats data-report-pipeline-stats>
+            <StatTile index={0} icon={ShieldAlert} tone={blocked ? "danger" : "success"} value={<bdi>{blocked}</bdi>} label={ui(copy.blocked)} onSelect={() => setFilter(filter === "blocked" ? "all" : "blocked")} selected={filter === "blocked"} />
+            <StatTile index={1} icon={FileText} tone="info" value={<bdi>{cards.length - blocked}</bdi>} label={ui(copy.eligible)} onSelect={() => setFilter(filter === "eligible" ? "all" : "eligible")} selected={filter === "eligible"} />
+            <StatTile index={2} icon={CheckCheck} tone="success" value={<bdi>{approvedCount}</bdi>} label={ui(copy.approved)} hint={mode === "delivery" && !allApproved ? ui(copy.waiting) : undefined} />
+          </DeskStats>
           {canReview && cards.some((c) => c.review.predecessorId) && (
             <FormField name="correctionReason" label={ui(copy.reason)} showCount>
               <Textarea
@@ -451,7 +447,7 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
           {/* With a host-owned Approve, the spotlight anchor marks the versions the principal ticks to approve. */}
           <ul className="space-y-3" data-tour={hideApprove && canReview && tourAnchor ? "principal.reports.approve" : undefined}>
             {visibleCards.map((c) => (
-              <li key={c.id} className="space-y-2 rounded-2xl border border-border-subtle bg-card p-3 sm:p-4">
+              <li key={c.id} data-tone={c.review.blockers.length ? "danger" : c.review.approvedAt ? "success" : "info"} className={cn(deskRow, "block space-y-2")}>
                 <div className="flex flex-wrap items-center gap-2">
                   {canReview && (
                     <Checkbox
@@ -463,9 +459,9 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
                   )}
                   <strong className="text-ink-strong"><bdi>{c.student?.fullName}</bdi></strong>
                   <bdi className="text-xs text-ink-subtle">v{c.review.number}</bdi>
-                  <Badge size="sm" variant={c.review.blockers.length ? "danger" : c.review.approvedAt ? "success" : "info"}>
+                  <DeskPill tone={c.review.blockers.length ? "danger" : c.review.approvedAt ? "success" : "info"}>
                     {ui(c.review.blockers.length ? copy.blocked : c.review.approvedAt ? copy.approved : copy.eligible)}
-                  </Badge>
+                  </DeskPill>
                 </div>
                 {c.review.changedSections.length ? (
                   <p className="text-sm text-ink-muted">{ui(copy.changed)}: {c.review.changedSections.map(label).join(", ")}</p>

@@ -1,3 +1,5 @@
+> **Archived tracker note (29 October 2026):** Linear (SKO-) is now a read-only archive; Jira SKAI is the tracker of record (decision D6, `docs/product-review-2026-10/d6-tracker-of-record.md`). SKO references and Linear statuses below are historical. See `docs/archive/linear/` for the export and open-item crosswalk.
+
 # F61 implementation and interaction contract
 
 SKO-208 · sequence 001/094 · M1 / 01 Trust and shared UX · roadmap P0.

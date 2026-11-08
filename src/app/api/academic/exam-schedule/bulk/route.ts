@@ -12,6 +12,8 @@ import {
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 /**
  * Master date sheet: one subject, every class, one action (§80).
@@ -71,6 +73,8 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     assertStaffRole(user);
+    // SKAI-1300: staff roles without exam access must not read planning or seating.
+    await assertPermission(user, "exams", "view");
     const sessionId = req.nextUrl.searchParams.get("sessionId");
     if (!sessionId) throw new ApiError("sessionId is required", 400);
     const campusId = await resolveExamSchedulingCampus(user, req.nextUrl.searchParams.get("campusId"), { kind: "session", id: sessionId });
@@ -257,7 +261,7 @@ export async function POST(req: NextRequest) {
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "exams", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const sessionId = String(body.sessionId ?? "");
     const subjectName = String(body.subjectName ?? "").trim();
     const date = String(body.date ?? "");

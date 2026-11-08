@@ -38,6 +38,8 @@ import { Select as SystemSelect } from "@/components/ui/select";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { PageHeader, type PageAction } from "@/components/ui/page-header";
+import { useShellSession } from "@/components/role-dashboard/ScopeBadge";
+import { workspacePrefKey } from "@/lib/ui/workspace-pref-storage";
 
 /**
  * Every label in this kit is an EN UI key and is translated here, so a caller may pass either the key or text it
@@ -67,9 +69,6 @@ export interface WorkspacePrefs {
   perPage: number;
 }
 
-function storageKey(scope: string) {
-  return `skoolee.workspace.${scope}`;
-}
 
 /**
  * Remembers how someone likes to look at a screen.
@@ -99,11 +98,14 @@ export function useWorkspacePrefs(
 
   const [prefs, setPrefs] = useState<WorkspacePrefs>(base);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  // SKAI-1780: stored per signed-in user, so a shared browser never hands one operator's layout to the next.
+  const userId = useShellSession()?.id ?? null;
+  const key = workspacePrefKey(scope, userId);
 
   useEffect(() => {
     let stored: Partial<WorkspacePrefs> = {};
     try {
-      const raw = window.localStorage.getItem(storageKey(scope));
+      const raw = key ? window.localStorage.getItem(key) : null;
       if (raw) { const parsed: unknown = JSON.parse(raw); if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) stored = parsed as Partial<WorkspacePrefs>; }
     } catch {
       /* a blocked or full storage must never break the screen */
@@ -117,17 +119,17 @@ export function useWorkspacePrefs(
     const viewFromUrl = new URL(window.location.href).searchParams.get(`view.${scope}`);
     if (validWorkspaceView(viewFromUrl)) safe.view = viewFromUrl;
     setPrefs(safe);
-    setLoadedFor(scope);
-  }, [scope, base]);
+    setLoadedFor(key);
+  }, [scope, base, key]);
 
   useEffect(() => {
-    if (loadedFor !== scope) return;
+    if (!key || loadedFor !== key) return;
     try {
-      window.localStorage.setItem(storageKey(scope), JSON.stringify(prefs));
+      window.localStorage.setItem(key, JSON.stringify(prefs));
     } catch {
       /* ignore */
     }
-  }, [prefs, loadedFor, scope]);
+  }, [prefs, loadedFor, key]);
 
   useEffect(() => {
     const restore = () => {

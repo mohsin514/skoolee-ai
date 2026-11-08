@@ -2,7 +2,7 @@ import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { createBankAccount } from "@/lib/accounts/bank-account-command";
+import { createBankAccount, parseOpeningBalance } from "@/lib/accounts/bank-account-command";
 import {
   ApiError,
   assertModuleRead,
@@ -12,6 +12,8 @@ import {
   resolveCampusId,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Bank accounts CRUD
 // GET /api/accounts/bank-accounts?campusId=
@@ -42,7 +44,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     await assertPermission(user, "accounts", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const bank = await createBankAccount(user, body);
 
     return Response.json({ success: true, data: bank }, { status: 201 });
@@ -56,8 +58,7 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     await assertPermission(user, "accounts", "edit");
 
-    const body = await req.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(req, idBody);
 
     const bank = await prisma.bankAccount.findFirst({
       where: { id: body.id, campus: { schoolId: user.schoolId } },
@@ -82,11 +83,7 @@ export async function PATCH(req: NextRequest) {
           bankName: body.bankName !== undefined ? (String(body.bankName).trim() || null) : undefined,
           accountNumber: body.accountNumber !== undefined ? (String(body.accountNumber).trim() || null) : undefined,
           openingBalance: body.openingBalance !== undefined
-            ? (() => {
-                const v = Number(body.openingBalance);
-                if (!Number.isSafeInteger(v)) throw new ApiError("Opening balance must be an integer in minor units", 400);
-                return v;
-              })()
+            ? parseOpeningBalance(body.openingBalance)
             : undefined,
           isActive: typeof body.isActive === "boolean" ? body.isActive : undefined,
         },

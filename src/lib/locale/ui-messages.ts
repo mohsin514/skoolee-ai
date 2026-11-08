@@ -2,6 +2,18 @@ import { arabicNavigationUi, urduNavigationUi } from "./navigation-ui-messages";
 import { arabicWorkflowUi, urduWorkflowUi } from "./workflow-ui-messages";
 import { arabicDesignSystemUi, urduDesignSystemUi } from "./design-system-ui-messages";
 import { arabicRoleUxUi, urduRoleUxUi } from "./role-ux/index";
+import { arabicWhatsappUi, urduWhatsappUi } from "./whatsapp-ui-messages";
+import { arabicConsentUi, urduConsentUi } from "./consent-ui-messages";
+import { arabicImportRehearsalUi, urduImportRehearsalUi } from "./import-rehearsal-ui-messages";
+import { arabicSubjectSetupUi, urduSubjectSetupUi } from "./subject-setup-ui-messages";
+import { arabicGradingModelUi, urduGradingModelUi } from "./grading-model-ui-messages";
+import { arabicCampusSetupUi, urduCampusSetupUi } from "./campus-setup-ui-messages";
+import { arabicSchoolBrandingUi, urduSchoolBrandingUi } from "./school-branding-ui-messages";
+import { arabicPortfolioLoadUi, urduPortfolioLoadUi } from "./portfolio-load-ui-messages";
+import { arabicAdmissionsLifecycleUi, urduAdmissionsLifecycleUi } from "./admissions-lifecycle-ui-messages";
+import { arabicClassSetupUi, urduClassSetupUi } from "./class-setup-ui-messages";
+import { arabicClassSyncUi, urduClassSyncUi } from "./class-sync-ui-messages";
+import { arabicTeacherAllocationUi, urduTeacherAllocationUi } from "./teacher-allocation-ui-messages";
 /**
  * The reviewed Arabic catalog (everything translated before the role re-architecture). It keeps precedence: a
  * role-ux package entry for the same key never changes a reviewed meaning (P9-01; tests/locale/catalog-conflicts.test.ts).
@@ -41,6 +53,7 @@ export const arabicReviewedUi: Record<string, string> = {
   "Uploading": "جارٍ الرفع",
   "Logo uploaded": "تم رفع الشعار",
   "Upload failed": "فشل الرفع",
+  "Retry or remove {0} to send. Your message draft is still here.": "أعد المحاولة أو أزل {0} قبل الإرسال. ما زالت مسودة رسالتك محفوظة.",
   "Could not prepare upload": "تعذر تجهيز الرفع",
   "Carry Forward": "الرصيد أو الائتمان السابق",
   "Edit fee item": "تعديل بند الرسوم",
@@ -410,7 +423,7 @@ export const arabicReviewedUi: Record<string, string> = {
 };
 
 /** Every Arabic UI key. The role re-architecture catalogs (§10.10) only fill gaps: reviewed entries win. */
-export const arabicUi: Record<string, string> = { ...arabicRoleUxUi, ...arabicReviewedUi };
+export const arabicUi: Record<string, string> = { ...arabicRoleUxUi, ...arabicCampusSetupUi, ...arabicReviewedUi, ...arabicSchoolBrandingUi, ...arabicAdmissionsLifecycleUi, ...arabicPortfolioLoadUi };
 
 /** The reviewed Urdu catalog; same precedence rule as `arabicReviewedUi`. */
 export const urduReviewedUi: Record<string, string> = {
@@ -448,6 +461,7 @@ export const urduReviewedUi: Record<string, string> = {
   "Uploading": "اپ لوڈ ہو رہا ہے",
   "Logo uploaded": "لوگو اپ لوڈ ہو گیا",
   "Upload failed": "اپ لوڈ ناکام ہو گیا",
+  "Retry or remove {0} to send. Your message draft is still here.": "{0} کو بھیجنے سے پہلے دوبارہ کوشش کریں یا ہٹا دیں۔ آپ کا پیغام کا مسودہ اب بھی موجود ہے۔",
   "Could not prepare upload": "اپ لوڈ کی تیاری نہیں ہو سکی",
   "Carry Forward": "سابقہ بقایا یا کریڈٹ",
   "Edit fee item": "فیس کی مد میں ترمیم",
@@ -818,7 +832,7 @@ export const urduReviewedUi: Record<string, string> = {
 };
 
 /** Every Urdu UI key. The role re-architecture catalogs (§10.10) only fill gaps: reviewed entries win. */
-export const urduUi: Record<string, string> = { ...urduRoleUxUi, ...urduReviewedUi };
+export const urduUi: Record<string, string> = { ...urduRoleUxUi, ...urduCampusSetupUi, ...urduReviewedUi, ...urduSchoolBrandingUi, ...urduAdmissionsLifecycleUi, ...urduPortfolioLoadUi };
 
 const academicModelUi: Record<"ar" | "ur", Record<string, string>> = {
   ar: {
@@ -867,7 +881,7 @@ export function reviewedTranslation(source: string, language: "en" | "ar" | "ur"
   const catalog = language === "ar" ? arabicReviewedUi : urduReviewedUi;
   const workflow = language === "ar" ? arabicWorkflowUi : urduWorkflowUi;
   const navigation = language === "ar" ? arabicNavigationUi : urduNavigationUi;
-  return navigation[source] ?? catalog[source] ?? workflow[source] ?? academicModelUi[language][source] ?? academicModelUiExtra[language][source];
+  return navigation[source] ?? catalog[source] ?? workflow[source] ?? academicModelUi[language][source] ?? academicModelUiExtra[language][source] ?? (language === "ar" ? arabicWhatsappUi : urduWhatsappUi)[source] ?? (language === "ar" ? arabicConsentUi : urduConsentUi)[source] ?? (language === "ar" ? arabicImportRehearsalUi : urduImportRehearsalUi)[source] ?? (language === "ar" ? arabicSubjectSetupUi : urduSubjectSetupUi)[source] ?? (language === "ar" ? arabicClassSetupUi : urduClassSetupUi)[source] ?? (language === "ar" ? arabicClassSyncUi : urduClassSyncUi)[source] ?? (language === "ar" ? arabicGradingModelUi : urduGradingModelUi)[source] ?? (language === "ar" ? arabicTeacherAllocationUi : urduTeacherAllocationUi)[source] ?? (language === "ar" ? arabicSchoolBrandingUi : urduSchoolBrandingUi)[source] ?? (language === "ar" ? arabicPortfolioLoadUi : urduPortfolioLoadUi)[source];
 }
 
 const reportedMissing = new Set<string>();

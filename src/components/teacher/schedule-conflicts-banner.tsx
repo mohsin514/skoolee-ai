@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DAY_LABELS, detectSlotClashes, type ClashSlot } from "@/lib/timetable/clashes";
+import { deskRow } from "@/components/ui/desk";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,7 +58,7 @@ export function ScheduleConflictsBanner({
         <div className="mt-3 space-y-2">
           <ul className="space-y-2">
             {clashes.map((clash) => (
-              <li key={clash.key} className="rounded-xl border border-border-subtle bg-card p-3">
+              <li key={clash.key} data-tone="danger" className={deskRow}>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="danger" size="sm" dot>
                     {DAY_LABELS[clash.dayOfWeek] ? ui(DAY_LABELS[clash.dayOfWeek]) : ui("Day {0}", [clash.dayOfWeek])} · {ui("P{0}", [clash.periodNumber])}

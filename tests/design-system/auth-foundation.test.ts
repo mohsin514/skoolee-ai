@@ -376,5 +376,7 @@ test("globals.css: mascot block unlayered, every Front Desk motion has an off-sw
   // No new rule targets the pinned login field group. The one exception is
   // register's phone country-code picker, scoped to `select.sk-dial-code`,
   // which the login page never renders.
-  assert.doesNotMatch(front.replaceAll(".sk-input-group > select.sk-dial-code", ""), /\.sk-input-group/);
+  // Comments are stripped first: prose that mentions the group is not a rule.
+  const frontRules = front.replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.doesNotMatch(frontRules.replaceAll(".sk-input-group > select.sk-dial-code", ""), /\.sk-input-group/);
 });

@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Activity, ArrowRight, CheckCircle2, Clock,
-  Pause, Play, Plus, XCircle,
+  Activity, ArrowRight, CalendarRange, CheckCircle2, Clock,
+  CopyPlus, Pause, Play, Plus, XCircle,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
@@ -15,8 +15,11 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { useNavigationAccess } from "@/components/nav/NavigationAccess";
+import { Progress } from "@/components/ui/progress";
+import { DeskFilterStatus, DeskStats, RelativeTime, StatTile, deskRow, type DeskTone } from "@/components/ui/desk";
 
 
 interface Cycle {
@@ -27,7 +30,18 @@ interface Cycle {
   startDate: string | null;
   endDate: string | null;
   createdAt: string;
+  updatedAt: string;
 }
+
+const STATUS_TONE: Record<string, DeskTone | "muted"> = { DRAFT: "info", ACTIVE: "success", PAUSED: "warning", ENDED: "muted" };
+/** How far through its dates a year is, 0–100, or null while the dates are not set. */
+function yearProgress(start: string | null, end: string | null, now = Date.now()) {
+  if (!start || !end) return null;
+  const from = new Date(start).getTime(), to = new Date(end).getTime();
+  if (!(to > from)) return null;
+  return Math.round(Math.min(1, Math.max(0, (now - from) / (to - from))) * 100);
+}
+const day = (value: string | null) => (value ? value.slice(0, 10) : "");
 
 const statusConfig: Record<string, { color: string; bg: string; icon: typeof Activity; label: string; badge: "info" | "success" | "warning" | "neutral" }> = {
   DRAFT: { color: "text-status-info-text", bg: "bg-status-info-surface", icon: Clock, label: "Draft", badge: "info" },
@@ -86,6 +100,12 @@ export function CycleManagementPanel({
   const [newLabel, setNewLabel] = useState("");
   const [newYear, setNewYear] = useState(new Date().getFullYear());
   const [creating, setCreating] = useState(false);
+  const [newStart, setNewStart] = useState("");
+  const [newEnd, setNewEnd] = useState("");
+  // SKAI-116: inline date edit (one year at a time) and the holiday-impact confirmation it may need.
+  const [editing, setEditing] = useState<{ id: string; start: string; end: string; updatedAt: string } | null>(null);
+  const [savingDates, setSavingDates] = useState(false);
+  const [holidayWarning, setHolidayWarning] = useState<string | null>(null);
 
   const fetchCycles = useCallback(async () => {
     try {
@@ -98,6 +118,34 @@ export function CycleManagementPanel({
 
   useEffect(() => { fetchCycles(); }, [fetchCycles]);
 
+  const saveDates = async (confirm = false) => {
+    if (!editing) return;
+    if (!editing.start || !editing.end) return toast.error(ui("Enter the start and end dates"));
+    setSavingDates(true);
+    try {
+      const res = await fetch("/api/academic-cycle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update-dates", cycleId: editing.id, startDate: editing.start, endDate: editing.end, expectedUpdatedAt: editing.updatedAt, confirm }),
+      });
+      const json = await res.json();
+      if (json.code === "CONFIRM_HOLIDAYS") return setHolidayWarning(json.error);
+      if (!res.ok) throw new Error(json.error || ui("Could not update the academic year. Try again."));
+      toast.success(ui("Academic year dates saved"));
+      setHolidayWarning(null);
+      setEditing(null);
+      if (json.data) setCycles((prev) => prev.map((c) => (c.id === json.data.id ? json.data : c)));
+      emitCycleChanged();
+      fetchCycles();
+    } catch (err: any) {
+      // The form stays open with the typed dates so the office can correct and retry.
+      setHolidayWarning(null);
+      toast.error(err.message);
+    } finally {
+      setSavingDates(false);
+    }
+  };
+
   const doAction = async (action: string, cycleId: string) => {
     setActing(`${action}-${cycleId}`);
     try {
@@ -108,10 +156,12 @@ export function CycleManagementPanel({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || ui("Could not update the academic year. Try again."));
-      toast.success(ui(action === "pause" ? "Academic year paused" : action === "activate" ? "Academic year activated" : action === "resume" ? "Academic year resumed" : "Academic year updated"));
+      toast.success(ui(action === "pause" ? "Academic year paused" : action === "activate" ? "Academic year activated" : action === "resume" ? "Academic year resumed" : action === "rollover" ? "Next academic year drafted" : "Academic year updated"));
       // Update the affected cycle in place (no waiting on a second fetch) and
       // notify the header/badge to refresh the active-cycle indicator.
-      if (json.data) {
+      if (json.data && action === "rollover") {
+        setCycles((prev) => [json.data, ...prev]);
+      } else if (json.data) {
         setCycles((prev) =>
           prev.map((c) => (c.id === json.data.id ? json.data : c)),
         );
@@ -127,18 +177,21 @@ export function CycleManagementPanel({
 
   const handleCreate = async () => {
     if (!newLabel.trim()) return toast.error(ui("Enter a name for the academic year"));
+    if (!newStart || !newEnd) return toast.error(ui("Enter the start and end dates"));
     setCreating(true);
     try {
       const res = await fetch("/api/academic-cycle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "create", label: newLabel.trim(), academicYear: newYear }),
+        body: JSON.stringify({ action: "create", label: newLabel.trim(), academicYear: newYear, startDate: newStart, endDate: newEnd }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || ui("Could not create the academic year. Try again."));
       toast.success(ui("Academic year created"));
       setShowCreate(false);
       setNewLabel("");
+      setNewStart("");
+      setNewEnd("");
       // Show the new cycle immediately instead of waiting on a refetch.
       if (json.data) {
         setCycles((prev) => [json.data, ...prev.filter((c) => c.id !== json.data.id)]);
@@ -153,6 +206,10 @@ export function CycleManagementPanel({
   };
 
   const activeCycle = cycles.find((c) => c.status === "ACTIVE");
+  // Status counters double as filters once the list is long enough to need them.
+  const [focus, setFocus] = useState<string | null>(null);
+  const listed = focus ? cycles.filter((c) => c.status === focus) : cycles;
+  const elapsed = activeCycle ? yearProgress(activeCycle.startDate, activeCycle.endDate) : null;
   // `closeRequest` (a plain number) is the short form of `closeCommand={{ id: "close", nonce }}`.
   const command = useMemo<YearCloseCommand | undefined>(
     () => closeCommand ?? (closeRequest ? { id: "close", nonce: closeRequest } : undefined),
@@ -198,6 +255,16 @@ export function CycleManagementPanel({
 
   return (
     <div className="space-y-6">
+      <ConfirmAction
+        open={holidayWarning !== null}
+        tone="warning"
+        title={ui("Holidays fall outside the new dates")}
+        description={holidayWarning ?? ""}
+        confirmLabel={ui("Save dates anyway")}
+        busy={savingDates}
+        onConfirm={() => saveDates(true)}
+        onCancel={() => setHolidayWarning(null)}
+      />
       {/* Active cycle highlight */}
       {activeCycle && (
         <div className="sk-panel sk-gradient-border sk-rise p-6 shadow-md" style={{ animationDelay: "80ms" }}>
@@ -215,6 +282,15 @@ export function CycleManagementPanel({
                 </p>
               </div>
             </div>
+            {elapsed !== null && activeCycle.endDate ? (
+              <div className="w-full min-w-0 space-y-1.5 sm:order-last" data-cycle-progress={elapsed}>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-ink-muted">
+                  <span>{ui("{0} to {1}", [formatDay(activeCycle.startDate!), formatDay(activeCycle.endDate)])}</span>
+                  <span className="tabular-nums text-ink-strong"><bdi dir="ltr">{elapsed}%</bdi> · <RelativeTime iso={activeCycle.endDate} full={formatDay(activeCycle.endDate)} /></span>
+                </div>
+                <Progress value={elapsed} tone={elapsed >= 90 ? "warning" : "success"} label={ui("Academic year {0}", [activeCycle.academicYear])} />
+              </div>
+            ) : null}
             {canManageCycles ? (
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm"
@@ -287,6 +363,12 @@ export function CycleManagementPanel({
                 className="w-full px-4"
               />
             </FormField>
+            <FormField name="cycle-start" label={ui("Start date")}>
+              <SystemInput type="date" value={newStart} onChange={(e) => setNewStart(e.target.value)} className="w-full px-4" />
+            </FormField>
+            <FormField name="cycle-end" label={ui("End date")}>
+              <SystemInput type="date" value={newEnd} min={newStart || undefined} onChange={(e) => setNewEnd(e.target.value)} className="w-full px-4" />
+            </FormField>
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" size="sm"
@@ -310,7 +392,18 @@ export function CycleManagementPanel({
         />
       ) : (
         <div className="space-y-3">
-          {cycles.map((cycle, i) => {
+          {cycles.length > 3 ? (
+            <DeskStats data-cycle-stats>
+              {(["ACTIVE", "DRAFT", "PAUSED", "ENDED"] as const).map((status, index) => {
+                const count = cycles.filter((c) => c.status === status).length;
+                const tone = STATUS_TONE[status];
+                return <StatTile key={status} index={index} icon={statusConfig[status].icon} tone={tone === "muted" ? "neutral" : tone} value={count} label={ui(statusConfig[status].label)}
+                  onSelect={count ? () => setFocus(focus === status ? null : status) : undefined} selected={focus === status} data-cycle-focus={status} />;
+              })}
+            </DeskStats>
+          ) : null}
+          <DeskFilterStatus shown={listed.length} total={cycles.length} onClear={() => setFocus(null)} />
+          {listed.map((cycle, i) => {
             const config = statusConfig[cycle.status] || statusConfig.DRAFT;
             const Icon = config.icon;
             const isActive = cycle.status === "ACTIVE";
@@ -318,9 +411,10 @@ export function CycleManagementPanel({
             return (
               <div
                 key={cycle.id}
+                data-tone={STATUS_TONE[cycle.status] ?? "info"}
                 className={cn(
-                  "sk-panel sk-rise sk-hover-lift flex flex-wrap items-center justify-between gap-3 p-4",
-                  isActive && "border-status-success-border ring-1 ring-status-success-border"
+                  deskRow, "sk-rise flex flex-wrap items-center justify-between gap-3",
+                  isActive && "ring-1 ring-status-success-border"
                 )}
                 style={{ animationDelay: `${i * 60}ms` }}
               >
@@ -332,13 +426,14 @@ export function CycleManagementPanel({
                     <p className="text-sm font-bold text-ink-strong"><bdi>{cycle.label}</bdi></p>
                     <p className="text-xs font-semibold text-ink-muted">
                       {ui("Academic year {0}", [cycle.academicYear])}
-                      {cycle.startDate ? <> · {ui("Started {0}", [formatDay(cycle.startDate)])}</> : null}
-                      {cycle.endDate ? <> · {ui("Ended {0}", [formatDay(cycle.endDate)])}</> : null}
+                      {cycle.startDate && cycle.endDate
+                        ? <> · {ui("{0} to {1}", [formatDay(cycle.startDate), formatDay(cycle.endDate)])}</>
+                        : <> · {ui("Dates not set")}</>}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge size="sm" dot variant={config.badge}>
                     {ui(config.label)}
                   </Badge>
@@ -355,6 +450,28 @@ export function CycleManagementPanel({
                     </Button>
                   )}
 
+                  {canManageCycles && cycle.status !== "ENDED" && editing?.id !== cycle.id && (
+                    <Button variant="outline" size="sm" disabled={acting !== null}
+                      onClick={() => setEditing({ id: cycle.id, start: day(cycle.startDate), end: day(cycle.endDate), updatedAt: cycle.updatedAt })}
+                      className="flex justify-start items-center gap-1.5"
+                    >
+                      <CalendarRange className="h-3.5 w-3.5" aria-hidden="true" />
+                      {ui("Edit dates")}
+                    </Button>
+                  )}
+
+                  {canManageCycles && (cycle.status === "ACTIVE" || cycle.status === "ENDED") && !cycles.some((c) => c.academicYear === cycle.academicYear + 1) && (
+                    <Button variant="outline" size="sm"
+                      loading={acting === `rollover-${cycle.id}`}
+                      onClick={() => doAction("rollover", cycle.id)}
+                      disabled={acting !== null}
+                      className="flex justify-start items-center gap-1.5"
+                    >
+                      {acting === `rollover-${cycle.id}` ? null : <CopyPlus className="h-3.5 w-3.5" aria-hidden="true" />}
+                      {ui("Prepare next year")}
+                    </Button>
+                  )}
+
                   {canManageCycles && cycle.status === "PAUSED" && (
                     <Button variant="default" size="sm"
                       loading={acting === `resume-${cycle.id}`}
@@ -367,6 +484,24 @@ export function CycleManagementPanel({
                     </Button>
                   )}
                 </div>
+
+                {editing?.id === cycle.id && (
+                  <form
+                    className="grid w-full grid-cols-1 gap-3 border-t border-border-subtle pt-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
+                    onSubmit={(e) => { e.preventDefault(); saveDates(); }}
+                  >
+                    <FormField name={`start-${cycle.id}`} label={ui("Start date")}>
+                      <SystemInput type="date" value={editing.start} onChange={(e) => setEditing({ ...editing, start: e.target.value })} className="w-full px-4" />
+                    </FormField>
+                    <FormField name={`end-${cycle.id}`} label={ui("End date")}>
+                      <SystemInput type="date" value={editing.end} min={editing.start || undefined} onChange={(e) => setEditing({ ...editing, end: e.target.value })} className="w-full px-4" />
+                    </FormField>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(null)}>{ui("Cancel")}</Button>
+                      <Button type="submit" size="sm" loading={savingDates} disabled={savingDates}>{ui("Save dates")}</Button>
+                    </div>
+                  </form>
+                )}
               </div>
             );
           })}

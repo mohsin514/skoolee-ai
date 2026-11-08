@@ -195,6 +195,9 @@ export async function portfolio(user: AuthUser, studentId: string | null) {
     guardians: guardians.map(g => ({ id: g.guardianUserId!, name: g.fullName })) };
 }
 
+/** How long an identical share request from the same sender is replayed rather than created again. */
+const SHARE_REPLAY_MS = 10 * 60_000;
+
 export async function createShare(user: AuthUser, body: Record<string, unknown>) {
   return schoolAiTransaction(user, async tx => {
     const { student, role } = await studentFor(user, String(body.studentId ?? ""), tx);
@@ -207,7 +210,14 @@ export async function createShare(user: AuthUser, body: Record<string, unknown>)
     if (ok !== entryIds.length) throw new ApiError("Only entries approved for families can be shared.", 409);
     const days = Number(body.days ?? 30);
     if (!Number.isInteger(days) || days < 1 || days > 180) throw new ApiError("Share for 1 to 180 days.", 400);
-    return tx.portfolioShare.create({ data: { schoolId: user.schoolId, studentId: student.id, guardianUserId, title: text(body.title, 120) || "Learning progress", entryIds, expiresAt: new Date(Date.now() + days * 86_400_000), createdById: user.userId } });
+    const title = text(body.title, 120) || "Learning progress";
+    // A retried request (lost response) or a double tap repeats the same share: replay the live one it created.
+    // The request is serializable, so two racing submits cannot both insert; the loser retries and finds the winner.
+    const wanted = JSON.stringify([...entryIds].sort());
+    const recent = await tx.portfolioShare.findMany({ where: { schoolId: user.schoolId, studentId: student.id, guardianUserId, createdById: user.userId, revokedAt: null, createdAt: { gte: new Date(Date.now() - SHARE_REPLAY_MS) } }, orderBy: { createdAt: "desc" }, take: 10 });
+    const replay = recent.find(s => s.title === title && JSON.stringify([...s.entryIds].sort()) === wanted);
+    if (replay) return replay;
+    return tx.portfolioShare.create({ data: { schoolId: user.schoolId, studentId: student.id, guardianUserId, title, entryIds, expiresAt: new Date(Date.now() + days * 86_400_000), createdById: user.userId } });
   });
 }
 
@@ -242,11 +252,26 @@ export async function sharedCollection(user: AuthUser, shareId: string) {
 }
 
 /** Learners whose portfolios this teacher may open (their classes; leaders: their campus). */
-export async function teachingLearners(user: AuthUser) {
+export const LEARNER_PAGE_SIZE = 400;
+/** SKAI-1716: keyset over (fullName asc, id asc) so learners after the first page stay reachable. */
+export function learnerPageWhere(cursor: string | null | undefined) {
+  if (!cursor) return {};
+  const [name, id] = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8") || "null") ?? [];
+  if (typeof name !== "string" || typeof id !== "string" || !id) throw new ApiError("This list has changed. Reload it.", 400);
+  return { OR: [{ fullName: { gt: name } }, { fullName: name, id: { gt: id } }] };
+}
+export function learnerNextCursor(rows: { id: string; fullName: string }[]) {
+  if (rows.length <= LEARNER_PAGE_SIZE) return null;
+  const last = rows[LEARNER_PAGE_SIZE - 1];
+  return Buffer.from(JSON.stringify([last.fullName, last.id]), "utf8").toString("base64url");
+}
+export async function teachingLearners(user: AuthUser, cursor?: string | null) {
   if (user.role === "STUDENT" || user.role === "PARENT") throw new ApiError("Portfolio not found", 404);
   const lead = canManageOperations(user);
   const classIds = lead ? null : await teacherClassIds(user.userId);
-  const rows = await prisma.student.findMany({ where: { schoolId: user.schoolId, archivedAt: null, ...(lead ? (user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) : { classId: { in: classIds ?? [] } }) }, select: { id: true, fullName: true, rollNo: true, class: { select: { name: true, section: true } } }, orderBy: [{ fullName: "asc" }], take: 400 });
+  const fetched = await prisma.student.findMany({ where: { schoolId: user.schoolId, archivedAt: null, ...(lead ? (user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) : { classId: { in: classIds ?? [] } }), ...learnerPageWhere(cursor) }, select: { id: true, fullName: true, rollNo: true, class: { select: { name: true, section: true } } }, orderBy: [{ fullName: "asc" }, { id: "asc" }], take: LEARNER_PAGE_SIZE + 1 });
+  const nextCursor = learnerNextCursor(fetched);
+  const rows = fetched.slice(0, LEARNER_PAGE_SIZE);
   const counts = rows.length ? await prisma.portfolioEntry.groupBy({ by: ["studentId", "status"], where: { schoolId: user.schoolId, studentId: { in: rows.map(r => r.id) }, removedAt: null }, _count: { _all: true } }) : [];
-  return rows.map(r => ({ id: r.id, name: r.fullName, rollNo: r.rollNo, className: [r.class?.name, r.class?.section].filter(Boolean).join(" "), toReview: counts.filter(c => c.studentId === r.id && c.status === "PROPOSED").reduce((n, c) => n + c._count._all, 0) }));
+  return { learners: rows.map(r => ({ id: r.id, name: r.fullName, rollNo: r.rollNo, className: [r.class?.name, r.class?.section].filter(Boolean).join(" "), toReview: counts.filter(c => c.studentId === r.id && c.status === "PROPOSED").reduce((n, c) => n + c._count._all, 0) })), nextCursor };
 }

@@ -7,6 +7,7 @@ import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { calculateWeightedGradeForClass } from "@/lib/academic/grade-calculator";
+import { brandHex } from "@/lib/school/branding";
 
 const styles = StyleSheet.create({
   page: {
@@ -153,12 +154,15 @@ type CampusInfo = {
     website: string | null;
     tagline: string | null;
     contactEmail: string | null;
+    brandColor?: string | null;
   } | null;
 };
 
 function Header({ campus }: { campus: CampusInfo }) {
   const logo = campus.logoUrl || campus.school?.logoUrl || null;
   const tagline = campus.school?.tagline || null;
+  // SKAI-114: the school's palette colour underlines the header.
+  const brand = brandHex(campus.school?.brandColor);
   const contactLine = [
     campus.board,
     campus.city,
@@ -169,7 +173,7 @@ function Header({ campus }: { campus: CampusInfo }) {
   ].filter(Boolean).join(" | ");
 
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, brand ? { borderBottomColor: brand, borderBottomWidth: 2 } : {}]}>
       <View style={styles.headerRow}>
         {logo ? <Image src={logo} style={styles.logo} /> : null}
         <View style={styles.headerText}>
@@ -196,7 +200,7 @@ export async function generateClassGradesPdf(classId: string) {
     where: { id: classId },
     include: {
       campus: {
-        select: { name: true, city: true, address: true, phone: true, email: true, website: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true } } },
+        select: { name: true, city: true, address: true, phone: true, email: true, website: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, brandColor: true } } },
       },
     },
   });
@@ -217,7 +221,7 @@ export async function generateClassGradesPdf(classId: string) {
   const rollNoMap = new Map(students.map((s) => [s.id, s.rollNo]));
 
   return renderToBuffer(
-    <Document language={locale.language}>
+    <Document language={locale.language} title={`${t("Final Grades")} — ${className}`} creator="SkooleeAI" producer="SkooleeAI">
       <Page size="A4" style={[styles.page,{fontFamily:`Receipt-${locale.language}`,direction:rtl?"rtl":"ltr",textAlign:rtl?"right":"left"}]}>
         <Header campus={cls.campus} />
         <Text style={styles.title}>{t("Final Grades")}</Text><Text style={{fontSize:12,marginBottom:8}}>{className}</Text><Text style={styles.muted}>{number(cls.academicYear)}</Text>
@@ -225,7 +229,8 @@ export async function generateClassGradesPdf(classId: string) {
           {t("Students")}: {number(results.length)} · {t("Passed")}: {number(passed)} · {t("Failed")}: {number(results.length - passed)}
         </Text>
         <View style={styles.table}>
-          <View style={[styles.row, styles.th,{flexDirection:rtl?"row-reverse":"row"}]}>
+          {/* SKAI-1646: fixed repeats the column headings on every page of a long class. */}
+          <View fixed style={[styles.row, styles.th,{flexDirection:rtl?"row-reverse":"row"}]}>
             <Text style={[styles.cell, styles.flex1, styles.center]}>{t("Rank")}</Text>
             <Text style={[styles.cell, styles.flex2]}>{t("Student")}</Text>
             <Text style={[styles.cell, styles.flex1, styles.center]}>{t("Roll No")}</Text>
@@ -236,7 +241,7 @@ export async function generateClassGradesPdf(classId: string) {
           {results.map((r, i) => {
             const rowStyle = i === results.length - 1 ? [styles.row, styles.lastRow] : [styles.row];
             return (
-              <View key={r.studentId} style={[...rowStyle,{flexDirection:rtl?"row-reverse":"row"}]}>
+              <View key={r.studentId} wrap={false} style={[...rowStyle,{flexDirection:rtl?"row-reverse":"row"}]}>
                 <Text style={[styles.cell, styles.flex1, styles.center]}>#{number(r.rank)}</Text>
                 <Text style={[styles.cell, styles.flex2]}>{r.studentName}</Text>
                 <Text style={[styles.cell, styles.flex1, styles.center]}>{rollNoMap.get(r.studentId) || "-"}</Text>
@@ -259,7 +264,7 @@ export async function generateInvoicePdf(invoiceId: string) {
     include: {
       enrollment: true,
       campus: {
-        select: { name: true, city: true, address: true, phone: true, email: true, website: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true } } },
+        select: { name: true, city: true, address: true, phone: true, email: true, website: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, brandColor: true } } },
       },
       student: {
         include: { class: { select: { name: true, section: true } } },

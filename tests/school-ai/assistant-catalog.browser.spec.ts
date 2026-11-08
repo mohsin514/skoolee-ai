@@ -9,15 +9,17 @@ import { beginSchoolAiRequest, completeSchoolAiRequest } from "../../src/lib/sch
 import { schoolAiTransaction } from "../../src/lib/school-ai/transaction";
 import { resolveAssistantCatalog } from "../../src/lib/school-ai/assistant-catalog-service";
 import type { AuthUser } from "../../src/lib/auth";
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use isolated catalog fixtures only.");
 process.env.EMAIL_DEV_MODE = "true"; process.env.DISABLE_OUTBOUND_MESSAGES = "true";
 const db = new PrismaClient(), schoolId = `catalog-browser-${randomUUID()}`;
 let campusId = "", classId = "", user: AuthUser;
 async function login(context: BrowserContext) {
-  const token = await new SignJWT({ ...user, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  const token = await new SignJWT({ ...user, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
   await db.loginSession.create({ data: { schoolId, userId: user.userId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
-  await context.addCookies([{ name: "skoolee_token", value: token, url: "http://localhost:3106", httpOnly: true, sameSite: "Lax" }]);
+  await context.addCookies([{ name: "skoolee_token", value: token, url: SCHOOL_AI_ORIGIN, httpOnly: true, sameSite: "Lax" }]);
 }
 test.beforeAll(async () => { await db.school.create({ data: { id: schoolId, name: "Synthetic grounded assistant school", slug: schoolId, regId: schoolId, city: "Test", contactEmail: `${schoolId}@example.invalid`, status: "ACTIVE", plan: "PRO", registrationKind: "GROUP" } }); });
 test.afterAll(async () => { await db.school.delete({ where: { id: schoolId } }); await db.$disconnect(); });
@@ -60,7 +62,7 @@ test("API rejects a catalog outside the focused domain and stale current choices
   const forbidden = await page.request.get(`/api/school-ai/assistant/catalog?campusId=${campusId}&domain=work&query=${query}`); expect(forbidden.status()).toBe(403);
   const catalog = await (await page.request.get(`/api/school-ai/assistant/catalog?campusId=${campusId}&domain=announcements&query=${query}`)).json();
   await db.class.update({ where: { id: classId }, data: { name: "Renamed Grade Eight" } });
-  const stale = await page.request.post("/api/school-ai/assistant", { headers: { Origin: "http://localhost:3106" }, data: { message: "Prepare a message", language: "en", campusId, focus: { domain: "announcements" }, catalog: { query: catalog.query, snapshot: catalog.snapshot, selected: [{ kind: "class", id: classId }] }, idempotencyKey: randomUUID() } }); expect(stale.status()).toBe(409);
+  const stale = await page.request.post("/api/school-ai/assistant", { headers: { Origin: SCHOOL_AI_ORIGIN }, data: { message: "Prepare a message", language: "en", campusId, focus: { domain: "announcements" }, catalog: { query: catalog.query, snapshot: catalog.snapshot, selected: [{ kind: "class", id: classId }] }, idempotencyKey: randomUUID() } }); expect(stale.status()).toBe(409);
   await picker.getByRole("button", { name: assistantCatalogCopy("en").refresh, exact: true }).click(); await expect(picker.getByRole("checkbox", { name: "Renamed Grade Eight · A · 2026", exact: true })).toBeVisible();
 });
 test("failed server generation restores the exact named selection on reload and changing it starts a new request", async ({ page }) => {

@@ -92,7 +92,7 @@ const receiptView = (row: VersionRow) => ({
 const returnedFeedback = (row: VersionRow) => row.feedback?.status === "RETURNED"
   ? { criteria: row.feedback.criteria as Score[], comment: row.feedback.comment, totalPoints: row.feedback.totalPoints, returnedAt: row.feedback.returnedAt, rubricVersion: row.feedback.rubricVersion }
   : null;
-const staffFeedback = (row: VersionRow) => row.feedback ? { ...returnedFeedback(row), status: row.feedback.status, criteria: row.feedback.criteria as Score[], comment: row.feedback.comment, totalPoints: row.feedback.totalPoints, gradebookTransfer: row.feedback.gradebookTransfer } : null;
+const staffFeedback = (row: VersionRow) => row.feedback ? { ...returnedFeedback(row), status: row.feedback.status, criteria: row.feedback.criteria as Score[], comment: row.feedback.comment, totalPoints: row.feedback.totalPoints, gradebookTransfer: row.feedback.gradebookTransfer, updatedAt: row.feedback.updatedAt.toISOString() } : null;
 
 async function rubricsOf(tx: TxClient, user: AuthUser, assignmentId: string) {
   const rows = await tx.assignmentRubricVersion.findMany({ where: { schoolId: user.schoolId, assignmentId }, orderBy: { version: "asc" } });
@@ -142,7 +142,24 @@ async function learnerView(tx: TxClient, user: AuthUser, access: LearnerAccess, 
 }
 
 // ─── Reading ──────────────────────────────────────────────────────
-export const listInput = z.object({ classId: z.string().min(1).optional() }).strict();
+export const listInput = z.object({ classId: z.string().min(1).optional(), cursor: z.string().min(1).max(200).optional() }).strict();
+export const ASSIGNMENT_PAGE_SIZE = 200;
+
+/** SKAI-1699: stable keyset page over (updatedAt desc, id desc); the cursor is the last row returned. */
+export function assignmentPageWhere(cursor: string | undefined) {
+  if (!cursor) return {};
+  const [at, id] = Buffer.from(cursor, "base64url").toString("utf8").split("|");
+  const when = new Date(at ?? "");
+  if (!id || Number.isNaN(when.getTime())) throw new ApiError("This page link has expired. Reload the list.", 400);
+  return { OR: [{ updatedAt: { lt: when } }, { updatedAt: when, id: { lt: id } }] };
+}
+export function assignmentPage<T extends { id: string; updatedAt: Date }>(rows: T[]) {
+  const page = rows.slice(0, ASSIGNMENT_PAGE_SIZE);
+  const last = page[page.length - 1];
+  const nextCursor = rows.length > ASSIGNMENT_PAGE_SIZE && last ? Buffer.from(`${last.updatedAt.toISOString()}|${last.id}`, "utf8").toString("base64url") : null;
+  return { page, nextCursor };
+}
+const pageOrder = [{ updatedAt: "desc" as const }, { id: "desc" as const }];
 
 export async function listAssignments(user: AuthUser, raw: unknown, now = new Date()) {
   const input = listInput.parse(raw);
@@ -150,28 +167,29 @@ export async function listAssignments(user: AuthUser, raw: unknown, now = new Da
     if (user.role === "STUDENT" || user.role === "PARENT") {
       const students = await learnerStudents(tx, user);
       const subs = await tx.assignmentSubmission.findMany({ where: { schoolId: user.schoolId, studentId: { in: students.map(s => s.id) }, latestVersion: { gt: 0 } }, select: { assignmentId: true } });
-      const rows = await tx.assignment.findMany({ where: { schoolId: user.schoolId, status: { not: "DRAFT" }, OR: [{ classId: { in: students.map(s => s.classId) } }, { id: { in: subs.map(s => s.assignmentId) } }] }, orderBy: { updatedAt: "desc" }, take: 200 });
+      const { page: rows, nextCursor } = assignmentPage(await tx.assignment.findMany({ where: { schoolId: user.schoolId, status: { not: "DRAFT" }, AND: [{ OR: [{ classId: { in: students.map(s => s.classId) } }, { id: { in: subs.map(s => s.assignmentId) } }] }, assignmentPageWhere(input.cursor)] }, orderBy: pageOrder, take: ASSIGNMENT_PAGE_SIZE + 1 }));
       const items = [];
       for (const row of rows) for (const student of students) {
         const access = await learnerAccess(tx, user, row.id, now, student.id).catch(() => null);
         if (access) items.push(await learnerView(tx, user, access, now));
       }
       items.sort((a, b) => new Date(a.effectiveDueAt).getTime() - new Date(b.effectiveDueAt).getTime());
-      return { mode: user.role === "PARENT" ? "guardian" as const : "learner" as const, assignments: items };
+      return { mode: user.role === "PARENT" ? "guardian" as const : "learner" as const, assignments: items, nextCursor };
     }
     const scope = await authorClassIds(tx, user);
     const classes = await tx.class.findMany({ where: { schoolId: user.schoolId, archivedAt: null, ...(scope === "campus" ? (user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) : { id: { in: scope } }) }, select: { id: true, name: true, section: true }, orderBy: [{ name: "asc" }] });
     if (!classes.length) throw new ApiError("You have no classes to set work for.", 403);
     if (input.classId && !classes.some(c => c.id === input.classId)) throw new ApiError("You cannot set work for this class.", 403);
     const classId = input.classId ?? classes[0].id;
-    const [rows, subjects] = await Promise.all([
-      tx.assignment.findMany({ where: { schoolId: user.schoolId, classId }, orderBy: { updatedAt: "desc" }, take: 200 }),
+    const [fetched, subjects] = await Promise.all([
+      tx.assignment.findMany({ where: { schoolId: user.schoolId, classId, ...assignmentPageWhere(input.cursor) }, orderBy: pageOrder, take: ASSIGNMENT_PAGE_SIZE + 1 }),
       tx.subject.findMany({ where: { schoolId: user.schoolId, classId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     ]);
+    const { page: rows, nextCursor } = assignmentPage(fetched);
     const releases = await tx.assignmentVersion.findMany({ where: { schoolId: user.schoolId, assignmentId: { in: rows.map(r => r.id) } }, select: { assignmentId: true, version: true, dueAt: true, dueLocal: true, timezone: true, audience: true, rubricVersion: true } });
     const submissions = await tx.assignmentSubmission.findMany({ where: { schoolId: user.schoolId, assignmentId: { in: rows.map(r => r.id) }, latestVersion: { gt: 0 } }, include: { versions: { include: { feedback: { select: { status: true } } }, orderBy: { version: "desc" }, take: 1 } } });
     return {
-      mode: "staff" as const, classId, classes, subjects,
+      mode: "staff" as const, classId, classes, subjects, nextCursor,
       assignments: rows.map(row => {
         const release = releases.find(r => r.assignmentId === row.id && r.version === row.currentVersion);
         const mine = submissions.filter(s => s.assignmentId === row.id);
@@ -379,6 +397,8 @@ export async function grantExtension(user: AuthUser, assignmentId: string, raw: 
   const input = extensionInput.parse(raw);
   return schoolAiTransaction(user, async tx => {
     const assignment = await authorAssignment(tx, user, assignmentId);
+    // SKAI-1749: learners can submit only while the work is RELEASED, so a closed assignment takes no new extensions.
+    if (assignment.status === "CLOSED") throw new ApiError("This assignment is closed.", 409);
     const { release } = await recipient(tx, user, assignment, input.studentId);
     const { timezone } = await getLocalePackage(user.schoolId, assignment.campusId, now, null, tx);
     let dueAt: Date;
@@ -531,6 +551,7 @@ export async function recordPaperSubmission(user: AuthUser, assignmentId: string
 export const feedbackInput = z.object({
   submissionVersionId: z.string().min(1), scores: z.array(scoreSchema).max(20), comment: z.string().trim().max(4000).default(""),
   requestGradebookTransfer: z.boolean().default(false),
+  expectedUpdatedAt: z.string().datetime().nullable().optional(),
 }).strict();
 export const returnInput = feedbackInput.extend({ allowRevision: z.boolean().default(false) }).strict();
 
@@ -544,6 +565,24 @@ async function markable(tx: TxClient, user: AuthUser, assignmentId: string, subm
 }
 
 /** A private marking draft against the submission's own rubric version. */
+/**
+ * SKAI-1484: marking drafts are optimistic-concurrency writes. The caller sends the draft's updatedAt it
+ * loaded (null when none existed); a different, missing or returned draft is a 409, never a silent overwrite.
+ */
+async function writeFeedback(tx: TxClient, user: AuthUser, version: { id: string; rubricVersion: number }, expected: string | null | undefined, data: Prisma.AssignmentFeedbackUncheckedUpdateInput, allowReturned: boolean) {
+  const stale = () => new ApiError("Someone else changed this marking. Reload to review their version before saving.", 409);
+  const existing = await tx.assignmentFeedback.findUnique({ where: { submissionVersionId: version.id }, select: { id: true, status: true, updatedAt: true } });
+  if (!existing) {
+    if (expected) throw stale();
+    return tx.assignmentFeedback.create({ data: { schoolId: user.schoolId, submissionVersionId: version.id, rubricVersion: version.rubricVersion, ...data } as Prisma.AssignmentFeedbackUncheckedCreateInput });
+  }
+  if (!allowReturned && existing.status === "RETURNED") throw new ApiError("This feedback was already returned and cannot be changed.", 409);
+  if (expected !== existing.updatedAt.toISOString()) throw stale();
+  const claimed = await tx.assignmentFeedback.updateMany({ where: { id: existing.id, updatedAt: existing.updatedAt }, data });
+  if (claimed.count !== 1) throw stale();
+  return tx.assignmentFeedback.findUniqueOrThrow({ where: { id: existing.id } });
+}
+
 export async function saveFeedback(user: AuthUser, assignmentId: string, raw: unknown) {
   const input = feedbackInput.parse(raw);
   return schoolAiTransaction(user, async tx => {
@@ -551,7 +590,7 @@ export async function saveFeedback(user: AuthUser, assignmentId: string, raw: un
     const issues = scoreIssues(criteria, input.scores, false);
     if (issues.length) throw new ApiError(issues.join(" "), 400);
     const data = { criteria: input.scores, comment: input.comment, totalPoints: input.scores.some(s => s.points !== null) ? scoreTotal(input.scores) : null, gradebookTransfer: input.requestGradebookTransfer ? "REQUESTED" : "NOT_REQUESTED", markerId: user.userId };
-    return tx.assignmentFeedback.upsert({ where: { submissionVersionId: version.id }, create: { schoolId: user.schoolId, submissionVersionId: version.id, rubricVersion: version.rubricVersion, ...data }, update: data });
+    return writeFeedback(tx, user, version, input.expectedUpdatedAt, data, false);
   });
 }
 
@@ -562,10 +601,11 @@ export async function returnFeedback(user: AuthUser, assignmentId: string, raw: 
     const { assignment, version, criteria } = await markable(tx, user, assignmentId, input.submissionVersionId);
     const issues = scoreIssues(criteria, input.scores, true);
     if (issues.length) throw new ApiError(issues.join(" "), 400);
-    const release = await tx.assignmentVersion.findFirstOrThrow({ where: { schoolId: user.schoolId, assignmentId, version: assignment.currentVersion! } });
+    // SKAI-1645: revision rights follow the immutable release this work was submitted under, not the latest release.
+    const release = await tx.assignmentVersion.findFirstOrThrow({ where: { schoolId: user.schoolId, assignmentId, version: version.assignmentVersion } });
     if (input.allowRevision && release.resubmission === "NEVER") throw new ApiError("This assignment does not allow another version.", 409);
     const data = { criteria: input.scores, comment: input.comment, totalPoints: scoreTotal(input.scores), status: "RETURNED", returnedAt: now, gradebookTransfer: input.requestGradebookTransfer ? "REQUESTED" : "NOT_REQUESTED", markerId: user.userId };
-    const feedback = await tx.assignmentFeedback.upsert({ where: { submissionVersionId: version.id }, create: { schoolId: user.schoolId, submissionVersionId: version.id, rubricVersion: version.rubricVersion, ...data }, update: data });
+    const feedback = await writeFeedback(tx, user, version, input.expectedUpdatedAt, data, false);
     const submission = await tx.assignmentSubmission.findFirstOrThrow({ where: { id: version.submissionId, schoolId: user.schoolId } });
     if (submission.latestVersion === version.version) await tx.assignmentSubmission.update({ where: { id: submission.id }, data: { status: input.allowRevision ? "REOPENED" : "RETURNED" } });
     await audit(tx, user, assignment, { action: "RETURN", studentId: version.studentId, version: version.version, total: feedback.totalPoints ?? 0, reopened: input.allowRevision, gradebookTransfer: feedback.gradebookTransfer });

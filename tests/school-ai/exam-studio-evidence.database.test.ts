@@ -17,7 +17,7 @@ import { assessmentFixture } from "./assessment-fixture";
 // SKO-408 R19 against the isolated database (Property 29): the full chain, keys only with the
 // right, named gaps, scope fences, a frozen record, and a download an independent tool verifies.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PG55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PG55438.");
 const raw = new PrismaClient();
 const schoolId = `evp408-${randomUUID()}`, campusId = randomUUID(), otherCampusId = randomUUID(), classId = randomUUID(), subjectId = randomUUID();
 const actor = (role: AuthUser["role"], campus = campusId): AuthUser => ({ userId: randomUUID(), schoolId, campusId: campus, role, email: `${randomUUID()}@example.invalid`, accessVersion: 0 });

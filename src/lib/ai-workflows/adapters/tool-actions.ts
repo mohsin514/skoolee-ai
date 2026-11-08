@@ -9,6 +9,10 @@ import { assertWorkspacePermission, SchoolAiError } from "@/lib/school-ai/access
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { logCall } from "@/lib/front-desk/phone-calls";
 import type { ToolAction } from "./tool-schemas";
+
+/** Actions whose checks read or write school-wide state (plan capacity, unique campus or ISBN names). */
+const SCHOOL_WIDE_ACTIONS: ReadonlySet<string> = new Set(["campus.create", "library.create_books"]);
+
 export async function executeRoleAction(user: AuthUser, campusId: string | null, key: string, action: ToolAction): Promise<Record<string, unknown>> {
  if (action.tool === "platform.inspect" || action.tool === "platform.update_institution") return executePlatformAction(user, key, action);
  if (action.tool === "students.create") return createAutomaticStudents(user, campusId, key, action.data);
@@ -20,7 +24,11 @@ export async function executeRoleAction(user: AuthUser, campusId: string | null,
  }
  return schoolAiTransaction(user, async tx => {
   // This lock and the receipt commit make retries safe even after a lost response.
-  await tx.$queryRaw`SELECT id FROM schools WHERE id=${user.schoolId} FOR UPDATE`;
+  // SKAI-1378: only school-wide writes lock the school row. A personal action locks the actor's own row, so
+  // a setup job's writes do not queue behind every other write in the school inside one 20s transaction.
+  // The unique (schoolId, actorId, feature, idempotencyKey) receipt still rejects a duplicate key.
+  if (SCHOOL_WIDE_ACTIONS.has(action.tool)) await tx.$queryRaw`SELECT id FROM schools WHERE id=${user.schoolId} FOR UPDATE`;
+  else await tx.$queryRaw`SELECT id FROM users WHERE id=${user.userId} FOR UPDATE`;
   const fingerprint = createHash("sha256").update(JSON.stringify(action)).digest("hex");
   const previous = await tx.schoolAiRequest.findFirst({ where: { schoolId: user.schoolId, actorId: user.userId, feature: "AUTOMATIC_ACTION_V1", idempotencyKey: key } });
   if (previous) { if (previous.requestHash !== fingerprint) throw new SchoolAiError("The saved action changed. Start a new request.", 409); return JSON.parse(previous.reply!) as Record<string, unknown>; }

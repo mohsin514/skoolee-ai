@@ -106,7 +106,7 @@ const LEAVE_APPLY = defineCapability<LeaveInput>({
     // The route's overlap guard, asked before the preview: an identical request is this step's own replay
     // (reconciled in execute); any other overlapping request is refused.
     const { start, end } = leaveRange(input);
-    const overlap = await findOverlappingLeave(campusId, ctx.user.userId, start, end);
+    const overlap = await findOverlappingLeave(prisma, campusId, ctx.user.userId, start, end);
     if (overlap && !(await identicalLeave(campusId, ctx.user.userId, type.id, bound))) {
       throw new WorkflowError("DOMAIN_REFUSED", { reason: "LEAVE_OVERLAP", status: overlap.status, from: overlap.fromDate.toISOString().slice(0, 10), to: overlap.toDate.toISOString().slice(0, 10) });
     }

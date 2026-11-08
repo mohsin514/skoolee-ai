@@ -52,6 +52,7 @@ import type { OrgNode } from "@/lib/staff/hierarchy";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { DeskPill, DeskStats, StatTile, deskTimeline } from "@/components/ui/desk";
 
 
 export interface DesignationOption {
@@ -691,10 +692,10 @@ function ServiceRecord({
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Stat icon={CalendarDays} label={ui("Joined")} value={joiningDate ? date(joiningDate) : ui("Not recorded")} />
-        <Stat icon={ArrowUpRight} label={ui("In current rank since")} value={rankSince ? date(rankSince) : ui("Not recorded")} />
-      </div>
+      <DeskStats>
+        <StatTile icon={CalendarDays} tone="info" label={ui("Joined")} value={<span className="text-base sm:text-lg">{joiningDate ? date(joiningDate) : ui("Not recorded")}</span>} />
+        <StatTile icon={ArrowUpRight} index={1} label={ui("In current rank since")} value={<span className="text-base sm:text-lg">{rankSince ? date(rankSince) : ui("Not recorded")}</span>} />
+      </DeskStats>
 
       {chain.length > 0 ? (
         <section className="space-y-2">
@@ -718,15 +719,14 @@ function ServiceRecord({
         {history.length === 0 ? (
           <EmptyState size="sm" icon={History} title={ui("Nothing recorded yet")} description={ui("The first change you save here starts the record.")} />
         ) : (
-          <ol className="relative space-y-3 border-s border-edge/50 ps-5">
+          <ol className={deskTimeline}>
             {history.map((entry) => (
-              <li key={entry.id} className="relative">
-                <span className={cn("absolute -start-[27px] top-1.5 h-3 w-3 rounded-full border-2 border-white", entry.effectiveTo ? "bg-edge" : "bg-primary")} />
-                <div className="rounded-2xl border border-edge/30 bg-card p-3">
+              <li key={entry.id} data-tone={entry.effectiveTo ? "neutral" : "success"}>
+                <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-bold text-ink">{ui(CHANGE_KIND_LABELS[entry.changeKind as keyof typeof CHANGE_KIND_LABELS] ?? entry.changeKind)}</span>
-                    {entry.isActing ? <Badge variant="warning" size="sm">{ui("Acting")}</Badge> : null}
-                    {!entry.effectiveTo ? <Badge variant="success" size="sm" dot>{ui("Current")}</Badge> : null}
+                    {entry.isActing ? <DeskPill tone="warning">{ui("Acting")}</DeskPill> : null}
+                    {!entry.effectiveTo ? <DeskPill tone="success">{ui("Current")}</DeskPill> : null}
                     <span className="ms-auto text-2xs font-semibold tabular-nums text-ink-muted">
                       {date(entry.effectiveFrom)}
                       {entry.effectiveTo ? <> <span aria-hidden="true" className="inline-block rtl:rotate-180">→</span> {date(entry.effectiveTo)}</> : null}
@@ -762,18 +762,6 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       <label className="block text-2xs font-bold text-ink">{label}</label>
       {children}
       {hint ? <p className="text-xs font-normal text-ink-muted">{hint}</p> : null}
-    </div>
-  );
-}
-
-function Stat({ icon: Icon, label, value }: { icon: typeof CalendarDays; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl bg-muted/60 px-4 py-3">
-      <Icon className="h-4 w-4 shrink-0 text-primary" />
-      <div className="min-w-0">
-        <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wide text-ink-subtle">{label}</p>
-        <p className="truncate text-xs font-bold text-ink">{value}</p>
-      </div>
     </div>
   );
 }

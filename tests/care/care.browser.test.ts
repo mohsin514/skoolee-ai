@@ -15,7 +15,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // text and can never reach an implicated guardian; emergency access is short, audited, stops views and exports
 // the moment it ends, and is reviewed by the lead.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.CARE_TEST_APP || "http://localhost:3107";
 const evidence = process.env.CARE_EVIDENCE_DIR || "/tmp/sko439-evidence";
 const db = new PrismaClient(), password = "SyntheticCare439!";
@@ -54,7 +54,8 @@ const relate = async (guardianKey: string) => {
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Cedar School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO", timezone: "Asia/Karachi" } as never });
   for (const [cid, name] of [[north, "Cedar North"], [south, "Cedar South"]]) { await db.campus.create({ data: { id: cid, schoolId, name, regId: cid, city: "Lahore" } }); await db.academicCycle.create({ data: { schoolId, campusId: cid, label: "2026", academicYear: 2026, status: "ACTIVE" } }); }
-  await user("campusAdmin", "CAMPUS_ADMIN"); // role-ux §7.6: campus operations (the principal is academic and holds none of this) await user("nurse", "TEACHER"); await user("clinicLead", "TEACHER"); await user("clinicStaff", "RECEPTIONIST");
+  // role-ux §7.6: campus operations (the principal is academic and holds none of this).
+  await user("campusAdmin", "CAMPUS_ADMIN"); await user("nurse", "TEACHER"); await user("clinicLead", "TEACHER"); await user("clinicStaff", "RECEPTIONIST");
   await user("sgLead", "TEACHER"); await user("sgDeputy", "TEACHER"); await user("teacher", "TEACHER"); await user("support", "ACCOUNTANT"); await user("southTeacher", "TEACHER", south);
   await user("teacher-ar", "TEACHER", north, "ar"); await user("guardianA", "PARENT"); await user("guardianB", "PARENT");
   await db.class.create({ data: { id: classId, schoolId, campusId: north, name: "Grade 6", section: "B", academicYear: 2026 } });

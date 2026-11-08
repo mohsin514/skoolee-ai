@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, Compass } from "lucide-react";
 import { useDocumentLocale } from "@/hooks/use-document-locale";
-import { translateUi } from "@/lib/locale/ui-messages";
+import { translateUi } from "@/lib/locale/ui-translate";
 import { buttonVariants } from "./button";
 
 /** The 404 view: says the address is wrong, not the reader, and offers the way back. */

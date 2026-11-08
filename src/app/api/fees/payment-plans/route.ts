@@ -5,6 +5,8 @@ import { ApiError, assertPermission, assertSharedModuleRead, assertStaffRole, er
 import { studentScope } from "@/lib/auth/policy";
 import { installmentStates, validatePlan, type Installment } from "@/lib/fees/installments";
 import { schoolToday } from "@/lib/fees/statement";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-431: instalment agreements for one invoice. Finance staff propose a schedule that adds up exactly
 // to what is still owed; a different staff member approves it; families see the approved schedule.
@@ -39,7 +41,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     assertStaffRole(user);
     await assertPermission(user, "fees", "add");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const installments: Installment[] = Array.isArray(body.installments) ? body.installments.map((item: { dueDate?: unknown; amount?: unknown }) => ({ dueDate: String(item?.dueDate ?? ""), amount: Number(item?.amount) })) : [];
     const plan = await prisma.$transaction(async (tx) => {
       const invoice = await tx.invoice.findFirst({ where: { id: String(body.invoiceId ?? ""), schoolId: user.schoolId, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? null : user.campusId) }, select: { id: true, schoolId: true, campusId: true, studentId: true, status: true, currency: true, balanceDue: true, totalAmountPaid: true, school: { select: { timezone: true } } } });
@@ -64,7 +66,7 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     assertStaffRole(user);
     await assertPermission(user, "fees", "edit");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const action = body.action === "approve" || body.action === "cancel" ? body.action : null;
     if (!action) throw new ApiError("action must be approve or cancel", 400);
     const result = await prisma.$transaction(async (tx) => {

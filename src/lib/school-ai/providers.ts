@@ -2,6 +2,7 @@ import OpenAI, { toFile } from "openai";
 import { ApiError } from "@/lib/api/scope";
 import { getAITextProviderStatus } from "@/lib/ai/openai";
 import { approvedOpenAIEndpoint } from "@/lib/ai/openai-settings";
+import { recordProviderUsage, type ProviderUsageContext } from "@/lib/ai/provider-usage";
 import { extractionSchema, unreviewedExtraction, parseModelJson } from "./intake";
 import { sourceStorageAvailable } from "./source-storage";
 import { transcriptConfidence } from "./voice";
@@ -45,7 +46,7 @@ function mediaClient(task: MediaTask) {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: "https://api.openai.com/v1", timeout: 60000, maxRetries: 0 });
 }
 
-export async function extractDocument(bytes: Buffer, fileName: string, mimeType: string, language: Language) {
+export async function extractDocument(bytes: Buffer, fileName: string, mimeType: string, language: Language, usage?: ProviderUsageContext) {
   if (mimeType === "text/plain" || mimeType === "text/csv") {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     // A text file has no physical page boundaries. Do not invent page numbers.
@@ -65,6 +66,7 @@ export async function extractDocument(bytes: Buffer, fileName: string, mimeType:
     ] }],
     text: { format: { type: "json_object" } },
   });
+  await recordProviderUsage(usage, { action: "EXTRACT_DOCUMENT", model: response.model || model, tokensUsed: response.usage?.total_tokens ?? 0, metadata: { bytes: bytes.length, mimeType, language, status: response.status ?? "unknown" } });
   if (response.status !== "completed") throw new ApiError("Extraction was incomplete. The original can be reviewed manually.", 422);
   return { ...unreviewedExtraction(parseModelJson(response.output_text)), model: response.model, tokensUsed: response.usage?.total_tokens ?? 0 };
 }

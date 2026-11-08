@@ -204,6 +204,11 @@ export async function approveBatch(user: AuthUser, batchId: string, body: Record
   });
 }
 
+/** A mark's state as the scan sees it: the baseline, the receipt and the moved-since-import check compare these fields. */
+type MarkState = { marksObtained: number; isAbsent: boolean; isExempt?: boolean };
+const markState = (m: MarkState) => ({ marksObtained: m.marksObtained, isAbsent: m.isAbsent, isExempt: m.isExempt === true });
+type MarkChange = { studentId: string; before: MarkState | null; after: MarkState };
+
 /**
  * Write the approved marks. `decisions` resolves marks someone else changed since the scan began
  * ("overwrite" or "keep"); without a decision for each, nothing is written. Same commitKey → same receipt.
@@ -223,12 +228,12 @@ export async function commitBatch(user: AuthUser, batchId: string, body: Record<
     const enrolled = new Set((await tx.student.findMany({ where: { schoolId: user.schoolId, classId: exam.classId, archivedAt: null, status: "active", id: { in: cells.map(c => c.studentId) } }, select: { id: true } })).map(s => s.id));
     if (cells.some(c => !enrolled.has(c.studentId))) throw new ApiError("A pupil on this sheet has left the class. Leave their mark out and approve again.", 409);
     const existing = new Map((await tx.mark.findMany({ where: { examId: exam.id, subjectId: subject.id, studentId: { in: cells.map(c => c.studentId) } } })).map(m => [m.studentId, m]));
-    const base = batch.baseline as Record<string, { marksObtained: number; isAbsent: boolean } | undefined>;
-    const conflicts = cells.filter(c => { const now = existing.get(c.studentId), before = base[c.studentId]; return JSON.stringify(now ? [now.marksObtained, now.isAbsent] : null) !== JSON.stringify(before ? [before.marksObtained, before.isAbsent] : null); });
+    const base = batch.baseline as Record<string, MarkState | undefined>;
+    const conflicts = cells.filter(c => { const now = existing.get(c.studentId), before = base[c.studentId]; return JSON.stringify(now ? markState(now) : null) !== JSON.stringify(before ? markState(before) : null); });
     const undecided = conflicts.filter(c => !["overwrite", "keep"].includes(decisions[c.studentId]));
     if (undecided.length) throw new ApiError(JSON.stringify({ code: "CONFLICTS", studentIds: undecided.map(c => c.studentId) }), 409);
     const thresholds = await thresholdsForClass(exam.classId, exam.academicYear, tx, exam.academicModelVersionId);
-    const changed: { studentId: string; before: { marksObtained: number; isAbsent: boolean } | null; after: { marksObtained: number; isAbsent: boolean } }[] = [], kept: string[] = [], unchanged: string[] = [];
+    const changed: MarkChange[] = [], kept: string[] = [], unchanged: string[] = [];
     for (const cell of cells) {
       if (decisions[cell.studentId] === "keep" && conflicts.includes(cell)) { kept.push(cell.studentId); continue; }
       const absent = cell.reviewedAbsent, obtained = absent ? 0 : Number(cell.reviewedValue);
@@ -239,7 +244,7 @@ export async function commitBatch(user: AuthUser, batchId: string, body: Record<
         ? await tx.mark.update({ where: { id: old.id }, data: { marksObtained: obtained, isAbsent: absent, isExempt: false, grade, enteredBy: user.userId } })
         : await tx.mark.create({ data: { schoolId: user.schoolId, campusId: exam.campusId, examId: exam.id, studentId: cell.studentId, subjectId: subject.id, marksObtained: obtained, isAbsent: absent, grade, enteredBy: user.userId } });
       await tx.auditLog.create({ data: { schoolId: user.schoolId, campusId: exam.campusId, tableName: "marks", recordId: mark.id, userId: user.userId, oldValue: old ? { marksObtained: old.marksObtained, isAbsent: old.isAbsent, isExempt: old.isExempt } : Prisma.JsonNull, newValue: { marksObtained: obtained, isAbsent: absent, source: "MARK_SCAN", batchId, templateVersion: template.version, corrected: cell.corrected } } });
-      changed.push({ studentId: cell.studentId, before: old ? { marksObtained: old.marksObtained, isAbsent: old.isAbsent } : null, after: { marksObtained: obtained, isAbsent: absent } });
+      changed.push({ studentId: cell.studentId, before: old ? markState(old) : null, after: { marksObtained: obtained, isAbsent: absent, isExempt: false } });
     }
     const receipt = { batchId, committedAt: new Date().toISOString(), changed, kept, unchanged, excluded: await tx.markScanCell.count({ where: { batchId, status: "EXCLUDED" } }), corrected: cells.filter(c => c.corrected).length };
     await tx.markScanBatch.update({ where: { id: batchId }, data: { status: "COMMITTED", commitKey, committedAt: new Date(), receipt: receipt as unknown as Prisma.InputJsonValue } });
@@ -254,13 +259,18 @@ export async function reverseBatch(user: AuthUser, batchId: string) {
     if (batch.status !== "COMMITTED") throw new ApiError("Only an imported scan can be reversed.", 409);
     const thresholds = await thresholdsForClass(exam.classId, exam.academicYear, tx, exam.academicModelVersionId);
     assertOpen(await tx.exam.findUniqueOrThrow({ where: { id: exam.id }, select: { status: true, isLocked: true } }));
-    const receipt = batch.receipt as { changed: { studentId: string; before: { marksObtained: number; isAbsent: boolean } | null; after: { marksObtained: number; isAbsent: boolean } }[] };
+    const receipt = batch.receipt as { changed: MarkChange[] };
     const marks = new Map((await tx.mark.findMany({ where: { examId: exam.id, subjectId: subject.id, studentId: { in: receipt.changed.map(c => c.studentId) } } })).map(m => [m.studentId, m]));
-    const moved = receipt.changed.filter(c => { const m = marks.get(c.studentId); return !m || m.marksObtained !== c.after.marksObtained || m.isAbsent !== c.after.isAbsent; });
+    const moved = receipt.changed.filter(c => { const m = marks.get(c.studentId); return !m || JSON.stringify(markState(m)) !== JSON.stringify(markState(c.after)); });
     if (moved.length) throw new ApiError(JSON.stringify({ code: "CHANGED_SINCE_IMPORT", studentIds: moved.map(c => c.studentId) }), 409);
     for (const c of receipt.changed) {
       const m = marks.get(c.studentId)!;
-      if (c.before) await tx.mark.update({ where: { id: m.id }, data: { marksObtained: c.before.marksObtained, isAbsent: c.before.isAbsent, grade: c.before.isAbsent ? null : gradeForMark(c.before.marksObtained, template.maxMarks, thresholds), enteredBy: user.userId } });
+      if (c.before) {
+        // A prior exemption is restored as an exemption, never as a numeric zero with a grade.
+        const before = c.before;
+        const exempt = before.isExempt === true;
+        await tx.mark.update({ where: { id: m.id }, data: { marksObtained: before.marksObtained, isAbsent: before.isAbsent, isExempt: exempt, grade: before.isAbsent || exempt ? null : gradeForMark(before.marksObtained, template.maxMarks, thresholds), enteredBy: user.userId } });
+      }
       else await tx.mark.delete({ where: { id: m.id } });
       await tx.auditLog.create({ data: { schoolId: user.schoolId, campusId: exam.campusId, tableName: "marks", recordId: m.id, userId: user.userId, oldValue: c.after, newValue: c.before ? { ...c.before, source: "MARK_SCAN_REVERSAL", batchId } : { deleted: true, source: "MARK_SCAN_REVERSAL", batchId } } });
     }

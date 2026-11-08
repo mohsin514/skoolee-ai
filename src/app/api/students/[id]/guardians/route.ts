@@ -6,6 +6,7 @@ import { ApiError, canManageAcademics, canManageCampusOps, errorResponse, requir
 import { studentScope } from "@/lib/auth/policy";
 import { assertPermission } from "@/lib/permissions";
 import { EMPTY_GUARDIAN_PERMISSIONS, parseGuardianPermissions } from "@/lib/parent/guardian-access";
+import { readJsonBody } from "@/lib/api/validate";
 
 const permissionsSchema = z.object({
   learningRecords: z.boolean(), attendance: z.boolean(), finances: z.boolean(),
@@ -44,6 +45,17 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 
+const EVENT_PAGE = 25;
+const EVENT_ORDER = [{ createdAt: "desc" as const }, { id: "desc" as const }];
+/** One page of access history: rows were read one past the page so the next cursor is known without a count. */
+function eventPage<T extends { id: string; actor: { fullName: string } }>(rows: T[]) {
+  const page = rows.slice(0, EVENT_PAGE);
+  return {
+    events: page.map(({ actor, ...event }) => ({ ...event, actorName: actor.fullName })),
+    eventsCursor: rows.length > EVENT_PAGE ? page[page.length - 1].id : null,
+  };
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAuthUser();
@@ -56,10 +68,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
     if (!student) throw new ApiError("Student not found", 404);
 
+    // SKAI-189: older access history pages by event cursor, newest first, within this child's relationship.
+    const historyFor = req.nextUrl.searchParams.get("events");
+    if (historyFor) {
+      const relation = await prisma.guardianRelationship.findFirst({ where: { id: historyFor, schoolId: user.schoolId, studentId }, select: { id: true } });
+      if (!relation) throw new ApiError("Guardian relationship not found", 404);
+      const before = req.nextUrl.searchParams.get("before");
+      const rows = await prisma.guardianAccessEvent.findMany({
+        where: { schoolId: user.schoolId, relationshipId: relation.id },
+        orderBy: EVENT_ORDER, take: EVENT_PAGE + 1,
+        ...(before ? { cursor: { id: before }, skip: 1 } : {}),
+        include: { actor: { select: { fullName: true } } },
+      });
+      return Response.json({ success: true, ...eventPage(rows) }, { headers: { "Cache-Control": "private, no-store" } });
+    }
+
     const [relationships, reviewQueue] = await Promise.all([
       prisma.guardianRelationship.findMany({
         where: { schoolId: user.schoolId, studentId },
-        include: { accessVersions: { orderBy: { effectiveFrom: "desc" } }, accessEvents: { orderBy: { createdAt: "desc" }, take: 25, include: { actor: { select: { fullName: true } } } } },
+        include: { accessVersions: { orderBy: { effectiveFrom: "desc" } }, accessEvents: { orderBy: EVENT_ORDER, take: EVENT_PAGE + 1, include: { actor: { select: { fullName: true } } } } },
         orderBy: { createdAt: "desc" },
       }),
       req.nextUrl.searchParams.get("review") === "1" ? prisma.guardianReviewQueue.findMany({
@@ -76,7 +103,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         permissions: relation.status === "ACTIVE" || relation.status === "INVITED"
           ? parseGuardianPermissions(activePermissionVersion(accessVersions, now)?.permissions ?? EMPTY_GUARDIAN_PERMISSIONS)
           : EMPTY_GUARDIAN_PERMISSIONS,
-        events: accessEvents.map(({ actor, ...event }) => ({ ...event, actorName: actor.fullName })),
+        ...eventPage(accessEvents),
       })),
       reviewQueue,
     }, { headers: { "Cache-Control": "private, no-store" } });
@@ -89,7 +116,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!canManageCampusOps(user)) throw new ApiError("Guardian access is managed by your campus admin.", 403);
     await assertPermission(user, "students", "edit");
     const { id: studentId } = await params;
-    const parsed = decisionSchema.safeParse(await req.json());
+    const parsed = decisionSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) throw new ApiError("Please check the guardian details and try again", 400);
     const input = parsed.data;
     const student = await prisma.student.findFirst({
@@ -113,7 +140,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (input.action === "preview") {
       const now = new Date();
-      const effectiveFrom = input.status === "SUSPENDED" || input.status === "REVOKED" ? now : input.effectiveFrom ? new Date(input.effectiveFrom) : now;
+      const removing = input.status === "SUSPENDED" || input.status === "REVOKED";
+      // SKAI-1498: removal is immediate. A future date is refused rather than silently applied early (one minute of clock skew allowed).
+      if (removing && input.effectiveFrom && new Date(input.effectiveFrom).getTime() > now.getTime() + 60_000) {
+        throw new ApiError("Suspension and revocation take effect immediately. Scheduling them for a later date is not supported; choose the current time or leave access unchanged until then.", 400);
+      }
+      const effectiveFrom = removing ? now : input.effectiveFrom ? new Date(input.effectiveFrom) : now;
       const validUntil = input.validUntil ? new Date(input.validUntil) : null;
       if (Number.isNaN(effectiveFrom.getTime()) || validUntil && Number.isNaN(validUntil.getTime()) || validUntil && validUntil <= effectiveFrom) {
         throw new ApiError("The effective dates are invalid", 400);
@@ -123,20 +155,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ? await prisma.guardianRelationship.findFirst({ where: { id: input.relationshipId, schoolId: user.schoolId, studentId }, include: { accessVersions: { orderBy: { effectiveFrom: "desc" } } } })
         : null;
       if (input.relationshipId && !relationship) throw new ApiError("Guardian relationship not found", 404);
-      if (!relationship) {
-        const duplicate = await prisma.guardianRelationship.findFirst({
-          where: { schoolId: user.schoolId, studentId, status: { not: "REVOKED" }, email: { equals: input.email, mode: "insensitive" } },
+      // SKAI-1686: the draft lookup, duplicate check and create run under one lock per school, child and email, so
+      // two concurrent previews for a new guardian leave one DRAFT: the same registrar's retry reuses it and any
+      // other request sees it as an existing relationship (409).
+      if (!relationship) relationship = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`guardian-draft:${user.schoolId}:${studentId}:${input.email}`}))`;
+        // A retried preview reuses the unexpired draft instead of stacking another hidden draft behind it.
+        const reusable = await tx.guardianRelationship.findFirst({
+          where: { schoolId: user.schoolId, studentId, status: "DRAFT", createdByUserId: user.userId, invitationExpiresAt: { gt: now }, email: { equals: input.email, mode: "insensitive" } },
+          include: { accessVersions: { orderBy: { effectiveFrom: "desc" } } },
+          orderBy: { createdAt: "desc" },
+        });
+        if (reusable) return reusable;
+        // Expired drafts are abandoned and no longer block a new preview.
+        const duplicate = await tx.guardianRelationship.findFirst({
+          where: { schoolId: user.schoolId, studentId, status: { not: "REVOKED" }, NOT: { status: "DRAFT", invitationExpiresAt: { lte: now } }, email: { equals: input.email, mode: "insensitive" } },
           select: { id: true },
         });
         if (duplicate) throw new ApiError("This email already has a guardian relationship for the child. Edit that relationship instead.", 409);
-      }
-      if (!relationship) relationship = await prisma.guardianRelationship.create({ data: {
-        id: randomUUID(), schoolId: student.schoolId, campusId: student.campusId, studentId,
-        createdByUserId: user.userId, fullName: input.fullName, email: input.email,
-        phone: input.phone || null, relationship: input.relationship, status: "DRAFT",
-        validFrom: effectiveFrom, validUntil,
-        invitationExpiresAt: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
-      }, include: { accessVersions: true } });
+        return tx.guardianRelationship.create({ data: {
+          id: randomUUID(), schoolId: student.schoolId, campusId: student.campusId, studentId,
+          createdByUserId: user.userId, fullName: input.fullName, email: input.email,
+          phone: input.phone || null, relationship: input.relationship, status: "DRAFT",
+          validFrom: effectiveFrom, validUntil,
+          invitationExpiresAt: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
+        }, include: { accessVersions: true } });
+      });
 
       const current = activePermissionVersion(relationship.accessVersions, now);
       const beforeState = { status: relationship.status, currentVersionId: current?.id ?? null, permissions: current ? parseGuardianPermissions(current.permissions) : null };

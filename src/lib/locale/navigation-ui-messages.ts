@@ -5,6 +5,10 @@ export const navigationUiEntries: readonly (readonly [string, string, string])[]
   ["Viewing", "المعروض", "دیکھ رہے ہیں"],
   ["Change child", "تغيير الطالب", "بچہ تبدیل کریں"],
   ["Choose child", "اختر الطالب", "بچہ منتخب کریں"],
+  ["School-wide view", "عرض على مستوى المدرسة", "پورے اسکول کا منظر"],
+  ["Change campus, viewing {0}", "تغيير الفرع، المعروض {0}", "کیمپس تبدیل کریں، دیکھ رہے ہیں {0}"],
+  ["Every page follows the campus you choose.", "تتبع كل صفحة الفرع الذي تختاره.", "ہر صفحہ آپ کے منتخب کردہ کیمپس کے مطابق ہوگا۔"],
+  ["Could not switch campus. Try again.", "تعذر تغيير الفرع. حاول مرة أخرى.", "کیمپس تبدیل نہیں ہو سکا۔ دوبارہ کوشش کریں۔"],
   ["Roll number", "رقم الطالب", "رول نمبر"],
   ["Month calendar. Scroll horizontally to see all days.", "تقويم الشهر. مرر أفقياً لرؤية جميع الأيام.", "ماہ کا کیلنڈر۔ تمام دن دیکھنے کے لیے افقی طور پر اسکرول کریں۔"],
   ["Find a workspace", "ابحث عن مساحة عمل", "ورک اسپیس تلاش کریں"],
@@ -31,6 +35,7 @@ export const navigationUiEntries: readonly (readonly [string, string, string])[]
   ["Enter marks", "إدخال الدرجات", "نمبر درج کریں"],
   ["Class roster", "قائمة طلاب الصف", "جماعت کے طلبہ کی فہرست"],
   ["No roll", "بلا رقم طالب", "رول نمبر موجود نہیں"],
+  ["Conversations", "المحادثات", "گفتگو"],
 ];
 export const arabicNavigationUi: Record<string, string> = Object.fromEntries(navigationUiEntries.map(([key, ar]) => [key, ar]));
 export const urduNavigationUi: Record<string, string> = Object.fromEntries(navigationUiEntries.map(([key, , ur]) => [key, ur]));

@@ -9,7 +9,7 @@ import { createDocumentJob,updateDocumentJob,processDocumentJob,listDocumentJobs
 import { schoolAiTransaction } from "../../src/lib/school-ai/transaction";
 import { saveOriginal,readOriginal,removeOriginal } from "../../src/lib/school-ai/source-storage";
 import { createCaptureTicket,verifyCaptureTicket } from "../../src/lib/school-ai/capture-handoff";
-const url="postgresql://angular_dev_15@127.0.0.1:55438/postgres";if(process.env.DATABASE_URL!==url||process.env.DIRECT_URL!==url)throw new Error("Isolated School AI database only.");
+const url=`postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;if(process.env.DATABASE_URL!==url||process.env.DIRECT_URL!==url)throw new Error("Isolated School AI database only.");
 process.env.SCHOOL_AI_STORAGE_DIR="/private/tmp/skoolee-ai-document-job-tests";
 const db=new PrismaClient(),schoolId=`ai-docjobs-${randomUUID()}`,campusId=randomUUID(),admin:AuthUser={userId:randomUUID(),schoolId,campusId,role:"CAMPUS_ADMIN",email:`${randomUUID()}@example.invalid`,accessVersion:0},other:AuthUser={...admin,userId:randomUUID(),email:`${randomUUID()}@example.invalid`};
 const keys:string[]=[];

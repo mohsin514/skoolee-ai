@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     if (textFile && file.size > 320000) throw new SchoolAiError("Text documents must be at most 80,000 characters.", 422);
     const bytes = Buffer.from(await file.arrayBuffer());
     if (mime === "application/pdf" && bytes.subarray(0, 5).toString() !== "%PDF-") throw new SchoolAiError("The file is not a valid PDF.", 422);
-    const result = await extractDocument(bytes, file.name.slice(0, 160), mime, "en");
+    const result = await extractDocument(bytes, file.name.slice(0, 160), mime, "en", { schoolId: user.schoolId, campusId: user.campusId, userId: user.userId, role: user.role, feature: "RAG_EXTRACT" });
     return workflowJson({ title: file.name.slice(0, 160), content: result.text, uncertainties: result.uncertainties, requiresReview: true });
   } catch (error) { return schoolAiError(error); }
 }

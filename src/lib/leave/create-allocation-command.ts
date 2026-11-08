@@ -33,11 +33,13 @@ export async function createLeaveAllocation(user: AuthUser, body: Record<string,
   }
 
   const days = daysToTenths(Number(body.days ?? 0));
-  const duplicate = await findLeaveAllocation(campusId, leaveTypeId, academicYear, role, userId);
-  if (duplicate) throw new ApiError("An allocation for this leave type / scope / year already exists", 409);
-
-  return prisma.leaveAllocation.create({
-    data: { campusId, leaveTypeId, role, userId, days, academicYear },
+  // SKAI-1672: the duplicate check and the insert run under the campus row lock, so two identical POSTs cannot both
+  // see "no row". The loser reads the committed allocation and gets a deterministic 409.
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM campuses WHERE id = ${campusId} FOR UPDATE`;
+    const duplicate = await tx.leaveAllocation.findFirst({ where: { campusId, leaveTypeId, academicYear, role, userId } });
+    if (duplicate) throw new ApiError("An allocation for this leave type / scope / year already exists", 409);
+    return tx.leaveAllocation.create({ data: { campusId, leaveTypeId, role, userId, days, academicYear } });
   });
 }
 

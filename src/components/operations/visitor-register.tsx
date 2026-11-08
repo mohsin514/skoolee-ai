@@ -1,13 +1,13 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, Eye, LogIn, LogOut, PencilLine, ShieldAlert } from "lucide-react";
+import { AlarmClock, Download, DoorOpen, Eye, LogIn, LogOut, PencilLine, ShieldAlert, UserCheck } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskSection, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -18,6 +18,8 @@ import { usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
 
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 // SKO-466: on-site visitors first, overdue visits flagged, one-action check-out, duplicate check-in
 // warnings that keep the draft, refused visitors recorded without admission, corrections with a reason.
@@ -25,6 +27,9 @@ import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 type Visit = { id: string; name: string; phone: string | null; reference: string | null; purpose: string | null; toMeet: string | null; inTime: string; outTime: string | null; status: "ON_SITE" | "LEFT" | "REFUSED"; refusedReason: string | null; overdue: boolean; version: number };
 type Duplicate = { id: string; toMeet: string | null; reference: string | null; inTime: string };
 const STATUS_LABEL = { ON_SITE: "On site", LEFT: "Left", REFUSED: "Refused entry" } as const;
+const visitTone = (visit: Visit): DeskTone | "muted" => visit.status === "ON_SITE" ? (visit.overdue ? "warning" : "success") : visit.status === "REFUSED" ? "danger" : "muted";
+const visitIcon = (visit: Visit) => visit.status === "ON_SITE" ? (visit.overdue ? AlarmClock : UserCheck) : visit.status === "REFUSED" ? ShieldAlert : DoorOpen;
+const visitRank = (visit: Visit) => visit.status === "ON_SITE" ? (visit.overdue ? 0 : 1) : visit.status === "REFUSED" ? 2 : 3;
 const EMPTY = { name: "", purpose: "", toMeet: "", reference: "", phone: "", refusedReason: "" };
 
 /**
@@ -39,8 +44,13 @@ export function VisitorRegister({ canManage = true, hideHeader = false, command 
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState("");
   const [form, setForm] = useState(EMPTY), [mode, setMode] = useState<"closed" | "check-in" | "refuse">("closed");
   const [saving, setSaving] = useState(false), [formError, setFormError] = useState(""), [duplicates, setDuplicates] = useState<Duplicate[]>([]);
+  const draft = useFormDraft({ record: "reception:visitor-intake", schema: 1, values: form, baseline: EMPTY, fields: ["name", "purpose", "toMeet", "reference", "phone", "refusedReason"] as const, apply: values => setForm({ name: String(values.name ?? ""), purpose: String(values.purpose ?? ""), toMeet: String(values.toMeet ?? ""), reference: String(values.reference ?? ""), phone: String(values.phone ?? ""), refusedReason: String(values.refusedReason ?? "") }) });
   const [leaving, setLeaving] = useState<Visit | null>(null), [correcting, setCorrecting] = useState<Visit | null>(null), [busy, setBusy] = useState(false);
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
+  // A pressed counter narrows the loaded list ("who is still here?"); pressing it again shows every visit.
+  const [focus, setFocus] = useState<"on-site" | "overdue" | null>(null);
+  const toggle = (next: "on-site" | "overdue") => setFocus(current => current === next ? null : next);
+  const shown = urgencyFirst(rows.filter(visit => focus === "on-site" ? visit.status === "ON_SITE" : focus === "overdue" ? visit.overdue : true), visitRank);
 
   const params = useCallback(() => {
     const search = new URLSearchParams();
@@ -79,7 +89,7 @@ export function VisitorRegister({ canManage = true, hideHeader = false, command 
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) { const message: string = typeof json.error === "string" ? json.error : "The visit was not saved. Your details are kept; try again."; setFormError(ui(message)); setDuplicates(json.duplicates ?? []); return; }
       toast.success(json.replayed ? ui("This check-in was already saved; nothing was added twice.") : refused ? ui("Refused visitor recorded. They were not admitted.") : ui("{0} checked in to see {1}.", [json.data.name, json.data.toMeet]));
-      attempt.current = null; setForm(EMPTY); setMode("closed"); void load();
+      draft.markSaved(); attempt.current = null; setForm(EMPTY); setMode("closed"); void load();
     } catch {
       setFormError(ui("The connection failed before the server answered. Your details are kept; retrying will not check the visitor in twice."));
     } finally { setSaving(false); }
@@ -111,17 +121,20 @@ export function VisitorRegister({ canManage = true, hideHeader = false, command 
         {canManage ? <Button variant="outline" onClick={() => { setMode("refuse"); setFormError(""); setDuplicates([]); }}><ShieldAlert className="size-4" aria-hidden="true" />{ui("Record refused visitor")}</Button> : null}
       </div>
     </div>}
-    <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold tabular-nums text-ink-strong" aria-live="polite" data-visitor-counts>
-      <span data-on-site={counts.onSite}>{ui("On site now: {0}", [counts.onSite])}</span>
-      {counts.overdue ? <span className="text-status-warning-text" data-overdue={counts.overdue}>{ui("Still on site after {0} hours: {1}", [counts.overdueHours, counts.overdue])}</span> : null}
-    </p>
+    <DeskStats aria-live="polite" data-visitor-counts>
+      <StatTile index={0} icon={UserCheck} tone={counts.onSite ? "success" : "neutral"} value={counts.onSite} valueProps={{ "data-on-site": counts.onSite }} onSelect={counts.onSite || focus === "on-site" ? () => toggle("on-site") : undefined} selected={focus === "on-site"}
+        label={<><span aria-hidden="true">{ui("On site")}</span><span className="sr-only">{ui("On site now: {0}", [counts.onSite])}</span></>} />
+      <StatTile index={1} icon={AlarmClock} tone={counts.overdue ? "warning" : "neutral"} value={counts.overdue} valueProps={{ "data-overdue": counts.overdue || undefined }} onSelect={counts.overdue || focus === "overdue" ? () => toggle("overdue") : undefined} selected={focus === "overdue"}
+        label={<><span aria-hidden="true">{ui("Overdue")}</span>{counts.overdue ? <span className="sr-only">{ui("Still on site after {0} hours: {1}", [counts.overdueHours, counts.overdue])}</span> : null}</>} />
+    </DeskStats>
     <Alert tone="info" compact live="off">{ui("A visitor entry does not allow anyone to collect a child. Use the pickup register for that.")}</Alert>
 
-    {mode !== "closed" ? <section className="space-y-3 rounded-2xl border border-border p-4" data-visitor-form={mode} aria-label={mode === "refuse" ? ui("Record refused visitor") : ui("Check in visitor")}>
+    {mode !== "closed" ? <DeskSection title={mode === "refuse" ? ui("Record refused visitor") : ui("Check in visitor")} icon={mode === "refuse" ? ShieldAlert : LogIn} tone={mode === "refuse" ? "danger" : "brand"} data-visitor-form={mode} aria-label={mode === "refuse" ? ui("Record refused visitor") : ui("Check in visitor")}>
       {formError ? <Alert tone="danger" compact data-visitor-error>
         <p>{formError}</p>
         {duplicates.length ? <ul className="mt-1 list-disc ps-4 font-normal">{duplicates.map(item => <li key={item.id}>{ui("On site since {0}, seeing {1}", [dateTime(item.inTime), item.toMeet ?? "—"])}{item.reference ? ` · ${item.reference}` : ""}</li>)}</ul> : null}
       </Alert> : null}
+      <DraftRecovery recordLabel={ui("Visitor entry")} draft={draft} saving={saving} excluded={ui("Only visitor intake fields are stored in this signed-in browser draft.")} />
       <div className="grid gap-3 sm:grid-cols-2">
         <FormField name="visitor-name" label={ui("Visitor name")}><Input value={form.name} maxLength={120} onChange={set("name")} autoComplete="off" /></FormField>
         <FormField name="visitor-purpose" label={ui("Purpose of visit")}><Input value={form.purpose} maxLength={200} onChange={set("purpose")} /></FormField>
@@ -134,7 +147,7 @@ export function VisitorRegister({ canManage = true, hideHeader = false, command 
         <Button variant="ghost" onClick={() => setMode("closed")} disabled={saving}>{ui("Cancel")}</Button>
         <Button onClick={() => void submit()} loading={saving}>{mode === "refuse" ? ui("Record refusal") : ui("Check in")}</Button>
       </div>
-    </section> : null}
+    </DeskSection> : null}
 
     <div className="grid gap-3 sm:grid-cols-3" data-visitor-filters>
       <FormField name="visitor-filter-status" label={ui("Status")}><Select value={status} onChange={event => setStatus(event.target.value)}><option value="all">{ui("All visits")}</option><option value="ON_SITE">{ui("On site")}</option><option value="LEFT">{ui("Left")}</option><option value="REFUSED">{ui("Refused entry")}</option></Select></FormField>
@@ -145,18 +158,20 @@ export function VisitorRegister({ canManage = true, hideHeader = false, command 
     {loading && !rows.length ? <SkeletonList rows={4} label={ui("Loading visitors…")} />
       : loadError ? <ErrorState title={ui("The visitor register could not be loaded.")} description={loadError} onRetry={() => void load()} retryLabel={ui("Retry")} />
       : !rows.length ? (status !== "all" || q || date ? <EmptyState size="sm" icon={Eye} title={ui("No visits match these filters.")} /> : <EmptyState size="sm" icon={Eye} title={ui("No visitors recorded yet. Check in the first visitor when they arrive.")} action={canManage ? <Button size="sm" onClick={() => { setMode("check-in"); setFormError(""); setDuplicates([]); }}><LogIn className="size-4" aria-hidden="true" />{ui("Check in visitor")}</Button> : undefined} />)
-      : <ul className="space-y-2" aria-label={ui("Visits")}>
-        {rows.map(visit => <li key={visit.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3 text-sm ${visit.overdue ? "border-status-warning-border bg-status-warning-surface" : "border-border"}`} data-visit={visit.id} data-visit-status={visit.status} data-visit-overdue={visit.overdue}>
-          <div className="min-w-0 flex-1">
+      : <div className="space-y-2.5"><DeskFilterStatus shown={shown.length} total={rows.length} onClear={() => setFocus(null)} /><ul className="space-y-2.5" aria-label={ui("Visits")}>
+        {shown.map(visit => <li key={visit.id} data-tone={visitTone(visit)} className={`${deskRow} flex flex-wrap items-center gap-3 text-sm`} data-visit={visit.id} data-visit-status={visit.status} data-visit-overdue={visit.overdue}>
+          <DeskRowIcon icon={visitIcon(visit)} />
+          <div className="min-w-0 flex-1 basis-48 space-y-0.5">
             <p className="font-semibold text-ink-strong"><bdi>{visit.name}</bdi>{visit.reference ? <span className="font-normal text-ink-muted"> · <bdi>{visit.reference}</bdi></span> : null}</p>
             <p className="text-xs text-ink-muted">{visit.toMeet ? <>{ui("Seeing {0}", [visit.toMeet])} · </> : null}<bdi>{visit.purpose ?? ""}</bdi>{visit.phone ? <> · <bdi>{visit.phone}</bdi></> : null}</p>
             <p className="text-xs text-ink-muted">{ui("Arrived {0}", [dateTime(visit.inTime)])}{visit.outTime ? ` · ${ui("Left {0}", [dateTime(visit.outTime)])}` : ""}{visit.refusedReason ? ` · ${visit.refusedReason}` : ""}</p>
           </div>
-          <Badge size="sm" dot variant={visit.status === "ON_SITE" ? (visit.overdue ? "warning" : "success") : visit.status === "REFUSED" ? "danger" : "neutral"}>{visit.overdue ? ui("Overdue") : ui(STATUS_LABEL[visit.status])}</Badge>
+          <DeskPill tone={visit.status === "ON_SITE" ? (visit.overdue ? "warning" : "success") : visit.status === "REFUSED" ? "danger" : "neutral"}>{visit.overdue ? ui("Overdue") : ui(STATUS_LABEL[visit.status])}</DeskPill>
+          {visit.status === "ON_SITE" ? <span className={`text-xs font-semibold tabular-nums ${visit.overdue ? "text-status-warning-text" : "text-ink-muted"}`}><RelativeTime iso={visit.inTime} full={dateTime(visit.inTime)} /></span> : null}
           {canManage && visit.status === "ON_SITE" ? <Button size="sm" onClick={() => setLeaving(visit)} aria-label={ui("Check out {0}", [visit.name])}><LogOut className="size-3.5" aria-hidden="true" />{ui("Check out")}</Button> : null}
           {canManage ? <Button size="sm" variant="ghost" onClick={() => setCorrecting(visit)} aria-label={ui("Correct visit of {0}", [visit.name])}><PencilLine className="size-3.5" aria-hidden="true" />{ui("Correct")}</Button> : null}
         </li>)}
-      </ul>}
+      </ul></div>}
 
     {leaving ? <ConfirmAction open title={ui("Check out {0}?", [leaving.name])} description={ui("{0}, here since {1} to see {2}, is recorded as leaving now.", [leaving.name, dateTime(leaving.inTime), leaving.toMeet ?? "—"])} confirmLabel={ui("Check out")} tone="primary" busy={busy} onConfirm={() => checkOut()} onCancel={() => setLeaving(null)} /> : null}
     {correcting ? <CorrectVisit visit={correcting} onClose={() => setCorrecting(null)} onDone={() => { setCorrecting(null); void load(); }} /> : null}
@@ -192,7 +207,8 @@ function CorrectVisit({ visit, onClose, onDone }: { visit: Visit; onClose: () =>
     } catch (failure) { setError(ui(failure instanceof Error ? failure.message : "The correction was not saved.")); } finally { setBusy(false); }
   };
   const update = (field: keyof typeof fields) => (event: { target: { value: string } }) => setFields(current => ({ ...current, [field]: event.target.value }));
-  return <Modal title={ui("Correct visit of {0}", [visit.name])} eyebrow={ui("Visitor register")} subtitle={ui("The original values stay in the audit history.")} onClose={onClose} dirty={Boolean(reason)}>
+  return <Modal icon={PencilLine} tone="amber" title={ui("Correct visit of {0}", [visit.name])} eyebrow={ui("Visitor register")} subtitle={ui("The original values stay in the audit history.")} onClose={onClose} dirty={Boolean(reason)}
+    footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} loading={busy}>{ui("Save correction")}</Button></div>}>
     <div className="space-y-3" data-visitor-correct>
       {error ? <Alert tone="danger" compact>{error}</Alert> : null}
       <FormField name="correct-name" label={ui("Visitor name")}><Input value={fields.name} onChange={update("name")} /></FormField>
@@ -202,7 +218,6 @@ function CorrectVisit({ visit, onClose, onDone }: { visit: Visit; onClose: () =>
       <FormField name="correct-in" label={ui("Arrived")}><Input type="datetime-local" value={fields.inTime} onChange={update("inTime")} /></FormField>
       {visit.outTime ? <FormField name="correct-out" label={ui("Left")}><Input type="datetime-local" value={fields.outTime} onChange={update("outTime")} /></FormField> : null}
       <FormField name="correct-reason" label={ui("Reason for the correction")}><Input value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField>
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} loading={busy}>{ui("Save correction")}</Button></div>
     </div>
   </Modal>;
 }

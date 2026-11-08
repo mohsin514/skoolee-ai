@@ -4,6 +4,7 @@ import { privateDownloadResponse } from "@/lib/storage/private-download";
 import { NextRequest } from "next/server";
 import { studentScope } from "@/lib/auth/policy";
 import { prisma } from "@/lib/db/prisma";
+import { Prisma } from "@prisma/client";
 import { writeAuditEvent } from "@/lib/audit-events";
 import {
   ApiError,
@@ -13,13 +14,14 @@ import {
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { cleanStudentDocumentName, isStudentDocumentKind, studentDocumentContentType } from "@/lib/students/document-policy";
 
 // Student admission documents.
 // GET  /api/students/documents?studentId=    — list (campus-scoped)
 // POST /api/students/documents               — { studentId, kind, fileKey, fileName } after presigned PUT
 // DELETE /api/students/documents?id=         — removes the S3 object + row
-
-const DOC_KINDS = new Set(["BIRTH_CERTIFICATE", "TRANSFER_CERTIFICATE", "PHOTO", "OTHER"]);
 
 export async function GET(req: NextRequest) {
   try {
@@ -42,6 +44,9 @@ export async function GET(req: NextRequest) {
       if (!document || !matchesDocumentKey(document.fileKey, "student-docs", document.student.campusId, studentId)) throw new ApiError("Document not found", 404);
       return privateDownloadResponse(document.fileKey, document.fileName);
     }
+    // SKAI-165: a student outside this account's school or campus is "not found", not an empty list.
+    const student = await prisma.student.findFirst({ where: { id: studentId, ...studentScope(user) }, select: { id: true } });
+    if (!student) throw new ApiError("Student not found", 404);
     const documents = await prisma.studentDocument.findMany({
       where: {
         studentId,
@@ -73,7 +78,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     assertStaffRole(user);
     await assertPermission(user, "students", "edit");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { studentId, kind, fileKey, fileName } = body as {
       studentId?: string;
       kind?: string;
@@ -81,10 +86,13 @@ export async function POST(req: NextRequest) {
       fileName?: string;
     };
     if (!studentId) throw new ApiError("studentId is required", 400);
-    if (!kind || !DOC_KINDS.has(String(kind).toUpperCase())) {
+    if (!isStudentDocumentKind(String(kind ?? "").toUpperCase())) {
       throw new ApiError("kind must be BIRTH_CERTIFICATE, TRANSFER_CERTIFICATE, PHOTO or OTHER", 400);
     }
     if (!fileKey || !fileName) throw new ApiError("fileKey and fileName are required", 400);
+    // SKAI-165: the same allow-list the upload panel and presign apply, and a bounded, path-free name.
+    const safeName = cleanStudentDocumentName(String(fileName));
+    if (!safeName || !studentDocumentContentType({ name: safeName })) throw new ApiError("Only PDF, image, and Word documents are allowed", 400);
 
     const student = await prisma.student.findFirst({
       where: { id: studentId, ...studentScope(user) },
@@ -93,13 +101,20 @@ export async function POST(req: NextRequest) {
     if (!student) throw new ApiError("Student not found", 404);
     if (!matchesDocumentKey(fileKey, "student-docs", student.campusId, student.id)) throw new ApiError("Document upload does not match this record", 400);
 
+    // SKAI-165: a retried or double-submitted save carries the same one-time key; return the
+    // existing row instead of a duplicate document, timeline event and audit entry.
+    const existing = await prisma.studentDocument.findFirst({ where: { studentId: student.id, fileKey }, select: { id: true, kind: true, fileName: true, uploadedAt: true } });
+    if (existing) return Response.json({ success: true, data: existing, replayed: true }, { status: 200 });
+
+    // SKAI-1396: two same-key requests can both pass the check above; the unique (studentId, fileKey)
+    // index picks one winner, and the loser replays the winner's row without a second timeline or audit write.
     const document = await prisma.$transaction(async (tx) => {
       const created = await tx.studentDocument.create({
         data: {
           studentId: student.id,
           kind: String(kind).toUpperCase(),
           fileKey,
-          fileName,
+          fileName: safeName,
         },
       });
 
@@ -114,8 +129,14 @@ export async function POST(req: NextRequest) {
       });
       await writeAuditEvent(tx, user, { table: "student_documents", recordId: created.id, action: "CREATE", campusId: student.campusId, after: { studentId: student.id, kind: created.kind } });
       return created;
+    }).catch(async (error: unknown) => {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+      const winner = await prisma.studentDocument.findFirst({ where: { studentId: student.id, fileKey }, select: { id: true, kind: true, fileName: true, uploadedAt: true } });
+      if (!winner) throw error;
+      return { replayed: true as const, winner };
     });
 
+    if ("replayed" in document) return Response.json({ success: true, data: document.winner, replayed: true }, { status: 200 });
     return Response.json({ success: true, data: document }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[students/documents] POST failed");

@@ -23,9 +23,11 @@ export function buildCsp(opts: {
   const { nonce, isProd } = opts;
   const env = opts.env ?? process.env;
 
+  // SKAI-1045: Meta Embedded Signup (Facebook JS SDK + its popup frame), only where a Meta app is configured.
+  const meta = env.META_APP_ID ? { script: " https://connect.facebook.net", frame: " https://www.facebook.com https://web.facebook.com", connect: " https://*.facebook.com" } : { script: "", frame: "", connect: "" };
   const scriptSrc = isProd
-    ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`
-    : `script-src 'self' ${UNSAFE("inline")} ${UNSAFE("eval")}`;
+    ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${meta.script}`
+    : `script-src 'self' ${UNSAFE("inline")} ${UNSAFE("eval")}${meta.script}`;
 
   return [
     "default-src 'self'",
@@ -34,8 +36,8 @@ export function buildCsp(opts: {
     // img.clerk.com removed (SKAI-951): Clerk is not in use.
     "img-src 'self' data: blob: https://api.dicebear.com https://*.amazonaws.com https://*.r2.cloudflarestorage.com",
     "font-src 'self' data:",
-    `connect-src 'self' https://*.supabase.co wss://*.supabase.co ${storageConnectOrigins(env).join(" ")}`,
-    "frame-src 'self' https://js.stripe.com https://checkout.stripe.com",
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co ${storageConnectOrigins(env).join(" ")}${meta.connect}`,
+    `frame-src 'self' https://js.stripe.com https://checkout.stripe.com${meta.frame}`,
     "media-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",

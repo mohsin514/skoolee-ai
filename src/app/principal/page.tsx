@@ -47,6 +47,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { RoleShell, useShellSession } from "@/components/role-dashboard";
+import { DegradedNotice } from "@/components/role-dashboard/DegradedNotice";
 import { useConsoleView } from "@/components/nav/useConsoleView";
 import { subscribeWorkspaceNavigation } from "@/components/nav/useWorkspaceView";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
@@ -99,6 +100,7 @@ import {
 import { fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
 import { cn } from "@/lib/utils";
 import { usePrincipalData } from "./principal-data-context";
+import { currentClassTeacherId, currentSubjectTeacherId } from "@/lib/academic/allocation-version";
 
 /** The principal's AI workflows (academic only; the group admin no longer has these, M6). */
 const PRINCIPAL_AI_FEATURES = [
@@ -281,7 +283,7 @@ function PrincipalWorkspace({
   const handleChangeClassTeacher = async (classId: string, teacherId: string) => {
     setSavingClassTeacherId(classId);
     try {
-      const result = await patchJson("/api/classes", { id: classId, classTeacherId: teacherId || null });
+      const result = await patchJson("/api/classes", { id: classId, classTeacherId: teacherId || null, expectedClassTeacherId: currentClassTeacherId(data?.classes, classId) });
       toast.success(ui("Class teacher updated"));
       (result.clashes || []).forEach((c: { message: string }) => toast.warning(c.message));
       await reload();
@@ -295,7 +297,7 @@ function PrincipalWorkspace({
   const saveSubjectTeacher = async (subjectId: string, teacherId: string, effectiveFrom?: string) => {
     setSavingSubjectId(subjectId);
     try {
-      const result = await patchJson("/api/subjects", { id: subjectId, teacherId: teacherId || null, ...(effectiveFrom ? { effectiveFrom } : {}) });
+      const result = await patchJson("/api/subjects", { id: subjectId, teacherId: teacherId || null, expectedTeacherId: currentSubjectTeacherId(data?.classes, subjectId), ...(effectiveFrom ? { effectiveFrom } : {}) });
       toast.success(ui("Subject teacher updated"));
       (result.clashes || []).forEach((c: { message: string }) => toast.warning(c.message));
       await reload();
@@ -431,6 +433,7 @@ function PrincipalWorkspace({
         status={opts.status}
         tabs={opts.tabs}
       />
+      <DegradedNotice degraded={data.degraded} onRetry={reload} />
       {node}
     </div>
   );
@@ -597,7 +600,7 @@ function PrincipalWorkspace({
       if (tt?.published) secondaries.push({ id: "unpublish-timetable", label: "Unpublish", tone: "danger", onClick: () => runTimetable("unpublish") });
       content = frame(<TimetableStudio campusId={data.campusId} hideActions command={timetableCommand} onDraftState={onTimetableState} />, {
         description: description ?? "Build and publish the timetable and arrange cover.",
-        primaryAction: tt?.hasDraft ? {
+        primaryAction: tt && (tt.hasDraft || tt.published) ? {
           id: "publish-timetable",
           label: "Publish",
           icon: Upload,

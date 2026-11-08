@@ -12,6 +12,17 @@ import { ApiError, resolveCampusId } from "@/lib/api/scope";
  * The AI capability never passes `accountNumber` or `openingBalance`: those are typed on the Accounts screen.
  * The caller has already checked accounts.add. Throws ApiError with the route's messages.
  */
+/** Opening balances are stored in a PostgreSQL Int32 column, so anything outside that range is rejected here, not by the database. */
+const MAX_OPENING_BALANCE = 2_147_483_647;
+
+export function parseOpeningBalance(value: unknown): number {
+  const amount = Number(value);
+  if (!Number.isSafeInteger(amount) || Math.abs(amount) > MAX_OPENING_BALANCE) {
+    throw new ApiError("Opening balance must be a whole number of minor units within the supported range", 400);
+  }
+  return amount;
+}
+
 export async function createBankAccount(user: AuthUser, body: Record<string, unknown>) {
   const campusId = await resolveCampusId(user, body.campusId as string | null | undefined);
   const name = String(body.name ?? "").trim();
@@ -19,8 +30,7 @@ export async function createBankAccount(user: AuthUser, body: Record<string, unk
 
   const currency = (body.currency as string | undefined) || (await getLocalePackage(user.schoolId, campusId)).currency;
   if (!CURRENCIES.includes(currency as typeof CURRENCIES[number])) throw new ApiError("Invalid currency", 400);
-  const openingBalance = Number(body.openingBalance ?? 0);
-  if (!Number.isSafeInteger(openingBalance)) throw new ApiError("Opening balance must be an integer in minor units", 400);
+  const openingBalance = parseOpeningBalance(body.openingBalance ?? 0);
 
   const existing = await prisma.bankAccount.findFirst({ where: { campusId, name } });
   if (existing) throw new ApiError("A bank account with this name already exists", 409);

@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useSearchParams } from "next/navigation";
 import { Banknote, CalendarClock, CheckCircle2, Receipt } from "lucide-react";
 import { Select } from "@/components/ui/select";
@@ -7,12 +8,15 @@ import { FormField } from "@/components/ui/form-field";
 import { useLocaleFormat, useUiText, useLocale } from "@/components/locale/LocaleProvider";
 import { OnlinePayAction, PaymentReturnStatus } from "./online-payment";
 import { InstallmentSchedule } from "./installment-plan-panel";
-import { Badge } from "@/components/ui/badge";
+import { DeskPill, DeskRowIcon, DeskStats, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 
 import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
+import { downloadPdfFile } from "@/lib/download";
+import { toast } from "@/components/ui/toast";
 
 // SKO-431: the family fee statement for one authorized child. Every figure comes from the server in one
 // currency; due states use the school's calendar; the reconciliation line shows the arithmetic.
@@ -26,6 +30,8 @@ type Statement = {
     adjustments?: { id: string; kind: "REFUND" | "CREDIT_NOTE" | "WAIVER"; status: string; amount: number; publicExplanation: string }[] }[];
 };
 const STATE_TONE: Record<DueState, "success" | "neutral" | "danger" | "warning" | "info"> = { PAID: "success", CANCELLED: "neutral", OVERDUE: "danger", DUE_TODAY: "warning", NOT_YET_DUE: "info" };
+// Overdue invoices lead, then today's, then upcoming; settled ones sink to the end.
+const STATE_RANK: Record<DueState, number> = { OVERDUE: 0, DUE_TODAY: 1, NOT_YET_DUE: 2, PAID: 3, CANCELLED: 4 };
 const STATE_LABEL: Record<DueState, string> = { PAID: "Paid", CANCELLED: "Cancelled", OVERDUE: "Overdue", DUE_TODAY: "Due today", NOT_YET_DUE: "Not yet due" };
 
 /** The most recent payment on the statement, so a page header can offer "Download receipt" (§4.4 parent · Fees). */
@@ -89,22 +95,18 @@ export function FamilyFeeStatement({ studentId, onSummary, canPay = true }: { st
     {paymentRef && <PaymentReturnStatus key={paymentRef} orderRef={paymentRef} onSettled={settled} />}
     {statement.invoices.length === 0 ? <div className="sk-panel"><EmptyState icon={Receipt} title={ui("No fee obligations are available for this child.")} description={ui("New invoices from the school will appear here.")} /></div> : <>
       {statement.currencies.length > 1 && <FormField name="statementCurrency" label={ui("Currency")} hint={ui("Shows the invoices billed in this currency.")} className="w-full max-w-xs"><Select className="w-full" value={code} onChange={event => setCurrency(event.target.value)}>{statement.currencies.map(option => <option key={option} value={option}>{option}</option>)}</Select></FormField>}
-      <div className="sk-stagger grid grid-cols-2 gap-3 md:grid-cols-4" data-statement-summary>
-        <Figure icon={Banknote} label={ui("Outstanding")} value={fmt(s.outstanding)} tone="rose" />
-        <Figure icon={CalendarClock} label={ui("Overdue")} value={fmt(s.overdue)} tone={s.overdue ? "rose" : "muted"} />
-        <Figure icon={CalendarClock} label={ui("Due today")} value={fmt(s.dueToday)} tone={s.dueToday ? "amber" : "muted"} />
-        <Figure icon={CheckCircle2} label={ui("Not yet due")} value={fmt(s.notYetDue)} tone="sky" />
-      </div>
+      {/* Money figures need a wider tile than counts: one per row on a phone, so an amount is never clipped. */}
+      <DeskStats data-statement-summary className="grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]">
+        <StatTile index={0} icon={Banknote} label={ui("Outstanding")} value={<bdi className="break-words tabular-nums">{fmt(s.outstanding)}</bdi>} tone={s.outstanding ? "danger" : "success"} />
+        <StatTile index={1} icon={CalendarClock} label={ui("Overdue")} value={<bdi className="break-words tabular-nums">{fmt(s.overdue)}</bdi>} tone={s.overdue ? "danger" : "neutral"} />
+        <StatTile index={2} icon={CalendarClock} label={ui("Due today")} value={<bdi className="break-words tabular-nums">{fmt(s.dueToday)}</bdi>} tone={s.dueToday ? "warning" : "neutral"} />
+        <StatTile index={3} icon={CheckCircle2} label={ui("Not yet due")} value={<bdi className="break-words tabular-nums">{fmt(s.notYetDue)}</bdi>} tone="info" />
+      </DeskStats>
       <p className="text-xs leading-relaxed text-ink-muted tabular-nums" data-statement-reconciliation={s.reconciles ? "ok" : "mismatch"}><bdi>{ui("Charges {0} − payments {1} = {2} owed", [fmt(s.charges), fmt(s.payments), fmt(s.closing)])}</bdi>{" · "}{ui("Dates as of {0} (school calendar)", [date(statement.today)])}{s.reconciles ? "" : ` · ${ui("These figures do not reconcile; please contact the school office.")}`}</p>
       {!canPay && s.outstanding > 0 ? <p className="text-xs leading-relaxed text-ink-muted" data-pay-note>{ui("Your parent or guardian pays fees from their family account.")}</p> : null}
-      <div className="space-y-3">{statement.invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} focused={invoice.id === focusInvoice} fmt={fmt} onPending={setPaymentRef} canPay={canPay} />)}</div>
+      <div className="space-y-3">{urgencyFirst(statement.invoices, invoice => STATE_RANK[invoice.dueState] ?? 5).map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} focused={invoice.id === focusInvoice} fmt={fmt} onPending={setPaymentRef} canPay={canPay} />)}</div>
     </>}
   </div>;
-}
-
-function Figure({ icon: Icon, label, value, tone }: { icon: typeof Banknote; label: string; value: string; tone: "rose" | "amber" | "sky" | "muted" }) {
-  const color = { rose: "text-status-error-text", amber: "text-status-warning-text", sky: "text-status-info-text", muted: "text-ink-muted" }[tone];
-  return <div className="sk-panel min-w-0 p-4"><Icon className={`mb-1 size-4 ${color}`} aria-hidden="true" /><p className={`truncate text-lg font-bold tabular-nums ${color}`}><bdi>{value}</bdi></p><p className="sk-eyebrow text-ink-subtle">{label}</p></div>;
 }
 
 function InvoiceCard({ invoice, focused, fmt, onPending, canPay }: { invoice: Statement["invoices"][number]; focused: boolean; fmt: (amount: number) => string; onPending: (ref: string) => void; canPay: boolean }) {
@@ -112,10 +114,10 @@ function InvoiceCard({ invoice, focused, fmt, onPending, canPay }: { invoice: St
   const { date } = useLocaleFormat();
   const card = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focused) card.current?.scrollIntoView({ block: "center" }); }, [focused]);
-  return <div ref={card} id={`invoice-${invoice.id}`} data-focused-invoice={focused || undefined} data-due-state={invoice.dueState} className={`sk-panel p-4 ${focused ? "ring-2 ring-primary" : ""}`}>
+  return <div ref={card} id={`invoice-${invoice.id}`} data-focused-invoice={focused || undefined} data-due-state={invoice.dueState} data-tone={STATE_TONE[invoice.dueState] as DeskTone} className={cn(deskRow, focused && "ring-2 ring-primary")}>
     <div className="flex flex-wrap items-start justify-between gap-2">
-      <div className="min-w-0"><p className="text-sm font-bold text-ink-strong"><bdi>{invoice.invoiceNumber || ui("Invoice")}</bdi></p><p className="text-xs text-ink-muted">{invoice.installments ? ui("Paid in instalments") : invoice.dueState === "NOT_YET_DUE" ? ui("Due on {0}; it is not overdue.", [date(invoice.dueDate)]) : ui("Due {0}", [date(invoice.dueDate)])}</p></div>
-      <Badge dot variant={STATE_TONE[invoice.dueState]}>{ui(STATE_LABEL[invoice.dueState])}</Badge>
+      <DeskRowIcon icon={Receipt} /><div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink-strong"><bdi>{invoice.invoiceNumber || ui("Invoice")}</bdi></p><p className="text-xs text-ink-muted">{invoice.installments ? ui("Paid in instalments") : invoice.dueState === "NOT_YET_DUE" ? ui("Due on {0}; it is not overdue.", [date(invoice.dueDate)]) : ui("Due {0}", [date(invoice.dueDate)])}</p></div>
+      <DeskPill tone={STATE_TONE[invoice.dueState]}>{ui(STATE_LABEL[invoice.dueState])}</DeskPill>
     </div>
     <dl className="mt-3 grid grid-cols-1 gap-3 text-sm min-[400px]:grid-cols-3">
       <div><dt className="sk-eyebrow text-ink-subtle">{ui("Total")}</dt><dd className="font-bold tabular-nums"><bdi>{fmt(invoice.totalAmount)}</bdi></dd></div>
@@ -125,7 +127,20 @@ function InvoiceCard({ invoice, focused, fmt, onPending, canPay }: { invoice: St
     {invoice.installments && <div className="mt-3 space-y-1"><p className="sk-eyebrow text-ink-subtle">{ui("Instalment plan")}</p><InstallmentSchedule installments={invoice.installments} currency={invoice.currency} /></div>}
     {(invoice.adjustments ?? []).length > 0 && <ul className="mt-3 space-y-1 text-xs" data-invoice-adjustments>{invoice.adjustments!.map(row => <li key={row.id} className="rounded-lg border border-status-info-border bg-status-info-surface px-3 py-1.5 tabular-nums" data-family-adjustment={row.status}>
       <span className="font-semibold">{row.kind === "REFUND" ? (row.status === "DISBURSED" ? ui("Refund paid: {0}", [fmt(row.amount)]) : ui("Refund approved: {0} — waiting to be paid out", [fmt(row.amount)])) : row.kind === "WAIVER" ? ui("Waiver: {0} less owed (not a cash refund)", [fmt(row.amount)]) : ui("Credit note: {0} less owed (not a cash refund)", [fmt(row.amount)])}</span> · <bdi>{row.publicExplanation}</bdi></li>)}</ul>}
-    {invoice.receipts.length > 0 && <ul className="mt-3 space-y-1 text-xs text-ink-muted" data-invoice-receipts>{invoice.receipts.map(receipt => <li key={receipt.id} className="flex flex-wrap items-center gap-x-2">{ui("Receipt")} <bdi dir="ltr">{receipt.receiptNo ?? "—"}</bdi> · <bdi>{fmt(receipt.amount)}</bdi> · {date(receipt.paymentDate)} · <a className="sk-link font-semibold text-primary" href={`/api/fees/payment-pdf?id=${encodeURIComponent(receipt.id)}`} data-receipt-download>{ui("Download receipt")}</a></li>)}</ul>}
+    {invoice.receipts.length > 0 && <ul className="mt-3 space-y-1 text-xs text-ink-muted" data-invoice-receipts>{invoice.receipts.map(receipt => <li key={receipt.id} className="flex flex-wrap items-center gap-x-2">{ui("Receipt")} <bdi dir="ltr">{receipt.receiptNo ?? "—"}</bdi> · <bdi>{fmt(receipt.amount)}</bdi> · {date(receipt.paymentDate)} · <ReceiptDownload id={receipt.id} receiptNo={receipt.receiptNo} /></li>)}</ul>}
     {canPay && invoice.balance > 0 && !["CANCELLED", "PAID"].includes(invoice.dueState) && <OnlinePayAction invoiceId={invoice.id} onPending={onPending} />}
   </div>;
+}
+
+/** SKAI-1473: download in place; a failed receipt request stays on the statement with a retryable message. */
+function ReceiptDownload({ id, receiptNo }: { id: string; receiptNo: string | null }) {
+  const ui = useUiText();
+  const [busy, setBusy] = useState(false);
+  const download = async () => {
+    setBusy(true);
+    try { await downloadPdfFile(`/api/fees/payment-pdf?id=${encodeURIComponent(id)}`, `receipt-${receiptNo || "payment"}.pdf`); }
+    catch { toast.error(ui("Failed to download PDF")); }
+    finally { setBusy(false); }
+  };
+  return <Button type="button" variant="link" className="sk-link h-auto min-h-0 min-w-0 rounded-none p-0 font-semibold text-primary" disabled={busy} aria-busy={busy} onClick={() => void download()} data-receipt-download>{ui("Download receipt")}</Button>;
 }

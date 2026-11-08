@@ -226,12 +226,20 @@ export interface ListOptions {
   filter?: "all" | "unread" | "archived";
   query?: string;
   limit?: number;
+  /** SKAI-1696: the membership id the previous page ended on. */
+  cursor?: string;
 }
 
-export async function listConversations(
+export async function listConversations(user: AuthUser, options: ListOptions = {}): Promise<ConversationView[]> {
+  return (await listConversationsPage(user, options)).conversations;
+}
+
+// SKAI-1696: keyset-paged so conversations beyond the first page stay reachable. Each page re-runs the
+// membership filter and the current-access check.
+export async function listConversationsPage(
   user: AuthUser,
   options: ListOptions = {}
-): Promise<ConversationView[]> {
+): Promise<{ conversations: ConversationView[]; nextCursor: string | null }> {
   const limit = boundedInteger(String(options.limit ?? 50), 50, 100);
   const archived = options.filter === "archived";
 
@@ -259,14 +267,18 @@ export async function listConversations(
           }
         : {}),
     },
-    select: { conversationId: true },
-    orderBy: [{ isPinned: "desc" }, { conversation: { lastMessageAt: "desc" } }, { conversationId: "asc" }],
-    take: limit,
+    select: { id: true, conversationId: true },
+    orderBy: [{ isPinned: "desc" }, { conversation: { lastMessageAt: "desc" } }, { conversationId: "asc" }, { id: "asc" }],
+    take: limit + 1,
+    ...(options.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
   });
 
-  if (memberships.length === 0) return [];
+  const hasMore = memberships.length > limit;
+  const page = hasMore ? memberships.slice(0, limit) : memberships;
+  const nextCursor = hasMore ? (page[page.length - 1]?.id ?? null) : null;
+  if (page.length === 0) return { conversations: [], nextCursor: null };
 
-  const ids = memberships.map((m) => m.conversationId);
+  const ids = page.map((m) => m.conversationId);
   const rows = await prisma.conversation.findMany({
     where: { id: { in: ids } },
     include: conversationInclude,
@@ -286,7 +298,7 @@ export async function listConversations(
     ordered.flatMap((r) => r.members.map((m) => m.userId)).filter((id) => id !== user.userId)
   );
 
-  return ordered.map((r) => serialiseConversation(r, user.userId, user.role, online));
+  return { conversations: ordered.map((r) => serialiseConversation(r, user.userId, user.role, online)), nextCursor };
 }
 
 export async function getConversation(
@@ -508,10 +520,9 @@ export async function createGroupConversation(
       ],
     });
 
+    await systemMessage(tx, user, conversation.id, `${user.fullName ?? "A member"} created this conversation`);
     return conversation;
   });
-
-  await systemMessage(user, created.id, `${user.fullName ?? "A member"} created this conversation`);
 
   const detail = await getConversation(user, created.id);
   await publishToUsers([...memberIds], {
@@ -837,11 +848,12 @@ async function notifyAbsentMembers(
 }
 
 /** Server-authored notice, e.g. "Ali added Sara". Never attributed to a person. */
-async function systemMessage(user: AuthUser, conversationId: string, body: string): Promise<void> {
-  await prisma.chatMessage.create({
+// SKAI-1581: the event is written in the same transaction as the membership change it records.
+async function systemMessage(db: TxClient, user: AuthUser, conversationId: string, body: string): Promise<void> {
+  await db.chatMessage.create({
     data: { conversationId, senderId: null, kind: "SYSTEM", body, schoolId: user.schoolId },
   });
-  await prisma.conversation.update({
+  await db.conversation.update({
     where: { id: conversationId },
     data: { lastMessageAt: new Date(), lastMessagePreview: body, lastMessageSenderId: null },
   });
@@ -895,10 +907,18 @@ export async function editMessage(
     throw new ApiError(`Messages are limited to ${MAX_MESSAGE_LENGTH} characters`, 400);
   }
 
-  const updated = await prisma.chatMessage.update({
-    where: { id: messageId },
-    data: { body: next, editedAt: new Date() },
-    include: messageInclude,
+  const updated = await prisma.$transaction(async (tx) => {
+    const edited = await tx.chatMessage.update({
+      where: { id: messageId },
+      data: { body: next, editedAt: new Date() },
+      include: messageInclude,
+    });
+    // SKAI-1291: when the latest message is edited, the inbox preview follows it.
+    await tx.conversation.updateMany({
+      where: { id: row.id, lastMessageAt: edited.createdAt, lastMessageSenderId: user.userId },
+      data: { lastMessagePreview: preview(next, edited.kind) },
+    });
+    return edited;
   });
 
   const view = await serialiseMessage(updated);
@@ -934,6 +954,22 @@ export async function deleteMessage(user: AuthUser, messageId: string): Promise<
     // who removed it. Only the body stops being served.
     data: { deletedAt: message.deletedAt ?? new Date(), deletedById: user.userId },
     include: messageInclude,
+  });
+
+  // SKAI-1302: when the withdrawn message was the latest, the conversation preview
+  // and timestamp must move to the latest visible message, not keep its content.
+  const latestVisible = await prisma.chatMessage.findFirst({
+    where: { conversationId: row.id, deletedAt: null },
+    orderBy: { createdAt: "desc" },
+    select: { body: true, kind: true, createdAt: true, senderId: true },
+  });
+  await prisma.conversation.updateMany({
+    where: { id: row.id, lastMessageAt: updated.createdAt },
+    data: {
+      lastMessagePreview: latestVisible ? preview(latestVisible.body, latestVisible.kind) : null,
+      lastMessageAt: latestVisible?.createdAt ?? null,
+      lastMessageSenderId: latestVisible?.senderId ?? null,
+    },
   });
 
   const view = await serialiseMessage(updated);
@@ -1013,32 +1049,35 @@ export async function addMembers(
 
   await assertReachable(user, toAdd, settings);
 
-  // Anyone who left before is reinstated rather than duplicated — the unique
-  // key on (conversationId, userId) means a plain create would fail.
-  await prisma.conversationMember.updateMany({
-    where: { conversationId, userId: { in: toAdd } },
-    data: { leftAt: null, isArchived: false },
-  });
-
-  await prisma.conversationMember.createMany({
-    data: toAdd.map((id) => ({
-      conversationId,
-      userId: id,
-      memberRole: "MEMBER" as const,
-      schoolId: user.schoolId,
-    })),
-    skipDuplicates: true,
-  });
-
   const names = await prisma.user.findMany({
     where: { id: { in: toAdd } },
     select: { fullName: true },
   });
-  await systemMessage(
-    user,
-    conversationId,
-    `${user.fullName ?? "A member"} added ${names.map((n) => n.fullName).join(", ")}`
-  );
+  await inTenant(user, async (tx) => {
+    // Anyone who left before is reinstated rather than duplicated — the unique
+    // key on (conversationId, userId) means a plain create would fail.
+    await tx.conversationMember.updateMany({
+      where: { conversationId, userId: { in: toAdd } },
+      data: { leftAt: null, isArchived: false },
+    });
+
+    await tx.conversationMember.createMany({
+      data: toAdd.map((id) => ({
+        conversationId,
+        userId: id,
+        memberRole: "MEMBER" as const,
+        schoolId: user.schoolId,
+      })),
+      skipDuplicates: true,
+    });
+
+    await systemMessage(
+      tx,
+      user,
+      conversationId,
+      `${user.fullName ?? "A member"} added ${names.map((n) => n.fullName).join(", ")}`
+    );
+  });
 
   const detail = await getConversation(user, conversationId);
   await publishToUsers([...existing, ...toAdd], {
@@ -1065,21 +1104,24 @@ export async function removeMember(
     throw new ApiError("You cannot remove the other person from a direct conversation", 400);
   }
 
-  await prisma.conversationMember.updateMany({
-    where: { conversationId, userId: targetUserId, leftAt: null },
-    data: { leftAt: new Date(), unreadCount: 0 },
-  });
+  await inTenant(user, async (tx) => {
+    await tx.conversationMember.updateMany({
+      where: { conversationId, userId: targetUserId, leftAt: null },
+      data: { leftAt: new Date(), unreadCount: 0 },
+    });
 
-  if (row.kind !== "DIRECT") {
-    const target = row.members.find((m) => m.userId === targetUserId);
-    await systemMessage(
-      user,
-      conversationId,
-      isSelf
-        ? `${user.fullName ?? "A member"} left`
-        : `${user.fullName ?? "A moderator"} removed ${target?.user.fullName ?? "a member"}`
-    );
-  }
+    if (row.kind !== "DIRECT") {
+      const target = row.members.find((m) => m.userId === targetUserId);
+      await systemMessage(
+        tx,
+        user,
+        conversationId,
+        isSelf
+          ? `${user.fullName ?? "A member"} left`
+          : `${user.fullName ?? "A moderator"} removed ${target?.user.fullName ?? "a member"}`
+      );
+    }
+  });
 
   await publishToUsers(recipientIds(row), {
     type: "conversation",

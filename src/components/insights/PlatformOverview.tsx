@@ -96,7 +96,7 @@ export function PlatformOverview({
       .map(([plan, count]) => ({ plan, label: getPlanLimits(plan).name, count }))
       .sort((a, b) => b.count - a.count);
     const roles = Object.entries(stats.usersByRole ?? {})
-      .map(([role, count]) => ({ role: roleLabel(role as UserRole, locale.language), count }))
+      .map(([role, count]) => ({ label: roleLabel(role as UserRole, locale.language), count }))
       .sort((a, b) => b.count - a.count);
     const signups = (stats.signupsByMonth ?? []).map((r) => ({ label: monthLabel(r.month), count: r.count }));
     const logins = (stats.loginsByDay ?? []).map((r) => ({ label: dayLabel(r.day), count: r.count }));
@@ -123,6 +123,7 @@ export function PlatformOverview({
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <InsightCard
+          headingLevel={2}
           icon={CreditCard}
           title={t("Schools by plan")}
           subtitle={t("{0} of {1} schools are on a paid plan", [number.format(derived.paid), number.format(stats.schoolCount)])}
@@ -147,7 +148,7 @@ export function PlatformOverview({
           )}
         </InsightCard>
 
-        <InsightCard icon={School} title={t("On a paid plan")} subtitle={t("Share of all schools")} delay={180}>
+        <InsightCard headingLevel={2} icon={School} title={t("On a paid plan")} subtitle={t("Share of all schools")} delay={180}>
           <div className="flex min-h-[220px] items-center justify-center">
             {stats.schoolCount > 0 ? (
               <RadialGauge
@@ -165,6 +166,7 @@ export function PlatformOverview({
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <InsightCard
+          headingLevel={2}
           icon={Building2}
           title={t("New schools by month")}
           subtitle={t("Sign-ups over the last year")}
@@ -189,6 +191,7 @@ export function PlatformOverview({
         </InsightCard>
 
         <InsightCard
+          headingLevel={2}
           icon={School}
           title={t("Schools by status")}
           subtitle={t("Where each school's subscription stands")}
@@ -219,6 +222,7 @@ export function PlatformOverview({
         </InsightCard>
 
         <InsightCard
+          headingLevel={2}
           icon={Activity}
           title={t("Sign-in activity")}
           subtitle={t("Sessions opened, last 14 days")}
@@ -259,6 +263,7 @@ export function PlatformOverview({
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <InsightCard
+          headingLevel={2}
           icon={Layers}
           title={t("Roll by school")}
           subtitle={t("Students registered at each school")}
@@ -304,19 +309,20 @@ export function PlatformOverview({
         </InsightCard>
 
         <InsightCard
+          headingLevel={2}
           icon={Users}
           title={t("Accounts by role")}
           subtitle={t("{0} admin actions in the last 30 days", [compact.format(stats.recentAuditActions)])}
           delay={180}
           actions={onOpenUsers ? <Button variant="link" size="sm" type="button" onClick={onOpenUsers}>{t("Open tenant users")}</Button> : undefined}
-          table={{ columns: [t("Role"), t("Accounts")], rows: derived.roles.map((r) => [r.role, r.count]) }}
+          table={{ columns: [t("Role"), t("Accounts")], rows: derived.roles.map((r) => [r.label, r.count]) }}
         >
           {derived.roles.length > 0 ? (
             <ResponsiveContainer width="100%" height={Math.max(232, derived.roles.length * 30 + 30)}>
               <BarChart data={derived.roles} layout="vertical" margin={{ top: 4, right: 44, bottom: 4, left: 4 }} barCategoryGap="24%">
                 <CartesianGrid horizontal={false} stroke={INK.grid} />
                 <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
-                <YAxis type="category" dataKey="role" tick={AXIS_TICK} axisLine={false} tickLine={false} width={100} />
+                <YAxis type="category" dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} width={100} />
                 <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit={unit("accounts")} />} />
                 <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name={t("Accounts")} fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={18}>
                   <LabelList dataKey="count" position="right" offset={8} style={{ fill: INK.secondary, fontSize: 10, fontWeight: 800 }} />

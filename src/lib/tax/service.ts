@@ -63,18 +63,27 @@ const SIGN_OFF_REQUESTED = "SIGN_OFF_REQUESTED";
  */
 export async function requestSignOff(user: AuthUser, id: string) {
   await finance(user);
-  const a = await prisma.taxActivation.findFirst({ where: { id, schoolId: user.schoolId, status: "DRAFT" } });
-  if (!a) throw new ApiError("Draft not found", 404);
-  const run = await prisma.taxFixtureRun.findFirst({ where: { activationId: a.id }, orderBy: { createdAt: "desc" } });
-  const missing = blockers(a, run);
-  if (missing.length) throw new ApiError(`Resolve these before submitting for sign-off: ${missing.join(" ")}`, 409);
-  const earlier = await prisma.auditLog.findMany({ where: { schoolId: user.schoolId, tableName: "tax_activations", recordId: a.id }, orderBy: { createdAt: "desc" }, take: 20, select: { newValue: true, createdAt: true } });
-  const same = earlier.find(r => (r.newValue as { action?: string; configHash?: string } | null)?.action === SIGN_OFF_REQUESTED && (r.newValue as { configHash?: string }).configHash === a.configHash);
-  if (same) return { id: a.id, requestedAt: same.createdAt, repeated: true };
-  const row = await prisma.auditLog.create({ data: { schoolId: user.schoolId, tableName: "tax_activations", recordId: a.id, userId: user.userId, oldValue: { status: "DRAFT" }, newValue: { action: SIGN_OFF_REQUESTED, configHash: a.configHash, packageCode: a.packageCode, packageVersion: a.packageVersion } } });
-  // Fire-and-forget after the write; loaded lazily so the tax service never opens the delivery queue on import.
-  void import("@/lib/notifications/in-app").then(({ notify }) => notify("TAX_SIGNOFF_REQUESTED", { schoolId: user.schoolId, campusId: null, actorId: user.userId, actorName: user.fullName ?? null, activationId: a.id, packageCode: a.packageCode, packageVersion: a.packageVersion })).catch(() => undefined);
-  return { id: a.id, requestedAt: row.createdAt, repeated: false };
+  const draft = await prisma.taxActivation.findFirst({ where: { id, schoolId: user.schoolId, status: "DRAFT" } });
+  if (!draft) throw new ApiError("Draft not found", 404);
+  const outcome = await prisma.$transaction(async (tx) => {
+    // Lock the draft so concurrent identical requests queue here; the loser then sees the winner's audit row.
+    await tx.$queryRaw`SELECT id FROM tax_activations WHERE id = ${draft.id} FOR UPDATE`;
+    const a = await tx.taxActivation.findFirst({ where: { id, schoolId: user.schoolId, status: "DRAFT" } });
+    if (!a) throw new ApiError("Draft not found", 404);
+    const run = await tx.taxFixtureRun.findFirst({ where: { activationId: a.id }, orderBy: { createdAt: "desc" } });
+    const missing = blockers(a, run);
+    if (missing.length) throw new ApiError(`Resolve these before submitting for sign-off: ${missing.join(" ")}`, 409);
+    const same = await tx.auditLog.findFirst({ where: { schoolId: user.schoolId, tableName: "tax_activations", recordId: a.id, newValue: { path: ["configHash"], equals: a.configHash } }, orderBy: { createdAt: "desc" }, select: { newValue: true, createdAt: true } });
+    if (same && (same.newValue as { action?: string } | null)?.action === SIGN_OFF_REQUESTED) return { a, requestedAt: same.createdAt, repeated: true };
+    const row = await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "tax_activations", recordId: a.id, userId: user.userId, oldValue: { status: "DRAFT" }, newValue: { action: SIGN_OFF_REQUESTED, configHash: a.configHash, packageCode: a.packageCode, packageVersion: a.packageVersion } } });
+    return { a, requestedAt: row.createdAt, repeated: false };
+  });
+  if (!outcome.repeated) {
+    const { a } = outcome;
+    // Only the request that committed notifies. Fire-and-forget after the write; loaded lazily so the tax service never opens the delivery queue on import.
+    void import("@/lib/notifications/in-app").then(({ notify }) => notify("TAX_SIGNOFF_REQUESTED", { schoolId: user.schoolId, campusId: null, actorId: user.userId, actorName: user.fullName ?? null, activationId: a.id, packageCode: a.packageCode, packageVersion: a.packageVersion })).catch(() => undefined);
+  }
+  return { id: draft.id, requestedAt: outcome.requestedAt, repeated: outcome.repeated };
 }
 
 type Activation = Prisma.TaxActivationGetPayload<object>;
@@ -179,12 +188,13 @@ export async function approve(user: AuthUser, id: string, reason?: string | null
 
 /** Scheduled activations whose date has come become active; an older one for the same campuses is superseded. */
 export async function activateDue(schoolId: string, now = new Date()) {
-  const due = await prisma.taxActivation.findMany({ where: { schoolId, status: "SCHEDULED", effectiveFrom: { lte: now } }, orderBy: { effectiveFrom: "asc" } });
+  // SKAI-1474: same-date activations resolve by creation order, newest last, so exactly one stays ACTIVE.
+  const due = await prisma.taxActivation.findMany({ where: { schoolId, status: "SCHEDULED", effectiveFrom: { lte: now } }, orderBy: [{ effectiveFrom: "asc" }, { createdAt: "asc" }, { id: "asc" }] });
   for (const a of due) {
     await prisma.$transaction(async tx => {
       const claimed = await tx.taxActivation.updateMany({ where: { id: a.id, status: "SCHEDULED" }, data: { status: "ACTIVE" } });
       if (!claimed.count) return;
-      await tx.taxActivation.updateMany({ where: { schoolId, status: "ACTIVE", id: { not: a.id }, campusIds: { hasSome: a.campusIds }, effectiveFrom: { lt: a.effectiveFrom! } }, data: { status: "SUPERSEDED" } });
+      await tx.taxActivation.updateMany({ where: { schoolId, status: "ACTIVE", id: { not: a.id }, campusIds: { hasSome: a.campusIds }, OR: [{ effectiveFrom: { lt: a.effectiveFrom! } }, { effectiveFrom: a.effectiveFrom!, createdAt: { lte: a.createdAt } }] }, data: { status: "SUPERSEDED" } });
     });
   }
   return due.length;
@@ -192,7 +202,7 @@ export async function activateDue(schoolId: string, now = new Date()) {
 
 /** The activation that applies to an invoice: approved, covering the campus, latest effective date on or before it. */
 export async function activationFor(db: TxClient | typeof prisma, schoolId: string, campusId: string, invoiceDate: Date) {
-  return db.taxActivation.findFirst({ where: { schoolId, campusIds: { has: campusId }, status: { in: ["SCHEDULED", "ACTIVE", "SUPERSEDED"] }, effectiveFrom: { lte: invoiceDate } }, orderBy: { effectiveFrom: "desc" } });
+  return db.taxActivation.findFirst({ where: { schoolId, campusIds: { has: campusId }, status: { in: ["SCHEDULED", "ACTIVE", "SUPERSEDED"] }, effectiveFrom: { lte: invoiceDate } }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }] });
 }
 
 // ─── Issuing ─────────────────────────────────────────────────────────────

@@ -58,7 +58,7 @@ const draftOf = (layoutJson: unknown): Draft => {
 export async function listTemplates(user: AuthUser, campusId: string) {
   frontDesk(user);
   const rows = await prisma.certificateTemplate.findMany({ where: { campusId, schoolId: user.schoolId }, orderBy: { createdAt: "desc" }, include: { versions: { orderBy: { version: "desc" }, take: 1 } } });
-  return rows.map(row => ({ id: row.id, kind: row.kind, name: row.name, language: row.language, pageSize: row.pageSize, requiresApproval: row.requiresApproval, currentVersion: row.currentVersion, draft: draftOf(row.layoutJson), approved: row.versions[0] ? { version: row.versions[0].version, title: row.versions[0].title, body: row.versions[0].body, approvedAt: row.versions[0].approvedAt } : null, createdAt: row.createdAt }));
+  return rows.map(row => ({ id: row.id, kind: row.kind, name: row.name, language: row.language, pageSize: row.pageSize, requiresApproval: row.requiresApproval, currentVersion: row.currentVersion, draftVersion: row.draftVersion, draft: draftOf(row.layoutJson), approved: row.versions[0] ? { version: row.versions[0].version, title: row.versions[0].title, body: row.versions[0].body, approvedAt: row.versions[0].approvedAt } : null, createdAt: row.createdAt }));
 }
 
 export async function saveTemplate(user: AuthUser, campusId: string, body: Record<string, unknown>) {
@@ -76,7 +76,11 @@ export async function saveTemplate(user: AuthUser, campusId: string, body: Recor
     const existing = await prisma.certificateTemplate.findFirst({ where: { id: String(body.id), campusId, schoolId: user.schoolId } });
     if (!existing) throw new ApiError("Certificate template not found", 404);
     // Editing changes the draft only; issued documents keep pointing at their approved version.
-    return prisma.certificateTemplate.update({ where: { id: existing.id }, data: { ...data, draftVersion: { increment: 1 } } });
+    // SKAI-1700: compare-and-set on the draft version the editor saw; a stale save gets 409 and changes nothing.
+    const expected = Number(body.expectedDraftVersion);
+    const won = Number.isInteger(expected) ? await prisma.certificateTemplate.updateMany({ where: { id: existing.id, schoolId: user.schoolId, campusId, draftVersion: expected }, data: { ...data, draftVersion: { increment: 1 } } }) : { count: 0 };
+    if (won.count !== 1) throw new ApiError("This item changed since you opened it. Reload to see the latest before saving.", 409);
+    return { ...existing, ...data, draftVersion: expected + 1 };
   }
   return prisma.certificateTemplate.create({ data: { schoolId: user.schoolId, campusId, ...data } });
 }
@@ -260,12 +264,15 @@ export async function listIssues(user: AuthUser, campusId: string, filters: { st
   const q = filters.q.trim().slice(0, 80);
   const rows = await prisma.certificateIssue.findMany({
     where: { campusId, schoolId: user.schoolId, ...(filters.status ? { status: filters.status } : {}), ...(q ? { OR: [{ serial: { contains: q, mode: "insensitive" } }, { title: { contains: q, mode: "insensitive" } }, { student: { fullName: { contains: q, mode: "insensitive" } } }] } : {}) },
-    orderBy: { createdAt: "desc" }, take: 200,
+    // SKAI-1676: one past the cap tells the client the history (and so its export) is not complete.
+    orderBy: { createdAt: "desc" }, take: 201,
     select: { id: true, serial: true, status: true, title: true, language: true, issuedAt: true, createdAt: true, version: true, previousId: true, reissueReason: true, decisionNote: true, artifactHash: true, verifyToken: true, requestedById: true, approvedById: true, student: { select: { id: true, fullName: true, rollNo: true } }, templateVersion: { select: { version: true, kind: true } }, templateId: true, successors: { select: { serial: true, status: true } } },
   });
+  const truncated = rows.length > 200;
+  rows.splice(200);
   const ids = [...new Set(rows.flatMap(row => [row.requestedById, row.approvedById]).filter((value): value is string => Boolean(value)))];
   const people = new Map((await prisma.user.findMany({ where: { schoolId: user.schoolId, id: { in: ids } }, select: { id: true, fullName: true } })).map(person => [person.id, person.fullName]));
-  return rows.map(({ requestedById, approvedById, ...row }) => ({ ...row, requestedBy: people.get(requestedById) ?? null, approvedBy: approvedById ? people.get(approvedById) ?? null : null }));
+  return { truncated, rows: rows.map(({ requestedById, approvedById, ...row }) => ({ ...row, requestedBy: people.get(requestedById) ?? null, approvedBy: approvedById ? people.get(approvedById) ?? null : null })) };
 }
 
 /**

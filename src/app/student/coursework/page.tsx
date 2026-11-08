@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { Award, BookOpen, MapPin, TrendingUp, UserRound } from "lucide-react";
 import { Panel, PanelHeading, StatCard } from "@/components/student/student-ui";
+import { DeskStats } from "@/components/ui/desk";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Progress } from "@/components/ui/progress";
@@ -103,7 +104,7 @@ export default function CourseworkPage() {
           </div>
         </div>
 
-        <div className="sk-rise grid grid-cols-2 gap-3 md:grid-cols-4" style={{ animationDelay: "40ms" }}>
+        <DeskStats>
           <StatCard icon={BookOpen} label={ui("Subjects")} value={user.subjects.length} sub={ui("Enrolled")} />
           <StatCard
             icon={Award}
@@ -112,10 +113,11 @@ export default function CourseworkPage() {
             sub={user.marks.length ? ui("From {0} scores", [user.marks.length]) : ui("No marks yet")}
             tone="green"
             ring={user.marks.length ? averages.overall : undefined}
+            delay={40}
           />
-          <StatCard icon={TrendingUp} label={ui("Best score")} value={`${averages.best}%`} sub={averages.best >= 80 ? ui("Excellent") : averages.best >= 60 ? ui("Good") : ui("Needs work")} tone="purple" />
-          <StatCard icon={BookOpen} label={ui("Exams")} value={new Set(user.marks.map((m: any) => m.exam?.id)).size} sub={ui("Attempted")} tone="rose" />
-        </div>
+          <StatCard icon={TrendingUp} label={ui("Best score")} value={`${averages.best}%`} sub={averages.best >= 80 ? ui("Excellent") : averages.best >= 60 ? ui("Good") : ui("Needs work")} tone="purple" delay={80} />
+          <StatCard icon={BookOpen} label={ui("Exams")} value={new Set(user.marks.map((m: any) => m.exam?.id)).size} sub={ui("Attempted")} tone="rose" delay={120} />
+        </DeskStats>
 
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-5 xl:gap-4">
           <div className="sk-rise min-w-0 space-y-3 xl:col-span-2" style={{ animationDelay: "80ms" }}>

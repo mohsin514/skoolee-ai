@@ -98,11 +98,11 @@ const DIRECT_UPLOAD_PREFIXES = ["profile-images/", "logos/"];
  * (admission, staff, chat) must use the authenticated upload intent in
  * src/lib/storage/private-upload.ts, so this refuses any other key.
  */
-export async function getUploadUrl(key: string, contentType: string, expiresIn = 900): Promise<string> {
+export async function getUploadUrl(key: string, contentType: string, expiresIn = 900, contentLength?: number): Promise<string> {
   if (!DIRECT_UPLOAD_PREFIXES.some(prefix => key.startsWith(prefix)) || key.includes("..")) {
     throw new Error("Direct uploads are limited to profile pictures and logos");
   }
-  return getSignedUrl(s3, new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: contentType }), { expiresIn });
+  return getSignedUrl(s3, new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: contentType, ContentLength: contentLength }), { expiresIn });
 }
 
 /**
@@ -193,17 +193,8 @@ export function campusLogoKey(
   return `logos/campus/${schoolId}/${campusId}/${crypto.randomUUID()}-${safe}`;
 }
 
-const S3_KEY_PREFIXES = ["profile-images/", "logos/", "student-docs/", "staff-docs/", "chat/", "reports/", "resources/", "submissions/"];
-
-function isS3Key(value: string): boolean {
-  return S3_KEY_PREFIXES.some((prefix) => value.startsWith(prefix));
-}
-
-export function resolveMediaUrl(value: string | null | undefined): string | null {
-  if (!value) return null;
-  if (isS3Key(value)) return `/api/media/${value}`;
-  return value;
-}
+export { resolveMediaUrl } from "./media-url";
+import { isS3Key } from "./media-url";
 
 /** Presigned read for public images (logos, profile pictures) embedded server-side, e.g. in PDFs. */
 async function getDownloadUrl(key: string, expiresIn = 3600): Promise<string> {

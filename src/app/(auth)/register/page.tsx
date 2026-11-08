@@ -149,6 +149,12 @@ const en = {
   problemTerms: "Please accept the Terms of Service and Privacy Policy.",
   startFailed: "We couldn't start your registration. Please try again.",
   registrationFailed: "We couldn't create your account. Check your details and try again.",
+  serverErrors: {
+    reg_id_taken: "This institution ID is already registered. Choose another ID.",
+    rate_limited: "Too many attempts. Please wait a few minutes and try again.",
+    step1_missing: "Your registration session expired. Please submit the form again.",
+    duplicate: "This registration already exists. Sign in or use a different email or institution ID.",
+  },
   setupTitle: "How is your school set up?",
   whoTitle: "Only the person who will own the school's account signs up here",
   whoBody: "Principals, teachers, office staff, students and families are invited later from your workspace.",
@@ -269,6 +275,12 @@ const copy: Record<Language, RegisterCopy> = {
     problemTerms: "وافق على شروط الخدمة وسياسة الخصوصية.",
     startFailed: "تعذّر بدء التسجيل. حاول مرة أخرى.",
     registrationFailed: "تعذّر إنشاء حسابك. تحقّق من بياناتك وحاول مرة أخرى.",
+    serverErrors: {
+      reg_id_taken: "معرّف المؤسسة هذا مسجّل بالفعل. اختر معرّفًا آخر.",
+      rate_limited: "محاولات كثيرة جدًا. انتظر بضع دقائق ثم حاول مرة أخرى.",
+      step1_missing: "انتهت جلسة التسجيل. أرسل النموذج مرة أخرى.",
+      duplicate: "هذا التسجيل موجود بالفعل. سجّل الدخول أو استخدم بريدًا أو معرّف مؤسسة مختلفًا.",
+    },
     setupTitle: "كيف تُنظَّم مدرستك؟",
     whoTitle: "يسجّل هنا فقط من سيملك حساب المدرسة",
     whoBody: "يُدعى المديرون الأكاديميون والمعلمون وموظفو المكتب والطلاب والأسر لاحقاً من مساحة عملك.",
@@ -385,6 +397,12 @@ const copy: Record<Language, RegisterCopy> = {
     problemTerms: "براہ کرم سروس کی شرائط اور رازداری کی پالیسی قبول کریں۔",
     startFailed: "رجسٹریشن شروع نہیں ہو سکی۔ براہ کرم دوبارہ کوشش کریں۔",
     registrationFailed: "آپ کا اکاؤنٹ نہیں بن سکا۔ اپنی تفصیلات دیکھ کر دوبارہ کوشش کریں۔",
+    serverErrors: {
+      reg_id_taken: "یہ ادارہ آئی ڈی پہلے سے رجسٹرڈ ہے۔ کوئی اور آئی ڈی منتخب کریں۔",
+      rate_limited: "بہت زیادہ کوششیں۔ چند منٹ انتظار کر کے دوبارہ کوشش کریں۔",
+      step1_missing: "آپ کا رجسٹریشن سیشن ختم ہو گیا۔ فارم دوبارہ جمع کریں۔",
+      duplicate: "یہ رجسٹریشن پہلے سے موجود ہے۔ سائن ان کریں یا کوئی اور ای میل یا ادارہ آئی ڈی استعمال کریں۔",
+    },
     setupTitle: "آپ کا اسکول کیسے منظم ہے؟",
     whoTitle: "یہاں صرف وہی سائن اپ کرے جو اسکول کے اکاؤنٹ کا مالک ہوگا",
     whoBody: "تعلیمی سربراہ، اساتذہ، دفتری عملہ، طلبہ اور خاندان بعد میں آپ کی ورک اسپیس سے مدعو کیے جاتے ہیں۔",
@@ -680,6 +698,10 @@ export default function RegisterPage() {
     setSentShown(true);
   }, []);
 
+  // SKAI-81: known server outcomes arrive as codes and are shown in the page language.
+  const serverError = (body: { code?: string; error?: string }) =>
+    (body.code && body.code in t.serverErrors ? t.serverErrors[body.code as keyof typeof t.serverErrors] : undefined) ?? body.error;
+
   const handleStep2Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
@@ -718,7 +740,7 @@ export default function RegisterPage() {
         }),
       });
       const step1 = await step1Res.json();
-      if (!step1.success) throw new Error(step1.error || t.startFailed);
+      if (!step1.success) throw new Error(serverError(step1) || t.startFailed);
 
       const step2Res = await fetch("/api/auth/signup-step2", {
         method: "POST",
@@ -737,7 +759,7 @@ export default function RegisterPage() {
         }),
       });
       const step2 = await step2Res.json();
-      if (!step2.success) throw new Error(step2.error || t.registrationFailed);
+      if (!step2.success) throw new Error(serverError(step2) || t.registrationFailed);
       if (step2.warning) toast.warning(step2.warning, { duration: 15000 });
 
       // Login can prefill the address (this tab only, read once); the draft is done.

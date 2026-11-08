@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Check, Loader2, Lock, School } from "lucide-react";
 import { getPersonalLanguage, saveLanguagePreference } from "@/app/actions/locale";
 import { useUiText } from "@/components/locale/LocaleProvider";
@@ -34,16 +35,21 @@ export function PersonalLanguageSetting({ id = "personal-language", lockedReason
   const [value, setValue] = useState<Choice>("");
   const [saving, setSaving] = useState<Choice | null>(null);
   const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<"save" | "permission" | null>(null);
+  const [error, setError] = useState<"save" | "permission" | "load" | null>(null);
   const hintId = `${id}-hint`;
 
+  // SKAI-1475: a failed load is a load error with Try again, matching the save path's permission check.
+  const load = useCallback((isActive: () => boolean = () => true) => {
+    setError(null);
+    getPersonalLanguage()
+      .then(result => { if (isActive()) { setPersonal(result); setValue(result.personal ?? ""); } })
+      .catch((failure: unknown) => { if (isActive()) setError(failure instanceof Error && failure.message === "permission" ? "permission" : "load"); });
+  }, []);
   useEffect(() => {
     let active = true;
-    getPersonalLanguage()
-      .then(result => { if (active) { setPersonal(result); setValue(result.personal ?? ""); } })
-      .catch(() => { if (active) setError("permission"); });
+    load(() => active);
     return () => { active = false; };
-  }, []);
+  }, [load]);
 
   async function change(next: Choice) {
     if (next === value || saving !== null) return;
@@ -130,7 +136,8 @@ export function PersonalLanguageSetting({ id = "personal-language", lockedReason
       </div>
       {error ? (
         <p role="alert" className="text-sm font-semibold text-destructive">
-          {error === "permission" ? t("Sign in again to change your language.") : t("Couldn't save your language. Try again.")}
+          {error === "permission" ? t("Sign in again to change your language.") : error === "load" ? t("Couldn't load your language settings.") : t("Couldn't save your language. Try again.")}
+          {error === "load" ? <> <Button type="button" variant="link" className="sk-link h-auto min-h-0 min-w-0 rounded-none p-0 font-semibold" onClick={() => load()} data-language-retry>{t("Try again")}</Button></> : null}
         </p>
       ) : null}
     </div>

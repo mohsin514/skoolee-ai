@@ -255,6 +255,7 @@ export function MembershipsPanel({ exportRequest }: { exportRequest?: number } =
           title={editing ? t("Review access") : t(group ? "Invite to the school group" : "Invite to the school")}
           subtitle={editing ? <bdi>{editing.fullName}</bdi> : undefined}
           icon={editing ? Users : UserPlus}
+          tone={editing && revoking ? "rose" : "violet"}
           size="sm"
           onClose={close}
           dirty={!busy && (inviting ? Boolean(draft.email.trim()) : changes.length > 0)}

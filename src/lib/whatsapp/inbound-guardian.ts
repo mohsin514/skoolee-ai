@@ -56,7 +56,7 @@ export async function handleVerifiedGuardianMessage(input: { id: string; phone: 
     if (!current || current.schoolId !== scope.schoolId || current.studentId !== scope.studentId || current.guardianUserId !== scope.guardianUserId || current.preferenceId !== scope.preferenceId || current.preferenceVersion !== scope.preferenceVersion || !versionsCurrent) { await prisma.parentCommunication.update({ where: { id: communication.id }, data: { status: "BLOCKED", failedReason: "AUTHORIZATION_OR_PUBLICATION_REVOKED" } }); return; }
     // Claim the one inbound reply before the external call; a replay never retries uncertain delivery.
     await prisma.parentCommunication.update({ where: { id: communication.id }, data: { status: "UNCERTAIN", failedReason: "EXTERNAL_OUTCOME_UNCERTAIN" } });
-    let result; try { result = await dependencies.send({ to: scope.recipient, text }); } catch { return; }
+    let result; try { result = await dependencies.send({ to: scope.recipient, text, schoolId: scope.schoolId }); } catch { return; }
     if (result.success && result.messageId) await prisma.parentCommunication.update({ where: { id: communication.id }, data: { status: "SENT", providerMessageId: result.messageId, sentAt: new Date(), failedReason: null } });
   });
 }

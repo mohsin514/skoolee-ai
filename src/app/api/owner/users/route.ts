@@ -13,6 +13,8 @@ import {
   isValidEmail,
   OWNER_CREATABLE_ROLES,
 } from "@/lib/owner/provisioning";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
@@ -88,7 +90,7 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await requirePlatformOwner();
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
 
     const schoolId = String(body.schoolId || "").trim();
     const campusIdRaw = String(body.campusId || "").trim();
@@ -112,9 +114,13 @@ export async function POST(req: NextRequest) {
 
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
-      select: { id: true, name: true, plan: true },
+      select: { id: true, name: true, plan: true, status: true },
     });
     if (!school) throw new ApiError("School not found", 404);
+    // SKAI-1377: a suspended or deleted school accepts no new active staff.
+    if (["SUSPENDED", "DELETED"].includes(school.status)) {
+      throw new ApiError("This school is not accepting new staff accounts", 409);
+    }
 
     // SUPER_ADMIN spans the whole school, so it carries no campus.
     // Every other role must be pinned to a campus in that school.
@@ -123,15 +129,18 @@ export async function POST(req: NextRequest) {
       if (!campusIdRaw) throw new ApiError(`${role} must be assigned to a campus`, 400);
       const campus = await prisma.campus.findFirst({
         where: { id: campusIdRaw, schoolId },
-        select: { id: true },
+        select: { id: true, archivedAt: true, pausedAt: true },
       });
       if (!campus) throw new ApiError("Campus not found in that school", 404);
+      // SKAI-1363: archived or paused campuses accept no new active staff.
+      if (campus.archivedAt || campus.pausedAt) {
+        throw new ApiError("This campus is archived or paused and cannot accept new staff", 409);
+      }
       campusId = campus.id;
     }
 
     const existingUser = await prisma.user.findFirst({ where: { schoolId, email: { equals: email, mode: "insensitive" } }, select: { id: true } });
     if (existingUser) throw new ApiError("That email already has an account in this school", 409);
-    await assertSeatAvailable(schoolId, role);
 
     const tempPassword = String(body.password || "").trim() || generatePassword();
     if (tempPassword.length < 8) {
@@ -143,27 +152,33 @@ export async function POST(req: NextRequest) {
     // change; everyone else goes straight to their dashboard.
     const onboardingComplete = role !== "TEACHER";
 
-    const created = await prisma.user.create({
-      data: {
-        schoolId,
-        campusId,
-        email,
-        fullName,
-        phone,
-        password: hashed,
-        role,
-        isActive: true,
-        onboardingComplete,
-        mustChangePassword: true,
-      },
-      select: {
-        id: true,
-        fullName: true,
-        email: true,
-        role: true,
-        campus: { select: { id: true, name: true } },
-        school: { select: { id: true, name: true } },
-      },
+    // SKAI-1614: the seat count and the create run under one school row lock, so concurrent creates
+    // see each other's active and pending seats. The loser reads the committed count and gets a 402.
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`;
+      await assertSeatAvailable(schoolId, role, tx);
+      return tx.user.create({
+        data: {
+          schoolId,
+          campusId,
+          email,
+          fullName,
+          phone,
+          password: hashed,
+          role,
+          isActive: true,
+          onboardingComplete,
+          mustChangePassword: true,
+        },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          role: true,
+          campus: { select: { id: true, name: true } },
+          school: { select: { id: true, name: true } },
+        },
+      });
     });
 
     logSuperAdminAction({

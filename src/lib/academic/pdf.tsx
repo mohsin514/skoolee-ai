@@ -1,9 +1,11 @@
 import { reportMessages } from "@/lib/locale/report-messages";
+import { brandHex, localizedSchoolName } from "@/lib/school/branding";
 import { formatInstant, localeTag } from "@/lib/locale/package";
 import { Document, Font, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import path from "path";
 import { getReportCardPdfPayload } from "@/lib/academic/report-cards";
 import { resolveMediaUrlAsync } from "@/lib/storage/s3";
+import { UAE_LABELS, bilingualLabel, type UaeTemplate } from "@/lib/academic/uae-report-template";
 
 type ReportPayload = Awaited<ReturnType<typeof getReportCardPdfPayload>>;
 
@@ -234,7 +236,7 @@ const styles = StyleSheet.create({
     lineHeight: 1.7,
     fontFamily: "NotoNaskhArabic",
     color: "#1d1b20",
-    direction: "rtl",
+    textAlign: "right",
   },
   footer: {
     marginTop: 12,
@@ -244,6 +246,34 @@ const styles = StyleSheet.create({
     fontSize: 9,
   },
 });
+
+/** SKAI-1151: older snapshots predate the template, so read it defensively. */
+function uaeOf(payload: ReportPayload): UaeTemplate | null {
+  return (payload as { uaeTemplate?: UaeTemplate | null }).uaeTemplate ?? null;
+}
+
+/** The bilingual (EN · AR) print swaps every label for its paired form. */
+function labelsFor(payload: ReportPayload): Record<keyof typeof reportMessages.en, string> {
+  if (!uaeOf(payload)) return reportMessages[payload.locale.language];
+  return Object.fromEntries(Object.keys(reportMessages.en).map((k) => [k, bilingualLabel(k as keyof typeof reportMessages.en)])) as Record<keyof typeof reportMessages.en, string>;
+}
+
+function MandatorySubjects({ uae, rtl, f }: { uae: UaeTemplate; rtl: boolean; f: (n: number) => string }) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{UAE_LABELS.title}</Text>
+      <View style={styles.table}>
+        {uae.mandatory.map((row, i) => (
+          <View key={row.key} style={[i === uae.mandatory.length - 1 ? styles.trLast : styles.tr, { flexDirection: rtl ? "row-reverse" : "row" }]}>
+            <Text style={[styles.tdText, styles.flexExam]}>{row.en} · {row.ar}</Text>
+            <Text style={[styles.tdText, styles.flexCell]}>{row.obtained !== null && row.total !== null ? `${f(row.obtained)}/${f(row.total)}` : "—"}</Text>
+            <Text style={[styles.tdText, styles.flexCell, row.assessed ? {} : { color: "#b91c1c" }]}>{row.assessed ? row.grade : UAE_LABELS.notAssessed}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
 
 function classLabel(payload: ReportPayload) {
   const cls = payload.reportCard.student.class;
@@ -262,7 +292,7 @@ function StatBox({ label, value, last }: { label: string; value: string; last?: 
 
 function MarksDistribution({ payload }: { payload: ReportPayload }) {
   const { subjectDistribution, weightConfig, overall, locale } = payload;
-  const t = reportMessages[locale.language];
+  const t = labelsFor(payload);
   const f = (n: number) => new Intl.NumberFormat(localeTag(locale)).format(n);
   const subjects = subjectDistribution.filter((s: any) => s.exams?.length);
 
@@ -322,33 +352,43 @@ function MarksDistribution({ payload }: { payload: ReportPayload }) {
 
 export function ReportCardDocument({ payload, logoUrl }: { payload: ReportPayload; logoUrl?: string | null }) {
   const { reportCard, subjectDistribution, overall, locale } = payload;
-  const t = reportMessages[locale.language];
+  const t = labelsFor(payload);
+  const uae = uaeOf(payload);
   const f = (n: number) => new Intl.NumberFormat(localeTag(locale)).format(n);
-  const state = (value: string) => value === "APPROVED" ? (locale.language === "ar" ? "معتمد" : locale.language === "ur" ? "منظور شدہ" : "Approved") : t[value as keyof typeof t] || value;
+  // Words outside the report catalog: the bilingual print pairs English with Arabic like every other label.
+  const word = (en: string, ar: string, ur: string) => uae ? `${en} · ${ar}` : locale.language === "ar" ? ar : locale.language === "ur" ? ur : en;
+  const state = (value: string) => value === "APPROVED" ? word("Approved", "معتمد", "منظور شدہ") : t[value as keyof typeof t] || value;
   const student = reportCard.student;
   const exam = reportCard.exam;
   const campus = reportCard.campus as any;
   const school = campus?.school;
   const logo = logoUrl;
+  const brand = brandHex(school?.brandColor);
   const avatarUrl = student.profileImageUrl?.startsWith("http") ? student.profileImageUrl : null;
   const displayPercentage = reportCard.percentage || 0;
   const displayGrade = reportCard.grade || "—";
 
   const remarkSections: { label: string; value: string; urdu?: boolean }[] = [];
-  if (locale.language === "en" && reportCard.remarksEn) remarkSections.push({ label: t.english, value: reportCard.remarksEn });
-  if (locale.language === "ur" && reportCard.remarksUr) remarkSections.push({ label: t.urdu, value: reportCard.remarksUr, urdu: true });
+  // The bilingual print carries both the English and the Arabic remarks.
+  if (uae) {
+    if (reportCard.remarksEn) remarkSections.push({ label: UAE_LABELS.englishRemarks, value: reportCard.remarksEn });
+    if (reportCard.remarksAr) remarkSections.push({ label: UAE_LABELS.arabicRemarks, value: reportCard.remarksAr, urdu: true });
+  } else if (locale.language === "en" && reportCard.remarksEn) remarkSections.push({ label: t.english, value: reportCard.remarksEn });
+  if (!uae && locale.language === "ur" && reportCard.remarksUr) remarkSections.push({ label: t.urdu, value: reportCard.remarksUr, urdu: true });
 
-  if (locale.language === "ar" && reportCard.remarksAr) remarkSections.push({ label: "العربية", value: reportCard.remarksAr, urdu: true });
+  if (!uae && locale.language === "ar" && reportCard.remarksAr) remarkSections.push({ label: "العربية", value: reportCard.remarksAr, urdu: true });
 
   return (
-    <Document language={locale.language}>
+    <Document language={locale.language} title={`${student.fullName} — ${exam.title}`} creator="SkooleeAI" producer="SkooleeAI">
       <Page size="A4" style={[styles.page, { fontFamily: `Report-${locale.language}`, direction: locale.language !== "en" ? "rtl" : "ltr", textAlign: locale.language !== "en" ? "right" : "left" }]}>
         {/* School/Campus branding header */}
         {logo ? (
-          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12, gap: 10 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12, gap: 10, ...(brand ? { borderBottomWidth: 2, borderBottomColor: brand, paddingBottom: 6 } : {}) }}>
             <Image src={logo} style={{ width: 36, height: 36, borderRadius: 6 }} />
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 11, fontWeight: 700 }}>{campus?.name || ""}</Text>
+              {/* SKAI-114: the official school name in the card's language (Urdu/Arabic when stored). */}
+              {school && localizedSchoolName(school, locale.language) !== school.name ? <Text style={{ fontSize: 9 }}>{localizedSchoolName(school, locale.language)}</Text> : null}
               {school?.tagline ? <Text style={{ fontSize: 7, color: "#667085" }}>{school.tagline}</Text> : null}
               <Text style={{ fontSize: 7, color: "#667085" }}>
                 {[campus?.city, campus?.address, campus?.phone || school?.phone, campus?.email || school?.contactEmail, campus?.website || school?.website].filter(Boolean).join(" | ")}
@@ -365,9 +405,9 @@ export function ReportCardDocument({ payload, logoUrl }: { payload: ReportPayloa
             <Text style={styles.subline}>
               {student.rollNo ? `${t.roll}: ${student.rollNo} · ` : ""}{classLabel(payload)}
             </Text>
-            <Text style={styles.subline}>{locale.language === "ar" ? "النسخة" : locale.language === "ur" ? "نسخہ" : "Version"} {payload.versionInfo.number}</Text>
+            <Text style={styles.subline}>{word("Version", "النسخة", "نسخہ")} {payload.versionInfo.number}</Text>
             <Text style={[styles.subline, { direction: "ltr" }]}>{payload.versionInfo.documentIdentity}</Text>
-            {payload.versionInfo.correctionReason && <Text style={styles.subline}>{locale.language === "ar" ? "تصحيح:" : locale.language === "ur" ? "تصحیح:" : "Correction:"} {payload.versionInfo.correctionReason}</Text>}
+            {payload.versionInfo.correctionReason && <Text style={styles.subline}>{word("Correction:", "تصحيح:", "تصحیح:")} {payload.versionInfo.correctionReason}</Text>}
             <Text style={styles.subline}>{t.generated}</Text>
             <Text style={[styles.subline, { direction: "ltr" }]}>{new Intl.DateTimeFormat(localeTag(locale), { timeZone: locale.timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(reportCard.generatedAt))}</Text>
             <Text style={styles.subline}>{new Intl.DateTimeFormat(localeTag(locale), { timeZone: locale.timezone, dateStyle: "long" }).format(new Date(reportCard.generatedAt))}</Text>
@@ -397,6 +437,8 @@ export function ReportCardDocument({ payload, logoUrl }: { payload: ReportPayloa
           <StatBox label={t.percentage} value={`${f(displayPercentage)}%`} />
           <StatBox label={t.grade} value={displayGrade} last />
         </View>
+
+        {uae ? <MandatorySubjects uae={uae} rtl={locale.language !== "en"} f={f} /> : null}
 
         {subjectDistribution?.length || overall ? <MarksDistribution payload={payload} /> : null}
 

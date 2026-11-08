@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from "node:async_hooks";
+import { referenceTransaction, type ReferenceClient } from "./reference-transaction";
 import { AccessDenied } from "@/lib/auth/policy";
 import type { TenantContext } from "./tenant-context";
 import { Prisma, PrismaClient } from "@prisma/client";
@@ -11,6 +11,8 @@ import {
   TenantContextError,
 } from "./tenant-context";
 import { GLOBAL_MODELS, TENANT_MODELS } from "./tenant-models";
+import { pooledDatabaseUrl } from "./pool-url";
+import { auditTrail, withTransactionAudit } from "./audit-trail";
 
 // ─────────────────────────────────────────────────────────────────
 // Tenant guard
@@ -76,9 +78,6 @@ const SHARED_DEFAULT_DELEGATES = new Set(["notificationTemplate", "promptTemplat
  * nested writes (`{ students: { create: … } }`) can be stamped too. Built
  * from the generated DMMF rather than hand-maintained.
  */
-type ReferenceClient = Record<string, { findFirst: (args: unknown) => Promise<unknown> }>;
-declare global { var __skooleeReferenceTransaction: AsyncLocalStorage<ReferenceClient> | undefined; }
-const referenceTransaction = globalThis.__skooleeReferenceTransaction ??= new AsyncLocalStorage<ReferenceClient>();
 const checkedRelations = new Set<string>();
 const listRelations = new Set<string>();
 const relationTargets = new Map<string, string>();
@@ -412,7 +411,7 @@ function tenantGuard() {
 
           // Without RLS, or when we are already inside a transaction that has
           // set the tenant, run the (now scoped) query directly.
-          if (!RLS_ENABLED || context.rlsSession) {
+          if (!RLS_ENABLED || context.rlsSession || referenceTransaction.getStore()) {
             return query(next as typeof args);
           }
 
@@ -434,8 +433,12 @@ function tenantGuard() {
 const prismaClientSingleton = () => {
   return new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
-    datasourceUrl: process.env.DATABASE_URL,
-  }).$extends(tenantGuard());
+    // SKAI-1038: pgbouncer + a small per-instance pool, so serverless instances cannot exhaust the pooler.
+    datasourceUrl: pooledDatabaseUrl(process.env.DATABASE_URL),
+  })
+    .$extends(tenantGuard())
+    // SKAI-1162: one audit row per create/update/delete, written through the guarded client.
+    .$extends(auditTrail());
 };
 
 declare global {
@@ -450,7 +453,13 @@ export const prisma = new Proxy(guardedClient, {
     return (first: unknown, options?: unknown) => {
       const transact = target.$transaction.bind(target) as (arg: unknown, options?: unknown) => unknown;
       if (typeof first !== "function") return transact(first, options);
-      return transact((tx: ReferenceClient) => referenceTransaction.run(tx, async () => await first(tx)), options);
+      return transact(async (tx: ReferenceClient) => {
+        // RLS reads inside this transaction must reuse it: a nested rlsClient
+        // transaction waits on the rows this one locked and times out (SKAI-1303).
+        const context = getTenantContext();
+        if (RLS_ENABLED && context?.schoolId) await applySchoolGuc(tx as unknown as { $executeRawUnsafe: (q: string, ...v: unknown[]) => Promise<unknown> }, context.schoolId);
+        return referenceTransaction.run(tx, () => withTransactionAudit(tx, async () => await first(tx)));
+      }, options);
     };
   },
 });
@@ -466,9 +475,9 @@ export type TxClient = Omit<
   "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends"
 >;
 
-if (process.env.NODE_ENV !== "production") {
-  globalThis.prisma = guardedClient;
-}
+// Cached in every environment (SKAI-1038): Next.js can evaluate this module more than once per server instance
+// (separate route/action bundles), and each evaluation would otherwise open a second pool.
+globalThis.prisma = guardedClient;
 
 // Now that the client exists, hand the guard its transaction entry point.
 rlsClient = prisma as unknown as RlsCapableClient;

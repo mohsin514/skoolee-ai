@@ -11,6 +11,8 @@ import { triggerRepeatedAbsenceAlert } from "@/lib/notifications/automation";
 import { ATTENDANCE_STATUSES, DEFAULT_ATTENDANCE_RULE } from "@/lib/attendance";
 import { attendanceRuleFor, explainClosed } from "./rule";
 export { attendanceRuleFor, EXPLAIN_WINDOW_DAYS } from "./rule";
+import { regulatorView } from "./regulator";
+import { canCorrectRegister } from "./correction-permission";
 
 // SKO-405: the class register. A register is one class on one school day; its roster is the pupils
 // enrolled in that class on that date (dated enrollment), so a pupil who later moved still appears on the
@@ -44,6 +46,8 @@ export async function publishRule(user: AuthUser, body: Record<string, unknown>)
   if (!attended.includes("PRESENT") || attended.includes("ABSENT") || excluded.includes("ABSENT") || excluded.includes("PRESENT")) throw new ApiError("Present always counts as attended and absent always counts against attendance.", 400);
   const note = text(body.note, "Reason for the change", 5, 500);
   return schoolAiTransaction(user, async db => {
+    // SKAI-1571: serialize publications per school so two leaders never compute the same next version.
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`attendance-rule:${user.schoolId}`}))`;
     const latest = await db.attendanceRuleVersion.findFirst({ where: { schoolId: user.schoolId }, orderBy: { version: "desc" } });
     const current = latest ?? DEFAULT_ATTENDANCE_RULE;
     if (JSON.stringify([...current.attended].sort()) === JSON.stringify([...attended].sort()) && JSON.stringify([...current.excluded].sort()) === JSON.stringify([...excluded].sort())) throw new ApiError("This is already the rule in force.", 409);
@@ -63,7 +67,8 @@ async function assignedClass(db: TxClient, user: AuthUser, classId: string) {
 /** Pupils enrolled in the class on the date, whatever their class is today. */
 async function datedRoster(db: TxClient, user: AuthUser, classId: string, date: Date) {
   const enrollments = await db.studentEnrollment.findMany({
-    where: { schoolId: user.schoolId, classId, startDate: { lte: date }, OR: [{ endDate: null }, { endDate: { gt: date } }] },
+    // SKAI-1354: an archived pupil has left the register, so they are not on a current dated roster.
+    where: { schoolId: user.schoolId, classId, startDate: { lte: date }, OR: [{ endDate: null }, { endDate: { gt: date } }], student: { archivedAt: null } },
     select: { id: true, studentId: true, rollNo: true, student: { select: { id: true, fullName: true, classId: true, profileImageUrl: true } } },
     orderBy: [{ rollNo: "asc" }, { studentId: "asc" }],
   });
@@ -74,7 +79,7 @@ export async function registerView(user: AuthUser, classId: string, dateText: st
   if (!canMarkAttendance(user)) throw new ApiError("You cannot view attendance registers.", 403);
   const date = dayDate(dateText);
   const cls = await assignedClass(prisma, user, classId);
-  const [roster, register, rule] = await Promise.all([datedRoster(prisma, user, cls.id, date), prisma.attendanceRegister.findUnique({ where: { classId_date: { classId: cls.id, date } } }), attendanceRuleFor(user.schoolId)]);
+  const [roster, register, rule, school] = await Promise.all([datedRoster(prisma, user, cls.id, date), prisma.attendanceRegister.findUnique({ where: { classId_date: { classId: cls.id, date } } }), attendanceRuleFor(user.schoolId), prisma.school.findUnique({ where: { id: user.schoolId }, select: { attendanceRegulator: true } })]);
   const rows = await prisma.attendance.findMany({ where: { schoolId: user.schoolId, studentId: { in: roster.map(r => r.studentId) }, date }, include: { marker: { select: { fullName: true } }, explanations: { where: { status: { in: ["PENDING", "CLARIFICATION"] } }, select: { id: true, status: true } } } });
   const byStudent = new Map(rows.map(row => [row.studentId, row]));
   const entries = roster.map(enrollment => {
@@ -83,10 +88,11 @@ export async function registerView(user: AuthUser, classId: string, dateText: st
       status: (row?.status ?? null) as Status | null, arrivalTime: row?.arrivalTime ?? null, departureTime: row?.departureTime ?? null, note: row?.notes ?? null, version: row?.version ?? 0, markedBy: row?.marker?.fullName ?? null, markedAt: row?.markedAt ?? null, openExplanation: row?.explanations[0]?.status ?? null };
   });
   const counts = Object.fromEntries([...ATTENDANCE_STATUSES, "UNMARKED"].map(status => [status, entries.filter(entry => (entry.status ?? "UNMARKED") === status).length]));
-  return { class: { id: cls.id, name: [cls.name, cls.section].filter(Boolean).join(" "), academicYear: cls.academicYear }, date: dateText, register: register ? { status: register.status, submittedAt: register.submittedAt, version: register.version } : { status: "OPEN", submittedAt: null, version: 0 }, entries, counts, rule };
+  const canCorrect = await canCorrectRegister(() => assertPermission(user, "attendance", "edit"));
+  return { canCorrect, class: { id: cls.id, name: [cls.name, cls.section].filter(Boolean).join(" "), academicYear: cls.academicYear }, date: dateText, register: register ? { status: register.status, submittedAt: register.submittedAt, version: register.version } : { status: "OPEN", submittedAt: null, version: 0 }, entries, counts, rule, regulator: regulatorView(school?.attendanceRegulator, date) };
 }
 
-type EntryInput = { studentId: string; status: Status; knownStatus: Status | null; arrivalTime?: string | null; departureTime?: string | null; note?: string | null; reviewedConflict?: boolean };
+type EntryInput = { studentId: string; status: Status; knownStatus: Status | null; knownVersion?: number | null; arrivalTime?: string | null; departureTime?: string | null; note?: string | null; reviewedConflict?: boolean };
 export type Conflict = { studentId: string; name: string; current: string | null; yours: string; seen: string | null; markedBy: string | null };
 
 /**
@@ -125,16 +131,21 @@ export async function saveRegister(user: AuthUser, body: Record<string, unknown>
     for (const entry of entries) {
       const row = current.get(entry.studentId);
       const now = (row?.status ?? null) as string | null;
-      if (now === entry.status && (row?.arrivalTime ?? null) === (entry.arrivalTime ?? null) && (row?.departureTime ?? null) === (entry.departureTime ?? null)) continue;
-      if (now !== (entry.knownStatus ?? null) && !entry.reviewedConflict) { conflicts.push({ studentId: entry.studentId, name: enrollment.get(entry.studentId)!.student.fullName, current: now, yours: entry.status, seen: entry.knownStatus ?? null, markedBy: row?.marker?.fullName ?? null }); continue; }
+      // SKAI-1410: a time-only correction is a change too, so it needs the same reason, history and conflict check.
+      const timesChanged = (row?.arrivalTime ?? null) !== (entry.arrivalTime ?? null) || (row?.departureTime ?? null) !== (entry.departureTime ?? null);
+      if (now === entry.status && !timesChanged) continue;
+      const stale = entry.knownVersion != null && entry.knownVersion !== (row?.version ?? 0);
+      if ((now !== (entry.knownStatus ?? null) || stale) && !entry.reviewedConflict) { conflicts.push({ studentId: entry.studentId, name: enrollment.get(entry.studentId)!.student.fullName, current: now, yours: entry.status, seen: entry.knownStatus ?? null, markedBy: row?.marker?.fullName ?? null }); continue; }
       if (row?.isLocked) throw new ApiError("This register is locked.", 409);
-      if (submitted && row && now !== entry.status && !reason) throw new ApiError("Changing a recorded mark is a correction. Give the reason.", 400);
+      if (submitted && row && (now !== entry.status || timesChanged) && !reason) throw new ApiError("Changing a recorded mark is a correction. Give the reason.", 400);
       // Changing your own mark in an open register is still marking; anything else is an edit.
-      if (row && now !== null && now !== entry.status && (submitted || row.markedBy !== user.userId)) await assertPermission(user, "attendance", "edit");
+      if (row && now !== null && (now !== entry.status || timesChanged) && (submitted || row.markedBy !== user.userId)) await assertPermission(user, "attendance", "edit");
       const data = { status: entry.status as AttendanceStatus, arrivalTime: entry.arrivalTime ?? null, departureTime: entry.departureTime ?? null, notes: entry.note?.trim() ? entry.note.trim().slice(0, 500) : row?.notes ?? null, markedBy: user.userId, markedAt: new Date() };
       if (row) {
         await db.attendance.update({ where: { id: row.id }, data: { ...data, version: { increment: 1 } } });
-        if (now !== entry.status) await db.attendanceEditHistory.create({ data: { schoolId: user.schoolId, attendanceId: row.id, oldStatus: now ?? "UNMARKED", newStatus: entry.status, editedBy: user.userId, reason: submitted ? reason : reason ?? null, source: submitted ? "CORRECTION" : "REGISTER" } });
+        // Field history: a time change is recorded even when the status stays the same.
+        const timeNote = timesChanged ? `Arrival ${row.arrivalTime ?? "–"} → ${entry.arrivalTime ?? "–"}; departure ${row.departureTime ?? "–"} → ${entry.departureTime ?? "–"}` : null;
+        if (now !== entry.status || timesChanged) await db.attendanceEditHistory.create({ data: { schoolId: user.schoolId, attendanceId: row.id, oldStatus: now ?? "UNMARKED", newStatus: entry.status, editedBy: user.userId, reason: [reason, timeNote].filter(Boolean).join(" · ") || null, source: submitted ? "CORRECTION" : "REGISTER" } });
         written.push(row.id);
       } else {
         const created = await db.attendance.create({ data: { ...data, schoolId: user.schoolId, campusId: cls.campusId, classId: cls.id, studentId: entry.studentId, date, enrollmentId: enrollment.get(entry.studentId)!.id } });
@@ -200,7 +211,9 @@ export async function submitExplanation(user: AuthUser, body: Record<string, unk
 /** Staff decide an explanation. Accepting records a correction with the explanation as its reason. */
 export async function reviewExplanation(user: AuthUser, body: Record<string, unknown>) {
   if (!canMarkAttendance(user)) throw new ApiError("You cannot review explanations.", 403);
-  await assertPermission(user, "attendance", "edit");
+  // SKAI-1037: a teacher holds attendance `add` (their register), not campus-wide `edit`; deciding a guardian's
+  // explanation is allowed for the teacher's own assigned class only, checked inside the transaction below.
+  await assertPermission(user, "attendance", user.role === "TEACHER" ? "add" : "edit");
   const action = String(body.action ?? "");
   const note = body.note ? text(body.note, "Note", 2, 500) : null;
   const outcome = await schoolAiTransaction(user, async db => {
@@ -247,6 +260,8 @@ export async function entryHistory(user: AuthUser, attendanceId: string) {
   if (!canMarkAttendance(user)) throw new ApiError("You cannot view attendance history.", 403);
   const row = await prisma.attendance.findFirst({ where: { id: attendanceId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, include: { editHistory: { orderBy: { editedAt: "asc" } }, explanations: { orderBy: { createdAt: "asc" } } } });
   if (!row) throw new ApiError("Attendance record not found", 404);
+  // SKAI-1357: a teacher sees a pupil-day's history only for a class they are assigned to.
+  if (user.role === "TEACHER" && row.classId) await assignedClass(prisma, user, row.classId);
   const ids = [...new Set([...row.editHistory.map(h => h.editedBy), row.markedBy].filter((v): v is string => Boolean(v)))];
   const people = new Map((await prisma.user.findMany({ where: { schoolId: user.schoolId, id: { in: ids } }, select: { id: true, fullName: true } })).map(p => [p.id, p.fullName]));
   return { status: row.status, version: row.version, changes: row.editHistory.map(h => ({ at: h.editedAt, from: h.oldStatus, to: h.newStatus, by: h.editedBy ? people.get(h.editedBy) ?? null : null, reason: h.reason, source: h.source })), explanations: row.explanations.map(e => ({ status: e.status, reason: e.reason, proposedStatus: e.proposedStatus, reviewNote: e.reviewNote, at: e.createdAt })) };

@@ -3,11 +3,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, ExternalLink, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getAssignmentCopy, type AssignmentCopy } from "./assignment-copy";
-import { Banner, call, fileHref, fill, formatAt, Pill, RubricTable, stateTone, type Criterion, type Feedback, type Receipt } from "./shared";
+import { Banner, LoadOlder, call, fileHref, fill, formatAt, Pill, RubricTable, stateTone, type Criterion, type Feedback, type Receipt } from "./shared";
 import { Textarea } from "@/components/ui/textarea";
 
 // SKO-409 learner and family view. Learners draft, upload and submit with a server receipt;
@@ -38,8 +39,13 @@ export function LearnerAssignments({ audience }: { audience: "learner" | "guardi
   const ui = useUiText();
   const params = useSearchParams(), requested = params.get("open"), fromToday = params.get("from") === "today";
   const [missing, setMissing] = useState(false), linked = useRef(false);
-  const load = useCallback(async () => setItems((await call("/api/assignments")).assignments), []);
-  useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const load = useCallback(async () => { const data = await call("/api/assignments"); setItems(data.assignments); setCursor(data.nextCursor ?? null); }, []);
+  const loadOlder = useCallback(async (from: string) => { const data = await call(`/api/assignments?cursor=${encodeURIComponent(from)}`); setItems(prev => [...(prev ?? []), ...data.assignments]); setCursor(data.nextCursor ?? null); }, []);
+  // SKAI-1501: a failed first load is its own state with a localized Retry, not a dead-end banner.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const firstLoad = useCallback(() => { setLoadFailed(false); load().catch(() => setLoadFailed(true)); }, [load]);
+  useEffect(() => { firstLoad(); }, [firstLoad]);
   useEffect(() => {
     if (!items || !requested || linked.current) return;
     linked.current = true;
@@ -47,6 +53,7 @@ export function LearnerAssignments({ audience }: { audience: "learner" | "guardi
     if (match) setSelected(`${match.id}:${match.studentId}`); else setMissing(true);
   }, [items, requested]);
 
+  if (!items && loadFailed) return <div dir={rtl ? "rtl" : "ltr"} className="sk-panel"><ErrorState title={t.errorTitle} description={t.failed} retryLabel={t.retry} onRetry={firstLoad} /></div>;
   if (!items) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3"><Banner status={status} />{!status && <SkeletonList rows={3} label={t.loading} />}</div>;
   const current = items.find(item => `${item.id}:${item.studentId}` === selected);
   if (current) return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-4">
@@ -70,6 +77,7 @@ export function LearnerAssignments({ audience }: { audience: "learner" | "guardi
         </div>
         <div className="mt-3"><Button type="button" variant="outline" size="sm" onClick={() => setSelected(`${item.id}:${item.studentId}`)}>{t.open}<span className="sr-only">: {item.title}</span></Button></div>
       </li>; })}</ul>}
+    <LoadOlder cursor={cursor} onLoad={loadOlder} labels={t} />
   </div>;
 }
 
@@ -132,6 +140,8 @@ function Work({ t, language, item, reload, setStatus, onReceipt }: { t: Assignme
   const [upload, setUpload] = useState<Upload>(item.draft?.file ? { state: item.draft.file.ready ? "uploaded" : "failed", file: null, name: item.draft.file.name, sha256: item.draft.file.sha256 } : { state: "idle", file: null, name: null, sha256: null });
   const [phase, setPhase] = useState<"idle" | "submitting" | "failed">("idle");
   const fileInput = useRef<HTMLInputElement>(null);
+  // SKAI-1442: keep the submit key in memory too, so a retry replays even when storage is unavailable.
+  const submitKeyRef = useRef<string | null>(null);
   const post = (body: Record<string, unknown>) => call(`/api/assignments/${item.id}`, body);
   const accept = item.allowedTypes.map(g => ACCEPT[g]).filter(Boolean).join(",");
 
@@ -151,13 +161,14 @@ function Work({ t, language, item, reload, setStatus, onReceipt }: { t: Assignme
   }
   async function submit() {
     // One key per intended submission, kept across retries and reloads until a receipt arrives.
-    const idempotencyKey = store.get(submitKey) ?? `s-${crypto.randomUUID()}`;
+    const idempotencyKey = store.get(submitKey) ?? submitKeyRef.current ?? `s-${crypto.randomUUID()}`;
+    submitKeyRef.current = idempotencyKey;
     store.set(submitKey, idempotencyKey);
     setPhase("submitting"); setStatus(null);
     try {
       if (saved !== "server") await saveServer();
       const { result } = await post({ op: "submit", idempotencyKey });
-      store.remove(submitKey); store.remove(draftKey);
+      store.remove(submitKey); submitKeyRef.current = null; store.remove(draftKey);
       onReceipt(result); setPhase("idle");
       await reload();
     } catch (error) {

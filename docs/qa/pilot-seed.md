@@ -6,10 +6,21 @@ never counts as customer evidence.
 
 ## What it creates
 
-- **Two synthetic schools** (tenants): `qa-alpha`, `qa-beta` — each with **two campuses**.
-- **One QA account per role per school**: owner (SUPER_ADMIN), admin (CAMPUS_ADMIN),
-  principal, teacher, accountant, guardian (PARENT), student — **plus one no-access
-  account** (unscoped) for denied-role tests.
+- **Two synthetic GROUP schools** (tenants): `qa-alpha`, `qa-beta`, each with **two campuses**
+  and `registrationKind = GROUP`.
+  Accounts: owner (SUPER_ADMIN), admin (CAMPUS_ADMIN), principal, teacher, accountant,
+  guardian (PARENT), student, **plus one no-access account** (unscoped) for denied-role tests.
+- **One synthetic STANDALONE school** (SKAI-1066): `qa-solo`, one campus,
+  `registrationKind = STANDALONE`, the same as a real "single school" signup
+  (`src/lib/auth/register.ts`). Accounts: `admin@qa-solo.qa.local` (ADMIN, no campus,
+  `isInstitutionOwner` + `canPurchaseSubscription` + `canManageMemberships`, as the
+  registering owner has), plus principal, teacher, accountant, guardian, student and noaccess.
+  There is no SUPER_ADMIN or CAMPUS_ADMIN in a standalone school.
+  `/api/auth/session` for that admin reports `institution.kind = STANDALONE`,
+  `isAuthority = true`, `standaloneOwner = true`, `isOwner = true`, so standalone-only
+  settings (e.g. `PATCH /api/chat/settings`) can be tested.
+  The tenant plan is in `scripts/qa/pilot-seed-plan.ts` and covered by
+  `tests/pilots/qa-seed-plan.test.ts`.
 - Names in **EN / UR / AR (RTL)**, including long and mixed-script samples.
 - Synthetic phone numbers in the `+92-300` test range. Emails use the non-routable
   `*.qa.local` domain.
@@ -18,7 +29,7 @@ never counts as customer evidence.
 
 ```bash
 pnpm run qa:seed            # seed / refresh (idempotent upsert)
-pnpm run qa:seed -- --reset # drop the two QA schools first, then reseed a clean state
+pnpm run qa:seed -- --reset # drop the QA schools first, then reseed a clean state
 ```
 
 ## Credentials & safety (NFR-SEC-09 / G-01)
@@ -34,7 +45,7 @@ pnpm run qa:seed -- --reset # drop the two QA schools first, then reseed a clean
 
 ## QA checklist (acceptance)
 
-1. Sign in as **every role** in **both** schools on dev.
+1. Sign in as **every role** in **all three** schools on dev (including the standalone `qa-solo` admin).
 2. Try a **cross-school URL** → access is denied.
 3. Switch locale to **UR** and **AR (RTL)** and confirm names render.
 4. Run `pnpm run qa:seed -- --reset` to restore a known state.

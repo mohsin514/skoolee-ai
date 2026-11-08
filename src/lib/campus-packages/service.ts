@@ -200,25 +200,37 @@ const OrderInput = z.object({ studentId: text(1, 120), itemId: text(1, 120), qua
 
 export async function placeOrder(user: AuthUser, raw: unknown) {
   const input = parse(OrderInput, raw);
+  // SKAI-1772: every replay path (before, inside and after the transaction) only replays an identical order;
+  // a reused key with a different meal, child or quantity is a 409, as for a sequential retry.
+  const assertSameOrder = (o: { orderedById: string; itemId: string; studentId: string; quantity: number } | null) => assert(!o || (o.orderedById === user.userId && o.itemId === input.itemId && o.studentId === input.studentId && o.quantity === input.quantity), "This order reference was used for a different order.", 409);
   const replay = await prisma.canteenOrder.findUnique({ where: { schoolId_idempotencyKey: { schoolId: user.schoolId, idempotencyKey: input.idempotencyKey } } });
-  if (replay) { assert(replay.orderedById === user.userId && replay.itemId === input.itemId && replay.studentId === input.studentId && replay.quantity === input.quantity, "This order reference was used for a different order.", 409); return { order: replay, replayed: true }; }
+  if (replay) { assertSameOrder(replay); return { order: replay, replayed: true }; }
   const student = await guardianFor(user, input.studentId);
   await requireEnabled(user.schoolId, student.campusId, "CANTEEN", "Canteen ordering");
   const item = await prisma.canteenItem.findFirst({ where: { id: input.itemId, schoolId: user.schoolId, campusId: student.campusId, status: "ACTIVE" } });
   assert(!!item, "That meal is not on the current menu.", 404);
   assert(item.serviceDate >= await campusToday(user.schoolId, student.campusId), "That meal's service date has passed.", 409);
   const amount = item.price * input.quantity;
-  const limit = await prisma.canteenSpendLimit.findUnique({ where: { schoolId_studentId: { schoolId: user.schoolId, studentId: student.id } } });
-  if (limit) {
-    const sameDay = await prisma.canteenItem.findMany({ where: { schoolId: user.schoolId, campusId: student.campusId, serviceDate: item.serviceDate }, select: { id: true } });
-    const spent = (await prisma.canteenOrder.aggregate({ where: { studentId: student.id, itemId: { in: sameDay.map((i) => i.id) }, status: { in: ["PLACED", "HOLD", "SERVED"] } }, _sum: { amount: true } }))._sum.amount ?? 0;
-    assert(spent + amount <= limit.dailyLimit, `This order would pass the daily limit of ${limit.dailyLimit} ${item.currency} (already ${spent}).`, 409);
-  }
   const record = await prisma.dietaryRecord.findUnique({ where: { schoolId_studentId: { schoolId: user.schoolId, studentId: student.id } } });
   const clash = record?.allergens.filter((a) => item.allergens.includes(a)) ?? [];
   const hold = clash.length ? `Declared allergen: ${clash.join(", ")}. A trained staff member will check this order.` : item.allergens.length && (!record || record.status !== "CONFIRMED") ? "The meal has allergens and the dietary record is not confirmed. A trained staff member will check this order." : null;
   try {
     return await prisma.$transaction(async (tx) => {
+      // SKAI-1772: requests sharing a key serialise here first (even for meals on different days), so the second
+      // sees the first one's order and replays or refuses it instead of racing the unique index.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`canteen-order-key:${user.schoolId}:${input.idempotencyKey}`}))`;
+      // SKAI-1575: the daily-limit read and the order/charge write are one step per child and service date,
+      // so simultaneous orders cannot both pass the limit. A same-key retry that waited here is a replay.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`canteen-limit:${user.schoolId}:${student.id}:${item.serviceDate.toISOString()}`}))`;
+      const prior = await tx.canteenOrder.findUnique({ where: { schoolId_idempotencyKey: { schoolId: user.schoolId, idempotencyKey: input.idempotencyKey } } });
+      assertSameOrder(prior);
+      if (prior) return { order: prior, replayed: true };
+      const limit = await tx.canteenSpendLimit.findUnique({ where: { schoolId_studentId: { schoolId: user.schoolId, studentId: student.id } } });
+      if (limit) {
+        const sameDay = await tx.canteenItem.findMany({ where: { schoolId: user.schoolId, campusId: student.campusId, serviceDate: item.serviceDate }, select: { id: true } });
+        const spent = (await tx.canteenOrder.aggregate({ where: { studentId: student.id, itemId: { in: sameDay.map((i) => i.id) }, status: { in: ["PLACED", "HOLD", "SERVED"] } }, _sum: { amount: true } }))._sum.amount ?? 0;
+        assert(spent + amount <= limit.dailyLimit, `This order would pass the daily limit of ${limit.dailyLimit} ${item.currency} (already ${spent}).`, 409);
+      }
       const reserved = await tx.canteenItem.updateMany({ where: { id: item.id, status: "ACTIVE", sold: { lte: item.capacity - input.quantity } }, data: { sold: { increment: input.quantity } } });
       assert(reserved.count === 1, "Sold out. No charge was made.", 409);
       const order = await tx.canteenOrder.create({ data: { schoolId: user.schoolId, campusId: student.campusId, itemId: item.id, studentId: student.id, quantity: input.quantity, amount, currency: item.currency, status: hold ? "HOLD" : "PLACED", holdReason: hold, idempotencyKey: input.idempotencyKey, orderedById: user.userId, history: json([{ at: new Date().toISOString(), event: hold ? "HELD" : "PLACED", by: user.userId }]) } });
@@ -228,7 +240,7 @@ export async function placeOrder(user: AuthUser, raw: unknown) {
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       const again = await prisma.canteenOrder.findUnique({ where: { schoolId_idempotencyKey: { schoolId: user.schoolId, idempotencyKey: input.idempotencyKey } } });
-      if (again) return { order: again, replayed: true };
+      if (again) { assertSameOrder(again); return { order: again, replayed: true }; }
     }
     throw error;
   }

@@ -981,10 +981,13 @@ async function seedFees(campusId: string, campusIdx: number, recordedById: strin
   const classFees = new Map(classes.map((c, i) => [c.id, 4000 + i * 300]));
 
   for (const cls of classes) {
-    await prisma.feeStructure.upsert({
-      where: { classId_activeFrom: { classId: cls.id, activeFrom: new Date(ACADEMIC_YEAR, 0, 1) } },
-      update: {},
-      create: {
+    // SKAI-1123: the unique key now includes a nullable academicYearId, so upsert-by-key is not available.
+    const existingStructure = await prisma.feeStructure.findFirst({
+      where: { classId: cls.id, academicYearId: null, activeFrom: new Date(ACADEMIC_YEAR, 0, 1) },
+      select: { id: true },
+    });
+    if (!existingStructure) await prisma.feeStructure.create({
+      data: {
         campusId,
         classId: cls.id,
         monthlyFee: classFees.get(cls.id) ?? 5000,

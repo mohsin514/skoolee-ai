@@ -1,14 +1,15 @@
 import { test, expect, type BrowserContext } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
-const isolated = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const isolated = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== isolated || process.env.DIRECT_URL !== isolated) throw new Error("Use only the isolated School AI test database.");
 const db = new PrismaClient();
 const school = "school-ai-browser-a", campusId = `${school}-campus`, classId = `${school}-class`;
 async function signIn(context: BrowserContext, suffix = "a", role = "ADMIN") {
   const tokens = JSON.parse(await readFile("test-results/school-ai/local-tokens.json", "utf8"));
-  await context.addCookies([{ name: "skoolee_token", value: tokens[`${suffix}-${role}`], url: "http://localhost:3106", httpOnly: true, sameSite: "Lax" }]);
+  await context.addCookies([{ name: "skoolee_token", value: tokens[`${suffix}-${role}`], url: SCHOOL_AI_ORIGIN, httpOnly: true, sameSite: "Lax" }]);
 }
 test.beforeEach(async ({ context }) => { await db.user.update({ where: { id: `${school}-ADMIN` }, data: { preferredLanguage: "en" } }); await signIn(context); });
 test.afterAll(async () => { await db.user.update({ where: { id: `${school}-ADMIN` }, data: { preferredLanguage: "en" } }); await db.$disconnect(); });
@@ -44,7 +45,7 @@ test("mapped roster shows duplicates and correctable omissions, commits reviewed
 });
 
 test("stale review cannot change or commit a newer roster, and tenant access is denied", async ({ page, browser }) => {
-  const csv = `fullName,rollNo,guardianPhone,address,city,medicalNotes\nSynthetic Race,race-${Date.now()},03000000000,Street,City,None reported`;
+  const csv = `fullName,rollNo,guardianPhone,guardianName,address,city,medicalNotes\nSynthetic Race,race-${Date.now()},03000000000,Synthetic Guardian,Street,City,None reported`;
   const staged = await page.request.post("/api/import-batches", { data: { kind: "STUDENT_ROSTER", campusId, defaultClassId: classId, sourceName: "race.csv", csvText: csv } });
   expect(staged.ok(), await staged.text()).toBeTruthy(); const { data: batch } = await staged.json();
   const url = `/api/import-batches/${batch.id}?campusId=${campusId}`;
@@ -55,10 +56,10 @@ test("stale review cannot change or commit a newer roster, and tenant access is 
   expect((await page.request.post(`/api/students?campusId=${campusId}`, { data: { _importBatchId: batch.id, _reviewToken: batch.reviewToken } })).status()).toBe(409);
   const current = await (await page.request.get(url)).json(); expect(current.data.reviewToken).not.toBe(batch.reviewToken);
   expect((await page.request.patch(url, { data: { reviewToken: batch.reviewToken, rows: [{ rowNumber: 2, selected: false }] } })).status()).toBe(409);
-  const other = await browser.newContext({ baseURL: "http://localhost:3106" }); await signIn(other, "b");
+  const other = await browser.newContext({ baseURL: SCHOOL_AI_ORIGIN }); await signIn(other, "b");
   expect((await other.request.get(`/api/import-batches/${batch.id}?campusId=school-ai-browser-b-campus`)).status()).toBe(404);
   await other.close();
-  const teacher = await browser.newContext({ baseURL: "http://localhost:3106" }); await signIn(teacher, "a", "TEACHER");
+  const teacher = await browser.newContext({ baseURL: SCHOOL_AI_ORIGIN }); await signIn(teacher, "a", "TEACHER");
   expect((await teacher.request.get(`/api/school-ai/imports/options?campusId=${campusId}`)).status()).toBe(403);
   await teacher.close();
 });
@@ -68,7 +69,7 @@ test("a revoked permission or archived destination cannot commit a previously re
   const key = { schoolId: school, role: "ADMIN" as const, module: "students" };
   const previous = await db.rolePermission.findUnique({ where: { schoolId_role_module: key } });
   try {
-    const staged = await page.request.post("/api/import-batches", { data: { kind: "STUDENT_ROSTER", campusId, defaultClassId: target.id, sourceName: "guards.csv", csvText: `fullName,rollNo,guardianPhone,address,city,medicalNotes\nGuard Learner,guard-${Date.now()},123,Street,City,None reported` } });
+    const staged = await page.request.post("/api/import-batches", { data: { kind: "STUDENT_ROSTER", campusId, defaultClassId: target.id, sourceName: "guards.csv", csvText: `fullName,rollNo,guardianPhone,guardianName,address,city,medicalNotes\nGuard Learner,guard-${Date.now()},123,Synthetic Guardian,Street,City,None reported` } });
     expect(staged.ok(), await staged.text()).toBeTruthy(); const { data: batch } = await staged.json();
     await db.rolePermission.upsert({ where: { schoolId_role_module: key }, create: { ...key, canView: true, canAdd: false, canEdit: true, canDelete: true }, update: { canAdd: false } });
     const commit = () => page.request.post(`/api/students?campusId=${campusId}`, { data: { _importBatchId: batch.id, _reviewToken: batch.reviewToken } });
@@ -88,7 +89,7 @@ test("a revoked permission or archived destination cannot commit a previously re
 test("concurrent previews with case-variant roll numbers create only one campus identity", async ({ page }) => {
   const roll = `case-${Date.now()}`;
   const batches = await Promise.all([roll, roll.toUpperCase()].map(async rollNo => {
-    const response = await page.request.post("/api/import-batches", { data: { kind: "STUDENT_ROSTER", campusId, defaultClassId: classId, sourceName: `${rollNo}.csv`, csvText: `fullName,rollNo,guardianPhone,address,city,medicalNotes\nCase Learner,${rollNo},123,Street,City,None reported` } });
+    const response = await page.request.post("/api/import-batches", { data: { kind: "STUDENT_ROSTER", campusId, defaultClassId: classId, sourceName: `${rollNo}.csv`, csvText: `fullName,rollNo,guardianPhone,guardianName,address,city,medicalNotes\nCase Learner,${rollNo},123,Synthetic Guardian,Street,City,None reported` } });
     expect(response.ok(), await response.text()).toBeTruthy(); return (await response.json()).data;
   }));
   const results = await Promise.all(batches.map(batch => page.request.post(`/api/students?campusId=${campusId}`, { data: { _importBatchId: batch.id, _reviewToken: batch.reviewToken } })));

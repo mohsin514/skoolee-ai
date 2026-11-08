@@ -1,3 +1,5 @@
+> **Archived tracker note (29 October 2026):** Linear (SKO-) is now a read-only archive; Jira SKAI is the tracker of record (decision D6, `docs/product-review-2026-10/d6-tracker-of-record.md`). SKO references and Linear statuses below are historical. See `docs/archive/linear/` for the export and open-item crosswalk.
+
 # In-progress Linear review — 26 October 2026
 
 Base updated to `dev` at `7d039b47`, including PR #114. Reviewed SKO-545, SKO-460, SKO-494, SKO-397, SKO-408 and SKO-452. This is a code and synthetic-test checkpoint, not closure of these six feature tickets.

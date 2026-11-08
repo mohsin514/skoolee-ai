@@ -9,6 +9,7 @@ import { normalizeImportHeader, parseImportCsv } from "@/lib/imports/csv";
 import { isoDate, type ImportRow } from "@/lib/imports/batch";
 import { assertRosterPermission } from "@/lib/imports/roster-access";
 import { MAX_IMPORT_ROWS as MAX_ROWS, classifyStudentRoster, csvRosterSources, expireStagedBatches, importBatchView as respond, persistImportBatch } from "@/lib/imports/stage-batch-command";
+import { readJsonBody } from "@/lib/api/validate";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     assertStaffRole(user);
-    const body = object(await request.json());
+    const body = object(await readJsonBody(request));
     if (!body) throw new ApiError("Invalid import request", 400);
     const kind = body.kind;
     if (kind !== "STUDENT_ROSTER" && kind !== "BANK_STATEMENT") throw new ApiError("Choose a supported import type", 400);

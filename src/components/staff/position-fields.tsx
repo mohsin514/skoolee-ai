@@ -17,6 +17,8 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { useEffect, useState } from "react";
 import { Network } from "lucide-react";
 import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { TRACK_TONES, DEPARTMENT_KIND_LABELS, EMPLOYMENT_TYPE_LABELS } from "@/lib/staff/hierarchy-presets";
 
@@ -50,13 +52,18 @@ export function usePositionOptions(campusId?: string) {
   const [departments, setDepartments] = useState<Option[]>([]);
   const [managers, setManagers] = useState<Option[]>([]);
   const [ready, setReady] = useState(false);
+  // SKAI-1628: a failed lookup is its own state, never "No ranks set up yet".
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setReady(false);
+      setFailed(false);
       try {
         const res = await fetch(`/api/staff/hierarchy${campusId ? `?campusId=${campusId}` : ""}`);
-        if (!res.ok) return;
+        if (!res.ok) throw new Error("hierarchy options failed");
         const data = await res.json();
         if (cancelled) return;
         setDesignations(data.designations ?? []);
@@ -75,7 +82,7 @@ export function usePositionOptions(campusId?: string) {
             }))
         );
       } catch {
-        // The wizard still works without a ladder — leave the lists empty.
+        if (!cancelled) setFailed(true);
       } finally {
         if (!cancelled) setReady(true);
       }
@@ -83,9 +90,9 @@ export function usePositionOptions(campusId?: string) {
     return () => {
       cancelled = true;
     };
-  }, [campusId]);
+  }, [campusId, attempt]);
 
-  return { designations, departments, managers, ready };
+  return { designations, departments, managers, ready, failed, retry: () => setAttempt((n) => n + 1) };
 }
 
 export function PositionFields({
@@ -98,13 +105,20 @@ export function PositionFields({
   options: ReturnType<typeof usePositionOptions>;
 }) {
   const ui = useUiText();
-  const { designations, departments, managers, ready } = options;
+  const { designations, departments, managers, ready, failed, retry } = options;
   const set = <K extends keyof PositionValue>(key: K, next: PositionValue[K]) =>
     onChange({ ...value, [key]: next });
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Field label={ui("Rank")} hint={designations.length === 0 && ready ? ui("No ranks set up yet. Add them later in Staff structure › Rank ladder.") : ui("Their designation on the ladder.")}>
+      {failed ? (
+        <div className="sm:col-span-2">
+          <Alert tone="danger" compact live="polite">
+            {ui("Could not load ranks, departments and managers. Try again before sending the invitation.")} <Button type="button" variant="link" size="sm" onClick={retry}>{ui("Try again")}</Button>
+          </Alert>
+        </div>
+      ) : null}
+      <Field label={ui("Rank")} hint={designations.length === 0 && ready && !failed ? ui("No ranks set up yet. Add them later in Staff structure › Rank ladder.") : ui("Their designation on the ladder.")}>
         <Select value={value.designationId} onChange={(e) => set("designationId", e.target.value)} disabled={designations.length === 0}>
           <option value="">{ui("Not set")}</option>
           {Object.entries(TRACK_TONES).map(([track, tone]) => {

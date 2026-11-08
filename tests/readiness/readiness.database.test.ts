@@ -4,9 +4,9 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import type { AuthUser } from "../../src/lib/auth";
 import { prisma } from "../../src/lib/db/prisma";
-import { approveReadiness, readinessView, rehearsalPreview, updateReadinessTask } from "../../src/lib/readiness/service";
+import { approveReadiness, readinessView, rehearsalPreview, switchAdoptionMode, updateReadinessTask } from "../../src/lib/readiness/service";
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only isolated PG55438.");
 const db = new PrismaClient(), schoolIds: string[] = [];
 after(async () => { await db.school.deleteMany({ where: { id: { in: schoolIds } } }); await db.$disconnect(); await prisma.$disconnect(); });
@@ -24,7 +24,7 @@ async function school(mode: "FULL_OPERATIONS" | "EXAM_STUDIO") {
   };
   const owner = await person("ADMIN", { owner: true }), delegate = await person("PRINCIPAL"), teacher = await person("TEACHER"), accountant = await person("ACCOUNTANT");
   await db.institutionSetup.create({ data: { schoolId, institutionType: "STANDALONE", adoptionMode: mode, status: "COMPLETED", draft: { school: {}, campuses: [] }, delegateUserId: delegate.userId } });
-  return { schoolId, campusId, classId, owner, delegate, teacher, accountant };
+  return { schoolId, campusId, classId, owner, delegate, teacher, accountant, person };
 }
 type School = Awaited<ReturnType<typeof school>>;
 
@@ -97,7 +97,12 @@ test("approval records the approver, time, evidence and open follow-ups, then ca
   assert.ok(evidence.outstandingOptional.some(task => task.key === "roster"));
   await assert.rejects(() => approveReadiness(s.owner, { expectedVersion: approved.version }), { status: 409 });
   await assert.rejects(() => db.schoolReadiness.update({ where: { schoolId: s.schoolId }, data: { approvedById: s.teacher.userId } }), /cannot be changed/);
-  assert.equal(await db.auditLog.count({ where: { schoolId: s.schoolId, tableName: "school_readiness" } }), 1);
+  // The automatic audit trail also logs every readiness write (rows carrying `operation`); the approval itself is
+  // the one hand-written SETUP → READY row.
+  const rows = await db.auditLog.findMany({ where: { schoolId: s.schoolId, tableName: "school_readiness" }, select: { oldValue: true, newValue: true } });
+  const approvals = rows.filter(row => (row.newValue as { operation?: unknown; status?: unknown } | null)?.operation === undefined && (row.newValue as { status?: unknown }).status === "READY");
+  assert.equal(approvals.length, 1);
+  assert.deepEqual(approvals[0].oldValue, { status: "SETUP", version: view.readiness.version });
 });
 
 test("the setup delegate leads; other staff see and close only follow-ups they own", async () => {
@@ -128,4 +133,131 @@ test("an Exam Studio school can go live without fees or verified guardians", asy
   if (!view.lead) return;
   assert.equal(view.ready, true);
   assert.equal((await approveReadiness(s.delegate, { expectedVersion: view.readiness.version })).status, "READY");
+});
+
+test("SKAI-154: an empty second campus blocks full-operations approval; campus and school scope hold", async () => {
+  const s = await school("FULL_OPERATIONS"), other = await school("FULL_OPERATIONS");
+  await configure(s); await rehearse(s.owner); await configure(other);
+  // The group admin is not bound to one campus, so their readiness view covers every campus of this school.
+  const lead: AuthUser = { ...(await s.person("SUPER_ADMIN", { campus: false })), institutionKind: "GROUP" };
+  const south = randomUUID();
+  await db.campus.create({ data: { id: south, schoolId: s.schoolId, name: "Synthetic south campus", regId: south, city: "Synthetic" } });
+  const blocked = await readinessView(lead);
+  if (!blocked.lead) return;
+  assert.equal(blocked.nextRequired, "campusCoverage");
+  assert.deepEqual(blocked.campuses.map(campus => [campus.name, campus.classes, campus.students, campus.ready]),
+    [["Synthetic campus", 1, 1, true], ["Synthetic south campus", 0, 0, false]], "only this school's campuses, each with its own counts");
+  await assert.rejects(() => approveReadiness(lead, { expectedVersion: blocked.readiness.version }), { status: 409 }, "approval re-checks every campus");
+  const campusBound = await readinessView(s.owner);
+  if (!campusBound.lead) return;
+  assert.deepEqual(campusBound.campuses.map(campus => campus.id), [s.campusId], "a campus-bound lead sees only their own campus");
+  await db.campus.update({ where: { id: south }, data: { archivedAt: new Date() } });
+  const ready = await readinessView(lead);
+  if (!ready.lead) return;
+  assert.equal(ready.ready, true, "an archived campus no longer blocks go-live");
+});
+
+test("SKAI-912: the institution authority switches adoption mode before go-live; data stays, other roles and schools cannot", async () => {
+  const s = await school("EXAM_STUDIO"), other = await school("EXAM_STUDIO");
+  await configure(s, { guardians: false });
+  await rehearsalPreview(s.owner, { step: "assessment" });
+  const before = await readinessView(s.owner);
+  if (!before.lead) throw new Error("owner leads");
+  assert.equal(before.ready, true, "an Exam Studio pilot needs only the assessment rehearsal");
+  assert.equal(before.canSwitchMode, true);
+  const version = before.readiness.version;
+  // The setup delegate, a teacher and a stale screen are all refused; nothing changes.
+  await assert.rejects(() => switchAdoptionMode(s.delegate, { mode: "FULL_OPERATIONS", expectedVersion: version }), { status: 403 });
+  await assert.rejects(() => switchAdoptionMode(s.teacher, { mode: "FULL_OPERATIONS", expectedVersion: version }), { status: 403 });
+  await assert.rejects(() => switchAdoptionMode(s.owner, { mode: "FULL_OPERATIONS", expectedVersion: version - 1 }), { status: 409 });
+  const switched = await switchAdoptionMode(s.owner, { mode: "FULL_OPERATIONS", expectedVersion: version });
+  assert.equal(switched.mode, "FULL_OPERATIONS");
+  // The other school is untouched; this school's data, follow-ups and rehearsal are kept.
+  assert.equal((await db.institutionSetup.findUnique({ where: { schoolId: other.schoolId } }))!.adoptionMode, "EXAM_STUDIO");
+  const after = await readinessView(s.owner);
+  if (!after.lead) throw new Error("owner leads");
+  assert.equal(after.ready, false, "full operations re-gates guardians and the whole rehearsal");
+  assert.equal(after.checks.find(c => c.id === "roster")!.passed, true);
+  assert.ok((after.readiness.rehearsal as Record<string, string>).assessment, "the assessment rehearsal is kept");
+  assert.ok(after.tasks.some(task => task.key === "feesPayroll"), "fees and payroll become a follow-up");
+  // A screen opened under the old mode cannot approve.
+  await assert.rejects(() => approveReadiness(s.owner, { expectedVersion: version }), { status: 409 });
+  // Switching back keeps everything, and the follow-up is not deleted.
+  await switchAdoptionMode(s.owner, { mode: "EXAM_STUDIO", expectedVersion: after.readiness.version });
+  const back = await readinessView(s.owner);
+  if (!back.lead) throw new Error("owner leads");
+  assert.equal(back.ready, true);
+  assert.ok(back.tasks.some(task => task.key === "feesPayroll"));
+  await approveReadiness(s.owner, { expectedVersion: back.readiness.version });
+  await assert.rejects(() => switchAdoptionMode(s.owner, { mode: "FULL_OPERATIONS", expectedVersion: back.readiness.version + 1 }), { status: 409 }, "no switch after go-live");
+});
+
+test("setup task tracking (SKAI-155): due dates, in-progress, stale edits, reminders, audit trail and two-school isolation", async () => {
+  const s = await school("FULL_OPERATIONS"), other = await school("FULL_OPERATIONS");
+  const view = await readinessView(s.owner);
+  if (!view.lead) return assert.fail("owner leads");
+  const area = view.tasks.find(task => task.key.startsWith("area:") || task.key === "roster")!;
+  const now = new Date("2026-11-01T09:00:00Z");
+  await assert.rejects(() => updateReadinessTask(s.owner, { action: "schedule", taskId: area.id, dueOn: "2026-10-31", expectedVersion: area.version }, now), { status: 400 }, "no past due date");
+  await assert.rejects(() => updateReadinessTask(s.owner, { action: "schedule", taskId: area.id, dueOn: "2026-02-30" }, now), { status: 400 }, "no impossible date");
+  await assert.rejects(() => updateReadinessTask(s.owner, { action: "remind", taskId: area.id }, now), { status: 409 }, "nobody to remind yet");
+  const assigned = await updateReadinessTask(s.owner, { action: "assign", taskId: area.id, ownerId: s.teacher.userId, expectedVersion: area.version }, now);
+  const scheduled = await updateReadinessTask(s.owner, { action: "schedule", taskId: area.id, dueOn: "2026-11-15", expectedVersion: assigned.version }, now);
+  assert.equal(scheduled.dueOn?.toISOString().slice(0, 10), "2026-11-15");
+  await assert.rejects(() => updateReadinessTask(s.owner, { action: "assign", taskId: area.id, ownerId: null, expectedVersion: assigned.version }, now), { status: 409 }, "a stale tab cannot overwrite");
+  // Reminders: one notification per owner and task, at most once a day.
+  await updateReadinessTask(s.owner, { action: "remind", taskId: area.id }, now);
+  await assert.rejects(() => updateReadinessTask(s.owner, { action: "remind", taskId: area.id }, new Date(now.getTime() + 3_600_000)), { status: 409 });
+  await updateReadinessTask(s.owner, { action: "remind", taskId: area.id }, new Date(now.getTime() + DAY + 1));
+  const notices = await db.notification.findMany({ where: { userId: s.teacher.userId, dedupeKey: `readiness-task:${area.id}` } });
+  assert.deepEqual(notices.map(n => [n.reminderCount, n.category, n.resolvedAt]), [[2, "ACTION", null]]);
+  // The owner moves their own task along; only the lead plans it.
+  await assert.rejects(() => updateReadinessTask(s.teacher, { action: "schedule", taskId: area.id, dueOn: null }, now), { status: 403 });
+  await assert.rejects(() => updateReadinessTask(s.teacher, { action: "remind", taskId: area.id }, now), { status: 403 });
+  assert.equal((await updateReadinessTask(s.teacher, { action: "status", taskId: area.id, status: "IN_PROGRESS" }, now)).status, "IN_PROGRESS");
+  assert.equal((await updateReadinessTask(s.teacher, { action: "status", taskId: area.id, status: "DONE" }, now)).status, "DONE");
+  assert.ok((await db.notification.findFirstOrThrow({ where: { userId: s.teacher.userId, dedupeKey: `readiness-task:${area.id}` } })).resolvedAt, "done resolves the reminder");
+  // Another school's lead cannot see or touch the task.
+  await assert.rejects(() => updateReadinessTask(other.owner, { action: "status", taskId: area.id, status: "OPEN" }, now), { status: 404 });
+  await assert.rejects(() => updateReadinessTask(other.owner, { action: "remind", taskId: area.id }, now), { status: 404 });
+  const after = await readinessView(s.owner);
+  if (!after.lead) return;
+  const tracked = after.tasks.find(task => task.id === area.id)!;
+  assert.deepEqual(tracked.history.map(entry => entry.action), ["status:DONE", "status:IN_PROGRESS", "remind", "remind", "schedule"], "the latest five, newest first");
+  assert.ok(await db.auditLog.count({ where: { schoolId: s.schoolId, tableName: "readiness_tasks", recordId: area.id, newValue: { path: ["action"], equals: "assign" } } }), "every change is audited");
+  assert.equal(tracked.dueOn, "2026-11-15");
+  const otherView = await readinessView(other.owner);
+  if (!otherView.lead) return;
+  assert.ok(otherView.tasks.every(task => task.history.length === 0 && task.id !== area.id), "no history leaks across schools");
+});
+
+test("SKAI-160: progress totals reconcile with the school's own records and never count another school's", async () => {
+  const a = await school("FULL_OPERATIONS"), b = await school("FULL_OPERATIONS");
+  await configure(a); await configure(b);
+  // School B has extra pupils; none may show up in school A's totals.
+  await db.student.create({ data: { schoolId: b.schoolId, campusId: b.campusId, classId: b.classId, fullName: "Synthetic pupil B2", rollNo: "2", gender: "MALE", enrollmentDate: new Date("2026-09-01Z") } });
+  const first = await readinessView(a.owner);
+  if (!first.lead) return assert.fail("owner leads");
+  const holidays = first.tasks.find(task => task.key === "area:holidays")!, periods = first.tasks.find(task => task.key === "area:periods")!;
+  await updateReadinessTask(a.owner, { action: "status", taskId: holidays.id, status: "IN_PROGRESS" });
+  await updateReadinessTask(a.owner, { action: "status", taskId: periods.id, status: "DONE" });
+  const view = await readinessView(a.owner);
+  if (!view.lead) return assert.fail("owner leads");
+  const p = view.progress;
+  const rows = await db.readinessTask.groupBy({ by: ["status"], where: { schoolId: a.schoolId }, _count: true });
+  const count = (status: string) => rows.find(row => row.status === status)?._count ?? 0;
+  assert.deepEqual({ ...p.followUps }, { done: count("DONE"), inProgress: count("IN_PROGRESS"), open: count("OPEN"), deferred: count("DEFERRED"), total: await db.readinessTask.count({ where: { schoolId: a.schoolId } }) });
+  assert.equal(p.areas.find(area => area.id === "holidays")?.bucket, "inProgress", "in progress stays outstanding");
+  assert.equal(p.areas.find(area => area.id === "periods")?.bucket, "done");
+  assert.deepEqual(p.campusTotals, { total: 1, ready: 1, classes: 1, students: 1 });
+  assert.deepEqual(p.school, { classes: await db.class.count({ where: { schoolId: a.schoolId, archivedAt: null } }), students: await db.student.count({ where: { schoolId: a.schoolId, archivedAt: null } }) });
+  assert.equal(p.reconciled, true);
+  assert.deepEqual(p.partial, []);
+  assert.ok(Date.now() - new Date(p.generatedAt).getTime() < 60_000);
+  // A teacher owning one task sees progress over that task only.
+  await updateReadinessTask(a.owner, { action: "assign", taskId: holidays.id, ownerId: a.teacher.userId });
+  const mine = await readinessView(a.teacher);
+  assert.equal(mine.lead, false);
+  assert.deepEqual({ ...mine.progress.followUps }, { done: 0, inProgress: 1, open: 0, deferred: 0, total: 1 });
+  await assert.rejects(() => readinessView(b.teacher), { status: 403 }, "no tasks, no progress");
 });

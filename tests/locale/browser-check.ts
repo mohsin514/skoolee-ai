@@ -6,12 +6,13 @@ import { SignJWT } from "jose";
 import { PrismaClient } from "@prisma/client";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
+const LOCALE_APP = (process.env.LOCALE_TEST_APP || "http://localhost:3201").replace(/\/+$/, "");
 
 // SKO-498: the personal language is chosen with the Settings modal's radio cards (the institutional
 // /settings/locale panel then follows the live display language); tokens carry a server LoginSession.
 const url = process.env.DATABASE_URL || "";
-if (!url.includes("127.0.0.1:55401/sko201") && !url.includes("127.0.0.1:55438/postgres")) throw new Error("Local SKO-201 database required");
-const base = process.env.LOCALE_TEST_APP || "http://localhost:3201", secret = process.env.LOCALE_AUTH_SECRET || "local-sko201-fixture";
+if (!url.includes(`127.0.0.1:${process.env.QA_DB_PORT || "55401"}/${process.env.QA_DB_NAME || "sko201"}`) && !url.includes("127.0.0.1:55438/postgres")) throw new Error("Local SKO-201 database required");
+const base = process.env.LOCALE_TEST_APP || LOCALE_APP, secret = process.env.LOCALE_AUTH_SECRET || "local-sko201-fixture";
 if (!["localhost", "127.0.0.1"].includes(new URL(base).hostname)) throw new Error("Local app required");
 const evidence = process.env.LOCALE_EVIDENCE_DIR || "/tmp/sko201-evidence";
 const db = new PrismaClient();

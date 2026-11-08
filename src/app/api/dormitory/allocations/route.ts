@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { allocate, cancelReservation, campusToday, dayText, endStay, moveStay, overlaps, parseDay } from "@/lib/dormitory/allocations";
 import { ApiError, assertModuleRead, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-463 dated dormitory allocations.
 // GET  ?campusId=&date=YYYY-MM-DD[&studentId=|&roomId=]  → occupancy per room on that date, current and
@@ -66,7 +68,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Only campus leaders and boarding administrators can change room allocations.", 403);
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     const action = String(body.action ?? "");
     await assertPermission(user, "dormitory", action === "allocate" ? "add" : "edit");
     const campusId = await resolveCampusId(user, body.campusId);

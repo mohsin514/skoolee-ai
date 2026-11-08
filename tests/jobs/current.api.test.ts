@@ -8,7 +8,7 @@ import { jobsDestination } from "./local-destination.mjs";
 
 jobsDestination();
 const origin=new URL(process.env.JOBS_TEST_ORIGIN||"http://localhost:3220");
-if(!["localhost","127.0.0.1"].includes(origin.hostname)||!["3220","3108"].includes(origin.port)||!process.env.AUTH_SECRET)throw new Error("Dedicated local jobs app and synthetic secret required");
+if(!["localhost","127.0.0.1"].includes(origin.hostname)||![process.env.QA_APP_PORT,"3220","3108"].includes(origin.port)||!process.env.AUTH_SECRET)throw new Error("Dedicated local jobs app and synthetic secret required");
 const db=new PrismaClient();let f:CurrentFixture, jobId:string,itemId:string,eventId:string;
 async function request(role:string,method="GET",body?:unknown,otherOrigin?:string){return fetch(new URL(`/api/jobs/${jobId}`,origin),{method,headers:{cookie:f.cookies[role],origin:otherOrigin||origin.origin,...(body?{"content-type":"application/json"}:{})},...(body?{body:JSON.stringify(body)}:{})});}
 before(async()=>{f=await createCurrentFixture(db,3);const delivery=await f.delivery(0);jobId=await f.track([delivery.communication]);eventId=delivery.eventId!;await db.workflowJob.update({where:{id:eventId},data:{state:"failed",reason:"PROVIDER_UNAVAILABLE",attempts:5}});itemId=(await db.activityItem.findFirstOrThrow({where:{jobId}})).id;});

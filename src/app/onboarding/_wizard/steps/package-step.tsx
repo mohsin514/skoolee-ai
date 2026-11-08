@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { Package, Sparkles } from "lucide-react";
+import { packageStatus } from "@/lib/billing/package-status";
 import { CapacityMeter } from "@/components/onboarding/CapacityMeter";
 import { ForwardArrow } from "@/components/onboarding/ForwardArrow";
 import { StepCard } from "@/components/onboarding/StepCard";
@@ -13,16 +15,18 @@ import type { PackageStepProps } from "../types";
 /* ═══ STEP: Package ═══
    Nothing is pre-selected: until the owner chooses, the step asks them to and Continue waits. Once chosen,
    it shows that package and where it stands (active, reserved, requested, payment in progress). */
-export function PackageStep({ t, local, language, headingRef, folio, notices, busy, back, selectedPackage, limit, planned, draftsBeyond, canPurchase, onChoosePackage, onContinue }: PackageStepProps) {
+export function PackageStep({ t, local, language, headingRef, folio, notices, busy, back, selectedPackage, lifecycle, limit, planned, draftsBeyond, canPurchase, onChoosePackage, onContinue }: PackageStepProps) {
   const packages = getPackageCopy(language);
   const chosen = selectedPackage;
   const chosenName = chosen ? packages.planNames[chosen.plan as keyof typeof packages.planNames] ?? chosen.plan : null;
-  const active = Boolean(chosen && (chosen.status === "FREE_SELECTED" || chosen.status === "SETTLED"));
-  const state = !chosen ? null
-    : active ? local.packageState.active
-    : chosen.status === "CUSTOM_QUOTE" ? local.packageState.requested
-    : chosen.provider === "PAY_LATER" || chosen.provider === "SALES_ASSISTED" ? local.packageState.due
-    : local.packageState.checkout;
+  // SKAI-161: the same reading as the order status page (reserved, bank transfer, grace and expiry included).
+  const status = chosen ? packageStatus(chosen, lifecycle) : null;
+  const active = status?.key === "active";
+  const state = status ? (status.key === "failed" || status.key === "cancelled" ? local.packageState.checkout : local.packageState[status.key]) : null;
+  const tone = active ? undefined : status?.key === "grace" ? "warning" : status?.key === "expired" ? "danger" : "info";
+  const graceEnds = status?.key === "grace" && lifecycle?.graceEndsAt
+    ? new Intl.DateTimeFormat(language === "ar" ? "ar" : language === "ur" ? "ur-PK" : "en", { dateStyle: "medium" }).format(new Date(lifecycle.graceEndsAt))
+    : null;
   const reasonId = "package-continue-reason";
   const blocked = !chosen && !busy;
 
@@ -64,7 +68,7 @@ export function PackageStep({ t, local, language, headingRef, folio, notices, bu
               <div className="min-w-0 space-y-1">
                 <p className="sk-eyebrow">{local.yourPackage}</p>
                 <p className="text-3xl font-bold text-ink-strong [overflow-wrap:anywhere]"><bdi>{chosenName}</bdi></p>
-                <p className="sk-choice-tag" data-tone={active ? undefined : "info"}>{state}</p>
+                <p className="sk-choice-tag" data-tone={tone}>{state}</p>
               </div>
               {canPurchase ? (
                 <Button type="button" variant={chosen.provider === "PAY_LATER" || chosen.provider === "SALES_ASSISTED" ? "default" : "secondary"} size="sm" onClick={onChoosePackage}>
@@ -77,6 +81,16 @@ export function PackageStep({ t, local, language, headingRef, folio, notices, bu
               <p className="text-sm font-medium text-ink-strong">{fill(t.planned, planned)}</p>
             </div>
           </div>
+          {status && (
+            <Alert tone={tone === "danger" ? "danger" : tone === "warning" ? "warning" : active ? "success" : "info"} live="polite">
+              <p>{local.packageNext[status.next]}{graceEnds ? ` ${fill(local.graceUntil, graceEnds)}` : ""}</p>
+              {status.key !== "active" && chosen ? (
+                <Link href={`/onboarding/package/status?intentId=${encodeURIComponent(chosen.intentId)}`} className="mt-2 inline-block font-medium text-primary underline underline-offset-4">
+                  {local.viewOrder}
+                </Link>
+              ) : null}
+            </Alert>
+          )}
           {draftsBeyond > 0 && (
             <Alert tone="warning">{fill(t.overLimit, draftsBeyond)}</Alert>
           )}

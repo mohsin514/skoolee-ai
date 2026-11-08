@@ -1,7 +1,9 @@
 "use client";
 
 import { ReviewedDeleteDialog } from "@/components/ui/reviewed-delete";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -17,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { EmptyState } from "@/components/ui/empty-state";
+import { isApiOk } from "@/lib/api/envelope-client";
 import { IconButton } from "@/components/ui/icon-button";
 import { Input as SystemInput } from "@/components/ui/input";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
@@ -35,6 +38,13 @@ const WEEKDAYS = [
 function weekdayName(language: string, num: number, width: "short" | "narrow") {
   return new Intl.DateTimeFormat(language, { weekday: width, timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, num)));
 }
+function weekendList(language: string, days: number[]) {
+  return days.map((d) => weekdayName(language, d, "short")).join(" · ");
+}
+function formatIso(language: string, iso: string) {
+  return new Intl.DateTimeFormat(language, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
+}
+type WeekendPreview = { from: string; to: string; newlyClosed: number; newlyOpened: number; holidayDaysOnNewWeekend: number; closedSamples: string[] };
 function monthName(language: string, month: number) {
   return new Intl.DateTimeFormat(language, { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, month, 1)));
 }
@@ -179,19 +189,50 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
   };
 
   // ── Step 2: calendar ──────────────────────────────────────────────────
-  const toggleWeekend = async (num: number) => {
-    const next = weekends.includes(num) ? weekends.filter((d) => d !== num) : [...weekends, num].sort();
-    setWeekends(next);
-    try {
-      const res = await fetch(`/api/academic/calendar${qp}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days: next }),
-      });
-      const json = await res.json();
-      if (json.success) setWeekends(json.data.weekends);
-    } catch { toast.error(ui("Weekends could not be updated")); }
+  // SKAI-118: weekday clicks stage a draft; the server previews the affected dates, and Apply sends the weekend
+  // the operator was looking at (`expected`) so a concurrent edit is refused instead of silently overwritten.
+  const [weekendDraft, setWeekendDraft] = useState<number[] | null>(null);
+  const [weekendPreview, setWeekendPreview] = useState<WeekendPreview | null>(null);
+  const [weekendBusy, setWeekendBusy] = useState(false);
+  const [weekendError, setWeekendError] = useState<string | null>(null);
+  const shownWeekends = weekendDraft ?? weekends;
+  const sendWeekend = async (days: number[], preview: boolean) => {
+    const res = await fetch(`/api/academic/calendar${qp}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ days, expected: weekends, preview }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.success) throw new Error(typeof json.error === "string" ? json.error : "");
+    return json.data;
   };
+  const toggleWeekend = async (num: number) => {
+    if (weekendBusy) return;
+    const next = shownWeekends.includes(num) ? shownWeekends.filter((d) => d !== num) : [...shownWeekends, num].sort();
+    const same = next.length === weekends.length && next.every((d) => weekends.includes(d));
+    setWeekendDraft(same ? null : next);
+    setWeekendPreview(null);
+    setWeekendError(null);
+    if (same) return;
+    if (!next.length || next.length === 7) { setWeekendError(ui(next.length ? "Keep at least one working day in the week." : "Choose at least one weekend day.")); return; }
+    setWeekendBusy(true);
+    try { setWeekendPreview((await sendWeekend(next, true)).impact); }
+    catch (error) { setWeekendError(friendlyErrorMessage(error, ui("The weekend change could not be previewed. Try again."))); }
+    finally { setWeekendBusy(false); }
+  };
+  const applyWeekend = async () => {
+    if (!weekendDraft || !weekendPreview || weekendBusy) return;
+    setWeekendBusy(true);
+    try {
+      const data = await sendWeekend(weekendDraft, false);
+      setWeekends(data.weekends);
+      setWeekendDraft(null);
+      setWeekendPreview(null);
+      toast.success(ui("Weekend updated"));
+    } catch (error) { setWeekendError(friendlyErrorMessage(error, ui("Weekends could not be updated"))); }
+    finally { setWeekendBusy(false); }
+  };
+  const discardWeekend = () => { setWeekendDraft(null); setWeekendPreview(null); setWeekendError(null); };
 
   const [holidayDraft, setHolidayDraft] = useState({ name: "", fromDate: "", toDate: "" });
   const holidayReady = Boolean(holidayDraft.name.trim() && holidayDraft.fromDate && holidayDraft.toDate);
@@ -265,14 +306,18 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
       } else toast.error(friendlyErrorMessage(new Error(typeof json.error === "string" ? json.error : ""), ui("The period could not be added. Try again.")));
     } finally { setSaving(false); }
   };
+  // SKAI-146: removal is confirmed first, and a refusal (for example a period timetables still use) is shown, not swallowed.
+  const [removingPeriod, setRemovingPeriod] = useState<PeriodDef | null>(null);
   const deletePeriod = async (id: string) => {
     try {
       const sp = new URLSearchParams({ id });
       if (campusId) sp.set("campusId", campusId);
       const res = await fetch(`/api/academic/periods?${sp.toString()}`, { method: "DELETE" });
       const json = await res.json();
-      if (json.success) setActivePeriods((p) => p.filter((x) => x.id !== id));
-    } catch { toast.error(ui("The period could not be removed")); }
+      if (!json.success) throw new Error(json.code === "PERIOD_IN_USE" ? ui("Timetables still have lessons in this period. Clear them first, then remove it.") : typeof json.error === "string" ? json.error : "");
+      setActivePeriods((p) => p.filter((x) => x.id !== id));
+      toast.success(ui("Period removed"));
+    } catch (error) { toast.error(friendlyErrorMessage(error, ui("The period could not be removed"))); }
   };
 
   // ── Step 4: rooms ─────────────────────────────────────────────────────
@@ -297,7 +342,7 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
       if (campusId) sp.set("campusId", campusId);
       const res = await fetch(`/api/academic/rooms?${sp.toString()}`, { method: "DELETE" });
       const json = await res.json();
-      if (json.success) setRooms((r) => r.filter((x) => x.id !== id));
+      if (res.ok && isApiOk(json)) setRooms((r) => r.filter((x) => x.id !== id));
     } catch { toast.error(ui("The room could not be removed")); }
   };
 
@@ -306,7 +351,8 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
   const dirty = !loading && (!cycleId
     || Boolean(holidayDraft.name.trim() || holidayDraft.fromDate || holidayDraft.toDate)
     || Boolean(periodDraft.periodNumber || periodDraft.startTime || periodDraft.endTime)
-    || Boolean(roomDraft.roomNumber.trim() || roomDraft.capacity));
+    || Boolean(roomDraft.roomNumber.trim() || roomDraft.capacity)
+    || Boolean(weekendDraft));
   const saveAll = async () => {
     if (saving) return;
     if (!cycleId) {
@@ -317,6 +363,7 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
     if (holidayReady) await addHoliday();
     if (periodReady) await addPeriod();
     if (roomReady) await addRoom();
+    if (weekendDraft && weekendPreview) await applyWeekend();
   };
   const dirtyListener = useRef(onDirtyChange);
   useEffect(() => { dirtyListener.current = onDirtyChange; });
@@ -366,6 +413,10 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
 
   return (
     <div className="space-y-6">
+      <ConfirmAction open={Boolean(removingPeriod)} title={ui("Remove period {0}?", [removingPeriod?.periodNumber ?? ""])}
+        description={removingPeriod ? ui("{0}–{1} is removed from this campus's bell schedule.", [removingPeriod.startTime, removingPeriod.endTime]) : ""}
+        confirmLabel={ui("Remove period")} cancelLabel={ui("Cancel")} tone="danger" onCancel={() => setRemovingPeriod(null)}
+        onConfirm={async () => { const target = removingPeriod; setRemovingPeriod(null); if (target) await deletePeriod(target.id); }} />
       {removingHoliday ? <ReviewedDeleteDialog endpoint="academic/calendar" record={{ id: removingHoliday.id, campusId }} label={removingHoliday.name}
         onCancel={() => setRemovingHoliday(null)} onDeleted={() => setHolidays(rows => rows.filter(row => row.id !== removingHoliday.id))} /> : null}
       {/* Stepper */}
@@ -427,9 +478,9 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
             <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><CalendarDays className="h-5 w-5 text-primary" />{ui("Set the calendar")}</h3>
             <div className="flex flex-wrap gap-2">
               {WEEKDAYS.map((d) => (
-                <Button aria-pressed={weekends.includes(d.num)} variant="choice" key={d.num} onClick={() => toggleWeekend(d.num)}
-                  className={`px-3 py-1.5 ${weekends.includes(d.num) ? "" : ""} `}>
-                  {weekdayName(language, d.num, "short")}{weekends.includes(d.num) ? ` · ${ui("off")}` : ""}
+                <Button aria-pressed={shownWeekends.includes(d.num)} variant="choice" key={d.num} disabled={weekendBusy} onClick={() => toggleWeekend(d.num)}
+                  className="px-3 py-1.5">
+                  {weekdayName(language, d.num, "short")}{shownWeekends.includes(d.num) ? ` · ${ui("off")}` : ""}
                 </Button>
               ))}
               <Button aria-pressed={holidayMode} variant="choice"
@@ -442,7 +493,25 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
             <p className="text-2xs font-medium text-ink-muted">
               {ui("Tip: click any calendar day to toggle that weekday as a weekend. Use “Mark holiday range” then click two days to draft a holiday.")}
             </p>
-            <YearCalendar year={year} weekends={weekends} holidays={holidays} isHoliday={isHoliday} holidayOn={holidayOn} holidayMode={holidayMode} holidayPick={holidayPick} onDayClick={onDayClick} />
+            {weekendDraft ? (
+              <Alert tone={weekendError ? "danger" : "warning"} title={ui("Review the weekend change")}
+                actions={<div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={applyWeekend} disabled={!weekendPreview || weekendBusy} loading={weekendBusy && Boolean(weekendPreview)}>{ui("Apply weekend")}</Button>
+                  <Button size="sm" variant="secondary" onClick={discardWeekend} disabled={weekendBusy}>{ui("Keep current weekend")}</Button>
+                </div>}>
+                <p>{ui("Current: {0}. New: {1}.", [weekendList(language, weekends), weekendList(language, weekendDraft)])}</p>
+                {weekendError ? <p>{weekendError}</p> : !weekendPreview ? <p>{ui("Checking the affected dates…")}</p> : (
+                  <ul className="mt-1 list-disc space-y-0.5 ps-5">
+                    <li>{ui("From {0} to {1}:", [formatIso(language, weekendPreview.from), formatIso(language, weekendPreview.to)])}</li>
+                    <li>{ui("{0} school days become weekend days — no attendance register or lessons on them.", [String(weekendPreview.newlyClosed)])}{weekendPreview.closedSamples.length ? ` (${weekendPreview.closedSamples.map((d) => formatIso(language, d)).join(", ")}…)` : ""}</li>
+                    <li>{ui("{0} weekend days become school days — attendance and the timetable will expect them.", [String(weekendPreview.newlyOpened)])}</li>
+                    {weekendPreview.holidayDaysOnNewWeekend ? <li>{ui("{0} holiday days now fall on the weekend.", [String(weekendPreview.holidayDaysOnNewWeekend)])}</li> : null}
+                    <li>{ui("Past attendance is unchanged; the change applies from today.")}</li>
+                  </ul>
+                )}
+              </Alert>
+            ) : null}
+            <YearCalendar year={year} weekends={shownWeekends} holidays={holidays} isHoliday={isHoliday} holidayOn={holidayOn} holidayMode={holidayMode} holidayPick={holidayPick} onDayClick={onDayClick} />
             <div className="rounded-2xl border border-edge/15 bg-surface-subtle p-4">
               <p className="mb-2 text-xs font-semibold text-ink-muted">{ui("Add a holiday")}</p>
               <div className="flex flex-wrap items-end gap-3">
@@ -491,7 +560,7 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
                     <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-100 text-sm font-bold text-primary">P{p.periodNumber}</span>
                     <span className="text-sm font-semibold text-ink">{p.startTime} – {p.endTime}</span>
                   </div>
-                  <IconButton label={ui("Remove period {0}", [p.periodNumber])} variant="ghost" onClick={() => deletePeriod(p.id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></IconButton>
+                  <IconButton label={ui("Remove period {0}", [p.periodNumber])} variant="ghost" onClick={() => setRemovingPeriod(p)}><Trash2 className="h-4 w-4" aria-hidden="true" /></IconButton>
                 </div>
               ))}
             </div>

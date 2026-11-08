@@ -186,6 +186,11 @@ export function SessionWizard({
         }),
       });
       const json = await res.json();
+      if (json.code === "EXAM_SESSION_ALL_CLASSES_HAVE_EXAM") {
+        // SKAI-1040: nothing was created — every chosen class already has this exam.
+        toast.error(ui("Every selected class already has this exam, so nothing was created: {0}", [chosen.map(labelOf).join(", ")]));
+        return;
+      }
       if (!res.ok || !json.success) throw new Error(json.error || "");
 
       const skipped: string[] = json.skipped ?? [];

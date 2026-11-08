@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { requireAuthUser } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
-import { addAction, addNote, completeAction, decideMentoring, designateCounsellor, exportPlan, pathwayOverview, readNotes, recordAlumni, requestAppointment, requestMentoring, revokeCounsellor, reviewAlumni, saveGoal, saveOpportunity, updateAppointment, verifyOpportunity } from "@/lib/pathways/service";
+import { addAction, addNote, completeAction, decideMentoring, designateCounsellor, exportPlan, mentoringRequestPage, pathwayOpportunities, opportunityOffset, pathwayOverview, readNotes, recordAlumni, requestAppointment, requestMentoring, revokeCounsellor, reviewAlumni, saveGoal, saveOpportunity, updateAppointment, verifyOpportunity } from "@/lib/pathways/service";
 
 // SKO-455: student pathway plans, counselling appointments and restricted notes, opportunities,
 // alumni consent and school-mediated mentoring.
@@ -13,9 +14,9 @@ export async function GET(request: Request) {
     const params = new URL(request.url).searchParams;
     const studentId = params.get("studentId") ?? "";
     const view = params.get("view");
-    const data = view === "export" ? await exportPlan(user, studentId) : view === "notes" ? await readNotes(user, studentId) : await pathwayOverview(user);
-    return Response.json({ success: true, data }, { headers });
-  } catch (error) { return errorResponse(error, "[pathways] GET failed"); }
+    const data = view === "export" ? await exportPlan(user, studentId) : view === "notes" ? await readNotes(user, studentId) : view === "mentoring" ? await mentoringRequestPage(user, params.get("cursor")) : view === "opportunities" ? await pathwayOpportunities(user, opportunityOffset(params.get("offset"))) : await pathwayOverview(user);
+    return ok(data, { headers });
+  } catch (error) { return failFrom(error, "[pathways] GET failed"); }
 }
 
 export async function POST(request: Request) {
@@ -42,6 +43,6 @@ export async function POST(request: Request) {
         default: return decideMentoring(user, id, body.data);
       }
     };
-    return Response.json({ success: true, data: await run() }, { headers });
-  } catch (error) { return errorResponse(error, "[pathways] POST failed"); }
+    return ok(await run(), { headers });
+  } catch (error) { return failFrom(error, "[pathways] POST failed"); }
 }

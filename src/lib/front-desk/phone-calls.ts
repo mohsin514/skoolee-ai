@@ -93,6 +93,8 @@ export async function logCall(user: AuthUser, campusId: string, body: Record<str
     if (!["IN", "OUT"].includes(input.direction)) throw new ApiError("Direction must be incoming or outgoing.", 400);
     if (input.note && input.note.length > 1000) throw new ApiError("Note is too long (max 1000).", 400);
     if (input.date.getTime() > Date.now() + 5 * 60_000) throw new ApiError("The call time cannot be in the future.", 400);
+    // SKAI-1023: an owner without a due time used to be dropped silently along with the callback.
+    if (body.callbackOwnerId && !body.callbackDue) throw new ApiError("Choose when the callback is due, or leave the owner empty.", 400);
     const callback = body.callbackDue ? { dueAt: instant(body.callbackDue, "Callback due", timezone), ownerId: body.callbackOwnerId ? String(body.callbackOwnerId) : null } : null;
     if (callback && callback.dueAt < input.date) throw new ApiError("The callback cannot be due before the call.", 400);
     const requestHash = hash({ ...input, date: input.date.toISOString(), callback: callback && { ...callback, dueAt: callback.dueAt.toISOString() } });
@@ -198,11 +200,14 @@ export async function listCalls(user: AuthUser, campusId: string, filters: { vie
   };
   const [rows, open] = await Promise.all([
     prisma.phoneCallLog.findMany({
-      where, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 300,
+      // SKAI-1675: one past the cap tells the client the list (and so its export) is not complete.
+      where, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 301,
       include: { callbacks: { orderBy: { createdAt: "asc" }, include: { owner: { select: { id: true, fullName: true } } } } },
     }),
     prisma.phoneCallback.findMany({ where: { campusId, schoolId: user.schoolId, status: "OPEN" }, select: { ownerId: true, dueAt: true } }),
   ]);
+  const truncated = rows.length > 300;
+  rows.splice(300);
   const data = rows.map(({ requestHash: _hash, idempotencyKey: _key, note, callbacks, ...call }) => {
     const readable = canReadNote(user, call, callbacks.map(callback => callback.ownerId));
     return {
@@ -214,6 +219,7 @@ export async function listCalls(user: AuthUser, campusId: string, filters: { vie
   });
   return {
     data,
+    truncated,
     counts: { open: open.length, overdue: open.filter(row => row.dueAt < now).length, unassigned: open.filter(row => !row.ownerId).length, mine: open.filter(row => row.ownerId === user.userId).length },
     owners: await ownerCandidates(user, campusId),
   };

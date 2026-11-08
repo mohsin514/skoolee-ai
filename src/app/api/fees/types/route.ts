@@ -6,6 +6,8 @@ import { createFeeType } from "@/lib/fees/fee-type-command";
 import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere,
   assertSharedModuleRead,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,7 +33,7 @@ export async function POST(req: NextRequest) {
     if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "fees", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const type = await createFeeType(user, body);
     return Response.json({ success: true, data: type }, { status: 201 });
   } catch (error) {
@@ -45,8 +47,7 @@ export async function PATCH(req: NextRequest) {
     if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
         await assertPermission(user, "fees", "edit");
 
-    const body = await req.json();
-    if (!body.id) throw new ApiError("id required", 400);
+    const body = await parseBody(req, idBody);
 
     const existing = await prisma.feeType.findFirst({
       where: { id: body.id, ...scopedCampusWhere(user) },

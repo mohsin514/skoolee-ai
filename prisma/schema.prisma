@@ -27,6 +27,7 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  curriculumPackActivations CurriculumPackActivation[]
   ragDocuments RagDocument[]
   aiWorkflowJobs AiWorkflowJob[]
   aiCapabilityGaps AiCapabilityGap[]
@@ -53,6 +54,8 @@ model School {
   activityJobs ActivityJob[]
   deliveryReceipts DeliveryReceipt[]
   correctionSeparateApprover Boolean @default(true) @map("correction_separate_approver")
+  /// SKAI-1151: UAE report-card template (mandatory Arabic + Islamic Education, bilingual EN+AR print). Off by default.
+  uaeReportTemplate Boolean @default(false) @map("uae_report_template")
   corrections Correction[]
   studentEnrollments StudentEnrollment[]
   enrollmentProposals EnrollmentProposal[]
@@ -77,6 +80,13 @@ model School {
   // Defaults to Asia/Karachi: the product ships Urdu report cards, PKR fees and
   // CNIC/board fields, so UTC was never the right assumption for a real tenant.
   timezone             String    @default("Asia/Karachi")
+  // SKAI-1143: hosting region for later tenant routing (src/lib/school/data-region.ts). DEFAULT = the shared region.
+  dataRegion           String    @default("DEFAULT") @map("data_region")
+  // SKAI-1154: opt-in regulator fee caps (src/lib/fees/regulator-cap.ts). OFF | WARN | BLOCK; framework KHDA_ECI first.
+  feeCapMode           String    @default("OFF") @map("fee_cap_mode")
+  feeCapFramework      String    @default("KHDA_ECI") @map("fee_cap_framework")
+  // SKAI-1153: regulator attendance code set and calendar (src/lib/attendance/regulator.ts). NONE = today's behaviour.
+  attendanceRegulator  String    @default("NONE") @map("attendance_regulator")
   plan                 String    @default("FREE") // FREE, BASIC, PRO
   planStartedAt        DateTime? @map("plan_started_at") // first paid activation
   planEndsAt           DateTime? @map("plan_ends_at") // paid-through date; null = no expiry tracked
@@ -103,6 +113,11 @@ model School {
   logoUrl              String?   @map("logo_url") // Institution icon / logo
   establishedYear      Int?      @map("established_year") // Year the institution was founded
   tagline              String? // Motto / short descriptor
+  // SKAI-114: official name in Urdu/Arabic, a short name and a palette brand colour (src/lib/school/branding.ts).
+  nameUr               String?   @map("name_ur")
+  nameAr               String?   @map("name_ar")
+  shortName            String?   @map("short_name")
+  brandColor           String?   @map("brand_color")
   // Which ladder of ranks this tenant starts from: SCHOOL | COLLEGE |
   // UNIVERSITY | ACADEMY | CUSTOM. It only chooses the preset seeded into
   // StaffDesignation — every rank stays editable afterwards.
@@ -181,6 +196,7 @@ model School {
   promptTemplates         PromptTemplate[]
   parentConversations     ParentConversation[]
   consentLogs             ConsentLog[]
+  guardianConsents        GuardianConsent[]
   classRooms              ClassRoom[]
   periodDefinitions       PeriodDefinition[]
   timetables              Timetable[]
@@ -229,6 +245,7 @@ model School {
   admissionSubmissions    AdmissionSubmission[]
   admissionEvents         AdmissionApplicationEvent[]
   admissionDocuments      AdmissionDocument[]
+  admissionAssessments    AdmissionAssessment[]
   attendanceRegisters     AttendanceRegister[]
   attendanceRuleVersions  AttendanceRuleVersion[]
   attendanceExplanations  AttendanceExplanation[]
@@ -295,6 +312,9 @@ model School {
   taxDocuments TaxDocument[]
   taxSubmissionAttempts TaxSubmissionAttempt[]
   integrationConnections IntegrationConnection[]
+  whatsAppConnection WhatsAppConnection?
+  whatsAppManagedSending WhatsAppManagedSending?
+  whatsAppUsageEntries WhatsAppUsageEntry[]
   integrationCredentials IntegrationCredential[]
   integrationEvents IntegrationEvent[]
   integrationDeliveries IntegrationDelivery[]
@@ -593,6 +613,7 @@ model RolePermission {
 
 // ─── 2. CAMPUSES ──────────────────────────────────────────
 model Campus {
+  curriculumPackActivations CurriculumPackActivation[]
   /// SKO-500: the exam coordinator (controller of examinations) seat; schedules and requests papers, never approves.
   examCoordinatorUserId String? @map("exam_coordinator_user_id")
   aiWorkflowJobs AiWorkflowJob[]
@@ -622,6 +643,9 @@ model Campus {
   id            String   @id @default(uuid())
   archivedAt    DateTime? @map("archived_at")
   archiveReason String?   @map("archive_reason")
+  /// SKAI-113: a paused campus stays listed but takes no new staff invitations until resumed.
+  pausedAt      DateTime? @map("paused_at")
+  pauseReason   String?   @map("pause_reason")
   schoolId      String   @default("") @map("school_id")
   school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   name          String
@@ -792,6 +816,7 @@ model User {
   studentProfile                Student?                 @relation("StudentUser")
   parentedStudents              Student[]                @relation("Parent")
   guardianRelationships         GuardianRelationship[]   @relation("GuardianAccount")
+  guardianConsents              GuardianConsent[]        @relation("GuardianConsentGiver")
   createdGuardianRelationships  GuardianRelationship[]   @relation("GuardianCreatedBy")
   guardianAccessEvents          GuardianAccessEvent[]    @relation("GuardianAccessActor")
   reviewedGuardianLinks         GuardianReviewQueue[]    @relation("GuardianReviewActor")
@@ -842,6 +867,7 @@ model User {
   ownedCallbacks  PhoneCallback[] @relation("PhoneCallbackOwner")
   ownedPostal     PostalRecord[]  @relation("PostalOwner")
   ownedApplications AdmissionApplication[] @relation("ApplicationOwner")
+  admissionAssessments AdmissionAssessment[] @relation("AssessmentStaff")
 }
 
 // Staff records depth: payroll, bank, documents and timeline for faculty.
@@ -860,6 +886,10 @@ model StaffProfile {
   bankAccountNumber String? @map("bank_account_number")
   bankName          String? @map("bank_name")
   socialLinksJson   Json?   @map("social_links_json")
+  // SKAI-1149: UAE regulator fields (src/lib/identity/regulator-ids.ts). Optional; ADEK eSIS / MOE ID in regulatorId.
+  emiratesId        String? @map("emirates_id")
+  nationality       String?
+  regulatorId       String? @map("regulator_id")
 
   // ─── Where this person sits in the institution ─────────────
   // `designation` above is the legacy free-text label and is mirrored from
@@ -897,6 +927,7 @@ model StaffProfile {
 
   @@index([schoolId])
   @@index([schoolId, seniorityLevel])
+  @@index([schoolId, emiratesId])
   @@index([reportsToId])
   @@index([primaryDepartmentId])
   @@map("staff_profiles")
@@ -1332,7 +1363,7 @@ model PayrollLine {
   payrollRun    PayrollRun        @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
   user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   paymentMethod PaymentMethodRef? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
-  ledgerEntry   LedgerEntry?
+  ledgerEntries LedgerEntry[]
 
   @@unique([payrollRunId, userId])
   @@index([schoolId])
@@ -1361,6 +1392,8 @@ model Class {
   teachingMode   String  @default("SINGLE") @map("teaching_mode")
   // SKO-404: seats for rollover checks; null = not set (warned, never assumed).
   capacity       Int?
+  // SKAI-193: version token for stale-edit detection and the offline reconnect cursor.
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
 
   // Relations
   students            Student[]
@@ -1376,6 +1409,7 @@ model Class {
   conversations       Conversation[]
 
   @@index([schoolId])
+  @@index([schoolId, updatedAt])
   @@map("classes")
 }
 
@@ -1406,6 +1440,7 @@ model Student {
   parent               User?     @relation("Parent", fields: [parentUserId], references: [id], onDelete: SetNull)
   guardianRelationships GuardianRelationship[]
   guardianReviewQueue   GuardianReviewQueue[]
+  guardianConsents      GuardianConsent[]
   admissionNo          String?   @map("admission_no") // Institution-scoped identifier; id is the immutable identity
   fullName             String    @map("full_name")
   nameUr               String?   @map("name_ur")
@@ -1414,6 +1449,9 @@ model Student {
   dateOfBirth          DateTime? @map("date_of_birth")
   bloodType            String?   @map("blood_type")
   nationality          String?   @default("Pakistan")
+  // SKAI-1149: UAE regulator fields (src/lib/identity/regulator-ids.ts). Optional; ADEK eSIS / MOE ID in regulatorId.
+  emiratesId           String?   @map("emirates_id")
+  regulatorId          String?   @map("regulator_id")
   phone                String?
   guardianName         String?   @map("guardian_name")
   guardianNameUr       String?   @map("guardian_name_ur")
@@ -1464,6 +1502,7 @@ model Student {
   @@index([schoolId, admissionNo])
   @@index([campusId, rollNo])
   @@index([schoolId])
+  @@index([schoolId, emiratesId])
   @@map("students")
 }
 
@@ -1540,6 +1579,31 @@ model GuardianAccessEvent {
   @@map("guardian_access_events")
 }
 
+// SKAI-1157: a guardian's consent for one child, per processing purpose (SKAI-1105 §3.1). Append-only: each
+// submission is a new row naming who answered, when, every purpose's choice, the notice version and the
+// language the notice was shown in. The latest row per guardian and child is the one in force.
+model GuardianConsent {
+  id             String   @id @default(uuid())
+  schoolId       String   @default("") @map("school_id")
+  school         School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String   @map("campus_id")
+  studentId      String   @map("student_id")
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardianUserId String   @map("guardian_user_id")
+  guardian       User     @relation("GuardianConsentGiver", fields: [guardianUserId], references: [id], onDelete: Restrict)
+  relationshipId String   @map("relationship_id")
+  guardianName   String   @map("guardian_name")
+  choices        Json     // { [purpose]: boolean } for every purpose in the notice version
+  noticeVersion  String   @map("notice_version")
+  language       String   // en | ar | ur: the language the notice was shown in
+  receiptCode    String   @unique @map("receipt_code")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, campusId, studentId, createdAt])
+  @@index([schoolId, guardianUserId, studentId, createdAt])
+  @@map("guardian_consents")
+}
+
 // Contact-only legacy records are not proof of a family relationship. Preserve
 // them here for staff review without granting a guardian account access.
 model GuardianReviewQueue {
@@ -1582,6 +1646,7 @@ model StudentDocument {
 
   @@index([studentId])
   @@index([schoolId])
+  @@unique([studentId, fileKey])
   @@map("student_documents")
 }
 
@@ -1702,6 +1767,9 @@ model AdmissionApplication {
   owner              User?                       @relation("ApplicationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   nextContactAt      DateTime?                   @map("next_contact_at")
   intakeClassId      String?                     @map("intake_class_id")
+  // SKAI-1142: an offer's respond-by date (families cannot accept after it) and the waitlist order.
+  offerExpiresAt     DateTime?                   @map("offer_expires_at")
+  waitlistRank       Int?                        @map("waitlist_rank")
   submittedAt        DateTime?                   @map("submitted_at")
   consentAt          DateTime?                   @map("consent_at")
   consentText        String?                     @map("consent_text") @db.Text
@@ -1716,6 +1784,7 @@ model AdmissionApplication {
   submissions        AdmissionSubmission[]
   events             AdmissionApplicationEvent[]
   documents          AdmissionDocument[]
+  assessments        AdmissionAssessment[]
 
   @@unique([schoolId, reference])
   @@index([campusId, status])
@@ -1761,6 +1830,32 @@ model AdmissionApplicationEvent {
   @@index([applicationId, createdAt])
   @@index([schoolId])
   @@map("admission_application_events")
+}
+
+/// SKAI-1142: an interview, entrance assessment, tour or taster day booked against an application.
+model AdmissionAssessment {
+  id             String               @id @default(uuid())
+  schoolId       String               @default("") @map("school_id")
+  school         School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  applicationId  String               @map("application_id")
+  application    AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  kind           String // INTERVIEW | ASSESSMENT | TOUR | TASTER_DAY
+  scheduledAt    DateTime             @map("scheduled_at")
+  durationMin    Int                  @default(30) @map("duration_min")
+  location       String?
+  staffId        String?              @map("staff_id")
+  staff          User?                @relation("AssessmentStaff", fields: [staffId], references: [id], onDelete: SetNull)
+  status         String               @default("SCHEDULED") // SCHEDULED | COMPLETED | NO_SHOW | CANCELLED
+  recommendation String? // RECOMMEND | CONSIDER | NOT_RECOMMENDED, set when completed
+  score          Int?
+  outcomeNote    String?              @map("outcome_note") @db.Text
+  createdById    String               @map("created_by_id")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  @@index([applicationId, scheduledAt])
+  @@index([schoolId, scheduledAt])
+  @@map("admission_assessments")
 }
 
 /// A file a family or staff member attached to an application. Small (≤5 MB) and kept with the application.
@@ -1851,6 +1946,10 @@ model Subject {
   teacherId  String? @map("teacher_id")
   teacher    User?   @relation("Teacher", fields: [teacherId], references: [id])
   totalMarks Int     @default(100) @map("total_marks")
+  // SKAI-149: catalogue code (one meaning per school), core vs elective, archive-not-delete.
+  code       String?
+  isElective Boolean   @default(false) @map("is_elective")
+  archivedAt DateTime? @map("archived_at")
 
   // Relations
   marks          Mark[]
@@ -2323,7 +2422,14 @@ model FeeStructure {
   campus            Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
   classId           String    @map("class_id")
   class             Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  /// SKAI-1123: the academic year (campus AcademicCycle) this structure prices. Null only for legacy rows
+  /// whose campus had no active cycle at backfill time.
+  academicYearId    String?        @map("academic_year_id")
+  academicYear      AcademicCycle? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
   monthlyFee        Int       @map("monthly_fee")
+  /// SKAI-1154: the regulator-approved monthly fee (same minor units as monthlyFee) and its permit reference.
+  approvedFee          Int?    @map("approved_fee")
+  approvedFeeReference String? @map("approved_fee_reference")
   oneTimeFeesJson   Json?     @map("one_time_fees_json")
   installmentType   String?   @map("installment_type")
   discountRulesJson Json?     @map("discount_rules_json")
@@ -2339,8 +2445,9 @@ model FeeStructure {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  @@unique([classId, activeFrom])
+  @@unique([classId, academicYearId, activeFrom])
   @@index([campusId, classId])
+  @@index([academicYearId])
   @@index([schoolId])
   @@map("fee_structures")
 }
@@ -2485,6 +2592,9 @@ model Invoice {
   localeSnapshot Json? @map("locale_snapshot")
   /// SKO-402: the school and campus identity as first printed on this invoice; later rebranding never changes it.
   issuerSnapshot Json? @map("issuer_snapshot")
+  /// SKAI-1154: the regulator-approved fee and permit reference printed on this invoice, copied at generation.
+  approvedFee          Int?    @map("approved_fee")
+  approvedFeeReference String? @map("approved_fee_reference")
   id              String        @id @default(uuid())
   schoolId        String        @default("") @map("school_id")
   school          School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -2645,7 +2755,8 @@ model LedgerEntry {
   note          String?
   paymentId     String?        @unique @map("payment_id")
   payment       Payment?       @relation("PaymentLedgerEntry", fields: [paymentId], references: [id], onDelete: SetNull)
-  payrollLineId String?        @unique @map("payroll_line_id")
+  // SKAI-1506: a reversed payroll line can be reposted, so a line may own several postings (at most one unreversed).
+  payrollLineId String?        @map("payroll_line_id")
   payrollLine   PayrollLine?   @relation(fields: [payrollLineId], references: [id], onDelete: SetNull)
   createdById   String?        @map("created_by_id")
   createdAt     DateTime       @default(now()) @map("created_at")
@@ -2658,6 +2769,7 @@ model LedgerEntry {
 
   @@unique([campusId, idempotencyKey])
   @@index([campusId, date])
+  @@index([payrollLineId])
   @@index([kind])
   @@index([accountId])
   @@index([schoolId])
@@ -3137,6 +3249,9 @@ model ClassRoom {
   seatsPerBench     Int     @default(1) // pupils per bench in a lesson
   examSeatsPerBench Int     @default(1) @map("exam_seats_per_bench") // pupils per bench in an exam
   isExamHall        Boolean @default(false) @map("is_exam_hall") // prefer this room when auto-allocating
+  // Archived rooms keep their timetable and exam history but are offered for no
+  // new booking (SKAI-147: a room in use is archived, never deleted).
+  archivedAt        DateTime? @map("archived_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -4264,9 +4379,12 @@ model MedicationDose {
   dose          String
   actorId       String   @map("actor_id")
   note          String?
+  idempotencyKey String?  @map("idempotency_key")
   createdAt     DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, studentId])
+  // NULL keys never conflict, so existing rows and keyless submissions are unaffected.
+  @@unique([schoolId, idempotencyKey], map: "medication_doses_school_id_idempotency_key_key")
   @@map("medication_doses")
 }
 
@@ -5310,6 +5428,8 @@ model AcademicCycle {
   endDate      DateTime? @map("end_date") @db.Date
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  feeStructures FeeStructure[]
 
   @@unique([campusId, academicYear])
   @@index([campusId, status])
@@ -6484,6 +6604,57 @@ model AuthAttempt {
   @@map("auth_attempts")
 }
 
+// SKAI-954 / SKAI-1061: phone OTP challenges. Pre-authentication and keyed by hashes:
+// the phone number and code are never stored in clear. Platform-global like AuthAttempt.
+model PhoneOtpChallenge {
+  id               String        @id @default(uuid())
+  purpose          String // guardian_sign_in | staff_second_factor
+  phoneHash        String        @map("phone_hash")
+  market           String
+  /**
+   * Staff second factor only: the already-authenticated user the code is bound to.
+   */
+  userId           String?       @map("user_id")
+  flowHash         String        @map("flow_hash")
+  codeHash         String        @map("code_hash")
+  fallbackCodeHash String?       @map("fallback_code_hash")
+  language         String        @default("en")
+  attempts         Int           @default(0)
+  expiresAt        DateTime      @map("expires_at")
+  verifiedAt       DateTime?     @map("verified_at")
+  consumedAt       DateTime?     @map("consumed_at")
+  supersededAt     DateTime?     @map("superseded_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  deliveries       OtpDelivery[]
+
+  @@index([phoneHash, createdAt])
+  @@index([expiresAt])
+  @@map("phone_otp_challenges")
+}
+
+// SKAI-954 / SKAI-897 (V5/V6): one row per OTP send attempt — channel, cost, delivery timing, verification.
+model OtpDelivery {
+  id                String            @id @default(uuid())
+  challengeId       String            @map("challenge_id")
+  challenge         PhoneOtpChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  market            String
+  channel           String // whatsapp | sms
+  provider          String
+  providerMessageId String?           @unique @map("provider_message_id")
+  isFallback        Boolean           @default(false) @map("is_fallback")
+  status            String // sent | delivered | read | failed | not_on_whatsapp
+  errorCode         String?           @map("error_code")
+  costMicroUsd      Int?              @map("cost_micro_usd")
+  costVerified      Boolean           @default(false) @map("cost_verified")
+  sentAt            DateTime          @default(now()) @map("sent_at")
+  deliveredAt       DateTime?         @map("delivered_at")
+  verifiedAt        DateTime?         @map("verified_at")
+
+  @@index([challengeId])
+  @@index([market, sentAt])
+  @@map("otp_deliveries")
+}
+
 // Append-only effective-dated locale policies. Campus rows contain only overrides.
 model LocalePolicy {
   status String @default("ACTIVE")
@@ -7327,6 +7498,10 @@ model ReadinessTask {
   createdAt     DateTime  @default(now()) @map("created_at")
   completedById String?   @map("completed_by_id")
   completedAt   DateTime? @map("completed_at")
+  // SKAI-155: setup task tracking. Status is OPEN | IN_PROGRESS | DONE | DEFERRED; version guards stale edits.
+  dueOn         DateTime? @map("due_on") @db.Date
+  remindedAt    DateTime? @map("reminded_at")
+  version       Int       @default(1)
 
   @@unique([schoolId, key])
   @@index([schoolId, ownerId, status])
@@ -7675,9 +7850,12 @@ model AccommodationLiveAdjustment {
   oldDeadline  DateTime @map("old_deadline")
   newDeadline  DateTime @map("new_deadline")
   approvedById String   @map("approved_by_id")
+  /// SKAI-1459: client operation key; a retry with the same key replays the original adjustment.
+  requestKey   String?  @map("request_key")
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, assignmentId])
+  @@unique([schoolId, assignmentId, studentId, requestKey], map: "accommodation_live_adjustments_request_key_key")
   @@map("accommodation_live_adjustments")
 }
 
@@ -8509,6 +8687,10 @@ model LibraryCharge {
   waiverReason String?  @map("waiver_reason")
   decidedAt   DateTime? @map("decided_at")
   createdAt   DateTime  @default(now()) @map("created_at")
+  /// SKAI-1669: the fee invoice finance posted for this charge (status POSTED); one charge posts at most once.
+  invoiceId   String?   @unique @map("invoice_id")
+  /// SKAI-1669: why finance returned the charge to the library (status back to OPEN).
+  financeNote String?   @map("finance_note")
 
   @@unique([issueId, kind])
   @@index([memberId, status])
@@ -10135,6 +10317,250 @@ model AiSetupResponse {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  @@unique([schoolId, userId, questionnaireKey])
+  /// SKAI-1730: one response per campus, so a transferred user starts fresh and old-campus history is kept.
+  @@unique([schoolId, userId, questionnaireKey, campusId])
   @@map("ai_setup_responses")
+}
+
+/// SKAI-1019/1020: append-only founder + educator ADOPT/DEFER/REJECT decisions for deferred curriculum packs.
+/// Platform-global (no tenant data): the latest row per candidate is current; `record` is the full gate evidence.
+model PackExpansionDecision {
+  id            String   @id @default(uuid())
+  candidateId   String   @map("candidate_id")
+  outcome       String
+  record        Json
+  boundedTicket String?  @map("bounded_ticket")
+  decidedById   String   @map("decided_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([candidateId, createdAt(sort: Desc)])
+  @@map("pack_expansion_decisions")
+}
+
+/// SKAI-1008..1012: platform catalogue of curriculum contract versions. Global: no school data.
+/// A row is immutable once written; a content change is a new version with a new hash.
+model CurriculumPackVersion {
+  id            String   @id @default(uuid())
+  packId        String   @map("pack_id")
+  version       Int
+  board         String
+  subject       String
+  schoolGrade   String   @map("school_grade")
+  examYear      String   @map("exam_year")
+  language      String
+  /// Catalogue status of the shipped content (DRAFT until every unverified item is cleared).
+  status        String   @default("DRAFT")
+  content       Json
+  contentSha256 String   @map("content_sha256")
+  /// Copy of content.unverified for the catalogue screen.
+  unverified    Json     @default("[]")
+  createdAt     DateTime @default(now()) @map("created_at")
+  activations   CurriculumPackActivation[]
+  @@unique([packId, version])
+  @@index([board, examYear])
+  @@map("curriculum_pack_versions")
+}
+
+/// A school campus's request to use one catalogue version, with its evidence. Status moves
+/// DRAFT -> APPROVED -> ACTIVE, and any -> REVOKED (terminal; a new request is a new row).
+model CurriculumPackActivation {
+  id                  String    @id @default(uuid())
+  schoolId            String    @map("school_id")
+  school              School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId            String    @map("campus_id")
+  campus              Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  packVersionId       String    @map("pack_version_id")
+  packVersion         CurriculumPackVersion @relation(fields: [packVersionId], references: [id], onDelete: Restrict)
+  /// Pinned at request time; enforcement compares it with the catalogue row.
+  contentSha256       String    @map("content_sha256")
+  status              String    @default("DRAFT")
+  geography           String
+  schoolGrade         String    @map("school_grade")
+  localBudgetApprover String?   @map("local_budget_approver")
+  /// [{ sourceId, rightsScope, permissionEvidence, documentKey?, documentSha256?, documentName? }]
+  sourceEvidence      Json      @default("[]") @map("source_evidence")
+  educatorApproverId  String?   @map("educator_approver_id")
+  educatorApprover    String?   @map("educator_approver")
+  approvedOn          DateTime? @map("approved_on") @db.Date
+  reviewDueOn         DateTime? @map("review_due_on") @db.Date
+  requestedById       String    @map("requested_by_id")
+  revokedReason       String?   @map("revoked_reason")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  events              CurriculumPackActivationEvent[]
+  @@index([schoolId, campusId, status])
+  @@index([schoolId, packVersionId])
+  @@map("curriculum_pack_activations")
+}
+
+/// Append-only status history. Rows are never updated or deleted by the service.
+model CurriculumPackActivationEvent {
+  id            String   @id @default(uuid())
+  schoolId      String   @map("school_id")
+  activationId  String   @map("activation_id")
+  activation    CurriculumPackActivation @relation(fields: [activationId], references: [id], onDelete: Cascade)
+  fromStatus    String?  @map("from_status")
+  toStatus      String   @map("to_status")
+  actorId       String   @map("actor_id")
+  actorRole     String   @map("actor_role")
+  reason        String?
+  contentSha256 String   @map("content_sha256")
+  at            DateTime @default(now())
+  @@index([schoolId, activationId, at])
+  @@map("curriculum_pack_activation_events")
+}
+
+/// SKAI-1016: one reviewed trust requirement for one market. Platform evidence, never school data;
+/// `reference` points at restricted storage. Superseded rows are kept for audit.
+model MarketTrustReview {
+  id           String    @id @default(uuid())
+  market       String
+  requirement  String
+  reference    String
+  reviewer     String
+  reviewedAt   DateTime  @map("reviewed_at")
+  reviewDueAt  DateTime? @map("review_due_at")
+  locales      String[]  @default([])
+  supersededAt DateTime? @map("superseded_at")
+  recordedById String    @map("recorded_by_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([market, requirement, supersededAt])
+  @@map("market_trust_reviews")
+}
+
+/// SKAI-1017: versioned bounded pilot proposal for one school. amount NULL = explicitly undecided.
+model PilotProposal {
+  id                     String   @id @default(uuid())
+  schoolId               String   @map("school_id")
+  version                Int
+  market                 String
+  currency               String
+  amount                 Decimal? @db.Decimal(14, 2)
+  /// Full PilotProposal payload as validated by validateProposal.
+  scope                  Json
+  budgetApprover         String?  @map("budget_approver")
+  academicChampion       String?  @map("academic_champion")
+  dataProcessingApprover String?  @map("data_processing_approver")
+  problems               Json     @default("[]")
+  recordedById           String   @map("recorded_by_id")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  @@unique([schoolId, version])
+  @@map("pilot_proposals")
+}
+
+/// SKAI-1017: append-only commercial stage evidence; the stage is derived by classifyStage.
+model PilotCommercialEvent {
+  id                 String   @id @default(uuid())
+  schoolId           String   @map("school_id")
+  stage              String
+  demoAttended       Boolean  @default(false) @map("demo_attended")
+  declinedToPay      Boolean  @default(false) @map("declined_to_pay")
+  signedAgreementRef String?  @map("signed_agreement_ref")
+  settlementRef      String?  @map("settlement_ref")
+  recordedById       String   @map("recorded_by_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, createdAt])
+  @@map("pilot_commercial_events")
+}
+
+/// SKAI-1018: versioned school-specific readiness record + signed go/no-go decision.
+/// `record` is validated by readinessRecordSchema; `blockers` is the evaluation at save time.
+model PilotReadinessRecord {
+  id           String   @id @default(uuid())
+  schoolId     String   @map("school_id")
+  pilotId      String?  @map("pilot_id")
+  version      Int
+  market       String?
+  record       Json
+  outcome      String?
+  signer       String?
+  ready        Boolean  @default(false)
+  blockers     Json     @default("[]")
+  recordedById String   @map("recorded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([schoolId, version])
+  @@index([pilotId])
+  @@map("pilot_readiness_records")
+}
+
+/// SKAI-1045 (D3-01): the school's own WhatsApp Business Account, connected through Meta Embedded Signup.
+/// Meta bills the school directly. The access token is AES-256-GCM encrypted at rest (protectSecret).
+model WhatsAppConnection {
+  id                 String    @id @default(uuid())
+  schoolId           String    @unique @map("school_id")
+  school             School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  status             String    @default("CONNECTED") // CONNECTED | DISCONNECTED
+  wabaId             String    @map("waba_id")
+  phoneNumberId      String    @map("phone_number_id")
+  businessId         String?   @map("business_id")
+  displayPhoneNumber String?   @map("display_phone_number")
+  verifiedName       String?   @map("verified_name")
+  accessTokenEnc     String?   @map("access_token_enc") // encrypted; cleared on disconnect
+  tokenExpiresAt     DateTime? @map("token_expires_at")
+  connectedById      String    @map("connected_by_id")
+  connectedAt        DateTime  @default(now()) @map("connected_at")
+  disconnectedAt     DateTime? @map("disconnected_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([phoneNumberId])
+  @@map("whatsapp_connections")
+}
+
+/// SKAI-1046 (D3-03): optional Skoolee-managed sending for schools that cannot complete Meta verification.
+/// One number per tenant (never shared), prepaid credit in micro-USD; sending stops when credit runs out.
+model WhatsAppManagedSending {
+  id              String   @id @default(uuid())
+  schoolId        String   @unique @map("school_id")
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  enabled         Boolean  @default(false)
+  phoneNumberId   String?  @map("phone_number_id") // provisioned by the platform owner
+  balanceMicroUsd BigInt   @default(0) @map("balance_micro_usd")
+  updatedById     String   @map("updated_by_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("whatsapp_managed_sending")
+}
+
+/// SKAI-1046: managed-sending ledger. MESSAGE rows charge Meta's rate plus margin; TOP_UP rows add credit.
+model WhatsAppUsageEntry {
+  id                String   @id @default(uuid())
+  schoolId          String   @map("school_id")
+  school            School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  kind              String   // MESSAGE | TOP_UP
+  category          String?  // UTILITY | MARKETING | AUTHENTICATION | SERVICE
+  country           String?
+  metaRateMicroUsd  BigInt   @default(0) @map("meta_rate_micro_usd")
+  marginMicroUsd    BigInt   @default(0) @map("margin_micro_usd")
+  amountMicroUsd    BigInt   @map("amount_micro_usd") // charged (MESSAGE) or credited (TOP_UP)
+  providerMessageId String?  @map("provider_message_id")
+  reference         String?
+  createdById       String?  @map("created_by_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, createdAt])
+  @@map("whatsapp_usage_entries")
+}
+
+/// SKAI-1478: a private object whose metadata was deleted. Written in the same transaction as the
+/// deletion and kept until storage confirms removal; FAILED after repeated errors, for operator follow-up.
+model StorageCleanup {
+  id          String    @id @default(uuid())
+  schoolId    String    @map("school_id")
+  campusId    String    @map("campus_id")
+  objectKey   String    @unique @map("object_key")
+  receiptId   String?   @map("receipt_id")
+  status      String    @default("PENDING")
+  attempts    Int       @default(0)
+  lastError   String?   @map("last_error")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+
+  @@index([schoolId, status])
+  @@index([receiptId])
+  @@map("storage_cleanups")
 }

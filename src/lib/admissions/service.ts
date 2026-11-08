@@ -9,6 +9,7 @@ import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { resolveSourceActions } from "@/lib/notifications/actions";
 import { deliverNotification } from "@/lib/notifications/in-app";
+import { ASSESSMENT_ACTIONS, actOnAssessment, assignWaitlistRank, moveOnWaitlist, offerDeadline, offerLapsed } from "./assessments";
 import { answerProblems, definitionProblems, foldName, identityKeysFor, identityValues, keepVisible, visibleDocuments, type Answers, type FormDefinition } from "./form-rules";
 
 // SKO-398: admission forms, family applications and the pipeline to enrollment.
@@ -54,7 +55,7 @@ async function canDecide(user: AuthUser, what: string) {
   await canEdit(user);
   if (!isCampusOperator(user)) throw new ApiError(`Only your campus admin can ${what}.`, 403);
 }
-const DECISIONS = new Set(["offer", "waitlist", "reject", "record-acceptance", "record-decline"]);
+const DECISIONS = new Set(["offer", "waitlist", "waitlist-move", "reject", "record-acceptance", "record-decline"]);
 
 export async function listForms(user: AuthUser, campusId: string) {
   await canRead(user);
@@ -140,8 +141,9 @@ async function familyView(application: AdmissionApplication & { formVersion: { d
   const missing = answerProblems(definition, answers, uploaded, true).filter(problem => problem.message.endsWith("required.")).map(problem => problem.key);
   return {
     reference: application.reference, stage: FAMILY_STAGE[application.status] ?? "RECEIVED", editable: FAMILY_EDITABLE.includes(application.status),
-    schoolName: school?.name ?? "", campusName: campus?.name ?? "", formVersion: application.formVersion.version, definition, answers,
+    schoolName: school?.name ?? "", campusName: campus?.name ?? "", formVersion: application.formVersion.version, version: application.version, definition, answers,
     documents, missing, messages: events.map(event => ({ message: event.familyMessage, at: event.createdAt })), submittedAt: application.submittedAt,
+    offerExpiresAt: application.status === "OFFERED" ? application.offerExpiresAt : null,
   };
 }
 
@@ -175,7 +177,11 @@ export function saveApplication(reference: string, resumeKey: string, body: Reco
     const answers = keepVisible(definition, (body.answers ?? {}) as Answers);
     const problems = answerProblems(definition, answers, [], false);
     if (problems.length) throw problemsError(problems);
-    const updated = await prisma.admissionApplication.update({ where: { id: application.id }, data: { answers: answers as Prisma.InputJsonValue, childName: String(identityValues(definition, answers).childName ?? ""), version: { increment: 1 } }, include: { formVersion: true } });
+    // SKAI-1389: a family device that saves from an older view is refused (the view carries the version).
+    if (body.version !== undefined && Number(body.version) !== application.version) throw new ApiError("This application changed in another window. Reload to see the latest before saving.", 409);
+    const written = await prisma.admissionApplication.updateMany({ where: { id: application.id, version: application.version }, data: { answers: answers as Prisma.InputJsonValue, childName: String(identityValues(definition, answers).childName ?? ""), version: { increment: 1 } } });
+    if (written.count !== 1) throw new ApiError("This application changed in another window. Reload to see the latest before saving.", 409);
+    const updated = await prisma.admissionApplication.findUniqueOrThrow({ where: { id: application.id }, include: { formVersion: true } });
     return familyView(updated);
   });
 }
@@ -242,6 +248,7 @@ export function familyRespond(reference: string, resumeKey: string, accept: bool
       if (!current) throw new ApiError("Application not found", 404);
       if (current.status === (accept ? "ACCEPTED" : "DECLINED")) return current;
       if (current.status !== "OFFERED") throw new ApiError("There is no open offer to answer on this application.", 409);
+      if (accept && current.offerExpiresAt && current.offerExpiresAt < new Date()) throw new ApiError("The date to accept this offer has passed. Please contact the school.", 409);
       const status = accept ? "ACCEPTED" : "DECLINED";
       await tx.admissionApplicationEvent.create({ data: { schoolId: current.schoolId, applicationId: current.id, kind: accept ? "ACCEPTED" : "STAGE", fromStatus: "OFFERED", toStatus: status, actorId: "FAMILY", detail: { by: "family" } } });
       return tx.admissionApplication.update({ where: { id: current.id }, data: { status, version: { increment: 1 } }, include: { formVersion: true } });
@@ -264,11 +271,11 @@ export async function listApplications(user: AuthUser, campusId: string, filters
     ...(q ? { OR: [{ reference: { contains: q, mode: "insensitive" } }, { childName: { contains: q, mode: "insensitive" } }, { guardianPhone: { contains: q.replace(/\D/g, "") || q } }] } : {}),
   };
   const [rows, active] = await Promise.all([
-    prisma.admissionApplication.findMany({ where, orderBy: [{ nextContactAt: { sort: "asc", nulls: "last" } }, { submittedAt: "asc" }], take: 300, select: { id: true, reference: true, status: true, channel: true, childName: true, dateOfBirth: true, submittedAt: true, nextContactAt: true, version: true, updatedAt: true, owner: { select: { id: true, fullName: true } }, formVersion: { select: { version: true, form: { select: { name: true } } } }, events: { where: { familyMessage: { not: null } }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } } }),
+    prisma.admissionApplication.findMany({ where, orderBy: [{ nextContactAt: { sort: "asc", nulls: "last" } }, { submittedAt: "asc" }], take: 300, select: { id: true, reference: true, status: true, channel: true, childName: true, dateOfBirth: true, submittedAt: true, nextContactAt: true, offerExpiresAt: true, waitlistRank: true, version: true, updatedAt: true, owner: { select: { id: true, fullName: true } }, formVersion: { select: { version: true, form: { select: { name: true } } } }, events: { where: { familyMessage: { not: null } }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } } }),
     prisma.admissionApplication.findMany({ where: { campusId, schoolId: user.schoolId, status: { in: ACTIVE.filter(status => status !== "DRAFT") } }, select: { ownerId: true, nextContactAt: true } }),
   ]);
   return {
-    data: rows.map(({ events, ...row }) => ({ ...row, lastFamilyContact: events[0]?.createdAt ?? null, overdue: Boolean(row.nextContactAt && row.nextContactAt < now && ACTIVE.includes(row.status)) })),
+    data: rows.map(({ events, ...row }) => ({ ...row, lastFamilyContact: events[0]?.createdAt ?? null, overdue: Boolean(row.nextContactAt && row.nextContactAt < now && ACTIVE.includes(row.status)), offerLapsed: offerLapsed(row, now) })),
     counts: { active: active.length, unassigned: active.filter(row => !row.ownerId).length, overdue: active.filter(row => row.nextContactAt && row.nextContactAt < now).length, mine: active.filter(row => row.ownerId === user.userId).length },
   };
 }
@@ -283,7 +290,7 @@ async function duplicatesFor(db: TxClient, application: AdmissionApplication & {
   if (definition.identityKeys.includes("nameAndDob") && identity.dateOfBirth) studentWhere.push({ dateOfBirth: new Date(`${identity.dateOfBirth}T00:00:00Z`) });
   const phone = identity.guardianPhone?.replace(/\D/g, "").slice(-9);
   if (definition.identityKeys.includes("guardianPhoneAndName") && phone && phone.length >= 6) studentWhere.push({ guardianPhone: { contains: phone } });
-  const candidates = studentWhere.length ? await db.student.findMany({ where: { schoolId: application.schoolId, consolidatedIntoId: null, OR: studentWhere }, select: { id: true, fullName: true, rollNo: true, admissionNo: true, dateOfBirth: true, guardianPhone: true, archivedAt: true, campusId: true, class: { select: { name: true, section: true } } }, take: 50 }) : [];
+  const candidates = studentWhere.length ? await db.student.findMany({ where: { schoolId: application.schoolId, campusId: application.campusId, consolidatedIntoId: null, OR: studentWhere }, select: { id: true, fullName: true, rollNo: true, admissionNo: true, dateOfBirth: true, guardianPhone: true, archivedAt: true, campusId: true, class: { select: { name: true, section: true } } }, take: 50 }) : [];
   const name = identity.childName ? foldName(identity.childName) : "";
   const students = candidates.filter(student => foldName(student.fullName) === name).map(student => ({ id: student.id, fullName: student.fullName, rollNo: student.rollNo, admissionNo: student.admissionNo, className: [student.class.name, student.class.section].filter(Boolean).join(" "), archived: Boolean(student.archivedAt), dateOfBirth: student.dateOfBirth?.toISOString().slice(0, 10) ?? null }));
   return { applications, students };
@@ -293,18 +300,19 @@ export async function applicationDetail(user: AuthUser, campusId: string, id: st
   await canRead(user);
   const application = await prisma.admissionApplication.findFirst({ where: { id, campusId, schoolId: user.schoolId }, include: { formVersion: { select: { id: true, version: true, definition: true, form: { select: { name: true } } } }, owner: { select: { id: true, fullName: true } }, enquiry: { select: { id: true, name: true, source: true } }, convertedStudent: { select: { id: true, fullName: true, rollNo: true } } } });
   if (!application) throw new ApiError("Application not found", 404);
-  const [submissions, events, documents, duplicates] = await Promise.all([
+  const [submissions, events, documents, duplicates, assessments] = await Promise.all([
     prisma.admissionSubmission.findMany({ where: { applicationId: id }, orderBy: { submittedAt: "asc" }, select: { id: true, submittedAt: true, submittedBy: true, answers: true, documentIds: true, formVersion: { select: { version: true } } } }),
     prisma.admissionApplicationEvent.findMany({ where: { applicationId: id }, orderBy: { createdAt: "asc" } }),
     prisma.admissionDocument.findMany({ where: { applicationId: id }, select: { id: true, key: true, fileName: true, contentType: true, sizeBytes: true, uploadedBy: true, uploadedAt: true, sha256: true }, orderBy: { uploadedAt: "asc" } }),
     duplicatesFor(prisma, application as never),
+    prisma.admissionAssessment.findMany({ where: { applicationId: id, schoolId: user.schoolId }, orderBy: { scheduledAt: "asc" }, include: { staff: { select: { id: true, fullName: true } } } }),
   ]);
   const ids = [...new Set(events.map(event => event.actorId).filter(actor => actor !== "FAMILY"))];
   const people = new Map((await prisma.user.findMany({ where: { id: { in: ids }, schoolId: user.schoolId }, select: { id: true, fullName: true } })).map(person => [person.id, person.fullName]));
   const { resumeKeyHash: _key, ...rest } = application;
   const definition = asDefinition(application.formVersion.definition);
   const missing = answerProblems(definition, application.answers as Answers, [...new Set(documents.map(d => d.key))], true).map(problem => problem.key);
-  return { ...rest, missing, submissions, documents, duplicates, events: events.map(event => ({ ...event, actorName: event.actorId === "FAMILY" ? null : people.get(event.actorId) ?? null })) };
+  return { ...rest, missing, submissions, documents, duplicates, assessments, offerLapsed: offerLapsed(application), events: events.map(event => ({ ...event, actorName: event.actorId === "FAMILY" ? null : people.get(event.actorId) ?? null })) };
 }
 
 export async function documentFile(user: AuthUser, campusId: string, id: string) {
@@ -363,6 +371,14 @@ export async function actOnApplication(user: AuthUser, campusId: string, body: R
       const submitted = await submitInTx(db, id, user.userId, body.consent === true);
       return { updated: submitted.application, notify: null };
     }
+    if (ASSESSMENT_ACTIONS.has(action)) {
+      await actOnAssessment({ db, user, campusId, application, officeNote }, action, body);
+      return { updated: await db.admissionApplication.update({ where: { id }, data: bump }), notify: null };
+    }
+    if (action === "waitlist-move") {
+      await moveOnWaitlist({ db, user, campusId, application, officeNote }, body.direction);
+      return { updated: await db.admissionApplication.findUniqueOrThrow({ where: { id } }), notify: null };
+    }
     const transition = TRANSITIONS[action];
     if (!transition) throw new ApiError("Unknown action", 400);
     if (!transition.from.includes(application.status)) throw new ApiError(`This application is ${application.status.toLowerCase().replace("_", " ")}; that step is not available now.`, 409);
@@ -375,8 +391,11 @@ export async function actOnApplication(user: AuthUser, campusId: string, body: R
       const cls = intakeClassId ? await db.class.findFirst({ where: { id: intakeClassId, campusId, schoolId: user.schoolId, archivedAt: null }, select: { id: true } }) : null;
       if (!cls) throw new ApiError("Choose the class the place is offered in.", 400);
     }
-    const updated = await db.admissionApplication.update({ where: { id }, data: { status: transition.to, intakeClassId, ...bump } });
-    await db.admissionApplicationEvent.create({ data: { ...event, kind: action === "request-info" ? "INFO_REQUESTED" : action === "record-acceptance" ? "ACCEPTED" : action === "withdraw" ? "WITHDRAWN" : "STAGE", fromStatus: application.status, toStatus: transition.to, officeNote, familyMessage, detail: action === "offer" ? { intakeClassId } : undefined } });
+    // SKAI-1142: an offer may carry a respond-by date; joining the waitlist takes the next place, leaving it frees it.
+    const offerExpiresAt = action === "offer" ? offerDeadline(body.offerExpiresAt) : application.offerExpiresAt;
+    const waitlistRank = transition.to === "WAITLISTED" ? await assignWaitlistRank(db, user.schoolId, campusId) : null;
+    const updated = await db.admissionApplication.update({ where: { id }, data: { status: transition.to, intakeClassId, offerExpiresAt, waitlistRank, ...bump } });
+    await db.admissionApplicationEvent.create({ data: { ...event, kind: action === "request-info" ? "INFO_REQUESTED" : action === "record-acceptance" ? "ACCEPTED" : action === "withdraw" ? "WITHDRAWN" : "STAGE", fromStatus: application.status, toStatus: transition.to, officeNote, familyMessage, detail: action === "offer" ? { intakeClassId, offerExpiresAt: offerExpiresAt?.toISOString() ?? null } : waitlistRank ? { waitlistRank } : undefined } });
     if (["REJECTED", "DECLINED", "WITHDRAWN"].includes(transition.to)) await resolveSourceActions({ schoolId: user.schoolId, sourceType: "application", sourceId: id, resolution: "CANCELLED" }, db);
     return { updated, notify: null };
   });
@@ -424,8 +443,12 @@ export async function staffSaveAnswers(user: AuthUser, campusId: string, body: R
     const answers = keepVisible(definition, (body.answers ?? {}) as Answers);
     const problems = answerProblems(definition, answers, [], false);
     if (problems.length) throw problemsError(problems);
+    // SKAI-1389: a save made from an older view is refused, and the write itself is conditional on that version.
+    if (body.version !== undefined && Number(body.version) !== application.version) throw new ApiError("This application changed since you opened it. Reload to see the latest before saving.", 409);
     const nextVersion = application.version + 1;
-    const updated = await db.admissionApplication.update({ where: { id: application.id }, data: { answers: answers as Prisma.InputJsonValue, childName: String(identityValues(definition, answers).childName ?? ""), version: nextVersion } });
+    const written = await db.admissionApplication.updateMany({ where: { id: application.id, version: application.version }, data: { answers: answers as Prisma.InputJsonValue, childName: String(identityValues(definition, answers).childName ?? ""), version: nextVersion } });
+    if (written.count !== 1) throw new ApiError("This application changed since you opened it. Reload to see the latest before saving.", 409);
+    const updated = await db.admissionApplication.findUniqueOrThrow({ where: { id: application.id } });
     await db.admissionApplicationEvent.create({ data: { schoolId: user.schoolId, applicationId: application.id, kind: "ANSWERS_UPDATED", actorId: user.userId, detail: { fromVersion: application.version, toVersion: nextVersion } } });
     const { resumeKeyHash: _key, ...data } = updated;
     return data;
@@ -453,6 +476,9 @@ export async function convertApplication(user: AuthUser, campusId: string, body:
     const [locked] = await db.$queryRaw<{ id: string }[]>`SELECT id FROM admission_applications WHERE id = ${id} AND campus_id = ${campusId} AND school_id = ${user.schoolId} FOR UPDATE`;
     const application = locked ? await db.admissionApplication.findUnique({ where: { id }, include: { formVersion: true } }) : null;
     if (!application) throw new ApiError("Application not found", 404);
+    // SKAI-1425: conversions for the same child are serialised by the campus lock, taken before the duplicate check.
+    // A competing request waits, then sees the first pupil on the duplicate check and must link it rather than create another.
+    await db.$queryRaw`SELECT id FROM campuses WHERE id = ${campusId} AND school_id = ${user.schoolId} FOR UPDATE`;
     if (application.status === "ENROLLED" && application.convertedStudentId) {
       const student = await db.student.findUniqueOrThrow({ where: { id: application.convertedStudentId }, select: { id: true, fullName: true, rollNo: true, admissionNo: true } });
       return { application, student, replayed: true };
@@ -475,10 +501,14 @@ export async function convertApplication(user: AuthUser, campusId: string, body:
       student = await db.student.findUniqueOrThrow({ where: { id: choice.studentId }, select: { id: true, fullName: true, rollNo: true, admissionNo: true } });
     } else {
       const classId = String(body.classId ?? application.intakeClassId ?? "");
-      const cls = await db.class.findFirst({ where: { id: classId, campusId, schoolId: user.schoolId, archivedAt: null }, select: { id: true, name: true, section: true } });
-      if (!cls) throw new ApiError("Choose the class to enrol the pupil in.", 400);
+      // SKAI-1388: only an ACTIVE class with free capacity takes a new placement.
+      const cls = await db.class.findFirst({ where: { id: classId, campusId, schoolId: user.schoolId, archivedAt: null, status: "ACTIVE" }, select: { id: true, name: true, section: true, capacity: true } });
+      if (!cls) throw new ApiError("Choose an active class to enrol the pupil in.", 400);
+      if (cls.capacity != null) {
+        const occupied = await db.student.count({ where: { classId: cls.id, archivedAt: null, status: "active" } });
+        if (occupied + 1 > cls.capacity) throw new ApiError(`The class is full (${occupied} of ${cls.capacity} seats). Choose another class.`, 409);
+      }
       const rollNo = text(body.rollNo, "Roll number", 1, 32);
-      await db.$queryRaw`SELECT id FROM campuses WHERE id = ${campusId} AND school_id = ${user.schoolId} FOR UPDATE`;
       const clash = await db.$queryRaw<{ id: string }[]>`SELECT id FROM students WHERE school_id = ${user.schoolId} AND campus_id = ${campusId} AND archived_at IS NULL AND lower(btrim(roll_no)) = ${rollNo.toLocaleLowerCase("en")} LIMIT 1`;
       if (clash.length) throw new ApiError("This roll number already belongs to a pupil in the campus.", 409);
       await assertPlanCapacity({ schoolId: user.schoolId, metric: "students", increment: 1 });

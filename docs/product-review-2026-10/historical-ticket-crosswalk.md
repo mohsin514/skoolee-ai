@@ -1,3 +1,5 @@
+> **Archived tracker note (29 October 2026):** Linear (SKO-) is now a read-only archive; Jira SKAI is the tracker of record (decision D6, `docs/product-review-2026-10/d6-tracker-of-record.md`). SKO references and Linear statuses below are historical. See `docs/archive/linear/` for the export and open-item crosswalk.
+
 # Historical ticket triage and canonical ownership
 
 Snapshot: 15 October 2026. All 469 downloaded issue records were parsed: 95 active canonical milestone owners and 374 archived records. This is an ownership/coverage audit, not a claim every historic defect was reproduced or every acceptance criterion passed. No Linear status, description or archive state was changed by this audit.

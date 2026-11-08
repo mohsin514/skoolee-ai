@@ -2,7 +2,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import bcrypt from "bcryptjs";
@@ -11,7 +11,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // SKO-400 browser acceptance against the isolated database, app and a synthetic object store.
 // The app must run with S3_ENDPOINT=http://127.0.0.1:55441 and S3_BUCKET_NAME=synthetic-only.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.RESOURCES_TEST_APP || "http://localhost:3107";
 const evidence = process.env.RESOURCES_EVIDENCE_DIR || "/tmp/sko400-evidence";
 const raw = new PrismaClient(), password = "SyntheticLibrary400!";
@@ -148,7 +148,8 @@ test("a failed upload keeps the draft and says so; it cannot be published", asyn
   await item.getByText("File not uploaded").waitFor();
   assert.equal(await item.getByRole("button", { name: /Publish version/ }).count(), 0);
   assert.equal(await page.getByRole("form", { name: "New resource" }).count(), 0, "the form closes so a retry cannot duplicate the draft");
-  await page.getByRole("status").scrollIntoViewIfNeeded();
+  // The page also has an empty polite live region; scroll to the upload error itself.
+  await page.getByRole("status").filter({ hasText: "could not" }).scrollIntoViewIfNeeded();
   await shot(page, "resources-upload-failed-draft-en-1440");
   await ctx.close();
 });
@@ -163,10 +164,9 @@ test("a learner sees class material without the answer key and downloads the pub
   await page.getByText("Nothing has been shared with you yet.").waitFor();
   await page.getByLabel("Search titles").fill("");
   await list(page).getByText("Cell structure notes", { exact: true }).waitFor();
-  const href = await list(page).locator("li").filter({ hasText: "Cell structure notes" }).getByRole("link").getAttribute("href");
-  const download = await ctx.request.get(base + href!);
-  assert.equal(download.status(), 200);
-  assert.equal((await download.body()).toString(), "%PDF-1.4 synthetic");
+  // SKAI-1527: the learner downloads in place with a button (no navigating link).
+  const [file] = await Promise.all([page.waitForEvent("download"), list(page).locator("li").filter({ hasText: "Cell structure notes" }).getByRole("button", { name: /Download/ }).click()]);
+  assert.equal((await readFile((await file.path())!)).toString(), "%PDF-1.4 synthetic");
   const key = await raw.learningResource.findFirstOrThrow({ where: { schoolId, kind: "ANSWER_KEY" } });
   assert.equal((await ctx.request.get(`${base}/api/resources/${key.id}/file`)).status(), 404, "direct download of the answer key is refused");
   await shot(page, "resources-student-en-1440");

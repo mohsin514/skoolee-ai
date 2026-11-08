@@ -37,6 +37,7 @@ const PUBLIC_PATHS = [
   "/whatsapp-report-card-software", "/multi-campus-school-erp",
   "/school-fee-management-software", "/ai-student-performance-analytics",
   "/privacy", "/ai-governance", "/security", "/human-review-policy",
+  "/terms", "/dpa", "/guardian-notice", // SKAI-1000 trust pack drafts; static text, no data.
   "/api/auth/login",
   "/sso", "/api/auth/sso", // SKO-446: school sign-in; the routes verify state, PKCE and the provider's ID token.
   "/api/auth/logout", "/api/auth/verify", "/api/auth/session",
@@ -155,8 +156,11 @@ async function proxyImpl(req: NextRequest, nonce: string) {
           response.headers.set("Cache-Control", "private, no-store");
           return response;
         }
-      } catch {
-        // Never fail open into unrelated tasks when current exam state is unknown.
+      } catch (error) {
+        // Never fail open into unrelated tasks when current exam state is unknown —
+        // and never sign the learner out for it either (SKAI-1063): this is "retry",
+        // the cookie stays. Logged so a persistent failure is visible in the platform logs.
+        console.error("[proxy] candidate exam boundary unavailable", error);
         return NextResponse.json({ error: "Exam session status is unavailable. Retry to continue safely.", code: "EXAM_SESSION_UNAVAILABLE" }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
       }
     }
@@ -222,13 +226,12 @@ async function proxyImpl(req: NextRequest, nonce: string) {
     // An owner-generated password must be replaced before the account
     // can reach anything else — this outranks even onboarding.
     const mustChangePassword = Boolean(payload.mustChangePassword);
+    const allowedDuringReset = mustChangePassword && (
+      pathname === "/first-login" ||
+      pathname.startsWith("/api/auth/first-password") ||
+      pathname.startsWith("/api/auth/logout") ||
+      pathname.startsWith("/api/auth/session"));
     if (mustChangePassword) {
-      const allowedDuringReset =
-        pathname === "/first-login" ||
-        pathname.startsWith("/api/auth/first-password") ||
-        pathname.startsWith("/api/auth/logout") ||
-        pathname.startsWith("/api/auth/session");
-
       if (!allowedDuringReset) {
         if (pathname.startsWith("/api")) {
           return NextResponse.json(
@@ -264,7 +267,9 @@ async function proxyImpl(req: NextRequest, nonce: string) {
     const schoolStatus = typeof payload.schoolStatus === "string" ? payload.schoolStatus : "";
     const isBillingWorkspace = isBillingWorkspacePath(pathname, req.nextUrl.searchParams.get("view"));
 
-    if (schoolStatus === "SUSPENDED" && role !== "APP_OWNER" && !allowedWhileSuspended(pathname, req.method, isBillingWorkspace)) {
+    // SKAI-715: the forced password reset outranks the suspended redirect too; otherwise /first-login and
+    // /subscription-suspended redirect to each other forever. The recovery screen follows the new password.
+    if (schoolStatus === "SUSPENDED" && role !== "APP_OWNER" && !allowedDuringReset && !allowedWhileSuspended(pathname, req.method, isBillingWorkspace)) {
       if (pathname.startsWith("/api")) {
         // Neutral for every role (G51): the account owner renews; nobody else is sent to billing.
         return NextResponse.json({ error: SUBSCRIPTION_PAUSED_MESSAGE, code: "SUBSCRIPTION_SUSPENDED" }, { status: 402 });

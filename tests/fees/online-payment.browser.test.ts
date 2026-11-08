@@ -11,7 +11,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // decided before an order exists, a pending payment is never started twice, the return lands on the
 // same child and invoice and shows only server-confirmed status, and other families cannot see it.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.FEES_TEST_APP || "http://localhost:3107";
 const evidence = process.env.FEES_EVIDENCE_DIR || "/tmp/sko431-evidence";
 const db = new PrismaClient(), password = "SyntheticFees431!";
@@ -45,7 +45,7 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }): P
   sessions.set(key, await ctx.storageState());
   return ctx;
 }
-const settled = (page: Page) => page.evaluate("Promise.all(document.getAnimations().map(a => a.finished.catch(() => undefined)))");
+const settled = (page: Page) => page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))");
 const shot = async (page: Page, name: string) => { await settled(page); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 const invoice = (id: string, studentId: string, currency: string, amount: number) => db.invoice.create({ data: { id, schoolId, campusId, studentId, invoiceDate: new Date("2026-09-01Z"), dueDate: new Date("2026-11-01Z"), currency, invoiceNumber: `SYN-431-${id.slice(0, 6)}`, monthlyFee: amount, subtotal: amount, totalAmount: amount, balanceDue: amount } });
 
@@ -95,9 +95,11 @@ test("an unsupported currency is refused before any order exists, and other fami
   assert.equal((await other.request.get(`${base}/api/fees/pay-online?ref=${orderRef}`)).status(), 404, "another family's payment reference");
   await other.close();
   const pupil = await context("pupil");
-  const own = await (await pupil.request.post(`${base}/api/fees/pay-online`, { data: { invoiceId: inv1 } })).json();
-  assert.ok(own.returnPath.startsWith(`/student/fees?invoice=${inv1}&payment=`), "a pupil returns to their own fees");
-  assert.equal((await pupil.request.post(`${base}/api/fees/pay-online`, { data: { invoiceId: inv2 } })).status(), 404, "a pupil cannot pay a sibling's invoice");
+  // role-ux: pupils do not pay online; their guardian does. No order is opened for either child.
+  const own = await pupil.request.post(`${base}/api/fees/pay-online`, { data: { invoiceId: inv1 } });
+  assert.equal(own.status(), 403, "a pupil is sent to their guardian to pay");
+  assert.equal((await pupil.request.post(`${base}/api/fees/pay-online`, { data: { invoiceId: inv2 } })).status(), 403, "a pupil cannot pay a sibling's invoice");
+  assert.equal(await db.onlinePaymentOrder.count({ where: { invoiceId: inv1 } }), 0, "the refused pupil opened no order");
   await pupil.close();
 });
 

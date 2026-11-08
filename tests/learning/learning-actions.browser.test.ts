@@ -16,7 +16,7 @@ import { familyLearningActions } from "../../src/lib/learning/actions";
 // rescheduled; ownership moves explicitly; the review separates participation from outcome, needs a
 // reason, refuses a closure without follow-up evidence and never claims causation.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.ACTIONS_TEST_APP || "http://localhost:3108";
 const evidence = process.env.ACTIONS_EVIDENCE_DIR || "/tmp/sko425-evidence";
 const db = new PrismaClient(), password = "SyntheticActions425!";
@@ -155,7 +155,8 @@ test("the learning actions panel reads clearly in English and Arabic", async () 
   await save("owner", draft({ title: "Reading fluency", evidenceRefs: [{ kind: "OBSERVATION", refId: "obs-1", label: "Reads two-syllable words slowly during guided reading." }], evidenceState: "NEEDS_OBSERVATION" }));
   const page = await (await context("owner")).newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.goto(`${base}/teacher/insights`);
+  // Since role-ux (M65), a teacher's learning actions live with their pupils on /teacher/students.
+  await page.goto(`${base}/teacher/students`);
   const panel = page.locator("[data-learning-actions]");
   await panel.locator("[data-action]").first().waitFor({ timeout: 30_000 });
   await panel.locator("[data-action]").first().getByRole("button", { name: "Open" }).click();

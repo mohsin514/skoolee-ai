@@ -14,7 +14,11 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // explanation waits for staff, who accept, reject or ask for clarification; the counting rule is versioned
 // and used by the family's rate.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
+// The fixture days keep their weekdays but move forward in whole weeks, so the newest (2026-10-13) is always within the
+// last week and the oldest stays inside the guardian explanation window (EXPLAIN_WINDOW_DAYS) whenever the suite runs.
+const SHIFT_DAYS = 7 * Math.max(0, Math.floor((Date.parse(new Date().toISOString().slice(0, 10)) - Date.parse("2026-10-13")) / (7 * 86_400_000)));
+const d = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + SHIFT_DAYS * 86_400_000).toISOString().slice(0, 10);
 const base = process.env.REGISTER_TEST_APP || "http://localhost:3107";
 const evidence = process.env.REGISTER_EVIDENCE_DIR || "/tmp/sko405-evidence";
 const db = new PrismaClient(), password = "SyntheticRegister405!";
@@ -48,7 +52,7 @@ const shot = async (page: Page, name: string) => { await page.evaluate("Promise.
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Register School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } });
   await db.campus.create({ data: { id: campusId, schoolId, name: "Register North", regId: campusId, city: "Lahore" } });
-  const teacher = await user("teacher", "TEACHER"); await user("otherTeacher", "TEACHER"); const lead = await user("lead", "PRINCIPAL"); await user("lead-ar", "PRINCIPAL", "ar");
+  const teacher = await user("teacher", "TEACHER"); await user("otherTeacher", "TEACHER"); const lead = await user("lead", "ADMIN"); await user("lead-ar", "PRINCIPAL", "ar");
   const parent = await user("parent", "PARENT"); await user("otherParent", "PARENT");
   await db.academicCycle.create({ data: { schoolId, campusId, label: "2026", academicYear: 2026, status: "ACTIVE" } });
   await db.class.create({ data: { id: classA, schoolId, campusId, name: "Grade 6", section: "A", academicYear: 2026, classTeacherId: teacher } });
@@ -59,13 +63,13 @@ before(async () => {
   // Moved from 6A to 6B on 2026-10-12: 6A's register for earlier days still lists her.
   const mover = await pupil("mover", "Synthetic Mover Hira", classA, "604");
   await db.$transaction(async tx => {
-    await tx.studentEnrollment.update({ where: { id: `initial-${mover}` }, data: { endDate: new Date("2026-10-12T00:00:00Z"), status: "HISTORICAL" } });
-    await tx.studentEnrollment.create({ data: { schoolId, studentId: mover, campusId, classId: classB, campusName: "Register North", className: "Grade 6 B", curriculum: "National", academicYear: 2026, rollNo: "611", startDate: new Date("2026-10-12T00:00:00Z") } });
+    await tx.studentEnrollment.update({ where: { id: `initial-${mover}` }, data: { endDate: new Date(d("2026-10-12") + "T00:00:00Z"), status: "HISTORICAL" } });
+    await tx.studentEnrollment.create({ data: { schoolId, studentId: mover, campusId, classId: classB, campusName: "Register North", className: "Grade 6 B", curriculum: "National", academicYear: 2026, rollNo: "611", startDate: new Date(d("2026-10-12") + "T00:00:00Z") } });
     await tx.$executeRaw`SELECT set_config('app.enrollment_reviewed', ${mover}, true)`;
     await tx.student.update({ where: { id: mover }, data: { classId: classB, rollNo: "611" } });
   });
   // Joined 6A on 2026-10-13: not on earlier registers.
-  await pupil("joiner", "Synthetic Joiner Omar", classA, "605", "2026-10-13");
+  await pupil("joiner", "Synthetic Joiner Omar", classA, "605", d("2026-10-13"));
   for (const [guardian, student] of [[parent, pupils.amna]]) {
     const relationship = await db.guardianRelationship.create({ data: { schoolId, campusId, studentId: student, guardianUserId: guardian, createdByUserId: lead, fullName: "Synthetic guardian", email: users.get("parent")!.email, relationship: "Parent", status: "ACTIVE", verifiedAt: new Date() } });
     await db.guardianAccessVersion.create({ data: { schoolId, relationshipId: relationship.id, createdByUserId: lead, reason: "Synthetic register fixture", effectiveFrom: new Date(Date.now() - 60_000), permissions: { learningRecords: true, attendance: true, finances: false, communication: true, pickup: false } } });
@@ -78,66 +82,71 @@ after(async () => { await browser?.close(); await db.school.delete({ where: { id
 
 test("the roster is the dated enrollment: a pupil who moved stays on earlier days, a later joiner does not", async () => {
   const teacher = await context("teacher");
-  const before = await view(teacher, classA, "2026-10-08");
+  const before = await view(teacher, classA, d("2026-10-08"));
   assert.equal(before.status, 200);
   assert.deepEqual(before.data.entries.map(e => e.name).sort(), ["Synthetic Amna Tariq", "Synthetic Bilal Khan", "Synthetic Mover Hira", "Synthetic Sana Iqbal"]);
   assert.equal(before.data.entries.find(e => e.studentId === pupils.mover)!.movedSince, true);
-  const afterMove = await view(teacher, classA, "2026-10-13");
+  const afterMove = await view(teacher, classA, d("2026-10-13"));
   assert.deepEqual(afterMove.data.entries.map(e => e.name).sort(), ["Synthetic Amna Tariq", "Synthetic Bilal Khan", "Synthetic Joiner Omar", "Synthetic Sana Iqbal"]);
   assert.ok(before.data.entries.every(e => e.status === null), "nothing is marked until someone marks it");
   assert.equal(before.data.counts.UNMARKED, 4);
   // A historical register for the pupil who moved can be recorded on the class she belonged to.
-  const saved = await save(teacher, { classId: classA, date: "2026-10-08", entries: [mark(pupils.mover, "PRESENT")] });
+  const saved = await save(teacher, { classId: classA, date: d("2026-10-08"), entries: [mark(pupils.mover, "PRESENT")] });
   assert.equal(saved.status, 200, JSON.stringify(saved.json));
-  const wrong = await save(teacher, { classId: classA, date: "2026-10-13", entries: [mark(pupils.mover, "PRESENT")] });
+  const wrong = await save(teacher, { classId: classA, date: d("2026-10-13"), entries: [mark(pupils.mover, "PRESENT")] });
   assert.equal(wrong.status, 400, "a pupil not enrolled that day cannot be marked");
-  assert.equal((await view(await context("otherTeacher"), classA, "2026-10-08")).status, 404, "an unassigned teacher cannot open the register");
+  assert.equal((await view(await context("otherTeacher"), classA, d("2026-10-08"))).status, 404, "an unassigned teacher cannot open the register");
 });
 
 test("unmarked pupils block submission and raise no absence; late needs a time", async () => {
   const teacher = await context("teacher");
-  const partial = await save(teacher, { classId: classA, date: "2026-10-09", submit: true, entries: [mark(pupils.amna, "PRESENT"), mark(pupils.bilal, "ABSENT")] });
+  const partial = await save(teacher, { classId: classA, date: d("2026-10-09"), submit: true, entries: [mark(pupils.amna, "PRESENT"), mark(pupils.bilal, "ABSENT")] });
   assert.equal(partial.status, 200);
   assert.equal(partial.json.data.submitted, false);
   assert.deepEqual(partial.json.data.unmarked.map((u: { name: string }) => u.name).sort(), ["Synthetic Mover Hira", "Synthetic Sana Iqbal"]);
-  assert.equal(await db.attendance.count({ where: { schoolId, date: new Date("2026-10-09T00:00:00Z") } }), 2, "unmarked pupils have no attendance row");
-  assert.equal((await db.attendanceRegister.findFirst({ where: { classId: classA, date: new Date("2026-10-09T00:00:00Z") } }))!.status, "OPEN");
-  const late = await save(teacher, { classId: classA, date: "2026-10-09", entries: [mark(pupils.sana, "LATE")] });
+  assert.equal(await db.attendance.count({ where: { schoolId, date: new Date(d("2026-10-09") + "T00:00:00Z") } }), 2, "unmarked pupils have no attendance row");
+  assert.equal((await db.attendanceRegister.findFirst({ where: { classId: classA, date: new Date(d("2026-10-09") + "T00:00:00Z") } }))!.status, "OPEN");
+  const late = await save(teacher, { classId: classA, date: d("2026-10-09"), entries: [mark(pupils.sana, "LATE")] });
   assert.equal(late.status, 400);
   assert.match(late.json.error, /arrival time/);
-  const done = await save(teacher, { classId: classA, date: "2026-10-09", submit: true, entries: [mark(pupils.sana, "LATE", null, { arrivalTime: "08:40" }), mark(pupils.mover, "PARTIAL", null, { departureTime: "11:30" })] });
+  const done = await save(teacher, { classId: classA, date: d("2026-10-09"), submit: true, entries: [mark(pupils.sana, "LATE", null, { arrivalTime: "08:40" }), mark(pupils.mover, "PARTIAL", null, { departureTime: "11:30" })] });
   assert.equal(done.json.data.submitted, true, JSON.stringify(done.json));
-  const register = await db.attendanceRegister.findFirst({ where: { classId: classA, date: new Date("2026-10-09T00:00:00Z") } });
+  const register = await db.attendanceRegister.findFirst({ where: { classId: classA, date: new Date(d("2026-10-09") + "T00:00:00Z") } });
   assert.equal(register!.status, "SUBMITTED"); assert.equal(register!.rosterCount, 4);
-  assert.equal((await db.attendance.findFirst({ where: { studentId: pupils.sana, date: new Date("2026-10-09T00:00:00Z") } }))!.arrivalTime, "08:40");
+  assert.equal((await db.attendance.findFirst({ where: { studentId: pupils.sana, date: new Date(d("2026-10-09") + "T00:00:00Z") } }))!.arrivalTime, "08:40");
 });
 
 test("a stale write is a conflict to review, never a silent overwrite", async () => {
   const teacher = await context("teacher"), lead = await context("lead");
-  const loaded = await view(lead, classA, "2026-10-07");
+  const loaded = await view(lead, classA, d("2026-10-07"));
   assert.equal(loaded.data.entries.find(e => e.studentId === pupils.bilal)!.status, null);
-  assert.equal((await save(teacher, { classId: classA, date: "2026-10-07", entries: [mark(pupils.bilal, "ABSENT")] })).status, 200);
-  const own = await save(teacher, { classId: classA, date: "2026-10-07", entries: [mark(pupils.bilal, "LEAVE", "ABSENT")] });
+  assert.equal((await save(teacher, { classId: classA, date: d("2026-10-07"), entries: [mark(pupils.bilal, "ABSENT")] })).status, 200);
+  const own = await save(teacher, { classId: classA, date: d("2026-10-07"), entries: [mark(pupils.bilal, "LEAVE", "ABSENT")] });
   assert.equal(own.status, 200, `a teacher can change their own mark before submitting: ${JSON.stringify(own.json)}`);
-  const stale = await save(lead, { classId: classA, date: "2026-10-07", entries: [mark(pupils.bilal, "PRESENT"), mark(pupils.amna, "PRESENT")] });
+  const stale = await save(lead, { classId: classA, date: d("2026-10-07"), entries: [mark(pupils.bilal, "PRESENT"), mark(pupils.amna, "PRESENT")] });
   assert.equal(stale.status, 409);
+  // SKAI-1691: role defaults V2 keep principals view-only for attendance, so a principal's write (even a stale one)
+  // is refused before any mutation or conflict check; the 409 above is for a role with write access (campus admin).
+  const principal = await save(await context("lead-ar"), { classId: classA, date: d("2026-10-07"), entries: [mark(pupils.bilal, "PRESENT", null, { reviewedConflict: true })] });
+  assert.equal(principal.status, 403, "a default principal is view-only for attendance");
   assert.deepEqual(stale.json.data.conflicts.map((c: { studentId: string; current: string; markedBy: string }) => [c.studentId, c.current, c.markedBy]), [[pupils.bilal, "LEAVE", "Synthetic teacher"]]);
   assert.equal(stale.json.data.written, 1, "the pupil nobody else touched is saved");
-  assert.equal((await db.attendance.findFirst({ where: { studentId: pupils.bilal, date: new Date("2026-10-07T00:00:00Z") } }))!.status, "LEAVE");
-  assert.equal((await save(teacher, { classId: classA, date: "2026-10-07", entries: [mark(pupils.amna, "ABSENT", "PRESENT")] })).status, 403, "changing someone else's mark needs edit permission");
-  const reviewed = await save(lead, { classId: classA, date: "2026-10-07", entries: [mark(pupils.bilal, "PRESENT", null, { reviewedConflict: true })] });
+  assert.equal((await db.attendance.findFirst({ where: { studentId: pupils.bilal, date: new Date(d("2026-10-07") + "T00:00:00Z") } }))!.status, "LEAVE");
+  assert.equal((await save(teacher, { classId: classA, date: d("2026-10-07"), entries: [mark(pupils.amna, "ABSENT", "PRESENT")] })).status, 403, "changing someone else's mark needs edit permission");
+  const reviewed = await save(lead, { classId: classA, date: d("2026-10-07"), entries: [mark(pupils.bilal, "PRESENT", null, { reviewedConflict: true })] });
   assert.equal(reviewed.status, 200);
-  assert.equal((await db.attendance.findFirst({ where: { studentId: pupils.bilal, date: new Date("2026-10-07T00:00:00Z") } }))!.status, "PRESENT");
+  assert.equal((await db.attendance.findFirst({ where: { studentId: pupils.bilal, date: new Date(d("2026-10-07") + "T00:00:00Z") } }))!.status, "PRESENT");
 });
 
 test("a submitted register changes only with a reason; an absence correction tells the guardian once", async () => {
   const teacher = await context("teacher");
-  const day = "2026-10-06", date = new Date(`${day}T00:00:00Z`);
+  const day = d("2026-10-06"), date = new Date(`${day}T00:00:00Z`);
   assert.equal((await save(teacher, { classId: classA, date: day, submit: true, entries: [mark(pupils.amna, "ABSENT"), mark(pupils.bilal, "PRESENT"), mark(pupils.sana, "PRESENT"), mark(pupils.mover, "PRESENT")] })).json.data.submitted, true);
   const lead = await context("lead");
   const noReason = await save(lead, { classId: classA, date: day, entries: [mark(pupils.amna, "PRESENT", "ABSENT")] });
   assert.equal(noReason.status, 400); assert.match(noReason.json.error, /reason/);
   assert.equal((await save(teacher, { classId: classA, date: day, reason: "Teacher tries to correct", entries: [mark(pupils.amna, "PRESENT", "ABSENT")] })).status, 403, "a submitted register is corrected by someone with edit permission");
+  assert.equal((await save(await context("lead-ar"), { classId: classA, date: day, reason: "Principal tries to correct", entries: [mark(pupils.amna, "PRESENT", "ABSENT")] })).status, 403, "SKAI-1691: a default principal cannot correct a submitted register");
   const fixed = await save(lead, { classId: classA, date: day, reason: "Arrived with the sports team, register taken early", entries: [mark(pupils.amna, "PRESENT", "ABSENT")] });
   assert.equal(fixed.status, 200, JSON.stringify(fixed.json));
   const row = await db.attendance.findFirst({ where: { studentId: pupils.amna, date }, include: { editHistory: true } });
@@ -151,7 +160,7 @@ test("a submitted register changes only with a reason; an absence correction tel
 
 test("a guardian's explanation waits for staff, who reject, ask for clarification or accept", async () => {
   const teacher = await context("teacher"), parent = await context("parent"), lead = await context("lead"), other = await context("otherParent");
-  const day = "2026-10-05", date = new Date(`${day}T00:00:00Z`);
+  const day = d("2026-10-05"), date = new Date(`${day}T00:00:00Z`);
   await save(teacher, { classId: classA, date: day, submit: true, entries: [mark(pupils.amna, "ABSENT"), mark(pupils.bilal, "ABSENT"), mark(pupils.sana, "PRESENT"), mark(pupils.mover, "PRESENT")] });
   const attendance = await db.attendance.findFirst({ where: { studentId: pupils.amna, date } });
   const mine = await (await parent.request.get(`${base}/api/parent/attendance?studentId=${pupils.amna}`)).json();
@@ -206,7 +215,7 @@ test("screens: unmarked state, fill only unmarked, review; Arabic exceptions; gu
   await page.goto(`${base}/teacher/attendance?classId=${classA}`);
   const register = page.locator("[data-class-register]");
   await register.waitFor({ timeout: 30_000 }).catch(async error => { await shot(page, "00-debug-teacher"); throw error; });
-  await register.locator('input[type="date"]').fill("2026-10-08");
+  await register.locator('input[type="date"]').fill(d("2026-10-08"));
   await page.locator(`[data-register-row="${pupils.mover}"]`).waitFor();
   assert.equal(await page.locator('[data-register-row][data-status="UNMARKED"]').count(), 3, "only the pupil marked earlier is marked");
   await page.locator(`[data-register-row="${pupils.amna}"] [data-mark="ABSENT"]`).click();
@@ -222,7 +231,7 @@ test("screens: unmarked state, fill only unmarked, review; Arabic exceptions; gu
   await page.locator("[data-confirm-register]").click();
   await page.locator('[data-class-register][data-register-status="SUBMITTED"]').waitFor();
   await shot(page, "03-submitted");
-  assert.equal((await db.attendanceRegister.findFirst({ where: { classId: classA, date: new Date("2026-10-08T00:00:00Z") } }))!.status, "SUBMITTED");
+  assert.equal((await db.attendanceRegister.findFirst({ where: { classId: classA, date: new Date(d("2026-10-08") + "T00:00:00Z") } }))!.status, "SUBMITTED");
   await page.close();
 
   const ar = await (await context("lead-ar")).newPage();

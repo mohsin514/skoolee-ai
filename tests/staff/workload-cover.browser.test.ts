@@ -13,7 +13,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // handed to the reviewed substitution workflow without touching the timetable; reporting loops are
 // refused even when two changes race; an acting appointment does not change role or permissions.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.STAFF_TEST_APP || "http://localhost:3108";
 const evidence = process.env.STAFF_EVIDENCE_DIR || "/tmp/sko399-evidence";
 const db = new PrismaClient(), password = "SyntheticStaff399!";
@@ -82,8 +82,8 @@ test("workload names its week and definition; unknown capacity stays unknown", a
   assert.deepEqual([row("absent").teaching, row("absent").leaveDays, row("absent").percent], [1, 1, null]);
   assert.deepEqual([row("full").teaching, row("full").capacity, row("full").percent], [3, 3, 100]);
   assert.equal(row("invigilator").invigilations, 1);
-  assert.equal((await admin.request.patch(`${base}/api/staff/workload`, { data: { campusId, staffId: id("free"), capacity: 200 } })).status(), 400);
-  assert.equal((await admin.request.patch(`${base}/api/staff/workload`, { data: { campusId, staffId: id("free"), capacity: 20 } })).status(), 200);
+  assert.equal((await admin.request.patch(`${base}/api/staff/workload`, { data: { campusId, staffId: id("free"), capacity: 200, expectedCapacity: null } })).status(), 400);
+  assert.equal((await admin.request.patch(`${base}/api/staff/workload`, { data: { campusId, staffId: id("free"), capacity: 20, expectedCapacity: null } })).status(), 200);
   assert.ok(await db.auditLog.findFirst({ where: { recordId: id("free"), tableName: "staff_profiles" } }));
   assert.equal((await (await context("absent")).request.get(`${base}/api/staff/workload?campusId=${campusId}&weekStart=${monday}`)).status(), 403);
 });

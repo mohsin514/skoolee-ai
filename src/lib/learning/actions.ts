@@ -3,6 +3,8 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, canLeadAcademics, canManageOperations } from "@/lib/api/scope";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
+import { FollowUpKind, followUpGap, followUpKind } from "@/lib/learning/follow-ups";
+import { schoolToday } from "@/lib/datetime";
 
 /**
  * SKO-425: learning actions — the structured form of InterventionPlan.
@@ -46,7 +48,8 @@ function parse<T>(schema: z.ZodType<T>, raw: unknown): T {
   if (!result.success) throw new ApiError(result.error.issues[0]?.message ? `Check the form: ${result.error.issues[0].path.join(".") || "input"} — ${result.error.issues[0].message}` : "Check the form and try again", 400);
   return result.data;
 }
-const today = () => new Date().toISOString().slice(0, 10);
+/** SKAI-623: the school's calendar day; the UTC date is a day behind between 00:00 and 05:00 in UTC+5. */
+const today = (user: AuthUser) => schoolToday(user.schoolId, user.campusId ?? null);
 const asDate = (value: string | null | undefined) => (value ? new Date(`${value}T00:00:00.000Z`) : null);
 const ymd = (value: Date | null) => (value ? value.toISOString().slice(0, 10) : null);
 type Plan = NonNullable<Awaited<ReturnType<typeof prisma.interventionPlan.findFirst>>>;
@@ -133,7 +136,7 @@ export async function activateLearningAction(user: AuthUser, id: string, version
     if (!plan.goal || plan.goal.trim().length < 10) missing.push("a specific goal");
     if (!plan.ownerId) missing.push("a responsible adult");
     if (!(plan.evidenceRefs as unknown[]).length) missing.push("at least one piece of source evidence");
-    if (!plan.reviewDate || ymd(plan.reviewDate)! <= today()) missing.push("a review date in the future");
+    if (!plan.reviewDate || ymd(plan.reviewDate)! <= (await today(user))) missing.push("a review date in the future");
     if (!plan.nextCheckInDate || (plan.reviewDate && plan.nextCheckInDate > plan.reviewDate)) missing.push("a next check-in on or before the review date");
     if (missing.length) throw new ApiError(`Add ${missing.join(", ")} before activating.`, 409);
     const saved = await bump(tx, user, plan, version, { status: "ACTIVE", approvedBy: user.userId, approvedAt: new Date() }, "ACTIVATED");
@@ -157,11 +160,11 @@ const CheckInput = z.object({ version: z.number().int().min(1), dueOn: day, deli
 /** What actually happened — delivery and participation, kept apart from learning evidence. */
 export async function recordCheckIn(user: AuthUser, id: string, raw: unknown) {
   const input = parse(CheckInput, raw);
-  if (input.dueOn > today()) throw new ApiError("Record a check-in on or after the day it happened", 400);
+  if (input.dueOn > (await today(user))) throw new ApiError("Record a check-in on or after the day it happened", 400);
   return schoolAiTransaction(user, async tx => {
     const plan = await loadPlan(tx, user, id);
     if (plan.status !== "ACTIVE") throw new ApiError("Check-ins are for active learning actions", 409);
-    if (input.nextCheckInDate && input.nextCheckInDate <= today()) throw new ApiError("The next check-in must be in the future", 400);
+    if (input.nextCheckInDate && input.nextCheckInDate <= (await today(user))) throw new ApiError("The next check-in must be in the future", 400);
     await tx.interventionCheckIn.create({ data: { schoolId: user.schoolId, planId: plan.id, planVersion: plan.version, dueOn: asDate(input.dueOn)!, delivered: input.delivered, minutes: input.minutes, participation: input.participation, adjustment: input.adjustment, pupilFeedback: input.pupilFeedback, recordedById: user.userId } });
     const saved = await bump(tx, user, plan, input.version, { nextCheckInDate: asDate(input.nextCheckInDate) }, "CHECK_IN");
     return { id: saved.id, version: saved.version, nextCheckInDate: ymd(saved.nextCheckInDate) };
@@ -171,7 +174,7 @@ export async function recordCheckIn(user: AuthUser, id: string, raw: unknown) {
 /** Missed check-ins stay visible until they are recorded or rescheduled with a reason. */
 export async function rescheduleCheckIn(user: AuthUser, id: string, raw: unknown) {
   const input = parse(z.object({ version: z.number().int().min(1), nextCheckInDate: day, reason: z.string().trim().min(10).max(500) }).strict(), raw);
-  if (input.nextCheckInDate <= today()) throw new ApiError("Choose a future date", 400);
+  if (input.nextCheckInDate <= (await today(user))) throw new ApiError("Choose a future date", 400);
   return schoolAiTransaction(user, async tx => {
     const plan = await loadPlan(tx, user, id);
     if (plan.status !== "ACTIVE") throw new ApiError("Only an active learning action has check-ins", 409);
@@ -195,7 +198,7 @@ export async function handOffLearningAction(user: AuthUser, id: string, raw: unk
 
 const ReviewInput = z.object({
   version: z.number().int().min(1), decision: z.enum(["CLOSE", "EXTEND", "ESCALATE", "INCONCLUSIVE"]), reason: z.string().trim().min(10).max(1000),
-  followUp: measure.extend({ comparable: z.boolean(), differences: z.string().trim().max(500) }).nullable(), limitations: z.string().trim().max(1000),
+  followUp: measure.extend({ comparable: z.boolean(), differences: z.string().trim().max(500), kind: FollowUpKind.default("RETRIEVAL") }).nullable(), limitations: z.string().trim().max(1000),
   nextReviewDate: day.nullable(), nextOwnerId: z.string().min(1).nullable(),
 }).strict();
 /**
@@ -209,7 +212,7 @@ export async function reviewLearningAction(user: AuthUser, id: string, raw: unkn
     const plan = await loadPlan(tx, user, id);
     if (plan.status !== "ACTIVE") throw new ApiError("Only an active learning action can be reviewed", 409);
     if (input.decision === "CLOSE" && !input.followUp) throw new ApiError("Closing needs follow-up evidence. Record it, or choose Inconclusive.", 409);
-    if (input.decision === "EXTEND" && (!input.nextReviewDate || input.nextReviewDate <= today())) throw new ApiError("Extending needs a new review date in the future", 400);
+    if (input.decision === "EXTEND" && (!input.nextReviewDate || input.nextReviewDate <= (await today(user)))) throw new ApiError("Extending needs a new review date in the future", 400);
     if (input.decision === "ESCALATE" && !input.nextOwnerId) throw new ApiError("Escalating needs the person who takes it on", 400);
     if (input.nextOwnerId) await assertOwner(tx, user, plan.campusId, input.nextOwnerId);
     const checkIns = await tx.interventionCheckIn.findMany({ where: { planId: plan.id } });
@@ -232,7 +235,7 @@ export async function listLearningActions(user: AuthUser, studentId?: string | n
   });
   const people = new Map((await prisma.user.findMany({ where: { id: { in: rows.flatMap(r => [r.ownerId, r.createdBy]).filter((x): x is string => Boolean(x)) } }, select: { id: true, fullName: true } })).map(u => [u.id, u.fullName]));
   const learners = new Map((await prisma.student.findMany({ where: { id: { in: rows.map(r => r.studentId).filter((x): x is string => Boolean(x)) } }, select: { id: true, fullName: true } })).map(s => [s.id, s.fullName]));
-  const now = today();
+  const now = await today(user);
   return rows.map(r => ({
     id: r.id, version: r.version, status: r.status, origin: r.origin, title: r.title, learner: r.studentId ? learners.get(r.studentId) ?? "" : "", studentId: r.studentId,
     goal: r.goal, owner: r.ownerId ? people.get(r.ownerId) ?? "" : null, ownerId: r.ownerId, reviewDate: ymd(r.reviewDate), nextCheckInDate: ymd(r.nextCheckInDate),
@@ -240,6 +243,8 @@ export async function listLearningActions(user: AuthUser, studentId?: string | n
     shared: Boolean((r.familyShare as { sharedAt?: string | null } | null)?.sharedAt),
     // SKO-472: an approved assessment repair changed evidence this action cites.
     staleSince: r.staleSince?.toISOString() ?? null, staleReason: r.staleReason,
+    // SKAI-790: due, overdue or missing fresh checks, and retrieval vs transfer.
+    followUpGap: followUpGap({ status: r.status, reviewDate: ymd(r.reviewDate), outcome: r.outcome }, now), followUpKind: followUpKind(r.outcome),
   }));
 }
 

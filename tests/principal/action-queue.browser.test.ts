@@ -16,7 +16,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // messages, fee adjustments, payment corrections and leave for everyone who is not a teacher. QueueItemState is per
 // campus, so one seat loading its slice never settles the other seat's items.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.QUEUE_TEST_APP || "http://localhost:3107";
 const evidence = process.env.QUEUE_EVIDENCE_DIR || "/tmp/sko417-evidence";
 const db = new PrismaClient(), password = "SyntheticQueue417!";

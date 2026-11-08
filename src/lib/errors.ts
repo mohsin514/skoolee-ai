@@ -65,6 +65,9 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
   }
 
   if (error && typeof error === "object") {
+    // SKAI-1163 envelope: `{ code, message, fields? }` reads as its message, not as a field map.
+    const envelope = error as { code?: unknown; message?: unknown };
+    if (typeof envelope.code === "string" && typeof envelope.message === "string" && envelope.message.trim()) return envelope.message;
     const joined = Object.entries(error as Record<string, unknown>)
       .map(([field, messages]) => {
         const text = apiErrorMessage(messages, "");

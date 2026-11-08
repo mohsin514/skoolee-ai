@@ -9,7 +9,7 @@ import bcrypt from "bcryptjs";
 // SKO-457: every auth screen in EN/AR/UR at the ticket's sizes (and a 200%-zoom equivalent),
 // with reduced motion; plus a keyboard-only sign-in with visible focus.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.AUTH_TEST_APP || "http://localhost:3107";
 const evidence = process.env.AUTH_EVIDENCE_DIR || "/tmp/sko457-evidence";
 const db = new PrismaClient(), password = "SyntheticMatrix457!";

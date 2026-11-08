@@ -15,6 +15,7 @@ import { clashingSlotIds } from "@/lib/timetable/clashes";
 import { MyCover } from "@/components/cover/my-cover";
 
 import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
+import { readTeacherSchedule } from "@/lib/timetable/teacher-schedule-read";
 
 interface TeacherSlot {
   id: string;
@@ -49,13 +50,14 @@ export default function TeacherTimetablePage() {
     const version = ++sequence.current;
     setLoading(true); setLoadFailed(null);
     try {
-      const [json, calJson] = await Promise.all([
-        readRequest("/api/timetable/teacher").then(r => checkedJson(r)),
+      // SKAI-1024: the same schedule read as the Today dashboard (empty week = "No published timetable yet").
+      const [schedule, calJson] = await Promise.all([
+        readTeacherSchedule<TeacherSlot>(),
         readRequest("/api/academic/calendar").then(r => checkedJson(r)),
       ]);
       if (version !== sequence.current) return;
-      if (!Array.isArray(json.data) || !Array.isArray(calJson.data?.weekends)) throw new RequestFailure("server");
-      setSlots(json.data); setWeekendDays(calJson.data.weekends);
+      if (!Array.isArray(calJson.data?.weekends)) throw new RequestFailure("server");
+      setSlots(schedule); setWeekendDays(calJson.data.weekends);
     } catch (error) {
       if (version === sequence.current) { setSlots([]); setWeekendDays([]); setLoadFailed(requestFailure(error)); }
     } finally { if (version === sequence.current) setLoading(false); }

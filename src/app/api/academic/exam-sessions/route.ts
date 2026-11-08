@@ -1,4 +1,5 @@
 import { withExamSchedulingWrite, resolveExamSchedulingCampus } from "@/lib/academic/exam-scheduling-write";
+import { assertExamSessionTransition } from "@/lib/academic/exam-session-transition";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -13,6 +14,8 @@ import {
 import { createExamSession, listSessions } from "@/lib/academic/exam-sessions";
 import { notify } from "@/lib/notifications/in-app";
 import { normaliseExamTerm } from "@/lib/academic/exam-terms";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // GET    /api/academic/exam-sessions?campusId=&academicYear=
 // POST   /api/academic/exam-sessions { title, term, academicYear, examType, classIds[], startDate?, endDate?, notes? }
@@ -51,8 +54,13 @@ export async function POST(req: NextRequest) {
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "exams", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
+    // SKAI-1304: an invalid term must fail, not silently become Term 1. Only a
+    // missing term falls back to the default.
+    const rawTerm = String(body.term ?? "").trim();
+    const term = rawTerm ? normaliseExamTerm(rawTerm) : "Term 1";
+    if (!term) throw new ApiError("Choose Term 1, Term 2, Term 3 or Annual.", 400);
     const created = await withExamSchedulingWrite(user, campusId, "add", async (prisma) => {
 
     const result = await createExamSession({
@@ -60,7 +68,7 @@ export async function POST(req: NextRequest) {
       campusId,
       userId: user.userId,
       title: String(body.title ?? ""),
-      term: normaliseExamTerm(String(body.term ?? "")) ?? "Term 1",
+      term,
       academicYear: Number(body.academicYear) || new Date().getFullYear(),
       examType: String(body.examType ?? ""),
       classIds: Array.isArray(body.classIds) ? body.classIds.map(String) : [],
@@ -86,7 +94,7 @@ export async function PATCH(req: NextRequest) {
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "exams", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);
 
@@ -108,6 +116,8 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (body.status !== undefined && !["PLANNING", "SCHEDULED", "SEATED", "RUNNING", "COMPLETED"].includes(String(body.status))) throw new ApiError("Invalid exam session status", 400);
+    // SKAI-1306: forward one step at a time, COMPLETED terminal, readiness checked per step.
+    if (body.status !== undefined) await assertExamSessionTransition(prisma as never, campusId, id, existing.status, String(body.status));
     if (body.title !== undefined && (!String(body.title).trim() || String(body.title).trim().length > 160)) throw new ApiError("A session title of up to 160 characters is required", 400);
     const schedules = await prisma.examSchedule.findMany({ where: { campusId, exam: { sessionId: id } }, select: { date: true } });
     if (schedules.some(item => finalStart && item.date.toISOString().slice(0, 10) < finalStart || finalEnd && item.date.toISOString().slice(0, 10) > finalEnd)) throw new ApiError("The session dates must include all scheduled papers.", 409);

@@ -5,6 +5,8 @@ import type { TxClient } from "@/lib/db/prisma";
 import { ApiError, canManageOperations } from "@/lib/api/scope";
 import { createAssignment } from "@/lib/assignments/service";
 import { schoolAiTransaction } from "./transaction";
+import { getLocalePackage } from "@/lib/locale/store";
+import { localParts } from "@/lib/meetings/time";
 import { getWorkspaceRecordInTransaction, updateWorkspaceRecordInTransaction } from "./repository";
 import { loadWorkspacePermissionSnapshot } from "./access";
 import { curriculumDataSchema } from "./assessment";
@@ -20,7 +22,8 @@ import { copyLessonPlan, lessonPlanIssues, validateLessonPlan, type PlanGroup } 
  */
 
 type Delivery = { status: "TAUGHT" | "NOT_TAUGHT"; on: string; reflection: string; recordedById: string };
-type Published = { activityIndex: number; groupId: string | null; assignmentId: string };
+/** assignmentId is null while a publication is reserved and its assignment is being created (SKAI-1391). */
+type Published = { activityIndex: number; groupId: string | null; assignmentId: string | null };
 const LABELS = ["A", "B", "C", "D", "E", "F", "G", "H"];
 // The generic minutes error is replaced by the repair-path version from lessonPlanIssues.
 const contentIssues = (plan: Parameters<typeof validateLessonPlan>[0], curriculum: Parameters<typeof validateLessonPlan>[1]) => validateLessonPlan(plan, curriculum).filter(issue => !issue.startsWith("Activity minutes must equal"));
@@ -82,7 +85,7 @@ export async function viewLessonPlan(user: AuthUser, curriculumId: string, planI
       lessonMinutes: ctx.lessonMinutes, canManage, stateVersion: state?.version ?? 0,
       // Group membership is visible only to staff who manage the plan; it is never part of any learner-facing record.
       groups: canManage ? groups : [], roster: canManage ? ctx.roster.map(r => ({ id: r.id, name: r.fullName, rollNo: r.rollNo })) : [],
-      delivery: (state?.delivery ?? null) as Delivery | null, published: (state?.publishedActivities ?? []) as Published[],
+      delivery: (state?.delivery ?? null) as Delivery | null, published: ((state?.publishedActivities ?? []) as Published[]).filter(p => p.assignmentId !== null),
       events: events.map(e => ({ version: e.version, kind: e.kind, at: e.createdAt })),
     };
   });
@@ -113,10 +116,12 @@ export async function setLessonGroups(user: AuthUser, raw: unknown) {
 const DeliveryInput = z.object({ curriculumId: z.string().min(1), planId: z.string().min(1), expectedVersion: z.number().int().min(0), status: z.enum(["TAUGHT", "NOT_TAUGHT"]), on: z.string().date(), reflection: z.string().trim().max(1000) }).strict();
 export async function recordLessonDelivery(user: AuthUser, raw: unknown) {
   const input = DeliveryInput.parse(raw);
-  if (input.on > new Date().toISOString().slice(0, 10)) throw new ApiError("Record a lesson on or after the day it happened.", 400);
   return schoolAiTransaction(user, async tx => {
     const { campusId, plan, state } = await load(user, input.curriculumId, input.planId, tx);
     assertOwner(user, plan);
+    // SKAI-1479: "today" is the plan campus's school date, not the UTC calendar date.
+    const { timezone } = await getLocalePackage(user.schoolId, campusId, new Date(), null, tx);
+    if (input.on > localParts(new Date(), timezone).date) throw new ApiError("Record a lesson on or after the day it happened.", 400);
     const delivery: Delivery = { status: input.status, on: input.on, reflection: input.reflection, recordedById: user.userId };
     const saved = await saveState(tx, user, { campusId, curriculumId: input.curriculumId, planId: input.planId }, state, input.expectedVersion, { delivery }, "DELIVERY", { status: input.status, on: input.on, reflection: input.reflection });
     return { version: saved.version, delivery };
@@ -139,9 +144,13 @@ export async function publishLessonActivity(user: AuthUser, raw: unknown) {
     const group = input.groupId ? groups.find(g => g.id === input.groupId) : null;
     if (input.groupId && !group) throw new ApiError("Choose a group of this lesson.", 400);
     const existing = ((state?.publishedActivities ?? []) as Published[]).find(p => p.activityIndex === input.activityIndex && p.groupId === input.groupId);
+    if (existing && existing.assignmentId === null) throw new ApiError("This activity is already being published. Reload to see it.", 409);
+    // SKAI-1391: reserve the publication in the same transaction as the checks. The state's version check then makes a
+    // second tab fail here, before any assignment exists, instead of creating a duplicate assignment.
+    if (!existing) await saveState(tx, user, { campusId, curriculumId: input.curriculumId, planId: input.planId }, state, state?.version ?? 0, { publishedActivities: [...((state?.publishedActivities ?? []) as Published[]), { activityIndex: input.activityIndex, groupId: input.groupId, assignmentId: null }] }, "PUBLISH_RESERVED", { activityIndex: input.activityIndex, group: group?.label ?? null });
     return { campusId, curriculum, plan, state, record, activity, group, existing };
   });
-  if (prepared.existing) return { assignmentId: prepared.existing.assignmentId, duplicate: true };
+  if (prepared.existing?.assignmentId) return { assignmentId: prepared.existing.assignmentId, duplicate: true };
   const title = `${prepared.plan.title} — ${prepared.activity.title}`.slice(0, 160);
   const assignment = await createAssignment(user, {
     classId: prepared.curriculum.classId, title, instructions: prepared.activity.instructions, dueLocal: input.dueLocal,
@@ -149,10 +158,18 @@ export async function publishLessonActivity(user: AuthUser, raw: unknown) {
     resourceIds: prepared.plan.resourceIds ?? [], ...(prepared.group ? { audienceStudentIds: prepared.group.studentIds } : {}),
     // The plan's checks for understanding become the marking criteria, one point each; the teacher can edit them before release.
     rubric: prepared.plan.checks.map((check, index) => ({ id: `check-${index + 1}`, title: check.question.trim().length >= 2 ? check.question.trim().slice(0, 120) : `Check ${index + 1}`, description: check.expectedEvidence.trim().slice(0, 500), maxPoints: 1 })),
+  }).catch(async (error: unknown) => {
+    // Nothing was created, so release the reservation and let the teacher try again.
+    await schoolAiTransaction(user, async tx => {
+      const state = await tx.lessonPlanState.findFirst({ where: { curriculumId: input.curriculumId, planId: input.planId } });
+      const kept = ((state?.publishedActivities ?? []) as Published[]).filter(p => !(p.assignmentId === null && p.activityIndex === input.activityIndex && p.groupId === input.groupId));
+      await saveState(tx, user, { campusId: prepared.campusId, curriculumId: input.curriculumId, planId: input.planId }, state, state?.version ?? 0, { publishedActivities: kept }, "PUBLISH_RELEASED", { activityIndex: input.activityIndex, group: prepared.group?.label ?? null });
+    });
+    throw error;
   });
   await schoolAiTransaction(user, async tx => {
     const state = await tx.lessonPlanState.findFirst({ where: { curriculumId: input.curriculumId, planId: input.planId } });
-    const published = [...((state?.publishedActivities ?? []) as Published[]), { activityIndex: input.activityIndex, groupId: input.groupId, assignmentId: assignment.id }];
+    const published = ((state?.publishedActivities ?? []) as Published[]).map(p => p.assignmentId === null && p.activityIndex === input.activityIndex && p.groupId === input.groupId ? { ...p, assignmentId: assignment.id } : p);
     await saveState(tx, user, { campusId: prepared.campusId, curriculumId: input.curriculumId, planId: input.planId }, state, state?.version ?? 0, { publishedActivities: published }, "PUBLISHED_ACTIVITY", { activityIndex: input.activityIndex, group: prepared.group?.label ?? null, assignmentId: assignment.id });
   });
   return { assignmentId: assignment.id, duplicate: false, audience: prepared.group ? prepared.group.studentIds.length : "CLASS" };

@@ -59,8 +59,20 @@ async function learner(tx: TxClient, user: AuthUser, studentId: string) {
 async function loadCase(tx: TxClient, user: AuthUser, caseId: string) {
   const row = await tx.learningTransferCase.findFirst({ where: { id: caseId, schoolId: user.schoolId } });
   if (!row) throw new ApiError("Not found.", 404);
-  await learner(tx, user, row.studentId);
-  return row;
+  const student = await learner(tx, user, row.studentId);
+  return followCampus(tx, user, row, student.campusId);
+}
+
+/**
+ * SKAI-1747: a case belongs to the learner's current campus. After an ordinary campus move the case moves
+ * with the learner, so destination curricula, later writes and audit events use the receiving campus. A
+ * destination chosen at the old campus is cleared, since that campus's curriculum is no longer selectable.
+ */
+async function followCampus<T extends { id: string; campusId: string | null; destinationRecordId: string | null }>(tx: TxClient, user: AuthUser, row: T, campusId: string | null): Promise<T> {
+  if (!campusId || row.campusId === campusId) return row;
+  await tx.learningTransferCase.update({ where: { id: row.id }, data: { campusId, destinationRecordId: null } });
+  await writeAuditEvent(tx, user, { table: "learning_transfer_cases", recordId: row.id, action: "UPDATE", campusId, before: { campusId: row.campusId }, after: { campusId, destinationCleared: Boolean(row.destinationRecordId) } });
+  return { ...row, campusId, destinationRecordId: null };
 }
 
 type CaseRow = Awaited<ReturnType<typeof loadCase>>;
@@ -95,7 +107,11 @@ export async function importTransfer(user: AuthUser, raw: unknown) {
     const student = await learner(tx, user, input.studentId);
     const hash = sourceHash(input.source);
     const key = { schoolId: user.schoolId, studentId: student.id, sourceInstitution: input.source.institution, sourceLearnerRef: input.source.learnerRef };
-    const existing = await tx.learningTransferCase.findUnique({ where: { schoolId_studentId_sourceInstitution_sourceLearnerRef: key } });
+    // SKAI-1558: imports for one learner and source are serialised, so two identical first imports
+    // cannot both try to create the case; the second finds it and replays instead of failing.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`learning-transfer:${key.schoolId}:${key.studentId}:${key.sourceInstitution}:${key.sourceLearnerRef}`}))`;
+    const found = await tx.learningTransferCase.findUnique({ where: { schoolId_studentId_sourceInstitution_sourceLearnerRef: key } });
+    const existing = found ? await followCampus(tx, user, found, student.campusId) : null;
     const data = { sourceCurriculumId: input.source.curriculumId, sourceCurriculumName: input.source.curriculumName, sourceVersion: input.source.version, sourceLanguage: input.source.language || null, sourceHash: hash, evidence: json({ objectives: input.source.objectives }) };
     if (existing?.sourceHash === hash) return { id: existing.id, replayed: true, stale: false };
     if (!existing) {
@@ -212,8 +228,11 @@ export async function createBridge(user: AuthUser, raw: unknown) {
     requireRights(row, "objectives");
     if (row.version !== input.version) throw new ApiError("This transfer changed. Reload it.", 409);
     if (!row.destinationRecordId) throw new ApiError("Choose the destination curriculum first.", 409);
-    const mappings = await tx.learningTransferMapping.findMany({ where: { caseId: row.id, schoolId: user.schoolId } });
-    if (mappings.some(m => m.decision === "PROPOSED" || m.stale)) throw new ApiError("Review every mapping against the current source before planning.", 409);
+    // SKAI-1751: a corrected re-import can drop an objective; its old mapping stays stale but is no longer in
+    // the evidence (so the workbench never shows it). Only objectives in the current source count, and each must have a reviewed mapping.
+    const evidenceIds = new Set((row.evidence as Evidence).objectives.map(o => o.id));
+    const mappings = (await tx.learningTransferMapping.findMany({ where: { caseId: row.id, schoolId: user.schoolId } })).filter(m => evidenceIds.has(m.sourceObjectiveId));
+    if (mappings.length < evidenceIds.size || mappings.some(m => m.decision === "PROPOSED" || m.stale)) throw new ApiError("Review every mapping against the current source before planning.", 409);
     const record = await tx.schoolAiRecord.findFirstOrThrow({ where: { id: row.destinationRecordId, schoolId: user.schoolId }, select: { title: true, version: true, data: true } });
     if (record.version !== row.destinationVersion) throw new ApiError("The destination curriculum has a newer version. Review against it first.", 409);
     const outcomes = curriculumDataSchema.parse(record.data).outcomes.filter(o => o.included);
@@ -228,6 +247,10 @@ export async function createBridge(user: AuthUser, raw: unknown) {
       notComparable: mappings.filter(m => m.decision === "NOT_COMPARABLE").map(m => m.sourceObjectiveId),
       gaps, createdAt: new Date().toISOString(), createdById: user.userId,
     };
+    // SKAI-1554: claim the case before any learning action exists. A concurrent second submission loses
+    // here with a 409 and creates nothing, instead of leaving an orphan draft action behind.
+    const claimed = await tx.learningTransferCase.updateMany({ where: { id: row.id, schoolId: user.schoolId, version: input.version }, data: { version: { increment: 1 } } });
+    if (claimed.count !== 1) throw new ApiError("This transfer changed. Reload it.", 409);
     return { row, bridge, title: record.title };
   });
   // The learning action is drafted through its own owner (SKO-425), which checks the learner and staff again.
@@ -241,7 +264,7 @@ export async function createBridge(user: AuthUser, raw: unknown) {
     reviewDate: input.reviewDate,
   });
   return schoolAiTransaction(user, async tx => {
-    const updated = await tx.learningTransferCase.updateMany({ where: { id: prepared.row.id, schoolId: user.schoolId, version: input.version }, data: { bridge: json({ ...prepared.bridge, planId: plan.id }), bridgePlanId: plan.id, status: "PLANNED", version: { increment: 1 } } });
+    const updated = await tx.learningTransferCase.updateMany({ where: { id: prepared.row.id, schoolId: user.schoolId, version: input.version + 1 }, data: { bridge: json({ ...prepared.bridge, planId: plan.id }), bridgePlanId: plan.id, status: "PLANNED", version: { increment: 1 } } });
     if (updated.count !== 1) throw new ApiError("This transfer changed while planning. Reload it.", 409);
     await writeAuditEvent(tx, user, { table: "learning_transfer_cases", recordId: prepared.row.id, action: "UPDATE", campusId: prepared.row.campusId, after: { bridgePlanId: plan.id, confirmed: prepared.bridge.confirmed.length, gaps: prepared.bridge.gaps.length } });
     return { planId: plan.id, confirmed: prepared.bridge.confirmed.length, gaps: prepared.bridge.gaps.length };
@@ -250,12 +273,20 @@ export async function createBridge(user: AuthUser, raw: unknown) {
 
 /** Export of the reviewed mapping only. Consent and the caller's access are checked on every download. */
 export async function exportTransfer(user: AuthUser, caseId: string) {
-  assertStaff(user);
+  // Principals keep export for academic oversight; a substituted foreign case ID then reaches the tenant-scoped 404.
+  assertStaff(user, "read");
   return schoolAiTransaction(user, async tx => {
+    // SKAI-1582: exports of one case run one at a time, so each reads the downloads its predecessor appended
+    // and every successful download keeps its own audit entry and ordinal.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`learning-transfer-export:${user.schoolId}:${caseId}`}))`;
     const row = await loadCase(tx, user, caseId);
     requireRights(row, "objectives");
-    const mappings = await tx.learningTransferMapping.findMany({ where: { caseId: row.id, schoolId: user.schoolId, decision: { in: ["ACCEPTED", "NOT_COMPARABLE"] }, stale: false } });
     const evidence = (row.evidence as Evidence).objectives;
+    const current = await tx.learningTransferMapping.findMany({ where: { caseId: row.id, schoolId: user.schoolId, stale: false } });
+    // Same bar as the UI: every objective reviewed and current, and at least one mapping to export.
+    const complete = evidence.length > 0 && evidence.every(o => current.some(m => m.sourceObjectiveId === o.id && m.decision !== "PROPOSED"));
+    const mappings = current.filter(m => m.decision === "ACCEPTED" || m.decision === "NOT_COMPARABLE");
+    if (!complete || mappings.length === 0) throw new ApiError("Review every objective before downloading the mapping.", 409);
     const downloads = [...(row.downloads as { at: string; byId: string }[]), { at: new Date().toISOString(), byId: user.userId }];
     await tx.learningTransferCase.update({ where: { id: row.id }, data: { downloads: json(downloads) } });
     await writeAuditEvent(tx, user, { table: "learning_transfer_cases", recordId: row.id, action: "UPDATE", campusId: row.campusId, after: { exported: true, download: downloads.length } });
@@ -276,7 +307,8 @@ async function guardianCase(tx: TxClient, user: AuthUser, caseId: string) {
   if (!row) throw new ApiError("Not found.", 404);
   const link = await tx.guardianRelationship.findFirst({ where: { ...liveGuardianRelationshipWhere(user.userId, "learningRecords", new Date(), user.schoolId), studentId: row.studentId }, select: { id: true } });
   if (!link) throw new ApiError("Not found.", 404);
-  return row;
+  const student = await tx.student.findFirst({ where: { id: row.studentId, schoolId: user.schoolId }, select: { campusId: true } });
+  return followCampus(tx, user, row, student?.campusId ?? null);
 }
 
 export async function listFamilyTransfers(user: AuthUser) {

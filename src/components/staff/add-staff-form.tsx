@@ -125,6 +125,11 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
   const prevStep = () => setStep((s) => Math.max(s - 1, 0));
 
   const handleSubmit = async () => {
+    // SKAI-1628: never create a staff record without the position because the options failed to load.
+    if (positionOptions.failed || !positionOptions.ready) {
+      toast.error(ui("Could not load ranks, departments and managers. Try again before sending the invitation."));
+      return;
+    }
     if (!validateStep(0)) {
       toast.error(ui("Fix the highlighted fields, then send the invitation again."));
       return;

@@ -55,6 +55,8 @@ export function ObjectiveMap({ exportRequest = 0, onExportableChange }: { export
   const t = getObjectiveMapCopy(language);
   const rtl = language === "ar" || language === "ur";
   const [list, setList] = useState<ListItem[] | null>(null);
+  // SKAI-1734: curricula after the first 200 load page by page; a failed page keeps the list and retries the same cursor.
+  const [listCursor, setListCursor] = useState<string | null>(null), [more, setMore] = useState<"idle" | "loading" | "failed">("idle");
   const [recordId, setRecordId] = useState("");
   const [compareTo, setCompareTo] = useState("");
   const [view, setView] = useState<MapView | null>(null);
@@ -63,9 +65,13 @@ export function ObjectiveMap({ exportRequest = 0, onExportableChange }: { export
   const [status, setStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
 
   useEffect(() => {
-    call("/api/curriculum/map").then(data => { setList(data.curricula); if (data.curricula[0]) setRecordId(current => current || data.curricula[0].id); })
+    call("/api/curriculum/map").then(data => { setList(data.curricula); setListCursor(data.nextCursor ?? null); if (data.curricula[0]) setRecordId(current => current || data.curricula[0].id); })
       .catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }));
   }, [t.failed]);
+  const loadMoreCurricula = (cursor: string) => {
+    setMore("loading");
+    call(`/api/curriculum/map?cursor=${encodeURIComponent(cursor)}`).then(data => { setList(current => [...(current ?? []), ...data.curricula]); setListCursor(data.nextCursor ?? null); setMore("idle"); }).catch(() => setMore("failed"));
+  };
   const load = useCallback(async () => {
     if (!recordId) return;
     const params = new URLSearchParams({ recordId, ...(compareTo ? { compareTo } : {}) });
@@ -118,6 +124,7 @@ export function ObjectiveMap({ exportRequest = 0, onExportableChange }: { export
     <div className="grid gap-3 sm:grid-cols-3">
       <label className="grid gap-1 text-xs font-semibold sm:col-span-2">{t.curriculum}<Select value={recordId} onChange={event => { setRecordId(event.target.value); setCompareTo(""); }}>
         {list.map(item => <option key={item.id} value={item.id}>{item.title} · {item.subject} · {item.className}</option>)}</Select></label>
+      {listCursor ? <div className="flex flex-wrap items-center gap-2 sm:col-span-2" aria-live="polite" data-curricula-more>{more === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{t.moreCurriculaFailed}</p> : null}<Button type="button" size="sm" variant="outline" disabled={more === "loading"} aria-busy={more === "loading"} onClick={() => loadMoreCurricula(listCursor)}>{more === "loading" ? t.loadingMoreCurricula : more === "failed" ? t.retryMoreCurricula : t.loadMoreCurricula}</Button></div> : null}
       <p className="self-end text-sm">{t.version} <strong>{view.record.version}</strong></p>
     </div>
     {banner}

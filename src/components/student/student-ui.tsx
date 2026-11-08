@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { LucideIcon } from "lucide-react";
+import { StatTile, type DeskTone } from "@/components/ui/desk";
+import { Progress } from "@/components/ui/progress";
 
 /**
  * Shared presentation pieces for the student console. Kept in one file so the
@@ -145,12 +148,16 @@ export function ProgressRing({
   );
 }
 
+/** Student tones on the shared desk tones, so the learner console's counters match every other console. */
+const DESK_TONE: Record<Tone, DeskTone> = { purple: "brand", green: "success", rose: "danger", amber: "warning" };
+const PROGRESS_TONE: Record<Tone, "brand" | "success" | "danger" | "warning"> = { purple: "brand", green: "success", rose: "danger", amber: "warning" };
+
 /**
- * The console's one stat card. Optionally carries a dial instead of a flat
- * icon, so "Attendance" and "Fees paid" read as progress rather than numbers.
+ * The console's one stat card: the shared `StatTile`. `ring` (a percentage) draws a slim progress bar under the
+ * label, so "Attendance" and "Best score" still read as progress rather than bare numbers.
  */
 export function StatCard({
-  icon: Icon,
+  icon,
   label,
   value,
   sub,
@@ -158,7 +165,7 @@ export function StatCard({
   ring,
   delay = 0,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: React.ReactNode;
   sub?: string;
@@ -166,39 +173,11 @@ export function StatCard({
   ring?: number | null;
   delay?: number;
 }) {
-  const t = TONES[tone];
-  return (
-    <div
-      className="sk-rise sk-panel relative overflow-hidden px-[12px] py-[10px] sm:px-3.5 sm:py-2.5"
-      style={delay ? { animationDelay: `${delay}ms` } : undefined}
-    >
-      {/* A tinted edge carries the tone without a coloured card. */}
-      <span
-        aria-hidden
-        className={`absolute inset-y-0 start-0 w-[3px] opacity-40 ${t.solid}`}
-      />
-      <div className="relative flex min-w-0 items-center justify-between gap-[10px]">
-        <div className="min-w-0 flex-1">
-          <p dir="auto" className="[overflow-wrap:anywhere] text-xl font-bold leading-none tracking-tight tabular-nums text-ink-strong sm:text-[22px]">
-            {value}
-          </p>
-          <p dir="auto" className="mt-1.5 [overflow-wrap:anywhere] text-xs font-semibold leading-tight text-ink-muted">
-            {label}
-          </p>
-          {sub && <p dir="auto" className="mt-0.5 [overflow-wrap:anywhere] text-xs font-medium leading-tight text-ink-muted">{sub}</p>}
-        </div>
-        {typeof ring === "number" ? (
-          <ProgressRing value={ring} tone={tone} size={46} stroke={5} />
-        ) : (
-          <div
-            className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-xl ${t.soft}  ${t.text}`}
-          >
-            <Icon className="h-4 w-4" />
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  const hint = sub || typeof ring === "number" ? <>
+    {sub ? <span dir="auto" className="block">{sub}</span> : null}
+    {typeof ring === "number" ? <Progress value={ring} label={label} tone={PROGRESS_TONE[tone]} size="sm" className="mt-2" /> : null}
+  </> : undefined;
+  return <StatTile icon={icon} label={<span dir="auto">{label}</span>} value={value} hint={hint} tone={DESK_TONE[tone]} index={Math.round(delay / 40)} />;
 }
 
 /** Section heading with a tinted icon chip — used above every panel. */

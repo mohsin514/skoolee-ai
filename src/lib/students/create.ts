@@ -176,7 +176,7 @@ export async function createStudentRecords(user: AuthUser, req: NextRequest, opt
       tagIds.length
         ? prisma.studentCategory.findMany({
             where: { id: { in: tagIds }, campus: { schoolId: user.schoolId } },
-            select: { id: true, campusId: true },
+            select: { id: true, campusId: true, isActive: true },
           })
         : [],
       tagIds.length
@@ -196,6 +196,8 @@ export async function createStudentRecords(user: AuthUser, req: NextRequest, opt
         if (!category || category.campusId !== targetClass.campusId) {
           throw new ApiError(`Category not found for ${student.fullName} in the selected class campus`, 404);
         }
+        // SKAI-168: an inactive category stays on existing students but is closed to new admissions.
+        if (!category.isActive) throw new ApiError(`Category is inactive and can't be used for new admissions (${student.fullName})`, 409);
       }
       if (student.groupId) {
         const group = groupsById.get(student.groupId);

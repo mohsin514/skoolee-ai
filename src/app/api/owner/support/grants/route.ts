@@ -5,6 +5,8 @@ import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { authorityRoleFor } from "@/lib/auth/institution";
 import { getInstitutionKind } from "@/lib/auth/institution-server";
 import { cleanSupportActions, cleanSupportScope, issueSupportCookie, SUPPORT_COOKIE, supportCookieExpiresAt, validateSupportGrantCombination } from "@/lib/owner/support-access";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +25,7 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await requirePlatformOwner();
     if (actor.mfaVerified !== true) throw new ApiError("Privileged MFA is required", 403);
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const schoolId = typeof body.schoolId === "string" ? body.schoolId.trim() : "";
     const purpose = typeof body.purpose === "string" ? body.purpose.trim() : "";
     const impact = typeof body.impact === "string" ? body.impact.trim() : "";

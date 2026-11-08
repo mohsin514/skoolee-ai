@@ -12,7 +12,7 @@ import { schoolToday } from "../../src/lib/fees/statement";
 // approve, a colleague approves; the family sees only the approved schedule, the invoice's old due
 // date stops counting as overdue, and a later payment fills instalments in order.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.FEES_TEST_APP || "http://localhost:3107";
 const evidence = process.env.FEES_EVIDENCE_DIR || "/tmp/sko431-evidence";
 const db = new PrismaClient(), password = "SyntheticPlans431!";
@@ -38,7 +38,7 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }): P
   sessions.set(key, await ctx.storageState());
   return ctx;
 }
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
+const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 const statement = async (ctx: BrowserContext) => (await (await ctx.request.get(`${base}/api/fees/family-statement?studentId=${childId}`)).json()).data;
 
 before(async () => {
@@ -87,7 +87,8 @@ test("a colleague approves in the invoice dialog; the family then sees the sched
   await shot(page, "installment-plan-approve-en-1440");
   await panel.getByRole("button", { name: "Approve plan" }).click();
   // Approving a schedule is confirmed (role-ux R3); the confirm button repeats the verb.
-  await page.getByRole("dialog", { name: "Approve this instalment plan?" }).getByRole("button", { name: "Approve plan" }).click();
+  // ConfirmAction renders an alertdialog.
+  await page.getByRole("alertdialog", { name: "Approve this instalment plan?" }).getByRole("button", { name: "Approve plan" }).click();
   await page.locator('[data-installment-panel="active"]').waitFor();
   assert.equal((await db.paymentPlan.findUniqueOrThrow({ where: { id: planId } })).approvedById, users.get("bursar")!.id);
   assert.deepEqual(errors, []); await ctx.close();

@@ -80,6 +80,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ErrorState } from "@/components/ui/error-state";
+import { DegradedNotice } from "@/components/role-dashboard/DegradedNotice";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Modal } from "@/components/ui/modal";
 import { FlagshipCard } from "@/components/ui/flagship";
@@ -92,13 +93,15 @@ import { LearningActions } from "@/components/learning/learning-actions";
 import { PolicyManager } from "@/components/policies/policy-manager";
 import { AdmissionsDesk } from "@/components/admissions/admissions-desk";
 import { GuardianAccessManager } from "@/components/GuardianAccessManager";
+import { ConsentStatusPanel } from "@/components/family/guardian-consent";
 import { AnalyticsCharts } from "@/components/analytics/analytics-charts";
-import { CampusPackagesPanel, CanteenPanel } from "@/components/campus-packages/campus-packages";
+import { CampusPackagesPanel, CanteenPanel, HostelBoarding } from "@/components/campus-packages/campus-packages";
 import { AdmissionForm } from "@/components/students/admission-form";
 import { BulkImportDialog } from "@/components/students/bulk-import-dialog";
 import { QuickCreateClass } from "@/components/shared-admin/quick-create-class";
 import { ClassManager } from "@/components/shared-admin/class-manager";
 import { ArchivedClassesPanel } from "@/components/shared-admin/archived-classes-panel";
+import { ClassSyncPanel } from "@/components/offline/class-sync-panel";
 import { classArchiveText, studentArchiveText, fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
 import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
 import { AddStaffForm } from "@/components/staff/add-staff-form";
@@ -141,6 +144,8 @@ import { MembershipsPanel } from "@/components/memberships/memberships-panel";
 import { AuditHistoryPanel } from "@/components/audit/audit-history-panel";
 import { IdentityAdmin } from "@/components/identity/identity-admin";
 import { Integrations } from "@/components/integrations/integrations";
+import { WhatsAppConnectionPanel } from "@/components/whatsapp/whatsapp-connection-panel";
+import { ManagedSendingPanel } from "@/components/whatsapp/managed-sending-panel";
 import { DataLifecyclePanel } from "@/components/settings/DataLifecyclePanel";
 import { ReadinessHome } from "@/components/readiness/ReadinessHome";
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
@@ -167,6 +172,8 @@ import {
   classLabel,
 } from "@/components/shared-admin";
 import { AI_COMPOSER_INPUT_ID } from "@/components/ai-workflows/AiWorkflowsHome";
+import { readApiError } from "@/lib/api/envelope-client";
+import { currentClassTeacherId, currentSubjectTeacherId } from "@/lib/academic/allocation-version";
 
 /* ────────────────────────── Session (names for "Managed by" copy) ────────────────────────── */
 
@@ -479,7 +486,7 @@ export default function CampusConsolePage() {
       const res = await fetch("/api/classes", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: classId, classTeacherId: classTeacherId || null }),
+        body: JSON.stringify({ id: classId, classTeacherId: classTeacherId || null, expectedClassTeacherId: currentClassTeacherId(data?.classes, classId) }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
@@ -501,9 +508,9 @@ export default function CampusConsolePage() {
 
   const handleCreateSubject = async (
     classId: string,
-    subject: { name: string; totalMarks: number; teacherId: string; applyToAllSections?: boolean }
+    subject: { name: string; totalMarks: number; teacherId: string; applyToAllSections?: boolean; code?: string; isOptional?: boolean; packId?: string }
   ) => {
-    if (!subject.name.trim()) {
+    if (!subject.packId && !subject.name.trim()) {
       toast.error(ui("Enter a subject name before adding it."));
       return false;
     }
@@ -519,10 +526,14 @@ export default function CampusConsolePage() {
           totalMarks: subject.totalMarks || 100,
           teacherId: subject.teacherId || undefined,
           applyToAllSections: subject.applyToAllSections || undefined,
+          code: subject.code?.trim() || undefined,
+          isOptional: subject.isOptional || undefined,
+          packId: subject.packId,
         }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      if (subject.packId) toast.success(ui("{0} subjects added, {1} already there", [result.createdCount ?? 0, result.skippedCount ?? 0]));
       toast.success(result.createdCount > 1 ? ui("Subject added to {0} sections", [result.createdCount]) : ui("Subject added"));
       const nextData = await loadData();
       syncSelectedClass(nextData, classId);
@@ -606,7 +617,7 @@ export default function CampusConsolePage() {
       const res = await fetch("/api/subjects", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: subjectId, teacherId: teacherId || null, ...(effectiveFrom ? { effectiveFrom } : {}) }),
+        body: JSON.stringify({ id: subjectId, teacherId: teacherId || null, expectedTeacherId: currentSubjectTeacherId(data?.classes, subjectId), ...(effectiveFrom ? { effectiveFrom } : {}) }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
@@ -781,10 +792,14 @@ export default function CampusConsolePage() {
     setConfirmAction({
       title: ui("Delete {0}?", [subject.name]),
       description: subjectRemovalText(impact, ui),
-      confirmLabel: blocked ? ui("Close") : ui("Delete subject"),
+      // SKAI-149: a subject in use is archived, never deleted, so its marks and exams keep their history.
+      confirmLabel: blocked ? ui("Archive subject") : ui("Delete subject"),
       tone: blocked ? "primary" : "danger",
       run: async () => {
-        if (blocked) return;
+        if (blocked) {
+          await handleUpdateSubject(subject.classId, subject.id, { archived: true });
+          return;
+        }
         const res = await fetch(`/api/subjects?id=${subject.id}`, { method: "DELETE" });
         const result = await res.json();
         if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not delete the subject. Please try again.")));
@@ -794,7 +809,7 @@ export default function CampusConsolePage() {
     });
   };
 
-  const handleUpdateClass = async (classId: string, updates: { name?: string; section?: string; academicYear?: number }): Promise<boolean> => {
+  const handleUpdateClass = async (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }): Promise<boolean> => {
     setSavingClassUpdate(true);
     const failed = ui("Could not save the class changes. Please try again.");
     try {
@@ -830,7 +845,7 @@ export default function CampusConsolePage() {
     }
   };
 
-  const handleUpdateSubject = async (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => {
+  const handleUpdateSubject = async (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number; code?: string; isElective?: boolean; archived?: boolean }) => {
     setSavingSubjectUpdateId(subjectId);
     const failed = ui("Could not save the subject changes. Please try again.");
     try {
@@ -852,7 +867,7 @@ export default function CampusConsolePage() {
     try {
       const res = await fetch("/api/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: teacherId, ...updates }) });
       const result = await res.json();
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      if (!res.ok) throw new Error(readApiError(result, failed));
       toast.success(ui("Teacher updated"));
       setSelectedTeacher((current: any) => (current?.id === teacherId ? { ...current, ...result.data } : current));
       await loadData();
@@ -945,6 +960,7 @@ export default function CampusConsolePage() {
       {/* Addendum 2026-10-22: RoleShell draws the one page card (and owns #workspace-content); the console only
           supplies the card's scrolling body with the shared padding, so nothing double-wraps. */}
       <div data-admin-workspace className={cn("custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto", PAGE_CARD_BODY)}>
+        {data?.degraded?.length ? <div className="mb-4"><DegradedNotice degraded={data.degraded} onRetry={() => void loadData()} /></div> : null}
         <AdminWorkspace ctx={ctx} />
       </div>
 
@@ -1136,7 +1152,7 @@ interface AdminCtx {
   requestGuardianAdd: () => void;
   handleChangeClassTeacher: (classId: string, teacherId: string) => Promise<void>;
   handleDeleteClass: (cls: any) => Promise<void>;
-  handleUpdateClass: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<boolean>;
+  handleUpdateClass: (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }) => Promise<boolean>;
   handleDeleteSubject: (subject: any) => Promise<void>;
   handleUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
   handleAddSection: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
@@ -1519,6 +1535,13 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
       );
     }
 
+    case "guardian-consent":
+      return (
+        <ViewFrame title={title} description={description} icon={icon ?? ShieldCheck}>
+          <ConsentStatusPanel />
+        </ViewFrame>
+      );
+
     case "communications":
       return (
         <ViewFrame
@@ -1743,11 +1766,12 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
             onUpdateSubject={ctx.handleUpdateSubject}
             onAddSection={ctx.handleAddSection}
           />
+          <ClassSyncPanel onSynced={() => void ctx.reload()} />
         </>
       );
 
     case "timetable": {
-      // §4.4b: Publish only while the chosen class has a draft (disabled with its reason while edits are unsaved);
+      // §4.4b: Publish while the chosen class has a draft, and on a published one so its later edits can be republished (SKAI-439) (disabled with its reason while edits are unsaved);
       // Print always; Unpublish (the studio's own confirmation) only for a published timetable.
       const tt = timetableState;
       const secondaries: PageAction[] = [{ id: "print-timetable", label: "Print", icon: Printer, onClick: () => runTimetable("print") }];
@@ -1757,7 +1781,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
           title={title}
           description={description ?? "Build, publish and adjust this campus's timetable."}
           icon={icon ?? CalendarRange}
-          primaryAction={tt?.hasDraft ? {
+          primaryAction={tt && (tt.hasDraft || tt.published) ? {
             id: "publish-timetable",
             label: "Publish",
             icon: Upload,
@@ -2067,7 +2091,10 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
           primaryAction={{ id: "add-room-type", label: "Add room type", icon: Plus, onClick: () => sendCommand("dormitory", "add-room-type") }}
           secondaryActions={[{ id: "allocate-bed", label: "Allocate bed", icon: UserCheck, onClick: () => sendCommand("dormitory", "allocate-bed") }]}
         >
-          <DormitoryPanel hideHeader command={commandFor("dormitory")} />
+          <div className="space-y-6">
+            <DormitoryPanel hideHeader command={commandFor("dormitory")} />
+            <HostelBoarding />
+          </div>
         </ViewFrame>
       );
 
@@ -2091,9 +2118,13 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
           description={description ?? "Stock, stores and suppliers, and purchase requests waiting for a decision."}
           icon={icon ?? Package}
           primaryAction={{ id: "new-purchase-request", label: "New purchase request", icon: Plus, onClick: () => sendCommand("inventory", "new-request") }}
+          secondaryActions={[
+            { id: "receive-goods", label: "Receive goods", icon: Package, onClick: () => sendCommand("inventory", "receive-goods") },
+            { id: "export-stock", label: "Export", icon: Download, onClick: () => sendCommand("inventory", "export") },
+          ]}
         >
           <PurchasingPanel createInHeader command={commandFor("inventory")} soleChecker={soleCampusOperator} />
-          <InventoryPanel />
+          <InventoryPanel command={commandFor("inventory")} />
         </ViewFrame>
       );
 
@@ -2164,6 +2195,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
         { id: "locale", label: "Language & region" },
         { id: "identity", label: "Sign-in" },
         { id: "integrations", label: "Integrations" },
+        { id: "whatsapp", label: "WhatsApp" },
         { id: "data", label: "Data & privacy" },
         { id: "activity", label: "Activity log" },
         { id: "setup", label: "Setup checklist", hidden: readinessDone },
@@ -2181,6 +2213,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
           {active === "locale" ? <LocaleSettingsPanel scope="school" />
             : active === "identity" ? <IdentityAdmin />
             : active === "integrations" ? <Integrations />
+            : active === "whatsapp" ? <div className="space-y-6"><WhatsAppConnectionPanel /><ManagedSendingPanel /></div>
             : active === "data" ? <DataLifecyclePanel userId={session?.id ?? data.currentUserId ?? ""} />
             : active === "activity" ? <AuditHistoryPanel />
             : active === "setup" ? <ReadinessHome />

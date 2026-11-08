@@ -4,6 +4,7 @@ import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
 import { prisma } from "@/lib/db/prisma";
 import { bankImportSchema } from "@/lib/validators/schemas";
+import { isRealDate } from "@/lib/validators/fields";
 import {
   ApiError,
   errorResponse,
@@ -118,9 +119,10 @@ export async function processBankImport(
 
     const transactions = lines
       .slice(1)
-      .map((line) => {
+      .map((line, index) => {
         const cols = parseCSVLine(line);
         return {
+          rowNumber: index + 2,
           date: cols[dateIdx] ?? "",
           amount: parseMoney(
             (cols[amountIdx] || "0").replace(/,/g, ""),
@@ -130,6 +132,10 @@ export async function processBankImport(
         };
       })
       .filter((t) => t.amount > 0);
+
+    // Every row that would be imported must name a real calendar date; nothing is written when one does not.
+    const badRow = transactions.find((t) => !isRealDate(t.date));
+    if (badRow) throw new ApiError(`Row ${badRow.rowNumber} has no real calendar date (YYYY-MM-DD). Fix it and import again.`, 400);
 
     const pendingInvoices = await db.invoice.findMany({
       where: {
@@ -144,7 +150,10 @@ export async function processBankImport(
       },
     });
 
+    // SKAI-1282: rows are stored in the shape the posting route reads (rowNumber, amountMinor).
     const matched: Array<{
+      rowNumber: number;
+      amountMinor: number;
       amount: number;
       currency: string;
       date: string;
@@ -155,6 +164,8 @@ export async function processBankImport(
     }> = [];
 
     const unmatched: Array<{
+      rowNumber: number;
+      amountMinor: number;
       amount: number;
       currency: string;
       date: string;
@@ -207,6 +218,8 @@ export async function processBankImport(
 
       if (bestMatch && bestScore >= 50) {
         matched.push({
+          rowNumber: tx.rowNumber,
+          amountMinor: tx.amount,
           amount: tx.amount,
           currency,
           date: tx.date,
@@ -217,6 +230,8 @@ export async function processBankImport(
         });
       } else {
         unmatched.push({
+          rowNumber: tx.rowNumber,
+          amountMinor: tx.amount,
           amount: tx.amount,
           currency,
           date: tx.date,
@@ -228,12 +243,14 @@ export async function processBankImport(
       }
     }
 
+    // Store the stable bank account id so the period guard can find this statement.
+    const bankAccount = await db.bankAccount.findFirst({ where: { schoolId: user.schoolId, campusId, name: parsed.data.accountName }, select: { id: true } });
     const reconciliation = await db.bankReconciliation.create({
       data: {
         schoolId: user.schoolId,
         campusId,
         importDate: new Date(),
-        bankAccount: parsed.data.accountName,
+        bankAccount: bankAccount?.id ?? null,
         statementPeriodFrom: new Date(parsed.data.statementFrom),
         statementPeriodTo: new Date(parsed.data.statementTo),
         totalTransactions: transactions.length,

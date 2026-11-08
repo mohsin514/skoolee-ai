@@ -3,12 +3,16 @@ import { createHash } from "node:crypto";
 import type { NextRequest } from "next/server";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
-import { ApiError, assertStaffRole, canManageCampusOps, canManageFinance, canManageLibrary, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertStaffRole, canManageCampusOps, canManageFinance, canManageLibrary, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { authorizeAssignment } from "@/lib/api/teacher-assignments";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { studentScope, campusScope } from "@/lib/auth/policy";
 import { matchesDocumentKey } from "@/lib/storage/document-key-scope";
 import { deleteFile } from "@/lib/storage/s3";
+import { enqueueCleanup, runCleanups } from "@/lib/storage/cleanup-queue";
+import { prisma } from "@/lib/db/prisma";
+import { runAsUser } from "@/lib/db/tenant-context";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { deletionVersion } from "./version";
 
@@ -185,7 +189,10 @@ async function target(tx: TxClient, kind: OperationDeleteKind, id: string, campu
     case "dormitory/rooms": {
       const record = await tx.dormRoom.findFirst({ where, include: { _count: { select: { allocations: true, students: true } } } });
       if (!record) throw new ApiError("Record not found", 404);
-      return { record, label: record.number, blocked: record._count.allocations + record._count.students, remove: async () => {
+      const stays = record._count.allocations;
+      // SKAI-1281: allocation history is the boarding audit trail, so a used room is kept and taken out of service instead.
+      const blockedMessage = stays ? `This room has ${stays} allocation record${stays === 1 ? "" : "s"} in its history and cannot be deleted. Mark it out of service instead.` : undefined;
+      return { record, label: record.number, blocked: stays + record._count.students, blockedMessage, remove: async () => {
         await tx.dormRoom.delete({ where: { id } });
       } };
     }
@@ -248,34 +255,52 @@ export async function operationDelete(user: AuthUser, kind: OperationDeleteKind,
   const permissionModule = operationDeleteModules[kind];
   if (kind === "students/documents") assertStaffRole(user);
   else if (!(permissionModule === "library" ? canManageLibrary(user) : permissionModule === "accounts" || permissionModule === "fees" ? canManageFinance(user) : canManageCampusOps(user))) throw new ApiError("Insufficient permissions", 403);
-  if (!input.preview && !/^[a-f0-9]{64}$/.test(input.version ?? "")) throw new ApiError("Review the record before confirming deletion.", 428);
-  let cleanupKey: string | undefined;
+  const reviewed = input.preview || /^[a-f0-9]{64}$/.test(input.version ?? "");
+  // Deterministic per request: concurrent identical deletes share one receipt id.
+  const receiptId = createHash("sha256").update(JSON.stringify(["confirmed-delete-v1", user.schoolId, input.campusId, user.userId, kind, input.id, input.version])).digest("hex");
+  const replayReceipt = () => schoolAiTransaction(user, tx => tx.auditLog.findFirst({ where: { id: receiptId, schoolId: user.schoolId, campusId: input.campusId, userId: user.userId } }));
   const result = await schoolAiTransaction(user, async tx => {
     // Permissions, account state and campus are re-read inside the same
     // serializable transaction as the version and dependency checks.
     await authorizeAssignment(tx, user, permissionModule, "delete");
     const campus = await tx.campus.findFirst({ where: { id: input.campusId, schoolId: user.schoolId } });
     if (!campus || user.role !== "SUPER_ADMIN" && user.campusId !== campus.id) throw new ApiError("Insufficient permissions", 403);
-    const receiptId = createHash("sha256").update(JSON.stringify(["confirmed-delete-v1", user.schoolId, campus.id, user.userId, kind, input.id, input.version])).digest("hex");
-    if (!input.preview && await tx.auditLog.findFirst({ where: { id: receiptId, schoolId: user.schoolId, campusId: campus.id, userId: user.userId } })) {
+    if (reviewed && !input.preview && await tx.auditLog.findFirst({ where: { id: receiptId, schoolId: user.schoolId, campusId: campus.id, userId: user.userId } })) {
       return { success: true, data: { id: input.id }, replayed: true };
     }
     if ((kind === "academic/rooms" || kind === "academic/calendar") && !input.preview) await lockTimetableCampus(tx, user.schoolId, campus.id, true);
     const selected = await target(tx, kind, input.id, campus.id, user.schoolId, user);
     const version = deletionVersion(selected.record);
-    if (input.preview) return { success: true, preview: { id: input.id, label: selected.label, count: 1, version, blocked: selected.blocked > 0 } };
+    const blockedMessage = "blockedMessage" in selected && selected.blockedMessage ? selected.blockedMessage : "Related records or history prevent deletion. Keep this record and review its dependencies.";
+    if (input.preview) return { success: true, preview: { id: input.id, label: selected.label, count: 1, version, blocked: selected.blocked > 0, dependents: selected.blocked, ...(selected.blocked ? { message: blockedMessage } : {}) } };
+    // SKAI-1281: a record with history is refused with 409 even without a review token, so no client can skip the guard.
+    if (selected.blocked) throw new ApiError(blockedMessage, 409);
+    if (!reviewed) throw new ApiError("Review the record before confirming deletion.", 428);
     if (input.version !== version) throw new ApiError("This record changed. Review it again before deleting.", 409);
-    if (selected.blocked) throw new ApiError("Related records or history prevent deletion. Keep this record and review its dependencies.", 409);
-    await selected.remove();
-    if ("cleanupKey" in selected) cleanupKey = selected.cleanupKey;
-    // Same transaction: no deletion without a retry receipt, no receipt for a
-    // rolled-back deletion. Metadata only; no names, contact details or drafts.
+    // Receipt before deletion: a concurrent identical request blocks on this
+    // primary key until the first commit, then fails with a unique violation
+    // instead of deleting a second time. Same transaction: no deletion without
+    // a receipt, no receipt for a rolled-back deletion. Metadata only.
     await tx.auditLog.create({ data: { id: receiptId, schoolId: user.schoolId, campusId: campus.id, userId: user.userId, tableName: operationDeleteAuditTables[kind] ?? kind, recordId: input.id, oldValue: { action: "DELETE", version, ...Object.fromEntries(Object.entries(selected.record).filter(([key, value]) => ["currency", "amount", "balance", "openingBalance", "isActive", "type", "value", "fromAcademicYear", "toAcademicYear", "academicYear", "feeGroupId", "feeTypeId", "studentId", "classId", "discountId"].includes(key) && (value === null || ["string", "number", "boolean"].includes(typeof value)))) } } });
+    await selected.remove();
+    // SKAI-1478: the object key is kept as a tombstone in the same transaction, so a failed storage delete is retried.
+    if ("cleanupKey" in selected && selected.cleanupKey) await enqueueCleanup(tx, { schoolId: user.schoolId, campusId: campus.id, objectKey: selected.cleanupKey, receiptId });
     return { success: true, data: { id: input.id }, replayed: false };
+  }).catch(async error => {
+    // The losing concurrent request: the winner's receipt is now committed.
+    if (reviewed && !input.preview && (error as { code?: unknown } | null)?.code === "P2002" && await replayReceipt()) {
+      return { success: true, data: { id: input.id }, replayed: true };
+    }
+    throw error;
   });
   // Preserve the private-document storage boundary: only remove the object
-  // after metadata/timeline/receipt commit. Failed cleanup cannot restore access.
-  if (cleanupKey) await deleteFile(cleanupKey).catch(() => undefined);
+  // after metadata/timeline/receipt commit. A failure leaves the tombstone PENDING;
+  // this request (or a replay) and later deletes in the school retry it.
+  if (!input.preview) {
+    const outcome = await runAsUser(user, () => runCleanups(prisma, { schoolId: user.schoolId, receiptId }, deleteFile)).catch(() => ({ done: 0, pending: 1, failed: 0 }));
+    await runAsUser(user, () => runCleanups(prisma, { schoolId: user.schoolId }, deleteFile, 5)).catch(() => undefined);
+    if (outcome.pending || outcome.failed) return { ...result, cleanup: outcome.failed ? "FAILED" : "PENDING" };
+  }
   return result;
 }
 
@@ -284,8 +309,12 @@ export async function operationDeleteResponse(request: NextRequest, kind: Operat
     const user = await requireAuthUser();
     const params = request.nextUrl.searchParams;
     const campusId = await resolveCampusId(user, params.get("campusId"));
-    return Response.json(await operationDelete(user, kind, { id: params.get("id") ?? "", campusId, preview: params.get("preview") === "true", version: request.headers.get("If-Match") }), { headers: { "Cache-Control": "no-store" } });
+    const id = params.get("id") ?? "";
+    const result = await operationDelete(user, kind, { id, campusId, preview: params.get("preview") === "true", version: request.headers.get("If-Match") });
+    // SKAI-1211: envelope — preview → { data: { preview } }, delete → { data: { id, replayed } }.
+    const data = "preview" in result ? { preview: result.preview } : { id, replayed: result.replayed };
+    return ok(data, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    return errorResponse(error, "[confirmed-delete] failed");
+    return failFrom(error, "[confirmed-delete] failed");
   }
 }

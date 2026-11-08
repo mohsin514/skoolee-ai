@@ -8,7 +8,11 @@ const fake = { pilot: {
     if (race) return { count: 0 };
     Object.assign(rows.get(where.id)!, data); return { count: 1 };
   },
-}, pilotClaim: { findFirst: async () => ({ id: "QA-01-claim", version: 1, findingKey: "TIME:MARKS_ENTRY" }) } };
+}, pilotClaim: { findFirst: async () => ({ id: "QA-01-claim", version: 1, findingKey: "TIME:MARKS_ENTRY" }) },
+  // SKAI-1018 gate: a ready readiness record and a passing Pakistan trust gate unless `gateOpen` is false.
+  marketTrustReview: { findMany: async () => trustRows() },
+  pilotReadinessRecord: { findFirst: async () => (gateOpen ? { record: readyRecord() } : null), findMany: async () => [] } };
+let gateOpen = true;
 // Substitute persistence only; the service validation is real.
 globalThis.prisma = fake as never;
 const fixture = (synthetic = false) => ({ id: "QA-01", targetSchoolId: "QA-01-school-a", synthetic,
@@ -16,6 +20,17 @@ const fixture = (synthetic = false) => ({ id: "QA-01", targetSchoolId: "QA-01-sc
   startsOn: new Date("2026-10-01"), endsOn: null, updatedAt: new Date(), charterHistory: [], championName: "QA-01 coordinator",
   workflows: [{ key: "MARKS_ENTRY", definition: "QA-01 entry", successDefinition: "QA-01 checked" }] });
 import { evidence } from "./charter-fixture";
+import { readyRecord, trustRows } from "./readiness-fixture";
+
+test("SKAI-1018: full commercial evidence without a readiness record waits on the pilot gate", async () => {
+  const { updateCharter } = await import("../../src/lib/pilots/service");
+  rows.set("QA-01", fixture()); race = false; gateOpen = false;
+  await updateCharter("QA-01", { status: "ACTIVE", commercial: evidence() });
+  assert.equal(rows.get("QA-01")!.status, "WAITING_PILOT_GATE");
+  const snap = (rows.get("QA-01")!.charterHistory as { gateBlockers: { item: string }[] }[]).at(-1)!;
+  assert.deepEqual(snap.gateBlockers.map((b) => b.item), ["READINESS"]);
+  gateOpen = true;
+});
 
 test("charter guards preserve consent, isolation, waiting states, history and conflicts", async () => {
   const { updateCharter, reviewClaim } = await import("../../src/lib/pilots/service");

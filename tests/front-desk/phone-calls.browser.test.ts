@@ -13,7 +13,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // notes reach only leaders, the person who logged the call and the owner; two callers sharing a number stay
 // separate; other campuses and non-front-desk roles see nothing; deletion is refused.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.DESK_TEST_APP || "http://localhost:3107";
 const evidence = process.env.DESK_EVIDENCE_DIR || "/tmp/sko465-evidence";
 const db = new PrismaClient(), password = "SyntheticCall465!";
@@ -66,6 +66,10 @@ test("a call is validated and a retried save logs it once", async () => {
     assert.equal(response.status(), 400, JSON.stringify(body));
     assert.match((await response.json()).error, message);
   }
+  // SKAI-1023: an owner with no due time is refused instead of saving the call without its callback.
+  const ownerOnly = await logCall(desk, { callbackOwnerId: users.get("desk2")!.id });
+  assert.equal(ownerOnly.status(), 400);
+  assert.match((await ownerOnly.json()).error, /when the callback is due/);
   const key = randomUUID();
   const replies = await Promise.all([1, 2, 3].map(() => logCall(desk, { idempotencyKey: key, purpose: "Fee question" })));
   assert.deepEqual(replies.map(r => r.status()).sort(), [200, 200, 201]);
@@ -165,7 +169,8 @@ test("reception logs a call in the UI, keeps the draft when the save fails and r
   await dialog.getByLabel("Caller name").fill("Synthetic Parent Noor");
   await dialog.getByLabel("Phone", { exact: true }).fill("+971 55 000 1111");
   await dialog.getByLabel("Purpose").fill("Exam dates");
-  await dialog.getByLabel("Call back by (school time)").fill(local(120));
+  // SKAI-1023: a value the field shows without an input event (autofill, scripted fill) still reaches the save.
+  await dialog.locator("[data-call-callback-due]").evaluate((input, value) => { (input as HTMLInputElement).value = value; }, local(120));
   await page.route("**/api/front-desk/phone-calls", route => route.request().method() === "POST" ? route.abort("connectionreset") : route.continue());
   await dialog.getByRole("button", { name: "Log call" }).click();
   await dialog.locator("[data-call-error]").filter({ hasText: /connection failed/ }).waitFor();
@@ -174,6 +179,9 @@ test("reception logs a call in the UI, keeps the draft when the save fails and r
   await dialog.getByRole("button", { name: "Log call" }).click();
   await panel.locator("[data-call]").filter({ hasText: "Synthetic Parent Noor" }).waitFor({ timeout: 15_000 });
   assert.equal(await db.phoneCallLog.count({ where: { campusId, name: "Synthetic Parent Noor" } }), 1);
+  const noor = await db.phoneCallLog.findFirstOrThrow({ where: { campusId, name: "Synthetic Parent Noor" } });
+  assert.equal(await db.phoneCallback.count({ where: { callId: noor.id, status: "OPEN" } }), 1, "the callback is saved with the call");
+  await panel.locator("[data-callback-counts]").filter({ hasText: /Open callbacks: [1-9]/ }).waitFor();
   await panel.locator("[data-call]").filter({ hasText: "Synthetic Parent Noor" }).getByRole("button", { name: /Open callback/ }).click();
   await page.getByRole("dialog").locator("[data-callback-history] [data-event]").first().waitFor();
   await shot(page, "phone-calls-callback-en-1440");

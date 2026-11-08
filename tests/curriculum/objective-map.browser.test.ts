@@ -14,7 +14,7 @@ import { assessmentFixture } from "../school-ai/assessment-fixture";
 
 // SKO-406 browser acceptance against the isolated database and app.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.CURRICULUM_TEST_APP || "http://localhost:3107";
 const evidence = process.env.CURRICULUM_EVIDENCE_DIR || "/tmp/sko406-evidence";
 const raw = new PrismaClient(), password = "SyntheticObjective406!";
@@ -56,7 +56,9 @@ function curriculum(board: string, prefix: string, language: "en" | "ar" | "ur" 
   const { curriculum } = assessmentFixture(subjectId, classId);
   const id = (value: string) => `${prefix}${value}`;
   curriculum.board = board;
-  curriculum.pack = { authority: board, edition: "2026", language, rights: prefix ? "UNDER_REVIEW" : "APPROVED" };
+  curriculum.pack = { packId: `synthetic-${prefix || "a-"}maths`, version: 1, authority: board, edition: "2026", language, rights: prefix ? "UNDER_REVIEW" : "APPROVED" };
+  // SKAI-1010 (2dc1ba140): an approved pack is versioned, and its sources carry URL, checksum, rights scope and review.
+  curriculum.sources = curriculum.sources.map(source => ({ ...source, url: "https://example.invalid/synthetic-syllabus.pdf", checksum: "a".repeat(64), rightsScope: "Synthetic test-only syllabus", reviewedAt: "2026-09-01T00:00:00.000Z" }));
   curriculum.outcomes = [
     { id: id("o-add"), code: `${prefix ? "SBB" : "SBA"}.M.1`, title: "Add whole numbers", description: "Learners add two whole numbers and explain their method.", sourceId: "source-1", sourcePage: "1", included: true, taught: true },
     { id: id("o-sub"), code: `${prefix ? "SBB" : "SBA"}.M.2`, title: "Subtract whole numbers", sourceId: "source-1", sourcePage: "1", included: true, taught: true, prerequisiteIds: [id("o-add")] },

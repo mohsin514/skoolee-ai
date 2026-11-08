@@ -14,7 +14,7 @@ import { acceptCorrection, acceptInvite, adoptQuestion, authorizeShare, createNe
 // adopters accept; withdrawal blocks reuse without touching delivered papers; answer keys never reach
 // learners; small-cohort statistics are suppressed.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient();
 const school = (tag: string) => ({ id: `qn-${tag}-${randomUUID()}`, campusId: randomUUID() });
 const A = school("a"), B = school("b"), C = school("c");

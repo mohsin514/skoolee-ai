@@ -4,6 +4,8 @@ import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { stopSupportGrant } from "@/lib/owner/support-access";
 import { prisma as basePrisma } from "@/lib/db/prisma";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +28,7 @@ export async function PATCH(req: NextRequest) {
     const actor = await requireAuthUser();
     if (!isInstitutionAuthority(actor)) throw new ApiError("Only the institution administrator can review support access.", 403);
     if (actor.mfaVerified !== true) return Response.json({ error: "Turn on two-step sign-in before you review support access.", code: "MFA_REQUIRED" }, { status: 403 });
-    const { grantId, decision, evidence } = await req.json();
+    const { grantId, decision, evidence } = await parseBody(req, jsonObjectBody);
     if (typeof grantId !== "string" || !["approve", "reject", "review", "revoke"].includes(decision)) throw new ApiError("Invalid support review", 400);
     const grant = await prisma.supportGrant.findFirst({ where: { id: grantId, schoolId: actor.schoolId } });
     if (!grant) throw new ApiError("Support request not found for this school", 404);

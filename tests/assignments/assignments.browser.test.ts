@@ -11,7 +11,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // SKO-409 browser acceptance against the isolated database, app and a synthetic object store.
 // The app must run with S3_ENDPOINT=http://127.0.0.1:55442 and S3_BUCKET_NAME=synthetic-only.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55450" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55450 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55450") || url.pathname !== `/${process.env.QA_DB_NAME || "postgres"}`) throw Error("Only isolated local DB 55450 is allowed");
 const base = process.env.ASSIGNMENTS_TEST_APP || "http://localhost:3120";
 const evidence = process.env.ASSIGNMENTS_EVIDENCE_DIR || "/tmp/sko409-evidence";
 const raw = new PrismaClient(), password = "SyntheticAssign409!";

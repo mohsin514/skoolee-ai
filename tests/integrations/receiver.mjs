@@ -18,4 +18,4 @@ createServer((req, res) => {
     if (mode === "redirect") { res.writeHead(302, { Location: "http://169.254.169.254/latest/meta-data" }).end(); return; }
     res.writeHead(200).end("ok");
   });
-}).listen(55463, "127.0.0.1", () => console.log("receiver ready"));
+}).listen(Number(process.env.QA_INTEGRATION_RECEIVER_PORT || 55463), "127.0.0.1", () => console.log("receiver ready"));

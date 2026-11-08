@@ -11,7 +11,8 @@ test("print uses the candidate projection and excludes every restricted answer/p
   paper.questions[0].bankMetadata = { tags: ["SECRET BANK"], difficulty: "EASY" };
   const html = buildCandidatePaperHtml(paper, 12);
   for (const forbidden of ["SECRET", "correctOptionId", "modelAnswer", "sourceRefs", "bankMetadata", "curriculumId"]) assert.ok(!html.includes(forbidden));
-  for (const question of paper.questions) assert.ok(html.includes(question.prompt));
+  const text = html.replace(/<[^>]+>/g, "");
+  for (const question of paper.questions) assert.ok(text.includes(question.prompt));
   assert.match(html, /Approved version: 12/);
   assert.match(html, /Answer <b>1<\/b> of 2/);
   assert.equal((html.match(/data-question-number=/g) ?? []).length, paper.questions.length);

@@ -169,6 +169,17 @@ test("§7.6 leave: teachers' leave → academic lead, everyone else → campus o
   assert.match(leave, /isStaffRole\(user\.role\)/, "POST is staff only");
 });
 
+test("SKAI-1026: the campus operator's leave queue lists teachers' leave, decided by the academic lead", () => {
+  const leave = code("src/app/api/leave/route.ts");
+  assert.match(leave, /const roles = isCampusOperator\(user\) \? LEAVE_STAFF_ROLES : decideRoles;/, "operators see every staff applicant");
+  assert.match(leave, /canDecide: decides\.has\(row\.user\.role\)/, "each row says who decides it");
+  assert.match(leave, /new Set\(user\.role === "SUPER_ADMIN" \? \[\] : decideRoles\)/, "the group admin decides nothing");
+  const ui = code("src/components/shared-admin/index.tsx");
+  assert.match(ui, /r\.status === "PENDING" && r\.canDecide === false/, "undecidable rows show who it waits for, not Approve");
+  const dashboard = code("src/app/actions/dashboard.ts");
+  assert.match(dashboard, /if \(!led\.has\(row\.campusId\)\)/, "a campus without a principal counts teachers' leave as waiting on its operator");
+});
+
 test("G30–G35d: principal-reserved acts gate on canLeadAcademics", () => {
   const cases: Array<[string, RegExp]> = [
     ["src/app/api/exams/[id]/lock/route.ts", /canLeadAcademics\(user, campusId\)/],

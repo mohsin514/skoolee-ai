@@ -15,6 +15,9 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
+import { feeStructureActiveWhere, invoiceBatchStatus, pickStructureForClass } from "@/lib/fees/structure-year";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 function generateInvoiceNumber(campusId: string, year: number, sequence: number): string {
   const shortId = campusId.split("-").pop()?.slice(0, 4).toUpperCase() ?? "XX";
@@ -27,7 +30,7 @@ export async function POST(req: NextRequest) {
     if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "fees", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = generateInvoicesSchema.safeParse(body);
     if (!parsed.success) {
       const flat = parsed.error.flatten().fieldErrors;
@@ -69,15 +72,19 @@ export async function POST(req: NextRequest) {
     const feeStructures = await tx.feeStructure.findMany({
       where: {
         campusId,
-        activeFrom: { lte: dueDate },
-        OR: [{ activeTo: { gte: invoiceDate } }, { activeTo: null }],
+        ...feeStructureActiveWhere(invoiceDate, dueDate),
       },
-      include: { class: true },
+      include: { class: true, academicYear: { select: { academicYear: true } } },
       orderBy: { activeFrom: "desc" },
     });
 
+    // SKAI-1123: a class is billed from the structure priced for its own academic year.
     const feeMap = new Map<string, typeof feeStructures[number]>();
-    for (const structure of feeStructures) if (!feeMap.has(structure.classId)) feeMap.set(structure.classId, structure);
+    for (const student of students) {
+      if (feeMap.has(student.classId)) continue;
+      const picked = pickStructureForClass(feeStructures, student.classId, student.class.academicYear);
+      if (picked) feeMap.set(student.classId, picked);
+    }
     const enrollments = await tx.studentEnrollment.findMany({ where: { schoolId: user.schoolId, campusId, studentId: { in: students.map(student => student.id) }, NOT: { origin: { startsWith: "LEGACY" } } }, select: { id: true, studentId: true, classId: true, academicYear: true, startDate: true, endDate: true } });
 
     const maxSeq = await tx.invoice.findFirst({
@@ -113,6 +120,9 @@ export async function POST(req: NextRequest) {
       let discountAmount = 0;
       let taxAmount = 0;
       let lateFeeAmount = 0;
+      // SKAI-1154: the regulator-approved fee printed on the invoice (legacy fee structures only).
+      let approvedFee: number | null = null;
+      let approvedFeeReference: string | null = null;
       // SKO-444: the fee lines this invoice charges, for an approved country package to tax.
       let taxLines: { code: string; name: string; amount: number }[] = [];
 
@@ -176,6 +186,8 @@ export async function POST(req: NextRequest) {
         const discountPct = Object.values(grossDues).reduce((sum, v) => sum + (typeof v === "number" ? v : 0), 0);
 
         monthlyFee = feeStructure.monthlyFee;
+        approvedFee = feeStructure.approvedFee ?? null;
+        approvedFeeReference = feeStructure.approvedFeeReference ?? null;
         subtotal = monthlyFee + oneTimeTotal;
         discountAmount = Math.round(subtotal * Math.min(discountPct, 100) / 100);
 
@@ -228,6 +240,8 @@ export async function POST(req: NextRequest) {
           enrollmentId: invoiceContext.enrollmentId,
           dueDate,
           monthlyFee,
+          approvedFee,
+          approvedFeeReference,
           oneTimeFees: oneTimeTotal,
           subtotal,
           discountAmount,
@@ -259,6 +273,14 @@ export async function POST(req: NextRequest) {
     return { generated, errors, totalStudents: students.length, className: students[0]?.class?.name };
     });
     const { generated, errors } = committed;
+    const status = invoiceBatchStatus(generated, errors.length);
+    if (status !== 201) {
+      return Response.json(
+        { success: false, error: `No invoices generated: ${errors[0]?.error ?? "review the class setup"}`, totalStudents: committed.totalStudents, generated, errors },
+        { status }
+      );
+    }
+
     notify("INVOICES_GENERATED", {
       schoolId: user.schoolId,
       campusId,
@@ -270,9 +292,8 @@ export async function POST(req: NextRequest) {
 
     return Response.json(
       {
+        // SKAI-1765: generation runs synchronously and its result is this response; no pseudo job ID is issued.
         success: true,
-        jobId: `invoice-gen-${parsed.data.generationMonth}`,
-        status: "completed",
         totalStudents: committed.totalStudents,
         generated,
         errors,

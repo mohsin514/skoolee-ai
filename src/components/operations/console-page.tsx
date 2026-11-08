@@ -87,7 +87,7 @@ export function ConsolePage({
     // Inside the shell's one page card (addendum 2026-10-22): no card of its own. On a phone the header scrolls away
     // with the content; from `sm` up it stays pinned while the content scrolls under it.
     <div className="custom-scrollbar relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto sm:overflow-hidden" data-console-view={view}>
-      <div className={cn("shrink-0 border-b border-border-subtle", CONSOLE_GUTTER, "pb-4 pt-4 sm:pb-5 sm:pt-6")}>
+      <div className={cn("sk-console-head shrink-0 border-b border-border-subtle", CONSOLE_GUTTER, "pb-4 pt-4 sm:pb-5 sm:pt-6")}>
         <PageHeader
           title={heading}
           description={summary}

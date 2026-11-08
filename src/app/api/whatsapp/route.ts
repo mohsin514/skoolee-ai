@@ -13,6 +13,8 @@ import {
   sendReportCardPublishedNotifications,
   sendStudentTemplatedCommunication,
 } from "@/lib/notifications/service";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,7 +59,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: message }, { status });
     }
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = sendWhatsAppSchema.safeParse(body);
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });

@@ -8,8 +8,9 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Menu } from "@/components/ui/menu";
 import { toast } from "@/components/ui/toast";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { readApiData } from "@/lib/api/envelope-client";
 
-type Preview = { id: string; label: string; count: number; version: string; blocked: boolean };
+type Preview = { id: string; label: string; count: number; version: string; blocked: boolean; message?: string };
 
 type DeleteProps = {
   endpoint: string; record: { id: string; campusId?: string }; label: string; onDeleted: () => void;
@@ -49,8 +50,9 @@ export function ReviewedDeleteDialog({ endpoint, record, label, onDeleted, onCan
       const response = await fetch(`${url}&preview=true`, { method: "DELETE", signal: AbortSignal.timeout(20000) });
       const result = await response.json();
       if (current !== generation.current) return;
-      if (!response.ok || !result.preview) { setError(message(response.status)); return; }
-      setPreview(result.preview);
+      const reviewed = readApiData<{ preview?: Preview }>(result, {}).preview;
+      if (!response.ok || !reviewed) { setError(message(response.status)); return; }
+      setPreview(reviewed);
     } catch { if (current === generation.current) setError(message(0)); }
     finally { if (current === generation.current) setPreparing(false); }
   }, [url, message]);
@@ -79,7 +81,7 @@ export function ReviewedDeleteDialog({ endpoint, record, label, onDeleted, onCan
       detail={<div className="space-y-3">
         {detail}
         {preparing ? <p role="status">{ui("Checking current permissions and record…")}</p> : null}
-        {preview?.blocked ? <p role="alert">{ui("Related records or history prevent deletion. Keep this record and review its dependencies.")}</p> : null}
+        {preview?.blocked ? <p role="alert">{preview.message ?? ui("Related records or history prevent deletion. Keep this record and review its dependencies.")}</p> : null}
         {error ? <p role="alert">{error}</p> : null}
         {!preparing && !preview ? <Button variant="outline" onClick={prepare}>{ui("Review again")}</Button> : null}
       </div>} />

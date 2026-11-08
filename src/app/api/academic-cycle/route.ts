@@ -7,6 +7,8 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { writeAcademicCycle } from "@/lib/school-ai/school-operations-cycle-write";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -35,7 +37,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const cycle = await writeAcademicCycle(user, campusId, body);
     notify("ACADEMIC_CYCLE_CHANGED", { schoolId: user.schoolId, campusId, actorId: user.userId, actorName: user.fullName, label: cycle.label, status: cycle.status });

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { resolveMediaUrl } from "@/lib/storage/s3";
+import { resolveMediaUrl } from "@/lib/storage/media-url";
 
 interface AvatarImageProps {
   src?: string | null;
@@ -42,7 +42,8 @@ export function AvatarImage({
     if (!name) return null;
     return (
       <span
-        className={`flex h-full w-full items-center justify-center bg-brand-50 font-semibold uppercase tracking-wide text-primary/70 ${initialsClassName}`}
+        className={`flex h-full w-full items-center justify-center bg-brand-50 font-semibold uppercase tracking-wide text-primary ${initialsClassName}`}
+        role="img"
         aria-label={alt}
       >
         {initialsOf(name)}

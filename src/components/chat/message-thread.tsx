@@ -39,10 +39,13 @@ import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { systemEventText } from "@/lib/chat/system-event-text";
 import { localeTag } from "@/lib/locale/package";
 import { fill } from "./chat-text";
+import { clockTimeIn, dayLabelIn } from "./message-time";
+import { ErrorState } from "@/components/ui/error-state";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 
-type Ui = ReturnType<typeof useUiText>;
 
 
 interface MessageThreadProps {
@@ -53,22 +56,6 @@ interface MessageThreadProps {
    */
   onBack?: () => void;
   backVisibility?: "always" | "mobile";
-}
-
-function dayLabel(iso: string, ui: Ui, tag: string) {
-  const date = new Date(iso);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-
-  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
-  if (sameDay(date, today)) return ui("Today");
-  if (sameDay(date, yesterday)) return ui("Yesterday");
-  return date.toLocaleDateString(tag, { day: "numeric", month: "long", year: "numeric" });
-}
-
-function clockTime(iso: string, tag?: string) {
-  return new Date(iso).toLocaleTimeString(tag, { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatSize(bytes: number) {
@@ -83,6 +70,8 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
     detail,
     messages,
     isLoadingThread,
+    threadFailed,
+    retryThread,
     hasOlder,
     loadOlder,
     deleteMessage,
@@ -98,11 +87,21 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
     isConnected,
   } = useChat();
   const ui = useUiText();
+  // SKAI-1586: loading earlier history shows its own progress and failure, and the button retries.
+  const [olderLoading, setOlderLoading] = useState(false), [olderFailed, setOlderFailed] = useState(false);
+  const loadEarlier = async () => {
+    setOlderLoading(true);
+    try { await loadOlder(); setOlderFailed(false); } catch { setOlderFailed(true); } finally { setOlderLoading(false); }
+  };
   const locale = useLocale();
   const tag = localeTag(locale);
+  // SKAI-1437: message days and clocks use the school locale timezone, not the device's.
+  const timeZone = locale.timezone;
 
   const [replyTo, setReplyTo] = useState<ChatMessageView | null>(null);
   const [editing, setEditing] = useState<ChatMessageView | null>(null);
+  // SKAI-1584: withdrawing hides the message for everyone and cannot be undone, so it is confirmed first.
+  const [withdrawing, setWithdrawing] = useState<ChatMessageView | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
 
@@ -129,7 +128,19 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
     if (!isLoadingThread && detail) bottomRef.current?.scrollIntoView({ block: "end" });
   }, [detail?.id, isLoadingThread, detail]);
 
-  if (!detail) return <ThreadPlaceholder />;
+  // SKAI-1432: the thread is only set once both loads succeed, so a failed load leaves no detail. Show the error, not a blank view.
+  if (!detail) {
+    return threadFailed ? (
+      <ErrorState
+        title={ui("Messages could not be loaded")}
+        description={ui("Check your connection, then try again. Your conversations are unchanged.")}
+        onRetry={retryThread}
+        retryLabel={ui("Try again")}
+      />
+    ) : (
+      <ThreadPlaceholder />
+    );
+  }
 
   // Identity comes from the provider rather than a prop. Passed down, it
   // arrived a beat after the first paint, and every message — including the
@@ -284,10 +295,10 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     <MenuItem
                       icon={MessageSquareDashed}
                       label={detail.isArchived ? ui("Unarchive") : ui("Archive")}
-                      onClick={() => {
-                        setPreference(detail.id, { isArchived: !detail.isArchived });
+                      onClick={async () => {
                         setMenuOpen(false);
-                        closeConversation();
+                        // SKAI-1542: the thread closes only once the server has archived it.
+                        if (await setPreference(detail.id, { isArchived: !detail.isArchived })) closeConversation();
                       }}
                     />
                     {detail.kind !== "DIRECT" && (
@@ -343,20 +354,23 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           className="custom-scrollbar relative min-h-0 flex-1 overflow-y-auto bg-background px-3 py-4 md:px-5"
         >
           {hasOlder && (
-            <div className="mb-5 flex justify-center">
+            <div className="mb-5 flex flex-col items-center gap-2">
+              {olderFailed ? <p role="alert" className="text-sm text-status-error-text" data-chat-older-failed>{ui("Earlier messages could not be loaded.")}</p> : null}
               <Button variant="outline" size="sm"
                 type="button"
-                onClick={loadOlder}
+                loading={olderLoading}
+                disabled={olderLoading}
+                onClick={loadEarlier}
                 className="backdrop-blur hover:-translate-y-0.5"
               >
-                {ui("Load earlier messages")}
+                {ui(olderFailed ? "Try again" : "Load earlier messages")}
               </Button>
             </div>
           )}
 
           {!isConnected && lastSyncedAt && (
             <Alert tone="warning" compact live="polite" className="mb-2 text-xs font-normal" data-chat-offline>
-              {fill(ui("Reconnecting. Showing messages up to {0}; anything sent meanwhile appears when the connection returns."), [clockTime(lastSyncedAt, tag)])}
+              {fill(ui("Reconnecting. Showing messages up to {0}; anything sent meanwhile appears when the connection returns."), [clockTimeIn(lastSyncedAt, tag, timeZone)])}
             </Alert>
           )}
           {isLoadingThread ? (
@@ -368,7 +382,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
               {messages.map((message, index) => {
                 const previous = messages[index - 1];
                 const showDay =
-                  !previous || dayLabel(previous.createdAt, ui, tag) !== dayLabel(message.createdAt, ui, tag);
+                  !previous || dayLabelIn(previous.createdAt, { ui, tag, timeZone }) !== dayLabelIn(message.createdAt, { ui, tag, timeZone });
 
                 // A pending message has no sender echoed back yet, so it is
                 // identified by its optimistic id instead.
@@ -384,12 +398,12 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
 
                 return (
                   <li key={message.id}>
-                    {showDay && <DaySeparator label={dayLabel(message.createdAt, ui, tag)} />}
+                    {showDay && <DaySeparator label={dayLabelIn(message.createdAt, { ui, tag, timeZone })} />}
 
                     {message.kind === "SYSTEM" ? (
                       <p className="py-2 text-center text-2xs font-medium tabular-nums text-ink-subtle">
                         <span className="rounded-full bg-white/70 px-2.5 py-1 ring-1 ring-edge/25">
-                          {message.body}
+                          {systemEventText(message.body, ui)}
                         </span>
                       </p>
                     ) : (
@@ -401,10 +415,11 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                         showAvatar={detail.kind !== "DIRECT" && !isMine}
                         onReply={() => setReplyTo(message)}
                         onEdit={() => setEditing(message)}
-                        onDelete={() => deleteMessage(message.id)}
+                        onDelete={() => setWithdrawing(message)}
                         canModerate={detail.canModerate}
                         language={locale.language}
                         tag={tag}
+                        timeZone={timeZone}
                         sendState={message.clientKey && message.id.startsWith("pending-") ? sendStates[message.clientKey] : undefined}
                         seen={isMine && !message.id.startsWith("pending-") && detail.members.some((m) => m.userId !== viewerId && m.lastReadAt !== null && m.lastReadAt >= message.createdAt)}
                         onRetry={() => message.clientKey && void retryMessage(message.clientKey)}
@@ -428,7 +443,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           {detail.kind === "DIRECT" && counterpartRead && messages.length > 0 && (
             <p className="mt-2 flex items-center justify-end gap-1 pe-1 text-2xs font-medium tabular-nums text-ink-subtle">
               <CheckCheck className="h-3 w-3 text-primary" />
-              {fill(ui("Seen {0}"), [clockTime(counterpartRead, tag)])}
+              {fill(ui("Seen {0}"), [clockTimeIn(counterpartRead, tag, timeZone)])}
             </p>
           )}
 
@@ -448,11 +463,28 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           editing={editing}
           onClearEditing={() => setEditing(null)}
           onSubmitEdit={async (body) => {
-            if (editing) await editMessage(editing.id, body);
-            setEditing(null);
+            // A failed save keeps edit mode open so the draft can be retried or cancelled.
+            const saved = editing ? await editMessage(editing.id, body) : true;
+            if (saved) setEditing(null);
+            return saved;
           }}
         />
       </div>
+      <ConfirmAction
+        open={withdrawing !== null}
+        tone="danger"
+        title={ui("Withdraw this message?")}
+        description={ui("It is hidden for everyone in this conversation and cannot be restored.")}
+        detail={withdrawing?.body ? <p className="line-clamp-3 text-sm" data-withdraw-preview><bdi>{withdrawing.body}</bdi></p> : null}
+        confirmLabel={ui("Withdraw")}
+        cancelLabel={ui("Cancel")}
+        onCancel={() => setWithdrawing(null)}
+        onConfirm={async () => {
+          const target = withdrawing;
+          setWithdrawing(null);
+          if (target) await deleteMessage(target.id);
+        }}
+      />
     </MotionConfig>
   );
 }
@@ -524,9 +556,11 @@ function MessageBubble({
   onDiscard,
   language,
   tag,
+  timeZone,
 }: {
   language: "en" | "ar" | "ur";
   tag: string;
+  timeZone: string;
   sendState?: SendState;
   seen: boolean;
   onRetry: () => void;
@@ -640,15 +674,24 @@ function MessageBubble({
                 <ul className={cn("space-y-1.5", message.body && "mt-2")}>
                   {message.attachments.map((a) =>
                     a.contentType.startsWith("image/") && a.url ? (
-                      <li key={a.id}>
-                        {/* Presigned S3 URLs are not a configured next/image
-                            host, and they expire — a plain img avoids both. */}
-                        <img
-                          src={a.url}
-                          alt={a.fileName}
-                          loading="lazy"
-                          className="max-h-72 w-auto rounded-xl shadow-md"
-                        />
+                      <li key={a.id} className="space-y-1">
+                        {/* SKAI-1588: the image opens the original, and a visible Download link names the file, so
+                            keyboard and touch users can reach it like any other attachment. */}
+                        <a href={a.url} target="_blank" rel="noreferrer" aria-label={ui("Open {0}", [a.fileName])} className="block w-fit rounded-xl" data-attachment-open>
+                          {/* Presigned S3 URLs are not a configured next/image
+                              host, and they expire — a plain img avoids both. */}
+                          <img
+                            src={a.url}
+                            alt={a.fileName}
+                            loading="lazy"
+                            className="max-h-72 w-auto rounded-xl shadow-md"
+                          />
+                        </a>
+                        <a href={a.url} download={a.fileName} target="_blank" rel="noreferrer" aria-label={ui("Download {0}", [a.fileName])} className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-2xs font-bold", isMine ? "text-white hover:bg-white/15" : "text-primary hover:bg-brand-50")} data-attachment-download>
+                          <Download className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <bdi className="max-w-[14rem] truncate">{a.fileName}</bdi>
+                          <span className="opacity-70">{formatSize(a.sizeBytes)}</span>
+                        </a>
                       </li>
                     ) : (
                       <li key={a.id}>
@@ -684,7 +727,7 @@ function MessageBubble({
           >
             {message.isUrgent && <span className="rounded bg-white/25 px-1 font-semibold uppercase" data-urgent>{ui("Urgent")}</span>}
             {message.isEdited && !message.isDeleted && <span>{ui("edited")}</span>}
-            <bdi>{clockTime(message.createdAt, tag)}</bdi>
+            <bdi>{clockTimeIn(message.createdAt, tag, timeZone)}</bdi>
             {/* SKO-415: one tick only once the server has stored it; two only when a member has read it.
                 Never a delivery tick for something still on this device. */}
             {isMine &&

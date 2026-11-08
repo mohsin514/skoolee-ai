@@ -16,7 +16,7 @@ import { assessmentFixture } from "./assessment-fixture";
 // that lost marks; a flagged question blocks interpretation and practice; a re-review makes an
 // interpretation stale; an approved group becomes draft learning actions citing each learner's attempt.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `item-evidence-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), subjectId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid` });
 const admin = actor("CAMPUS_ADMIN");
@@ -98,7 +98,9 @@ test("a hypothesis cites answers that lost marks; a flagged question blocks inte
 
 test("a re-review makes the interpretation stale; the approved group becomes draft learning actions citing each learner's own attempt", async () => {
   const decision = (await item("q1")).decisions.find((d) => d.kind === "HYPOTHESIS")!;
-  await ctx(admin, () => regradeExamAttempt(admin, examId, { attemptId: attempts[3], version: 1, reason: "Confirmed after reading the working", review: review(2) }));
+  await ctx(admin, () => regradeExamAttempt(admin, examId, { attemptId: attempts[3], version: 1, reason: "Confirmed after reading the working", review: { ...review(2), marks: review(2).marks.map((m) => m.questionId === "q1" ? { ...m, override: { reason: "Working shows the intended answer; option boxes were misaligned." } } : m) } }));
+  // SKAI-1014: the same re-review without a recorded reason is refused, not silently applied.
+  await assert.rejects(() => ctx(admin, () => regradeExamAttempt(admin, examId, { attemptId: attempts[4], version: 1, reason: "Confirmed after reading the working", review: review(2) })), { status: 422 });
   const stale = (await item("q1")).decisions.find((d) => d.id === decision.id)!;
   assert.equal(stale.stale, true);
   await assert.rejects(() => ctx(admin, () => approveGroup(admin, decision.id, { version: 1, studentIds: [learners[3].id], reason: "Short counting-on practice." })), { status: 409 });

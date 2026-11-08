@@ -5,12 +5,14 @@ import { parsePlan, previewCancellation, previewPlanChange, saveSubscriptionRequ
 import { stripe } from "@/lib/stripe/server";
 import { kindFor } from "@/lib/auth/institution";
 import { getSubscriptionOwners } from "@/lib/auth/institution-server";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const dynamic = "force-dynamic";
 
 const requestSchema = z.object({
   action: z.enum(["preview", "request-change", "cancel-preview", "cancel", "resume", "grace", "refund"]),
-  graceUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  // A real calendar date (month and day ranges, leap years) is checked here, before anything parses it into a Date.
+  graceUntil: z.iso.date().optional(),
   plan: z.string().optional(),
   billingPeriod: z.enum(["monthly", "annual"]).optional().default("monthly"),
   reason: z.string().trim().max(1000).optional(),
@@ -49,7 +51,7 @@ export async function POST(request: Request) {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
     if (!canManageSubscription(user)) throw new ApiError("The SkooleeAI subscription is managed by the account owner.", 403);
-    const parsed = requestSchema.safeParse(await request.json());
+    const parsed = requestSchema.safeParse(await readJsonBody(request));
     if (!parsed.success) throw new ApiError("Choose a valid subscription action", 400);
     const input = parsed.data;
     // G6 / K-I5: cancelling, asking for a refund and changing the payment method need a verified second factor;

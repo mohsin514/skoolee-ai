@@ -24,8 +24,10 @@ import { useNavigationAccess } from "@/components/nav/NavigationAccess";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Panel, StepEmpty } from "@/components/academic/exams/shared";
+import { ErrorState } from "@/components/ui/error-state";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 import { Input as SystemInput } from "@/components/ui/input";
+import { approvalBody, remarkBody } from "@/lib/reports/approval-request";
 
 /**
  * Turning a marked exam into report cards families can read (§81).
@@ -59,6 +61,8 @@ interface ReportCard {
   remarksEn?: string | null;
   remarksUr?: string | null;
   remarksApproved?: boolean;
+  /** The current report version; approval names its ID. */
+  review?: { id: string } | null;
   deliveryStatus?: string | null;
   student?: { fullName?: string; rollNo?: string } | null;
 }
@@ -85,6 +89,10 @@ function LegacyReportCardsPanel({
   const [pendingStep, setPendingStep] = useState<"publish" | "send" | null>(null);
   const [cards, setCards] = useState<ReportCard[]>([]);
   const [progress, setProgress] = useState<{ entered: number; expected: number } | null>(null);
+  // SKAI-1382: a marks API error is a failed check with a retry, never "Checking how many marks are in…" forever.
+  const [progressFailed, setProgressFailed] = useState(false);
+  // SKAI-1532: a reports API failure is its own state; cards already on screen stay.
+  const [cardsFailed, setCardsFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   /** Unsaved remark text, keyed by report card id. */
@@ -110,14 +118,24 @@ function LegacyReportCardsPanel({
       // start rather than appearing only once it stops mattering.
       const [reportRes, marksRes] = await Promise.all([
         isLocked
-          ? fetch(`/api/reports?${sp}`).then((r) => r.json())
+          ? fetch(`/api/reports?${sp}`)
+              .then((r) => (r.ok ? r.json() : { success: false }))
+              .catch(() => ({ success: false }))
           : Promise.resolve({ success: true, reportCards: [] }),
-        fetch(`/api/marks?examId=${exam.id}`).then((r) => r.json()),
+        fetch(`/api/marks?examId=${exam.id}`).then((r) => (r.ok ? r.json() : { success: false })),
       ]);
 
-      setCards(reportRes?.reportCards ?? []);
+      if (reportRes?.success !== false && Array.isArray(reportRes?.reportCards)) {
+        setCards(reportRes.reportCards);
+        setCardsFailed(false);
+      } else {
+        setCardsFailed(true);
+      }
 
-      if (marksRes?.success) {
+      if (!marksRes?.success) {
+        setProgressFailed(true);
+      } else {
+        setProgressFailed(false);
         const students: unknown[] = marksRes.students ?? [];
         const subjects: { id: string }[] = marksRes.subjects ?? [];
         const subjectIds = new Set(subjects.map((s) => s.id));
@@ -129,6 +147,7 @@ function LegacyReportCardsPanel({
         setProgress({ entered: pairs.size, expected: students.length * subjects.length });
       }
     } catch {
+      setProgressFailed(true);
       toast.error(tr("Could not load report cards"));
     } finally {
       setLoading(false);
@@ -214,37 +233,62 @@ function LegacyReportCardsPanel({
     }
   };
 
-  const approveOne = async (card: ReportCard, silent = false) => {
+  /** Saves a remark as an edit. The save makes a new current version, which the approval must name. */
+  const persistRemark = async (cardId: string, text: string) => {
+    const res = await fetch(`/api/reports/${cardId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(remarkBody(text)),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not save the remark");
+  };
+
+  /** The exam's cards with their current versions, read after any save so approval names the version on screen. */
+  const fetchReportCards = async (): Promise<ReportCard[]> => {
+    const sp = new URLSearchParams({ examId: exam.id });
+    if (campusId) sp.set("campusId", campusId);
+    const data = await fetch(`/api/reports?${sp}`).then((r) => r.json());
+    const next: ReportCard[] = data.reportCards ?? [];
+    setCards(next);
+    return next;
+  };
+
+  /** Approves one card's named version. The server refuses it if the version moved since it was read. */
+  const sendApproval = async (cardId: string, versionId: string | undefined) => {
+    if (!versionId) throw new Error(tr("Reload the report cards, then approve the current version"));
+    const res = await fetch(`/api/reports/${cardId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(approvalBody(versionId)),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not approve");
+  };
+
+  const approveOne = async (card: ReportCard) => {
     const text = (remarks[card.id] ?? card.remarksEn ?? "").trim();
     if (!text) {
-      if (!silent) toast.error(tr("Write a remark before approving it"));
+      toast.error(tr("Write a remark before approving it"));
       return false;
     }
-    if (!silent) setBusy(`approve-${card.id}`);
+    setBusy(`approve-${card.id}`);
     try {
-      const res = await fetch(`/api/reports/${card.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ remarksEn: text, approve: true }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not approve");
-      setCards((prev) =>
-        prev.map((c) =>
-          c.id === card.id ? { ...c, remarksEn: text, remarksApproved: true } : c,
-        ),
-      );
-      if (!silent) toast.success(tr("Remark approved"));
+      if (text !== (card.remarksEn ?? "").trim()) await persistRemark(card.id, text);
+      const current = await fetchReportCards();
+      await sendApproval(card.id, current.find((c) => c.id === card.id)?.review?.id);
+      await fetchReportCards();
+      toast.success(tr("Remark approved"));
       return true;
     } catch (e) {
-      if (!silent) toast.error(tr(e instanceof Error ? e.message : "Could not approve"));
+      toast.error(tr(e instanceof Error ? e.message : "Could not approve"));
       return false;
     } finally {
-      if (!silent) setBusy(null);
+      setBusy(null);
     }
   };
 
-  /** Approve every card that already carries a remark, one request each. */
+  /** Approve every card that already carries a remark. Each card is approved on its own current version. */
   const approveAll = async () => {
     const pending = cards.filter(
       (c) => !c.remarksApproved && (remarks[c.id] ?? c.remarksEn ?? "").trim(),
@@ -254,10 +298,28 @@ function LegacyReportCardsPanel({
       return;
     }
     setBusy("approve-all");
+    const unsaved = new Set<string>();
+    for (const card of pending) {
+      const text = (remarks[card.id] ?? card.remarksEn ?? "").trim();
+      if (text === (card.remarksEn ?? "").trim()) continue;
+      try {
+        await persistRemark(card.id, text);
+      } catch {
+        unsaved.add(card.id);
+      }
+    }
+    const current = await fetchReportCards();
     let ok = 0;
     for (const card of pending) {
-      if (await approveOne(card, true)) ok += 1;
+      if (unsaved.has(card.id)) continue;
+      try {
+        await sendApproval(card.id, current.find((c) => c.id === card.id)?.review?.id);
+        ok += 1;
+      } catch {
+        // Counted as not approved; the card stays in the queue for another try.
+      }
     }
+    await fetchReportCards();
     setBusy(null);
     toast.success(tr("Approved remarks: {0}", [ok]));
     onChanged?.();
@@ -294,7 +356,9 @@ function LegacyReportCardsPanel({
         blurb: tr("Freezes every mark and creates one report card per pupil."),
         state: isLocked ? "done" : marksComplete ? "ready" : "blocked",
         reason: !progress
-          ? tr("Checking how many marks are in…")
+          ? progressFailed
+            ? tr("Marks progress could not be checked.")
+            : tr("Checking how many marks are in…")
           : progress.expected === 0
           ? tr("This class has no students or no subjects yet.")
           : marksComplete
@@ -446,6 +510,11 @@ function LegacyReportCardsPanel({
                       <AlertTriangle className="h-3 w-3 shrink-0" />
                     ) : null}
                     {step.reason}
+                    {step.key === "lock" && progressFailed && !progress ? (
+                      <Button type="button" size="sm" variant="outline" onClick={() => void load()}>
+                        {tr("Try again")}
+                      </Button>
+                    ) : null}
                   </p>
                 </div>
 
@@ -510,7 +579,17 @@ function LegacyReportCardsPanel({
         }
         bodyClassName={cards.length ? "p-0" : undefined}
       >
-        {cards.length === 0 ? (
+        {cardsFailed ? (
+          <div className={cards.length ? "p-3" : undefined}>
+            <ErrorState
+              title={tr("Could not load report cards")}
+              description={cards.length ? tr("Showing the last list we loaded.") : tr("Check your connection and try again.")}
+              retryLabel={tr("Try again")}
+              onRetry={() => void load()}
+            />
+          </div>
+        ) : null}
+        {cardsFailed && cards.length === 0 ? null : cards.length === 0 ? (
           <StepEmpty
             icon={FileText}
             title={isLocked ? tr("No report cards yet") : tr("Nothing to show until the marks are locked")}

@@ -53,10 +53,18 @@ export async function updateOwnLeave(user: AuthUser, body: Record<string, unknow
   if (!row) throw new ApiError("Leave request not found", 404);
   await guardianChild(user, row.studentId);
   if (!OPEN.includes(row.status)) throw new ApiError("The school has already decided this request.", 409);
-  if (body.action === "cancel") return prisma.learnerLeaveRequest.update({ where: { id: row.id }, data: { status: "CANCELLED", version: { increment: 1 } } });
+  if (body.knownVersion !== undefined && Number(body.knownVersion) !== row.version) throw new ApiError("This request changed since you opened it. Reload and try again.", 409);
+  // SKAI-1550: the write only lands if the request is still exactly as read, so a concurrent
+  // cancel and reply cannot both succeed; the loser gets a 409 instead of overwriting.
+  const claim = async (data: { status: "CANCELLED" | "PENDING"; reason?: string }) => {
+    const { count } = await prisma.learnerLeaveRequest.updateMany({ where: { id: row.id, schoolId: user.schoolId, status: row.status, version: row.version }, data: { ...data, version: { increment: 1 } } });
+    if (!count) throw new ApiError("This request changed since you opened it. Reload and try again.", 409);
+    return prisma.learnerLeaveRequest.findUniqueOrThrow({ where: { id: row.id } });
+  };
+  if (body.action === "cancel") return claim({ status: "CANCELLED" });
   if (body.action === "reply") {
     if (row.status !== "CLARIFICATION") throw new ApiError("The school has not asked for more detail.", 409);
-    return prisma.learnerLeaveRequest.update({ where: { id: row.id }, data: { status: "PENDING", reason: `${row.reason}\n\n${words(body.reason, 3, 1000)}`.slice(0, 2000), version: { increment: 1 } } });
+    return claim({ status: "PENDING", reason: `${row.reason}\n\n${words(body.reason, 3, 1000)}`.slice(0, 2000) });
   }
   throw new ApiError("Unknown action", 400);
 }
@@ -68,7 +76,11 @@ export async function guardianLeave(user: AuthUser, studentId: string) {
 
 export async function staffLeaveQueue(user: AuthUser, campusId: string) {
   if (!canMarkAttendance(user)) throw new ApiError("You cannot review learner leave.", 403);
-  const rows = await prisma.learnerLeaveRequest.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: OPEN } }, orderBy: { fromDate: "asc" }, take: 100 });
+  // SKAI-759: a teacher sees leave only for pupils in classes they teach, like the register itself.
+  const taught = user.role === "TEACHER"
+    ? (await prisma.student.findMany({ where: { schoolId: user.schoolId, class: { campusId, OR: [{ classTeacherId: user.userId }, { subjects: { some: { teacherId: user.userId } } }] } }, select: { id: true } })).map(s => s.id)
+    : null;
+  const rows = await prisma.learnerLeaveRequest.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: OPEN }, ...(taught ? { studentId: { in: taught } } : {}) }, orderBy: { fromDate: "asc" }, take: 100 });
   const students = new Map((await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: rows.map(r => r.studentId) } }, select: { id: true, fullName: true, class: { select: { name: true, section: true } } } })).map(s => [s.id, s]));
   return rows.map(row => ({ ...row, studentName: students.get(row.studentId)?.fullName ?? "", className: [students.get(row.studentId)?.class?.name, students.get(row.studentId)?.class?.section].filter(Boolean).join(" ") }));
 }

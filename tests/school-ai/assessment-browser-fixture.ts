@@ -7,7 +7,7 @@ import { createWorkspaceRecord, updateWorkspaceRecord } from "../../src/lib/scho
 import { createSchoolAiExam } from "../../src/lib/school-ai/exam-service";
 import { assessmentFixture } from "./assessment-fixture";
 
-const expected = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const expected = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== expected || process.env.DIRECT_URL !== expected) throw new Error("Use only the isolated School AI browser-test database.");
 const schoolId = "school-ai-browser-a", campusId = `${schoolId}-campus`;
 const admin: AuthUser = { userId: `${schoolId}-ADMIN`, schoolId, campusId, role: "ADMIN", email: "a-admin@example.test" };

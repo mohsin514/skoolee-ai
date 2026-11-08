@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError } from "@/lib/api/scope";
 import { isCampusOperator, isInstitutionAuthority } from "@/lib/auth/institution";
-import { prisma, type TxClient } from "@/lib/db/prisma";
+import { prisma, tenantTransaction, type TxClient } from "@/lib/db/prisma";
 import { z } from "zod";
 import { auditTablesFor } from "@/lib/audit-categories";
 
@@ -39,7 +39,8 @@ export const auditHistoryQuery = z.object({
 
 export interface AuditHistoryEntry {
   id: string; tableName: string; recordId: string; campusId: string | null; createdAt: string;
-  action: "CREATE" | "UPDATE" | "DELETE";
+  /** CREATE/UPDATE/DELETE, or the domain action the event recorded (SKAI-1592: e.g. GRANT, REVOKE). */
+  action: string;
   actor: { id: string; fullName: string; role: string } | null;
   changes: Array<{ field: string; before: string | null; after: string | null }>;
 }
@@ -53,6 +54,14 @@ function fields(value: unknown): Record<string, unknown> {
   if (typeof value === "string") { try { value = JSON.parse(value); } catch { return {}; } }
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
+const consentStates = new Set(["GRANTED", "REVOKED", "WITHDRAWN", "EXPIRED"]);
+const DOMAIN_ACTION = /^[A-Z][A-Z_]{1,31}$/;
+/** SKAI-1592: an event that names its domain action (GRANT, REVOKE …) keeps it instead of reading as a creation. */
+export function auditAction(oldValue: unknown, newValue: unknown): string {
+  const named = fields(newValue).action;
+  if (typeof named === "string" && DOMAIN_ACTION.test(named)) return named;
+  return !oldValue ? "CREATE" : !newValue ? "DELETE" : "UPDATE";
+}
 /** School-facing history never serializes free text, contacts, tokens or entire source records. */
 export function minimizedAuditChanges(oldValue: unknown, newValue: unknown): AuditHistoryEntry["changes"] {
   const before = fields(oldValue), after = fields(newValue);
@@ -61,9 +70,10 @@ export function minimizedAuditChanges(oldValue: unknown, newValue: unknown): Aud
     if (["version", "reviewVersion"].includes(field) && Number.isSafeInteger(value) && Number(value) >= 0) return String(value);
     if (["isActive", "published"].includes(field) && typeof value === "boolean") return String(value);
     if (["status", "decision"].includes(field) && typeof value === "string" && safeStates.has(value)) return value;
+    if (field === "consent" && typeof value === "string" && consentStates.has(value)) return value;
     return null;
   };
-  return ["version", "reviewVersion", "status", "decision", "isActive", "published"].flatMap(field => {
+  return ["version", "reviewVersion", "status", "decision", "consent", "isActive", "published"].flatMap(field => {
     const a = safe(field, before[field]), b = safe(field, after[field]);
     return a !== b ? [{ field, before: a, after: b }] : [];
   });
@@ -87,11 +97,12 @@ export async function listAuditHistory(user: AuthUser, raw: unknown, db: TxClien
   const page = rows.slice(0, input.limit);
   const actors = await db.user.findMany({ where: { schoolId: user.schoolId, id: { in: [...new Set(page.map(row => row.userId))] } }, select: { id: true, fullName: true, role: true } });
   return { nextCursor: rows.length > input.limit ? page[page.length - 1].id : null, selectedCampusId: input.campusId ?? (groupWide ? null : user.campusId), schoolWide: isInstitutionAuthority(user), campuses,
-    data: page.map(row => ({ id: row.id, tableName: row.tableName, recordId: row.recordId, campusId: row.campusId, createdAt: row.createdAt.toISOString(), action: !row.oldValue ? "CREATE" : !row.newValue ? "DELETE" : "UPDATE", actor: actors.find(actor => actor.id === row.userId) ?? null, changes: minimizedAuditChanges(row.oldValue, row.newValue) })) };
+    data: page.map(row => ({ id: row.id, tableName: row.tableName, recordId: row.recordId, campusId: row.campusId, createdAt: row.createdAt.toISOString(), action: auditAction(row.oldValue, row.newValue), actor: actors.find(actor => actor.id === row.userId) ?? null, changes: minimizedAuditChanges(row.oldValue, row.newValue) })) };
 }
 
 // ─── Export ───────────────────────────────────────────────────────
 const EXPORT_LIMIT = 5000;
+const EXPORT_RECEIPT_TABLE = "audit_log_exports";
 export const auditExportQuery = z.object({
   requestKey: z.string().uuid(),
   tableName: z.string().regex(/^[a-z][a-z0-9_]{0,79}$/).optional(),
@@ -111,25 +122,43 @@ function csvCell(value: string | null | undefined): string {
  * export is itself an audit event keyed by the client's retry key, so a lost
  * response and a retry produce one receipt.
  */
-export async function exportAuditHistory(user: AuthUser, raw: unknown, assertExport: (user: AuthUser) => Promise<unknown>, db: TxClient = prisma, now = new Date()) {
+export async function exportAuditHistory(user: AuthUser, raw: unknown, assertExport: (user: AuthUser) => Promise<unknown>, db: TxClient = prisma, now = new Date()): Promise<{ csv: string; rows: number; truncated: boolean; filename: string }> {
+  // SKAI-1587: the replay check and the receipt write share one transaction and one lock per requestKey,
+  // so simultaneous requests with the same key export once and leave exactly one receipt.
+  if (db === prisma) return tenantTransaction(tx => exportAuditHistory(user, raw, assertExport, tx, now), { timeout: 30_000 });
   const input = auditExportQuery.parse(raw);
   const scope = auditHistoryScope(user, input.campusId);
   await assertExport(user);
+  await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`audit-export:${user.schoolId}:${user.userId}:${input.requestKey}`}))`;
+  const filters = { tableName: input.tableName ?? null, campusId: input.campusId ?? null, from: input.from ?? null, to: input.to ?? null };
+  // SKAI-1065: a retry with the same requestKey replays the stored export byte for byte.
+  const previous = await db.auditLog.findFirst({ where: { AND: [scope, { tableName: EXPORT_RECEIPT_TABLE, recordId: input.requestKey, userId: user.userId }] }, select: { id: true, newValue: true } });
+  if (previous) {
+    const stored = previous.newValue as { filters?: unknown; csv?: unknown; filename?: unknown; rows?: unknown; truncated?: unknown } | null;
+    // JSONB does not keep key order, so compare the stored filters field by field.
+    const storedFilters = (stored?.filters ?? {}) as Record<string, unknown>;
+    if ((Object.keys(filters) as (keyof typeof filters)[]).some(key => (storedFilters[key] ?? null) !== filters[key])) throw new ApiError("This export request key was already used with different filters.", 409);
+    if (typeof stored?.csv === "string" && typeof stored.filename === "string") {
+      return { csv: stored.csv, rows: Number(stored.rows) || 0, truncated: stored.truncated === true, filename: stored.filename };
+    }
+  }
   const rows: AuditHistoryEntry[] = [];
   let cursor: string | undefined;
   do {
     const page = await listAuditHistory(user, { limit: 100, tableName: input.tableName, campusId: input.campusId, from: input.from, to: input.to, cursor }, db, now);
-    rows.push(...page.data);
+    // The export never lists its own receipts, so a retry cannot change its own output.
+    rows.push(...page.data.filter(row => row.tableName !== EXPORT_RECEIPT_TABLE));
     cursor = page.nextCursor ?? undefined;
   } while (cursor && rows.length < EXPORT_LIMIT);
   const truncated = rows.length >= EXPORT_LIMIT && !!cursor;
-  const previous = await db.auditLog.findFirst({ where: { AND: [scope, { tableName: "audit_log_exports", recordId: input.requestKey, userId: user.userId }] }, select: { id: true } });
-  if (!previous) {
-    await db.auditLog.create({ data: { schoolId: user.schoolId, campusId: typeof scope.campusId === "string" ? scope.campusId : null, tableName: "audit_log_exports", recordId: input.requestKey, userId: user.userId,
-      newValue: { status: "COMPLETED", rows: rows.length, truncated, filters: { tableName: input.tableName ?? null, campusId: input.campusId ?? null, from: input.from ?? null, to: input.to ?? null } } } });
-  }
   const header = ["time", "action", "category", "record", "campus", "actor", "actor_role", "changes"];
   const lines = rows.slice(0, EXPORT_LIMIT).map(row => [row.createdAt, row.action, row.tableName, row.recordId, row.campusId, row.actor?.fullName, row.actor?.role,
     row.changes.map(change => `${change.field}: ${change.before ?? "—"} → ${change.after ?? "—"}`).join("; ")].map(csvCell).join(","));
-  return { csv: [header.join(","), ...lines].join("\r\n") + "\r\n", rows: rows.length, truncated, filename: `activity-history-${now.toISOString().slice(0, 10)}.csv` };
+  // SKAI-1633: a cut-off export says so inside the file itself, not only in a response header.
+  const marker = truncated ? [csvCell(`PARTIAL EXPORT: only the newest ${EXPORT_LIMIT} entries are included. Narrow the date range to export the rest.`)] : [];
+  const result = { csv: [header.join(","), ...lines, ...marker].join("\r\n") + "\r\n", rows: Math.min(rows.length, EXPORT_LIMIT), truncated, filename: `activity-history-${now.toISOString().slice(0, 10)}.csv` };
+  const receipt = { status: "COMPLETED", rows: result.rows, truncated, filters, filename: result.filename, csv: result.csv };
+  if (previous) await db.auditLog.update({ where: { id: previous.id }, data: { newValue: receipt } });
+  else await db.auditLog.create({ data: { schoolId: user.schoolId, campusId: typeof scope.campusId === "string" ? scope.campusId : null, tableName: EXPORT_RECEIPT_TABLE, recordId: input.requestKey, userId: user.userId, newValue: receipt } });
+  return result;
 }

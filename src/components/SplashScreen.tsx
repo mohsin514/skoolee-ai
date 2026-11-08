@@ -8,7 +8,7 @@ import { InkRule } from '@/components/auth/InkRule';
 import type { Language } from '@/lib/locale/package';
 
 /** The full brand beat: first launch in this tab, motion allowed. */
-const HOLD_MS = 3200;
+const HOLD_MS = 1400;
 /** Reduced motion: the bar still fills, just sooner. */
 const QUICK_HOLD_MS = 1200;
 /**

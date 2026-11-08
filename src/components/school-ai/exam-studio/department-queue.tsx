@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BookOpenCheck, MoveRight } from "lucide-react";
+import { BookOpenCheck, FileStack, ListTree, MoveRight } from "lucide-react";
+import { DeskRowIcon, RelativeTime, deskRow } from "@/components/ui/desk";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Modal } from "@/components/ui/modal";
@@ -35,10 +37,15 @@ export function DepartmentQueue() {
     } catch { setNotice({ tone: "danger", text: t.failed }); } finally { setBusy(null); }
   };
 
+  // SKAI-1610: a failed load is its own state (with Try again), never the "heads no department" null;
+  // a later refresh failure keeps the last queue on screen.
+  const [loadFailed, setLoadFailed] = useState(false);
   const load = useCallback(async () => {
     const response = await fetch("/api/school-ai/department-approvals", { cache: "no-store" }).catch(() => null);
     const payload = response?.ok ? await response.json().catch(() => null) : null;
-    setQueue(payload?.queue ?? null);
+    const next = payload?.queue;
+    if (!next || typeof next.heads !== "boolean" || (next.heads && (!Array.isArray(next.approvals) || !Array.isArray(next.jumps)))) { setLoadFailed(true); return; }
+    setQueue(next); setLoadFailed(false);
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -52,19 +59,23 @@ export function DepartmentQueue() {
     await load();
   };
 
-  if (!queue?.heads) return null;
+  const failure = loadFailed ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm" data-department-queue-failed><span>{t.queueLoadFailed}</span><Button type="button" size="sm" variant="outline" onClick={() => void load()}>{t.queueRetry}</Button></div> : null;
+  if (!queue) return failure ? <section className="sk-panel space-y-3 p-4 sm:p-5" aria-labelledby="department-queue-title" data-department-queue><h2 id="department-queue-title" className="flex items-center gap-2 text-lg font-bold"><BookOpenCheck aria-hidden="true" className="size-5 text-primary" />{t.queueTitle}</h2>{failure}</section> : null;
+  if (!queue.heads) return null;
   return <section id="department-queue" className="sk-panel scroll-mt-24 space-y-3 p-4 sm:p-5" aria-labelledby="department-queue-title" data-department-queue>
     <header className="space-y-1">
       <h2 id="department-queue-title" className="flex items-center gap-2 text-lg font-bold"><BookOpenCheck aria-hidden="true" className="size-5 text-primary" />{t.queueTitle}</h2>
       <p className="text-sm text-ink-muted">{t.queueIntro}</p>
     </header>
     {notice ? <Alert tone={notice.tone} compact live="polite">{notice.text}</Alert> : null}
-    {!queue.approvals.length && !queue.jumps.length ? <p className="text-sm text-ink-muted">{t.queueEmpty}</p> : null}
+    {failure}
+    {!queue.approvals.length && !queue.jumps.length ? <EmptyState size="sm" icon={BookOpenCheck} title={t.queueEmpty} /> : null}
     {queue.approvals.length ? <ul className="space-y-2">
-      {queue.approvals.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-subtle bg-surface-subtle p-3">
-        <div className="min-w-0 space-y-0.5">
+      {queue.approvals.map(item => <li key={item.id} data-tone="info" className={`${deskRow} flex flex-wrap items-center justify-between gap-3`}>
+        <DeskRowIcon icon={item.kind === "CURRICULUM" ? ListTree : FileStack} />
+        <div className="min-w-0 flex-1 space-y-0.5">
           <p className="font-semibold"><Isolated>{item.title}</Isolated></p>
-          <p className="text-xs text-ink-muted">{item.subjectName && item.className ? <><Isolated>{item.subjectName}</Isolated> · <Isolated>{item.className}</Isolated> · </> : null}{item.kind === "CURRICULUM" ? fillStudioCopy(t.syllabusMeta, [number(item.outcomeCount ?? 0), item.authorName]) : fillStudioCopy(t.sourceMeta, [item.authorName])} · <bdi>{date(item.submittedAt)}</bdi></p>
+          <p className="text-xs text-ink-muted">{item.subjectName && item.className ? <><Isolated>{item.subjectName}</Isolated> · <Isolated>{item.className}</Isolated> · </> : null}{item.kind === "CURRICULUM" ? fillStudioCopy(t.syllabusMeta, [number(item.outcomeCount ?? 0), item.authorName]) : fillStudioCopy(t.sourceMeta, [item.authorName])} · <RelativeTime iso={item.submittedAt} full={date(item.submittedAt)} /></p>
         </div>
         <Button type="button" size="sm" loading={busy === item.id} disabled={Boolean(busy)} onClick={() => void openPreview(item.id)}>{t.open}</Button>
       </li>)}
@@ -72,13 +83,13 @@ export function DepartmentQueue() {
     {queue.jumps.length ? <div className="space-y-2">
       <h3 className="flex items-center gap-2 text-sm font-bold"><MoveRight aria-hidden="true" className="size-4 text-warning rtl:rotate-180" />{t.jumpsTitle}</h3>
       <ul className="space-y-1.5">
-        {queue.jumps.map(jump => <li key={jump.id} className="rounded-xl border border-border-subtle p-3 text-sm">
+        {queue.jumps.map(jump => <li key={jump.id} data-tone={jump.backdated ? "warning" : "neutral"} className={`${deskRow} text-sm`}>
           <p>{fillStudioCopy(t.jumpRow, [jump.teacherName, number(jump.written), jump.className ?? "", number(jump.unitsCrossed)])}</p>
           <p className="text-xs text-ink-subtle"><bdi>{date(jump.at)}</bdi>{jump.backdated ? <> · {t.jumpBackdated}</> : null}</p>
         </li>)}
       </ul>
     </div> : null}
-    {preview ? <Modal title={preview.title} size="lg" onClose={() => setPreview(null)}>
+    {preview ? <Modal title={preview.title} icon={BookOpenCheck} tone="violet" size="lg" onClose={() => setPreview(null)}>
       <div className="space-y-4" data-department-preview>
         {notice ? <Alert tone={notice.tone} compact>{notice.text}</Alert> : null}
         {preview.text !== null ? <p dir="auto" className="whitespace-pre-wrap break-words text-sm">{preview.text}</p> : <ol className="list-decimal space-y-3 ps-5">{preview.outcomes.map(outcome => <li key={outcome.id}><p className="text-xs text-ink-muted"><Isolated>{outcome.unit ?? ""}</Isolated></p><Isolated>{outcome.title}</Isolated></li>)}</ol>}

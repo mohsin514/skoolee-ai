@@ -44,7 +44,11 @@ export function schoolAiError(error: unknown) {
   if (error instanceof AIProviderQuotaError) return Response.json({ error: "The configured AI provider has exhausted its API quota.", code: error.code }, { status: error.status });
   if (error instanceof PIILeakError) return Response.json({ error: "Review the source text and remove personal identifiers before asking the AI provider to process it.", code: "AI_SENSITIVE_CONTENT_BLOCKED" }, { status: 422 });
   // SKO-500: keep the machine code beside the message so a surface can react (stale, refused, rate limited).
-  if (error instanceof SchoolAiError) return Response.json({ error: error.message, ...(error.code ? { code: error.code } : {}) }, { status: error.status, headers: { "Cache-Control": "private, no-store" } });
+  if (error instanceof SchoolAiError) {
+    // SKAI-1008: a blocked curriculum pack lists every reason; details are server-authored strings only.
+    const details = (error as SchoolAiError & { details?: unknown }).details;
+    return Response.json({ error: error.message, ...(error.code ? { code: error.code } : {}), ...(Array.isArray(details) && details.every(item => typeof item === "string") ? { details } : {}) }, { status: error.status, headers: { "Cache-Control": "private, no-store" } });
+  }
   if (error instanceof ApiError || error instanceof AICreditError || error instanceof BillingAccessError || error instanceof AccessDenied) return errorResponse(error);
   return Response.json({ error: "This service is unavailable. Your saved work is unchanged; please try again." }, { status: 503 });
 }

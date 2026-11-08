@@ -13,6 +13,7 @@ import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/Local
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { InputGroup } from "@/components/ui/input-group";
+import { checkStudentDocumentFile, cleanStudentDocumentName, studentDocumentContentType, STUDENT_DOCUMENT_ACCEPT, STUDENT_DOCUMENT_KINDS } from "@/lib/students/document-policy";
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -77,13 +78,15 @@ import {
   Wallet,
   X,
   type LucideIcon,
+  IdCard,
 } from "lucide-react";
 import { Menu, type MenuItem } from "@/components/ui/menu";
+import { maskIdentifier, parseEmiratesId, parseRegulatorId } from "@/lib/identity/regulator-ids";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader, type PageAction } from "@/components/ui/page-header";
 import { ViewTabs } from "@/components/ui/view-tabs";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
-import { translateUi } from "@/lib/locale/ui-messages";
+import { translateUi } from "@/lib/locale/ui-translate";
 import { AiActionPanel, AIReviewQueue, BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { CornerSparkles } from "@/components/CornerSparkles";
@@ -101,13 +104,14 @@ export { TeacherConflictsBanner } from "@/components/shared-admin/teacher-confli
 export { StudentsPanel } from "@/components/shared-admin/students-panel";
 import { SubjectSyllabus } from "@/components/shared-admin/subject-syllabus";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { resolveMediaUrl } from "@/lib/storage/s3";
+import { resolveMediaUrl } from "@/lib/storage/media-url";
 import { Skeleton, SkeletonList, SkeletonRegion } from "@/components/ui/skeleton";
 import { FormField } from "@/components/ui/form-field";
 import { apiErrorMessage } from "@/lib/errors";
 import { usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
 import { csvCell, downloadCSV } from "@/lib/csv";
+import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 import {
   DataTable,
   SearchField,
@@ -562,7 +566,7 @@ export function AcademicPanel({
   onViewClass: (cls: any) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
   onDeleteClass?: (cls: any) => void;
-  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<boolean | void>;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }) => Promise<boolean | void>;
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
   onAddSection?: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
@@ -1267,7 +1271,7 @@ export function ClassDetailModal({
   /** Omitted for a read-only viewer: no Delete class control. */
   onDeleteClass?: (cls: any) => void;
   /** Omitted for a read-only viewer: no Edit control for the class details. */
-  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<boolean | void>;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }) => Promise<boolean | void>;
   onDeleteSubject: (subject: any) => void;
   onUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
@@ -1324,9 +1328,11 @@ export function ClassDetailModal({
   const [editClassName, setEditClassName] = useState(cls.name || "");
   const [editClassSection, setEditClassSection] = useState(cls.section || "");
   const [editClassAcademicYear, setEditClassAcademicYear] = useState(String(cls.academicYear || new Date().getFullYear()));
+  const [editClassCapacity, setEditClassCapacity] = useState(cls.capacity ? String(cls.capacity) : "");
 
   useEffect(() => {
     if (!editingClass) {
+      setEditClassCapacity(cls.capacity ? String(cls.capacity) : "");
       setEditClassName(cls.name || "");
       setEditClassSection(cls.section || "");
       setEditClassAcademicYear(String(cls.academicYear || new Date().getFullYear()));
@@ -1339,6 +1345,7 @@ export function ClassDetailModal({
       name: editClassName,
       section: editClassSection,
       academicYear: Number(editClassAcademicYear) || new Date().getFullYear(),
+      capacity: editClassCapacity.trim() ? Number(editClassCapacity) : null,
     });
     if (saved !== false) setEditingClass(false);
   };
@@ -1516,10 +1523,11 @@ export function ClassDetailModal({
             </div>
             {editingClass && onUpdateClass ? (
               <div className="mt-4 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <FormInput label={ui("Class Name")} value={editClassName} placeholder={ui("e.g. Class 10")} onChange={setEditClassName} />
                   <FormInput label={ui("Section")} value={editClassSection} placeholder="e.g. A" onChange={setEditClassSection} />
                   <FormInput label={ui("Academic Year")} type="number" value={editClassAcademicYear} placeholder="2026" onChange={setEditClassAcademicYear} />
+                  <FormInput label={ui("Capacity (seats per class)")} type="number" value={editClassCapacity} placeholder={ui("Optional, e.g. 35")} onChange={setEditClassCapacity} />
                 </div>
                 <div className="flex justify-end">
                   <BrandButton variant="dark" className="h-12" onClick={saveClassEdit} disabled={classUpdateBusy}>
@@ -1531,6 +1539,7 @@ export function ClassDetailModal({
               <div className="mt-4 flex items-center justify-between gap-3">
                 <p className="text-xs font-bold text-ink-muted">
                   {cls.name}{cls.section ? " · " + ui("Section {0}", [cls.section]) : ""} · {cls.academicYear}
+                  {" · "}{cls.capacity ? ui("{0} of {1} seats filled", [cls._count?.students ?? 0, cls.capacity]) : ui("Capacity not set")}
                 </p>
                 {onDeleteClass ? (
                   <SystemButton variant="ghost"
@@ -1776,6 +1785,8 @@ function studentDraftValues(record: any): Record<string, string> {
       gender: record.gender || "",
       bloodType: record.bloodType || "",
       nationality: record.nationality || "",
+      emiratesId: record.emiratesId || "",
+      regulatorId: record.regulatorId || "",
       phone: record.phone || "",
       guardianName: record.guardianName || "",
       guardianNameUr: record.guardianNameUr || "",
@@ -1874,8 +1885,8 @@ export function StudentDetailModal({
       .then(([cats, grps]) => {
         if (!active) return;
         setTags({
-          categories: cats.success ? cats.data : [],
-          groups: grps.success ? grps.data : [],
+          categories: readApiData(cats, []),
+          groups: readApiData(grps, []),
         });
       })
       .catch(() => {})
@@ -1890,7 +1901,7 @@ export function StudentDetailModal({
   const baseline = studentDraftValues(student);
   const pupilDraft = useFormDraft({ record: `student:${summary.id}`, schema: 1, enabled: !!full && full.id === summary.id,
     values: edits, baseline,
-    fields: ["fullName", "nameUr", "rollNo", "dateOfBirth", "gender", "nationality", "phone", "guardianName", "guardianNameUr", "guardianPhone", "guardianEmail", "guardianRelationship", "guardianOccupation", "city", "province", "postalCode", "address", "previousSchool", "categoryId", "groupId"],
+    fields: ["fullName", "nameUr", "rollNo", "dateOfBirth", "gender", "nationality", "emiratesId", "regulatorId", "phone", "guardianName", "guardianNameUr", "guardianPhone", "guardianEmail", "guardianRelationship", "guardianOccupation", "city", "province", "postalCode", "address", "previousSchool", "categoryId", "groupId"],
     apply: (next) => { setEdits(next); setEditing(true); setProfileTab("overview"); },
     current: async () => {
       const response = await fetch(`/api/students/${summary.id}`, { cache: "no-store" });
@@ -1905,20 +1916,25 @@ export function StudentDetailModal({
   const setEd = (field: string, value: string) => setEdits((p) => ({ ...p, [field]: value }));
 
   const saveEdits = async () => {
+    // SKAI-1149: normalise regulator IDs first, so a typed "784199..." matches the dashed value the server stores.
+    let next: Record<string, string>;
+    try { next = { ...edits, emiratesId: parseEmiratesId(edits.emiratesId) ?? "", regulatorId: parseRegulatorId(edits.regulatorId) ?? "" }; }
+    catch (error) { toast.error(ui((error as Error).message)); return; }
+    setEdits(next);
     const updates: Record<string, any> = {};
     const strFields = [
-      "fullName", "nameUr", "rollNo", "gender", "bloodType", "nationality", "phone",
+      "fullName", "nameUr", "rollNo", "gender", "bloodType", "nationality", "emiratesId", "regulatorId", "phone",
       "guardianName", "guardianNameUr", "guardianPhone", "guardianEmail",
       "guardianRelationship", "guardianOccupation",
       "city", "province", "postalCode", "address",
       "medicalNotes", "specialNeeds", "allergies", "medications", "previousSchool",
     ];
-    for (const f of strFields) updates[f] = edits[f] || null;
-    if (edits.fullName) updates.fullName = edits.fullName;
-    if (edits.rollNo) updates.rollNo = edits.rollNo;
-    if (edits.dateOfBirth) updates.dateOfBirth = edits.dateOfBirth;
-    updates.categoryId = edits.categoryId || null;
-    updates.groupId = edits.groupId || null;
+    for (const f of strFields) updates[f] = next[f] || null;
+    if (next.fullName) updates.fullName = next.fullName;
+    if (next.rollNo) updates.rollNo = next.rollNo;
+    if (next.dateOfBirth) updates.dateOfBirth = next.dateOfBirth;
+    updates.categoryId = next.categoryId || null;
+    updates.groupId = next.groupId || null;
     updates.expectedValues = pupilDraft.baseline;
     try {
       await onUpdate(student.id, updates);
@@ -1928,7 +1944,7 @@ export function StudentDetailModal({
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error("Could not verify the saved record. Your draft is retained.");
       const saved = studentDraftValues(result.data);
-      if (Object.keys(edits).some(k => String(saved[k] ?? "") !== String(edits[k] ?? ""))) { await pupilDraft.reviewCurrent(); throw new Error("The server has not confirmed these values. Review your draft against the current record."); }
+      if (Object.keys(next).some(k => String(saved[k] ?? "") !== String(next[k] ?? ""))) { await pupilDraft.reviewCurrent(); throw new Error("The server has not confirmed these values. Review your draft against the current record."); }
       pupilDraft.markSaved(); setFull(result.data); setEditing(false);
     } catch (error) { toast.error(friendlyErrorMessage(error, ui("Could not save the changes. Your draft is kept."))); }
   };
@@ -2131,8 +2147,8 @@ export function StudentDetailModal({
               {/* A real date picker — this used to be a free-text box that
                   silently dropped anything not typed as YYYY-MM-DD. */}
               <FormInput label={ui("Date of Birth")} type="date" value={ed("dateOfBirth")} placeholder={ui("YYYY-MM-DD")} onChange={(v) => setEd("dateOfBirth", v)} />
+              {/* SKAI-164: gender is required on the record, so there is no blank option the server could not save. */}
               <FormSelect label={ui("Gender")} value={ed("gender")} onChange={(v) => setEd("gender", v)}>
-                <option value="">{ui("Not specified")}</option>
                 <option value="MALE">{ui("Male")}</option>
                 <option value="FEMALE">{ui("Female")}</option>
                 <option value="OTHER">{ui("Other")}</option>
@@ -2142,6 +2158,8 @@ export function StudentDetailModal({
                 {["A+","A-","B+","B-","O+","O-","AB+","AB-"].map((bt) => <option key={bt} value={bt}>{bt}</option>)}
               </FormSelect>
               <FormInput label={ui("Nationality")} value={ed("nationality")} placeholder={ui("Pakistan")} onChange={(v) => setEd("nationality", v)} />
+              <FormInput label={ui("Emirates ID")} value={ed("emiratesId")} placeholder="784-YYYY-NNNNNNN-C" onChange={(v) => setEd("emiratesId", v)} />
+              <FormInput label={ui("eSIS / MOE ID")} value={ed("regulatorId")} placeholder={ui("Regulator record number")} onChange={(v) => setEd("regulatorId", v)} />
               <FormInput label={ui("Phone")} value={ed("phone")} placeholder="+92 300 1234567" onChange={(v) => setEd("phone", v)} />
               <FormInput label={ui("Previous school")} value={ed("previousSchool")} placeholder={ui("Previous school")} onChange={(v) => setEd("previousSchool", v)} />
               <div className="grid grid-cols-2 gap-3">
@@ -2177,6 +2195,8 @@ export function StudentDetailModal({
               <DetailRow label={ui("Gender")} value={ui(genderLabel(student.gender))} />
               <DetailRow label={ui("Blood type")} value={student.bloodType || "N/A"} />
               <DetailRow label={ui("Nationality")} value={student.nationality || "N/A"} />
+              <DetailRow label={ui("Emirates ID")} value={maskIdentifier(student.emiratesId) || "N/A"} />
+              <DetailRow label={ui("eSIS / MOE ID")} value={student.regulatorId || "N/A"} />
               <DetailRow label={ui("Phone")} value={student.phone || "N/A"} />
               <DetailRow label={ui("Previous school")} value={student.previousSchool || "N/A"} />
               <DetailRow label={ui("Category")} value={student.category?.name || "None"} />
@@ -2337,6 +2357,9 @@ export function StudentAdmissionsPanel({
   const [noteDraft, setNoteDraft] = useState("");
   const [noteBusy, setNoteBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // SKAI-165: a failed or denied list load is its own state, never "no documents yet".
+  const [documentsError, setDocumentsError] = useState<"denied" | "failed" | null>(null);
+  const [uploadProblem, setUploadProblem] = useState<string | null>(null);
   const [uploadKind, setUploadKind] = useState("BIRTH_CERTIFICATE");
   const fileInput = useRef<HTMLInputElement>(null);
   const [linkSearch, setLinkSearch] = useState("");
@@ -2351,7 +2374,9 @@ export function StudentAdmissionsPanel({
         ? fetch(`/api/students/siblings?studentId=${encodeURIComponent(student.id)}`).then((r) => r.json())
         : Promise.resolve({ success: true, data: [] }),
       tab === "documents"
-        ? fetch(`/api/students/documents?studentId=${encodeURIComponent(student.id)}`).then((r) => r.json())
+        ? fetch(`/api/students/documents?studentId=${encodeURIComponent(student.id)}`)
+            .then(async (r) => ({ ...(await r.json().catch(() => ({}))), status: r.status }))
+            .catch(() => ({ success: false, status: 0 }))
         : Promise.resolve({ success: true, data: [] }),
       tab === "timeline"
         ? fetch(`/api/students/timeline?studentId=${encodeURIComponent(student.id)}`).then((r) => r.json())
@@ -2361,6 +2386,7 @@ export function StudentAdmissionsPanel({
         if (!active) return;
         if (sib.success) setSiblings(sib.data || []);
         if (doc.success) setDocuments(doc.data || []);
+        setDocumentsError(doc.success ? null : [401, 403, 404].includes(doc.status) ? "denied" : "failed");
         if (tl.success) setTimeline(tl.data || []);
       })
       .catch(() => {})
@@ -2379,7 +2405,18 @@ export function StudentAdmissionsPanel({
       PHOTO: "Photo",
       OTHER: "Other",
     };
-    const safeName = file.name.replace(/[^\w.\- ]/g, "_");
+    const problem = checkStudentDocumentFile(file);
+    if (problem) {
+      // Rejected before any bytes are sent; the chosen type stays selected so the user can pick another file.
+      setUploadProblem(problem === "too_large" ? ui("{0} is larger than 10 MB. Choose a smaller file.", [file.name])
+        : problem === "empty" ? ui("{0} is empty. Choose another file.", [file.name])
+        : ui("{0} is not a supported file. Use PDF, JPG, PNG, WebP or Word.", [file.name]));
+      if (fileInput.current) fileInput.current.value = "";
+      return;
+    }
+    setUploadProblem(null);
+    const safeName = cleanStudentDocumentName(file.name);
+    const contentType = studentDocumentContentType(file)!;
     setUploading(true);
     try {
       const presignRes = await fetch("/api/uploads/presign", {
@@ -2388,7 +2425,7 @@ export function StudentAdmissionsPanel({
         body: JSON.stringify({
           studentId: student.id,
           fileName: safeName,
-          contentType: file.type || "application/octet-stream",
+          contentType,
           sizeBytes: file.size,
         }),
       });
@@ -2397,10 +2434,10 @@ export function StudentAdmissionsPanel({
 
       const putRes = await fetch(presign.data.uploadUrl, {
         method: "PUT",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
+        headers: { "Content-Type": contentType },
         body: file,
       });
-      if (!putRes.ok) throw new Error("Upload to storage failed");
+      if (!putRes.ok) throw new Error(ui("The file could not be stored. Your choice is kept; try again."));
 
       const recRes = await fetch("/api/students/documents", {
         method: "POST",
@@ -2418,7 +2455,9 @@ export function StudentAdmissionsPanel({
       toast.success(ui("{0} uploaded", [ui(kindsLabel[uploadKind] ?? "Document")]));
       onVersionBump();
     } catch (error) {
-      toast.error(friendlyErrorMessage(error, ui("Could not upload the document. Please try again.")));
+      const message = friendlyErrorMessage(error, ui("Could not upload the document. Please try again."));
+      setUploadProblem(message);
+      toast.error(message);
     } finally {
       setUploading(false);
       if (fileInput.current) fileInput.current.value = "";
@@ -2570,7 +2609,7 @@ export function StudentAdmissionsPanel({
           <div className="mt-4 flex flex-wrap items-end gap-3">
             <div className="w-48">
               <FormSelect label={ui("Document type")} value={uploadKind} onChange={setUploadKind}>
-                {["BIRTH_CERTIFICATE", "TRANSFER_CERTIFICATE", "PHOTO", "OTHER"].map((k) => (
+                {STUDENT_DOCUMENT_KINDS.map((k) => (
                   <option key={k} value={k}>{kindLabel(k)}</option>
                 ))}
               </FormSelect>
@@ -2578,7 +2617,8 @@ export function StudentAdmissionsPanel({
             <input
               ref={fileInput}
               type="file"
-              accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+              accept={STUDENT_DOCUMENT_ACCEPT}
+              aria-label={ui("Choose a document to upload")}
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -2595,9 +2635,17 @@ export function StudentAdmissionsPanel({
               {uploading ? ui("Uploading…") : ui("Upload (max 10 MB)")}
             </BrandButton>
           </div>
+          <p className="mt-2 text-xs text-ink-muted">{ui("PDF, JPG, PNG, WebP or Word, up to 10 MB. Files are private to this school.")}</p>
+          {uploadProblem ? <Alert tone="danger" className="mt-3" role="alert">{uploadProblem}</Alert> : null}
         </div>
 
-        {documents.length === 0 ? (
+        {documentsError ? (
+          <Alert tone={documentsError === "denied" ? "warning" : "danger"} title={documentsError === "denied" ? ui("You don't have access to these documents.") : ui("Could not load the documents.")}>
+            {documentsError === "failed" ? (
+              <SystemButton type="button" variant="secondary" size="sm" className="mt-2" onClick={onVersionBump}>{ui("Try again")}</SystemButton>
+            ) : ui("Ask a school administrator for student access.")}
+          </Alert>
+        ) : documents.length === 0 ? (
           <EmptyInline text={ui("No documents uploaded yet.")} />
         ) : (
           <div className="space-y-2">
@@ -2687,8 +2735,6 @@ export function TeacherDetailModal({
   const ui = useUiText();
   const { date: formatCalendarDate, money: formatStaffMoney } = useLocaleFormat();
   const { currency: schoolCurrency } = useLocale();
-  const ledClasses = teacher.ledClasses || [];
-  const taughtSubjects = teacher.taughtSubjects || [];
   const avatar = teacher.profileImageUrl;
   const [editing, setEditing] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -2712,16 +2758,24 @@ export function TeacherDetailModal({
   const [uploadKind, setUploadKind] = useState("CV");
   const fileInput = useRef<HTMLInputElement>(null);
 
+  // SKAI-1117: prefer the assignments served by /api/staff/profile; fall back to the list row.
+  const ledClasses: any[] = staff?.ledClasses ?? teacher.ledClasses ?? [];
+  const taughtSubjects: any[] = staff?.taughtSubjects ?? teacher.taughtSubjects ?? [];
+
+  // SKAI-1662: a failed load is shown with Retry instead of the empty-history copy, and uploads wait for a real load.
+  const [staffRecordsState, setStaffRecordsState] = useState<"loading" | "loaded" | "failed">("loading");
   const loadStaffRecords = useCallback(async () => {
     if (!isStaffAdmin) return;
     try {
       const res = await fetch(`/api/staff/profile?userId=${encodeURIComponent(teacher.id)}`);
       const json = await res.json();
-      if (!json.success) return;
+      if (!res.ok || !json.success) { setStaffRecordsState("failed"); return; }
       setStaff(json.data);
       setStaffDocs(json.data.staffDocuments || []);
       setStaffTimeline(json.data.staffTimelineEvents || []);
+      setStaffRecordsState("loaded");
     } catch {
+      setStaffRecordsState("failed");
     }
   }, [isStaffAdmin, teacher.id]);
 
@@ -2738,6 +2792,9 @@ export function TeacherDetailModal({
       bankAccountName: p.bankAccountName || "",
       bankAccountNumber: p.bankAccountNumber || "",
       bankName: p.bankName || "",
+      emiratesId: p.emiratesId || "",
+      nationality: p.nationality || "",
+      regulatorId: p.regulatorId || "",
     });
     setAllowances(
       Object.entries((p.allowancesJson as Record<string, number>) || {}).map(([name, amount]) => ({
@@ -2755,6 +2812,10 @@ export function TeacherDetailModal({
   };
 
   const saveStaff = async () => {
+    // SKAI-1149: catch a malformed regulator ID here; the route enforces the same rule.
+    let regulator: { emiratesId: string | null; regulatorId: string | null };
+    try { regulator = { emiratesId: parseEmiratesId(staffForm.emiratesId), regulatorId: parseRegulatorId(staffForm.regulatorId) }; }
+    catch (error) { toast.error(ui((error as Error).message)); return; }
     setStaffSaving(true);
     try {
       const toObject = (rows: { name: string; amount: string }[]) => {
@@ -2779,6 +2840,8 @@ export function TeacherDetailModal({
           bankAccountName: staffForm.bankAccountName,
           bankAccountNumber: staffForm.bankAccountNumber,
           bankName: staffForm.bankName,
+          nationality: staffForm.nationality,
+          ...regulator,
         }),
       });
       const json = await res.json();
@@ -3047,8 +3110,8 @@ export function TeacherDetailModal({
               {/* A real date picker — this used to be a free-text box that
                   silently dropped anything not typed as YYYY-MM-DD. */}
               <FormInput label={ui("Date of Birth")} type="date" value={ed("dateOfBirth")} placeholder={ui("YYYY-MM-DD")} onChange={(v) => setEd("dateOfBirth", v)} />
+              {/* SKAI-164: gender is required on the record, so there is no blank option the server could not save. */}
               <FormSelect label={ui("Gender")} value={ed("gender")} onChange={(v) => setEd("gender", v)}>
-                <option value="">{ui("Not specified")}</option>
                 <option value="MALE">{ui("Male")}</option>
                 <option value="FEMALE">{ui("Female")}</option>
                 <option value="OTHER">{ui("Other")}</option>
@@ -3263,6 +3326,15 @@ export function TeacherDetailModal({
                   <FormInput label={ui("Bank Name")} value={staffForm.bankName || ""} placeholder={ui("e.g. HBL, Meezan")} onChange={(v) => setStaffForm((p) => ({ ...p, bankName: v }))} />
                 </div>
               </div>
+              <div className="sk-panel p-5">
+                <PanelTitle icon={IdCard} title={ui("Regulator IDs")} />
+                <p className="mt-1 text-2xs font-bold text-ink-subtle">{ui("Optional. Used for UAE regulator returns (KHDA, ADEK, SPEA, MOE).")}</p>
+                <div className="mt-4 space-y-3">
+                  <FormInput label={ui("Emirates ID")} value={staffForm.emiratesId || ""} placeholder="784-YYYY-NNNNNNN-C" onChange={(v) => setStaffForm((p) => ({ ...p, emiratesId: v }))} />
+                  <FormInput label={ui("Nationality")} value={staffForm.nationality || ""} placeholder={ui("Nationality")} onChange={(v) => setStaffForm((p) => ({ ...p, nationality: v }))} />
+                  <FormInput label={ui("eSIS / MOE ID")} value={staffForm.regulatorId || ""} placeholder={ui("Regulator record number")} onChange={(v) => setStaffForm((p) => ({ ...p, regulatorId: v }))} />
+                </div>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -3303,6 +3375,14 @@ export function TeacherDetailModal({
                   <DetailRow label={ui("Bank")} value={staff?.staffProfile?.bankName || "Not set"} />
                 </div>
               </div>
+              <div className="sk-panel p-5">
+                <PanelTitle icon={IdCard} title={ui("Regulator IDs")} />
+                <div className="mt-4 space-y-3">
+                  <DetailRow label={ui("Emirates ID")} value={maskIdentifier(staff?.staffProfile?.emiratesId) || "Not set"} />
+                  <DetailRow label={ui("Nationality")} value={staff?.staffProfile?.nationality || "Not set"} />
+                  <DetailRow label={ui("eSIS / MOE ID")} value={staff?.staffProfile?.regulatorId || "Not set"} />
+                </div>
+              </div>
             </div>
           )}
 
@@ -3314,11 +3394,12 @@ export function TeacherDetailModal({
             </div>
           ) : null}
 
+          {staffRecordsState === "failed" ? <div className="mt-6" data-staff-records-failed><Alert tone="danger" compact live="assertive" actions={<SystemButton type="button" variant="secondary" size="sm" onClick={() => void loadStaffRecords()}>{ui("Try again")}</SystemButton>}>{ui("Staff documents and timeline could not be loaded. What is shown may be incomplete.")}</Alert></div> : null}
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div className="sk-panel p-5">
               <PanelTitle icon={FileText} title={ui("Documents")} />
               <div className="mt-4 space-y-2">
-                {staffDocs.length === 0 ? (
+                {staffDocs.length === 0 && staffRecordsState === "loaded" ? (
                   <EmptyInline text={ui("No documents uploaded yet.")} />
                 ) : (
                   staffDocs.map((doc) => (
@@ -3358,7 +3439,7 @@ export function TeacherDetailModal({
                       if (file) uploadStaffDoc(file);
                     }}
                   />
-                  <SystemButton type="button" variant="secondary" size="sm" loading={uploading} onClick={() => fileInput.current?.click()}>
+                  <SystemButton type="button" variant="secondary" size="sm" loading={uploading} disabled={staffRecordsState !== "loaded"} onClick={() => fileInput.current?.click()}>
                     {uploading ? null : <Upload aria-hidden="true" />}{uploading ? ui("Uploading\u2026") : ui("Upload document")}
                   </SystemButton>
                 </div>
@@ -3368,7 +3449,7 @@ export function TeacherDetailModal({
             <div className="sk-panel p-5">
               <PanelTitle icon={History} title={ui("Timeline")} />
               <div className="mt-4 space-y-2 max-h-80 overflow-y-auto custom-scrollbar pe-1">
-                {staffTimeline.length === 0 ? (
+                {staffTimeline.length === 0 && staffRecordsState === "loaded" ? (
                   <EmptyInline text={ui("No staff record events yet.")} />
                 ) : (
                   staffTimeline.map((event) => (
@@ -3645,7 +3726,7 @@ export function ClassGroupCard({
   onViewClass: (cls: any) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
   onDeleteClass?: (cls: any) => void;
-  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<boolean | void>;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }) => Promise<boolean | void>;
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
   onAddSection?: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
@@ -3859,7 +3940,7 @@ export function SectionCard({
   onBulkImport?: (classId?: string) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
   onDeleteClass?: (cls: any) => void;
-  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<boolean | void>;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }) => Promise<boolean | void>;
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
@@ -4320,7 +4401,7 @@ export function StudentSetupPanel({
         fetch(STUDENT_TAG_API.category, { cache: "no-store" }).then((r) => r.json()),
         fetch(STUDENT_TAG_API.group, { cache: "no-store" }).then((r) => r.json()),
       ]);
-      if (!cats.success || !grps.success) throw new Error(cats.error || grps.error || "Categories could not be loaded.");
+      if (!Array.isArray(cats.data) || !Array.isArray(grps.data)) throw new Error(readApiError(cats.data ? grps : cats, "Categories could not be loaded."));
       setCategories(cats.data ?? []);
       setGroups(grps.data ?? []);
       setLoadFailed(false);
@@ -4339,8 +4420,15 @@ export function StudentSetupPanel({
   const saveTag = async (kind: StudentTagKind, payload: { name: string; description?: string; isActive?: boolean }) => {
     setBusy(true);
     try {
+      // SKAI-168: a category edit carries the values it was opened with, so a stale save is refused (409).
       const body = editing
-        ? { id: editing.item.id, ...payload }
+        ? {
+            id: editing.item.id,
+            ...payload,
+            ...(kind === "category"
+              ? { expected: { name: editing.item.name, description: editing.item.description ?? null, isActive: editing.item.isActive !== false } }
+              : {}),
+          }
         : payload;
       const res = await fetch(STUDENT_TAG_API[kind], {
         method: editing ? "PATCH" : "POST",
@@ -4348,7 +4436,14 @@ export function StudentSetupPanel({
         body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(apiErrorMessage(json.error, ui("The change could not be saved. Please try again.")));
+      if (res.status === 409 && editing && /changed by someone else/.test(readApiError(json, ""))) {
+        // Keep the editor closed on the fresh list rather than overwrite another admin's change.
+        toast.error(ui("This category was changed by someone else. The latest version is now shown."));
+        setEditing(null);
+        await load();
+        return;
+      }
+      if (!res.ok) throw new Error(readApiError(json, ui("The change could not be saved. Please try again.")));
       toast.success(ui(editing ? (kind === "category" ? "Category updated" : "Group updated") : (kind === "category" ? "Category created" : "Group created")));
       setEditing(null);
       setCreating(null);
@@ -4585,6 +4680,10 @@ function TagFormModal({
   const [isActive, setIsActive] = useState(item?.isActive !== false);
   const [error, setError] = useState("");
   const category = kind === "category";
+  // SKAI-168: deactivating a used category is broad-impact; say how many students and discounts it touches.
+  const deactivating = category && item && item.isActive !== false && !isActive;
+  const usedBy = item?._count?.students ?? 0;
+  const discounts = item?._count?.feeDiscounts ?? 0;
 
   const submit = () => {
     if (!name.trim()) {
@@ -4605,7 +4704,7 @@ function TagFormModal({
       icon={category ? Tag : Layers}
       tone={category ? "emerald" : "sky"}
       size="sm"
-      dirty={name !== (item?.name || "") || description !== (item?.description || "")}
+      dirty={name !== (item?.name || "") || description !== (item?.description || "") || isActive !== (item?.isActive !== false)}
       onClose={onClose}
       footer={
         <SharedModalActions
@@ -4621,6 +4720,7 @@ function TagFormModal({
         <FormField name="tag-name" label={ui("Name")} required error={error || undefined}>
           <SystemInput
             value={name}
+            maxLength={60}
             placeholder={ui(category ? "e.g. Scholarship" : "e.g. Transport users")}
             onChange={(e) => {
               setName(e.target.value);
@@ -4632,6 +4732,7 @@ function TagFormModal({
           <SystemTextarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            maxLength={240}
             placeholder={ui(category ? "e.g. 50% fee concession for staff children" : "e.g. Students using the morning van route")}
             rows={3}
           />
@@ -4646,6 +4747,11 @@ function TagFormModal({
               </span>
             </span>
           </label>
+        ) : null}
+        {deactivating && (usedBy > 0 || discounts > 0) ? (
+          <Alert tone="warning" role="status" title={ui("Deactivating this category")}>
+            {ui("{0} students keep it and {1} fee discounts still apply to them. It can't be chosen for new admissions or moves.", [usedBy, discounts])}
+          </Alert>
         ) : null}
       </div>
     </Modal>
@@ -5264,7 +5370,17 @@ function NewQueryModal({
   });
   const [busy, setBusy] = useState(false);
   const [attempted, setAttempted] = useState(false);
+  const draft = useFormDraft({
+    record: "admin:admission-enquiry",
+    schema: 1,
+    values: form,
+    baseline: { name: "", phone: "", email: "", classInterestedId: "", source: "WALK_IN", note: "" },
+    fields: ["name", "phone", "email", "classInterestedId", "source", "note"] as const,
+    apply: (values) => setForm({ name: String(values.name ?? ""), phone: String(values.phone ?? ""), email: String(values.email ?? ""), classInterestedId: String(values.classInterestedId ?? ""), source: String(values.source ?? "WALK_IN"), note: String(values.note ?? "") }),
+  });
   const dirty = Boolean(form.name || form.phone || form.email || form.note);
+  // SKAI-1668: one key per opened form, so a retry after a lost response replays instead of duplicating.
+  const [requestKey] = useState(() => crypto.randomUUID());
 
   // Group the flat class rows into their class groups (name + academic year)
   // so the dropdown lists each class once, not every section.
@@ -5283,10 +5399,11 @@ function NewQueryModal({
       const res = await fetch("/api/admission-queries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, classInterestedId: form.classInterestedId || null }),
+        body: JSON.stringify({ ...form, classInterestedId: form.classInterestedId || null, requestKey }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(apiErrorMessage(data.error, ui("The enquiry could not be saved. Please try again.")));
+      draft.markSaved();
       toast.success(ui("Enquiry created"));
       onCreated();
     } catch (error) {
@@ -5309,6 +5426,7 @@ function NewQueryModal({
       footer={<SharedModalActions busy={busy} busyLabel={ui("Saving…")} actionLabel={ui("Create enquiry")} onCancel={onClose} onAction={submit} tone="emerald" />}
     >
       <div className="space-y-4">
+        <DraftRecovery recordLabel={ui("Admissions enquiry")} draft={draft} saving={busy} excluded={ui("Only enquiry fields are stored in this signed-in browser draft.")} />
         <FormField name="enquiry-name" label={ui("Name")} required error={nameError}>
           <SystemInput value={form.name} placeholder={ui("Guardian or student name")} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
         </FormField>
@@ -5708,7 +5826,8 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
         ARCHIVED_STATUS_LABELS[s.status] || s.status,
         s.guardianName,
         s.guardianPhone,
-        String(s.updatedAt || s.createdAt || "").slice(0, 10),
+        // SKAI-1531: the departure date is when the pupil was archived, not the last edit.
+        String(s.archivedAt || "").slice(0, 10),
       ]),
     ]);
     toast.success(ui("{0} record(s) exported", [filtered.length]));
@@ -6013,14 +6132,14 @@ export function LeaveManagementPanel({
         read(`/api/leave?mode=all&academicYear=${academicYear}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ""}${scope}`),
       ]);
       // The queue is what this view is for: without it there is nothing honest to show.
-      if (!reqRes.ok || !reqRes.json.success) throw new Error(reqRes.json.error || "Leave requests could not be loaded.");
+      if (!reqRes.ok || !isApiOk(reqRes.json)) throw new Error(readApiError(reqRes.json, "Leave requests could not be loaded."));
       setRequests(reqRes.json.data.requests || []);
       setStaffUsers(reqRes.json.data.users || []);
-      if (typesRes?.json.success) setTypes(typesRes.json.data || []);
-      if (allocRes?.json.success) setAllocations(allocRes.json.data || []);
+      if (typesRes && isApiOk(typesRes.json)) setTypes(typesRes.json.data || []);
+      if (allocRes && isApiOk(allocRes.json)) setAllocations(allocRes.json.data || []);
       if (showsBalances) {
         const balRes = await read(`/api/leave?mode=balances&academicYear=${academicYear}${scope}`);
-        if (balRes.json.success) setStaffBalances(balRes.json.data.staff || []);
+        if (isApiOk(balRes.json)) setStaffBalances(balRes.json.data.staff || []);
       }
     } catch (error) {
       setLoadError(friendlyErrorMessage(error, ui("Leave requests could not be loaded.")));
@@ -6046,7 +6165,7 @@ export function LeaveManagementPanel({
         body: JSON.stringify({ name: typeForm.name, defaultDays: Number(typeForm.defaultDays) || 0, campusId }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || ui("Could not create the leave type. Please try again."));
+      if (!isApiOk(json)) throw new Error(readApiError(json, ui("Could not create the leave type. Please try again.")));
       toast.success(ui("Leave type \"{0}\" created", [typeForm.name]));
       setShowAddType(false);
       setTypeForm({ name: "", defaultDays: "10" });
@@ -6066,7 +6185,7 @@ export function LeaveManagementPanel({
         body: JSON.stringify({ id, defaultDays: Number(defaultDays) || 0 }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "");
+      if (!isApiOk(json)) throw new Error(readApiError(json, ""));
       toast.success(ui("Default days updated"));
       setReloadTick((t) => t + 1);
     } catch (error) {
@@ -6094,7 +6213,7 @@ export function LeaveManagementPanel({
         }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || ui("Could not create the allocation. Please try again."));
+      if (!isApiOk(json)) throw new Error(readApiError(json, ui("Could not create the allocation. Please try again.")));
       toast.success(ui("Allocation created"));
       setShowAddAllocation(false);
       setReloadTick((t) => t + 1);
@@ -6119,7 +6238,7 @@ export function LeaveManagementPanel({
         }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || ui("Could not save the decision. Please try again."));
+      if (!isApiOk(json)) throw new Error(readApiError(json, ui("Could not save the decision. Please try again.")));
       toast.success(status === "APPROVED" ? ui("Leave approved for {0}", [request.user?.fullName || ui("this request")]) : ui("Leave declined for {0}", [request.user?.fullName || ui("this request")]));
       // Clear only this request's draft; the others are still being worked on.
       setReviewNotes((prev) => {
@@ -6446,7 +6565,12 @@ export function LeaveManagementPanel({
                       </p>
                     ) : null}
                   </div>
-                  {r.status === "PENDING" ? (
+                  {r.status === "PENDING" && r.canDecide === false ? (
+                    // SKAI-1026: visible on this desk, decided by the academic lead or the campus operator (§7.6).
+                    <Badge variant="warning" className="shrink-0 self-start sm:self-center">
+                      {ui(r.user?.role === "TEACHER" ? "Waiting for the principal" : "Waiting for the campus admin")}
+                    </Badge>
+                  ) : r.status === "PENDING" ? (
                     // §4.5.2: the queue row's one inline pair — Approve, then Decline as outline (both 44 px).
                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                       <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-semibold text-ink-muted">
@@ -6787,6 +6911,8 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
    */
   const [drafts, setDrafts] = useState<Record<string, { startTime: string; endTime: string }>>({});
   const [confirmPeriod, setConfirmPeriod] = useState<any>(null);
+  // SKAI-146: a time change on a period that timetables already use waits for this confirmation before slots move.
+  const [confirmRetime, setConfirmRetime] = useState<{ id: string; field: "startTime" | "endTime" | "periodNumber"; value: string } | null>(null);
   // R4: a load failure is an inline ErrorState with retry, never an empty list that looks like "no periods".
   const [loadFailed, setLoadFailed] = useState(false);
 
@@ -6841,20 +6967,26 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
     }
   };
 
-  const updatePeriod = async (id: string, field: "startTime" | "endTime" | "periodNumber", value: string) => {
+  const updatePeriod = async (id: string, field: "startTime" | "endTime" | "periodNumber", value: string, applyToTimetables = false) => {
     try {
       const res = await fetch("/api/academic/periods", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, [field]: value }),
+        body: JSON.stringify({ id, [field]: value, ...(applyToTimetables ? { applyToTimetables: true } : {}) }),
       });
       const json = await res.json();
+      if (json.code === "PERIOD_TIMETABLE_CONFIRM") {
+        setConfirmRetime({ id, field, value });
+        return;
+      }
       if (!json.success) throw new Error(json.error || "");
       if (json.warning) toast.warning(json.warning);
       else toast.success(ui("Period updated"));
       setReloadTick((t) => t + 1);
     } catch (error) {
       toast.error(friendlyErrorMessage(error, ui("Could not update the period. Please try again.")));
+      // Put the saved times back in the inputs so the row never shows a value the server refused.
+      setReloadTick((t) => t + 1);
     }
   };
 
@@ -7073,7 +7205,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             );
           })}
           <p className="pt-2 text-xs font-bold text-ink-subtle">
-            {ui("Overlapping times within a type are rejected. Changing a period's time after a timetable exists warns you and leaves existing slots untouched.")}
+            {ui("Overlapping times within a type are rejected. Changing the time of a period that timetables use asks first, then moves those lessons; a period in use cannot be renumbered or deleted.")}
           </p>
         </div>
       )}
@@ -7084,7 +7216,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
         description={
           confirmPeriod
             ? ui(timeType === "CLASS"
-              ? "The {0}–{1} slot disappears from every class timetable row on this campus. Lessons already placed in it are not moved anywhere — they stop being shown."
+              ? "The {0}–{1} period is removed from this campus's bell schedule. If any timetable still has lessons in it, the delete is refused until they are cleared."
               : "The {0}–{1} slot disappears from every exam date sheet row on this campus. Nothing already placed in it is moved anywhere — it stops being shown.", [confirmPeriod.startTime, confirmPeriod.endTime])
             : ""
         }
@@ -7095,6 +7227,20 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
           const target = confirmPeriod;
           setConfirmPeriod(null);
           if (target) await deletePeriod(target.id);
+        }}
+      />
+      <ConfirmAction
+        open={Boolean(confirmRetime)}
+        title={ui("Move timetable lessons to the new time?")}
+        description={ui("Timetables already have lessons in this period. Confirming moves those lessons to the new time in every draft; published timetables keep the old time until you republish them.")}
+        confirmLabel={ui("Move lessons")}
+        cancelLabel={ui("Keep current time")}
+        tone="warning"
+        onCancel={() => { setConfirmRetime(null); setReloadTick((t) => t + 1); }}
+        onConfirm={async () => {
+          const target = confirmRetime;
+          setConfirmRetime(null);
+          if (target) await updatePeriod(target.id, target.field, target.value, true);
         }}
       />
     </div>

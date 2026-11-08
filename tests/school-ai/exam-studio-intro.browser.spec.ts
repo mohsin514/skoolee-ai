@@ -2,6 +2,7 @@ import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { STUDIO_INTRO_CEILING_MS, STUDIO_INTRO_DURATION_MS, STUDIO_INTRO_PHASES, STUDIO_INTRO_SESSION_KEY } from "../../src/components/school-ai/exam-studio/studio-intro";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 // Feature: ai-exam-studio, Requirement 20 (Studio_Intro) — examples, not properties.
 //
@@ -23,10 +24,10 @@ import { STUDIO_INTRO_CEILING_MS, STUDIO_INTRO_DURATION_MS, STUDIO_INTRO_PHASES,
 // transitions, workspace state, input arrival and every request share `performance.now()`. No
 // assertion depends on a Playwright-side stopwatch, which would fold in protocol round-trips.
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated School AI test database.");
 
-const origin = "http://localhost:3106";
+const origin = SCHOOL_AI_ORIGIN;
 const tokens = JSON.parse(readFileSync("test-results/school-ai/local-tokens.json", "utf8")) as Record<string, string>;
 const fixture = JSON.parse(readFileSync("test-results/school-ai/exam-fixture.json", "utf8")) as { examId: string; paperId: string };
 const signIn = (context: BrowserContext, role = "a-ADMIN") => context.addCookies([{ name: "skoolee_token", value: tokens[role], url: origin, httpOnly: true, sameSite: "Lax" }]);

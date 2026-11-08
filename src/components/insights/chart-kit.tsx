@@ -42,6 +42,8 @@ interface InsightCardProps {
   className?: string;
   /** Entrance stagger, in ms. */
   delay?: number;
+  /** 2 when the card sits directly under the page h1 (axe heading-order). */
+  headingLevel?: 2 | 3;
   children: ReactNode;
 }
 
@@ -53,8 +55,10 @@ export function InsightCard({
   table,
   className,
   delay = 0,
+  headingLevel = 3,
   children,
 }: InsightCardProps) {
+  const Heading = headingLevel === 2 ? "h2" : "h3";
   const t = useUiText();
   const [showTable, setShowTable] = useState(false);
   const headingId = useId();
@@ -76,9 +80,9 @@ export function InsightCard({
             </span>
           ) : null}
           <div className="min-w-0">
-            <h3 id={headingId} className="break-words text-base font-bold tracking-tight text-ink-strong">
+            <Heading id={headingId} className="break-words text-base font-bold tracking-tight text-ink-strong">
               {title}
-            </h3>
+            </Heading>
             {subtitle ? (
               <p className="mt-1 text-xs font-medium text-ink-muted">{subtitle}</p>
             ) : null}
@@ -468,13 +472,9 @@ export function StatTile({
     critical: "bg-status-error-surface text-status-error-text",
     dark: "bg-ink-strong text-white",
   };
-  const toneGlow: Record<string, string> = {
-    brand: "bg-primary/18",
-    good: "bg-status-success-text/18",
-    warning: "bg-status-warning-text/18",
-    critical: "bg-status-error-text/18",
-    dark: "bg-ink-strong/18",
-  };
+  // The desks' stat-tile surface (`.sk-stat-tile`): a tone wash from the top-end corner, a hairline accent along
+  // the top edge and a lift on hover, so the dashboards' KPI tiles read like every desk's counters.
+  const deskTone: Record<string, string> = { brand: "brand", good: "success", warning: "warning", critical: "danger", dark: "neutral" };
 
   const body = (
     <>
@@ -493,16 +493,8 @@ export function StatTile({
           </p>
           {sub ? <p className={cn("mt-2 text-2xs font-semibold text-ink-subtle", CAPS)}>{sub}</p> : null}
         </div>
-        <div className="relative shrink-0">
-          <div
-            className={cn(
-              "absolute -inset-2 rounded-xl opacity-0 blur-lg transition-opacity duration-500 group-hover/tile:opacity-100",
-              toneGlow[tone],
-            )}
-          />
-          <div className={cn("relative flex h-11 w-11 items-center justify-center rounded-2xl", toneChip[tone])}>
-            <Icon className="h-5 w-5" />
-          </div>
+        <div aria-hidden="true" className={cn("relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-xs transition-transform duration-300 group-hover/tile:scale-105", toneChip[tone])}>
+          <Icon className="h-5 w-5" />
         </div>
       </div>
       {/* A flat line adds nothing but ink, so a trend of one repeated value
@@ -525,18 +517,21 @@ export function StatTile({
     </>
   );
 
-  const className = cn("sk-panel sk-rise group/tile block p-5", onClick && "w-full cursor-pointer text-start");
+  const className = cn(
+    "sk-stat-tile group/tile block p-5",
+    onClick && "flex h-auto w-full cursor-pointer flex-col items-stretch justify-start whitespace-normal text-start font-normal actionable-hover:bg-card actionable-hover:text-ink",
+  );
   const style = delay > 0 ? { animationDelay: `${delay}ms` } : undefined;
 
   if (onClick) {
     return (
-      <Button variant="ghost" type="button" onClick={onClick} className={className} style={style}>
+      <Button variant="ghost" type="button" onClick={onClick} className={className} style={style} data-tone={deskTone[tone]}>
         {body}
       </Button>
     );
   }
   return (
-    <div className={className} style={style}>
+    <div className={className} style={style} data-tone={deskTone[tone]}>
       {body}
     </div>
   );

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageAcademics, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { buildOrgChart, setStaffPosition } from "@/lib/staff/hierarchy";
+import { readJsonBody } from "@/lib/api/validate";
 
 // The org chart (Module 8b).
 // GET   — nodes, solid and dotted edges, and the unit tree for a campus.
@@ -82,7 +83,7 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
-    const parsed = PositionInput.safeParse(await req.json());
+    const parsed = PositionInput.safeParse(await readJsonBody(req));
     if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid position change", 400);
     const input = parsed.data;
     const { userId, ...rest } = input;

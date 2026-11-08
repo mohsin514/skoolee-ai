@@ -3,7 +3,9 @@ import { useListField } from "@/hooks/use-list-field";
 import { pageWindow } from "@/lib/lists/query";
 
 import { Button as SystemButton } from "@/components/ui/button";
+import { DeskPill, DeskRowIcon, deskRow } from "@/components/ui/desk";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { bulkTagExpectedValues } from "@/lib/students/profile-update";
 import {
   Archive,
   ArrowRight,
@@ -61,6 +63,7 @@ import {
 } from "@/components/shared-admin";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { readApiData } from "@/lib/api/envelope-client";
 
 /* ────────────────────────── Sorting ────────────────────────── */
 
@@ -220,8 +223,9 @@ export function StudentsPanel({
           fetch("/api/student-groups").then((r) => r.json()),
         ]);
         if (cancelled) return;
-        setAllCategories(cats.success ? cats.data : []);
-        setAllGroups(grps.success ? grps.data : []);
+        // SKAI-168: inactive categories cannot be newly applied, so the bulk menu offers active ones only.
+        setAllCategories(readApiData<any[]>(cats, []).filter((c) => c.isActive !== false));
+        setAllGroups(readApiData(grps, []));
       } catch {
         /* the roster still works without them; the bulk menu just stays empty */
       }
@@ -432,7 +436,8 @@ export function StudentsPanel({
           const res = await fetch("/api/students", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id, ...patch }),
+            // SKAI-1760: bind the tag this roster showed, so a stale row gets 409 instead of overwriting a newer tag.
+            body: JSON.stringify({ id, ...patch, ...bulkTagExpectedValues(students.find((s) => s.id === id), patch) }),
           });
           const json = await res.json();
           if (!res.ok) throw new Error(json.error || "failed");
@@ -660,7 +665,7 @@ export function StudentsPanel({
   const noClassReason = "Create a class first. Students are admitted into a class.";
 
   /** M40: export every student matching the filters, from the server — not just the page on screen. */
-  const exportMatching = () => {
+  const exportMatching = async () => {
     const clientOnly = categoryFilter !== "all" || groupFilter !== "all" || onlyMissingGuardian || onlyNoLogin || (classFilter !== "all" && sectionFilter === "all");
     if (clientOnly || !onExport) {
       onExport?.(filtered);
@@ -669,7 +674,22 @@ export function StudentsPanel({
     const params = new URLSearchParams();
     if (searchQuery.trim()) params.set("search", searchQuery.trim());
     if (sectionFilter !== "all") params.set("classId", sectionFilter);
-    window.location.href = `/api/students/export?${params.toString()}`;
+    // SKAI-1639: fetch the file in place so a 429/403/500 never replaces the roster (and its filters) with raw JSON.
+    try {
+      const response = await fetch(`/api/students/export?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) {
+        const retryAfter = Number(response.headers.get("Retry-After")) || 0;
+        if (response.status === 429) toast.warning(ui("Another export is running for your school. Try again in {0} seconds.", [String(retryAfter || 30)]), { action: { label: ui("Try again"), onClick: () => void exportMatching() } });
+        else if (response.status === 401 || response.status === 403) toast.error(ui("You do not have permission to export this roster."));
+        else toast.error(ui("The roster export failed. Your filters are kept; try again."), { action: { label: ui("Try again"), onClick: () => void exportMatching() } });
+        return;
+      }
+      const name = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "")?.[1] || "students.csv";
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a"); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url);
+    } catch {
+      toast.error(ui("The roster export failed. Your filters are kept; try again."), { action: { label: ui("Try again"), onClick: () => void exportMatching() } });
+    }
   };
 
   if (students.length === 0) {
@@ -907,9 +927,18 @@ export function StudentsPanel({
       ) : null}
 
       {bulkMove ? (
-        <Modal onClose={() => setBulkMove(false)} title={ui("Review enrollment changes")}>
-          <p className="mb-4">{ui("Review each pupil’s permanent identity, effective date and preserved records before changing placement.")}</p>
-          <ul className="space-y-3">{students.filter(student => selected.has(student.id)).map(student => <li key={student.id}><a className="sk-link text-primary underline" href={`/pupils/${student.id}`}><bdi>{student.fullName}</bdi> · <bdi>{student.rollNo || "—"}</bdi></a></li>)}</ul>
+        <Modal
+          onClose={() => setBulkMove(false)}
+          title={ui("Review enrollment changes")}
+          eyebrow={ui("Bulk change")}
+          subtitle={ui("Review each pupil’s permanent identity, effective date and preserved records before changing placement.")}
+          icon={Users}
+          tone="amber"
+          size="sm"
+          chips={<DeskPill tone="warning">{ui(selected.size === 1 ? "{0} student selected" : "{0} students selected", [selected.size])}</DeskPill>}
+          footer={<div className="flex justify-end"><SystemButton variant="outline" onClick={() => setBulkMove(false)}>{ui("Close")}</SystemButton></div>}
+        >
+          <ul className="space-y-2">{students.filter(student => selected.has(student.id)).map(student => <li key={student.id} className={cn(deskRow, "flex items-center gap-3")}><DeskRowIcon icon={GraduationCap} /><a className="sk-link min-w-0 flex-1 text-primary underline [overflow-wrap:anywhere]" href={`/pupils/${student.id}`}><bdi>{student.fullName}</bdi> · <bdi>{student.rollNo || "—"}</bdi></a></li>)}</ul>
         </Modal>
       ) : null}
 
@@ -954,19 +983,11 @@ function StudentCard({
   const noContact = !student.guardianPhone && !student.guardianEmail;
 
   return (
+    // Pointer users can click anywhere on the card; keyboard and screen-reader
+    // users get the name button. The card itself is not a control, so the
+    // checkbox and links inside it are not nested in one (axe nested-interactive).
     <div
-      role="button"
-      tabIndex={0}
       onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          onOpen();
-        } else if (e.key === " ") {
-          e.preventDefault();
-          onToggleSelect();
-        }
-      }}
       className={cn(
         "sk-rise sk-panel sk-hover-lift group/student relative cursor-pointer overflow-hidden p-4 transition-all duration-300",
         selected ? "border-primary ring-2 ring-primary/20" : "border-edge/25 hover:border-primary/30",
@@ -1000,12 +1021,15 @@ function StudentCard({
             </div>
           </div>
           <div className="min-w-0 flex-1">
-            <p
-              className="truncate text-base font-bold tracking-tight text-ink-strong transition-colors duration-300 group-hover/student:text-primary"
+            <SystemButton
+              type="button"
+              variant="link"
+              onClick={(e) => { e.stopPropagation(); onOpen(); }}
+              className="h-auto min-h-0 w-full justify-start p-0 text-start text-base font-bold tracking-tight text-ink-strong transition-colors duration-300 group-hover/student:text-primary"
               title={student.fullName}
             >
-              {student.fullName}
-            </p>
+              <span className="truncate">{student.fullName}</span>
+            </SystemButton>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <span className="inline-flex items-center whitespace-nowrap rounded-full bg-brand-50 px-2.5 py-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary">
                 {ui("Roll {0}", [student.rollNo || "—"])}
@@ -1047,7 +1071,7 @@ function StudentCard({
           <div className="mt-3 flex items-center justify-between gap-2">
             <StatusPill status={report ? report.status : "NO_REPORT"} />
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-primary/50 transition-all duration-300 group-hover/student:translate-x-0.5 group-hover/student:bg-primary group-hover/student:text-white">
-              <ArrowRight className="h-3.5 w-3.5" />
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </div>
           </div>
         </div>

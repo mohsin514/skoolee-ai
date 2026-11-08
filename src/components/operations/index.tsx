@@ -6,7 +6,7 @@ import { useListField } from "@/hooks/use-list-field";
 import { InputGroup } from "@/components/ui/input-group";
 
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   Bus,
   Building2,
@@ -80,9 +80,18 @@ import { SkeletonTable } from "@/components/ui/skeleton";
 import { FormField } from "@/components/ui/form-field";
 import { RidersPlanner, TripsPlanner } from "@/components/transport/transport";
 import { downloadCSV } from "@/lib/csv";
+import { AlarmClock, BedDouble, BookCheck, CircleSlash, DoorOpen, Inbox, Route as RouteIcon, SearchX, type LucideIcon } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskStats, RelativeTime, StatTile, urgencyFirst } from "@/components/ui/desk";
+import { Progress } from "@/components/ui/progress";
+import { routeVehicleCount } from "@/lib/transport/route-vehicle-count";
 
 
 /* ─── tiny helpers ─── */
+
+/** A record's name cell with the desk's icon tile, so every operations table reads like the desk rows. */
+function NameCell({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
+  return <span className="flex items-center gap-2.5"><span aria-hidden="true" className="sk-desk-row-icon size-8 shrink-0"><Icon /></span><bdi className="whitespace-nowrap font-semibold">{children}</bdi></span>;
+}
 const inputCls =
   "max-w-full";
 const labelCls =
@@ -100,7 +109,7 @@ const TXN_KIND_LABEL: Record<string, string> = { RECEIVE: "Received", SELL: "Sol
 const TXN_KIND_OPTION: Record<string, string> = { RECEIVE: "Receive", SELL: "Sell", ISSUE: "Issue", RETURN: "Return" };
 const VEHICLE_MODEL_LABEL: Record<string, string> = { BUS: "Bus", VAN: "Van", CAR: "Car", OTHER: "Other" };
 
-function EmptyRow({ cols, text, hint, state, failure, onRetry, filtered = false }: { filtered?: boolean; failure?: RequestFailure | null; cols: number; text?: string; hint?: string; state?: "loading" | "error"; onRetry?: () => void }) {
+function EmptyRow({ cols, text, hint, state, failure, onRetry, filtered = false, icon = Inbox }: { icon?: LucideIcon; filtered?: boolean; failure?: RequestFailure | null; cols: number; text?: string; hint?: string; state?: "loading" | "error"; onRetry?: () => void }) {
   const ui = useUiText();
   return (
     <tr>
@@ -115,7 +124,7 @@ function EmptyRow({ cols, text, hint, state, failure, onRetry, filtered = false 
             onRetry={onRetry}
           />
         ) : (
-          <div role="status" aria-live="polite" data-resource-state={filtered ? "no-match" : "no-data"}><EmptyState size="sm" title={ui(filtered ? "No matching records" : text ?? "Nothing here yet")} description={filtered ? ui("Change or clear your search to see more records.") : hint ? ui(hint) : ui("Use the available add action to create your first record.")} /></div>
+          <div role="status" aria-live="polite" data-resource-state={filtered ? "no-match" : "no-data"}><EmptyState size="sm" icon={filtered ? SearchX : icon} title={ui(filtered ? "No matching records" : text ?? "Nothing here yet")} description={filtered ? ui("Change or clear your search to see more records.") : hint ? ui(hint) : ui("Use the available add action to create your first record.")} /></div>
         )}
       </td>
     </tr>
@@ -266,7 +275,7 @@ export function TransportPanel({ hideHeader = false, command }: { hideHeader?: b
     vehicles: () => select("vehicles"),
     export: () => tab === "vehicles"
       ? void exportList(ui, "/api/transport/vehicles", "transport-vehicles", ["Number", "Type", "Capacity", "Driver", "Phone"], (v) => [v.number, v.model ?? "", v.capacity ?? "", v.driverName ?? "", v.driverPhone ?? ""])
-      : void exportList(ui, "/api/transport/routes", "transport-routes", ["Route", "Description", "Fare", "Vehicles"], (r) => [r.title, r.description ?? "", r.fare != null ? campusMoney(r.fare) : "", r._count?.routeVehicles ?? r.routeVehicles?.length ?? 0]),
+      : void exportList(ui, "/api/transport/routes", "transport-routes", ["Route", "Description", "Fare", "Vehicles"], (r) => [r.title, r.description ?? "", r.fare != null ? campusMoney(r.fare) : "", routeVehicleCount(r)]),
   });
   const choices = <SectionChoices label="Transport sections" items={TRANSPORT_TABS} value={tab} onChange={select} dataAttr="data-transport-tab" />;
   return (
@@ -351,12 +360,12 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Route Name", "Description", "Fare", "Vehicles", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No transport routes yet" hint="Add your first route." /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} icon={RouteIcon} text="No transport routes yet" hint="Add your first route." /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
-                <td className={tdCls}>{r.title}</td>
+                <td className={tdCls}><NameCell icon={RouteIcon}>{r.title}</NameCell></td>
                 <td className={tdCls}>{r.description || "—"}</td>
                 <td className={tdCls}>{r.fare != null ? campusMoney(r.fare) : "—"}</td>
-                <td className={tdCls}>{r._count?.routeVehicles ?? r.routeVehicles?.length ?? 0}</td>
+                <td className={tdCls}>{routeVehicleCount(r) > 0 ? <DeskPill tone="success"><bdi className="tabular-nums">{routeVehicleCount(r)}</bdi></DeskPill> : <DeskPill tone="warning"><bdi className="tabular-nums">0</bdi></DeskPill>}</td>
                 <td className={tdCls}><ReviewedDelete endpoint="transport/routes" record={r} label={r.title} onDeleted={load} /></td>
               </tr>
             ))}
@@ -438,13 +447,13 @@ function VehiclesTab() {
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Number", "Type", "Capacity", "Driver", "Phone", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No vehicles yet" hint="Add your first vehicle." /> : rows.map((v: any) => (
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} icon={Bus} text="No vehicles yet" hint="Add your first vehicle." /> : rows.map((v: any) => (
               <tr key={v.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
-                <td className={tdCls}>{v.number}</td>
-                <td className={tdCls}>{v.model ? ui(VEHICLE_MODEL_LABEL[v.model] ?? v.model) : "—"}</td>
+                <td className={tdCls}><NameCell icon={Bus}>{v.number}</NameCell></td>
+                <td className={tdCls}>{v.model ? <DeskPill tone="info">{ui(VEHICLE_MODEL_LABEL[v.model] ?? v.model)}</DeskPill> : "—"}</td>
                 <td className={tdCls}>{v.capacity ?? "—"}</td>
                 <td className={tdCls}>{v.driverName || "—"}</td>
-                <td className={tdCls}>{v.driverPhone || "—"}</td>
+                <td className={tdCls}>{v.driverPhone ? <bdi dir="ltr" className="tabular-nums">{v.driverPhone}</bdi> : "—"}</td>
                 <td className={tdCls}><ReviewedDelete endpoint="transport/vehicles" record={v} label={v.number} onDeleted={load} /></td>
               </tr>
             ))}
@@ -553,9 +562,9 @@ function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; com
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", "Description", "Cost/Term", "Rooms", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No room types yet" hint="Add your first room type." /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} icon={BedDouble} text="No room types yet" hint="Add your first room type." /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
-                <td className={tdCls}>{r.name}</td>
+                <td className={tdCls}><NameCell icon={BedDouble}>{r.name}</NameCell></td>
                 <td className={tdCls}>{r.description || "—"}</td>
                 <td className={tdCls}>{r.costPerTerm ? campusMoney(r.costPerTerm) : "—"}</td>
                 <td className={tdCls}>{r._count?.rooms ?? 0}</td>
@@ -577,6 +586,7 @@ function DormRoomsTab() {
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
+  const [show, setShow] = useState<"all" | "free" | "full" | "out">("all");
 
   const load = useCallback(async () => {
     const version = ++loadSequence.current;
@@ -594,6 +604,11 @@ function DormRoomsTab() {
   // rejected with "number is required" and the table below read a field that
   // was never returned. `floor` is gone because DormRoom has no such column —
   // whatever was typed there was discarded silently on every save.
+  // Out-of-service rooms first (someone has to bring them back), then full rooms, then rooms with a free bed.
+  const roomState = (r: any) => r.status === "OUT_OF_SERVICE" ? "out" : (r.occupied ?? 0) >= (r.capacity || 0) ? "full" : "free";
+  const toggle = (next: typeof show) => setShow((current) => current === next ? "all" : next);
+  const shownRooms = urgencyFirst(rows, (r: any) => ({ out: 0, full: 1, free: 2 } as Record<string, number>)[roomState(r)]).filter((r: any) => show === "all" || roomState(r) === show);
+
   const form = useValidatedForm({
     schema: dormRoomFormSchema,
     initialValues: { number: "", roomTypeId: "", capacity: "4" },
@@ -611,6 +626,12 @@ function DormRoomsTab() {
   return (
     <>
       <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add room")}</BrandButton></div>
+      {!loading && !loadFailed && rows.length ? <DeskStats className="mb-4" data-dorm-rooms-pulse>
+        <StatTile index={0} icon={DoorOpen} tone="success" value={rows.filter((r: any) => roomState(r) === "free").length} label={ui("Available")} onSelect={() => toggle("free")} selected={show === "free"} />
+        <StatTile index={1} icon={BedDouble} tone="brand" value={rows.filter((r: any) => roomState(r) === "full").length} label={ui("Full")} onSelect={() => toggle("full")} selected={show === "full"} />
+        <StatTile index={2} icon={CircleSlash} tone={rows.some((r: any) => roomState(r) === "out") ? "warning" : "neutral"} value={rows.filter((r: any) => roomState(r) === "out").length} label={ui("Out of service")} onSelect={() => toggle("out")} selected={show === "out"} />
+      </DeskStats> : null}
+      <DeskFilterStatus shown={shownRooms.length} total={rows.length} onClear={() => setShow("all")} />
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Room #" error={form.errors.number}>
@@ -632,13 +653,13 @@ function DormRoomsTab() {
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Room #", "Type", "Capacity", "Occupied today", "Status", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No dorm rooms yet" hint="Add a room type first, then add rooms." /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
-                <td className={tdCls}>{r.number}</td>
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} icon={BedDouble} text="No dorm rooms yet" hint="Add a room type first, then add rooms." /> : shownRooms.length === 0 ? <EmptyRow cols={6} filtered /> : shownRooms.map((r: any) => (
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50" data-room-state={roomState(r)}>
+                <td className={tdCls}><NameCell icon={DoorOpen}>{r.number}</NameCell></td>
                 <td className={tdCls}>{r.roomType?.name || "—"}</td>
                 <td className={tdCls}>{r.capacity}</td>
-                <td className={tdCls}>{r.occupied ?? 0} / {r.capacity}{r.upcoming ? ` (+${r.upcoming})` : ""}</td>
-                <td className={tdCls}>{ui(r.status === "OUT_OF_SERVICE" ? "Out of service" : "Available")}</td>
+                <td className={`${tdCls} min-w-28`}><bdi className="tabular-nums">{r.occupied ?? 0} / {r.capacity}{r.upcoming ? ` (+${r.upcoming})` : ""}</bdi><Progress className="mt-1" size="sm" value={r.occupied ?? 0} max={r.capacity || 1} tone={roomState(r) === "full" ? "warning" : "success"} label={ui("Occupied today")} /></td>
+                <td className={tdCls}><DeskPill tone={r.status === "OUT_OF_SERVICE" ? "warning" : "success"}>{ui(r.status === "OUT_OF_SERVICE" ? "Out of service" : "Available")}</DeskPill></td>
                 <td className={tdCls}><ReviewedDelete endpoint="dormitory/rooms" record={r} label={r.number} onDeleted={load} /></td>
               </tr>
             ))}
@@ -855,12 +876,12 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
           <tbody>
             {loading ? <EmptyRow cols={7} state="loading" /> : loadFailed ? <EmptyRow cols={7} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={7} filtered={Boolean(search || category)} text="No books yet" /> : rows.map((b: any) => (
               <tr key={b.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
-                <td className={tdCls}>{b.title}</td>
+                <td className={tdCls}><span className="flex items-center gap-2.5"><span aria-hidden="true" className="sk-desk-row-icon size-8"><BookOpen /></span><bdi className="font-semibold">{b.title}</bdi></span></td>
                 <td className={tdCls}>{b.author || "—"}</td>
                 <td className={tdCls}>{b.isbn || "—"}</td>
                 <td className={tdCls}>{b.category?.name || "—"}</td>
                 <td className={tdCls}>{b.copiesTotal}</td>
-                <td className={tdCls}>{b.copiesAvailable}</td>
+                <td className={`${tdCls} min-w-28`}><span className={b.copiesAvailable > 0 ? "tabular-nums" : "font-semibold tabular-nums text-status-warning-text"}>{b.copiesAvailable}</span><Progress className="mt-1" size="sm" value={b.copiesAvailable} max={b.copiesTotal || 1} tone={b.copiesAvailable > 0 ? "success" : "warning"} label={ui("{0} available", [b.copiesAvailable])} /></td>
                 <td className={tdCls}><ReviewedDelete endpoint="library/books" record={b} label={b.title} onDeleted={load} /></td>
               </tr>
             ))}
@@ -1027,6 +1048,8 @@ function IssuesTab() {
   const [showAdd, setShowAdd] = useState(false);
   const [books, setBooks] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
+  const { date } = useLocaleFormat();
+  const [show, setShow] = useState<"all" | "open" | "overdue" | "returned">("all");
 
   const load = useCallback(async () => {
     const version = ++loadSequence.current;
@@ -1066,9 +1089,22 @@ function IssuesTab() {
     } catch (e: any) { toast.error(e); }
   };
 
+  const today = new Date().toISOString().slice(0, 10);
+  const issueState = (i: any) => i.returnDate ? "returned" : i.dueDate && String(i.dueDate).slice(0, 10) < today ? "overdue" : "open";
+  const toggle = (next: typeof show) => setShow((current) => current === next ? "all" : next);
+  // Overdue loans first, then the ones due soonest; returned loans last.
+  const shown = urgencyFirst(rows, (i: any) => ({ overdue: 0, open: 1, returned: 2 } as Record<string, number>)[issueState(i)] * 1e13 + (i.dueDate ? new Date(i.dueDate).getTime() : 9e12))
+    .filter((i: any) => show === "all" || (show === "open" ? issueState(i) !== "returned" : issueState(i) === show));
+
   return (
     <>
       <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Issue book")}</BrandButton></div>
+      {!loading && !loadFailed && rows.length ? <DeskStats className="mb-4" data-library-issues-pulse>
+        <StatTile index={0} icon={BookOpen} tone="brand" value={rows.filter((i: any) => issueState(i) !== "returned").length} label={ui("On loan")} onSelect={() => toggle("open")} selected={show === "open"} />
+        <StatTile index={1} icon={AlarmClock} tone={rows.some((i: any) => issueState(i) === "overdue") ? "danger" : "success"} value={rows.filter((i: any) => issueState(i) === "overdue").length} label={ui("Overdue")} onSelect={() => toggle("overdue")} selected={show === "overdue"} />
+        <StatTile index={2} icon={BookCheck} tone="neutral" value={rows.filter((i: any) => issueState(i) === "returned").length} label={ui("Returned")} onSelect={() => toggle("returned")} selected={show === "returned"} />
+      </DeskStats> : null}
+      <DeskFilterStatus shown={shown.length} total={rows.length} onClear={() => setShow("all")} />
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Book" error={form.errors.bookId}>
@@ -1096,13 +1132,13 @@ function IssuesTab() {
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Book", "Member", "Issued", "Due", "Status", "Action"].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : rows.map((i: any) => (
-              <tr key={i.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
-                <td className={tdCls}>{i.book?.title || i.bookId}</td>
-                <td className={tdCls}>{i.member?.user?.fullName || i.memberId}</td>
-                <td className={tdCls}>{new Date(i.issueDate).toLocaleDateString()}</td>
-                <td className={tdCls}>{i.dueDate ? new Date(i.dueDate).toLocaleDateString() : "—"}</td>
-                <td className={tdCls}><Badge size="sm" dot variant={i.returnDate ? "success" : "warning"}>{ui(i.returnDate ? "Returned" : "Issued")}</Badge></td>
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : shown.length === 0 ? <EmptyRow cols={6} filtered /> : shown.map((i: any) => (
+              <tr key={i.id} className={`border-b border-edge/10 hover:bg-surface-sunken/50 ${issueState(i) === "overdue" ? "bg-status-error-surface/50" : ""}`} data-issue-state={issueState(i)}>
+                <td className={tdCls}><bdi className="font-semibold">{i.book?.title || i.bookId}</bdi></td>
+                <td className={tdCls}><bdi>{i.member?.user?.fullName || i.memberId}</bdi></td>
+                <td className={tdCls}>{date(i.issueDate)}</td>
+                <td className={tdCls}>{i.dueDate ? <>{date(i.dueDate)}{!i.returnDate ? <RelativeTime iso={i.dueDate} full={date(i.dueDate)} className={`block text-xs ${issueState(i) === "overdue" ? "font-semibold text-status-error-text" : "text-ink-muted"}`} /> : null}</> : "—"}</td>
+                <td className={tdCls}><DeskPill tone={i.returnDate ? "success" : issueState(i) === "overdue" ? "danger" : "brand"}>{ui(i.returnDate ? "Returned" : issueState(i) === "overdue" ? "Overdue" : "Issued")}</DeskPill></td>
                 <td className={tdCls}>{!i.returnDate && <Button variant="secondary" size="sm" onClick={() => returnBook(i.id)} ><RotateCcw className="me-1 inline h-3 w-3" aria-hidden="true" />{ui("Return")}</Button>}</td>
               </tr>
             ))}
@@ -1412,7 +1448,7 @@ function ItemsTab() {
               const totalStock = (r.stock || []).reduce((s: number, st: any) => s + (st.quantity || 0), 0);
               return (
                 <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
-                  <td className={tdCls}>{r.name}</td><td className={tdCls}>{r.category?.name || "—"}</td><td className={tdCls}>{r.unit || "—"}</td><td className={tdCls}>{totalStock}</td>
+                  <td className={tdCls}><span className="flex items-center gap-2.5"><span aria-hidden="true" className="sk-desk-row-icon size-8"><Package /></span><bdi className="font-semibold">{r.name}</bdi></span></td><td className={tdCls}>{r.category?.name || "—"}</td><td className={tdCls}>{r.unit || "—"}</td><td className={tdCls}>{totalStock > 0 ? <span className="font-semibold tabular-nums">{totalStock}</span> : <DeskPill tone="danger">{ui("Out of stock")}</DeskPill>}</td>
                   <td className={tdCls}><ReviewedDelete endpoint="inventory/items" record={r} label={r.name} onDeleted={load} /></td>
                 </tr>
               );
@@ -1426,6 +1462,7 @@ function ItemsTab() {
 
 function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
   const ui = useUiText();
+  const { date: formatDate } = useLocaleFormat();
   const campusMoney = useCampusMoney();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1504,8 +1541,8 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
           <tbody>
             {loading ? <EmptyRow cols={8} state="loading" /> : loadFailed ? <EmptyRow cols={8} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={8} text="No transactions" /> : rows.map((t: any) => (
               <tr key={t.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
-                <td className={tdCls}>{new Date(t.createdAt).toLocaleDateString()}</td>
-                <td className={tdCls}><Badge size="sm" dot variant={t.kind === "RECEIVE" || t.kind === "RETURN" ? "success" : "warning"}>{ui(TXN_KIND_LABEL[t.kind] ?? t.kind)}</Badge></td>
+                <td className={tdCls}>{formatDate(t.createdAt)}</td>
+                <td className={tdCls}><DeskPill tone={t.kind === "RECEIVE" || t.kind === "RETURN" ? "success" : "warning"}>{ui(TXN_KIND_LABEL[t.kind] ?? t.kind)}</DeskPill></td>
                 <td className={tdCls}>{t.item?.name || t.itemId}</td>
                 <td className={tdCls}>{t.store?.name || t.storeId}</td>
                 <td className={tdCls}>{t.quantity}</td>

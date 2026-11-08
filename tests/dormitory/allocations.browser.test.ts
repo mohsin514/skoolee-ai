@@ -11,7 +11,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // once; moves keep continuous history and replay safely; capacity and out-of-service changes cannot
 // strand residents; residents carry minimal fields; other campuses and non-boarding roles see nothing.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.DORM_TEST_APP || "http://localhost:3107";
 const evidence = process.env.DORM_EVIDENCE_DIR || "/tmp/sko463-evidence";
 const db = new PrismaClient(), password = "SyntheticDorm463!";
@@ -112,6 +112,16 @@ test("a move keeps continuous history, replays safely and respects the future re
   assert.equal((await post(ctx, { studentId: pupils.omar, roomId: rooms["A-101"], startDate: today, endDate: plus(5) })).status(), 201, "a stay that ends before both arrive fits");
 });
 
+test("SKAI-1064: creating a room type and a room returns 201 Created", async () => {
+  const ctx = await context("warden");
+  const type = await ctx.request.post(`${base}/api/dormitory/room-types`, { data: { campusId, name: `Synthetic type ${Date.now()}` } });
+  assert.equal(type.status(), 201);
+  const typeId = (await type.json()).data.id;
+  const room = await ctx.request.post(`${base}/api/dormitory/rooms`, { data: { campusId, roomTypeId: typeId, number: `Z-${Date.now()}`, capacity: 2 } });
+  assert.equal(room.status(), 201);
+  assert.ok((await room.json()).data.id);
+});
+
 test("capacity and out-of-service changes show their impact and cannot strand residents", async () => {
   const ctx = await context("warden"), roomsApi = `${base}/api/dormitory/rooms`;
   const preview = await (await ctx.request.patch(roomsApi, { data: { id: rooms["A-101"], capacity: 1, dryRun: true } })).json();
@@ -154,7 +164,9 @@ test("the warden allocates from the dialog and sees the impact before taking a r
   await page.goto(`${base}/admin?view=dormitory`);
   const panel = page.locator("[data-dorm-allocations]");
   await panel.locator('[data-dorm-room="A-104"]').waitFor({ timeout: 30_000 });
-  await panel.getByRole("button", { name: "Allocate student" }).click();
+  // The admin console carries allocation in its PageHeader ("Allocate bed"); the panel hides its own button there.
+  assert.equal(await panel.getByRole("button", { name: "Allocate student" }).count(), 0);
+  await page.getByRole("button", { name: "Allocate bed" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Allocate", exact: true }).click();
   await dialog.locator("[data-dorm-error]").waitFor();

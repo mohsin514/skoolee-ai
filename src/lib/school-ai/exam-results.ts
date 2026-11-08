@@ -9,7 +9,7 @@ import { ApiError } from "@/lib/api/scope";
 import { proposeCorrectionIn } from "./exam-moderation-service";
 import { schoolAiTransaction } from "./transaction";
 import { resultDecisionAccess, scopedAssignment, staffExamAccess } from "./exam-service";
-import { examReviewSchema, responsesSchema, validateExamReview, examKeyCorrectionSchema, correctedExamPaper, scoreObjectiveResponses } from "./exam";
+import { examReviewSchema, responsesSchema, validateExamReview, examKeyCorrectionSchema, correctedExamPaper, scoreObjectiveResponses, objectiveOverrides, type ExamReview } from "./exam";
 import { membersHeadedBy, headsAuthorDepartment } from "./department-heads";
 
 const id = z.string().trim().min(1).max(120);
@@ -54,17 +54,35 @@ async function departmentResultScope(user: AuthUser, assignmentId: string, attem
 }
 
 /** Only released results with a review request, scoped to the head's current department. */
-export async function listDepartmentAppeals(user: AuthUser) {
+export const APPEAL_PAGE = 50;
+/** SKAI-1725: keyset over the queue order (createdAt asc, id asc) so appeals after the first 50 stay reachable. */
+export function appealPageWhere(cursor: string | null | undefined) {
+ if (!cursor) return {};
+ const [at, id] = Buffer.from(cursor.slice(0, 200), "base64url").toString("utf8").split("|");
+ const when = new Date(at ?? "");
+ if (!id || Number.isNaN(when.getTime())) throw new ApiError("This list has changed. Reload it.", 400);
+ return { OR: [{ createdAt: { gt: when } }, { createdAt: when, id: { gt: id } }] };
+}
+export function appealNextCursor(rows: { id: string; createdAt: Date }[]) {
+ if (rows.length <= APPEAL_PAGE) return null;
+ const last = rows[APPEAL_PAGE - 1];
+ return Buffer.from(`${last.createdAt.toISOString()}|${last.id}`, "utf8").toString("base64url");
+}
+
+export async function listDepartmentAppeals(user: AuthUser, cursor?: string | null) {
  return schoolAiTransaction(user, async tx => {
-  if (user.role !== "TEACHER") return [];
+  const none = { appeals: [], nextCursor: null };
+  if (user.role !== "TEACHER") return none;
   const members = await membersHeadedBy(tx, user.schoolId, user.userId);
-  if (!members.length) return [];
+  if (!members.length) return none;
   const subjects = await tx.subject.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? "", teacherId: { in: members } }, select: { id: true } });
-  const rows = await tx.schoolAiExamAppeal.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? "", status: { in: ["OPEN", "UPHELD"] }, attempt: { assignment: { resultsReleasedAt: { not: null }, endsAt: { lte: new Date() }, OR: [{ createdById: { in: members } }, { paper: { subjectId: { in: subjects.map(subject => subject.id) } } }] } } }, orderBy: { createdAt: "asc" }, take: 50, select: { id: true, assignmentId: true, attemptId: true, studentId: true, status: true, attempt: { select: { assignment: { select: { title: true } } } } } });
+  const fetched = await tx.schoolAiExamAppeal.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? "", status: { in: ["OPEN", "UPHELD"] }, attempt: { assignment: { resultsReleasedAt: { not: null }, endsAt: { lte: new Date() }, OR: [{ createdById: { in: members } }, { paper: { subjectId: { in: subjects.map(subject => subject.id) } } }] } }, ...appealPageWhere(cursor) }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: APPEAL_PAGE + 1, select: { id: true, createdAt: true, assignmentId: true, attemptId: true, studentId: true, status: true, attempt: { select: { assignment: { select: { title: true } } } } } });
+  const nextCursor = appealNextCursor(fetched);
+  const rows = fetched.slice(0, APPEAL_PAGE);
   for (const row of rows) await departmentResultScope(user, row.assignmentId, row.attemptId, tx);
   const students = await tx.student.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? "", id: { in: rows.map(row => row.studentId) } }, select: { id: true, fullName: true, rollNo: true } });
   const names = new Map(students.map(student => [student.id, student]));
-  return rows.map(row => ({ id: row.id, assignmentId: row.assignmentId, attemptId: row.attemptId, status: row.status, title: row.attempt.assignment.title, studentName: names.get(row.studentId)?.fullName ?? "", rollNo: names.get(row.studentId)?.rollNo ?? "" }));
+  return { appeals: rows.map(row => ({ id: row.id, assignmentId: row.assignmentId, attemptId: row.attemptId, status: row.status, title: row.attempt.assignment.title, studentName: names.get(row.studentId)?.fullName ?? "", rollNo: names.get(row.studentId)?.rollNo ?? "" })), nextCursor };
  });
 }
 
@@ -98,11 +116,21 @@ export async function reviseExamResult(user: AuthUser, assignmentId: string, raw
  return { attemptId: input.attemptId, version: input.version, correctionId: correction.id, pendingCorrection: true as const };
 }
 
+/** SKAI-1014: refuses a silent change to an auto-scored item and audit-logs every reasoned override. */
+export async function assertObjectiveOverrides(tx: TxClient, user: AuthUser, args: { paper: PaperData; responses: unknown; review: ExamReview; previous?: unknown; attemptId: string; campusId: string }) {
+  const previous = args.previous && typeof args.previous === "object" ? args.previous as { marks?: { questionId: string; marks: number }[] } : null;
+  const { errors, overrides } = objectiveOverrides(args.paper, responsesSchema.parse(args.responses), args.review, previous);
+  if (errors.length) throw new ApiError(errors.join(" "), 422);
+  for (const item of overrides) await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: args.attemptId, action: "UPDATE", campusId: args.campusId, before: { questionId: item.questionId, autoMarks: item.autoMarks }, after: { objectiveOverride: true, questionId: item.questionId, marks: item.marks, overrideReason: item.reason } });
+  return overrides;
+}
+
 /** Writes one result revision against an exact predecessor, with audit and appeal resolution. */
 export async function applyResultRevision(tx: TxClient, user: AuthUser, args: { assignmentId: string; campusId: string; paper: PaperData; attempt: { id: string; responses: unknown; review: unknown }; fromVersion: number; review: z.infer<typeof examReviewSchema>; reason: string; createdById?: string }) {
   const { assignmentId, campusId, paper, attempt, fromVersion, reason } = args;
   const issues = validateExamReview(paper, responsesSchema.parse(attempt.responses), args.review);
   if (issues.length) throw new ApiError(issues.join(" "), 422);
+  await assertObjectiveOverrides(tx, user, { paper, responses: attempt.responses, review: args.review, previous: attempt.review, attemptId: attempt.id, campusId });
   const review = { ...args.review, total: args.review.marks.reduce((sum, item) => sum + item.marks, 0) };
   const version = fromVersion + 1;
   const updated = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, campusId, status: "REVIEWED", reviewVersion: fromVersion }, data: { review: json(review), reviewVersion: version, reviewedById: user.userId, reviewedAt: new Date() } });

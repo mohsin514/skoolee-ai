@@ -56,7 +56,7 @@ test("library titles: created once, replayed by content, refused for a teacher",
 test("students: created after confirmation, guardian email kept as contact only, no accounts invited", async () => {
   const { user, schoolId, campusId } = await fixture("CAMPUS_ADMIN");
   const klass = await db.class.create({ data: { schoolId, campusId, name: "5", section: "A", academicYear: 2026, status: "ACTIVE" } });
-  const students = { students: [{ fullName: "Synthetic Pupil", rollNo: "11", classId: klass.id, gender: "FEMALE", guardianPhone: "+923001112223", guardianEmail: "guardian@example.invalid", address: "Street 1", city: "Lahore", medicalNotes: "None reported in this synthetic fixture" }] };
+  const students = { students: [{ fullName: "Synthetic Pupil", rollNo: "11", classId: klass.id, gender: "FEMALE", guardianName: "Synthetic Guardian", guardianPhone: "+923001112223", guardianEmail: "guardian@example.invalid", address: "Street 1", city: "Lahore", medicalNotes: "None reported in this synthetic fixture" }] };
   const { step } = await run(user, "students.create", students);
   assert.equal(step.status, "SUCCEEDED");
   assert.equal(await db.student.count({ where: { schoolId } }), 1);

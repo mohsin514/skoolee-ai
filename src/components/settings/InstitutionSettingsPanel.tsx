@@ -1,6 +1,6 @@
 "use client";
 
-import { ArchivedCampusList, CampusArchiveButton, CampusArchiveDialog } from "./campus-lifecycle";
+import { ArchivedCampusList, CampusArchiveButton, CampusArchiveDialog, CampusPauseButton } from "./campus-lifecycle";
 import { Button } from "@/components/ui/button";
 import { UiText, useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
@@ -8,7 +8,10 @@ import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { FormErrorSummary } from "@/components/ui/form-field";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { ErrorState } from "@/components/ui/error-state";
+import { EmptyState } from "@/components/ui/empty-state";
+import { RelativeTime, deskTimeline } from "@/components/ui/desk";
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import { InputGroup } from "@/components/ui/input-group";
 import { usePanelCommand } from "@/components/fees/fee-utils";
@@ -47,8 +50,13 @@ import {
   type InstitutionHistoryEntry,
   type InstitutionSettings,
 } from "@/app/actions/settings";
-import { resolveMediaUrl } from "@/lib/storage/s3";
+import { resolveMediaUrl } from "@/lib/storage/media-url";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { phoneProblem } from "@/lib/school/details";
+import { BRAND_PALETTE } from "@/lib/school/branding";
+import { ChoiceCard, arrowSelect } from "@/components/ui/choice-card";
+import { LOGO_ACCEPT, logoFileProblem } from "@/lib/school/logo-policy";
+import { UaeReportTemplateToggle } from "./UaeReportTemplateToggle";
 
 /** Offered zones. Anything already stored is added so it is never silently lost. */
 const TIMEZONES = [
@@ -69,7 +77,7 @@ type Tr = ReturnType<typeof useUiText>;
 
 // SKO-402: a save sends only the fields that changed (the server keeps every omitted field) and is reviewed
 // first as a before/after list; the record's history shows who changed what.
-const FIELD_LABEL = (tr: Tr, key: string) => ({ name: tr("Name"), tagline: tr("Tagline / Motto"), city: tr("City"), address: tr("Address"), phone: tr("Phone"), website: tr("Website"), email: tr("Campus Email"), principalName: tr("Head of Campus"), board: tr("Examination Board"), logoUrl: tr("Logo"), establishedYear: tr("Established"), timezone: tr("Time Zone") } as Record<string, string>)[key] ?? key;
+const FIELD_LABEL = (tr: Tr, key: string) => ({ name: tr("Name"), tagline: tr("Tagline / Motto"), nameUr: tr("Official name (Urdu)"), nameAr: tr("Official name (Arabic)"), shortName: tr("Short name"), brandColor: tr("Brand colour"), city: tr("City"), address: tr("Address"), phone: tr("Phone"), website: tr("Website"), email: tr("Campus Email"), principalName: tr("Head of Campus"), board: tr("Examination Board"), logoUrl: tr("Logo"), establishedYear: tr("Established"), timezone: tr("Time Zone") } as Record<string, string>)[key] ?? key;
 const clean = (value: unknown) => (typeof value === "string" ? value.trim() : value ?? "");
 function changedFields<T extends Record<string, unknown>>(baseline: T, form: T, keys: (keyof T)[]) {
   return keys.filter(key => String(clean(form[key])) !== String(clean(baseline[key])));
@@ -90,11 +98,11 @@ function HistoryDialog({ level, campusId, title, onClose }: { level: "school" | 
   const { dateTime } = useLocaleFormat();
   const [rows, setRows] = useState<InstitutionHistoryEntry[] | null>(null), [error, setError] = useState("");
   useEffect(() => { let cancelled = false; getInstitutionHistory({ level, campusId }).then(data => { if (!cancelled) setRows(data); }).catch(failure => { if (!cancelled) setError(tr(failure instanceof Error ? failure.message : "History could not be loaded.")); }); return () => { cancelled = true; }; }, [level, campusId, tr]);
-  const kind = (entry: InstitutionHistoryEntry) => entry.kind === "ARCHIVED" ? tr("Archived") : entry.kind === "RESTORED" ? tr("Restored") : tr("Details changed");
+  const kind = (entry: InstitutionHistoryEntry) => entry.kind === "ARCHIVED" ? tr("Archived") : entry.kind === "RESTORED" ? tr("Restored") : entry.kind === "PAUSED" ? tr("Paused") : entry.kind === "RESUMED" ? tr("Resumed") : tr("Details changed");
   return <Modal title={tr("Change history")} eyebrow={title} icon={Clock} size="lg" onClose={onClose}>
-    {error ? <Alert tone="danger" compact>{error}</Alert> : !rows ? <SkeletonList rows={3} label={tr("Loading history…")} /> : !rows.length ? <p className="text-sm text-ink-muted">{tr("No changes have been recorded yet.")}</p>
-      : <ol className="space-y-2" data-institution-history>{rows.map(entry => <li key={entry.id} className="rounded-xl bg-brand-50/60 px-3 py-2 text-sm" data-history-kind={entry.kind}>
-        <p className="font-bold">{kind(entry)} · <bdi>{dateTime(entry.at)}</bdi>{entry.actor ? <> · <bdi>{entry.actor}</bdi></> : null}</p>
+    {error ? <Alert tone="danger" compact>{error}</Alert> : !rows ? <SkeletonList rows={3} label={tr("Loading history…")} /> : !rows.length ? <EmptyState size="sm" icon={Clock} title={tr("No changes have been recorded yet.")} />
+      : <ol className={`${deskTimeline} space-y-3`} data-institution-history>{rows.map(entry => <li key={entry.id} data-tone={entry.kind === "ARCHIVED" ? "danger" : entry.kind === "PAUSED" ? "warning" : entry.kind === "RESTORED" || entry.kind === "RESUMED" ? "success" : "brand"} className="space-y-1 text-sm" data-history-kind={entry.kind}>
+        <p className="font-bold text-ink-strong">{kind(entry)} · <RelativeTime iso={entry.at} full={dateTime(entry.at)} />{entry.actor ? <> · <bdi>{entry.actor}</bdi></> : null}</p>
         {Object.entries(entry.fields).map(([key, change]) => <p key={key} className="text-xs">{FIELD_LABEL(tr, key)}: <s className="text-ink-muted"><bdi>{String(change.from ?? "") || tr("(empty)")}</bdi></s> → <bdi>{String(change.to ?? "") || tr("(empty)")}</bdi></p>)}
         {entry.reason ? <p className="text-xs">{tr("Reason")}: <bdi>{entry.reason}</bdi></p> : null}
       </li>)}</ol>}
@@ -201,13 +209,11 @@ export function InstitutionSettingsPanel({
     if (!requestEdit || !data) return;
     openEditor();
     // Only a new request opens the dialog; data refreshes must not reopen it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestEdit, data]);
   usePanelCommand(command, { save: openEditor, edit: openEditor }, Boolean(data));
   useEffect(() => {
     if (!requestArchive || !data || !focusCampus || !data.canArchiveCampuses) return;
     setArchiving(focusCampus);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestArchive, data, focusCampus]);
 
   if (section === "archived") {
@@ -237,7 +243,8 @@ export function InstitutionSettingsPanel({
               <Building2 aria-hidden="true" className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-ink-strong"><bdi>{campus.name}</bdi></p>
+              <p className="flex min-w-0 items-center gap-2 text-sm font-bold text-ink-strong"><bdi className="truncate">{campus.name}</bdi>
+                <Badge size="sm" variant={campus.pausedAt ? "warning" : "success"} data-campus-status={campus.pausedAt ? "paused" : "active"}>{campus.pausedAt ? tr("Paused") : tr("Active")}</Badge></p>
               <p className="mt-0.5 truncate text-2xs font-bold text-ink-subtle">
                 <bdi>{campus.city}</bdi> · <bdi dir="ltr">{campus.regId}</bdi>
                 {campus.board ? <> · <bdi>{campus.board}</bdi></> : null}
@@ -249,9 +256,11 @@ export function InstitutionSettingsPanel({
               ) : null}
             </div>
           </div>
-          {readOnly ? null : (
+          {/* SKAI-113: the header owns Edit and Archive on the group admin's campus page; status stays on the record. */}
+          {readOnly ? (data.canArchiveCampuses && section === "campus" ? <CampusPauseButton campus={campus} onDone={afterSave} /> : null) : (
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {editable || data.canArchiveCampuses ? <Button variant="ghost" type="button" onClick={() => setHistory({ level: "campus", campusId: campus.id, title: campus.name })} aria-label={tr("Change history for {0}", [campus.name])}><Clock aria-hidden="true" className="h-3 w-3" /></Button> : null}
+              {data.canArchiveCampuses && section !== "school-and-campus" ? <CampusPauseButton campus={campus} onDone={afterSave} /> : null}
               {data.canArchiveCampuses && section !== "school-and-campus" ? <CampusArchiveButton campus={campus} onDone={afterSave} /> : null}
               {editable ? (
                 <Button variant="default" type="button" onClick={() => setEditingCampus(campus)} className="flex shrink-0 items-center gap-1.5 px-3">
@@ -287,6 +296,13 @@ export function InstitutionSettingsPanel({
             <div className="min-w-0">
               <p className="text-2xs font-semibold text-primary"><UiText>{"Institution"}</UiText></p>
               <h3 className="mt-0.5 truncate text-xl font-bold tracking-tight text-ink-strong"><bdi>{data.school.name}</bdi></h3>
+              {data.school.shortName || data.school.nameUr || data.school.nameAr ? (
+                <p className="mt-0.5 flex flex-wrap gap-x-3 truncate text-xs font-semibold text-ink-muted">
+                  {data.school.shortName ? <bdi>{data.school.shortName}</bdi> : null}
+                  {data.school.nameUr ? <bdi lang="ur" dir="rtl">{data.school.nameUr}</bdi> : null}
+                  {data.school.nameAr ? <bdi lang="ar" dir="rtl">{data.school.nameAr}</bdi> : null}
+                </p>
+              ) : null}
               {data.school.tagline ? (
                 <p className="mt-0.5 truncate text-xs font-semibold italic text-ink-muted"><bdi>“{data.school.tagline}”</bdi></p>
               ) : null}
@@ -313,6 +329,8 @@ export function InstitutionSettingsPanel({
           <ReadRow icon={Clock} label={tr("Time Zone")} value={data.school.timezone} />
           <ReadRow icon={MapPin} label={tr("Address")} value={data.school.address} />
         </div>
+
+        <UaeReportTemplateToggle initial={data.school.uaeReportTemplate} canEdit={data.canEditSchool && !readOnly} />
 
         {!data.canEditSchool && section !== "school-and-campus" ? (
           <p className="mt-5 flex items-start gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-2xs font-bold leading-snug text-ink-muted">
@@ -387,7 +405,7 @@ function SchoolDialog({
   const tr = useUiText();
   const [form, setForm] = useState<SchoolForm>(school);
   const draft = useFormDraft({ record: "settings:school", schema: 1, values: form, baseline: school,
-    fields: ["name", "tagline", "city", "address", "phone", "website", "establishedYear", "timezone"], apply: setForm, current: async () => {
+    fields: ["name", "tagline", "nameUr", "nameAr", "shortName", "brandColor", "city", "address", "phone", "website", "establishedYear", "timezone"], apply: setForm, current: async () => {
       const latest = await getInstitutionSettings();
       if (!latest.canEditSchool) throw new Error("Access revoked");
       return latest.school;
@@ -417,7 +435,7 @@ function SchoolDialog({
     : null;
 
   const [reviewing, setReviewing] = useState(false);
-  const changes = changedFields(school as unknown as Record<string, unknown>, form as unknown as Record<string, unknown>, ["name", "tagline", "city", "address", "phone", "website", "logoUrl", "establishedYear"]);
+  const changes = changedFields(school as unknown as Record<string, unknown>, form as unknown as Record<string, unknown>, ["name", "tagline", "nameUr", "nameAr", "shortName", "brandColor", "city", "address", "phone", "website", "logoUrl", "establishedYear"]);
   const save = async () => {
     if (!changes.length) { toast.info(tr("Nothing changed.")); onClose(); return; }
     setSaving(true);
@@ -472,11 +490,16 @@ function SchoolDialog({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field id="s-name" label={tr("School Name")} required icon={GraduationCap} value={form.name} placeholder={tr("e.g. Horizon Academy")} onChange={(v) => set("name", v)} />
           <Field id="s-tagline" label={tr("Tagline / Motto")} icon={Tag} value={form.tagline} placeholder={tr("Optional")} onChange={(v) => set("tagline", v)} />
+          <Field id="s-name-ur" dir="rtl" lang="ur" label={tr("Official name (Urdu)")} icon={GraduationCap} value={form.nameUr} placeholder={tr("Optional")} onChange={(v) => set("nameUr", v)} />
+          <Field id="s-name-ar" dir="rtl" lang="ar" label={tr("Official name (Arabic)")} icon={GraduationCap} value={form.nameAr} placeholder={tr("Optional")} onChange={(v) => set("nameAr", v)} />
+          <Field id="s-short" label={tr("Short name")} icon={Tag} value={form.shortName} placeholder={tr("e.g. HA")} onChange={(v) => set("shortName", v.slice(0, 24))} />
           <Field id="s-city" label={tr("City")} required icon={MapPin} value={form.city} placeholder={tr("e.g. Lahore")} onChange={(v) => set("city", v)} />
           <Field id="s-phone" label={tr("Phone")} icon={Phone} value={form.phone} placeholder="+92 300 0000000" onChange={(v) => set("phone", v)} />
           <Field id="s-website" label={tr("Website")} icon={Globe} value={form.website} placeholder={tr("www.school.edu.pk")} onChange={(v) => set("website", v)} />
           <Field id="s-year" label={tr("Established")} icon={CalendarDays} value={form.establishedYear} placeholder="e.g. 1998" onChange={(v) => set("establishedYear", v.replace(/[^\d]/g, "").slice(0, 4))} />
         </div>
+
+        <BrandColorPicker value={form.brandColor} onChange={(v) => set("brandColor", v)} />
 
         <Field id="s-address" label={tr("Address")} icon={MapPin} value={form.address} placeholder={tr("Street address")} onChange={(v) => set("address", v)} />
 
@@ -541,8 +564,9 @@ function CampusDialog({
     !form.name.trim() ? "Enter the campus name."
     : !form.city.trim() ? "Enter the city."
     : form.email && form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) ? "Enter a valid email address."
-    : form.phone && form.phone.trim() && form.phone.replace(/\D/g, '').length < 7 ? "Phone number is too short to be valid."
-    : form.phone && form.phone.trim() && form.phone.replace(/\D/g, '').length > 15 ? "Phone number is too long to be valid."
+    : phoneProblem(form.phone) === "format" ? "Use only digits, spaces, dashes, brackets and a leading +."
+    : phoneProblem(form.phone) === "short" ? "Phone number is too short to be valid."
+    : phoneProblem(form.phone) === "long" ? "Phone number is too long to be valid."
     : null;
 
   const [reviewing, setReviewing] = useState(false);
@@ -651,8 +675,9 @@ function LogoPicker({
 
   const handleFile = async (file?: File) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) return toast.error(tr("Please choose an image file."));
-    if (file.size > 1_500_000) return toast.error(tr("Use a logo image under 1.5 MB."));
+    const problem = logoFileProblem(file.type, file.size);
+    if (problem === "type") return toast.error(tr("Use a PNG, JPEG, WebP or GIF image for the logo."));
+    if (problem === "size") return toast.error(tr("Use a logo image under 1.5 MB."));
 
     setUploading(true);
     const blobUrl = URL.createObjectURL(file);
@@ -720,15 +745,17 @@ function LogoPicker({
             </Button>
           ) : null}
         </div>
-        <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
+        <input ref={inputRef} type="file" accept={LOGO_ACCEPT} className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
       </div>
     </div>
   );
 }
 
 function Field({
-  id, label, value, placeholder, onChange, icon: Icon, required,
+  id, label, value, placeholder, onChange, icon: Icon, required, dir, lang,
 }: {
+  dir?: "rtl" | "ltr";
+  lang?: string;
   id: string;
   label: string;
   value: string;
@@ -749,10 +776,33 @@ function Field({
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
+          dir={dir}
+          lang={lang}
           className="w-full ps-10 pe-4 placeholder:text-ink-subtle"
         />
       </InputGroup>
     </div>
+  );
+}
+
+/** SKAI-114: palette swatches only, so every brand colour keeps white text legible (WCAG AA). */
+function BrandColorPicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const tr = useUiText();
+  const options = [{ id: "", label: "Default", hex: null as string | null }, ...BRAND_PALETTE];
+  const choices = options.map((option) => ({ value: option.id, label: option.label }));
+  return (
+    <fieldset className="space-y-1.5">
+      <legend className="sk-field-label">{tr("Brand colour")}</legend>
+      <div role="radiogroup" aria-label={tr("Brand colour")} className="grid grid-cols-2 gap-2 sm:grid-cols-3" onKeyDown={(event) => arrowSelect(event, choices, value, onChange)}>
+        {options.map((option) => (
+          <div key={option.id || "default"} className="relative">
+            <ChoiceCard option={{ value: option.id, label: tr(option.label) }} shape="radio" selected={value === option.id} tabbable={value === option.id} onSelect={() => onChange(option.id)} className="pe-10" />
+            <span aria-hidden="true" className="pointer-events-none absolute end-3 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border border-border bg-primary" style={option.hex ? { backgroundColor: option.hex } : undefined} />
+          </div>
+        ))}
+      </div>
+      <p className="px-1 text-2xs font-bold text-ink-subtle">{tr("Used on report cards, receipts and PDF headers. Every colour keeps text readable.")}</p>
+    </fieldset>
   );
 }
 

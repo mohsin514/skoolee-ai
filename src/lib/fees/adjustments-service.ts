@@ -5,6 +5,7 @@ import { ApiError, canApproveFinance, canManageFinance, soleChecker } from "@/li
 import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { notifySelfApproval } from "@/lib/notifications/events";
 import { capturePaymentReceipt } from "./receipt";
+import { settleLibraryChargeForInvoice } from "@/lib/library/charge-settlement";
 
 // SKO-433: refunds, credit notes and waivers as controlled financial exceptions.
 //  - A credit note or waiver reduces what is owed on one invoice; it never moves cash.
@@ -46,6 +47,22 @@ async function refundable(tx: TxClient, invoice: InvoiceRow, paymentId: string) 
 /** SD3 reason floor (role-ux §2.5). */
 export const SELF_APPROVAL_REASON_MIN = 10;
 
+/**
+ * SKAI-1311: a reused idempotency key replays the earlier adjustment only when
+ * the retry is the same request. A different invoice, payment, kind, amount or
+ * reason (category or text) must fail with 409, never return an unrelated adjustment as accepted.
+ */
+export function replayedAdjustment<T extends { kind: string; invoiceId: string; paymentId: string | null; amount: number; reasonCategory: string; reason: string; publicExplanation: string; privateNote: string | null }>(previous: T, input: { kind: AdjustmentKind; invoiceId: string; paymentId?: string | null; amount: number; reasonCategory: string; reason: string; publicExplanation: string; privateNote?: string | null }) {
+  // SKAI-1535: the audit reason and family-facing text are part of the request too,
+  // compared after the same normalisation they get when stored.
+  const same = previous.kind === input.kind && previous.invoiceId === input.invoiceId && (previous.paymentId ?? null) === (input.paymentId ?? null) && previous.amount === input.amount && previous.reasonCategory === input.reasonCategory
+    && previous.reason === input.reason.trim().slice(0, 2000)
+    && previous.publicExplanation === input.publicExplanation.trim().slice(0, 2000)
+    && (previous.privateNote ?? null) === (input.privateNote?.trim().slice(0, 4000) || null);
+  if (!same) throw new ApiError("This idempotency key was already used for a different adjustment.", 409);
+  return previous;
+}
+
 export async function requestAdjustment(user: AuthUser, input: { kind: AdjustmentKind; invoiceId: string; paymentId?: string | null; amount: number; reasonCategory: string; reason: string; publicExplanation: string; privateNote?: string | null; idempotencyKey: string }) {
   if (!canManageFinance(user)) throw new ApiError("Only the finance desk requests refunds, credit notes and waivers.", 403);
   if (!ADJUSTMENT_KINDS.includes(input.kind)) throw new ApiError("Choose refund, credit note or waiver.", 400);
@@ -57,7 +74,7 @@ export async function requestAdjustment(user: AuthUser, input: { kind: Adjustmen
   try {
     return await prisma.$transaction(async (tx) => {
       const previous = await tx.financialAdjustment.findFirst({ where: { schoolId: user.schoolId, requesterId: user.userId, idempotencyKey: input.idempotencyKey } });
-      if (previous) return previous;
+      if (previous) return replayedAdjustment(previous, input);
       const invoice = await lockInvoice(tx, user, input.invoiceId);
       if (invoice.status === "CANCELLED") throw new ApiError("A cancelled invoice cannot be adjusted.", 409);
       let invoiceAmount = 0, creditAmount = 0, sourceVersion = invoiceVersion(invoice), paymentId: string | null = null;
@@ -83,7 +100,7 @@ export async function requestAdjustment(user: AuthUser, input: { kind: Adjustmen
       return created;
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return prisma.financialAdjustment.findFirstOrThrow({ where: { schoolId: user.schoolId, requesterId: user.userId, idempotencyKey: input.idempotencyKey } });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return replayedAdjustment(await prisma.financialAdjustment.findFirstOrThrow({ where: { schoolId: user.schoolId, requesterId: user.userId, idempotencyKey: input.idempotencyKey } }), input);
     throw error;
   }
 }
@@ -128,6 +145,7 @@ export async function decideAdjustment(user: AuthUser, id: string, decision: "ap
       const total = invoice.totalAmount - current.amount, balance = invoice.balanceDue - current.amount;
       if (balance < 0) throw new ApiError("The adjustment is larger than what is still owed.", 409);
       await tx.invoice.update({ where: { id: invoice.id }, data: { totalAmount: total, balanceDue: balance, discountAmount: invoice.discountAmount + current.amount, status: balance === 0 ? "PAID" : invoice.totalAmountPaid > 0 ? "PARTIAL" : invoice.status === "OVERDUE" ? "OVERDUE" : "PENDING" } });
+      await settleLibraryChargeForInvoice(tx, invoice.id);
       status = "APPLIED";
     }
     const decided = await tx.financialAdjustment.update({ where: { id: current.id }, data: { status, approverId: user.userId, approverName: approver?.fullName ?? "Staff", decidedAt: new Date(), ...(status === "APPLIED" ? { executedAt: new Date() } : {}) } });
@@ -175,6 +193,7 @@ export async function recordDisbursement(user: AuthUser, id: string, outcome: "c
     if (current.invoiceAmount) {
       const paid = invoice.totalAmountPaid - current.invoiceAmount, balance = invoice.balanceDue + current.invoiceAmount;
       await tx.invoice.update({ where: { id: invoice.id }, data: { totalAmountPaid: paid, balanceDue: balance, status: balance === 0 ? "PAID" : paid > 0 ? "PARTIAL" : "PENDING" } });
+      await settleLibraryChargeForInvoice(tx, invoice.id);
     }
     if (current.creditAmount) {
       const carry = await tx.feeCarryForward.findFirst({ where: { studentId: invoice.studentId, schoolId: invoice.schoolId, balance: { lt: 0 }, currency: current.currency }, orderBy: { toAcademicYear: "desc" } });

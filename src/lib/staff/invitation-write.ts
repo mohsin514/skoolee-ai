@@ -53,10 +53,13 @@ export async function createStaffInvitation(user: AuthUser, input: StaffInvitati
 
   const targetCampus = await tx.campus.findUnique({
     where: { id: targetCampusId },
-    select: { schoolId: true },
+    select: { schoolId: true, archivedAt: true, pausedAt: true },
   });
   if (!targetCampus) throw new ApiError('Campus not found', 404);
   if (targetCampus.schoolId !== session.schoolId) throw new ApiError('Campus is outside your school', 403);
+  // SKAI-113: archived and paused campuses take no new staff until they are restored or resumed.
+  if (targetCampus.archivedAt) throw new ApiError('This campus is archived. Restore it before inviting staff.', 409);
+  if (targetCampus.pausedAt) throw new ApiError('This campus is paused. Resume it before inviting staff.', 409);
 
   // The authority may add a deputy campus admin beside an existing one; everyone else respects one per campus.
   const canInviteStandaloneAdmin = membershipAuthority(session).authority;

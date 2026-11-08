@@ -18,6 +18,8 @@ import { SkeletonCards } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Badge } from "@/components/ui/badge";
+import { DeskPill, DeskRowIcon, deskRow } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { EmptyChart, InsightCard, StatTile, VizTooltip } from "@/components/insights/chart-kit";
 import { AXIS_TICK, GRADE_COLOR, GRADE_ORDER, INK, NO_ENTRY_ANIMATION, SERIES, STATUS } from "@/components/insights/palette";
 
@@ -191,7 +193,7 @@ export function AnalyticsCharts() {
           {data.topStudents.length > 0 ? (
             <ol className="space-y-1.5">
               {data.topStudents.map((student, index) => (
-                <li key={`${student.rollNo}-${index}`} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2">
+                <li key={`${student.rollNo}-${index}`} data-tone={index < 3 ? "success" : undefined} className={cn(deskRow, "flex items-center justify-between gap-3 py-2.5")}>
                   <div className="flex min-w-0 items-center gap-3">
                     <span aria-hidden="true" className={index < 3 ? "grid size-6 shrink-0 place-items-center rounded-lg bg-primary text-2xs font-bold text-primary-foreground" : "grid size-6 shrink-0 place-items-center rounded-lg bg-muted text-2xs font-bold text-ink-muted"}>
                       <bdi>{index + 1}</bdi>
@@ -215,17 +217,20 @@ export function AnalyticsCharts() {
           {data.atRiskStudents.length > 0 ? (
             <ul className="space-y-1.5">
               {data.atRiskStudents.map((student, index) => (
-                <li key={`${student.rollNo}-${index}`} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-ink-strong"><bdi>{student.name}</bdi></p>
-                    <p className="text-xs tabular-nums text-ink-subtle"><bdi>{student.rollNo}</bdi></p>
+                <li key={`${student.rollNo}-${index}`} data-tone="danger" className={cn(deskRow, "flex flex-wrap items-center justify-between gap-3 py-2.5")}>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <DeskRowIcon icon={TrendingDown} />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-ink-strong"><bdi>{student.name}</bdi></p>
+                      <p className="text-xs tabular-nums text-ink-subtle"><bdi>{student.rollNo}</bdi></p>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
                     <bdi className="text-sm font-bold tabular-nums text-status-error-text">{percent(student.percentage)}</bdi>
                     {student.attendancePct !== null ? (
-                      <Badge variant={student.attendancePct < 75 ? "danger" : "success"} size="sm" dot className="tabular-nums">
+                      <DeskPill tone={student.attendancePct < 75 ? "danger" : "success"} className="tabular-nums">
                         {ui("{0} attendance", [percent(student.attendancePct)])}
-                      </Badge>
+                      </DeskPill>
                     ) : null}
                   </div>
                 </li>

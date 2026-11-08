@@ -12,15 +12,17 @@ import { examReadinessCopy } from "../../src/components/school-ai/exam-readiness
 import { examProctorCopy } from "../../src/components/school-ai/exam-proctor-copy";
 import { examRoomCopy } from "../../src/components/school-ai/exam-room-copy";
 import { examCopy } from "../../src/components/school-ai/exam-copy";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
-const origin = process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
+const origin = process.env.SCHOOL_AI_TEST_ORIGIN || SCHOOL_AI_ORIGIN;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use isolated PG55438 only.");
 process.env.SCHOOL_AI_STORAGE_DIR = "/private/tmp/skoolee-ai-test-documents";
 const db = new PrismaClient(), fixtures: ProctorFixture[] = []; let f: ProctorFixture;
 test.setTimeout(60000);
 async function auth(context: BrowserContext, user: AuthUser) {
-  const token = await new SignJWT({ ...user, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setJti(randomUUID()).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  const token = await new SignJWT({ ...user, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setJti(randomUUID()).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
   await db.loginSession.create({ data: { userId: user.userId, schoolId: user.schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
   await context.clearCookies(); await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]);
 }

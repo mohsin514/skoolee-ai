@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db/prisma";
 import bcrypt from "bcryptjs";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { logSuperAdminAction } from "@/lib/audit";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function PUT(
   req: NextRequest,
@@ -12,7 +14,7 @@ export async function PUT(
     const user = await requirePlatformOwner();
 
     const { id: targetUserId } = await params;
-    const { newPassword } = await req.json();
+    const { newPassword } = await parseBody(req, jsonObjectBody);
 
     if (!newPassword || typeof newPassword !== "string") {
       throw new ApiError("newPassword is required", 400);

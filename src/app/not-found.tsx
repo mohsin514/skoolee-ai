@@ -1,5 +1,5 @@
-import { NotFoundView } from "@/components/ui/not-found-view";
+import { LazyNotFoundView } from "@/components/ui/lazy-boundaries";
 
 export default function NotFound() {
-  return <NotFoundView />;
+  return <LazyNotFoundView />;
 }

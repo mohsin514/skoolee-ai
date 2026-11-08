@@ -1,6 +1,7 @@
 "use client";
 
 import { voiceFailureFor } from "@/lib/school-ai/voice";
+import { grantIntakeConsent, needsIntakeConsent, type IntakeKind } from "@/lib/school-ai/intake-consent";
 import { useEffect, useId, useRef, useState } from "react";
 import { Camera, Loader2, Mic, Paperclip, Send, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,8 @@ export function MultimodalComposer({ language, value, onChange, onSubmit, onUplo
   const [transcribing, setTranscribing] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [failed, setFailed] = useState(false);
+  const [consented, setConsented] = useState<ReadonlySet<IntakeKind>>(() => new Set());
+  const [asking, setAsking] = useState<IntakeKind | null>(null);
   useEffect(() => { latest.current = { value, onChange }; }, [value, onChange]);
   useEffect(() => { onActivityChange?.(recording || starting || transcribing); }, [recording, starting, transcribing, onActivityChange]);
   useEffect(() => {
@@ -129,6 +132,10 @@ export function MultimodalComposer({ language, value, onChange, onSubmit, onUplo
       setFeedback(/Use a PDF/.test(reason) ? c.uploadType : /between 1 byte and 10 MB/.test(reason) ? c.uploadInvalid : /does not match its format/.test(reason) ? c.uploadMismatch : c.failed);
     });
   };
+  // SKAI-814: nothing is recorded, chosen or captured until the person allows that kind of intake.
+  const launch = (kind: IntakeKind) => { if (kind === "voice") void start(); else (kind === "camera" ? cameraRef : uploadRef).current?.click(); };
+  const request_ = (kind: IntakeKind) => { if (needsIntakeConsent(consented, kind)) { setAsking(kind); return; } launch(kind); };
+  const allow = () => { if (!asking) return; const kind = asking; setConsented(grantIntakeConsent(consented, kind)); setAsking(null); launch(kind); };
   const occupied = Boolean(disabled || busy || starting || transcribing);
   return <div className={styles.composer}>
     <label className="sr-only" htmlFor={id}>{label || c.textLabel}</label>
@@ -136,14 +143,18 @@ export function MultimodalComposer({ language, value, onChange, onSubmit, onUplo
       onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && value.trim() && !occupied && !recording && !submitDisabled && onSubmit) { event.preventDefault(); void onSubmit(); } }} />
     <div className={styles.composerToolbar}>
       <div className="flex flex-wrap gap-1">
-        {onUpload && <><IconButton variant="ghost" label={c.attach} disabled={occupied || recording} onClick={() => uploadRef.current?.click()}><Paperclip aria-hidden="true" /></IconButton>
-          <IconButton variant="ghost" label={c.scan} tooltip={c.scanHint} disabled={occupied || recording} onClick={() => cameraRef.current?.click()}><Camera aria-hidden="true" /></IconButton>
+        {onUpload && <><IconButton variant="ghost" label={c.attach} disabled={occupied || recording} onClick={() => request_("upload")}><Paperclip aria-hidden="true" /></IconButton>
+          <IconButton variant="ghost" label={c.scan} tooltip={c.scanHint} disabled={occupied || recording} onClick={() => request_("camera")}><Camera aria-hidden="true" /></IconButton>
           <Input ref={uploadRef} type="file" className="hidden" tabIndex={-1} aria-label={c.attach} accept="application/pdf,image/jpeg,image/png,image/webp,text/plain,text/csv,.csv" onChange={event => { attachFile(event.target.files?.[0], "upload"); event.target.value = ""; }} />
           <Input ref={cameraRef} type="file" className="hidden" tabIndex={-1} aria-label={c.scan} accept="image/jpeg,image/png,image/webp" capture="environment" onChange={event => { attachFile(event.target.files?.[0], "camera"); event.target.value = ""; }} /></>}
-        <IconButton variant={recording ? "destructive" : "ghost"} label={recording ? c.stopRecording : c.record} tooltip={voiceAvailable ? undefined : c.serviceUnavailable} disabled={occupied && !recording} aria-pressed={recording} onClick={recording ? stop : () => void start()}>{starting || transcribing ? <Loader2 className="motion-safe:animate-spin" aria-hidden="true" /> : recording ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />}</IconButton>
+        <IconButton variant={recording ? "destructive" : "ghost"} label={recording ? c.stopRecording : c.record} tooltip={voiceAvailable ? undefined : c.serviceUnavailable} disabled={occupied && !recording} aria-pressed={recording} onClick={recording ? stop : () => request_("voice")}>{starting || transcribing ? <Loader2 className="motion-safe:animate-spin" aria-hidden="true" /> : recording ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />}</IconButton>
       </div>
       {onSubmit && <Button type="button" loading={busy} disabled={occupied || recording || !value.trim() || submitDisabled} onClick={() => void onSubmit()}>{busy ? null : <Send aria-hidden="true" />}{busy ? c.working : submitLabel || c.send}</Button>}
     </div>
+    {asking && <div className="mt-2 space-y-2 rounded-xl border border-border bg-muted/40 p-3" role="dialog" aria-live="polite" data-intake-consent={asking}>
+      <p className="text-sm leading-relaxed">{asking === "voice" ? c.consentVoice : asking === "camera" ? c.consentCamera : c.consentUpload}</p>
+      <div className="flex flex-wrap gap-2"><Button type="button" size="sm" onClick={allow}>{c.consentAllow}</Button><Button type="button" size="sm" variant="ghost" onClick={() => setAsking(null)}>{c.consentCancel}</Button></div>
+    </div>}
     {(recording || transcribing || feedback) && <p className={`mt-2 text-sm ${failed ? "text-destructive" : "text-ink-muted"}`} role={failed ? "alert" : "status"}>{recording ? c.recording : transcribing ? c.transcribing : feedback}</p>}
   </div>;
 }

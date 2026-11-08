@@ -2,11 +2,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { DeskPill } from "@/components/ui/desk";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
-import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { localParts } from "@/lib/meetings/time";
 
 // SKO-414: after a plan is saved — check it, form private temporary groups,
 // publish an activity as an assignment draft (whole class or one group),
@@ -25,7 +28,8 @@ type Target = { id: string; title: string; version: number };
 const GROUP_SLOTS = ["", "Group A", "Group B", "Group C", "Group D"];
 const DELIVERY_LABEL = { TAUGHT: "Taught", NOT_TAUGHT: "Not taught" } as const;
 const EVENT_LABEL: Record<string, string> = { GROUPS: "Groups changed", DELIVERY: "Lesson recorded", PUBLISHED_ACTIVITY: "Assignment draft created" };
-const today = () => new Date().toISOString().slice(0, 10);
+// SKAI-1479: the campus school date, matching the server rule.
+const today = (timezone: string) => localParts(new Date(), timezone).date;
 
 export function LessonPlanActions({ curriculumId, planIds, titles, targets }: { curriculumId: string; planIds: string[]; titles: Record<string, string>; targets: Target[] }) {
   const ui = useUiText();
@@ -46,7 +50,8 @@ function PlanPanel({ curriculumId, planId, targets }: { curriculumId: string; pl
   const [view, setView] = useState<View | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false), [notice, setNotice] = useState("");
   const [membership, setMembership] = useState<Record<string, string>>({});
   const [activity, setActivity] = useState("0"), [audience, setAudience] = useState(""), [due, setDue] = useState("");
-  const [status, setStatus] = useState<"TAUGHT" | "NOT_TAUGHT">("TAUGHT"), [on, setOn] = useState(today()), [reflection, setReflection] = useState("");
+  const { timezone } = useLocale();
+  const [status, setStatus] = useState<"TAUGHT" | "NOT_TAUGHT">("TAUGHT"), [on, setOn] = useState(() => today(timezone)), [reflection, setReflection] = useState("");
   const [target, setTarget] = useState(""), [issues, setIssues] = useState<string[]>([]);
   const request = useRef(0);
 
@@ -83,13 +88,13 @@ function PlanPanel({ curriculumId, planId, targets }: { curriculumId: string; pl
 
   return <div className="mt-3 space-y-4" data-plan-panel>
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      {view.plan.origin === "AI" && !view.plan.confirmed ? <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900" data-ai-draft>{ui("AI draft: review the examples and timing before use.")}</span> : null}
+      {view.plan.origin === "AI" && !view.plan.confirmed ? <DeskPill tone="warning" data-ai-draft>{ui("AI draft: review the examples and timing before use.")}</DeskPill> : null}
       <span>{ui("Owner")}: <bdi>{view.plan.owner ?? "—"}</bdi></span>
-      <span className={over ? "font-bold text-amber-900" : "font-bold text-emerald-800"} data-minutes>{ui("{0} / {1} minutes planned", [view.plan.plannedMinutes, view.plan.durationMinutes])}{view.lessonMinutes ? ` · ${ui("period {0} minutes", [view.lessonMinutes])}` : ""}</span>
+      <span className={over ? "font-bold text-status-warning-text" : "font-bold text-status-success-text"} data-minutes>{ui("{0} / {1} minutes planned", [view.plan.plannedMinutes, view.plan.durationMinutes])}{view.lessonMinutes ? ` · ${ui("period {0} minutes", [view.lessonMinutes])}` : ""}</span>
       <span>{view.plan.confirmed ? ui("Confirmed by the teacher") : ui("Not confirmed yet")}</span>
     </div>
-    {shown.length ? <ul role="alert" className="list-disc space-y-0.5 rounded-xl bg-amber-50 p-3 ps-8 text-sm text-amber-900" data-plan-issues>{shown.map(issue => <li key={issue}>{ui(issue)}</li>)}</ul>
-      : <p className="rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-900" data-plan-ready>{ui("Ready: timing, resources and groups check out.")}</p>}
+    {shown.length ? <Alert tone="warning" live="assertive" data-plan-issues><ul className="list-disc space-y-0.5 ps-5">{shown.map(issue => <li key={issue}>{ui(issue)}</li>)}</ul></Alert>
+      : <Alert compact tone="success" live="off" data-plan-ready>{ui("Ready: timing, resources and groups check out.")}</Alert>}
     {notice ? <p role="status" className="text-sm font-bold" data-plan-notice>{notice}</p> : null}
 
     {view.canManage ? <>
@@ -114,7 +119,7 @@ function PlanPanel({ curriculumId, planId, targets }: { curriculumId: string; pl
       <fieldset className="grid items-end gap-2 rounded-xl border border-border p-3 sm:grid-cols-3" data-delivery disabled={busy}>
         <legend className="px-1 text-sm font-bold">{ui("After the lesson")}</legend>
         <FormField name={`delivery-status-${planId}`} label={ui("Was it taught?")}><Select value={status} onChange={event => setStatus(event.target.value as "TAUGHT" | "NOT_TAUGHT")}>{(["TAUGHT", "NOT_TAUGHT"] as const).map(key => <option key={key} value={key}>{ui(DELIVERY_LABEL[key])}</option>)}</Select></FormField>
-        <FormField name={`delivery-on-${planId}`} label={ui("Date")}><Input type="date" max={today()} value={on} onChange={event => setOn(event.target.value)} /></FormField>
+        <FormField name={`delivery-on-${planId}`} label={ui("Date")}><Input type="date" max={today(timezone)} value={on} onChange={event => setOn(event.target.value)} /></FormField>
         <FormField name={`delivery-reflection-${planId}`} label={ui("What worked, what to change")}><Textarea maxLength={1000} value={reflection} onChange={event => setReflection(event.target.value)} /></FormField>
         <Button size="sm" onClick={() => void act("delivery", { curriculumId, planId, expectedVersion: view.stateVersion, status, on, reflection }, ui("Lesson record saved."))}>{ui("Save lesson record")}</Button>
         {view.delivery ? <p className="text-xs sm:col-span-3" data-delivery-saved>{ui(DELIVERY_LABEL[view.delivery.status])} · {date(view.delivery.on)}</p> : null}

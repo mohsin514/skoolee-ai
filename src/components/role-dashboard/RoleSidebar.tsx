@@ -5,13 +5,13 @@ import { UiText, useUiText, useLocale } from "@/components/locale/LocaleProvider
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, ChevronLeft, FileSearch, Menu, Search, X, type LucideIcon } from "lucide-react";
+import { ChevronDown, ChevronLeft, FileSearch, Menu, Pin, Search, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { availableNavigation, isNavigationActive, searchNavigation } from "@/lib/navigation/items";
 import { ModalSurface } from "@/components/ui/modal";
 import { useNavigationAccess } from "@/components/nav/NavigationAccess";
 import SkooleeLogo from "@/components/SkooleeLogo";
-import { resolveMediaUrl } from "@/lib/storage/s3";
+import { resolveMediaUrl } from "@/lib/storage/media-url";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
@@ -70,6 +70,8 @@ interface RoleSidebarProps {
   logoUrl?: string | null;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  /** Set while the sidebar is folded: hovering the rail opens it over the content until the pointer leaves. */
+  peek?: { active: boolean; onChange: (open: boolean) => void };
   /** Registry `recordSearch` AND the caller's `recordSearch` capability (CA, ADMIN, PRINCIPAL, RECEPTIONIST). */
   recordSearch?: boolean;
   /** Role for the Help & tour row in the mobile sheet; omitted = no row. */
@@ -105,7 +107,7 @@ function useTabletRail(): boolean {
   return useSyncExternalStore(subscribeTablet, tabletSnapshot, serverTablet);
 }
 
-export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItems, bottomItems: allBottomItems = [], mobileItems, logoUrl, collapsed = false, onToggleCollapse, recordSearch = false, helpRole, framed = false }: RoleSidebarProps) {
+export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItems, bottomItems: allBottomItems = [], mobileItems, logoUrl, collapsed = false, onToggleCollapse, peek, recordSearch = false, helpRole, framed = false }: RoleSidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -120,9 +122,19 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
   const bottomItems = availableNavigation(allBottomItems.map(visible));
   const shortcuts = (mobileItems ? availableNavigation(mobileItems.map(visible)) : items.filter((entry): entry is RoleNavItem => !isNavGroup(entry))).slice(0, 4);
   const directory = searchNavigation<SidebarEntry>([...items, ...bottomItems], query);
+  // The Search records shortcut is part of the directory, so a query matching its label keeps it visible.
+  const recordMatch = recordSearch && (!query.trim() || t("Search records").toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   const tablet = useTabletRail();
   const rail = collapsed || tablet;
   const asideRef = useRef<HTMLElement>(null);
+  const peekTimer = useRef<number | undefined>(undefined);
+  const schedulePeek = (open: boolean) => {
+    if (!peek || tablet) return;
+    window.clearTimeout(peekTimer.current);
+    // A short intent delay: crossing the rail on the way to the page never flings the sidebar open.
+    peekTimer.current = window.setTimeout(() => peek.onChange(open), open ? 220 : 160);
+  };
+  useEffect(() => () => window.clearTimeout(peekTimer.current), []);
   const allLeaves = [...items.flatMap((entry) => isNavGroup(entry) ? entry.children : [entry]), ...bottomItems];
   // "More" lights up when the current screen is not one of the four slots, so the bar always shows where you are.
   const activeInSlot = shortcuts.some((item) => isNavigationActive(item, pathname));
@@ -192,7 +204,8 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
 
   return (
     <>
-      <aside ref={asideRef} className={cn("fixed inset-y-0 start-0 z-50 hidden flex-col border-e border-border/50 bg-card p-3 shadow-sm text-card-foreground md:flex", collapsed ? "w-[72px]" : "w-[72px] lg:w-64")}>
+      <aside ref={asideRef} data-sidebar-peek={peek?.active || undefined} onMouseEnter={() => schedulePeek(true)} onMouseLeave={() => schedulePeek(false)}
+        className={cn("sk-sidebar fixed inset-y-0 start-0 z-50 hidden flex-col border-e border-border/50 bg-card p-3 shadow-sm text-card-foreground md:flex", collapsed ? "w-[72px]" : "w-[72px] lg:w-64")}>
         <div className="mb-6 flex min-h-11 items-center gap-3 px-1">
           <InstitutionBadge logoUrl={logoUrl} name={tagline} />
           {!rail && <div className="min-w-0"><SkooleeLogo size="1.2rem" /><p lang={taglineLang} className="mt-1 truncate text-xs text-ink-muted" title={tagline}>{tagline}</p></div>}
@@ -206,9 +219,9 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
           <FileSearch aria-hidden="true" className="h-4 w-4 shrink-0" />{!rail && <span className="min-w-0 text-start">{t("Search records")}</span>}
         </Link></Tooltip>}
         <nav aria-label={t("Primary navigation")} className="min-h-0 flex-1 space-y-1 overflow-y-auto">{navigation(rail)}</nav>
-        {onToggleCollapse && <Button variant="outline" type="button" data-tour="shell.sidebar.collapse" onClick={onToggleCollapse} aria-label={collapsed ? t("Expand sidebar") : t("Collapse sidebar")} aria-expanded={!rail} className="mt-3 flex min-h-11 items-center justify-center gap-2">
-          <ChevronLeft aria-hidden="true" className={cn("h-4 w-4 rtl:rotate-180", collapsed && "rotate-180 rtl:rotate-0")} />
-          {!collapsed && t("Collapse")}
+        {onToggleCollapse && <Button variant="outline" type="button" data-tour="shell.sidebar.collapse" onClick={onToggleCollapse} aria-label={peek?.active ? t("Keep sidebar open") : collapsed ? t("Expand sidebar") : t("Collapse sidebar")} aria-expanded={!rail} className="mt-3 flex min-h-11 items-center justify-center gap-2">
+          {peek?.active ? <Pin aria-hidden="true" className="h-4 w-4" /> : <ChevronLeft aria-hidden="true" className={cn("h-4 w-4 rtl:rotate-180", collapsed && "rotate-180 rtl:rotate-0")} />}
+          {!collapsed && t(peek?.active ? "Keep open" : "Collapse")}
         </Button>}
       </aside>
       <nav ref={mobileNavRef} aria-label={t("Mobile navigation")} className="fixed inset-x-0 bottom-0 z-50 flex items-stretch justify-around border-t border-border bg-card px-[4px] py-[4px] safe-area-pb md:hidden">
@@ -230,9 +243,9 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
           </FormField>
         </div>
         <nav aria-label={t("All navigation")} className="space-y-1 p-4">
-          {recordSearch && !query && <Link href="/search" className={cn(buttonVariants({ variant: "ghost" }), "w-full min-h-11 justify-start gap-3 px-3")} onClick={() => setMobileOpen(false)}><FileSearch aria-hidden="true" className="h-5 w-5 shrink-0" />{t("Search records")}</Link>}
+          {recordMatch && <Link href="/search" className={cn(buttonVariants({ variant: "ghost" }), "w-full min-h-11 justify-start gap-3 px-3")} onClick={() => setMobileOpen(false)}><FileSearch aria-hidden="true" className="h-5 w-5 shrink-0" />{t("Search records")}</Link>}
           {directory.map(entry => isNavGroup(entry) ? <section key={keyOf(entry)} className="space-y-1"><h3 className="px-3 pt-3 text-xs font-semibold text-ink-muted">{entry.label}</h3>{entry.children.map(item => <NavigationItem key={keyOf(item)} item={item} directory onNavigate={() => setMobileOpen(false)} />)}</section> : <NavigationItem key={keyOf(entry)} item={entry} directory onNavigate={() => setMobileOpen(false)} />)}
-          {!directory.length && <div className="space-y-3 p-3"><p role="status" className="text-sm text-ink-muted">{t("No available workspaces match your search.")}</p><Button variant="outline" onClick={() => { setQuery(""); searchRef.current?.focus(); }}>{t("Clear search")}</Button></div>}
+          {!directory.length && !recordMatch && <div className="space-y-3 p-3"><p role="status" className="text-sm text-ink-muted">{t("No available workspaces match your search.")}</p><Button variant="outline" onClick={() => { setQuery(""); searchRef.current?.focus(); }}>{t("Clear search")}</Button></div>}
         </nav>
         </div>
       </ModalSurface>}

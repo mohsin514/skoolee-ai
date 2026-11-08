@@ -1,6 +1,10 @@
 "use client";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Download, Lock, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Archive, Download, FilePen, Lock, ShieldCheck, ShieldPlus } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
+import { DeskFilterStatus, DeskPill, DeskStats, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -17,7 +21,7 @@ export type SecureBrowserState = { required: false } | { required: true; admitte
 export function SecureBrowserGate({ id, state, locale }: { id: string; state: SecureBrowserState; locale: AssessmentLocale }) {
   const t = secureBrowserCopy(locale);
   if (!state.required) return null;
-  if (state.admitted) return <p role="status" className="sk-panel flex items-center gap-2 p-4 text-sm"><ShieldCheck aria-hidden="true" className="size-5 text-status-success-text" />{state.via === "SUPERVISED_ALTERNATIVE" ? t.admittedAlternative : t.admittedSeb} · <bdi dir="auto">{state.profile.name}</bdi> v{state.profile.version}</p>;
+  if (state.admitted) return <Alert compact tone="success" icon={ShieldCheck}>{state.via === "SUPERVISED_ALTERNATIVE" ? t.admittedAlternative : t.admittedSeb} · <bdi dir="auto">{state.profile.name}</bdi> v{state.profile.version}</Alert>;
   return <section role="alert" aria-labelledby="seb-gate-title" className="sk-panel space-y-3 border-status-warning-border p-5">
     <h2 id="seb-gate-title" className="flex items-center gap-2 text-lg font-bold"><Lock aria-hidden="true" className="size-5" />{t.required}</h2>
     <p>{state.reason ? t.reasons[state.reason] : t.reasons.NO_EVIDENCE}</p>
@@ -37,6 +41,10 @@ async function call(path: string, method = "GET", body?: unknown) {
   if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Request failed");
   return data;
 }
+const PROFILE_TONE: Record<Profile["status"], DeskTone> = { DRAFT: "info", APPROVED: "success", RETIRED: "neutral" };
+const PROFILE_ICON = { DRAFT: FilePen, APPROVED: ShieldCheck, RETIRED: Archive } as const;
+// Drafts need someone's decision, so they lead; retired profiles sink to the end.
+const PROFILE_RANK: Record<Profile["status"], number> = { DRAFT: 0, APPROVED: 1, RETIRED: 2 };
 const lines = (text: string) => text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
 
 export function SecureProfiles({ locale }: { locale: AssessmentLocale }) {
@@ -51,19 +59,25 @@ export function SecureProfiles({ locale }: { locale: AssessmentLocale }) {
   const load = useCallback(async () => setProfiles((await call("/api/school-ai/secure-profiles")).profiles), []);
   useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
   const run = async (work: () => Promise<unknown>) => { setStatus(null); try { await work(); await load(); setStatus({ tone: "ok", text: t.saved }); return true; } catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); return false; } };
-  const latest = (profiles ?? []).filter((row, index, all) => all.findIndex(other => other.profileKey === row.profileKey) === index);
+  const latest = useMemo(() => urgencyFirst((profiles ?? []).filter((row, index, all) => all.findIndex(other => other.profileKey === row.profileKey) === index), row => PROFILE_RANK[row.status]), [profiles]);
+  const [only, setOnly] = useState<Profile["status"] | null>(null);
+  const shown = only ? latest.filter(row => row.status === only) : latest;
+  const newButton = <Button onClick={() => setEditing("new")}><ShieldPlus aria-hidden="true" />{t.newProfile}</Button>;
   return <div className="space-y-4">
-    {status && <p role="status" className={`rounded-xl border px-3 py-2 text-sm ${status.tone === "ok" ? "border-status-success-border bg-status-success-surface text-status-success-text" : "border-status-error-border bg-status-error-surface text-status-error-text"}`}>{status.text}</p>}
-    <p className="text-xs text-ink-subtle">{t.limits}</p>
-    {editing === "new" ? <ProfileForm t={t} onCancel={() => setEditing(null)} onSave={async body => { if (await run(() => call("/api/school-ai/secure-profiles", "POST", body))) setEditing(null); }} /> : <Button onClick={() => setEditing("new")}>{t.newProfile}</Button>}
-    {profiles && !latest.length && <p className="rounded-xl border border-dashed p-6 text-center text-sm text-ink-subtle">{t.none}</p>}
-    <ul className="grid gap-3" aria-label={t.title}>{latest.map(profile => {
+    {status && <Alert compact tone={status.tone === "ok" ? "success" : "danger"} onDismiss={() => setStatus(null)}>{status.text}</Alert>}
+    <Alert compact tone="neutral">{t.limits}</Alert>
+    {latest.length > 0 && <DeskStats>{(["DRAFT", "APPROVED", "RETIRED"] as const).map((key, index) => <StatTile key={key} index={index} icon={PROFILE_ICON[key]} tone={PROFILE_TONE[key]} label={t.statuses[key]} value={latest.filter(row => row.status === key).length} selected={only === key} onSelect={() => setOnly(current => current === key ? null : key)} />)}</DeskStats>}
+    <DeskFilterStatus shown={shown.length} total={latest.length} onClear={() => setOnly(null)} />
+    {editing === "new" ? <ProfileForm t={t} onCancel={() => setEditing(null)} onSave={async body => { if (await run(() => call("/api/school-ai/secure-profiles", "POST", body))) setEditing(null); }} /> : profiles && !latest.length ? null : newButton}
+    {!profiles && status?.tone !== "error" && <SkeletonList rows={3} label={t.title} />}
+    {profiles && !latest.length && editing !== "new" && <div className="sk-panel" data-static><EmptyState icon={ShieldCheck} title={t.none} description={t.summary} action={newButton} /></div>}
+    <ul className="grid gap-3" aria-label={t.title}>{shown.map(profile => {
       const history = (profiles ?? []).filter(row => row.profileKey === profile.profileKey);
-      return <li key={profile.id} className="sk-panel space-y-2 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-semibold" dir="auto">{profile.name}</p><p className="text-xs text-ink-subtle">{t.version} {profile.version} · {t.minClient} <bdi dir="ltr">{profile.minClientVersion}</bdi> · {profile.configKeys.length + profile.browserExamKeys.length ? `${profile.configKeys.length + profile.browserExamKeys.length} keys` : t.noKeys}</p></div><span className="rounded-full border px-2 py-0.5 text-xs font-semibold">{t.statuses[profile.status]}</span></div>
-        <table className="w-full text-start text-sm"><caption className="text-start text-xs font-semibold">{t.devices}</caption><thead><tr><th scope="col" className="text-start">{t.platform}</th><th scope="col" className="text-start">{t.clientVersion}</th><th scope="col" className="text-start">{t.testedOn}</th><th scope="col" className="text-start">{t.result}</th></tr></thead>
-          <tbody>{profile.testedDevices.map((device, index) => <tr key={index}><td>{device.platform}</td><td dir="ltr" className="text-start">{device.clientVersion}</td><td>{device.testedOn}</td><td>{device.result}{device.assistiveTools.length ? ` · ${device.assistiveTools.join(", ")}` : ""}</td></tr>)}</tbody></table>
-        {profile.approvalIssues.length > 0 && <ul className="list-disc ps-5 text-sm text-status-warning-text">{profile.approvalIssues.map(issue => <li key={issue}>{issue}</li>)}</ul>}
+      return <li key={profile.id} data-tone={profile.approvalIssues.length && profile.status === "DRAFT" ? "warning" : PROFILE_TONE[profile.status]} className={`${deskRow} space-y-3`}>
+        <div className="flex flex-wrap items-start justify-between gap-2"><div className="flex min-w-0 items-start gap-3"><span aria-hidden="true" className="sk-desk-row-icon">{(() => { const Icon = PROFILE_ICON[profile.status]; return <Icon />; })()}</span><div className="min-w-0"><p className="font-semibold [overflow-wrap:anywhere]" dir="auto">{profile.name}</p><p className="text-xs text-ink-subtle">{t.version} {profile.version} · {t.minClient} <bdi dir="ltr">{profile.minClientVersion}</bdi> · {profile.configKeys.length + profile.browserExamKeys.length ? `${profile.configKeys.length + profile.browserExamKeys.length} keys` : t.noKeys}</p></div></div><DeskPill tone={PROFILE_TONE[profile.status]}>{t.statuses[profile.status]}</DeskPill></div>
+        <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[28rem] text-start text-sm [&_td]:pe-3 [&_td]:py-0.5 [&_th]:pe-3"><caption className="text-start text-xs font-semibold">{t.devices}</caption><thead><tr><th scope="col" className="text-start">{t.platform}</th><th scope="col" className="text-start">{t.clientVersion}</th><th scope="col" className="text-start">{t.testedOn}</th><th scope="col" className="text-start">{t.result}</th></tr></thead>
+          <tbody>{profile.testedDevices.map((device, index) => <tr key={index}><td>{device.platform}</td><td dir="ltr" className="text-start">{device.clientVersion}</td><td>{device.testedOn}</td><td>{device.result}{device.assistiveTools.length ? ` · ${device.assistiveTools.join(", ")}` : ""}</td></tr>)}</tbody></table></div>
+        {profile.approvalIssues.length > 0 && <Alert compact tone="warning" live="off"><ul className="list-disc space-y-0.5 ps-5">{profile.approvalIssues.map(issue => <li key={issue}>{issue}</li>)}</ul></Alert>}
         <div className="flex flex-wrap gap-2">
           <a href={`/api/school-ai/secure-profiles/${encodeURIComponent(profile.id)}/seb`} className={buttonVariants({ variant: "outline" })} download data-profile-seb>{t.downloadSeb}</a>
           {profile.status === "DRAFT" && <Button disabled={profile.approvalIssues.length > 0} onClick={() => void run(() => call(`/api/school-ai/secure-profiles/${profile.id}`, "PATCH", { status: "APPROVED" }))}>{t.approve}</Button>}

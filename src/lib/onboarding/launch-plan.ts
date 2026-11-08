@@ -97,6 +97,11 @@ export function launchPlan(input: {
 const entryPaths = new Set(["/onboarding", "/teacher-onboarding", "/dashboard", "/super", "/admin", "/principal", "/teacher", "/student", "/parent", "/accountant", "/librarian", "/receptionist", "/owner", "/setup/readiness", "/ai"]);
 export function isLaunchEntry(pathname: string) { return entryPaths.has(pathname); }
 
+// SKAI-1690: a required onboarding form is the welcome's own first task, so the automatic welcome
+// would only sit on top of it and block "Next". Help -> "Replay welcome" still opens it there.
+const noAutoWelcome = new Set(["/teacher-onboarding"]);
+export function opensWelcomeAutomatically(pathname: string) { return isLaunchEntry(pathname) && !noAutoWelcome.has(pathname); }
+
 /** Console landing views (registry defaultView): overview, the desks' dashboard and the owner's schools. */
 const LANDING_VIEWS = new Set(["overview", "dashboard", "schools"]);
 

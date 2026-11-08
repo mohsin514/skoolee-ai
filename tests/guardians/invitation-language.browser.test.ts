@@ -11,7 +11,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // language — never the browser's — in its loaded, empty, error and accepted states, and the dashboard after
 // acceptance agrees with it.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.INVITE_TEST_APP || "http://localhost:3107";
 const evidence = process.env.INVITE_EVIDENCE_DIR || "/tmp/sko490-evidence";
 const db = new PrismaClient(), password = "SyntheticInvite490!";
@@ -60,8 +60,9 @@ for (const [key, browserLocale, lang, dir, heading, button] of [
     const page = await ctx.newPage();
     await page.goto(`${base}/parent-invitations`);
     await page.locator("main h1").waitFor();
-    const main = page.locator("main[dir]").last();
-    assert.equal(await main.getAttribute("dir"), dir); assert.equal(await main.getAttribute("lang"), lang);
+    // Since role-ux (§6.3) the page renders inside the family console shell, which sets dir/lang on <html>
+    // from the server-resolved display locale; the page no longer owns a <main dir lang> of its own.
+    assert.deepEqual(await page.evaluate(() => [document.documentElement.dir, document.documentElement.lang]), [dir, lang]);
     assert.equal((await page.locator("main h1").innerText()).trim(), heading);
     await page.getByRole("button", { name: button }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.dir), dir, "the document direction agrees from first paint");
@@ -69,7 +70,8 @@ for (const [key, browserLocale, lang, dir, heading, button] of [
     // The load error is in the saved language too.
     await page.route("**/api/parent/invitations", r => r.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ success: false }) }));
     await page.reload();
-    const alert = page.locator("main p[role=alert]");
+    // The load failure is now the shared ErrorState (role=alert) whose heading carries the message.
+    const alert = page.locator("main [role=alert] h2");
     await alert.waitFor();
     assert.equal((await alert.innerText()).trim(), { ar: "تعذر تحميل الدعوة أو قبولها.", ur: "دعوت لوڈ یا قبول نہیں ہوسکی۔", en: "Could not load or accept this invitation." }[lang]);
     await ctx.close();

@@ -16,7 +16,8 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const parseDay = (value: string | null, label: string) => {
   if (!value || !DAY.test(value)) throw new ApiError(`${label} must be a date (YYYY-MM-DD).`, 400);
   const date = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime())) throw new ApiError(`${label} is not a real date.`, 400);
+  // SKAI-1341: Date silently rolls 2026-02-30 into March, so the calendar parts must round-trip.
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) throw new ApiError(`${label} is not a real date.`, 400);
   return date;
 };
 const isoDay = (date: Date) => date.toISOString().slice(0, 10);
@@ -80,15 +81,28 @@ export async function weekWorkload(user: AuthUser, campusId: string, weekStartTe
   return { weekStart: isoDay(weekStart), weekEnd: isoDay(new Date(weekEnd.getTime() - 86_400_000)), definition: "Load = published weekly teaching periods + dated cover duties this week. Invigilation and approved leave are shown beside it. Capacity is the contracted periods per week on the staff profile; when it is not set, no percentage is shown.", rows };
 }
 
-export async function setCapacity(user: AuthUser, campusId: string, staffId: string, value: unknown) {
+/** SKAI-1631: `expected` is the capacity the editor last read; the save only applies while it still holds. */
+export async function setCapacity(user: AuthUser, campusId: string, staffId: string, value: unknown, expected: unknown) {
   assertWorkloadAccess(user);
+  if (expected === undefined) throw new ApiError("Reload the workload board before changing capacity.", 400);
+  const expectedCapacity = expected === null ? null : Number(expected);
   const capacity = value === null || value === "" ? null : Number(value);
   if (capacity !== null && (!Number.isInteger(capacity) || capacity < 0 || capacity > 80)) throw new ApiError("Capacity must be a whole number of periods from 0 to 80, or empty for unknown.", 400);
   return schoolAiTransaction(user, async db => {
     const staff = await db.user.findFirst({ where: { id: staffId, schoolId: user.schoolId, campusId, isActive: true }, select: { id: true, staffProfile: { select: { contractedPeriodsPerWeek: true } } } });
     if (!staff) throw new ApiError("Staff member not found in this campus", 404);
-    await db.staffProfile.upsert({ where: { userId: staffId }, create: { schoolId: user.schoolId, userId: staffId, contractedPeriodsPerWeek: capacity }, update: { contractedPeriodsPerWeek: capacity } });
-    await writeAuditEvent(db, user, { table: "staff_profiles", recordId: staffId, action: "UPDATE", campusId, before: { contractedPeriodsPerWeek: staff.staffProfile?.contractedPeriodsPerWeek ?? null }, after: { contractedPeriodsPerWeek: capacity } });
+    const current = staff.staffProfile?.contractedPeriodsPerWeek ?? null;
+    const conflict = () => new ApiError("Someone else changed this capacity. Refresh the board to review it.", 409, "CAPACITY_CONFLICT");
+    if (current !== expectedCapacity) throw conflict();
+    if (current === capacity) return { capacity };
+    if (staff.staffProfile) {
+      // Compare-and-set: a concurrent accepted save makes this match nothing.
+      const changed = await db.staffProfile.updateMany({ where: { userId: staffId, contractedPeriodsPerWeek: expectedCapacity }, data: { contractedPeriodsPerWeek: capacity } });
+      if (changed.count !== 1) throw conflict();
+    } else {
+      await db.staffProfile.create({ data: { schoolId: user.schoolId, userId: staffId, contractedPeriodsPerWeek: capacity } }).catch(() => { throw conflict(); });
+    }
+    await writeAuditEvent(db, user, { table: "staff_profiles", recordId: staffId, action: "UPDATE", campusId, before: { contractedPeriodsPerWeek: current }, after: { contractedPeriodsPerWeek: capacity } });
     return { capacity };
   });
 }

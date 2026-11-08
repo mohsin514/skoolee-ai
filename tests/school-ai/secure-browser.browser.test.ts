@@ -18,7 +18,7 @@ import { assessmentFixture } from "./assessment-fixture";
 // SKO-449 browser acceptance. A real SEB client adds request hashes over each URL; the "SEB" context
 // below does exactly that with the approved keys, while the ordinary context sends none.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.SEB_TEST_APP || "http://localhost:3107";
 const evidence = process.env.SEB_EVIDENCE_DIR || "/tmp/sko449-evidence";
 const raw = new PrismaClient(), password = "SyntheticSeb449!";
@@ -86,7 +86,7 @@ test("the coordinator records a tested profile; drafts without device evidence c
   const ctx = await context("coordinator"), page = await ctx.newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(`${base}/exam-delivery`);
-  await page.getByRole("heading", { name: "Exam delivery profiles" }).waitFor();
+  await page.getByRole("heading", { name: "Secure exam delivery", level: 1 }).waitFor();
   await page.getByRole("button", { name: "New profile" }).click();
   const form = page.getByRole("form", { name: "Exam delivery profiles" });
   await form.getByLabel("Profile name").fill("iPad trial — untested");
@@ -168,7 +168,7 @@ test("Urdu learner gate and Arabic coordinator profiles are RTL without overflow
     const ctx = await context("coordinator-ar", { width: 390, height: 860 }), page = await ctx.newPage(), errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
     await page.goto(`${base}/exam-delivery`);
-    await page.getByRole("heading", { name: "ملفات تقديم الامتحان" }).waitFor();
+    await page.getByRole("heading", { name: "تقديم الامتحانات الآمن", level: 1 }).waitFor();
     await page.getByText("Windows labs", { exact: false }).first().waitFor();
     assert.equal(await page.locator("main").first().evaluate((el) => getComputedStyle(el).direction), "rtl"); // the frame sets dir on <html>, not <main>
     assert.equal(await noOverflow(page), true);

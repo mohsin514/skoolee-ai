@@ -35,6 +35,9 @@ import { prisma, tenantTransaction, type TxClient } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { ApiError } from "@/lib/api/scope";
+import { getLocalePackage } from "@/lib/locale/store";
+import type { LocalePackage } from "@/lib/locale/package";
+import { salaryChangeDetail } from "@/lib/staff/salary-detail";
 import type { AuthUser } from "@/lib/auth";
 import {
   ENDED_STATUSES,
@@ -327,7 +330,7 @@ function inferChangeKind(before: PositionSnapshot | null, after: PositionSnapsho
 }
 
 /** Human-readable summary for the staff timeline. */
-function describeChange(before: PositionSnapshot | null, after: PositionSnapshot): string {
+function describeChange(before: PositionSnapshot | null, after: PositionSnapshot, locale: LocalePackage): string {
   const parts: string[] = [];
   const moved = (label: string, a: string | null, b: string | null) => {
     if ((a ?? "") === (b ?? "")) return;
@@ -344,9 +347,7 @@ function describeChange(before: PositionSnapshot | null, after: PositionSnapshot
     parts.push(`Status: ${before.employmentStatus} → ${after.employmentStatus}`);
   }
   if (before && before.basicSalary !== after.basicSalary) {
-    parts.push(
-      `Basic salary: Rs. ${(before.basicSalary / 100).toLocaleString("en-PK")} → Rs. ${(after.basicSalary / 100).toLocaleString("en-PK")}`
-    );
+    parts.push(`Basic salary: ${salaryChangeDetail(before.basicSalary, after.basicSalary, locale)}`);
   }
 
   return parts.join(" · ");
@@ -521,6 +522,9 @@ export async function setStaffPosition(opts: {
           data: { userId, departmentId: after.departmentId, role: "MEMBER", isPrimary: true, startedAt: effectiveFrom },
         });
       }
+    } else if (has("primaryDepartmentId")) {
+      // SKAI-1567: "No department" clears the primary designation too; the membership itself stays.
+      await tx.departmentMember.updateMany({ where: { userId, isPrimary: true, endedAt: null }, data: { isPrimary: false } });
     }
 
     // Someone who has left holds no posts and no reports' lines should point
@@ -582,7 +586,7 @@ export async function setStaffPosition(opts: {
         userId,
         kind: "DESIGNATION",
         title: CHANGE_TITLES[changeKind],
-        detail: describeChange(before, after) || null,
+        detail: describeChange(before, after, await getLocalePackage(user.schoolId, staff.campusId, new Date(), undefined, tx)) || null,
         actorId: user.userId,
       },
     });

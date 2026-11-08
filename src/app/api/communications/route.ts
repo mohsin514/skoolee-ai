@@ -10,6 +10,9 @@ import {
 } from "@/lib/api/scope";
 import { runNotificationAutomationSweep } from "@/lib/notifications/automation";
 import { announcementHistoryRestriction } from "@/lib/school-ai/announcement-history";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { coarseDeliveryState, deliveryState } from "@/lib/notifications/delivery-state";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +31,14 @@ const ACADEMIC_DELIVERY_SCOPE = {
     { relatedType: { in: ["REPORT_CARD", "EXAM"] } },
   ],
 };
+
+const RECEIPT_FAILED = { deliveryReceipts: { some: { state: "failed" } } };
+
+/** SKAI-1783: filter on the effective outcome — a receipt-confirmed failure is FAILED, not SENT. */
+function statusFilter(status: string) {
+  if (status === "FAILED") return { OR: [{ status }, RECEIPT_FAILED] };
+  return { status, deliveryReceipts: { none: { state: "failed" } } };
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -55,7 +66,7 @@ export async function GET(req: NextRequest) {
     const communications = await prisma.parentCommunication.findMany({
       where: {
         ...historyScope,
-        ...(status && status !== "ALL" ? { status } : {}),
+        ...(status && status !== "ALL" ? statusFilter(status) : {}),
         ...(channel && channel !== "ALL" ? { channel } : {}),
         ...(studentId ? { studentId } : {}),
         ...(parentUserId ? { parentUserId } : {}),
@@ -70,6 +81,7 @@ export async function GET(req: NextRequest) {
         },
         parent: { select: { fullName: true, email: true, phone: true } },
         campus: { select: { name: true } },
+        deliveryReceipts: { select: { state: true } },
       },
       orderBy: { createdAt: "desc" },
       take: 200,
@@ -80,15 +92,30 @@ export async function GET(req: NextRequest) {
       where: historyScope,
       _count: { _all: true },
     });
+    // SKAI-1783: a provider receipt that says "failed" makes the row FAILED wherever it is counted.
+    // Rows already FAILED are not moved, so nothing is counted twice.
+    const receiptFailed = await prisma.parentCommunication.groupBy({
+      by: ["status"],
+      where: { AND: [historyScope, { status: { not: "FAILED" } }, RECEIPT_FAILED] },
+      _count: { _all: true },
+    });
 
     return Response.json({
       success: true,
       scope: academicOnly ? "academic" : "office",
-      communications,
-      summary: summary.reduce<Record<string, number>>((acc, item) => {
+      communications: communications.map(({ deliveryReceipts, ...row }) => {
+        const state = deliveryState({ ...row, receiptStates: deliveryReceipts.map((item) => item.state) });
+        // SKAI-800: `deliveryState` carries OPENED; `delivery` keeps the existing log label.
+        return { ...row, delivery: coarseDeliveryState(state), deliveryState: state };
+      }),
+      summary: receiptFailed.reduce<Record<string, number>>((acc, item) => {
+        acc[item.status] = (acc[item.status] ?? 0) - item._count._all;
+        acc.FAILED = (acc.FAILED ?? 0) + item._count._all;
+        return acc;
+      }, summary.reduce<Record<string, number>>((acc, item) => {
         acc[item.status] = item._count._all;
         return acc;
-      }, {}),
+      }, {})),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return errorResponse(error, "[communications] GET failed");
@@ -101,7 +128,7 @@ export async function POST(req: NextRequest) {
     // The manual reminder run (fees, marks deadlines, report notices) is a campus-operations act (M46).
     if (!canManageCampusOps(user)) throw new ApiError("Reminders are run by your campus admin.", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = automationSchema.safeParse(body);
     if (!parsed.success) return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
 

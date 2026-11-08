@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { requireAuthUser } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { addEvalCase, approvePolicy, archivePolicy, askPolicy, escalatePolicyQuestion, listPolicies, myPolicyQuestions, newPolicyVersion, officeQueue, policyFeedback, resolveEscalation, runEvaluation, savePolicyDraft } from "@/lib/policies/service";
@@ -14,8 +15,8 @@ export async function GET(request: Request) {
     const view = new URL(request.url).searchParams.get("view");
     const result = await runWithTenantContext({ schoolId: user.schoolId, campusId: user.campusId, userId: user.userId, role: user.role }, async () =>
       view === "manage" ? { policies: await listPolicies(user), queue: await officeQueue(user) } : { questions: await myPolicyQuestions(user) });
-    return Response.json({ success: true, data: result }, { headers });
-  } catch (error) { return errorResponse(error, "[policies] GET failed"); }
+    return ok(result, { headers });
+  } catch (error) { return failFrom(error, "[policies] GET failed"); }
 }
 
 export async function POST(request: Request) {
@@ -38,6 +39,6 @@ export async function POST(request: Request) {
         default: return runEvaluation(user);
       }
     });
-    return Response.json({ success: true, data: result }, { headers });
-  } catch (error) { return errorResponse(error, "[policies] POST failed"); }
+    return ok(result, { headers });
+  } catch (error) { return failFrom(error, "[policies] POST failed"); }
 }

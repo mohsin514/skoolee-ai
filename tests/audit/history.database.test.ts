@@ -9,7 +9,7 @@ import { auditHistoryScope, exportAuditHistory, listAuditHistory } from "../../s
 import { assertPermission } from "../../src/lib/permissions";
 import { purgeExpiredExamIntegrity } from "../../src/lib/school-ai/exam-integrity-service";
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only isolated PG55438.");
 const db = new PrismaClient(), schoolIds: string[] = [];
 after(async () => { await db.school.deleteMany({ where: { id: { in: schoolIds } } }); await db.$disconnect(); await prisma.$disconnect(); });
@@ -99,7 +99,9 @@ test("export is scoped, minimized, formula-safe, recorded once per request key a
   assert.match(first.csv, /'=HYPERLINK/, "formula cells are neutralized");
   assert.equal(first.csv.includes("private note"), false);
   assert.match(first.filename, /^activity-history-\d{4}-\d{2}-\d{2}\.csv$/);
-  await exportFor(s.campusAdmin, key);
+  const retry = await exportFor(s.campusAdmin, key);
+  assert.deepEqual(retry, first, "SKAI-1065: a retried export is byte-identical");
+  assert.equal(first.csv.includes("audit_log_exports"), false, "the export never lists its own receipt");
   assert.equal(await db.auditLog.count({ where: { schoolId: s.schoolId, tableName: "audit_log_exports", recordId: key } }), 1, "a retried export leaves one receipt");
   assert.equal((await db.auditLog.findFirstOrThrow({ where: { tableName: "audit_log_exports", recordId: key } })).campusId, s.campuses[0]);
   await db.rolePermission.create({ data: { schoolId: s.schoolId, role: "CAMPUS_ADMIN", module: "reports", canView: false, canAdd: false, canEdit: false, canDelete: false } });

@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
+import { teachesExamClass } from "@/lib/academic/teaches-exam-class";
+import { roundConfigured } from "@/lib/academic/model-config";
 import { calculateWeightedGrade, getOrCreateGradeWeightConfig, buildSubjectDistribution, gradeForMark, gradeForPercentage, type WeightConfig } from "@/lib/academic/grade-calculator";
 
 export const runtime = "nodejs";
@@ -50,7 +52,7 @@ export async function GET(
         select: {
           id: true, title: true, term: true, status: true, examType: true, subjectId: true, academicYear: true,
           classId: true,
-          class: { select: { id: true, name: true, section: true } },
+          class: { select: { id: true, name: true, section: true, classTeacherId: true, subjects: { select: { teacherId: true } } } },
         },
       },
     },
@@ -59,6 +61,9 @@ export async function GET(
   if (!reportCard) return Response.json({ error: "Report card not found" }, { status: 404 });
   if (user.campusId && reportCard.campusId !== user.campusId) {
     return Response.json({ error: "Report card is outside your campus" }, { status: 403 });
+  }
+  if (user.role === "TEACHER" && !teachesExamClass(reportCard.exam.class, user.userId)) {
+    return Response.json({ error: "You are not assigned to this class" }, { status: 403 });
   }
 
   const marks = await prisma.mark.findMany({
@@ -111,14 +116,25 @@ export async function GET(
   }
 
   if (marks.length > 0) {
-    subjectBreakdown = marks.map((mark) => ({
-      subjectId: mark.subject.id,
-      subjectName: mark.subject.name,
-      totalMarks: mark.subject.totalMarks,
-      obtainedMarks: mark.marksObtained,
-      percentage: mark.subject.totalMarks > 0 ? Math.round((mark.marksObtained / mark.subject.totalMarks) * 100) : 0,
-      grade: mark.grade || gradeForMark(mark.marksObtained, mark.subject.totalMarks),
-    }));
+    // SKAI-213: per-subject percentages and grades follow the school's rounding rule and bands, as the gradebook does.
+    const rules = weightConfig ?? (studentClassId
+      ? await getOrCreateGradeWeightConfig(reportCard.campusId, studentClassId, reportCard.exam.academicYear).catch(() => null)
+      : null);
+    const rounding = rules?.roundingRule ?? "WHOLE";
+    // An absent or exempt paper is not a failed zero: keep the flags and drop the numeric grade (matches report-cards.ts).
+    subjectBreakdown = marks.map((mark) => {
+      const notAssessed = mark.isAbsent || mark.isExempt;
+      return {
+        subjectId: mark.subject.id,
+        subjectName: mark.subject.name,
+        totalMarks: mark.subject.totalMarks,
+        obtainedMarks: mark.marksObtained,
+        isAbsent: mark.isAbsent,
+        isExempt: mark.isExempt,
+        percentage: notAssessed ? null : mark.subject.totalMarks > 0 ? roundConfigured((mark.marksObtained / mark.subject.totalMarks) * 100, rounding) : 0,
+        grade: mark.isAbsent ? "ABS" : mark.isExempt ? "EX" : mark.grade || gradeForMark(mark.marksObtained, mark.subject.totalMarks, rules?.thresholds),
+      };
+    });
   }
 
   return Response.json({
@@ -127,7 +143,7 @@ export async function GET(
       ...reportCard,
       // Show the class this exam actually belonged to, not wherever the
       // student has since been promoted to.
-      student: { ...reportCard.student, class: reportCard.exam.class },
+      student: { ...reportCard.student, class: { id: reportCard.exam.class.id, name: reportCard.exam.class.name, section: reportCard.exam.class.section } },
       ...(isAggregateFinal && overall
         ? { percentage: overall.overallPercentage, grade: overall.overallGrade }
         : {}),

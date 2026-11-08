@@ -17,7 +17,7 @@ import { prisma as appPrisma } from "../../src/lib/db/prisma";
 // consolidated mentions. G41 routing: a teacher's leave goes to the academic lead (the principal) only; a
 // non-teaching staff member's leave goes to the campus operator only (§2.5).
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.NOTIF_TEST_APP || "http://localhost:3107";
 const evidence = process.env.NOTIF_EVIDENCE_DIR || "/tmp/sko416-evidence";
 const db = new PrismaClient(), password = "SyntheticInbox416!";
@@ -39,6 +39,10 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }) {
   assert.equal((await ctx.request.post(base + "/api/auth/login", { data: { email: users.get(key)!.email, password } })).status(), 200);
   const { secret } = await (await ctx.request.post(base + "/api/auth/mfa", { data: { action: "setup" } })).json().catch(() => ({}));
   if (secret) { await ctx.request.post(base + "/api/auth/mfa", { data: { action: "verify-setup", code: totp(secret.replace(/\s+/g, "")) } }); await ctx.request.post(base + "/api/auth/mfa", { data: { action: "acknowledge", acknowledged: true } }); }
+  // Finish first use so the welcome story and the console tour do not cover the header.
+  assert.equal((await ctx.request.post(base + "/api/auth/welcome", { headers: { Origin: base }, data: {} })).status(), 200);
+  const tourId = { PRINCIPAL: "principal", TEACHER: "teacher" }[(await db.user.findUniqueOrThrow({ where: { id: users.get(key)!.id } })).role as string];
+  if (tourId) assert.equal((await ctx.request.post(base + "/api/auth/tour", { headers: { Origin: base }, data: { tourId, version: 1, status: "dismissed" } })).status(), 200);
   sessions.set(key, await ctx.storageState());
   return ctx;
 }
@@ -154,7 +158,7 @@ test("the principal sees Needs you, marks a task seen without completing it, and
   const page = await (await context("principal")).newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(`${base}/principal`);
-  await page.getByRole("button", { name: "View notifications" }).first().click({ timeout: 30_000 });
+  await page.getByRole("button", { name: /View notifications|Notifications, \d+ unread/ }).first().click({ timeout: 30_000 });
   const center = page.locator("[data-notification-center]");
   await center.getByRole("tab", { name: /Needs you/ }).click();
   const task = center.locator('[data-category="ACTION"][data-state="open"]').first();

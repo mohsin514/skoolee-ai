@@ -8,6 +8,8 @@ import {
   requireAuthUser,
 } from "@/lib/api/scope";
 import { allocateExamRooms, getSeatingPlan } from "@/lib/academic/exam-rooms";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Multi-room exam seating (§58).
 //
@@ -22,6 +24,8 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     assertStaffRole(user);
+    // SKAI-1300: staff roles without exam access must not read planning or seating.
+    await assertPermission(user, "exams", "view");
     const scheduleId = req.nextUrl.searchParams.get("scheduleId");
     if (!scheduleId) return Response.json({ error: "scheduleId is required" }, { status: 400 });
 
@@ -40,7 +44,7 @@ export async function PUT(req: NextRequest) {
     }
     await assertPermission(user, "exams", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const scheduleId = String(body.scheduleId ?? "");
     const roomIds = Array.isArray(body.roomIds) ? body.roomIds.map(String) : null;
     if (!scheduleId || !roomIds) {

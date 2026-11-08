@@ -2,11 +2,12 @@ import { PrismaClient } from "@prisma/client";
 import { SignJWT } from "jose";
 import { mkdir, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
 
 // This fixture must never connect to a school's database or sign with deployment credentials.
-const expected = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const expected = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== expected || process.env.DIRECT_URL !== expected) throw new Error("Use only the isolated School AI test database.");
-const secret = "school-ai-isolated-browser-test-secret-only";
+const secret = SCHOOL_AI_TEST_SECRET;
 if (process.env.AUTH_SECRET !== secret) throw new Error("Use the isolated browser-test signing secret.");
 const db = new PrismaClient();
 async function main() {

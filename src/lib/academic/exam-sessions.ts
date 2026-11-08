@@ -111,6 +111,8 @@ export async function createExamSession(opts: {
     );
   }
   if (!opts.title.trim()) throw new ApiError("Give the exam session a title", 400);
+  // SKAI-1301: same 160-character contract as PATCH, so create cannot persist a title edit rejects.
+  if (opts.title.trim().length > 160) throw new ApiError("A session title of up to 160 characters is required", 400);
   if (!classIds.length) throw new ApiError("Pick at least one class", 400);
   if (opts.startDate && opts.endDate && opts.endDate < opts.startDate) {
     throw new ApiError("The end date is before the start date", 400);
@@ -150,7 +152,28 @@ export async function createExamSession(opts: {
 
   const toCreate = classes.filter((c) => !alreadyHas.has(c.id) && c.subjects.length > 0);
 
+  // SKAI-1040: if nothing would be created, refuse instead of opening an empty session.
+  if (toCreate.length === 0) {
+    const label = (c: { name: string; section: string | null }) => `${c.name}${c.section ? ` ${c.section}` : ""}`;
+    const already = classes.filter((c) => alreadyHas.has(c.id)).map(label);
+    throw new ApiError(
+      already.length === classes.length
+        ? `Every selected class already has this exam for ${opts.term} ${opts.academicYear} (${already.join(", ")}). Nothing was created.`
+        : `None of the selected classes can get this exam: ${already.length ? `${already.join(", ")} already ${already.length === 1 ? "has" : "have"} it` : ""}${already.length && withoutSubjects.length ? "; " : ""}${withoutSubjects.length ? `${withoutSubjects.map(label).join(", ")} ${withoutSubjects.length === 1 ? "has" : "have"} no subjects` : ""}. Nothing was created.`,
+      409,
+      already.length === classes.length ? "EXAM_SESSION_ALL_CLASSES_HAVE_EXAM" : "EXAM_SESSION_NOTHING_TO_CREATE",
+    );
+  }
+
+  // SKAI-1670: serialise creates for one exam identity and re-check inside the lock, so two simultaneous
+  // submissions cannot both see "no exam yet" and commit duplicate sessions and class exams.
+  let claimed = toCreate;
   const session = await transaction(opts.db, async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`exam-session:${campusId}:${opts.term}:${opts.academicYear}:${opts.examType}`}))`;
+    const taken = new Set((await tx.exam.findMany({ where: { campusId, classId: { in: toCreate.map((c) => c.id) }, term: opts.term, academicYear: opts.academicYear, examType: opts.examType }, select: { classId: true } })).map((e) => e.classId));
+    claimed = toCreate.filter((c) => !taken.has(c.id));
+    if (!claimed.length) throw new ApiError(`Every selected class already has this exam for ${opts.term} ${opts.academicYear}. Nothing was created.`, 409, "EXAM_SESSION_ALL_CLASSES_HAVE_EXAM");
+    taken.forEach((id) => alreadyHas.add(id));
     const created = await tx.examSession.create({
       data: {
         campusId,
@@ -166,9 +189,9 @@ export async function createExamSession(opts: {
       },
     });
 
-    if (toCreate.length) {
+    if (claimed.length) {
       await tx.exam.createMany({
-        data: toCreate.map((c) => ({
+        data: claimed.map((c) => ({
           campusId,
           classId: c.id,
           sessionId: created.id,
@@ -188,7 +211,7 @@ export async function createExamSession(opts: {
 
   return {
     session,
-    created: toCreate.length,
+    created: claimed.length,
     skipped: classes.filter((c) => alreadyHas.has(c.id)).map((c) => `${c.name}${c.section ? ` ${c.section}` : ""}`),
     noSubjects: withoutSubjects.map((c) => `${c.name}${c.section ? ` ${c.section}` : ""}`),
   };
@@ -422,7 +445,7 @@ export async function autoSeatSession(opts: {
 /** Campus-wide exam seat supply, for the "can we even fit everyone?" panel. */
 export async function campusSeatingCapacity(campusId: string) {
   const rooms = await prisma.classRoom.findMany({
-    where: { campusId },
+    where: { campusId, archivedAt: null },
     select: {
       id: true,
       roomNumber: true,

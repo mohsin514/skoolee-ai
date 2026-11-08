@@ -9,7 +9,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 
 // SKO-476 browser acceptance against the isolated database and app.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.AUDIT_TEST_APP || "http://localhost:3107";
 const evidence = process.env.AUDIT_EVIDENCE_DIR || "/tmp/sko476-evidence";
 const raw = new PrismaClient(), password = "SyntheticAudit476!";
@@ -18,9 +18,10 @@ const people = new Map<string, { id: string; email: string }>();
 const sessions = new Map<string, Awaited<ReturnType<BrowserContext["storageState"]>>>();
 let browser: Browser;
 
+// welcomeCompletedAt: these accounts are past first use, so the first-run guide does not cover the screen.
 async function person(key: string, role: string, campusId: string | null, language = "en") {
   const id = randomUUID(), email = `${id}@example.invalid`;
-  await raw.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await raw.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), preferredLanguage: language } });
   people.set(key, { id, email });
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
@@ -33,18 +34,22 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }) {
     await ctx.request.post(base + "/api/auth/mfa", { data: { action: "verify-setup", code: totp(secret.replace(/\s+/g, "")) } });
     await ctx.request.post(base + "/api/auth/mfa", { data: { action: "acknowledge", acknowledged: true } });
   }
+  // The product tour overlays the console on a first visit; these runs test the history, not the tour.
+  for (const tourId of ["admin-campus", "super"]) await ctx.request.post(base + "/api/auth/tour", { data: { tourId, version: 1, status: "dismissed" } });
   sessions.set(key, await ctx.storageState());
   return ctx;
 }
-async function openHistory(key: string, path: string, viewport?: { width: number; height: number }, prepare?: (page: Page) => Promise<void>) {
+async function openHistory(key: string, path: string, viewport?: { width: number; height: number }, prepare?: (page: Page) => Promise<void>, button = "Activity Log") {
   const ctx = await context(key, viewport), page = await ctx.newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(base + path);
   // A first visit in a non-English language reloads once to set the language cookie, dropping ?view=.
   const query = path.split("?")[1];
   if (query) { await page.waitForLoadState("networkidle"); if (!page.url().includes(query)) await page.goto(base + path); }
+  // The Next.js dev indicator sits over the phone tab bar's start corner (RTL "More"); a production build has none.
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
   if (prepare) await prepare(page);
-  await page.getByRole("button", { name: "Activity Log" }).first().click();
+  await page.getByRole("button", { name: button }).first().click();
   const dialog = page.getByRole("dialog");
   await dialog.waitFor();
   return { ctx, page, dialog, errors };
@@ -81,7 +86,7 @@ test("a campus administrator sees only their campus history and exports it once"
   assert.match(file.suggestedFilename(), /^activity-history-\d{4}-\d{2}-\d{2}\.csv$/);
   const csv = await readFile((await file.path())!, "utf8");
   assert.equal(csv.trim().split(/\r?\n/).length, 3, "header plus two scoped rows");
-  await dialog.getByText("Export downloaded", { exact: false }).waitFor();
+  await page.getByText("Export downloaded", { exact: false }).waitFor();
   assert.equal(await raw.auditLog.count({ where: { schoolId, tableName: "audit_log_exports" } }), 1);
   assert.deepEqual(errors, []); await ctx.close();
 });
@@ -122,10 +127,10 @@ test("Arabic and Urdu campus admin layouts are RTL without overflow at 390px", a
       if (page.url().includes("view=leadership")) return;
       // Deep link fell back to the overview: reach the section the way a phone user does.
       await page.getByRole("button", { name: key.endsWith("-ur") ? "مزید" : "المزيد" }).click();
-      await page.getByRole("button", { name: key.endsWith("-ur") ? "منتظمین اور رسائی" : "المسؤولون والوصول" }).first().click();
-    });
+      await page.getByRole("button", { name: key.endsWith("-ur") ? "دفتری عملہ" : "موظفو المكتب" }).first().click();
+    }, key.endsWith("-ur") ? "سرگرمی لاگ" : "سجل النشاط");
     await dialog.getByText(title).first().waitFor();
-    assert.equal(await dialog.locator("[dir='rtl']").count() > 0, true);
+    assert.equal(await dialog.first().evaluate(node => getComputedStyle(node).direction), "rtl", "the dialog lays out right-to-left");
     assert.equal(await noOverflow(page), true, key);
     await settled(page); await page.screenshot({ path: `${evidence}/history-${key}-390.png`, fullPage: true });
     assert.deepEqual(errors, []); await ctx.close();

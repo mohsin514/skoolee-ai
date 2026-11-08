@@ -14,6 +14,8 @@ import { notify } from "@/lib/notifications/in-app";
 import { requestSchool } from "@/lib/capacity/identity";
 import { measured } from "@/lib/capacity/admission";
 import { createHash } from "node:crypto";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-451: payment confirmation is critical work: measured, never shed by background quotas.
 export async function POST(req: NextRequest) {
@@ -27,7 +29,7 @@ async function confirmPayment(req: NextRequest) {
     if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "fees", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = paymentSchema.safeParse(body);
     if (!parsed.success) {
       const flat = parsed.error.flatten().fieldErrors;

@@ -53,7 +53,7 @@ export interface BadgeProps
 function Badge({ className, variant, size, dot = false, children, ...props }: BadgeProps) {
   return (
     <span className={cn(badgeVariants({ variant, size }), className)} {...props}>
-      {dot ? <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", dots[variant ?? "default"] ?? "bg-white")} /> : null}
+      {dot ? <span aria-hidden="true" data-badge-dot={variant ?? "default"} className={cn("size-1.5 shrink-0 rounded-full", dots[variant ?? "default"] ?? "bg-white")} /> : null}
       {children}
     </span>
   );

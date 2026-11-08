@@ -6,11 +6,12 @@ import { PrismaClient } from "@prisma/client";
 import { SignJWT } from "jose";
 import { chromium } from "playwright";
 import { expect } from "@playwright/test";
+const STANDALONE_APP = (process.env.STANDALONE_TEST_APP || "http://localhost:3107").replace(/\/+$/, "");
 
 async function main() {
-  assert.equal(process.env.DATABASE_URL, "postgresql://angular_dev_15@127.0.0.1:55438/postgres");
+  assert.equal(process.env.DATABASE_URL, `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`);
   assert.equal(process.env.AUTH_SECRET, "synthetic-owner-audit-only-20261024");
-  const base = "http://localhost:3107", db = new PrismaClient();
+  const base = STANDALONE_APP, db = new PrismaClient();
   const school = await db.school.create({ data: { name: "Synthetic standalone audit", slug: randomUUID(), regId: randomUUID(), city: "Karachi", contactEmail: `${randomUUID()}@example.invalid`, status: "ACTIVE", plan: "PRO", registrationKind: "STANDALONE", aiWorkflowsLiveAt: new Date() } });
   const browser = await chromium.launch({ headless: true });
   try {

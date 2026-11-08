@@ -34,8 +34,8 @@ const CATEGORY_LABEL: Record<AuditCategory, string> = {
   student: "Students", class: "Classes", subject: "Subjects", invitation: "Invitations", marks: "Marks",
   integrity: "Exam observation reviews", fees: "Fees and payments", exports: "History exports",
 };
-const ACTION_LABEL: Record<string, string> = { CREATE: "Created", UPDATE: "Updated", DELETE: "Deleted" };
-const FIELD_LABEL: Record<string, string> = { version: "Version", reviewVersion: "Reviewed version", status: "Status", decision: "Review decision", isActive: "Active", published: "Published" };
+const ACTION_LABEL: Record<string, string> = { CREATE: "Created", UPDATE: "Updated", DELETE: "Deleted", GRANT: "Consent given", REVOKE: "Consent withdrawn" };
+const FIELD_LABEL: Record<string, string> = { version: "Version", reviewVersion: "Reviewed version", status: "Status", decision: "Review decision", isActive: "Active", published: "Published", consent: "Consent" };
 const ERROR_TEXT = {
   failure: "History could not be loaded. Refresh to retrieve the current authorized records.",
   denied: "History access changed. Protected entries have been cleared.",
@@ -90,7 +90,9 @@ export function AuditHistoryPanel({ initialCampusId = "", lockCampus = false, ex
       const link = document.createElement("a"); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url);
       exportKey.current = null;
       setExportState("idle");
-      toast.success(t("Export downloaded. The export itself is recorded in this history."));
+      // SKAI-1633: a partial file is never reported as an ordinary success.
+      if (response.headers.get("X-Export-Truncated") === "true") toast.warning(t("Only the newest {0} entries were exported. Narrow the date range and export again for the rest.", [response.headers.get("X-Export-Rows") || "5000"]));
+      else toast.success(t("Export downloaded. The export itself is recorded in this history."));
       void load();
     } catch { setExportState("failed"); }
   }, [filter, load, t]);

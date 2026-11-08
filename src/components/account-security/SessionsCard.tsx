@@ -1,6 +1,6 @@
 "use client";
 import { Laptop, LogOut, MonitorSmartphone, Smartphone } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { DeskPill, DeskRowIcon, RelativeTime, deskRow, urgencyFirst } from "@/components/ui/desk";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatInstant, type LocalePackage } from "@/lib/locale/package";
@@ -35,21 +35,20 @@ export function SessionsCard({ sessions, t, locale, busyId, onEnd }: {
         <div className="mt-5"><EmptyState size="sm" icon={MonitorSmartphone} title={t.empty} /></div>
       ) : (
         <ul className="mt-5 space-y-3">
-          {sessions.map(session => {
+          {/* This device first, then the most recent sign-ins (SKAI-1277). */}
+          {urgencyFirst([...sessions].sort((a, b) => b.loginAt.localeCompare(a.loginAt)), session => session.current ? 0 : 1).map(session => {
             const Icon = session.userAgent && MOBILE.test(session.userAgent) ? Smartphone : Laptop;
             const busy = busyId === session.id;
             return (
-              <li key={session.id} className="flex flex-col gap-4 rounded-2xl border border-border-subtle bg-surface-subtle p-4 transition-colors hover:bg-surface-hover sm:flex-row sm:items-center">
+              <li key={session.id} data-tone={session.current ? "brand" : undefined} className={`${deskRow} flex flex-col gap-4 sm:flex-row sm:items-center`}>
                 <div className="flex min-w-0 flex-1 items-start gap-3">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-card text-primary shadow-xs">
-                    <Icon aria-hidden="true" className="size-5" />
-                  </span>
+                  <DeskRowIcon icon={Icon} />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="min-w-0 text-sm font-bold text-ink-strong [overflow-wrap:anywhere]"><bdi dir="ltr">{session.userAgent || t.unknown}</bdi></p>
-                      {session.current && <Badge variant="secondary">{t.thisDevice}</Badge>}
+                      {session.current && <DeskPill tone="brand">{t.thisDevice}</DeskPill>}
                     </div>
-                    <p className="mt-1 text-xs text-ink-subtle tabular-nums">{t.signed}: {formatInstant(session.loginAt, locale)}</p>
+                    <p className="mt-1 text-xs text-ink-subtle tabular-nums">{t.signed}: <RelativeTime iso={session.loginAt} full={formatInstant(session.loginAt, locale)} /></p>
                     <p className="text-xs text-ink-subtle tabular-nums">{t.expires}: {formatInstant(session.expiresAt, locale)}</p>
                   </div>
                 </div>

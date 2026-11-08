@@ -2,10 +2,12 @@ import { test, expect } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { SignJWT } from "jose";
 import { createHash, randomUUID } from "node:crypto";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated School AI database.");
-const db = new PrismaClient(), schoolId = `resource-qa-${randomUUID()}`, origin = "http://localhost:3106";
+const db = new PrismaClient(), schoolId = `resource-qa-${randomUUID()}`, origin = SCHOOL_AI_ORIGIN;
 let campusId: string, actorId: string, teacherId: string, classId: string, roomId: string, periodId: string, scheduleId: string;
 const date = "2026-11-11";
 test.beforeAll(async () => { await db.school.create({ data: { id: schoolId, name: "Synthetic resource QA", slug: schoolId, regId: schoolId, city: "Test", contactEmail: `${schoolId}@example.invalid`, status: "ACTIVE", plan: "PRO" } }); });
@@ -24,7 +26,7 @@ test.beforeEach(async ({ context }) => {
   await db.examInvigilation.create({ data: { schoolId, campusId, examRoomId: room.id, teacherId, createdById: actorId } });
   const student = await db.student.create({ data: { schoolId, campusId, classId, fullName: "Synthetic pupil", rollNo: "1", gender: "MALE", enrollmentDate: new Date("2026-01-01") } });
   await db.examSeat.create({ data: { schoolId, campusId, examScheduleId: scheduleId, examRoomId: room.id, studentId: student.id, seatNumber: 1, rowNo: 1, benchNo: 1, seatOnBench: 1 } });
-  const token = await new SignJWT({ userId: actorId, schoolId, campusId, role: "ADMIN", email: `${actorId}@example.invalid`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  const token = await new SignJWT({ userId: actorId, schoolId, campusId, role: "ADMIN", email: `${actorId}@example.invalid`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
   await db.loginSession.create({ data: { userId: actorId, schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
   await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]);
 });

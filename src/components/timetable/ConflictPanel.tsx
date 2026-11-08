@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
+  BookOpen,
   CheckCircle2,
   Info,
   Lightbulb,
   Loader2,
   RefreshCw,
   UserX,
+  Users,
   Wand2,
 } from "lucide-react";
 import { toast, friendlyErrorMessage } from "@/components/ui/toast";
@@ -338,7 +340,7 @@ export function ConflictPanel({
         <p className="mb-1.5 text-xs font-semibold text-ink-subtle">{ui("Subject coverage")}</p>
         <div className="space-y-1.5">
           {subjects.length === 0 && (
-            <EmptyState size="sm" title={ui("No subjects to track")} description={ui("Add subjects to this class to track weekly coverage.")} />
+            <EmptyState size="sm" icon={BookOpen} title={ui("No subjects to track")} description={ui("Add subjects to this class to track weekly coverage.")} />
           )}
           {subjects.map((s) => {
             const placed = placedBySubject.get(s.id) || 0;
@@ -365,7 +367,7 @@ export function ConflictPanel({
       <div>
         <p className="mb-1.5 text-xs font-semibold text-ink-subtle">{ui("Teacher workload / day")}</p>
         {workload.size === 0 ? (
-          <EmptyState size="sm" title={ui("No teachers assigned yet")} description={ui("Assign teachers to lessons to see their daily workload.")} />
+          <EmptyState size="sm" icon={Users} title={ui("No teachers assigned yet")} description={ui("Assign teachers to lessons to see their daily workload.")} />
         ) : (
           <div className="space-y-2.5">
             {[...workload.entries()].map(([tid, dayMap]) => (

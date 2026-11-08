@@ -6,6 +6,8 @@ import type { InstitutionKind } from "@/lib/auth/institution";
 import { getDisplayLocale } from "@/lib/locale/display";
 import type { Language } from "@/lib/locale/package";
 import { deleteFile } from "@/lib/storage/s3";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 function cleanOptionalText(value: unknown) {
   if (value === null) return null;
@@ -114,7 +116,7 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const session = await requireAuthUser();
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const currentUser = await prisma.user.findUnique({
       where: { id: session.userId },
       select: { fullName: true, profileImageUrl: true },
@@ -139,23 +141,23 @@ export async function PATCH(req: NextRequest) {
       data.profileImageUrl = cleanProfileImage(body.profileImageUrl);
     }
 
-    if (data.profileImageUrl !== undefined) {
-      const prevImage = currentUser?.profileImageUrl ?? null;
-      if (isS3Key(prevImage) && prevImage !== data.profileImageUrl) {
-        void deleteFile(prevImage).catch(() => { });
-      }
-    }
+    // SKAI-1655: the replaced photo is removed only after the profile update commits, so a failed save keeps it.
+    const prevImage = currentUser?.profileImageUrl ?? null;
+    const replacedImage = data.profileImageUrl !== undefined && isS3Key(prevImage) && prevImage !== data.profileImageUrl ? prevImage : null;
 
     const user = await prisma.user.update({
       where: { id: session.userId },
       data,
       select: PROFILE_SELECT,
     });
+    if (replacedImage) void deleteFile(replacedImage).catch(() => { });
 
-    if (session.role === "STUDENT" && currentUser?.fullName && Object.keys(data).length > 0) {
+    // SKAI-1652: mirror the edit only onto the student record linked to this account (studentUserId is unique).
+    // Never match by name: namesakes in the same campus must keep their own identity, photo and contact details.
+    if (session.role === "STUDENT" && Object.keys(data).length > 0) {
       await prisma.student.updateMany({
         where: {
-          fullName: currentUser.fullName,
+          studentUserId: session.userId,
           campus: { schoolId: session.schoolId },
           ...(session.campusId ? { campusId: session.campusId } : {}),
         },

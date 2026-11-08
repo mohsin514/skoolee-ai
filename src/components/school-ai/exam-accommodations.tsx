@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,8 @@ type Roster = { mode?: string; version: number; canApprove: boolean; baseDuratio
 export function ExamAccommodations({ id, locale }: { id: string; locale: AssessmentLocale }) {
   const access = getAccessCopy(locale);
   const [live, setLive] = useState({ minutes: "10", reason: "" });
+  // SKAI-1459: one key per intended adjustment; kept across ambiguous failures, rotated after success.
+  const liveKey = useRef("");
   const camera = examCameraCopy(locale), t = examReadinessCopy(locale), extension = assessmentExtensionCopy(locale);
   const [assistance, setAssistance] = useState({ breakMinutes: 0, reader: false, scribe: false, largeText: false, cameraExempt: false });
   const [roster, setRoster] = useState<Roster | null>(null);
@@ -54,10 +56,12 @@ export function ExamAccommodations({ id, locale }: { id: string; locale: Assessm
   const extend = async () => {
     if (!selected || busy) return;
     setBusy(true); setError(""); setMessage("");
+    if (!liveKey.current) liveKey.current = crypto.randomUUID();
     try {
-      const response = await fetch(api, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId, addedMinutes: Number(live.minutes), reason: live.reason }) });
+      const response = await fetch(api, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId, addedMinutes: Number(live.minutes), reason: live.reason, requestKey: liveKey.current }) });
       const payload = await response.json();
       if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : t.serverFailure);
+      liveKey.current = "";
       const keep = studentId; await load(); setStudentId(keep); setLive({ minutes: "10", reason: "" }); setMessage(t.approved);
     } catch (cause) { setError(cause instanceof Error ? cause.message : t.serverFailure); }
     finally { setBusy(false); }
@@ -75,8 +79,8 @@ export function ExamAccommodations({ id, locale }: { id: string; locale: Assessm
         {!!selected.liveAdjustments?.length && <div className="text-sm"><p className="font-semibold">{access.liveHistory}</p><ul className="list-disc ps-5">{selected.liveAdjustments.map(row => <li key={row.newDeadline}>{fillAccess(access.liveRow, { n: row.addedMinutes, reason: row.reason, old: when(row.oldDeadline), new: when(row.newDeadline) })}</li>)}</ul></div>}
         {selected.attempt ? <div className="space-y-2"><p>{t.locked}</p><p className="text-sm">{t.existingDeadline}: {new Date(selected.attempt.deadlineAt).toLocaleString(locale)}</p>
           {roster.canApprove && selected.attempt.status === "IN_PROGRESS" && <fieldset disabled={busy} className="space-y-2 rounded-xl border p-3"><legend className="px-1 font-semibold">{access.live}</legend><p className="text-xs text-ink-subtle">{access.liveHelp}</p>
-            <FormField name="live-minutes" label={access.liveMinutes}><Input type="number" min={1} max={120} value={live.minutes} onChange={(event) => setLive((previous) => ({ ...previous, minutes: event.target.value }))} /></FormField>
-            <FormField name="live-reason" label={access.liveReason}><Input maxLength={300} value={live.reason} onChange={(event) => setLive((previous) => ({ ...previous, reason: event.target.value }))} /></FormField>
+            <FormField name="live-minutes" label={access.liveMinutes}><Input type="number" min={1} max={120} value={live.minutes} onChange={(event) => { liveKey.current = ""; setLive((previous) => ({ ...previous, minutes: event.target.value })); }} /></FormField>
+            <FormField name="live-reason" label={access.liveReason}><Input maxLength={300} value={live.reason} onChange={(event) => { liveKey.current = ""; setLive((previous) => ({ ...previous, reason: event.target.value })); }} /></FormField>
             <Button type="button" variant="outline" disabled={live.reason.trim().length < 3} onClick={() => void extend()}>{access.liveApply}</Button></fieldset>}</div> : <fieldset disabled={busy || !roster.canApprove} className="space-y-4"><FormField name="extra-time-minutes" label={t.extraInput}><Input type="number" required min={0} max={240} step={1} value={extra} onChange={(event) => setExtra(event.target.value)} /></FormField><FormField name="extra-break-minutes" label={extension.breakMinutes}><Input type="number" min={0} max={120} step={1} value={assistance.breakMinutes} onChange={event => setAssistance(previous => ({ ...previous, breakMinutes: Number(event.target.value) }))} /></FormField><p className="text-sm text-ink-subtle">{extension.assistanceHint}</p>{(["reader", "scribe", "largeText"] as const).map(key => <label key={key} className="flex min-h-11 items-center gap-3 text-sm"><Checkbox checked={assistance[key]} onChange={event => setAssistance(previous => ({ ...previous, [key]: event.target.checked }))} />{extension[key]}</label>)}<label className="flex min-h-11 items-center gap-3 text-sm"><Checkbox checked={assistance.cameraExempt} onChange={event => setAssistance(previous => ({ ...previous, cameraExempt: event.target.checked }))} />{camera.cameraExempt}</label><p className="text-sm text-ink-subtle">{camera.exemptionHint}</p><FormField name="extra-time-reason" label={t.reason}><Textarea required maxLength={1000} value={reason} onChange={(event) => setReason(event.target.value)} /></FormField><p className="text-sm">{t.summary}: {roster.baseDurationMinutes + (Number(extra) || 0) + assistance.breakMinutes} {t.minutes}</p><Button type="submit">{t.approve}</Button></fieldset>}
       </>}
     </form>}

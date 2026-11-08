@@ -36,7 +36,7 @@ async function scope(user: AuthUser, campusId?: string | null, roles: readonly s
 export async function snapshot(campusId: string) {
   const [classes, rooms, periods, slots, teachers] = await Promise.all([
     prisma.class.findMany({ where: { campusId, status: "ACTIVE", archivedAt: null }, select: { id: true, name: true, section: true, capacity: true, _count: { select: { students: { where: { status: "active", archivedAt: null } } } } }, orderBy: [{ name: "asc" }, { section: "asc" }] }),
-    prisma.classRoom.findMany({ where: { campusId }, select: { id: true, roomNumber: true, roomType: true, capacity: true, rows: true, benchesPerRow: true, seatsPerBench: true, examSeatsPerBench: true }, orderBy: { roomNumber: "asc" } }),
+    prisma.classRoom.findMany({ where: { campusId, archivedAt: null }, select: { id: true, roomNumber: true, roomType: true, capacity: true, rows: true, benchesPerRow: true, seatsPerBench: true, examSeatsPerBench: true }, orderBy: { roomNumber: "asc" } }),
     prisma.periodDefinition.count({ where: { campusId, timeType: "CLASS" } }),
     prisma.timetableSlot.findMany({ where: { slotType: "CLASS", timetable: { campusId, class: { status: "ACTIVE", archivedAt: null } } }, select: { dayOfWeek: true, periodNumber: true, teacherId: true, subject: { select: { name: true } }, room: { select: { roomType: true } }, timetable: { select: { classId: true } } } }),
     prisma.user.findMany({ where: { campusId, isActive: true, role: "TEACHER" }, select: { id: true, fullName: true, staffProfile: { select: { contractedPeriodsPerWeek: true } } }, orderBy: { id: "asc" } }),

@@ -115,6 +115,8 @@ export function Tooltip({
     const left = Math.min(Math.max(rect.left + rect.width / 2 - width / 2, EDGE), Math.max(EDGE, viewportWidth - width - EDGE));
     tip.style.top = `${Math.round(top)}px`;
     tip.style.left = `${Math.round(left)}px`;
+    // The arrow points at the trigger's centre even when the tooltip is pushed off-centre by a viewport edge.
+    tip.style.setProperty("--sk-tip-arrow", `${Math.round(Math.min(Math.max(rect.left + rect.width / 2 - left, 12), width - 12))}px`);
     tip.dataset.side = resolved;
   }, [side]);
 

@@ -1,4 +1,5 @@
 
+import { clearWorkspacePrefs } from "@/lib/ui/workspace-pref-storage";
 import { clearDeviceDrafts } from "@/lib/drafts/store";
 /**
  * Recovery from a session the server has stopped accepting.
@@ -41,10 +42,16 @@ export async function signOutInvalidSession(): Promise<void> {
   // cookie anyway, so a failure here must not strand the user.
   try {
     clearDeviceDrafts();
+    clearWorkspacePrefs(); // SKAI-1780
     await fetch("/api/auth/logout", { method: "POST" });
   } catch {
     /* ignore — the redirect below is what actually matters */
   }
 
-  window.location.href = "/login?reason=session-expired";
+  // SKAI-1660: carry the deep link like the server-side recovery does; the login page re-validates it with
+  // safeReturnPath against the newly signed-in role before navigating.
+  const requested = `${path}${window.location.search}${window.location.hash}`;
+  const params = new URLSearchParams({ reason: "session-expired" });
+  if (path.startsWith("/") && !path.startsWith("//") && path !== "/") params.set("redirect", requested);
+  window.location.href = `/login?${params}`;
 }

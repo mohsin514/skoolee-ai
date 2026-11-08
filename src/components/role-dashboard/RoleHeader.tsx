@@ -5,12 +5,13 @@ import { Tooltip } from "@/components/ui/tooltip";
 
 import { SettingsModalHost } from "@/components/settings/SettingsModalHost";
 import { openSettings } from "@/components/settings/settings-sections";
-import { clearDeviceDrafts } from "@/lib/drafts/store";
 
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { useEffect, useRef, useState } from "react";
-import { Bell, ChevronDown, Languages, LayoutDashboard, LogOut, Settings, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Bell, ChevronDown, Keyboard, Languages, LayoutDashboard, LogOut, Maximize2, Rows3, Rows4, Settings, ShieldCheck, type LucideIcon } from "lucide-react";
+import { IconButton } from "@/components/ui/icon-button";
+import { useWorkspacePrefs } from "./workspace-controls";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { EditableProfile } from "@/components/profile/editable-profile-card";
@@ -18,13 +19,14 @@ import { CycleBadge } from "@/components/academic-year/CycleBadge";
 import { ScopeBadge, useShellSession } from "./ScopeBadge";
 import { HelpMenu } from "./HelpMenu";
 import { useNotifications } from "@/hooks/use-notifications";
+import { NOTIFICATION_FIXED_TITLE_KINDS } from "@/lib/notifications/links";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { playNotificationBell } from "@/lib/sounds/bell";
 import { Button } from "@/components/ui/button";
 import { Menu, type MenuItem } from "@/components/ui/menu";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { clearOnSignOut, pendingOnDevice } from "@/lib/offline/store";
-import { clearNavigationAccessCache } from "@/components/nav/NavigationAccess";
+import { signOutAndLeave } from "@/lib/auth/sign-out";
 import { dashboardPathForRole, type UserRole } from "@/lib/roles";
 
 
@@ -83,6 +85,7 @@ export function RoleHeader({
   const t = useUiText();
   const { language, timezone } = useLocale();
   const session = useShellSession();
+  const workspace = useWorkspacePrefs();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [bellShake, setBellShake] = useState(false);
@@ -92,8 +95,9 @@ export function RoleHeader({
   const [headerProfile, setHeaderProfile] = useState<EditableProfile | null>(null);
   const [arrival, setArrival] = useState("");
   const notifRef = useRef<HTMLDivElement | null>(null);
+  const notifTriggerRef = useRef<HTMLButtonElement | null>(null);
   const prevUnreadRef = useRef(0);
-  const { notifications: liveNotifications, unreadCount, refresh: refreshNotifications } = useNotifications();
+  const { notifications: liveNotifications, loaded: notificationsLoaded, unreadCount, refresh: refreshNotifications } = useNotifications();
   const seenNotifIds = useRef<Set<string> | null>(null);
   const displayName = (headerProfile?.fullName || session?.fullName || userName || "").split("@")[0].replace(/[._-]/g, " ").replace(/\s+/g, " ").trim() || "User";
   // The EN key re-translates after a language switch; the session label is already in the display language.
@@ -125,7 +129,7 @@ export function RoleHeader({
   // report the result of something the viewer just did (addendum 2026-10-22 §4). The bell keeps the full list.
   useEffect(() => {
     if (seenNotifIds.current === null) {
-      if (liveNotifications.length === 0) return;
+      if (!notificationsLoaded) return;
       seenNotifIds.current = new Set(liveNotifications.map((item) => item.id));
       return;
     }
@@ -136,9 +140,11 @@ export function RoleHeader({
     const newest = fresh.find((item) => !item.isRead && (item as { category?: string }).category === "ACTION");
     if (!newest || touring || isModalOpen()) return;
     playNotificationBell();
-    setArrival(t("New notification: {0}", [newest.title]));
+    // Fixed interface titles are stored in English; translate them like the notification center does.
+    const title = newest.type && NOTIFICATION_FIXED_TITLE_KINDS.has(newest.type) ? t(newest.title) : newest.title;
+    setArrival(t("New notification: {0}", [title]));
     // Reads the translator at the moment an item arrives; a language switch should not re-announce it.
-  }, [liveNotifications, touring]);
+  }, [liveNotifications, notificationsLoaded, touring]);
 
   // Header identity (name, photo). A failed read keeps the session name: no toast for a load (R4).
   useEffect(() => {
@@ -173,7 +179,8 @@ export function RoleHeader({
       setNotifOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setNotifOpen(false);
+      // SKAI-1658: Escape returns keyboard focus to the bell that opened the panel.
+      if (event.key === "Escape") { setNotifOpen(false); notifTriggerRef.current?.focus(); }
     };
 
     document.addEventListener("pointerdown", closeOnOutsideClick);
@@ -188,11 +195,10 @@ export function RoleHeader({
   const signOut = async () => {
     setSigningOut(true);
     clearOnSignOut();
-    clearDeviceDrafts();
-    // The shell's per-tab access cache never outlives the session it was confirmed for.
-    clearNavigationAccessCache();
-    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
-    window.location.href = "/login";
+    // SKAI-1021: drafts, the access map and the shell session are dropped, the server
+    // session is closed (with a retry), and only then is /login loaded — as a replace,
+    // so Back cannot repaint this console.
+    await signOutAndLeave();
   };
 
   const handleLogout = () => {
@@ -230,10 +236,12 @@ export function RoleHeader({
             {context ? <div data-tour="shell.header.context" className="flex min-w-0 max-w-full items-center gap-2">{context}</div> : null}
           </div>
           {viewerRole ? <HelpMenu role={viewerRole} framed={framed} /> : null}
+          <IconButton data-focus-toggle label={t("Focus mode")} tooltip={t("Focus mode (hide sidebar and header)")} variant="outline" aria-keyshortcuts="Control+Period Meta+Period" className="hidden md:inline-flex" onClick={() => workspace.setFocus(true)}><Maximize2 aria-hidden="true" /></IconButton>
           <div ref={notifRef} className="sm:relative">
             <Tooltip content={t("View notifications")} describe={false}>
             <Button variant="outline" size="icon"
               type="button"
+              ref={notifTriggerRef}
               data-tour="shell.header.notifications"
               onClick={() => setNotifOpen((o) => !o)}
               className={cn(
@@ -290,6 +298,12 @@ export function RoleHeader({
               // The same Settings section `/account/security` redirects to, opened without leaving the page.
               { id: "security", label: "Security & sign-in", icon: ShieldCheck, onSelect: () => openSettings("security") },
               ...accountLinks.map((link): MenuItem => ({ id: link.id, label: link.label, icon: link.icon, href: link.href, onSelect: link.href ? undefined : link.onSelect })),
+              "separator",
+              workspace.density === "compact"
+                ? { id: "density", label: "Comfortable spacing", icon: Rows3, description: "More room around each row", onSelect: () => workspace.setDensity("comfortable") }
+                : { id: "density", label: "Compact spacing", icon: Rows4, description: "See more on screen at once", onSelect: () => workspace.setDensity("compact") },
+              { id: "focus", label: "Focus mode", icon: Maximize2, description: "Hide the sidebar and header", onSelect: () => workspace.setFocus(true) },
+              { id: "shortcuts", label: "Keyboard shortcuts", icon: Keyboard, onSelect: workspace.openShortcuts },
               "separator",
               { id: "sign-out", label: "Sign out", icon: LogOut, onSelect: handleLogout },
             ]}

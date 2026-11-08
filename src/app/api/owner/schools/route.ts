@@ -17,8 +17,13 @@ import {
   normalizePlan,
   uniqueSlug,
 } from "@/lib/owner/provisioning";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
+
+// Matches the School.status values documented in prisma/schema.prisma.
+const SCHOOL_STATUSES = ["TRIAL", "ACTIVE", "SUSPENDED", "DELETED"];
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,10 +33,11 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const { page: requestedPage, limit } = ownerPagination(searchParams);
     const search = searchParams.get("search")?.trim() || "";
-    const status = searchParams.get("status") || "";
+    const status = (searchParams.get("status") || "").trim().toUpperCase();
     const plan = searchParams.get("plan") || "";
 
     const where: any = {};
+    if (status && !SCHOOL_STATUSES.includes(status)) throw new ApiError("Unknown status", 400);
     if (status) where.status = status;
     if (plan && !["FREE", "BASIC", "PRO", "ENTERPRISE"].includes(plan)) throw new ApiError("Unknown plan", 400);
     if (plan) where.plan = plan;
@@ -83,6 +89,8 @@ export async function GET(req: NextRequest) {
       establishedYear: school.establishedYear,
       status: school.status,
       plan: school.plan,
+      dataRegion: school.dataRegion,
+      attendanceRegulator: school.attendanceRegulator,
       aiCreditsUsed: school.aiCreditsUsed,
       aiCreditsLimit: school.aiCreditsLimit,
       aiWorkflowsLiveAt: school.aiWorkflowsLiveAt,
@@ -137,7 +145,15 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await requirePlatformOwner();
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
+
+    // Text identity fields must arrive as JSON strings; numbers would otherwise be silently stringified.
+    for (const key of ["schoolName", "city", "ownerName", "campusName"] as const) {
+      const value = body[key];
+      if (value !== undefined && value !== null && typeof value !== "string") {
+        throw new ApiError(`${key} must be text`, 400);
+      }
+    }
 
     const schoolName = String(body.schoolName || "").trim();
     const city = String(body.city || "").trim();
@@ -160,17 +176,27 @@ export async function POST(req: NextRequest) {
       throw new ApiError("School contact email is not valid", 400);
     }
 
+    // SKAI-1369: unknown plan or status values are rejected, not silently
+    // downgraded to FREE/TRIAL. Omitted values keep their defaults.
+    if (body.plan && !["FREE", "BASIC", "PRO", "ENTERPRISE"].includes(String(body.plan).toUpperCase())) {
+      throw new ApiError("Unsupported plan", 400);
+    }
+    if (body.status && !["TRIAL", "ACTIVE"].includes(String(body.status).toUpperCase())) {
+      throw new ApiError("Unsupported status", 400);
+    }
     const plan = normalizePlan(body.plan);
     const planDef = PLANS[plan];
-    const status = ["TRIAL", "ACTIVE"].includes(String(body.status).toUpperCase())
-      ? String(body.status).toUpperCase()
-      : "TRIAL";
+    const status = body.status ? String(body.status).toUpperCase() : "TRIAL";
 
-    // Owner may override the plan's default AI credit allowance.
-    const aiCreditsLimit =
-      Number.isFinite(Number(body.aiCreditsLimit)) && Number(body.aiCreditsLimit) >= 0
-        ? Math.floor(Number(body.aiCreditsLimit))
-        : planDef.aiCredits;
+    // Owner may override the plan's default AI credit allowance. The column is a 32-bit integer,
+    // so fractional or out-of-range values are rejected rather than rounded or left to fail in the database.
+    const rawAiCredits = body.aiCreditsLimit;
+    const hasAiCredits = rawAiCredits !== undefined && rawAiCredits !== null && rawAiCredits !== "";
+    const aiCreditsValue = hasAiCredits ? Number(rawAiCredits) : planDef.aiCredits;
+    if (!Number.isInteger(aiCreditsValue) || aiCreditsValue < 0 || aiCreditsValue > 2147483647) {
+      throw new ApiError("AI credits must be a whole number between 0 and 2147483647", 400);
+    }
+    const aiCreditsLimit = aiCreditsValue;
 
     const schoolContact = contactEmail || ownerEmail;
     await assertEmailAvailable(ownerEmail);

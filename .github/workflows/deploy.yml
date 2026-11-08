@@ -84,6 +84,12 @@ jobs:
         with:
           node-version: 22
       - run: pnpm install --frozen-lockfile
+      - name: AI release evaluation gate (AI-05, fail-closed unless AI_FEATURES_ENABLED=false)
+        env:
+          AI_FEATURES_ENABLED: ${{ vars.AI_FEATURES_ENABLED }}
+        run: |
+          set -o pipefail
+          pnpm run check:ai-release 2>&1 | tee release-evidence/ai-release-gate.log
       - name: Apply immutable versioned migrations
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

@@ -4,6 +4,8 @@ import { requireAuthUser, errorResponse, canLeadAcademics, canManageOperations }
 import { notify } from "@/lib/notifications/in-app";
 import { saveManualTimetable, changeManualTimetableStatus, deleteManualTimetable, TimetableValidationError, resolveTimetableCampus, previewTimetablePublish, publishTimetableVersion } from "@/lib/timetable/manual";
 import { notifyTimetableVersion } from "@/lib/timetable/notify";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 
@@ -44,7 +46,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const campusId = await resolveTimetableCampus(user, id);
     if (!campusId) return Response.json({ error: "No campus" }, { status: 400 });
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     // G35a: publishing or unpublishing a timetable is the academic lead's act — the principal, or a campus
     // operator only while the campus has no principal. Drafts stay open to the academic office.
     if ((body.action === "publish" || body.action === "unpublish") && !(await canLeadAcademics(user, campusId))) {
@@ -59,10 +61,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
     if (body.action === "notify" && typeof body.versionId === "string") return Response.json({ success: true, delivery: await notifyTimetableVersion(user, id, body.versionId) });
     if (body.action === "unpublish") {
-      const result = await changeManualTimetableStatus(user, campusId, id, body.action);
-      // Notifications are outside the retry boundary and only follow an actual
-      // committed status transition; repeated publish requests do not resend.
-      if (body.action === "publish" && result.changed) notify("TIMETABLE_PUBLISHED", { schoolId: user.schoolId, campusId, actorId: user.userId, actorName: user.fullName, className: result.data.class.name });
+      const result = await changeManualTimetableStatus(user, campusId, id, body.action, { draftRevision: body.draftRevision, publishedAt: body.publishedAt });
+      // SKAI-1129: unpublishing sends no notice. The publish notice (with classId) fires in the publish branch above;
+      // there is no unpublish event, so the former publish-only notify here was unreachable and is removed.
       return Response.json({ success: true, data: result.data, ...(result.validation ? { validation: result.validation } : {}) });
     }
     if (Array.isArray(body.slots)) return Response.json({ success: true, ...await saveManualTimetable(user, campusId, id, body.slots, typeof body.draftRevision === "number" ? body.draftRevision : undefined) });

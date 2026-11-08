@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, assertPermission, canManageAcademics, resolveCampusId } from "@/lib/api/scope";
 import { academicModelConfigurationSchema, type AcademicModelConfiguration } from "@/lib/academic/model-config";
+import { isSameDraft, orderCycles } from "@/lib/academic/cycle-rules";
 
 /**
  * POST /api/academic-models: save a DRAFT academic model version (a campus cohort's terms, subject mapping,
@@ -38,7 +39,8 @@ export async function createAcademicModelDraft(user: AuthUser, body: Record<stri
 
   const parsed = academicModelConfigurationSchema.safeParse(body.configuration);
   if (!parsed.success) return { ok: false, fieldErrors: parsed.error.flatten().fieldErrors };
-  let configuration: AcademicModelConfiguration = parsed.data;
+  // SKAI-117: terms are stored in date order so every consumer reads Term 1 before Term 2.
+  let configuration: AcademicModelConfiguration = { ...parsed.data, terms: orderCycles(parsed.data.terms) };
   let inheritedConfiguration: AcademicModelConfiguration | null = null;
   let templateSourceId: string | null = null;
   let delegatedOverrideKeys: string[] = [];
@@ -94,18 +96,20 @@ export async function createAcademicModelDraft(user: AuthUser, body: Record<stri
   const key = isTemplate ? "shared-template" : academicModelCohortKey(label);
   const effectiveFrom = isTemplate ? new Date("2000-01-01T00:00:00.000Z") : dateOnly(String(body.effectiveFrom || `${academicYear}-01-01`));
   const effectiveTo = body.effectiveTo ? dateOnly(String(body.effectiveTo)) : null;
+  const title = String(body.title || (isTemplate ? "Group academic template" : `${label} academic model`)).trim().slice(0, 100);
   const model = await prisma.$transaction(async (tx) => {
     const previous = await tx.academicModelVersion.findFirst({
       where: { schoolId: user.schoolId, campusId, academicYear, cohortKey: key },
-      orderBy: { version: "desc" }, select: { version: true },
+      orderBy: { version: "desc" },
     });
+    if (previous && isSameDraft(previous, { title, effectiveFrom, effectiveTo, configuration })) return previous;
     const created = await tx.academicModelVersion.create({
       data: {
         campusId,
         academicYear,
         cohortKey: key,
         cohortLabel: label,
-        title: String(body.title || (isTemplate ? "Group academic template" : `${label} academic model`)).trim().slice(0, 100),
+        title,
         version: (previous?.version ?? 0) + 1,
         status: "DRAFT",
         effectiveFrom,
@@ -123,6 +127,6 @@ export async function createAcademicModelDraft(user: AuthUser, body: Record<stri
       data: { tableName: "academic_model_versions", recordId: created.id, userId: user.userId, oldValue: Prisma.DbNull, newValue: { version: created.version, title: created.title, academicYear, cohortLabel: label, isSharedTemplate: isTemplate, templateSourceId } },
     });
     return created;
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 30_000 });
   return { ok: true, model };
 }

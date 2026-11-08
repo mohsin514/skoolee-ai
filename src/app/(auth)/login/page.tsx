@@ -1,7 +1,7 @@
 "use client";
 import { FieldAction, InputGroup } from "@/components/ui/input-group";
 import { useState, useEffect, useEffectEvent, useRef, useCallback, type CSSProperties } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useForm, useWatch, type Control } from "react-hook-form";
 import { safeReturnPath } from "@/lib/auth/return-path";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,7 +9,7 @@ import { toast } from "@/components/ui/toast";
 import { loginSchema, type LoginFormData } from "@/lib/validators/schemas";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { resolveMediaUrl } from "@/lib/storage/s3";
+import { resolveMediaUrl } from "@/lib/storage/media-url";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ import { FieldError } from "@/components/ui/form-field";
 import { InfoTip } from "@/components/ui/tooltip";
 import {
   Loader2, Eye, EyeOff, ArrowRight, Mail, Lock,
-  AlertCircle, CheckCircle2, ChevronLeft,
+  AlertCircle, CheckCircle2, ChevronLeft, Phone,
 } from "lucide-react";
 import Link from "next/link";
 import { dashboardPathForRole, roleLabel } from "@/lib/roles";
@@ -36,6 +36,10 @@ import { stashAuthEmail, takeAuthEmail } from "@/lib/auth/auth-handoff";
 import { fillText } from "@/lib/auth/fill-nodes";
 import type { Language } from "@/lib/locale/package";
 import { cn } from "@/lib/utils";
+import { GuardianPhoneSignIn } from "@/components/auth/GuardianPhoneSignIn";
+
+/** SKAI-954: the guardian phone sign-in entry is shown only when the OTP service is switched on. */
+const PHONE_SIGN_IN = process.env.NEXT_PUBLIC_PHONE_OTP_ENABLED === "true";
 
 /**
  * Every login-only string, co-located like protect-account and accept-invite.
@@ -78,6 +82,7 @@ const en = {
   loginFailed: "Login failed",
   schoolFailed: "Could not sign in to that school.",
   resendNeedEmail: "Enter your email above, then send a new link.",
+  phoneSignIn: "Parent or guardian? Sign in with your phone",
   /** Known English messages (zod, verification redirect, /api/auth/login) → localized text. Unknown text passes through. */
   messages: {} as Record<string, string>,
 };
@@ -118,11 +123,13 @@ const copy: Record<Language, LoginCopy> = {
     loginFailed: "تعذر تسجيل الدخول",
     schoolFailed: "تعذر تسجيل الدخول إلى تلك المدرسة.",
     resendNeedEmail: "أدخل بريدك الإلكتروني أعلاه، ثم أرسل رابطاً جديداً.",
+    phoneSignIn: "ولي أمر؟ سجّل الدخول برقم هاتفك",
     messages: {
       "Valid email required": "أدخل بريداً إلكترونياً صالحاً",
       "Password required": "كلمة المرور مطلوبة",
       "Invalid email or password": "البريد الإلكتروني أو كلمة المرور غير صحيحة",
       "Too many login attempts. Please try again in a minute.": "محاولات تسجيل دخول كثيرة جداً. حاول مجدداً بعد دقيقة.",
+      "Too many login attempts. Please try again in 15 minutes.": "محاولات تسجيل دخول كثيرة جداً. حاول مجدداً بعد 15 دقيقة.",
       "Account not verified. Please check your email inbox to activate it.": "لم يتم التحقق من الحساب. تحقق من بريدك الإلكتروني لتفعيله.",
       "Login failed": "تعذر تسجيل الدخول",
       "Invalid verification link": "رابط التحقق غير صالح",
@@ -164,11 +171,13 @@ const copy: Record<Language, LoginCopy> = {
     loginFailed: "سائن اِن نہیں ہو سکا",
     schoolFailed: "اس اسکول میں سائن اِن نہیں ہو سکا۔",
     resendNeedEmail: "اوپر اپنا ای میل درج کریں، پھر نیا لنک بھیجیں۔",
+    phoneSignIn: "والدین یا سرپرست؟ اپنے فون سے سائن اِن کریں",
     messages: {
       "Valid email required": "درست ای میل درج کریں",
       "Password required": "پاس ورڈ درکار ہے",
       "Invalid email or password": "ای میل یا پاس ورڈ غلط ہے",
       "Too many login attempts. Please try again in a minute.": "سائن اِن کی بہت زیادہ کوششیں۔ ایک منٹ بعد دوبارہ کوشش کریں۔",
+      "Too many login attempts. Please try again in 15 minutes.": "سائن اِن کی بہت زیادہ کوششیں۔ 15 منٹ بعد دوبارہ کوشش کریں۔",
       "Account not verified. Please check your email inbox to activate it.": "اکاؤنٹ کی تصدیق نہیں ہوئی۔ فعال کرنے کے لیے اپنا ای میل اِن باکس دیکھیں۔",
       "Login failed": "سائن اِن نہیں ہو سکا",
       "Invalid verification link": "تصدیقی لنک درست نہیں",
@@ -244,7 +253,6 @@ function EmailTypoRescue({ control, language, onApply }: { control: Control<Logi
 }
 
 export default function LoginPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { language, setLanguage, signInLanguage, clearExplicit } = useAuthLanguage();
   const t = copy[language];
@@ -271,10 +279,25 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(false);
   const [choices, setChoices] = useState<SchoolChoice[] | null>(null);
   const [choosing, setChoosing] = useState<string | null>(null);
+  const [phoneMode, setPhoneMode] = useState(false);
   // Seconds left on a 429. The button stays disabled and says so, rather than
   // letting people hammer a request that cannot succeed yet.
   const [cooldown, setCooldown] = useState(0);
   const [cooldownTotal, setCooldownTotal] = useState(0);
+  // SKAI-1033: the server-rendered button is disabled until React owns the form,
+  // so an early press (or Enter) cannot fall back to a native submission.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+    // A credential that ever reached the address bar (an old bookmark, a stale
+    // tab from before this fix) is scrubbed from the visible URL and history entry.
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("password") || url.searchParams.has("email")) {
+      url.searchParams.delete("password");
+      url.searchParams.delete("email");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+    }
+  }, []);
   // Consecutive "Invalid email or password" answers. At two, the Forgot link
   // draws its underline twice and the mascot glances at it; the error text is untouched.
   const [invalidStreak, setInvalidStreak] = useState(0);
@@ -405,7 +428,7 @@ export default function LoginPage() {
     if ((user as LoginUser & { mfaRequired?: boolean }).mfaRequired) {
       // Carry the requested page through the second factor; it is validated again on landing.
       const requested = searchParams.get("redirect");
-      router.push(requested ? `/protect-account?redirect=${encodeURIComponent(requested)}` : "/protect-account");
+      window.location.assign(requested ? `/protect-account?redirect=${encodeURIComponent(requested)}` : "/protect-account");
       return;
     }
     toast.success(fillText(t.welcomeToast, user.fullName));
@@ -415,15 +438,21 @@ export default function LoginPage() {
     // before navigating away — a beat of confirmation feels more deliberate.
     await new Promise((resolve) => setTimeout(resolve, 550));
 
+    // SKAI-1021 / SKAI-1063: a full-document navigation, not router.push. A soft
+    // navigation keeps every module-level client cache (shell session, access map,
+    // router segment cache) from whatever identity this tab held before, and turns
+    // a proxy redirect on the RSC request into "nothing happened, still on /login".
+    // A document load starts the new identity from a clean JavaScript heap and lets
+    // the server's answer (console, onboarding, or a visible error) be what shows.
     if (user.mustChangePassword) {
-      router.push("/first-login");
+      window.location.assign("/first-login");
     } else if (user.role === "TEACHER" && !user.onboardingComplete) {
-      router.push("/teacher-onboarding");
+      window.location.assign("/teacher-onboarding");
     } else {
       // A deep link that sent the user here is honoured only inside their own role's area.
-      router.push(safeReturnPath(searchParams.get("redirect"), user.role) ?? dashboardPathForRole(user.role));
+      window.location.assign(safeReturnPath(searchParams.get("redirect"), user.role) ?? dashboardPathForRole(user.role));
     }
-  }, [router, t, searchParams]);
+  }, [t, searchParams]);
 
   /**
    * One request shape for both passes. The second pass adds `schoolId`, which
@@ -565,7 +594,18 @@ export default function LoginPage() {
           <Alert id="login-resend-status" ref={resendStatusRef} tabIndex={-1} tone="success" title={ac.resend.sent} className="mb-5" />
         )}
 
-        {choices ? (
+        {phoneMode ? (
+          <GuardianPhoneSignIn
+            language={language}
+            rememberMe={remember}
+            extraBody={signInLanguage}
+            onSignedIn={async (json) => {
+              if (json.success === true && !json.mfaRequired) clearExplicit();
+              await landAfterLogin((json.mfaRequired ? { ...(json.user as object), mfaRequired: true } : json.user) as LoginUser);
+            }}
+            onBack={() => setPhoneMode(false)}
+          />
+        ) : choices ? (
           <div className="space-y-2.5">
             {choices.map((c, i) => {
               const busy = choosing === c.schoolId;
@@ -630,7 +670,9 @@ export default function LoginPage() {
           </div>
         ) : (
           <>
-            <form onSubmit={handleSubmit(onSubmit)} aria-busy={isLoading} className="space-y-4" noValidate>
+            {/* SKAI-1033: method/action make any native (pre-hydration) submission a POST to an
+                endpoint that discards the body, so credentials can never be serialized into a URL. */}
+            <form method="post" action="/api/auth/login/fallback" onSubmit={handleSubmit(onSubmit)} aria-busy={isLoading} className="space-y-4" noValidate>
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="ms-1 text-ink-strong">
                   {t.email}
@@ -726,7 +768,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 loading={isLoading && !success}
-                disabled={success || cooldown > 0}
+                disabled={!hydrated || success || cooldown > 0}
                 // Signed in: the locked button reads as a genuine success, not a greyed-out failure.
                 className={cn(
                   "sk-sweep-trigger group relative mt-1 min-h-12 w-full overflow-hidden",
@@ -761,6 +803,12 @@ export default function LoginPage() {
                 </span>
               </Button>
             </form>
+
+            {PHONE_SIGN_IN && (
+              <Button type="button" variant="outline" onClick={() => { setFormError(null); setPhoneMode(true); }} className="mt-4 w-full">
+                <Phone aria-hidden="true" className="h-4 w-4" /> {t.phoneSignIn}
+              </Button>
+            )}
 
             <div className="mt-6 border-t border-border-subtle pt-5">
               <p className="text-center text-sm leading-relaxed text-ink-muted">

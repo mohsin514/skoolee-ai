@@ -13,7 +13,7 @@ import { runWithTenantContext } from "../../src/lib/db/tenant-context";
 import { applySignInLanguage } from "../../src/lib/locale/sign-in-language";
 import { NextResponse } from "next/server";
 const url = process.env.DATABASE_URL || "";
-if (!url.includes("127.0.0.1:55401/sko201") && !url.includes("127.0.0.1:55410/sko210")) throw new Error("Local SKO-201 database required");
+if (!url.includes(`127.0.0.1:${process.env.QA_DB_PORT || "55401"}/${process.env.QA_DB_NAME || "sko201"}`) && !url.includes("127.0.0.1:55410/sko210")) throw new Error("Local SKO-201 database required");
 const db = new PrismaClient();
 test("persisted policy resolves exact effective boundaries, inheritance, finance gate and tenant isolation", async () => {
  const schoolId = "locale-db-regression";

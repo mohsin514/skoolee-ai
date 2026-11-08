@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import * as tax from "@/lib/tax/service";
+import { runAsUser } from "@/lib/db/tenant-context";
 
 export const runtime = "nodejs";
 
@@ -14,12 +15,15 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     const p = request.nextUrl.searchParams;
-    switch (p.get("view") ?? "overview") {
-      case "overview": return ok(await tax.overview(user));
-      case "documents": return ok(await tax.documents(user));
-      case "document": return ok(await tax.document(user, p.get("id") ?? ""));
-      default: throw new ApiError("Unknown view", 400);
-    }
+    // SKAI-1030: bound to the caller's school once, not re-derived per query.
+    return await runAsUser(user, async () => {
+      switch (p.get("view") ?? "overview") {
+        case "overview": return ok(await tax.overview(user));
+        case "documents": return ok(await tax.documents(user));
+        case "document": return ok(await tax.document(user, p.get("id") ?? ""));
+        default: throw new ApiError("Unknown view", 400);
+      }
+    });
   } catch (error) { return errorResponse(error, "[tax] GET failed"); }
 }
 
@@ -27,7 +31,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
-    switch (body.action) {
+    return await runAsUser(user, async () => { switch (body.action) {
       case "draft": return ok(await tax.saveDraft(user, body), body.id ? 200 : 201);
       case "fixtures": return ok(await tax.runFixtures(user, body));
       case "approve": return ok(await tax.approve(user, String(body.id ?? ""), typeof body.reason === "string" ? body.reason : null));
@@ -36,6 +40,6 @@ export async function POST(request: NextRequest) {
       case "reconcile": return ok(await tax.reconcile(user, String(body.id ?? "")));
       case "correct": return ok(await tax.correct(user, body));
       default: throw new ApiError("Unknown action", 400);
-    }
+    } });
   } catch (error) { return errorResponse(error, "[tax] POST failed"); }
 }

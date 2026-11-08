@@ -8,6 +8,8 @@ import {
 } from "@/lib/api/scope";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { logSuperAdminAction } from "@/lib/audit";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function PUT(
   req: NextRequest,
@@ -22,7 +24,7 @@ export async function PUT(
     if (user.mfaVerified !== true) return Response.json({ error: "Turn on two-step sign-in before you reset someone's password.", code: "MFA_REQUIRED" }, { status: 403 });
 
     const { id: targetUserId } = await params;
-    const { newPassword } = await req.json();
+    const { newPassword } = await parseBody(req, jsonObjectBody, { preserve: ["newPassword"] });
 
     if (!newPassword || typeof newPassword !== "string") {
       throw new ApiError("newPassword is required", 400);

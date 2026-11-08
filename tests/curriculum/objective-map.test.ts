@@ -27,6 +27,27 @@ test("the schema accepts optional codes, descriptions, prerequisites and pack de
   assert.equal(curriculumDataSchema.safeParse({ ...curriculum(), pack: { authority: "Synthetic board", edition: "2026", language: "ur", rights: "UNDER_REVIEW" } }).success, true);
 });
 
+test("FBISE Grade 9 pack requires immutable year and reviewed rights evidence", () => {
+  const data = curriculum();
+  data.sectionCoverage = [];
+  data.pack = { packId: "fbise-g9-math-2026", version: 1, authority: "FBISE", edition: "2026", language: "en", rights: "APPROVED", examYear: "2026", teachingYear: "2026-27" };
+  assert.match(validateCurriculumApproval(data).join(" "), /URL, checksum, rights scope and review metadata/);
+  data.sources = data.sources.map(source => ({ ...source, url: "https://example.test/fbise/g9", checksum: "a".repeat(64), rightsScope: "QA-01 synthetic schools", reviewedAt: "2026-10-01T00:00:00.000Z" }));
+  assert.deepEqual(validateCurriculumApproval(data), []);
+  assert.match(validateCurriculumApproval({ ...data, pack: { ...data.pack, examYear: "2026-27" } }).join(" "), /distinct from teaching year/);
+});
+
+test("BISE Lahore Grade 9 packs pin the examination contract and keep 2026 rules historical", () => {
+  const data = curriculum();
+  data.sectionCoverage = [];
+  data.pack = { packId: "bise-lahore-g9-maths", version: 1, authority: "BISE Lahore", edition: "2027-annual", language: "ur", rights: "APPROVED", examYear: "2027", teachingYear: "2026-27", grade: "9", term: "Annual", marks: 100, durationMinutes: 180, choices: 2, paperRules: "Approved scheme and model-paper rules" };
+  data.sources = data.sources.map(source => ({ ...source, url: "https://example.test/bise-lahore", checksum: "a".repeat(64), rightsScope: "QA-01 schools", reviewedAt: "2026-10-01T00:00:00.000Z", authoritativeNotice: "BISE Lahore notification 2027" }));
+  assert.deepEqual(validateCurriculumApproval(data), []);
+  assert.match(validateCurriculumApproval({ ...data, pack: { ...data.pack, marks: 75, edition: "annual-exam-2026", examYear: "2027" } }).join(" "), /historical/);
+  assert.match(validateCurriculumApproval({ ...data, pack: { ...data.pack, choices: undefined } }).join(" "), /marks, duration and choice/);
+  assert.match(validateCurriculumApproval({ ...data, sources: data.sources.map(source => ({ ...source, authoritativeNotice: undefined })) }).join(" "), /authority notice/);
+});
+
 test("duplicate codes, unknown prerequisites and cycles are explained before approval", () => {
   assert.deepEqual(objectiveStructureIssues(curriculum()), []);
   const duplicate = curriculum(); duplicate.outcomes[2].code = "syn.m.1";

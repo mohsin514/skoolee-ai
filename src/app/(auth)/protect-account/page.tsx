@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   ArrowRight, Info, KeyRound,
   Loader2, RotateCcw, ShieldCheck, Smartphone, Timer,
@@ -146,7 +145,6 @@ const BRAND_POINT_ICONS = [Timer, KeyRound, Smartphone];
 const delay = (ms: number) => ({ "--sk-delay": `${ms}ms` }) as CSSProperties;
 
 export default function ProtectAccount() {
-  const router = useRouter();
   const { language, setLanguage, signInLanguage, clearExplicit } = useAuthLanguage();
   const t = copy[language];
   const ac = authCopy[language];
@@ -234,7 +232,8 @@ export default function ProtectAccount() {
         setDone(action === "acknowledge" ? "enrolled" : "verified");
         // The deep link carried over from sign-in is honoured only inside the role's own area (SKO-457).
         const requested = new URLSearchParams(window.location.search).get("redirect");
-        router.replace(data.user.mustChangePassword ? "/first-login" : safeReturnPath(requested, data.user.role) ?? dashboardPathForRole(data.user.role));
+        // SKAI-1021: a document load, so no client state from an earlier identity in this tab survives into the console.
+        window.location.replace(data.user.mustChangePassword ? "/first-login" : safeReturnPath(requested, data.user.role) ?? dashboardPathForRole(data.user.role));
       }
     } catch (failure) {
       const known = toMfaRequestError(failure);

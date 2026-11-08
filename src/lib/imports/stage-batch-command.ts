@@ -8,6 +8,7 @@ import { importField, normalizeImportHeader } from "@/lib/imports/csv";
 import { isoDate, summarizeImportRows, type ImportRow } from "@/lib/imports/batch";
 import { importReviewToken } from "@/lib/imports/review-token";
 import { resolveRosterClass } from "@/lib/imports/roster-class";
+import { addNameAdvisories, normalizeRosterDate } from "@/lib/imports/rehearsal";
 
 /**
  * Staging for spreadsheet imports (POST /api/import-batches), extracted so the route and the AI Workflows
@@ -113,7 +114,13 @@ export async function classifyStudentRoster(user: AuthUser, input: { campusId: s
     const explicitClass = importField(source, ["className"]), section = importField(source, ["classSection"]);
     const raw = studentFromCsv(source, defaultClassId);
     if (explicitClass || section) raw.classId = resolveRosterClass(rosterClasses, explicitClass, section, defaultClassId);
-    return { rowNumber, source, raw };
+    const preErrors: string[] = [];
+    // SKAI-913: an explicit class that is missing or ambiguous is named, never replaced by the default class.
+    if ((explicitClass || section) && !raw.classId) preErrors.push(`className: No single active class "${[explicitClass, section].filter(Boolean).join(" · ")}" exists at this campus; create it or correct the file`);
+    const date = normalizeRosterDate(raw.dateOfBirth);
+    if (date.error) preErrors.push(date.error);
+    else raw.dateOfBirth = date.value; // a bad date stays as typed so a later row edit cannot drop it silently
+    return { rowNumber, source, raw, preErrors };
   });
   const proposals = rawRows.map(({ raw }) => studentSchema.safeParse(raw));
   const classIds = [...new Set(proposals.flatMap((parsed) => parsed.success ? [parsed.data.classId] : []))];
@@ -125,10 +132,11 @@ export async function classifyStudentRoster(user: AuthUser, input: { campusId: s
   const existingByRoll = new Map<string, typeof existing>();
   for (const student of existing) existingByRoll.set(student.rollNo.trim().toLocaleLowerCase(), [...(existingByRoll.get(student.rollNo.trim().toLocaleLowerCase()) || []), student]);
   const seenKeys = new Set<string>();
-  const rows: ImportRow[] = rawRows.map(({ rowNumber, source }, index) => {
+  const rows: ImportRow[] = rawRows.map(({ rowNumber, source, raw, preErrors }, index) => {
     const parsed = proposals[index];
-    if (!parsed.success) {
-      return { rowNumber, source, proposal: null, state: "REJECTED", selected: false, matchKey: null, errors: parsed.error.issues.map((issue) => `${issue.path.join(".") || "row"}: ${issue.message}`) };
+    if (!parsed.success || preErrors.length) {
+      const issues = parsed.success ? [] : parsed.error.issues.filter((issue) => !(preErrors.length && issue.path[0] === "classId")).map((issue) => `${issue.path.join(".") || "row"}: ${issue.message}`);
+      return { rowNumber, source, proposal: (parsed.success ? parsed.data : raw) as unknown as Record<string, unknown>, state: "REJECTED", selected: false, matchKey: null, errors: [...preErrors, ...issues] };
     }
     const proposal = parsed.data;
     const errors: string[] = [];
@@ -146,6 +154,7 @@ export async function classifyStudentRoster(user: AuthUser, input: { campusId: s
     if (errors.length) return { rowNumber, source, proposal: proposal as unknown as Record<string, unknown>, state: rollMatches.length ? "UNRESOLVED" : "REJECTED", selected: false, matchKey: `class:${proposal.classId}/roll:${proposal.rollNo}`, errors };
     return { rowNumber, source, proposal: proposal as unknown as Record<string, unknown>, state: "ACCEPTED", selected: true, matchKey: `class:${proposal.classId}/roll:${proposal.rollNo}`, matchLabel: targetClass ? `${targetClass.name}${targetClass.section ? ` · ${targetClass.section}` : ""}` : null, errors: [] };
   });
+  addNameAdvisories(rows, existing);
   const targetScope = `classes:${[...new Set(classIds)].sort().join(",")}`;
   const metadata: Record<string, unknown> = { mappedColumns: headers, defaultClassId };
   return { rows, targetScope, metadata };

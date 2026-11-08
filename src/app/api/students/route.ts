@@ -1,10 +1,11 @@
 import { assertListBudget } from "@/lib/lists/access";
 import { createStudentRecords } from "@/lib/students/create";
+import { rosterSummarySelect } from "@/lib/students/roster-summary";
 import { NextRequest } from "next/server";
 import { randomUUID } from "crypto";
 import { Prisma, type Student } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { applyEnrollment } from "@/lib/students/enrollment";
+import { applyEnrollment, applyGraduation, classSeats, dateOnly } from "@/lib/students/enrollment";
 import {
   ApiError,
   assertPermission,
@@ -18,7 +19,9 @@ import {
   readJsonObject,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
-import { studentProfileUpdateSchema } from "@/lib/students/profile-update";
+import { expectedValueConditions, studentProfileUpdateSchema } from "@/lib/students/profile-update";
+import { parseEmiratesId, parseNationality, parseRegulatorId, regulatorAuditChange } from "@/lib/identity/regulator-ids";
+import { rosterSearchWhere, rosterStatusWhere } from "@/lib/students/roster-status";
 
 function asDate(value: string | null) {
   if (!value) return null;
@@ -141,19 +144,10 @@ export async function GET(req: NextRequest) {
         },
       },
       ...(classId ? { classId } : {}),
-      ...(archivedOnly
-        ? { status: { in: ["inactive", "archived", "transferred", "graduated", "consolidated"] } }
-        : { status: { notIn: ["inactive", "archived", "transferred", "graduated", "consolidated"] } }),
+      ...rosterStatusWhere(archivedOnly),
       ...(search
         ? {
-            OR: [
-              { id: { contains: search, mode: "insensitive" as const } },
-              { admissionNo: { contains: search, mode: "insensitive" as const } },
-              { fullName: { contains: search, mode: "insensitive" as const } },
-              { rollNo: { contains: search, mode: "insensitive" as const } },
-              { guardianName: { contains: search, mode: "insensitive" as const } },
-              { guardianPhone: { contains: search, mode: "insensitive" as const } },
-            ],
+            ...rosterSearchWhere(search),
           }
         : {}),
     };
@@ -161,12 +155,9 @@ export async function GET(req: NextRequest) {
     const [students, total] = await Promise.all([
       prisma.student.findMany({
         where,
-        include: {
-          class: { select: { id: true, name: true, section: true, academicYear: true } },
-          studentUser: { select: { id: true, email: true, isActive: true } },
-          campus: { select: { id: true, name: true } },
-          category: { select: { id: true, name: true } },
-          group: { select: { id: true, name: true } },
+        // The summary only (SKAI-163): medical, identity and address fields come from /api/students/<id>.
+        select: {
+          ...rosterSummarySelect,
           documents: { select: { id: true, kind: true, fileName: true } },
           _count: { select: { attendance: true, invoices: true, timelineEvents: true } },
         },
@@ -213,14 +204,19 @@ export async function PATCH(req: NextRequest) {
       });
       if (!student) throw new ApiError("Archived student not found", 404);
       if (!student.archivedAt) return Response.json({ success: true, restored: false, alreadyActive: true });
+      // SKAI-1387: a withdrawn pupil is re-admitted through enrolment, which reinstates placement and login.
+      if ((await withdrawnPupilIds([id])).size) throw new ApiError(WITHDRAWN_RESTORE_MESSAGE, 409);
       const rollNo = nextRoll ?? student.rollNo, admissionNo = nextAdmission ?? student.admissionNo;
       const [campus, cls, rollConflict, admissionConflict] = await Promise.all([
         prisma.campus.findFirst({ where: { id: student.campusId, archivedAt: null, ...(user.schoolId ? { schoolId: user.schoolId } : {}) }, select: { id: true } }),
-        prisma.class.findFirst({ where: { id: student.classId, campusId: student.campusId, archivedAt: null }, select: { id: true } }),
+        prisma.class.findFirst({ where: { id: student.classId, campusId: student.campusId, archivedAt: null }, select: { id: true, capacity: true } }),
         prisma.student.findFirst({ where: { id: { not: id }, campusId: student.campusId, rollNo, archivedAt: null }, select: { id: true, fullName: true } }),
         admissionNo ? prisma.student.findFirst({ where: { id: { not: id }, schoolId: user.schoolId, admissionNo, archivedAt: null }, select: { id: true, fullName: true } }) : Promise.resolve(null),
       ]);
       if (!campus || !cls) throw new ApiError("Restore requires an active campus and class", 409);
+      // SKAI-175: a restored pupil takes a seat again, so the class must have one free.
+      const seats = await classSeats(prisma, cls);
+      if (seats.capacity != null && seats.occupied + 1 > seats.capacity) throw new ApiError(`The pupil's class is full (${seats.occupied} of ${seats.capacity} seats). Raise its capacity or move the pupil before restoring.`, 409);
       if (rollConflict || admissionConflict) {
         return Response.json({ error: "Restore conflict: the roll number or admission number is now in use. Assign a new current identifier before restoring; historical documents keep their original values.", conflict: { rollNo: Boolean(rollConflict), admissionNo: Boolean(admissionConflict) } }, { status: 409 });
       }
@@ -271,8 +267,10 @@ export async function PATCH(req: NextRequest) {
 
       if (status === "active") {
         const restoring = owned.filter((student) => student.archivedAt || student.status === "archived");
+        if ((await withdrawnPupilIds(restoring.map((student) => student.id))).size) throw new ApiError(WITHDRAWN_RESTORE_MESSAGE, 409);
         const rollKeys = new Set<string>();
         const admissionKeys = new Set<string>();
+        const incoming = new Map<string, { capacity: number | null; count: number }>();
         for (const student of restoring) {
           const rollKey = `${student.campusId}:${student.rollNo}`;
           if (rollKeys.has(rollKey)) throw new ApiError("Restore conflict: selected students share a roll number. Assign distinct current identifiers and retry.", 409);
@@ -283,53 +281,79 @@ export async function PATCH(req: NextRequest) {
             admissionKeys.add(admissionKey);
           }
           const [cls, rollConflict, admissionConflict] = await Promise.all([
-            prisma.class.findFirst({ where: { id: student.classId, campusId: student.campusId, archivedAt: null }, select: { id: true } }),
+            prisma.class.findFirst({ where: { id: student.classId, campusId: student.campusId, archivedAt: null }, select: { id: true, capacity: true } }),
             prisma.student.findFirst({ where: { id: { notIn: ids }, campusId: student.campusId, rollNo: student.rollNo, archivedAt: null }, select: { id: true } }),
             student.admissionNo ? prisma.student.findFirst({ where: { id: { notIn: ids }, schoolId: student.schoolId, admissionNo: student.admissionNo, archivedAt: null }, select: { id: true } }) : Promise.resolve(null),
           ]);
           if (!cls) throw new ApiError("Restore requires an active class. Resolve the class assignment and retry.", 409);
+          incoming.set(cls.id, { capacity: cls.capacity, count: (incoming.get(cls.id)?.count ?? 0) + 1 });
           if (rollConflict || admissionConflict) throw new ApiError("Restore conflict: a roll number or admission number is in use. Assign new current identifiers and retry; historical documents keep their original values.", 409);
+        }
+        // SKAI-175: every restored pupil takes a seat; the whole selection must fit each class.
+        for (const [classId, want] of incoming) {
+          const seats = await classSeats(prisma, { id: classId, capacity: want.capacity });
+          if (seats.capacity != null && seats.occupied + want.count > seats.capacity) throw new ApiError(`A class has ${seats.free} free seat(s) for ${want.count} restored pupil(s). Raise its capacity or restore fewer; nobody was restored.`, 409);
         }
       }
 
-      const wasArchived = owned.filter((student) => student.archivedAt !== null || student.status === "archived");
-      const now = new Date();
+      // SKAI-1470: graduation is a lifecycle boundary, not a status flag. Every selected pupil goes through the
+      // reviewed graduation step in one transaction; an already-graduated pupil is reported unchanged.
+      if (status === "graduated") {
+        const effectiveDate = body.effectiveDate === undefined ? dateOnly(new Date().toISOString().slice(0, 10)) : dateOnly(body.effectiveDate);
+        const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim().slice(0, 500) : "Graduated";
+        const outcomes = await prisma.$transaction(async (tx) => {
+          const rows: { id: string; outcome: "changed" | "unchanged" }[] = [];
+          for (const student of owned) rows.push({ id: student.id, outcome: await applyGraduation(tx, { studentId: student.id, effectiveDate, actorId: user.userId, reason }) });
+          return rows;
+        });
+        const updated = outcomes.filter((o) => o.outcome === "changed").length;
+        return Response.json({ success: true, updated, unchanged: outcomes.length - updated, outcomes, status });
+      }
+
       const archiveReason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim().slice(0, 500) : "Administrative archive";
-      const changing = status === "archived"
-        ? owned.filter((student) => student.archivedAt === null)
-        : status === "active"
-          ? wasArchived
-          : owned;
+      const now = new Date();
       const updateData = status === "archived"
         ? { status, archivedAt: now, archiveReason }
         : status === "active"
           ? { status, archivedAt: null, archiveReason: null }
           : { status };
+      // SKAI-1334: only pupils whose state actually flips inside this transaction are changed and audited,
+      // so a retried or double-clicked request is a no-op rather than a second archive with false history.
+      const flipWhere = status === "archived" ? { archivedAt: null } : status === "active" ? { archivedAt: { not: null } } : {};
       const result = await prisma.$transaction(async (tx) => {
-        const changed = changing.length ? await tx.student.updateMany({ where: { id: { in: changing.map((s) => s.id) } }, data: updateData }) : { count: 0 };
-        const auditChanging = status === "archived" ? changing : status === "active" ? changing : [];
-        if (auditChanging.length) await tx.auditLog.createMany({ data: auditChanging.map((student) => ({
-          tableName: "student", recordId: student.id,
-          oldValue: { archived: status !== "active" },
-          newValue: status === "archived" ? { archived: true, reason: archiveReason } : { archived: false },
-          userId: user.userId,
-        })) });
-        return changed;
+        const candidates = await tx.student.findMany({ where: { id: { in: owned.map((s) => s.id) }, ...flipWhere }, select: { id: true } });
+        const changingIds = candidates.map((s) => s.id);
+        const changed = changingIds.length ? await tx.student.updateMany({ where: { id: { in: changingIds }, ...flipWhere }, data: updateData }) : { count: 0 };
+        if (changingIds.length && (status === "archived" || status === "active")) {
+          await tx.auditLog.createMany({ data: changingIds.map((id) => ({
+            tableName: "student", recordId: id,
+            oldValue: { archived: status === "active" },
+            newValue: status === "archived" ? { archived: true, reason: archiveReason } : { archived: false },
+            userId: user.userId,
+          })) });
+          // SKAI-1528: an administrative archive is a lifecycle milestone; written with the state change, once per flip.
+          if (status === "archived") await tx.studentTimelineEvent.createMany({ data: changingIds.map((studentId) => ({ schoolId: user.schoolId, studentId, kind: "ARCHIVED", title: "Archived", detail: JSON.stringify({ reason: archiveReason }), actorId: user.userId })) });
+        }
+        return { count: changed.count, changingIds };
       });
       // SKO-389: each selected pupil's outcome, so a partly no-op bulk action is explained rather than counted.
-      const changedIds = new Set(changing.map((student) => student.id));
-      const outcomes = owned.map((student) => ({ id: student.id, outcome: changedIds.has(student.id) ? "changed" : "unchanged" as const }));
+      const changedIds = new Set(result.changingIds);
+      const outcomes = owned.map((student) => ({ id: student.id, outcome: changedIds.has(student.id) ? "changed" as const : "unchanged" as const }));
       return Response.json({ success: true, updated: result.count, unchanged: outcomes.filter((o) => o.outcome === "unchanged").length, outcomes, status });
     }
 
     const { id, ...updates } = studentProfileUpdateSchema.parse(body);
+    // SKAI-1576: an unknown status is a 400 before anything is saved, matching the bulk path.
+    if (updates.status && !STUDENT_STATUSES.includes(updates.status)) {
+      throw new ApiError(`status must be one of: ${STUDENT_STATUSES.join(", ")}`, 400);
+    }
 
     const existing = await prisma.student.findFirst({
       where: {
         id,
         ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? updates.campusId : user.campusId),
       },
-      select: { id: true, campusId: true, classId: true, status: true },
+      select: { id: true, campusId: true, classId: true, status: true, archivedAt: true, emiratesId: true, nationality: true, regulatorId: true, categoryId: true },
     });
     if (!existing) throw new ApiError("Student not found", 404);
 
@@ -362,13 +386,39 @@ export async function PATCH(req: NextRequest) {
       "allergies",
       "medications",
       "previousSchool",
-      "nationality",
     ] as const) {
       if (updates[key] !== undefined) data[key] = updates[key] || null;
     }
+    // SKAI-1149: regulator fields are validated and normalised; a malformed value is refused, never dropped.
+    for (const [key, parse] of [["emiratesId", parseEmiratesId], ["nationality", parseNationality], ["regulatorId", parseRegulatorId]] as const) {
+      if (updates[key] === undefined) continue;
+      try { data[key] = parse(updates[key]); } catch (error) { throw new ApiError((error as Error).message, 400); }
+    }
+    // SKAI-1342: one active pupil per regulator ID and Emirates ID within the school. Archived pupils do not hold it.
+    const identifierClash = [["regulatorId", data.regulatorId], ["emiratesId", data.emiratesId]] as const;
+    for (const [key, value] of identifierClash) {
+      if (typeof value !== "string" || !value) continue;
+      const clash = await prisma.student.findFirst({ where: { schoolId: user.schoolId, id: { not: id }, archivedAt: null, [key]: value }, select: { id: true } });
+      if (clash) throw new ApiError(key === "regulatorId" ? "This eSIS / MOE ID already belongs to another pupil in this school." : "This Emirates ID already belongs to another pupil in this school.", 409);
+    }
+    const regulatorChange = regulatorAuditChange(existing, data);
+    // Gender is required on a pupil record, so a blank value keeps the stored one.
     if (updates.gender) data.gender = updates.gender;
-    if (updates.bloodType && ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].includes(updates.bloodType)) data.bloodType = updates.bloodType;
-    if (updates.status && STUDENT_STATUSES.includes(updates.status)) data.status = updates.status;
+    // SKAI-164: "Not known" clears the blood type. It used to be ignored, so the profile's
+    // save check saw the old value come back and reported an unconfirmed save.
+    if (updates.bloodType !== undefined) data.bloodType = updates.bloodType || null;
+    if (updates.status && STUDENT_STATUSES.includes(updates.status)) {
+      // SKAI-1601: archiving here is the same lifecycle step as the bulk path: archivedAt and a reason are set,
+      // so the pupil leaves attendance and marks. Un-archiving must go through restore, which re-checks identifiers.
+      if (updates.status === "archived" && !existing.archivedAt) {
+        await assertPermission(user, "students", "delete");
+        data.archivedAt = new Date();
+        data.archiveReason = "Administrative archive";
+      } else if (existing.archivedAt && updates.status !== "archived") {
+        throw new ApiError("Restore this pupil first; restoring re-checks their roll and admission numbers.", 409);
+      }
+      data.status = updates.status;
+    }
     if (updates.dateOfBirth !== undefined) data.dateOfBirth = asDate(updates.dateOfBirth);
     let previousClassName = "";
     if (updates.classId && updates.classId !== existing.classId) {
@@ -420,9 +470,11 @@ export async function PATCH(req: NextRequest) {
       if (categoryId) {
         const category = await prisma.studentCategory.findFirst({
           where: { id: categoryId, campusId: existing.campusId, campus: { schoolId: user.schoolId } },
-          select: { id: true },
+          select: { id: true, isActive: true },
         });
         if (!category) throw new ApiError("Category not found in this campus", 404);
+        // SKAI-168: keeping an inactive category is fine; moving a student onto one is not.
+        if (!category.isActive && categoryId !== existing.categoryId) throw new ApiError("This category is inactive. Choose an active category.", 409);
       }
       data.categoryId = categoryId;
     }
@@ -446,16 +498,23 @@ export async function PATCH(req: NextRequest) {
         select: { id: true, siblingGroupId: true },
       });
       if (!ref) throw new ApiError("Sibling student not found", 404);
-      if (!ref.siblingGroupId) {
-        const opened = await prisma.student.update({
-          where: { id: ref.id },
-          data: { siblingGroupId: randomUUID() },
-          select: { siblingGroupId: true },
+      // Open the reference's group only while it is still unset, so two concurrent links cannot
+      // each write their own group. A loser re-reads the group the winner committed.
+      let groupId = ref.siblingGroupId;
+      if (!groupId) {
+        const opened = randomUUID();
+        const claimed = await prisma.student.updateMany({
+          where: { id: ref.id, siblingGroupId: null },
+          data: { siblingGroupId: opened },
         });
-        data.siblingGroupId = opened.siblingGroupId;
-      } else {
-        data.siblingGroupId = ref.siblingGroupId;
+        if (claimed.count) {
+          groupId = opened;
+        } else {
+          const winner = await prisma.student.findFirst({ where: { id: ref.id }, select: { siblingGroupId: true } });
+          groupId = winner?.siblingGroupId ?? null;
+        }
       }
+      data.siblingGroupId = groupId;
     } else if (updates.siblingGroupId !== undefined) {
       data.siblingGroupId = updates.siblingGroupId || null;
     }
@@ -463,9 +522,7 @@ export async function PATCH(req: NextRequest) {
     // Conditional update protects each value this form originally read. The
     // predicate is evaluated atomically with the write, including concurrent edits.
     const expected = updates.expectedValues;
-    const conditions = expected && typeof expected === "object" ? Object.keys(data)
-      .filter(key => Object.hasOwn(expected, key) && !["siblingGroupId", "classId", "status"].includes(key))
-      .map(key => ({ [key]: key === "dateOfBirth" ? asDate(expected[key]) : (expected[key] || null) })) : [];
+    const conditions = expectedValueConditions(data, expected, asDate);
     const student = await prisma.student.update({
       where: { id, ...(conditions.length ? { AND: conditions } : {}) },
       data,
@@ -480,8 +537,8 @@ export async function PATCH(req: NextRequest) {
       data: {
         tableName: 'student',
         recordId: id,
-        oldValue: { classId: existing.classId, previousClassName: previousClassName || undefined },
-        newValue: { classId: data.classId || existing.classId, rollNo: data.rollNo },
+        oldValue: { classId: existing.classId, previousClassName: previousClassName || undefined, ...(regulatorChange.fields.length ? { regulator: regulatorChange.from } : {}) },
+        newValue: { classId: data.classId || existing.classId, rollNo: data.rollNo, ...(regulatorChange.fields.length ? { regulator: regulatorChange.to } : {}) },
         userId: user.userId,
       }
     });
@@ -555,8 +612,15 @@ export async function DELETE(req: NextRequest) {
     if (existing.archivedAt) return Response.json({ success: true, archived: true, alreadyArchived: true, dependencies: impact });
     const { reason } = await req.json().catch(() => ({}));
     const archiveReason = typeof reason === "string" && reason.trim() ? reason.trim().slice(0, 500) : "Administrative archive";
-    await prisma.student.update({ where: { id }, data: { status: "archived", archivedAt: new Date(), archiveReason } });
-    await prisma.auditLog.create({ data: { tableName: "student", recordId: id, oldValue: { archived: false }, newValue: { archived: true, reason: archiveReason, dependencies: impact }, userId: user.userId } });
+    // SKAI-1528: archive, audit and the ARCHIVED timeline milestone commit together, and only for the request that flips the pupil.
+    const flipped = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.student.updateMany({ where: { id, archivedAt: null }, data: { status: "archived", archivedAt: new Date(), archiveReason } });
+      if (claimed.count !== 1) return false;
+      await tx.auditLog.create({ data: { tableName: "student", recordId: id, oldValue: { archived: false }, newValue: { archived: true, reason: archiveReason, dependencies: impact }, userId: user.userId } });
+      await tx.studentTimelineEvent.create({ data: { schoolId: user.schoolId, studentId: id, kind: "ARCHIVED", title: "Archived", detail: JSON.stringify({ reason: archiveReason }), actorId: user.userId } });
+      return true;
+    });
+    if (!flipped) return Response.json({ success: true, archived: true, alreadyArchived: true, dependencies: impact });
     notify("STUDENT_DELETED", {
       schoolId: user.schoolId,
       campusId: existing.campusId,
@@ -570,4 +634,17 @@ export async function DELETE(req: NextRequest) {
   } catch (error) {
     return errorResponse(error, "[students] DELETE failed");
   }
+}
+
+const WITHDRAWN_RESTORE_MESSAGE = "This pupil was withdrawn. Re-admit them through enrolment so their placement and login are reinstated.";
+
+/** SKAI-1387: pupils whose enrolment ended and has no open ACTIVE enrolment again. Generic restore must not reopen them. */
+async function withdrawnPupilIds(ids: string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set();
+  const [ended, open] = await Promise.all([
+    prisma.studentEnrollment.findMany({ where: { studentId: { in: ids }, endDate: { not: null } }, select: { studentId: true } }),
+    prisma.studentEnrollment.findMany({ where: { studentId: { in: ids }, endDate: null, status: "ACTIVE" }, select: { studentId: true } }),
+  ]);
+  const reopened = new Set(open.map((row) => row.studentId));
+  return new Set(ended.map((row) => row.studentId).filter((studentId) => !reopened.has(studentId)));
 }

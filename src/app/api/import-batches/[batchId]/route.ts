@@ -7,6 +7,7 @@ import { isoDate } from "@/lib/imports/batch";
 import { studentSchema } from "@/lib/validators/schemas";
 import { importReviewToken } from "@/lib/imports/review-token";
 import { assertRosterPermission } from "@/lib/imports/roster-access";
+import { readJsonBody } from "@/lib/api/validate";
 
 type RouteContext = { params: Promise<{ batchId: string }> };
 type Batch = NonNullable<Awaited<ReturnType<typeof findBatch>>>;
@@ -91,7 +92,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { batchId } = await context.params;
     const { batch } = await authorizedBatch(batchId, request, "add");
     if (batch.state !== "STAGED" || batch.expiresAt <= new Date()) throw new ApiError("This staging batch is no longer available", 409);
-    const body = await request.json() as { reviewToken?: string; rows?: Array<{ rowNumber?: number; selected?: boolean; matchedInvoiceId?: string | null; proposal?: Record<string, unknown>; skip?: boolean; reason?: string }> };
+    const body = await readJsonBody(request) as { reviewToken?: string; rows?: Array<{ rowNumber?: number; selected?: boolean; matchedInvoiceId?: string | null; proposal?: Record<string, unknown>; skip?: boolean; reason?: string }> };
     if ((batch.kind === "STUDENT_ROSTER" || body.reviewToken !== undefined) && body.reviewToken !== importReviewToken(batch)) throw new ApiError("This import changed. Review its current rows before saving.", 409);
     if (!Array.isArray(body.rows) || body.rows.length < 1 || body.rows.length > 1000) throw new ApiError("Choose at least one row to update", 400);
     const { user } = await authorizedBatch(batchId, request, "add");
@@ -128,7 +129,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         const targetClass = await prisma.class.findFirst({ where: { id: proposal.classId, campusId: batch.campusId, campus: { schoolId: user.schoolId }, status: "ACTIVE", archivedAt: null }, select: { id: true, name: true, section: true } });
         if (!targetClass) errors.push("classId: Class is outside the selected campus or does not exist");
         const matchKey = `class:${proposal.classId}/roll:${proposal.rollNo}`;
-        const existing = await prisma.student.findFirst({ where: { schoolId: user.schoolId, campusId: batch.campusId, archivedAt: null, rollNo: { equals: proposal.rollNo, mode: "insensitive" } }, select: { id: true, classId: true, fullName: true } });
+        // SKAI-1015: a roll number can exist in several classes; prefer the same-class pupil so an edit is SKIPPED like staging classifies it.
+        const rollMatches = await prisma.student.findMany({ where: { schoolId: user.schoolId, campusId: batch.campusId, archivedAt: null, rollNo: { equals: proposal.rollNo.trim(), mode: "insensitive" } }, select: { id: true, classId: true, fullName: true } });
+        const existing = rollMatches.find((student) => student.classId === proposal.classId) ?? rollMatches[0];
         const duplicateRow = rows.find((candidate) => candidate.rowNumber !== row.rowNumber && candidate.proposal && candidate.state !== "SKIPPED" && candidate.state !== "REJECTED" && String(candidate.proposal.classId) === proposal.classId && String(candidate.proposal.rollNo).trim().toLocaleLowerCase() === proposal.rollNo.trim().toLocaleLowerCase());
         row.proposal = proposal as unknown as Record<string, unknown>;
         row.matchKey = matchKey;
@@ -205,7 +208,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const { batchId } = await context.params;
-    const body = await request.json() as { action?: string };
+    const body = await readJsonBody(request) as { action?: string };
     if (body.action === "commit") {
       const { user, batch } = await authorizedBatch(batchId, request, "add");
       if (batch.state === "COMMITTED" || batch.state === "PARTIAL" || batch.state === "REVERSED") return Response.json({ success: true, data: response(batch), idempotent: true });
@@ -220,11 +223,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
         if (locked.count !== 1) throw new ApiError("Another request already committed or expired this batch", 409);
         const matched = selected.filter((row) => row.proposal?.matchedInvoiceId);
         const unmatched = selected.filter((row) => !row.proposal?.matchedInvoiceId);
+        // Store the stable bank account id so the period guard can find this statement.
+        const bankAccount = await tx.bankAccount.findFirst({ where: { schoolId: user.schoolId, campusId: batch.campusId, name: String(metadata.accountName) }, select: { id: true } });
         const reconciliation = await tx.bankReconciliation.create({ data: {
           schoolId: user.schoolId,
           campusId: batch.campusId,
           importDate: new Date(),
-          bankAccount: String(metadata.accountName),
+          bankAccount: bankAccount?.id ?? null,
           statementPeriodFrom: new Date(`${metadata.statementFrom}T00:00:00.000Z`),
           statementPeriodTo: new Date(`${metadata.statementTo}T00:00:00.000Z`),
           totalTransactions: selected.length,
@@ -277,6 +282,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
         if (!eligible || !reconciliation) throw new ApiError(analysis.dependencies.join(" "), 409);
         const reversedAt = new Date();
         const updated = await prisma.$transaction(async (tx) => {
+          // SKAI-1589: reversing is one state transition; a competing request finds the batch already claimed.
+          const claimed = await tx.importBatch.updateMany({ where: { id: batch.id, schoolId: user.schoolId, campusId: batch.campusId, state: { in: ["COMMITTED", "PARTIAL"] } }, data: { state: "REVERSED", reversedAt } });
+          if (!claimed.count) throw new ApiError("This batch was already reversed", 409);
           const changed = await tx.bankReconciliation.updateMany({ where: { id: reconciliation.id, schoolId: user.schoolId, campusId: batch.campusId, status: "pending" }, data: { status: "reversed" } });
           if (!changed.count) throw new ApiError("Reconciliation changed during reversal; recheck its dependencies", 409);
           const newReceipt = { ...(receipt || {}), reversal: { state: "REVERSED", reversedAt: reversedAt.toISOString(), actorId: user.userId, reconciliationId: reconciliation.id } };
@@ -288,7 +296,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
 
       const receiptRows = Array.isArray(receipt?.rows) ? receipt.rows as Array<Record<string, unknown>> : [];
-      const studentIds = receiptRows.flatMap((row) => typeof row.studentId === "string" ? [row.studentId] : []);
+      // SKAI-1483: commit receipts store the pupil under result.studentId; older rows used a top-level studentId.
+      const studentIds = [...new Set(receiptRows.flatMap((row) => {
+        const id = (row as { result?: { studentId?: unknown } }).result?.studentId ?? row.studentId;
+        return typeof id === "string" && id ? [id] : [];
+      }))];
       const students = studentIds.length ? await prisma.student.findMany({ where: { id: { in: studentIds }, schoolId: user.schoolId, campusId: batch.campusId }, select: { id: true, fullName: true, rollNo: true, _count: { select: { attendance: true, invoices: true, marks: true, reportCards: true, examSeats: true, payments: true, guardianRelationships: true, classHistory: true, enrollments: true, enrollmentProposals: true, corrections: true, documents: true } } } }) : [];
       const dependencies = students.flatMap((student) => {
         const count = student._count;
@@ -302,9 +314,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
       if (!eligible) throw new ApiError(analysis.action, 409);
       const reversedAt = new Date();
       const updated = await prisma.$transaction(async (tx) => {
+        // SKAI-1589: reversing is one state transition; a competing request finds the batch already claimed.
+        const claimed = await tx.importBatch.updateMany({ where: { id: batch.id, schoolId: user.schoolId, campusId: batch.campusId, state: { in: ["COMMITTED", "PARTIAL"] } }, data: { state: "REVERSED", reversedAt } });
+        if (!claimed.count) throw new ApiError("This batch was already reversed", 409);
         const stillPresent = await tx.student.findMany({ where: { id: { in: studentIds }, schoolId: user.schoolId, campusId: batch.campusId }, select: { id: true, _count: { select: { attendance: true, invoices: true, marks: true, reportCards: true, examSeats: true, payments: true, guardianRelationships: true, classHistory: true, enrollments: true, enrollmentProposals: true, corrections: true, documents: true } } } });
         if (stillPresent.length !== studentIds.length || stillPresent.some((student) => Object.values(student._count).some((count) => count > 0))) throw new ApiError("Pupil dependencies changed during reversal; recheck before trying again", 409);
-        await tx.student.deleteMany({ where: { id: { in: studentIds }, schoolId: user.schoolId, campusId: batch.campusId } });
+        const deleted = await tx.student.deleteMany({ where: { id: { in: studentIds }, schoolId: user.schoolId, campusId: batch.campusId } });
+        if (deleted.count !== studentIds.length) throw new ApiError("Pupil dependencies changed during reversal; recheck before trying again", 409);
         const newReceipt = { ...(receipt || {}), reversal: { state: "REVERSED", reversedAt: reversedAt.toISOString(), actorId: user.userId, deletedStudentIds: studentIds } };
         const result = await tx.importBatch.update({ where: { id: batch.id }, data: { state: "REVERSED", reversedAt, receipt: newReceipt as Prisma.InputJsonValue } });
         await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "import_batch", recordId: batch.id, oldValue: { state: "COMMITTED" }, newValue: { action: "REVERSED", deletedStudentIds: studentIds }, userId: user.userId } });

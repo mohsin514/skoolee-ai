@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { deskRow } from "@/components/ui/desk";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
 import { useUiText } from "@/components/locale/LocaleProvider";
@@ -49,10 +50,10 @@ export function PracticeProgressPanel({ practice }: { practice: { id: string; ti
       {rows?.length === 0 ? <p className="text-sm text-ink-subtle">{ui("No learners in this class yet.")}</p> : null}
       <ul className="space-y-2">
         {rows?.map((row) => (
-          <li key={row.studentId} className={`space-y-2 rounded-xl border p-3 text-sm ${row.needsSupport ? "border-amber-400 bg-amber-50" : "border-border"}`}>
+          <li key={row.studentId} data-tone={row.needsSupport ? "warning" : undefined} className={`${deskRow} space-y-2 text-sm`}>
             <p className="font-semibold"><bdi>{row.fullName}</bdi> · <bdi dir="ltr">{row.rollNo}</bdi> · {ui(PROGRESS_LABEL[row.progress] ?? row.progress)}</p>
             <p>{row.latest ? ui("Latest: without hints {0}/{1}, with hints {2}/{3} · {4} sessions", [row.latest.independentCorrect, row.latest.independentTotal, row.latest.assistedCorrect, row.latest.assistedTotal, row.sessions]) : ui("No completed sessions yet.")}{row.open ? ` · ${ui("A session is open")}` : ""}</p>
-            {row.needsSupport ? <p className="font-semibold text-amber-900">{ui("Two sessions in a row with fewer than half correct without hints: talk with this learner rather than adding more practice.")}</p> : null}
+            {row.needsSupport ? <p className="font-semibold text-status-warning-text">{ui("Two sessions in a row with fewer than half correct without hints: talk with this learner rather than adding more practice.")}</p> : null}
             <p className="text-ink-subtle">{row.revisit ? ui("Next revisit {0} (set by {1})", [row.revisit.dueOn, ui(SOURCE_LABEL[row.revisit.source] ?? row.revisit.source)]) : ui("No revisit scheduled.")}</p>
             <div className="flex flex-wrap items-end gap-2">
               <FormField name={`rv-date-${row.studentId}`} label={ui("Revisit date")} className="w-40"><Input type="date" value={dates[row.studentId] ?? ""} onChange={(e) => setDates((d) => ({ ...d, [row.studentId]: e.target.value }))} /></FormField>

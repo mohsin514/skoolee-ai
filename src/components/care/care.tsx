@@ -1,12 +1,13 @@
 "use client";
 import { ErrorState } from "@/components/ui/error-state";
 import { useFetch } from "@/hooks";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ShieldCheck } from "lucide-react";
+import { ClipboardList, FileLock2, HeartPulse, KeyRound, Pill, ShieldAlert, ShieldCheck, Siren, Stethoscope, UserCheck } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowButton, DeskRowIcon, DeskSection, DeskStats, RelativeTime, StatTile, deskRow, deskTimeline, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -20,7 +21,9 @@ import { ViewTabs } from "@/components/ui/view-tabs";
 import { AccessNotice } from "@/components/ui/access-notice";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ConfirmAction } from "@/components/ui/confirm-action";
-import { RequestFailure } from "@/lib/http/request-state";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { RequestFailure, requestFailure } from "@/lib/http/request-state";
 
 /** `?tab=report` is the Help menu's "Record a concern" deep link (role-ux §4.2); other tabs open by id. */
 function careTabFromUrl(): string | null {
@@ -46,6 +49,9 @@ type Me = { canConfigure: boolean; canReport: boolean; canEmergency: Record<Doma
 type Student = { id: string; fullName: string; rollNo?: string | null; class?: { name: string; section: string | null } | null };
 
 class AccessError extends Error {}
+type MyReport = { id: string; reference: string; createdAt: string };
+const MY_REPORTS_PAGE = 20;
+
 async function call(url: string, method = "GET", body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
@@ -55,10 +61,17 @@ async function call(url: string, method = "GET", body?: Record<string, unknown>)
 }
 const localNow = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); };
 const key = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+/** One administration keeps its key and time until the server confirms it, so a retry after a lost response replays the dose instead of recording a second one. */
+export function doseAttempt(pending: Map<string, { idempotencyKey: string; givenAt: string }>, instructionId: string, now = () => new Date()) {
+  let attempt = pending.get(instructionId);
+  if (!attempt) { attempt = { idempotencyKey: key(), givenAt: now().toISOString() }; pending.set(instructionId, attempt); }
+  return attempt;
+}
 const roleLabel = (ui: Ui, r: string) => ({ NURSE: ui("Nurse"), CLINIC_STAFF: ui("Clinic staff"), LEAD: ui("Lead"), DEPUTY: ui("Deputy lead") } as Record<string, string>)[r] ?? r;
 const outcomeLabel = (ui: Ui, o: string) => ({ RETURNED_TO_CLASS: ui("Returned to class"), SENT_HOME: ui("Sent home"), EMERGENCY_SERVICES: ui("Emergency services called"), STAYED_IN_CLINIC: ui("Stayed in clinic") } as Record<string, string>)[o] ?? o;
 const sourceLabel = (ui: Ui, s: string) => ({ STAFF_OBSERVATION: ui("Something I saw"), DISCLOSURE_BY_PUPIL: ui("The pupil told me"), THIRD_PARTY: ui("Someone else told me"), OTHER: ui("Other") } as Record<string, string>)[s] ?? s;
 const statusLabel = (ui: Ui, s: string) => ({ NEW: ui("New"), TRIAGED: ui("Triaged"), ESCALATED: ui("Escalated"), CLOSED: ui("Closed"), PROPOSED: ui("Awaiting review"), APPROVED: ui("Approved, not sent"), DECLINED: ui("Kept restricted"), RELEASED: ui("Released") } as Record<string, string>)[s] ?? s;
+const caseTone = (s: string): DeskTone => ({ NEW: "warning", TRIAGED: "info", ESCALATED: "danger", CLOSED: "neutral", PROPOSED: "warning", APPROVED: "info", DECLINED: "neutral", RELEASED: "success" } as Record<string, DeskTone>)[s] ?? "neutral";
 const domainLabel = (ui: Ui, d: Domain) => d === "CLINIC" ? ui("Clinic") : ui("Safeguarding");
 const className = (s: Student) => s.class ? `${s.class.name}${s.class.section ? ` ${s.class.section}` : ""}` : "";
 
@@ -76,7 +89,7 @@ function StudentPicker({ value, onChange, label }: { value: Student | null; onCh
     const t = setTimeout(() => { call(`/api/care?view=students&q=${encodeURIComponent(q.trim())}`).then(rows => { setResults(rows); setFailure(null); }).catch(() => { setResults([]); setFailure(new RequestFailure("provider")); }); }, 250);
     return () => clearTimeout(t);
   }, [q]);
-  if (value) return <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm" data-care-student={value.id}><span><bdi>{value.fullName}</bdi>{className(value) ? <> · <bdi>{className(value)}</bdi></> : null}</span><Button size="sm" variant="ghost" onClick={() => onChange(null)}>{ui("Change student")}</Button></div>;
+  if (value) return <div className={cn(deskRow, "flex flex-wrap items-center justify-between gap-2 text-sm")} data-care-student={value.id}><span className="flex min-w-0 items-center gap-3"><DeskRowIcon icon={UserCheck} /><span className="min-w-0"><bdi className="font-semibold text-ink-strong">{value.fullName}</bdi>{className(value) ? <> · <bdi>{className(value)}</bdi></> : null}</span></span><Button size="sm" variant="ghost" onClick={() => onChange(null)}>{ui("Change student")}</Button></div>;
   return <div className="space-y-2">
     <FormField name="care-student" label={label}><Input value={q} onChange={e => setQ(e.target.value)} placeholder={ui("Type at least two letters of a name or roll number")} data-care-student-search /></FormField>
     {failure ? <ErrorState error={failure} variant="panel" /> : results.length ? <ul className="max-h-48 space-y-1 overflow-auto">{results.map(s => <li key={s.id}><Button variant="ghost" className="w-full justify-start" onClick={() => { onChange(s); setQ(""); }} data-care-pick={s.id}><bdi>{s.fullName}</bdi>{className(s) ? <span className="text-ink-muted"> · <bdi>{className(s)}</bdi></span> : null}</Button></li>)}</ul> : null}
@@ -90,9 +103,32 @@ function ConcernIntake() {
   const { dateTime } = useLocaleFormat();
   const [student, setStudent] = useState<Student | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ source: "STAFF_OBSERVATION", observation: "", eventAt: localNow(), guardianInvolved: false, idempotencyKey: key() });
-  const [receipt, setReceipt] = useState<{ reference: string; createdAt: string } | null>(null), [mine, setMine] = useState<{ reference: string; createdAt: string }[]>([]);
-  const loadMine = useCallback(() => call("/api/care?view=my-reports").then(setMine).catch(() => setMine([])), []);
+  const [receipt, setReceipt] = useState<{ reference: string; createdAt: string } | null>(null), [mine, setMine] = useState<MyReport[]>([]);
+  // SKAI-1667: a failed history load is shown with Retry; known rows stay and are marked stale, never cleared.
+  const [mineFailed, setMineFailed] = useState(false);
+  const loadMine = useCallback(() => call("/api/care?view=my-reports").then(rows => { setMine(rows); setMineFailed(false); }).catch(error => { if (error instanceof AccessError) { setMine([]); setMineFailed(false); } else setMineFailed(true); }), []);
   useEffect(() => { void loadMine(); }, [loadMine]);
+  // SKAI-1698: the first load is the newest 20; older receipts follow the cursor and drop out if the list reloads.
+  const [olderMine, setOlderMine] = useState<{ rows: MyReport[]; cursor: string | null } | null>(null);
+  const [moreMine, setMoreMine] = useState<"idle" | "loading" | "failed">("idle");
+  const mineRequest = useRef(0);
+  useEffect(() => { mineRequest.current++; setOlderMine(null); setMoreMine("idle"); }, [mine]);
+  const shownMine = [...mine, ...(olderMine?.rows ?? []).filter(o => !mine.some(m => m.id === o.id))];
+  const mineCursor = olderMine ? olderMine.cursor : mine.length >= MY_REPORTS_PAGE ? mine[mine.length - 1].id : null;
+  const loadOlderMine = async () => {
+    if (!mineCursor || moreMine === "loading") return;
+    const id = ++mineRequest.current;
+    setMoreMine("loading");
+    try {
+      const response = await fetch(`/api/care?view=my-reports&cursor=${encodeURIComponent(mineCursor)}`, { cache: "no-store" });
+      const body = await response.json() as { success?: boolean; data?: MyReport[]; nextCursor?: string | null };
+      if (!response.ok || !body.success || !Array.isArray(body.data)) throw new Error("page failed");
+      if (id !== mineRequest.current) return;
+      const page = body.data;
+      setOlderMine(o => { const have = o?.rows ?? []; return { rows: [...have, ...page.filter(m => !have.some(h => h.id === m.id))], cursor: body.nextCursor ?? null }; });
+      setMoreMine("idle");
+    } catch { if (id === mineRequest.current) setMoreMine("failed"); }
+  };
   const submit = async () => {
     if (!student) return;
     setBusy(true); setError(null);
@@ -117,7 +153,11 @@ function ConcernIntake() {
       {error ? <Alert tone="danger" compact live="assertive" data-care-error>{ui(error)}</Alert> : null}
       <div className="flex justify-end"><Button loading={busy} disabled={busy || !student || !form.observation.trim()} onClick={() => void submit()} data-care-submit>{ui("Submit to the designated lead")}</Button></div>
     </div>}
-    {mine.length ? <details className="text-sm"><summary className="cursor-pointer text-ink-muted">{ui("Concerns I recorded")}</summary><ul className="mt-2 space-y-1">{mine.map(m => <li key={m.reference} data-care-mine={m.reference}><bdi>{m.reference}</bdi> · <bdi>{dateTime(m.createdAt)}</bdi> · {ui("Received by the designated lead")}</li>)}</ul></details> : null}
+    {mineFailed ? <div data-care-mine-failed><Alert tone="warning" compact live="polite" actions={<Button type="button" size="sm" variant="outline" onClick={() => void loadMine()}>{ui("Try again")}</Button>}>{mine.length ? ui("Concerns I recorded could not be refreshed. The list below may be out of date.") : ui("Concerns I recorded could not be loaded.")}</Alert></div> : null}
+    {mine.length ? <details className="text-sm"><summary className="cursor-pointer text-ink-muted">{ui("Concerns I recorded")}</summary><ul className={cn(deskTimeline, "mt-3")}>{shownMine.map(m => <li key={m.id} data-tone="success" data-care-mine={m.reference}><bdi>{m.reference}</bdi> · <bdi>{dateTime(m.createdAt)}</bdi> · {ui("Received by the designated lead")}</li>)}</ul>
+      {moreMine === "failed" ? <p role="alert" className="mt-2 text-sm text-status-danger-text">{ui("Older concerns could not be loaded.")}</p> : null}
+      {mineCursor ? <Button className="mt-2" size="sm" variant="outline" loading={moreMine === "loading"} onClick={loadOlderMine} data-care-mine-more>{moreMine === "failed" ? ui("Try again") : ui("Show older concerns")}</Button>
+        : olderMine ? <p className="mt-2 text-xs text-ink-muted" role="status">{ui("That's every concern you recorded.")}</p> : null}</details> : null}
   </section>;
 }
 
@@ -130,7 +170,7 @@ function CareSummaryLookup() {
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-care-summary-lookup>
     <header><h2 className="text-base font-bold text-ink-strong">{ui("Care summary for teachers")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("The accommodation the clinic asks staff to know about. Clinical detail stays with the clinic.")}</p></header>
     <StudentPicker value={student} onChange={setStudent} label={ui("Student")} />
-    {failure ? <ErrorState error={failure} variant="panel" /> : student && summary ? <p className="rounded-xl border px-3 py-2 text-sm" dir="auto" data-care-summary>{summary.summary ?? ui("No care summary has been shared for this student.")}</p> : null}
+    {failure ? <ErrorState error={failure} variant="panel" /> : student && summary ? <p className="rounded-(--radius-control) border border-border-subtle bg-surface-subtle px-4 py-3 text-sm leading-relaxed text-ink-strong" dir="auto" data-care-summary>{summary.summary ?? ui("No care summary has been shared for this student.")}</p> : null}
   </section>;
 }
 
@@ -159,6 +199,7 @@ function ClinicRecord({ studentId, onClose }: { studentId: string; onClose: () =
   const [visit, setVisit] = useState({ observation: "", actionTaken: "", outcome: "RETURNED_TO_CLASS", arrivedAt: localNow() });
   const [plan, setPlan] = useState({ allergies: "", actionPlan: "", teacherSummary: "" }), [editPlan, setEditPlan] = useState(false);
   const [ins, setIns] = useState<Record<string, string> | null>(null);
+  const doseAttempts = useRef(new Map<string, { idempotencyKey: string; givenAt: string }>());
   const load = useCallback(async () => {
     try { const d = await call(`/api/care?view=clinic&studentId=${studentId}`); setData(d); setPlan({ allergies: d.plan?.allergies ?? "", actionPlan: d.plan?.actionPlan ?? "", teacherSummary: d.plan?.teacherSummary ?? "" }); }
     catch (e) { setData(null); setGone(e instanceof Error ? e.message : "Record unavailable."); }
@@ -174,47 +215,43 @@ function ClinicRecord({ studentId, onClose }: { studentId: string; onClose: () =
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-clinic-record={data.student.id}>
     <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-bold text-ink-strong"><bdi>{data.student.fullName}</bdi></h3><p className="text-xs text-ink-muted"><bdi>{data.student.className}</bdi> · {ui("Clinic record")}</p></div><span className="flex gap-2"><a className="sk-link text-sm font-medium text-primary" href={`/api/care/export?studentId=${data.student.id}`} data-clinic-export>{ui("Export")}</a><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></span></header>
     <EmergencyBanner access={data.access} />
-    <div className="space-y-1 rounded-xl border p-3 text-sm" data-clinic-plan>
-      <h4 className="text-sm font-bold text-ink-strong">{ui("Allergies and action plan")}</h4>
+    <DeskSection title={ui("Allergies and action plan")} icon={ClipboardList} tone={data.plan?.allergies ? "warning" : "brand"} className="text-sm" data-clinic-plan>
       {editPlan ? <div className="space-y-2">
         <FormField name="cp-allergies" label={ui("Allergies")}><Textarea value={plan.allergies} onChange={e => setPlan({ ...plan, allergies: e.target.value })} rows={2} dir="auto" /></FormField>
         <FormField name="cp-action" label={ui("Action plan")}><Textarea value={plan.actionPlan} onChange={e => setPlan({ ...plan, actionPlan: e.target.value })} rows={3} dir="auto" /></FormField>
         <FormField name="cp-summary" label={ui("Summary for teachers")} hint={ui("Only what staff need to know to keep the student safe. No diagnosis.")}><Textarea value={plan.teacherSummary} onChange={e => setPlan({ ...plan, teacherSummary: e.target.value })} rows={2} maxLength={600} dir="auto" data-clinic-summary-input /></FormField>
-        <div className="flex justify-end gap-2"><Button size="sm" variant="secondary" onClick={() => setEditPlan(false)}>{ui("Back")}</Button><Button size="sm" loading={busy} disabled={busy} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "care-plan", studentId, ...plan }); setEditPlan(false); }, "Care plan saved.")} data-clinic-plan-save>{ui("Save care plan")}</Button></div>
+        <div className="flex justify-end gap-2"><Button size="sm" variant="secondary" onClick={() => setEditPlan(false)}>{ui("Back")}</Button><Button size="sm" loading={busy} disabled={busy} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "care-plan", studentId, ...plan, expectedUpdatedAt: data.plan?.updatedAt ?? null }); setEditPlan(false); }, "Care plan saved.")} data-clinic-plan-save>{ui("Save care plan")}</Button></div>
       </div> : <>
         <p dir="auto"><span className="text-ink-muted">{ui("Allergies")}: </span>{data.plan?.allergies || ui("None recorded")}</p>
         <p dir="auto" className="whitespace-pre-wrap"><span className="text-ink-muted">{ui("Action plan")}: </span>{data.plan?.actionPlan || ui("None recorded")}</p>
         {data.plan ? <p className="text-xs text-ink-muted">{ui("Updated {0} by {1}", [dateTime(data.plan.updatedAt), data.plan.updatedBy])}</p> : null}
-        {canPlan ? <Button size="sm" variant="outline" onClick={() => setEditPlan(true)} data-clinic-plan-edit>{ui("Edit care plan")}</Button> : null}
+        {canPlan ? <Button size="sm" variant="outline" className="w-fit" onClick={() => setEditPlan(true)} data-clinic-plan-edit>{ui("Edit care plan")}</Button> : null}
       </>}
-    </div>
+    </DeskSection>
     <div className="space-y-2" data-clinic-instructions>
-      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-bold text-ink-strong">{ui("Medication instructions")}</h4>{canPlan ? <Button size="sm" variant="outline" onClick={() => setIns({ medicine: "", dose: "", schedule: "", authorizedBy: "", authorizationRef: "", validFrom: localNow(), validUntil: "" })} data-clinic-instruction-new>{ui("Add approved instruction")}</Button> : null}</div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="flex items-center gap-2 text-sm font-bold text-ink-strong"><Pill aria-hidden="true" className="size-4 text-primary" />{ui("Medication instructions")}</h4>{canPlan ? <Button size="sm" variant="outline" onClick={() => setIns({ medicine: "", dose: "", schedule: "", authorizedBy: "", authorizationRef: "", validFrom: localNow(), validUntil: "" })} data-clinic-instruction-new>{ui("Add approved instruction")}</Button> : null}</div>
       <p className="text-xs text-ink-muted">{ui("The clinic records doses only against an approved, in-date instruction and never changes a dose.")}</p>
-      {data.instructions.length ? <ul className="space-y-2">{data.instructions.map(i => <li key={i.id} className={cn("rounded-xl border px-3 py-2 text-sm", !i.active && "opacity-70")} data-clinic-instruction={i.id} data-active={i.active}>
-        <p><span dir="auto" className="font-bold">{i.medicine}</span> · <span dir="auto">{i.dose}</span> · <span dir="auto">{i.schedule}</span></p>
+      {data.instructions.length ? <ul className="space-y-2">{data.instructions.map(i => <li key={i.id} className={cn(deskRow, "space-y-1 text-sm")} data-tone={i.active ? "success" : "muted"} data-clinic-instruction={i.id} data-active={i.active}>
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1"><DeskPill tone={i.active ? "success" : "neutral"}>{i.active ? ui("Active") : i.endedAt ? ui("Ended") : ui("Not in effect")}</DeskPill><span dir="auto" className="font-bold text-ink-strong">{i.medicine}</span> · <span dir="auto">{i.dose}</span> · <span dir="auto">{i.schedule}</span></p>
         <p className="text-xs text-ink-muted">{ui("Authorized by {0} · ref {1} · {2}–{3}", [i.authorizedBy, i.authorizationRef, dateTime(i.validFrom), dateTime(i.validUntil)])}{i.endedAt ? <> · {ui("Ended")}</> : !i.active ? <> · {ui("Not in effect")}</> : null}</p>
-        {i.active && canRecord ? <span className="mt-1 flex flex-wrap gap-2"><Button size="sm" disabled={busy} onClick={() => void run(() => call("/api/care", "POST", { action: "dose", instructionId: i.id, dose: i.dose }), "Dose recorded.")} data-clinic-dose>{ui("Record dose given now ({0})", [i.dose])}</Button>{canPlan ? <Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(() => call("/api/care", "POST", { action: "end-instruction", id: i.id }), "Instruction ended.")} data-clinic-instruction-end>{ui("End instruction")}</Button> : null}</span> : null}
+        {i.active && canRecord ? <span className="mt-1 flex flex-wrap gap-2"><Button size="sm" disabled={busy} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "dose", instructionId: i.id, dose: i.dose, ...doseAttempt(doseAttempts.current, i.id) }); doseAttempts.current.delete(i.id); }, "Dose recorded.")} data-clinic-dose>{ui("Record dose given now ({0})", [i.dose])}</Button>{canPlan ? <Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(() => call("/api/care", "POST", { action: "end-instruction", id: i.id }), "Instruction ended.")} data-clinic-instruction-end>{ui("End instruction")}</Button> : null}</span> : null}
       </li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No medication instructions.")}</p>}
     </div>
     {!data.access.emergency ? <>
-      <div className="space-y-2" data-clinic-doses><h4 className="text-sm font-bold text-ink-strong">{ui("Doses given")}</h4>{data.doses.length ? <ul className="space-y-1 text-sm">{data.doses.map(d => <li key={d.id} data-clinic-dose-row={d.id}><bdi>{dateTime(d.givenAt)}</bdi> · <span dir="auto">{d.dose}</span> · <bdi>{d.actor}</bdi></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No doses recorded.")}</p>}</div>
-      <div className="space-y-2 rounded-xl border p-3" data-clinic-visit-form>
-        <h4 className="text-sm font-bold text-ink-strong">{ui("Record visit")}</h4>
+      <div className="space-y-2" data-clinic-doses><h4 className="text-sm font-bold text-ink-strong">{ui("Doses given")}</h4>{data.doses.length ? <ol className={cn(deskTimeline, "text-sm")}>{data.doses.map(d => <li key={d.id} data-tone="success" data-clinic-dose-row={d.id}><bdi>{dateTime(d.givenAt)}</bdi> · <span dir="auto">{d.dose}</span> · <bdi>{d.actor}</bdi></li>)}</ol> : <p className="text-sm text-ink-muted">{ui("No doses recorded.")}</p>}</div>
+      <DeskSection title={ui("Record visit")} icon={Stethoscope} data-clinic-visit-form>
         <FormField name="cv-time" label={ui("Arrived at")}><Input type="datetime-local" value={visit.arrivedAt} onChange={e => setVisit({ ...visit, arrivedAt: e.target.value })} dir="ltr" /></FormField>
         <FormField name="cv-obs" label={ui("Record what you observed")}><Textarea value={visit.observation} onChange={e => setVisit({ ...visit, observation: e.target.value })} rows={3} dir="auto" data-clinic-visit-observation /></FormField>
         <FormField name="cv-action" label={ui("What was done")}><Textarea value={visit.actionTaken} onChange={e => setVisit({ ...visit, actionTaken: e.target.value })} rows={2} dir="auto" data-clinic-visit-action /></FormField>
         <FormField name="cv-outcome" label={ui("Outcome")}><Select value={visit.outcome} onChange={e => setVisit({ ...visit, outcome: e.target.value })} data-clinic-visit-outcome>{["RETURNED_TO_CLASS", "SENT_HOME", "EMERGENCY_SERVICES", "STAYED_IN_CLINIC"].map(o => <option key={o} value={o}>{outcomeLabel(ui, o)}</option>)}</Select></FormField>
         <div className="flex justify-end"><Button loading={busy} disabled={busy || !visit.observation.trim() || !visit.actionTaken.trim()} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "visit", studentId, ...visit, arrivedAt: new Date(visit.arrivedAt).toISOString() }); setVisit({ observation: "", actionTaken: "", outcome: "RETURNED_TO_CLASS", arrivedAt: localNow() }); }, "Visit recorded.")} data-clinic-visit-save>{ui("Save visit")}</Button></div>
-      </div>
-      <div className="space-y-2" data-clinic-visits><h4 className="text-sm font-bold text-ink-strong">{ui("Visits")}</h4>{data.visits.length ? <ul className="space-y-2">{data.visits.map(v => <li key={v.id} className="sk-panel px-3 py-2 text-sm" data-clinic-visit={v.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(v.arrivedAt)}</bdi> · {outcomeLabel(ui, v.outcome)} · <bdi>{v.recordedBy}</bdi></p><p dir="auto" className="whitespace-pre-wrap">{v.observation}</p><p dir="auto" className="whitespace-pre-wrap text-ink-muted">{v.actionTaken}</p></li>)}</ul> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No visits recorded.")} />}</div>
+      </DeskSection>
+      <div className="space-y-2" data-clinic-visits><h4 className="text-sm font-bold text-ink-strong">{ui("Visits")}</h4>{data.visits.length ? <ol className={deskTimeline}>{data.visits.map(v => <li key={v.id} data-tone={v.outcome === "EMERGENCY_SERVICES" ? "danger" : v.outcome === "SENT_HOME" ? "warning" : "brand"} className="rounded-(--radius-control-small) border border-border-subtle bg-card px-3 py-2 text-sm" data-clinic-visit={v.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(v.arrivedAt)}</bdi> · {outcomeLabel(ui, v.outcome)} · <bdi>{v.recordedBy}</bdi></p><p dir="auto" className="whitespace-pre-wrap">{v.observation}</p><p dir="auto" className="whitespace-pre-wrap text-ink-muted">{v.actionTaken}</p></li>)}</ol> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No visits recorded.")} />}</div>
     </> : null}
-    {ins ? <Modal title={ui("Add approved instruction")} onClose={() => setIns(null)}>
+    {ins ? <Modal title={ui("Add approved instruction")} subtitle={ui("Copy the instruction exactly as signed. The clinic does not prescribe.")} icon={Pill} tone="sky" onClose={() => setIns(null)} footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setIns(null)}>{ui("Back")}</Button><Button loading={busy} disabled={busy || !ins.validUntil} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "instruction", studentId, ...ins, validFrom: new Date(ins.validFrom).toISOString(), validUntil: new Date(ins.validUntil).toISOString() }); setIns(null); }, "Instruction recorded.")} data-clinic-instruction-save>{ui("Save instruction")}</Button></div>}>
       <div className="space-y-2" data-clinic-instruction-form>
-        <p className="text-xs text-ink-muted">{ui("Copy the instruction exactly as signed. The clinic does not prescribe.")}</p>
         {[["medicine", "Medicine"], ["dose", "Dose"], ["schedule", "When it may be given"], ["authorizedBy", "Authorized by"], ["authorizationRef", "Authorization reference"]].map(([k, l]) => <FormField key={k} name={`ci-${k}`} label={ui(l)}><Input value={ins[k]} onChange={e => setIns({ ...ins, [k]: e.target.value })} dir="auto" data-clinic-field={k} /></FormField>)}
         <div className="grid gap-2 sm:grid-cols-2"><FormField name="ci-from" label={ui("Valid from")}><Input type="datetime-local" value={ins.validFrom} onChange={e => setIns({ ...ins, validFrom: e.target.value })} dir="ltr" data-clinic-field="validFrom" /></FormField><FormField name="ci-until" label={ui("Valid until")}><Input type="datetime-local" value={ins.validUntil} onChange={e => setIns({ ...ins, validUntil: e.target.value })} dir="ltr" data-clinic-field="validUntil" /></FormField></div>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setIns(null)}>{ui("Back")}</Button><Button loading={busy} disabled={busy || !ins.validUntil} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "instruction", studentId, ...ins, validFrom: new Date(ins.validFrom).toISOString(), validUntil: new Date(ins.validUntil).toISOString() }); setIns(null); }, "Instruction recorded.")} data-clinic-instruction-save>{ui("Save instruction")}</Button></div>
       </div>
     </Modal> : null}
   </section>;
@@ -225,17 +262,31 @@ function ClinicWorkspace() {
   const { dateTime } = useLocaleFormat();
   const [queue, setQueue] = useState<{ role: string; visits: { id: string; studentId: string; studentName: string; arrivedAt: string; outcome: string }[]; instructions: { id: string; studentId: string; studentName: string; medicine: string; schedule: string; validUntil: string }[] } | null>(null);
   const [error, setError] = useState<string | null>(null), [open, setOpen] = useState<string | null>(null), [pick, setPick] = useState<Student | null>(null);
+  // The emergency tile narrows the visit list; the quick filter narrows both lists by pupil name or medicine.
+  const [emergencyOnly, setEmergencyOnly] = useState(false), [q, setQ] = useState("");
   const load = useCallback(() => call("/api/care?view=clinic").then(q => { setQueue(q); setError(null); }).catch(e => setError(e.message)), []);
   useEffect(() => { if (!open) void load(); }, [load, open]);
   useEffect(() => { if (pick) { setOpen(pick.id); setPick(null); } }, [pick]);
   if (open) return <ClinicRecord studentId={open} onClose={() => setOpen(null)} />;
   if (error) return <p className="sk-panel p-4 text-sm" data-care-denied>{ui(error)}</p>;
   if (!queue) return <p className="text-sm text-ink-muted">{ui("Verifying confidential access before loading records.")}</p>;
+  const needle = q.trim().toLowerCase();
+  const visitRank = (o: string) => o === "EMERGENCY_SERVICES" ? 0 : o === "SENT_HOME" ? 1 : o === "STAYED_IN_CLINIC" ? 2 : 3;
+  const visits = urgencyFirst(queue.visits.filter(v => (!emergencyOnly || v.outcome === "EMERGENCY_SERVICES") && (!needle || v.studentName.toLowerCase().includes(needle))), v => visitRank(v.outcome));
+  const instructions = queue.instructions.filter(i => !needle || `${i.studentName} ${i.medicine}`.toLowerCase().includes(needle));
+  const emergencies = queue.visits.filter(v => v.outcome === "EMERGENCY_SERVICES").length;
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-clinic-queue>
     <header><h2 className="text-base font-bold text-ink-strong">{ui("Clinic workspace")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("Only clinic members can open these records. Safeguarding uses a separately authorized workspace.")} · {roleLabel(ui, queue.role)}</p></header>
+    <DeskStats data-clinic-pulse>
+      <StatTile index={0} icon={Stethoscope} tone="brand" value={queue.visits.length} label={ui("Recent visits")} />
+      <StatTile index={1} icon={Pill} tone={queue.instructions.length ? "info" : "neutral"} value={queue.instructions.length} label={ui("Medication in effect")} />
+      <StatTile index={2} icon={Siren} tone={emergencies ? "danger" : "neutral"} value={emergencies} label={ui("Emergency services called")} onSelect={emergencies ? () => setEmergencyOnly(v => !v) : undefined} selected={emergencyOnly} />
+    </DeskStats>
     <StudentPicker value={null} onChange={setPick} label={ui("Open a student's clinic record")} />
-    <div><h3 className="text-base font-semibold text-ink-strong">{ui("Recent visits")}</h3>{queue.visits.length ? <ul className="mt-1 space-y-1">{queue.visits.map(v => <li key={v.id}><Button variant="ghost" className="w-full justify-start" onClick={() => setOpen(v.studentId)} data-clinic-queue-visit={v.id}><bdi>{v.studentName}</bdi> · <bdi>{dateTime(v.arrivedAt)}</bdi> · {outcomeLabel(ui, v.outcome)}</Button></li>)}</ul> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No records assigned to you in this confidential workspace.")} />}</div>
-    <div><h3 className="text-base font-semibold text-ink-strong">{ui("Medication in effect")}</h3>{queue.instructions.length ? <ul className="mt-1 space-y-1">{queue.instructions.map(i => <li key={i.id}><Button variant="ghost" className="w-full justify-start" onClick={() => setOpen(i.studentId)} data-clinic-queue-instruction={i.id}><bdi>{i.studentName}</bdi> · <span dir="auto">{i.medicine}</span> · <span dir="auto">{i.schedule}</span></Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No medication instructions.")}</p>}</div>
+    {queue.visits.length + queue.instructions.length > 8 ? <DeskQuickFilter value={q} onChange={setQ} label={ui("Filter this list")} /> : null}
+    <DeskFilterStatus shown={visits.length + instructions.length} total={queue.visits.length + queue.instructions.length} onClear={() => { setEmergencyOnly(false); setQ(""); }} />
+    <div><h3 className="text-base font-semibold text-ink-strong">{ui("Recent visits")}</h3>{visits.length ? <ul className="mt-2 space-y-2">{visits.map(v => <li key={v.id}><DeskRowButton icon={Stethoscope} tone={v.outcome === "EMERGENCY_SERVICES" ? "danger" : v.outcome === "SENT_HOME" ? "warning" : undefined} trailing={<DeskPill tone={v.outcome === "EMERGENCY_SERVICES" ? "danger" : v.outcome === "SENT_HOME" ? "warning" : v.outcome === "RETURNED_TO_CLASS" ? "success" : "info"}>{outcomeLabel(ui, v.outcome)}</DeskPill>} onClick={() => setOpen(v.studentId)} data-clinic-queue-visit={v.id}><span className="block text-sm font-semibold text-ink-strong"><bdi>{v.studentName}</bdi></span><span className="block text-xs text-ink-muted"><RelativeTime iso={v.arrivedAt} full={dateTime(v.arrivedAt)} /></span></DeskRowButton></li>)}</ul> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No records assigned to you in this confidential workspace.")} />}</div>
+    <div><h3 className="text-base font-semibold text-ink-strong">{ui("Medication in effect")}</h3>{instructions.length ? <ul className="mt-2 space-y-2">{instructions.map(i => <li key={i.id}><DeskRowButton icon={Pill} onClick={() => setOpen(i.studentId)} data-clinic-queue-instruction={i.id}><span className="block text-sm font-semibold text-ink-strong"><bdi>{i.studentName}</bdi></span><span className="block text-xs text-ink-muted"><span dir="auto">{i.medicine}</span> · <span dir="auto">{i.schedule}</span></span></DeskRowButton></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No medication instructions.")}</p>}</div>
   </section>;
 }
 
@@ -271,14 +322,14 @@ function ConcernDetail({ concernId, members, onClose }: { concernId: string; mem
   const c = data.concern, lead = !data.access.emergency, closed = c.status === "CLOSED";
   const kindLabel = (k: string) => ({ CREATED: ui("Concern recorded"), NOTE: ui("Note"), OWNER: ui("Owner assigned"), STATUS: ui("Status changed"), ESCALATION: ui("Escalated"), DISCLOSURE: ui("Disclosure"), CLOSED: ui("Closed") } as Record<string, string>)[k] ?? k;
   return <section className="sk-panel min-w-0 space-y-4 p-4 sm:p-5" data-concern={c.id} data-concern-status={c.status}>
-    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-bold text-ink-strong"><bdi>{c.reference}</bdi> · {statusLabel(ui, c.status)}</h3><p className="text-xs text-ink-muted">{data.student ? <><bdi>{data.student.fullName}</bdi> · <bdi>{data.student.className}</bdi> · </> : null}{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}{c.escalation ? <> · {c.escalation === "EXTERNAL_REFERRAL" ? ui("External referral") : ui("Internal review")}</> : null}</p></div><span className="flex gap-2"><a className="sk-link text-sm font-medium text-primary" href={`/api/care/export?concernId=${c.id}`} data-concern-export>{ui("Export chronology")}</a><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></span></header>
+    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="flex flex-wrap items-center gap-2 text-base font-bold text-ink-strong"><bdi className="font-mono">{c.reference}</bdi><DeskPill tone={caseTone(c.status)}>{statusLabel(ui, c.status)}</DeskPill></h3><p className="text-xs text-ink-muted">{data.student ? <><bdi>{data.student.fullName}</bdi> · <bdi>{data.student.className}</bdi> · </> : null}{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}{c.escalation ? <> · {c.escalation === "EXTERNAL_REFERRAL" ? ui("External referral") : ui("Internal review")}</> : null}</p></div><span className="flex gap-2"><a className="sk-link text-sm font-medium text-primary" href={`/api/care/export?concernId=${c.id}`} data-concern-export>{ui("Export chronology")}</a><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></span></header>
     <EmergencyBanner access={data.access} />
-    <div className="rounded-xl border p-3 text-sm"><p className="text-xs text-ink-muted">{ui("Observation as recorded by {0} · {1} · event {2}", [c.reporter, sourceLabel(ui, c.source), dateTime(c.eventAt)])}</p><blockquote dir="auto" className="mt-1 whitespace-pre-wrap" data-concern-observation>{c.observation}</blockquote></div>
+    <div className="rounded-(--radius-control) border border-border-subtle bg-surface-subtle p-4 text-sm"><p className="text-xs text-ink-muted">{ui("Observation as recorded by {0} · {1} · event {2}", [c.reporter, sourceLabel(ui, c.source), dateTime(c.eventAt)])}</p><blockquote dir="auto" className="mt-2 whitespace-pre-wrap border-s-2 border-brand-200 ps-3 leading-relaxed text-ink-strong" data-concern-observation>{c.observation}</blockquote></div>
     {lead && !closed ? <div className="grid gap-3 sm:grid-cols-2">
-      <div className="space-y-2 rounded-xl border p-3"><FormField name="sg-owner" label={ui("Designated owner")}><Select value={owner} onChange={e => setOwner(e.target.value)} data-concern-owner-select><option value="">{ui("Choose")}</option>{members.map(m => <option key={m.userId} value={m.userId}>{m.name} · {roleLabel(ui, m.role)}</option>)}</Select></FormField><Button size="sm" disabled={busy || !owner || owner === c.ownerId} onClick={() => void run(() => call("/api/care", "POST", { action: "assign", concernId: c.id, ownerId: owner, version: c.version }), "Owner assigned.")} data-concern-assign>{ui("Assign owner")}</Button></div>
-      <div className="space-y-2 rounded-xl border p-3"><FormField name="sg-esc" label={ui("Escalation")}><Select value={esc.escalation} onChange={e => setEsc({ ...esc, escalation: e.target.value })} data-concern-escalation><option value="INTERNAL_REVIEW">{ui("Internal review")}</option><option value="EXTERNAL_REFERRAL">{ui("External referral")}</option></Select></FormField><FormField name="sg-esc-reason" label={ui("Reason")}><Input value={esc.reason} onChange={e => setEsc({ ...esc, reason: e.target.value })} dir="auto" data-concern-escalation-reason /></FormField><Button size="sm" disabled={busy || !c.ownerId || !esc.reason.trim()} onClick={() => void run(() => call("/api/care", "POST", { action: "escalate", concernId: c.id, version: c.version, ...esc }), "Escalation recorded.")} data-concern-escalate>{ui("Record escalation")}</Button></div>
+      <div className="sk-desk-section content-start"><FormField name="sg-owner" label={ui("Designated owner")}><Select value={owner} onChange={e => setOwner(e.target.value)} data-concern-owner-select><option value="">{ui("Choose")}</option>{members.map(m => <option key={m.userId} value={m.userId}>{m.name} · {roleLabel(ui, m.role)}</option>)}</Select></FormField><Button size="sm" disabled={busy || !owner || owner === c.ownerId} onClick={() => void run(() => call("/api/care", "POST", { action: "assign", concernId: c.id, ownerId: owner, version: c.version }), "Owner assigned.")} data-concern-assign>{ui("Assign owner")}</Button></div>
+      <div className="sk-desk-section content-start"><FormField name="sg-esc" label={ui("Escalation")}><Select value={esc.escalation} onChange={e => setEsc({ ...esc, escalation: e.target.value })} data-concern-escalation><option value="INTERNAL_REVIEW">{ui("Internal review")}</option><option value="EXTERNAL_REFERRAL">{ui("External referral")}</option></Select></FormField><FormField name="sg-esc-reason" label={ui("Reason")}><Input value={esc.reason} onChange={e => setEsc({ ...esc, reason: e.target.value })} dir="auto" data-concern-escalation-reason /></FormField><Button size="sm" disabled={busy || !c.ownerId || !esc.reason.trim()} onClick={() => void run(() => call("/api/care", "POST", { action: "escalate", concernId: c.id, version: c.version, ...esc }), "Escalation recorded.")} data-concern-escalate>{ui("Record escalation")}</Button></div>
     </div> : null}
-    <div className="space-y-2"><h4 className="text-sm font-bold text-ink-strong">{ui("Chronology")}</h4><ol className="space-y-2 border-s ps-3">{data.entries.map(e => <li key={e.id} className="text-sm" data-concern-entry={e.kind}><p className="text-xs text-ink-muted"><bdi>{dateTime(e.createdAt)}</bdi> · {kindLabel(e.kind)} · <bdi>{e.actor}</bdi>{e.kind === "DISCLOSURE" && typeof e.detail.status === "string" ? <> · {statusLabel(ui, e.detail.status)}</> : null}</p>{e.body ? <p dir="auto" className="whitespace-pre-wrap">{e.body}</p> : null}</li>)}</ol>
+    <div className="space-y-2"><h4 className="text-sm font-bold text-ink-strong">{ui("Chronology")}</h4><ol className={deskTimeline}>{data.entries.map(e => <li key={e.id} data-tone={e.kind === "ESCALATION" ? "danger" : e.kind === "CLOSED" ? "neutral" : e.kind === "DISCLOSURE" ? "warning" : "brand"} className="text-sm" data-concern-entry={e.kind}><p className="text-xs text-ink-muted"><bdi>{dateTime(e.createdAt)}</bdi> · {kindLabel(e.kind)} · <bdi>{e.actor}</bdi>{e.kind === "DISCLOSURE" && typeof e.detail.status === "string" ? <> · {statusLabel(ui, e.detail.status)}</> : null}</p>{e.body ? <p dir="auto" className="whitespace-pre-wrap">{e.body}</p> : null}</li>)}</ol>
       {lead ? <div className="flex flex-col gap-2 sm:flex-row"><Textarea value={note} onChange={e => setNote(e.target.value)} rows={2} dir="auto" placeholder={ui("Add a note to the chronology")} aria-label={ui("Add a note to the chronology")} data-concern-note /><Button size="sm" disabled={busy || !note.trim()} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "note", concernId: c.id, version: c.version, body: note }); setNote(""); }, "Note added.")} data-concern-note-save>{ui("Add note")}</Button></div> : null}
     </div>
     <div className="space-y-2" data-concern-disclosures>
@@ -295,16 +346,16 @@ function ConcernDetail({ concernId, members, onClose }: { concernId: string; mem
         onConfirm={() => { const item = releasing; if (item) return run(() => call("/api/care", "POST", { action: "release-disclosure", id: item.id }), "Released to the approved recipient.").then(saved => { if (saved) setReleasing(null); }); }}
         onCancel={() => setReleasing(null)}
       />
-      {data.disclosures.length ? <ul className="space-y-2">{data.disclosures.map(d => <li key={d.id} className="rounded-xl border px-3 py-2 text-sm" data-disclosure={d.id} data-disclosure-status={d.status}>
-        <p><bdi>{d.recipientName}</bdi> · <span dir="auto">{d.purpose}</span> · {statusLabel(ui, d.status)}</p>
+      {data.disclosures.length ? <ul className="space-y-2">{data.disclosures.map(d => <li key={d.id} className={cn(deskRow, "space-y-1 text-sm")} data-tone={d.status === "PROPOSED" ? "warning" : d.status === "RELEASED" ? "success" : undefined} data-disclosure={d.id} data-disclosure-status={d.status}>
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1"><DeskPill tone={caseTone(d.status)}>{statusLabel(ui, d.status)}</DeskPill><bdi className="font-semibold text-ink-strong">{d.recipientName}</bdi> · <span dir="auto">{d.purpose}</span></p>
         <p className="text-xs text-ink-muted">{ui("Proposed by {0}", [d.proposedBy])}{d.reviewedBy ? <> · {ui("Reviewed by {0}", [d.reviewedBy])}</> : null}</p>
         {lead && d.status === "PROPOSED" && !d.proposedByMe ? <Button size="sm" variant="outline" onClick={() => setReview(d)} data-disclosure-review>{ui("Review")}</Button> : null}
         {lead && d.status === "APPROVED" ? <Button size="sm" disabled={busy} onClick={() => setReleasing(d)} data-disclosure-release>{ui("Release")}</Button> : null}
       </li>)}</ul> : <p className="text-sm text-ink-muted">{ui("This case has not been shared with anyone.")}</p>}
     </div>
     {lead && data.guardians.length ? <details className="text-sm"><summary className="cursor-pointer">{ui("Guardians named in the concern")}</summary><ImplicatedEditor data={data} busy={busy} run={run} /></details> : null}
-    {lead && !closed ? <div className="flex flex-col gap-2 rounded-xl border p-3 sm:flex-row"><Input value={closeReason} onChange={e => setCloseReason(e.target.value)} dir="auto" placeholder={ui("Why is the case being closed?")} aria-label={ui("Why is the case being closed?")} data-concern-close-reason /><Button size="sm" variant="secondary" disabled={busy || !c.ownerId || !closeReason.trim()} onClick={() => void run(() => call("/api/care", "POST", { action: "close", concernId: c.id, version: c.version, reason: closeReason }), "Case closed. The chronology is retained.")} data-concern-close>{ui("Close case")}</Button></div> : null}
-    {disc ? <Modal title={ui("Propose a disclosure for {0}", [c.reference])} onClose={() => setDisc(null)}>
+    {lead && !closed ? <div className="flex flex-col gap-2 rounded-(--radius-control) border border-border-subtle bg-surface-subtle p-3 sm:flex-row"><Input value={closeReason} onChange={e => setCloseReason(e.target.value)} dir="auto" placeholder={ui("Why is the case being closed?")} aria-label={ui("Why is the case being closed?")} data-concern-close-reason /><Button size="sm" variant="secondary" disabled={busy || !c.ownerId || !closeReason.trim()} onClick={() => void run(() => call("/api/care", "POST", { action: "close", concernId: c.id, version: c.version, reason: closeReason }), "Case closed. The chronology is retained.")} data-concern-close>{ui("Close case")}</Button></div> : null}
+    {disc ? <Modal title={ui("Propose a disclosure for {0}", [c.reference])} icon={FileLock2} onClose={() => setDisc(null)} footer={!confirmDisc ? <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setDisc(null)}>{ui("Keep restricted")}</Button><Button disabled={!disc.purpose.trim() || !disc.content.trim() || (disc.recipientType !== "EXTERNAL_AGENCY" ? !disc.recipientUserId : disc.recipientName.trim().length < 3)} onClick={() => setConfirmDisc(true)} data-disclosure-preview>{ui("Preview")}</Button></div> : <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setConfirmDisc(false)}>{ui("Back")}</Button><Button disabled={busy} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "propose-disclosure", concernId: c.id, ...disc }); setDisc(null); }, "Sent for a second lead's review.")} data-disclosure-propose>{ui("Send for review")}</Button></div>}>
       {!confirmDisc ? <div className="space-y-2" data-disclosure-form>
         <FormField name="d-type" label={ui("Recipient")}><Select value={disc.recipientType} onChange={e => setDisc({ ...disc, recipientType: e.target.value, recipientUserId: "" })} data-disclosure-type><option value="STAFF">{ui("Staff member")}</option><option value="GUARDIAN">{ui("Guardian")}</option><option value="EXTERNAL_AGENCY">{ui("External agency")}</option></Select></FormField>
         {disc.recipientType === "GUARDIAN" ? <FormField name="d-guardian" label={ui("Guardian")}><Select value={disc.recipientUserId} onChange={e => setDisc({ ...disc, recipientUserId: e.target.value })} data-disclosure-guardian><option value="">{ui("Choose")}</option>{data.guardians.map(g => <option key={g.userId} value={g.userId} disabled={g.implicated}>{g.name} · {g.relationship}{g.implicated ? ` · ${ui("named in the concern")}` : ""}</option>)}</Select></FormField>
@@ -312,20 +363,16 @@ function ConcernDetail({ concernId, members, onClose }: { concernId: string; mem
           : <FormField name="d-agency" label={ui("Agency and contact")}><Input value={disc.recipientName} onChange={e => setDisc({ ...disc, recipientName: e.target.value })} dir="auto" data-disclosure-agency /></FormField>}
         <FormField name="d-purpose" label={ui("Purpose")}><Input value={disc.purpose} onChange={e => setDisc({ ...disc, purpose: e.target.value })} dir="auto" data-disclosure-purpose /></FormField>
         <FormField name="d-content" label={ui("Exactly what will be shared")} hint={ui("Only what this recipient needs for this purpose. Leave out other people and unrelated detail.")}><Textarea value={disc.content} onChange={e => setDisc({ ...disc, content: e.target.value })} rows={5} dir="auto" data-disclosure-content /></FormField>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setDisc(null)}>{ui("Keep restricted")}</Button><Button disabled={!disc.purpose.trim() || !disc.content.trim() || (disc.recipientType !== "EXTERNAL_AGENCY" ? !disc.recipientUserId : disc.recipientName.trim().length < 3)} onClick={() => setConfirmDisc(true)} data-disclosure-preview>{ui("Preview")}</Button></div>
       </div> : <div className="space-y-2" data-disclosure-confirm>
         <p className="text-sm">{ui("Recipient")}: <bdi>{disc.recipientType === "GUARDIAN" ? data.guardians.find(g => g.userId === disc.recipientUserId)?.name : disc.recipientType === "STAFF" ? staff.find(s => s.id === disc.recipientUserId)?.fullName : disc.recipientName}</bdi> · <span dir="auto">{disc.purpose}</span></p>
         <blockquote dir="auto" className="whitespace-pre-wrap rounded-xl border p-3 text-sm">{disc.content}</blockquote>
         <p className="text-xs text-ink-muted">{ui("This message has not been sent. A second lead must approve it first.")}</p>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setConfirmDisc(false)}>{ui("Back")}</Button><Button disabled={busy} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "propose-disclosure", concernId: c.id, ...disc }); setDisc(null); }, "Sent for a second lead's review.")} data-disclosure-propose>{ui("Send for review")}</Button></div>
       </div>}
     </Modal> : null}
-    {review ? <Modal title={ui("Safeguarding disclosure review · {0}", [c.reference])} onClose={() => setReview(null)}>
+    {review ? <Modal title={ui("Safeguarding disclosure review · {0}", [c.reference])} subtitle={ui("Approving binds this exact text and recipient. Nothing is sent until it is released.")} icon={ShieldCheck} onClose={() => setReview(null)} footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "review-disclosure", id: review.id, decision: "DECLINE" }); setReview(null); }, "Kept restricted.")} data-disclosure-decline>{ui("Keep restricted")}</Button><Button disabled={busy} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "review-disclosure", id: review.id, decision: "APPROVE", contentHash: review.contentHash }); setReview(null); }, "Disclosure approved.")} data-disclosure-approve>{ui("Approve disclosure")}</Button></div>}>
       <div className="space-y-2" data-disclosure-review-modal>
         <p className="text-sm">{ui("Recipient")}: <bdi>{review.recipientName}</bdi> · {ui("Purpose")}: <span dir="auto">{review.purpose}</span></p>
         <blockquote dir="auto" className="whitespace-pre-wrap rounded-xl border p-3 text-sm">{review.content}</blockquote>
-        <p className="text-xs text-ink-muted">{ui("Approving binds this exact text and recipient. Nothing is sent until it is released.")}</p>
-        <div className="flex justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "review-disclosure", id: review.id, decision: "DECLINE" }); setReview(null); }, "Kept restricted.")} data-disclosure-decline>{ui("Keep restricted")}</Button><Button disabled={busy} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "review-disclosure", id: review.id, decision: "APPROVE", contentHash: review.contentHash }); setReview(null); }, "Disclosure approved.")} data-disclosure-approve>{ui("Approve disclosure")}</Button></div>
       </div>
     </Modal> : null}
   </section>;
@@ -347,42 +394,67 @@ function SafeguardingWorkspace() {
   const { dateTime } = useLocaleFormat();
   const [queue, setQueue] = useState<{ role: string; members: Members; concerns: { id: string; reference: string; status: string; escalation: string | null; owner: string | null; mine: boolean; eventAt: string; createdAt: string; pendingDisclosures: number; retentionDue: boolean }[] } | null>(null);
   const [error, setError] = useState<string | null>(null), [open, setOpen] = useState<string | null>(null), [filter, setFilter] = useState("OPEN");
+  const [pendingOnly, setPendingOnly] = useState(false), [q, setQ] = useState("");
   const load = useCallback(() => call("/api/care?view=safeguarding").then(q => { setQueue(q); setError(null); }).catch(e => setError(e.message)), []);
   useEffect(() => { if (!open) void load(); }, [load, open]);
   if (open) return <ConcernDetail concernId={open} members={queue?.members ?? []} onClose={() => setOpen(null)} />;
   if (error) return <p className="sk-panel p-4 text-sm" data-care-denied>{ui(error)}</p>;
   if (!queue) return <p className="text-sm text-ink-muted">{ui("Verifying confidential access before loading records.")}</p>;
-  const rows = queue.concerns.filter(c => filter === "ALL" || (filter === "MINE" ? c.mine : c.status !== "CLOSED"));
+  const needle = q.trim().toLowerCase();
+  // Escalated first, then cases nobody owns yet, then words waiting for a second lead; the newest stay on top within each.
+  const rows = urgencyFirst(queue.concerns.filter(c => (filter === "ALL" || (filter === "MINE" ? c.mine : c.status !== "CLOSED")) && (!pendingOnly || c.pendingDisclosures > 0) && (!needle || `${c.reference} ${c.owner ?? ""}`.toLowerCase().includes(needle))),
+    c => c.status === "ESCALATED" ? 0 : !c.owner && c.status !== "CLOSED" ? 1 : c.pendingDisclosures ? 2 : c.status === "CLOSED" ? 4 : 3);
+  const live = queue.concerns.filter(c => c.status !== "CLOSED");
+  const pending = queue.concerns.filter(c => c.pendingDisclosures).length;
   return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-safeguarding-queue>
     <header className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-base font-bold text-ink-strong">{ui("Safeguarding workspace")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("Separately authorized. Clinic membership does not open these records.")} · {roleLabel(ui, queue.role)}</p></div>
       <Select value={filter} onChange={e => setFilter(e.target.value)} aria-label={ui("Show")} className="w-auto" data-safeguarding-filter><option value="OPEN">{ui("Open cases")}</option><option value="MINE">{ui("Assigned to me")}</option><option value="ALL">{ui("All cases")}</option></Select></header>
-    {rows.length ? <ul className="space-y-1">{rows.map(c => <li key={c.id}><Button variant="ghost" className="h-auto w-full flex-wrap justify-start gap-x-2 py-2 text-start" onClick={() => setOpen(c.id)} data-safeguarding-row={c.reference}>
-      <bdi className="font-bold">{c.reference}</bdi><span>{statusLabel(ui, c.status)}</span><span className="text-ink-muted">{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}</span><span className="text-ink-muted"><bdi>{dateTime(c.createdAt)}</bdi></span>
-      {c.pendingDisclosures ? <span className="text-status-warning-text">{ui("Disclosure awaiting review")}</span> : null}{c.retentionDue ? <span className="text-ink-muted">{ui("Retention review due")}</span> : null}
-    </Button></li>)}</ul> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No records assigned to you in this confidential workspace.")} />}
+    <DeskStats data-safeguarding-pulse>
+      <StatTile index={0} icon={ShieldAlert} tone={live.some(c => c.status === "ESCALATED") ? "danger" : live.length ? "warning" : "success"} value={live.length} label={ui("Open cases")} onSelect={() => setFilter(f => f === "OPEN" ? "ALL" : "OPEN")} selected={filter === "OPEN"} />
+      <StatTile index={1} icon={UserCheck} tone="brand" value={live.filter(c => c.mine).length} label={ui("Assigned to me")} onSelect={() => setFilter(f => f === "MINE" ? "OPEN" : "MINE")} selected={filter === "MINE"} />
+      <StatTile index={2} icon={FileLock2} tone={pending ? "warning" : "neutral"} value={pending} label={ui("Disclosure awaiting review")} onSelect={pending ? () => setPendingOnly(v => !v) : undefined} selected={pendingOnly} />
+    </DeskStats>
+    {queue.concerns.length > 8 ? <DeskQuickFilter value={q} onChange={setQ} label={ui("Filter this list")} /> : null}
+    <DeskFilterStatus shown={rows.length} total={queue.concerns.length} onClear={() => { setFilter("ALL"); setPendingOnly(false); setQ(""); }} />
+    {rows.length ? <ul className="space-y-2">{rows.map(c => <li key={c.id}><DeskRowButton icon={ShieldAlert} tone={c.status === "ESCALATED" ? "danger" : !c.owner && c.status !== "CLOSED" ? "warning" : c.status === "CLOSED" ? "muted" : undefined} trailing={<DeskPill tone={caseTone(c.status)}>{statusLabel(ui, c.status)}</DeskPill>} onClick={() => setOpen(c.id)} data-safeguarding-row={c.reference}>
+      <span className="block text-sm font-bold text-ink-strong"><bdi className="font-mono">{c.reference}</bdi></span>
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted"><span>{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}</span><RelativeTime iso={c.createdAt} full={dateTime(c.createdAt)} />{c.pendingDisclosures ? <DeskPill tone="warning">{ui("Disclosure awaiting review")}</DeskPill> : null}{c.retentionDue ? <DeskPill tone="neutral">{ui("Retention review due")}</DeskPill> : null}</span>
+    </DeskRowButton></li>)}</ul> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No records assigned to you in this confidential workspace.")} />}
   </section>;
 }
 
 // ─── Lead oversight ──────────────────────────────────────────────────────
 
+type OversightData = { grants: { id: string; user: string; studentName: string; purpose: string; createdAt: string; expiresAt: string; revokedAt: string | null; live: boolean; uses: number; reviewedAt: string | null; reviewedBy: string | null; reviewNote: string | null }[]; logs: { id: string; actor: string; action: string; recordType: string; emergency: boolean; createdAt: string }[] };
+
 function Oversight({ domain }: { domain: Domain }) {
+  const [data, setData] = useState<OversightData | null>(null), [failure, setFailure] = useState<RequestFailure | null>(null);
+  // SKAI-1697: a failed load keeps the last known rows and shows a retryable error instead of hiding the panel.
+  const load = useCallback(() => call(`/api/care?view=oversight&domain=${domain}`).then((next: OversightData) => { setData(next); setFailure(null); }).catch((e: unknown) => setFailure(e instanceof AccessError ? new RequestFailure("denied") : requestFailure(e))), [domain]);
+  useEffect(() => { setData(null); setFailure(null); void load(); }, [load]);
+  return <OversightPanel domain={domain} data={data} failure={failure} reload={load} />;
+}
+
+export function OversightPanel({ domain, data, failure, reload }: { domain: Domain; data: OversightData | null; failure: RequestFailure | null; reload: () => Promise<unknown> }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
-  const [data, setData] = useState<{ grants: { id: string; user: string; studentName: string; purpose: string; createdAt: string; expiresAt: string; revokedAt: string | null; live: boolean; uses: number; reviewedAt: string | null; reviewedBy: string | null; reviewNote: string | null }[]; logs: { id: string; actor: string; action: string; recordType: string; emergency: boolean; createdAt: string }[] } | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({}), [busy, setBusy] = useState(false);
-  const load = useCallback(() => call(`/api/care?view=oversight&domain=${domain}`).then(setData).catch(() => setData(null)), [domain]);
-  useEffect(() => { void load(); }, [load]);
-  if (!data) return null;
-  const review = async (id: string) => { setBusy(true); try { await call("/api/care", "POST", { action: "review-emergency", id, note: notes[id] }); toast.success(ui("Review recorded.")); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
-  return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-oversight={domain}>
+  const failed = failure ? <ErrorState error={failure} variant="panel" onRetry={reload} /> : null;
+  if (!data) return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-oversight={domain} data-oversight-state={failure ? "failure" : "loading"}>
     <h2 className="text-base font-bold text-ink-strong">{ui("Access review · {0}", [domainLabel(ui, domain)])}</h2>
+    {failed ?? <SkeletonList />}
+  </section>;
+  const review = async (id: string) => { setBusy(true); try { await call("/api/care", "POST", { action: "review-emergency", id, note: notes[id] }); toast.success(ui("Review recorded.")); await reload(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
+  return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-oversight={domain} data-oversight-state={failure ? "stale" : "ready"}>
+    <h2 className="text-base font-bold text-ink-strong">{ui("Access review · {0}", [domainLabel(ui, domain)])}</h2>
+    {failed}
     <h3 className="text-base font-semibold text-ink-strong">{ui("Emergency access")}</h3>
-    {data.grants.length ? <ul className="space-y-2">{data.grants.map(g => <li key={g.id} className="rounded-xl border px-3 py-2 text-sm" data-emergency-grant={g.id} data-reviewed={!!g.reviewedAt}>
-      <p><bdi>{g.user}</bdi> · <bdi>{g.studentName}</bdi> · <span dir="auto">{g.purpose}</span></p>
+    {data.grants.length ? <ul className="space-y-2">{data.grants.map(g => <li key={g.id} className={cn(deskRow, "space-y-1 text-sm")} data-tone={g.reviewedAt ? "muted" : g.live ? "danger" : "warning"} data-emergency-grant={g.id} data-reviewed={!!g.reviewedAt}>
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1"><DeskPill tone={g.live ? "danger" : g.reviewedAt ? "success" : "warning"}>{g.live ? ui("Active") : g.revokedAt ? ui("Revoked") : ui("Expired")}</DeskPill><bdi className="font-semibold text-ink-strong">{g.user}</bdi> · <bdi>{g.studentName}</bdi> · <span dir="auto">{g.purpose}</span></p>
       <p className="text-xs text-ink-muted"><bdi>{dateTime(g.createdAt)}</bdi>–<bdi>{dateTime(g.revokedAt ?? g.expiresAt)}</bdi> · {g.live ? ui("Active") : g.revokedAt ? ui("Revoked") : ui("Expired")} · {ui("{0} records opened", [String(g.uses)])}</p>
       {g.reviewedAt ? <p className="text-xs">{ui("Reviewed by {0}", [g.reviewedBy ?? ""])} · <span dir="auto">{g.reviewNote}</span></p> : <div className="mt-1 flex flex-col gap-2 sm:flex-row"><Input value={notes[g.id] ?? ""} onChange={e => setNotes({ ...notes, [g.id]: e.target.value })} dir="auto" placeholder={ui("Review outcome")} aria-label={ui("Review outcome")} data-emergency-note /><Button size="sm" disabled={busy || !(notes[g.id] ?? "").trim()} onClick={() => void review(g.id)} data-emergency-review>{g.live ? ui("Review and end access") : ui("Record review")}</Button></div>}
     </li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No emergency access has been opened.")}</p>}
-    <details className="text-sm"><summary className="cursor-pointer">{ui("Access log")}</summary><ul className="mt-2 space-y-1">{data.logs.map(l => <li key={l.id} data-access-log={l.action}><bdi>{dateTime(l.createdAt)}</bdi> · <bdi>{l.actor}</bdi> · {l.action} · {l.recordType}{l.emergency ? ` · ${ui("Emergency access")}` : ""}</li>)}</ul></details>
+    <details className="text-sm"><summary className="cursor-pointer">{ui("Access log")}</summary><ol className={cn(deskTimeline, "mt-3 text-xs")}>{data.logs.map(l => <li key={l.id} data-tone={l.emergency ? "danger" : "neutral"} data-access-log={l.action}><bdi>{dateTime(l.createdAt)}</bdi> · <bdi>{l.actor}</bdi> · {l.action} · {l.recordType}{l.emergency ? ` · ${ui("Emergency access")}` : ""}</li>)}</ol></details>
   </section>;
 }
 
@@ -395,9 +467,9 @@ function EmergencyPanel({ me, reload, onOpen }: { me: Me; reload: () => void; on
   const [domain, setDomain] = useState<Domain>(domains[0] ?? "CLINIC"), [student, setStudent] = useState<Student | null>(null), [purpose, setPurpose] = useState(""), [minutes, setMinutes] = useState("30"), [busy, setBusy] = useState(false);
   const open = async () => { if (!student) return; setBusy(true); try { await call("/api/care", "POST", { action: "emergency", domain, studentId: student.id, purpose, minutes: Number(minutes) }); toast.success(ui("Emergency access opened. It is logged and will be reviewed.")); setStudent(null); setPurpose(""); reload(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
   const end = async (id: string) => { try { await call("/api/care", "POST", { action: "revoke-emergency", id }); reload(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } };
-  return <section className="sk-panel space-y-3 p-4 sm:p-5" data-care-emergency>
-    <header><h2 className="text-base font-bold text-ink-strong">{ui("Emergency access")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("For an urgent need only. Access is limited to one student, ends automatically and is reviewed by the lead.")}</p></header>
-    {me.grants.length ? <ul className="space-y-2">{me.grants.map(g => <li key={g.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-status-warning-border px-3 py-2 text-sm" data-my-grant={g.id}><span>{domainLabel(ui, g.domain)} · <bdi>{g.studentName}</bdi> · {ui("ends {0}", [dateTime(g.expiresAt)])}</span><span className="flex gap-2"><Button size="sm" onClick={() => onOpen(g)} data-my-grant-open>{ui("Open record")}</Button><Button size="sm" variant="secondary" onClick={() => void end(g.id)} data-my-grant-end>{ui("End access now")}</Button></span></li>)}</ul> : null}
+  return <section className="sk-desk-section" data-tone="danger" data-care-emergency>
+    <header className="flex items-start gap-3"><span aria-hidden="true" className="sk-desk-section-icon"><KeyRound /></span><div className="min-w-0"><h2 className="text-base font-bold text-ink-strong">{ui("Emergency access")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("For an urgent need only. Access is limited to one student, ends automatically and is reviewed by the lead.")}</p></div></header>
+    {me.grants.length ? <ul className="space-y-2">{me.grants.map(g => <li key={g.id} className={cn(deskRow, "flex flex-wrap items-center justify-between gap-2 text-sm")} data-tone="warning" data-my-grant={g.id}><span className="min-w-0">{domainLabel(ui, g.domain)} · <bdi>{g.studentName}</bdi> · {ui("ends {0}", [dateTime(g.expiresAt)])} · <RelativeTime iso={g.expiresAt} full={dateTime(g.expiresAt)} /></span><span className="flex gap-2"><Button size="sm" onClick={() => onOpen(g)} data-my-grant-open>{ui("Open record")}</Button><Button size="sm" variant="secondary" onClick={() => void end(g.id)} data-my-grant-end>{ui("End access now")}</Button></span></li>)}</ul> : null}
     {domains.length ? <div className="space-y-2">
       <FormField name="em-domain" label={ui("Workspace")}><Select value={domain} onChange={e => setDomain(e.target.value as Domain)} data-emergency-domain>{domains.map(d => <option key={d} value={d}>{domainLabel(ui, d)}</option>)}</Select></FormField>
       <StudentPicker value={student} onChange={setStudent} label={ui("Student")} />
@@ -430,6 +502,16 @@ function CareSettings() {
   type S = { domain: Domain; enabled: boolean; procedureReference: string; leadUserId: string; leadName: string; retentionMonths: number | null; confirmedAt: string | null; confirmedBy: string };
   const [data, setData] = useState<{ settings: S[]; members: { id: string; domain: Domain; role: string; userId: string; name: string }[]; staff: { id: string; fullName: string; role: string }[] } | null>(null);
   const [drafts, setDrafts] = useState<Record<string, { procedureReference: string; leadUserId: string; retentionMonths: string; confirm: boolean }>>({}), [add, setAdd] = useState<Record<string, { userId: string; role: string }>>({}), [busy, setBusy] = useState(false);
+  const settingsDraft = useFormDraft({
+    record: "care:workspace-settings",
+    schema: 1,
+    values: drafts,
+    baseline: Object.fromEntries((data?.settings ?? []).map(s => [s.domain, { procedureReference: s.procedureReference, leadUserId: s.leadUserId, retentionMonths: s.retentionMonths ? String(s.retentionMonths) : "", confirm: false }])),
+    fields: ["CLINIC", "SAFEGUARDING"] as const,
+    structures: { CLINIC: ["procedureReference", "leadUserId", "retentionMonths", "confirm"], SAFEGUARDING: ["procedureReference", "leadUserId", "retentionMonths", "confirm"] },
+    enabled: Boolean(data),
+    apply: values => setDrafts(values as typeof drafts),
+  });
   // Removing someone's confidential access and switching a workspace off are permission changes (role-ux R3).
   const [removing, setRemoving] = useState<{ id: string; name: string; domain: Domain } | null>(null);
   const [disabling, setDisabling] = useState<{ domain: Domain; draft: { procedureReference: string; leadUserId: string; retentionMonths: string } } | null>(null);
@@ -438,6 +520,7 @@ function CareSettings() {
   const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
   if (!data) return null;
   return <section className="space-y-3" data-care-settings>
+    <DraftRecovery recordLabel={ui("Care workspace settings")} draft={settingsDraft} saving={busy} excluded={ui("Student health and safeguarding records are never stored in this device draft.")} />
     <ConfirmAction
       open={Boolean(removing)}
       busy={busy}
@@ -478,16 +561,44 @@ function CareSettings() {
 
 // ─── Desk ────────────────────────────────────────────────────────────────
 
+type CareMessage = { id: string; purpose: string; content: string; releasedAt: string };
+const CARE_MESSAGES_PAGE = 20;
+
 function MessagesToMe({ family = false }: { family?: boolean }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
-  const { data: rows, failure, isLoading, refetch } = useFetch<{ id: string; purpose: string; content: string; releasedAt: string }[]>(family ? "/api/family/care-messages" : "/api/care?view=messages", {collection:true});
+  const base = family ? "/api/family/care-messages" : "/api/care?view=messages";
+  const { data: rows, failure, isLoading, refetch } = useFetch<CareMessage[]>(base, {collection:true});
+  // SKAI-1708: the first page is the newest 20; older pages follow the cursor and drop out if the list reloads.
+  const [older, setOlder] = useState<{ rows: CareMessage[]; cursor: string | null } | null>(null);
+  const [more, setMore] = useState<"idle" | "loading" | "failed">("idle");
+  const request = useRef(0);
+  useEffect(() => { request.current++; setOlder(null); setMore("idle"); }, [rows]);
   if (isLoading) return <SkeletonList rows={2} label={ui("Loading…")} />;
   if (failure) return <ErrorState error={failure} onRetry={refetch} />;
   if (!rows?.length) return null;
+  const shown = [...rows, ...(older?.rows ?? []).filter(o => !rows.some(r => r.id === o.id))];
+  const cursor = older ? older.cursor : rows.length >= CARE_MESSAGES_PAGE ? rows[rows.length - 1].id : null;
+  const loadOlder = async () => {
+    if (!cursor || more === "loading") return;
+    const id = ++request.current;
+    setMore("loading");
+    try {
+      const response = await fetch(`${base}${base.includes("?") ? "&" : "?"}cursor=${encodeURIComponent(cursor)}`, { cache: "no-store" });
+      const body = await response.json() as { success?: boolean; data?: CareMessage[]; nextCursor?: string | null };
+      if (!response.ok || !body.success || !Array.isArray(body.data)) throw new Error("page failed");
+      if (id !== request.current) return;
+      const page = body.data;
+      setOlder(o => { const have = o?.rows ?? []; return { rows: [...have, ...page.filter(m => !have.some(h => h.id === m.id))], cursor: body.nextCursor ?? null }; });
+      setMore("idle");
+    } catch { if (id === request.current) setMore("failed"); }
+  };
   return <section className="sk-panel space-y-2 p-4 sm:p-5" data-care-messages>
     <h2 className="text-base font-bold text-ink-strong">{ui("Messages from the school")}</h2>
-    <ul className="space-y-2">{rows.map(r => <li key={r.id} className="rounded-xl border px-3 py-2 text-sm" data-care-message={r.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(r.releasedAt)}</bdi> · <span dir="auto">{r.purpose}</span></p><p dir="auto" className="whitespace-pre-wrap">{r.content}</p></li>)}</ul>
+    <ul className="space-y-2">{shown.map(r => <li key={r.id} className={cn(deskRow, "text-sm")} data-tone="info" data-care-message={r.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(r.releasedAt)}</bdi> · <span dir="auto">{r.purpose}</span></p><p dir="auto" className="whitespace-pre-wrap">{r.content}</p></li>)}</ul>
+    {more === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("Older messages could not be loaded.")}</p> : null}
+    {cursor ? <Button size="sm" variant="outline" loading={more === "loading"} onClick={loadOlder} data-care-messages-more>{more === "failed" ? ui("Try again") : ui("Show older messages")}</Button>
+      : older ? <p className="text-xs text-ink-muted" role="status">{ui("That's every message from the school.")}</p> : null}
   </section>;
 }
 
@@ -519,6 +630,7 @@ export function CareDesk() {
   if (!me.canReport) return <div data-care-denied><AccessNotice reason="You do not have access to this confidential workspace." /></div>;
   return <div className={cn("min-w-0 space-y-4 transition", hidden && "blur-md")} data-care-desk>
     <PageHeader
+      icon={HeartPulse}
       title="Care & safeguarding"
       description="Clinic and safeguarding are separate workspaces with their own members. Nothing here appears in search, timelines or AI."
       tabs={<ViewTabs ariaLabel="Confidential care" value={current} onChange={setTab} items={tabs} />}

@@ -34,6 +34,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { BrandButton } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, deskRow } from "@/components/ui/desk";
 import { cn } from "@/lib/utils";
 import { TRACK_TONES } from "@/lib/staff/hierarchy-presets";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
@@ -128,15 +129,22 @@ export function DesignationLadder({ campusId, onChanged, addRequest, hideAdd = f
     load();
   }, [load]);
 
+  // A long ladder gets the desks' type-to-narrow box (name or short name); `/` jumps to it, Escape clears it.
+  const [rankQuery, setRankQuery] = useState("");
+  const needle = rankQuery.trim().toLocaleLowerCase();
+  const shownRanks = useMemo(
+    () => (needle ? designations.filter((d) => `${d.name} ${d.shortName ?? ""}`.toLocaleLowerCase().includes(needle)) : designations),
+    [designations, needle]
+  );
   const byTrack = useMemo(() => {
     const groups = new Map<string, Designation[]>();
-    for (const d of designations) {
+    for (const d of shownRanks) {
       const list = groups.get(d.track) ?? [];
       list.push(d);
       groups.set(d.track, list);
     }
     return groups;
-  }, [designations]);
+  }, [shownRanks]);
 
   const applyPreset = async (type: string) => {
     setApplying(type);
@@ -278,6 +286,12 @@ export function DesignationLadder({ campusId, onChanged, addRequest, hideAdd = f
         />
       ) : (
         <div className="space-y-5">
+          {designations.length > 8 ? (
+            <div className="space-y-2">
+              <DeskQuickFilter value={rankQuery} onChange={setRankQuery} label={ui("Search ranks")} />
+              <DeskFilterStatus shown={shownRanks.length} total={designations.length} onClear={() => setRankQuery("")} />
+            </div>
+          ) : null}
           {Object.entries(TRACK_TONES).map(([track, tone]) => {
             const ranks = byTrack.get(track) ?? [];
             if (ranks.length === 0) return null;
@@ -292,13 +306,12 @@ export function DesignationLadder({ campusId, onChanged, addRequest, hideAdd = f
                   {ranks.map((d) => {
                     const promotesTo = designations.find((x) => x.id === d.promotesToId);
                     return (
+                      // A desk row whose rail takes the track's colour; a retired rank reads muted.
                       <li
                         key={d.id}
-                        className={cn(
-                          "sk-hover-lift flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border bg-card px-3.5 py-3",
-                          d.isActive ? "border-edge/40" : "border-dashed border-edge/60 opacity-60"
-                        )}
-                        style={{ borderInlineStartWidth: 4, borderInlineStartColor: tone.hex }}
+                        data-tone={d.isActive ? "brand" : "muted"}
+                        className={cn(deskRow, "flex flex-wrap items-center gap-x-3 gap-y-1.5", !d.isActive && "border-dashed")}
+                        style={{ ["--dk-border" as string]: tone.hex }}
                       >
                         <Tooltip content={ui("Seniority — lower is more senior")}>
                         <span tabIndex={0} className="flex h-7 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-2xs font-bold tabular-nums text-ink-muted">
@@ -311,15 +324,15 @@ export function DesignationLadder({ campusId, onChanged, addRequest, hideAdd = f
                             <span className="text-sm font-semibold text-ink-strong">{d.name}</span>
                             {d.shortName ? <span className="text-xs font-medium text-ink-muted">({d.shortName})</span> : null}
                             {d.isInstitutionHead ? (
-                              <Badge variant="default" size="sm" className="gap-1">
-                                <Crown aria-hidden="true" className="h-2.5 w-2.5" /> {" "}{ui("Head of institution")}
-                              </Badge>
+                              <DeskPill tone="brand">
+                                <Crown aria-hidden="true" className="size-3" /> {" "}{ui("Head of institution")}
+                              </DeskPill>
                             ) : null}
                             {d.canHeadDepartment ? (
-                              <Badge variant="info" size="sm">{ui("Can head a unit")}</Badge>
+                              <DeskPill tone="info">{ui("Can head a unit")}</DeskPill>
                             ) : null}
                             {!d.isActive ? (
-                              <Badge variant="neutral" size="sm" dot>{ui("Retired")}</Badge>
+                              <DeskPill tone="neutral">{ui("Retired")}</DeskPill>
                             ) : null}
                           </span>
                           <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs font-normal text-ink-subtle">

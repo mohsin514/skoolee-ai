@@ -3,6 +3,7 @@ import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { authRateLimit } from "@/lib/auth/rate-limit";
 import { requireSchoolAiUser } from "@/lib/school-ai/access";
 import { readBoundedJson, schoolAiError } from "@/lib/school-ai/http";
+import { preflightPaperGeneration } from "@/lib/school-ai/paper-generation-service";
 import { assertSchoolAiTextProvider } from "@/lib/school-ai/providers";
 import { GENERATION_STREAM_HEADERS, encodeFrames } from "@/lib/school-ai/generation-stream";
 import { paperGenerationFrames } from "@/lib/school-ai/paper-generation-stream-service";
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
     if (!(await authRateLimit(`school-ai:paper:${user.schoolId}:${user.userId}`, { limit: 8, windowMs: 300000 })).ok) throw new ApiError("Please wait before generating another paper.", 429);
     assertSchoolAiTextProvider();
     const body = await readBoundedJson(request);
+    await preflightPaperGeneration(user, body); // SKAI-1008: an inactive curriculum pack is refused before the first byte.
     const controller = new AbortController();
     request.signal.addEventListener("abort", () => controller.abort(), { once: true });
     const frames = (async function* () {

@@ -5,14 +5,14 @@ import { PrismaClient } from "@prisma/client";
 import type { AuthUser } from "../../src/lib/auth";
 import { prisma } from "../../src/lib/db/prisma";
 import { runWithTenantContext } from "../../src/lib/db/tenant-context";
-import { addCopies, decideCharge, issueCopy, lookup, markLost, renewLoan, reserveTitle, returnCopy, saveRules } from "../../src/lib/library/desk";
+import { addCopies, decideCharge, issueCopy, lookup, markLost, renewLoan, reserveTitle, returnCopy, returnIssue, saveRules } from "../../src/lib/library/desk";
 import { dueDate, finePreview } from "../../src/lib/library/rules";
 
 // SKO-436: copies have their own barcodes and states; two desks cannot lend one copy; a repeated
 // return scan changes nothing; fines skip closures, honour grace and cap, and use the loan's own
 // rule version; only leaders waive; a returned copy is held for the first waiting reader.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `library-${randomUUID()}`, campusId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid` });
 const librarian = actor("LIBRARIAN"), lead = actor("CAMPUS_ADMIN"), readerUsers = [actor("STUDENT"), actor("STUDENT"), actor("STUDENT")];
@@ -106,4 +106,16 @@ test("a lost copy closes the loan, records a charge and can be handed to the fee
   assert.equal((await raw.bookCopy.findFirstOrThrow({ where: { barcode: "NV-1", campusId } })).status, "LOST");
   const handed = await ctx(librarian, () => decideCharge(librarian, { chargeId: charge.id, decision: "HAND_TO_FEES", reason: "Replacement cost to be billed" }));
   assert.equal(handed!.status, "HANDED_TO_FEES");
+});
+
+test("SKAI-1288: a circulation return without a barcoded copy charges the overdue fine once", async () => {
+  const dueAt = new Date(Date.now() - 29 * 86_400_000);
+  const issue = await raw.bookIssue.create({ data: { schoolId, bookId: ids.novel, memberId: members[2], dueAt, issuedAt: new Date(dueAt.getTime() - 7 * 86_400_000), policySnapshot: { version: 1, loanDays: 7, maxLoans: 2, maxRenewals: 1, graceDays: 1, finePerDay: 10, fineCap: 1000, lostCharge: 0, holdDays: 3, currency: "SAR", closures: [] } } });
+  const returned = await ctx(librarian, () => returnIssue(librarian, issue.id));
+  assert.ok(returned.returnedAt);
+  assert.ok(returned.fine >= 270, `29 days overdue less one grace day is charged (${returned.fine})`);
+  const charges = await raw.libraryCharge.findMany({ where: { issueId: issue.id } });
+  assert.deepEqual(charges.map((c) => [c.kind, c.amount, c.currency]), [["FINE", returned.fine, "SAR"]]);
+  await assert.rejects(() => ctx(librarian, () => returnIssue(librarian, issue.id)), { status: 409 });
+  assert.equal(await raw.libraryCharge.count({ where: { issueId: issue.id } }), 1, "a repeated return charges nothing more");
 });

@@ -7,7 +7,7 @@ import { runWithTenantContext } from "../../src/lib/db/tenant-context";
 import { reviewQueue, approveVersions } from "../../src/lib/academic/report-versions";
 import { defaultLocale } from "../../src/lib/locale/package";
 async function main() {
- if (!process.env.DATABASE_URL?.includes("127.0.0.1:55401/sko201")) throw new Error("Local fixture database required");
+ if (!process.env.DATABASE_URL?.includes(`127.0.0.1:${process.env.QA_DB_PORT || "55401"}/${process.env.QA_DB_NAME || "sko201"}`)) throw new Error("Local fixture database required");
  const db = new PrismaClient(); const schoolId = "locale-report-fixture";
  try {
  await db.school.create({ data: { id: schoolId, name: "مدرسة الاختبار", slug: schoolId, city: "Local", regId: schoolId, contactEmail: `${schoolId}@example.invalid` } });

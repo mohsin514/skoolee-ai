@@ -174,6 +174,8 @@ export function roleGuardRedirect(role: UserRole, pathname: string): string | nu
     const moduleRoot = `/${pathname.split("/")[1] ?? ""}`;
     const moduleTarget = FAMILY_MODULE_PAGE[role][moduleRoot];
     if (moduleTarget) return moduleTarget;
+    // SKAI-192: a guardian's data export requests live in the family portal.
+    if (role === "PARENT" && within(pathname, "/settings/data")) return "/parent/data";
     // /settings/locale: families change their language from their own portal's settings (§6.3).
     if (within(pathname, "/settings/locale")) return `${home}?${new URLSearchParams({ settings: "language" })}`;
     return within(pathname, home) ? null : home;

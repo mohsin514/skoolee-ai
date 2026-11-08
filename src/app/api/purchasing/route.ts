@@ -1,13 +1,20 @@
 import { z } from "zod";
 import { errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { runAsUser } from "@/lib/db/tenant-context";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
-import { assignAsset, closeService, createBudget, decideRequest, purchasingOverview, receiveGoods, recordInvoice, resolveInvoice, returnToSupplier, saveRequest, scheduleService, submitRequest } from "@/lib/purchasing/service";
+import { assignAsset, closeService, createBudget, closedRequests, decideRequest, purchasingOverview, receiveGoods, recordInvoice, resolveInvoice, returnToSupplier, saveRequest, scheduleService, submitRequest } from "@/lib/purchasing/service";
 
 // SKO-435: budgets, purchase requests and orders, deliveries, invoices, assets and maintenance.
 const headers = { "Cache-Control": "private, no-store" };
 
-export async function GET() {
-  try { return Response.json({ success: true, data: await purchasingOverview(await requireAuthUser()) }, { headers }); }
+export async function GET(request: Request) {
+  try {
+    // SKAI-1028: bound to the caller's school once, not re-derived per query.
+    const user = await requireAuthUser();
+    const cursor = new URL(request.url).searchParams.get("requestsCursor");
+    if (cursor) return Response.json({ success: true, data: await runAsUser(user, () => closedRequests(user, cursor)) }, { headers });
+    return Response.json({ success: true, data: await runAsUser(user, () => purchasingOverview(user)) }, { headers });
+  }
   catch (error) { return errorResponse(error, "[purchasing] GET failed"); }
 }
 
@@ -32,6 +39,6 @@ export async function POST(request: Request) {
         default: return closeService(user, id, body.data);
       }
     };
-    return Response.json({ success: true, data: await run() }, { headers });
+    return Response.json({ success: true, data: await runAsUser(user, run) }, { headers });
   } catch (error) { return errorResponse(error, "[purchasing] POST failed"); }
 }

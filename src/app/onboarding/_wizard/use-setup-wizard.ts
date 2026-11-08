@@ -30,12 +30,13 @@ import {
 import { logout } from "@/app/actions/auth/logout";
 import { toast } from "@/components/ui/toast";
 import { dashboardPathForRole } from "@/lib/roles";
-import { resolveMediaUrl } from "@/lib/storage/s3";
+import { resolveMediaUrl } from "@/lib/storage/media-url";
 import type { Language } from "@/lib/locale/package";
 import { fill, isRtlLanguage, onboardingCopy, type OnboardingCopy } from "../copy";
-import { WEEK_DAYS, emptyCampus, timezoneOptions, fieldStep, generateId, sessionLabelFor, toLanguage, type CampusForm } from "./helpers";
+import { WEEK_DAYS, emptyCampus, initialTimezone, timezoneOptions, fieldStep, generateId, sessionLabelFor, toLanguage, type CampusForm } from "./helpers";
 import { localCopy, type LocalCopy } from "./local-copy";
 import type { CoverData, LoadState, WizardSealState } from "./types";
+import { logoFileProblem } from "@/lib/school/logo-policy";
 
 // ─────────────────────────────────────────────────────────────────
 // The wizard renders the server's setup state (SKO-391). Every Continue
@@ -205,7 +206,7 @@ export function useSetupWizard(): SetupWizard {
     // The browser's zone is only an opening guess for a brand-new setup.
     if (!nextDraft.school.timezone) {
       const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      nextDraft.school.timezone = timezoneOptions().some((z) => z.value === detected) ? detected : "Asia/Karachi";
+      nextDraft.school.timezone = initialTimezone(detected, nextDraft.school.country, timezoneOptions().map((z) => z.value));
     }
     setDraft(nextDraft);
     setType(next.institutionType);
@@ -389,8 +390,9 @@ export function useSetupWizard(): SetupWizard {
 
   const handleLogoFile = async (file?: File) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) { toast.error(t.logoType); return; }
-    if (file.size > 1_500_000) { toast.error(t.logoSize); return; }
+    const problem = logoFileProblem(file.type, file.size);
+    if (problem === "type") { toast.error(t.logoType); return; }
+    if (problem === "size") { toast.error(t.logoSize); return; }
     setLogoUploading(true);
     try {
       const presignRes = await fetch("/api/uploads/presign", {

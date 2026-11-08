@@ -7,15 +7,16 @@ import { PrismaClient } from "@prisma/client";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import bcrypt from "bcryptjs";
 import { totp } from "../../src/lib/auth/mfa-crypto";
+import { assertPortFree, qaAppUrl, qaDbPort, qaFakeS3Port } from "../support/qa-env";
 
-// SKO-415 on the isolated app (its S3 endpoint is a synthetic in-process store on :55441): a retried send
+// SKO-415 on the isolated app (its S3 endpoint is a synthetic in-process store on QA_FAKE_S3_PORT, default :55441): a retried send
 // keeps one message; attachments must be stored in this conversation with the checked size before they
 // can be sent; reconnect fetches everything after the last confirmed message; quiet hours hold back all
 // but staff-marked urgent notifications, and previews never carry message text; a lost acknowledgement
 // leaves an "unconfirmed" bubble whose Retry cannot duplicate; failed uploads keep the draft.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
-const base = process.env.CHAT_TEST_APP || "http://localhost:3107";
+if (url.hostname !== "127.0.0.1" || url.port !== String(qaDbPort()) || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${qaDbPort()} is allowed`);
+const base = qaAppUrl(process.env.CHAT_TEST_APP);
 const evidence = process.env.CHAT_EVIDENCE_DIR || "/tmp/sko415-evidence";
 const db = new PrismaClient(), password = "SyntheticChat415!";
 const schoolId = `chat415-${randomUUID()}`, campusId = randomUUID();
@@ -41,7 +42,7 @@ function startFakeS3() {
     if (!object) { res.writeHead(404).end(); return; }
     res.writeHead(200, { "Content-Length": String(object.body.length), "Content-Type": object.type, ETag: '"synthetic"' });
     res.end(req.method === "HEAD" ? undefined : object.body);
-  }).listen(55441, "127.0.0.1");
+  }).listen(qaFakeS3Port(), "127.0.0.1");
 }
 
 async function user(key: string, role: string) {
@@ -68,6 +69,7 @@ async function upload(ctx: BrowserContext, fileName: string, contentType: string
 const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 
 before(async () => {
+  await assertPortFree(qaFakeS3Port(), "fake S3", "QA_FAKE_S3_PORT");
   startFakeS3();
   await db.school.create({ data: { id: schoolId, name: "Synthetic Cedar Messaging School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Karachi", status: "ACTIVE", plan: "PRO", timezone: "Asia/Karachi" } });
   await db.campus.create({ data: { id: campusId, schoolId, name: "Cedar Messaging", regId: campusId, city: "Karachi" } });
@@ -172,7 +174,8 @@ test("a lost acknowledgement leaves an unconfirmed bubble; Retry keeps one messa
   await shot(page, "chat-unconfirmed-en-1440");
   await unconfirmed.getByRole("button", { name: "Retry sending this message" }).click();
   await page.locator('[data-send-state="unconfirmed"]').waitFor({ state: "detached", timeout: 15_000 });
-  assert.equal(await page.getByText("Synthetic: please share the field trip list").count(), 1, "one bubble");
+  // Count bubbles in the thread only: the inbox row also previews the latest message text.
+  assert.equal(await page.locator("ol > li").getByText("Synthetic: please share the field trip list", { exact: true }).count(), 1, "one bubble");
   assert.equal(await db.chatMessage.count({ where: { conversationId, body: "Synthetic: please share the field trip list" } }), 1, "one stored message");
   await page.unroute(`**/api/chat/conversations/${conversationId}/messages`);
   await page.unroute("**/api/chat/stream");
@@ -191,7 +194,8 @@ test("a lost acknowledgement leaves an unconfirmed bubble; Retry keeps one messa
   await page.route("**/api/uploads/file**", route => failUpload ? route.abort("failed") : route.fallback());
   await composer.fill("Synthetic: photo of the notice board");
   await page.locator('input[type="file"]').setInputFiles({ name: "notice.png", mimeType: "image/png", buffer: Buffer.from("89504e470d0a1a0a", "hex") });
-  await page.getByText(/Your message draft is still here/).waitFor({ timeout: 15_000 });
+  // The composer status and the failed attachment chip both say so.
+  await page.getByText(/Your message draft is still here/).first().waitFor({ timeout: 15_000 });
   assert.equal(await composer.inputValue(), "Synthetic: photo of the notice board");
   await shot(page, "chat-upload-failed-en-1440");
   failUpload = false;

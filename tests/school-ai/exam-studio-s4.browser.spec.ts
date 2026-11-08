@@ -3,6 +3,7 @@ import { test, expect, type BrowserContext } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { resetDemoTenant, DEMO_SCHOOL_ID } from "../../scripts/demo/reset-demo-tenant";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 /**
  * SKO-502 (Exam Studio slice 4) on the synthetic demo tenant, loopback database only: the calm control room.
@@ -15,7 +16,7 @@ const url = process.env.DATABASE_URL ?? "";
 if (!/^postgres(ql)?:\/\/[^@]*@(127\.0\.0\.1|localhost):/.test(url)) throw new Error("Use only a loopback database for this suite.");
 const password = process.env.DEMO_PASSWORD ?? "";
 const shots = process.env.SKO502_SHOTS;
-const origin = process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106";
+const origin = process.env.SCHOOL_AI_TEST_ORIGIN || SCHOOL_AI_ORIGIN;
 const db = new PrismaClient();
 const headers = { Origin: origin };
 test.describe.configure({ mode: "serial" });

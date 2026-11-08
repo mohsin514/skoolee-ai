@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
+import { digestDeliveryState } from "@/lib/notifications/delivery-state";
 import { ApiError, canManageOperations } from "@/lib/api/scope";
 import { publishedReportsWhere } from "@/lib/auth/policy";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
@@ -74,7 +75,7 @@ export async function getDigest(user: AuthUser, id: string) {
   if (!digest) throw new ApiError("Digest not found", 404);
   await assertClassAccess(user, digest.classId);
   const students = new Map((await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: digest.entries.map(e => e.studentId) } }, select: { id: true, fullName: true, rollNo: true } })).map(s => [s.id, s]));
-  return { ...digest, entries: digest.entries.map(e => ({ ...e, studentName: students.get(e.studentId)?.fullName ?? "", rollNo: students.get(e.studentId)?.rollNo ?? "", deliveries: digest.deliveries.filter(d => d.entryId === e.id) })).sort((a, b) => a.rollNo.localeCompare(b.rollNo)) };
+  return { ...digest, entries: digest.entries.map(e => ({ ...e, studentName: students.get(e.studentId)?.fullName ?? "", rollNo: students.get(e.studentId)?.rollNo ?? "", deliveries: digest.deliveries.filter(d => d.entryId === e.id).map(d => ({ ...d, state: digestDeliveryState(d) })) })).sort((a, b) => a.rollNo.localeCompare(b.rollNo)) };
 }
 
 export async function listDigests(user: AuthUser, classId: string) {
@@ -175,7 +176,13 @@ export async function dispatchDigest(schoolId: string, digestId: string, now = n
       }
       await tx.familyDigestEntry.update({ where: { id: entry.id }, data: { status: "SENT", reason: null } });
     }
-    await tx.familyDigest.update({ where: { id: digestId }, data: { status: "SENT", sentAt: now } });
+    // SKAI-1403: a blocked entry must stay correctable. Reopen the digest for review instead of marking it SENT;
+    // deliveries already made are kept, so a later approved resend only reaches guardians not yet sent to.
+    if (blocked > 0) {
+      await tx.familyDigest.update({ where: { id: digestId }, data: { status: "DRAFT", approvedVersion: null, approvedById: null, approvedAt: null, scheduledFor: null } });
+    } else {
+      await tx.familyDigest.update({ where: { id: digestId }, data: { status: "SENT", sentAt: now } });
+    }
     return { created, blocked };
   });
 }
@@ -186,11 +193,19 @@ export async function dueDigests(now = new Date()) {
 }
 
 /** A guardian's delivered updates for a child, readable only while learning-records access lasts. */
-export async function guardianDigests(user: AuthUser, studentId: string) {
+// SKAI-1743: older updates page with a keyset cursor instead of stopping silently at the newest 8.
+export const GUARDIAN_DIGEST_PAGE = 8;
+export async function guardianDigests(user: AuthUser, studentId: string, cursor?: string | null) {
   if (user.role !== "PARENT" || !(await guardianHasAccess({ schoolId: user.schoolId, studentId, guardianUserId: user.userId, permission: "learningRecords" }))) throw new ApiError("Not found", 404);
-  const rows = await prisma.familyDigestDelivery.findMany({ where: { schoolId: user.schoolId, studentId, guardianUserId: user.userId, status: "SENT" }, include: { entry: { select: { content: true } }, digest: { select: { approvedAt: true, approvedById: true } } }, orderBy: { weekStart: "desc" }, take: 8 });
+  const where = { schoolId: user.schoolId, studentId, guardianUserId: user.userId, status: "SENT" as const };
+  // A cursor outside this guardian's own scope (another child, guardian or school) yields no page.
+  if (cursor && !(await prisma.familyDigestDelivery.findFirst({ where: { ...where, id: cursor }, select: { id: true } }))) return { items: [], nextCursor: null };
+  const page = await prisma.familyDigestDelivery.findMany({ where, include: { entry: { select: { content: true } }, digest: { select: { approvedAt: true, approvedById: true } } }, orderBy: [{ weekStart: "desc" }, { id: "desc" }], take: GUARDIAN_DIGEST_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
+  const rows = page.slice(0, GUARDIAN_DIGEST_PAGE);
+  const nextCursor = page.length > GUARDIAN_DIGEST_PAGE ? rows[rows.length - 1].id : null;
   const unseen = rows.filter(r => !r.seenAt).map(r => r.id);
   if (unseen.length) await prisma.familyDigestDelivery.updateMany({ where: { id: { in: unseen } }, data: { seenAt: new Date() } });
   const reviewers = new Map((await prisma.user.findMany({ where: { schoolId: user.schoolId, id: { in: rows.map(r => r.digest.approvedById).filter((v): v is string => Boolean(v)) } }, select: { id: true, fullName: true } })).map(u => [u.id, u.fullName]));
-  return rows.map(r => ({ id: r.id, weekStart: r.weekStart.toISOString().slice(0, 10), version: r.version, content: r.entry.content as unknown as EntryContent, reviewedBy: reviewers.get(r.digest.approvedById ?? "") ?? null, firstSeen: !unseen.includes(r.id) ? r.seenAt : null }));
+  const items = rows.map(r => ({ id: r.id, weekStart: r.weekStart.toISOString().slice(0, 10), version: r.version, content: r.entry.content as unknown as EntryContent, reviewedBy: reviewers.get(r.digest.approvedById ?? "") ?? null, firstSeen: !unseen.includes(r.id) ? r.seenAt : null }));
+  return { items, nextCursor };
 }

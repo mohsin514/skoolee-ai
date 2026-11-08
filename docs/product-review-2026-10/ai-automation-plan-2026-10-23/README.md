@@ -1,3 +1,5 @@
+> **Archived tracker note (29 October 2026):** Linear (SKO-) is now a read-only archive; Jira SKAI is the tracker of record (decision D6, `docs/product-review-2026-10/d6-tracker-of-record.md`). SKO references and Linear statuses below are historical. See `docs/archive/linear/` for the export and open-item crosswalk.
+
 # AI Workflows and Role Setup — flagship plan, version 1, 23 October 2026
 
 Two flagship features, one engine. Written for the founder first and the implementing session second. Everything in §2 and §4 was verified at file:line by the audit in Appendix B; everything in §5–§9 is design and is marked as such. Plain words throughout; the glossary in §0 is binding for the implementation.

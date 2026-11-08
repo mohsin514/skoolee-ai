@@ -6,6 +6,7 @@ import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { getLocalePackage, loadLocaleTimeline } from "@/lib/locale/store";
 import { localePackageSchema } from "@/lib/locale/package";
 import { attendanceRuleFor } from "@/lib/attendance/rule";
+import { buildUaeTemplate, orderMandatoryFirst } from "@/lib/academic/uae-report-template";
 import {
   buildSubjectDistribution,
   calculateWeightedGrade,
@@ -137,7 +138,8 @@ async function generateReportCardsInTransaction(examId: string, db: TxClient) {
     include: {
       class: {
         include: {
-          students: { orderBy: [{ rollNo: "asc" }, { fullName: "asc" }] },
+          // SKAI-1299: archived learners leave the exam roster, so they never block locking.
+          students: { where: { archivedAt: null }, orderBy: [{ rollNo: "asc" }, { fullName: "asc" }] },
           subjects: { orderBy: { name: "asc" } },
         },
       },
@@ -193,8 +195,14 @@ async function generateReportCardsInTransaction(examId: string, db: TxClient) {
 
   const results = students.map((student) => {
     const studentMarks = marksByStudent.get(student.id) ?? new Map<string, (typeof marks)[number]>();
-    const totalMarks = subjects.reduce((sum, subject) => sum + subject.totalMarks, 0);
-    const obtainedMarks = subjects.reduce((sum, subject) => {
+    // SKAI-1298: absent and exempt papers leave both numerator and denominator,
+    // matching the marks analytics policy, so the report and analytics agree.
+    const scoredSubjects = subjects.filter((subject) => {
+      const mark = studentMarks.get(subject.id);
+      return !(mark?.isAbsent || mark?.isExempt);
+    });
+    const totalMarks = scoredSubjects.reduce((sum, subject) => sum + subject.totalMarks, 0);
+    const obtainedMarks = scoredSubjects.reduce((sum, subject) => {
       return sum + (studentMarks.get(subject.id)?.marksObtained || 0);
     }, 0);
     const percentage = totalMarks > 0 ? round1((obtainedMarks / totalMarks) * 100) : 0;
@@ -383,7 +391,7 @@ export async function getLiveReportCardPayload(reportCardId: string, db: TxClien
     where: { id: reportCardId },
     include: {
       enrollment: true,
-      campus: { select: { name: true, city: true, address: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true } } } },
+      campus: { select: { name: true, city: true, address: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true, uaeReportTemplate: true, nameUr: true, nameAr: true, brandColor: true } } } },
       exam: {
         select: {
           id: true, title: true, term: true, academicYear: true, examType: true, subjectId: true, academicModelVersionId: true,
@@ -449,27 +457,31 @@ export async function getLiveReportCardPayload(reportCardId: string, db: TxClien
 
   const storedLocale = localePackageSchema.safeParse(reportCard.localeSnapshot);
   const locale = storedLocale.success ? storedLocale.data : await getLocalePackage(reportCard.schoolId, reportCard.campusId, reportCard.generatedAt, undefined, db);
+  const markRows = marks.map((mark) => ({
+    subjectId: mark.subjectId,
+    subject: mark.subject.name,
+    obtained: mark.marksObtained,
+    total: mark.subject.totalMarks,
+    isAbsent: mark.isAbsent,
+    isExempt: mark.isExempt,
+    // An absent paper has no grade. Falling back to grading the stored 0
+    // would print "F" against a paper the pupil never sat.
+    grade: mark.isAbsent
+      ? "ABS"
+      : mark.isExempt
+        ? "EX"
+        : gradeForMark(mark.marksObtained, mark.subject.totalMarks, weightConfig?.thresholds),
+  }));
+  // SKAI-1151: the school's UAE template is frozen into the snapshot with everything else.
+  const uaeTemplate = reportCard.campus.school.uaeReportTemplate ? buildUaeTemplate(markRows) : null;
   return {
     locale: { ...locale, language: reportCard.reportLanguage as "en" | "ar" | "ur" },
     reportCard,
     weightConfig,
-    subjectDistribution,
+    subjectDistribution: uaeTemplate ? orderMandatoryFirst(subjectDistribution) : subjectDistribution,
     overall,
-    marks: marks.map((mark) => ({
-      subjectId: mark.subjectId,
-      subject: mark.subject.name,
-      obtained: mark.marksObtained,
-      total: mark.subject.totalMarks,
-      isAbsent: mark.isAbsent,
-      isExempt: mark.isExempt,
-      // An absent paper has no grade. Falling back to grading the stored 0
-      // would print "F" against a paper the pupil never sat.
-      grade: mark.isAbsent
-        ? "ABS"
-        : mark.isExempt
-          ? "EX"
-          : gradeForMark(mark.marksObtained, mark.subject.totalMarks, weightConfig?.thresholds),
-    })),
+    uaeTemplate,
+    marks: markRows,
   };
 }
 

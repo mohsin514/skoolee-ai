@@ -13,8 +13,10 @@ import { versionsFor } from "../../src/lib/timetable/versions";
 // hard conflicts, and creates a version with an effective date; families, students and teachers see the
 // version in force, not the draft; a future version waits for its date; affected people are told once.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.TIMETABLE_TEST_APP || "http://localhost:3107";
+// The admin page owns the Publish button in its header (§4.4b, TimetableStudio hideActions); the studio's own button is for hosts without one.
+const PUBLISH = '[data-page-action="publish-timetable"]';
 const evidence = process.env.TIMETABLE_EVIDENCE_DIR || "/tmp/sko403-evidence";
 const db = new PrismaClient(), password = "SyntheticTimetable403!";
 const schoolId = `timetable403-${randomUUID()}`, campusA = randomUUID(), campusB = randomUUID();
@@ -177,7 +179,7 @@ test("screens: draft status, blocked review with the clashing booking, Arabic re
   await pick(page, class8);
   await page.locator("[data-publication-status]").waitFor({ timeout: 30_000 });
   assert.match(await page.locator("[data-publication-status]").innerText(), /not published yet/);
-  await page.locator("[data-review-publish]").click();
+  await page.locator(PUBLISH).click();
   await page.locator('[data-publication-review] [data-hard-conflict]').first().waitFor();
   assert.equal(await page.locator("[data-confirm-publish]").isDisabled(), true);
   await shot(page, "01-review-blocked");
@@ -188,7 +190,7 @@ test("screens: draft status, blocked review with the clashing booking, Arabic re
   await ar.locator("[data-publication-status]").waitFor({ timeout: 30_000 });
   assert.equal(await ar.evaluate(() => document.documentElement.dir), "rtl");
   await shot(ar, "02-status-ar");
-  await ar.locator("[data-review-publish]").click();
+  await ar.locator(PUBLISH).click();
   await ar.locator("[data-publication-changes]").waitFor();
   await shot(ar, "03-review-ar");
   await ar.close();

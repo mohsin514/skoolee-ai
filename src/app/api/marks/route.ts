@@ -7,6 +7,8 @@ import { isCampusAdminRole } from "@/lib/roles";
 import { bulkMarksSchema } from "@/lib/validators/schemas";
 import { enterBulkMarks } from "@/lib/marks/enter-bulk-command";
 import { clientIp } from "@/lib/http/client-ip";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 function canEnterMarks(role: string) {
   return role === "TEACHER" || role === "PRINCIPAL" || role === "SUPER_ADMIN" || isCampusAdminRole(role);
@@ -22,7 +24,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Only academic staff can enter marks" }, { status: 403 });
     }
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = bulkMarksSchema.safeParse(body);
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
@@ -55,8 +57,9 @@ export async function GET(req: NextRequest) {
   const examId = searchParams.get("examId");
   if (!examId) return Response.json({ error: "examId required" }, { status: 400 });
 
-  const exam = await prisma.exam.findUnique({
-    where: { id: examId },
+  const exam = await prisma.exam.findFirst({
+    // SKAI-1384: scope to the caller school so a foreign exam id is a 404, even for campus-null roles.
+    where: { id: examId, schoolId: user.schoolId },
     include: {
       class: {
         select: {
@@ -64,7 +67,9 @@ export async function GET(req: NextRequest) {
           name: true,
           section: true,
           classTeacherId: true,
+          // SKAI-1299: archived learners are not on the exam marks roster.
           students: {
+            where: { archivedAt: null },
             select: { id: true, fullName: true, rollNo: true, profileImageUrl: true },
             orderBy: [{ rollNo: "asc" }, { fullName: "asc" }],
           },
@@ -120,9 +125,9 @@ export async function GET(req: NextRequest) {
 
   for (const mark of marks) {
     // A paper nobody sat is not a score of zero. Counting it as one would
-    // report a class average that no pupil actually achieved, so absent rows
-    // are left out of both the numerator and the denominator.
-    if (mark.isAbsent) continue;
+    // report a class average that no pupil actually achieved, so absent and
+    // exempt rows (SKAI-1433) are left out of both the numerator and the denominator.
+    if (mark.isAbsent || mark.isExempt) continue;
 
     const subjectTotal = subjectTotals.get(mark.subjectId) || { obtained: 0, total: 0, count: 0 };
     subjectTotal.obtained += mark.marksObtained;

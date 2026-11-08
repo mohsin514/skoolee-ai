@@ -1,8 +1,10 @@
 /**
  * SKAI-999 / QA-01 — synthetic pilot test data + QA accounts.
  *
- * Creates TWO synthetic schools (tenants) on a LOCAL/DEV database, each with two
- * campuses and one QA account per role, plus a no-access account for denied-role
+ * Creates THREE synthetic schools (tenants) on a LOCAL/DEV database: two GROUP
+ * schools (qa-alpha, qa-beta) with two campuses each, and one STANDALONE school
+ * (qa-solo, SKAI-1066) with one campus whose ADMIN is the institution owner.
+ * Each gets one QA account per role, plus a no-access account for denied-role
  * tests. Names are in EN / UR / AR (RTL) with long and mixed-script samples.
  *
  * Safety (G-01 / NFR-SEC-09):
@@ -14,12 +16,16 @@
  *     never printed in full to the console.
  *
  * Run:  pnpm run qa:seed            (seed/refresh)
- *       pnpm run qa:seed -- --reset (drop the two QA schools first, then seed)
+ *       pnpm run qa:seed -- --reset (drop the QA schools first, then seed)
+ *       pnpm run qa:seed -- --platform-owner-only
+ *         (SKAI-1788: upsert only the APP_OWNER account and merge it into an existing
+ *          $QA_CREDENTIALS_FILE; every other account and password is left alone)
  */
-import { PrismaClient, type UserRole } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { PLATFORM_OWNER, SCHOOLS, mergeCredentials, rolesFor, type SeedCredential } from "./pilot-seed-plan";
 
 const prisma = new PrismaClient();
 
@@ -63,37 +69,46 @@ function strongPassword(): string {
   return a.join("");
 }
 
-// ─── synthetic tenants (EN / UR / AR names, incl. long + mixed script) ───────
-type RoleDef = { role: UserRole; key: string; fullName: string };
-const ROLES: RoleDef[] = [
-  { role: "SUPER_ADMIN", key: "owner", fullName: "QA Owner / مالک الحساب" },
-  { role: "CAMPUS_ADMIN", key: "admin", fullName: "QA Admin عبد الرحمٰن الإداري" },
-  { role: "PRINCIPAL", key: "principal", fullName: "QA Principal مدیر المدرسة الطويل الاسم" },
-  { role: "TEACHER", key: "teacher", fullName: "QA Teacher محمد استاد" },
-  { role: "ACCOUNTANT", key: "accountant", fullName: "QA Accountant محاسب" },
-  { role: "PARENT", key: "guardian", fullName: "QA Guardian ولی أمر الطفلين" },
-  { role: "STUDENT", key: "student", fullName: "QA Student طالب علم" },
-];
-// A real role that is given NO campus/scope, for denied-role tests.
-const NO_ACCESS: RoleDef = { role: "RECEPTIONIST", key: "noaccess", fullName: "QA No-Access بدون صلاحية" };
-
-const SCHOOLS = [
-  { slug: "qa-alpha", name: "QA Alpha School / مدرسة ألفا", city: "Lahore",
-    campuses: [{ regId: "QA-A-C1", name: "Alpha Main / الحرم الرئيسي", city: "Lahore", board: "Lahore Board" },
-               { regId: "QA-A-C2", name: "Alpha North / الحرم الشمالي", city: "Lahore", board: "Lahore Board" }] },
-  { slug: "qa-beta", name: "QA Beta School / مدرسة بيتا", city: "Karachi",
-    campuses: [{ regId: "QA-B-C1", name: "Beta Main / بيتا الرئيسي", city: "Karachi", board: "Sindh Board" },
-               { regId: "QA-B-C2", name: "Beta South / بيتا الجنوبي", city: "Karachi", board: "Sindh Board" }] },
-];
-
+// ─── synthetic tenants: see ./pilot-seed-plan (GROUP x2 + STANDALONE x1) ─────
 const PHONE_BASE = 92300_0000000; // synthetic +92-300 test range
+
+// QA accounts skip the inbox and the factor: email already verified, no password change forced, and no
+// factor enrolled, so privileged roles sign in through the existing "Do it later" MFA deferral.
+const READY_FLAGS = { emailVerifiedAt: new Date(), mustChangePassword: false, onboardingComplete: true, mfaEnabled: false, mfaSecret: null, mfaPendingSecret: null, mfaPendingTicket: null, mfaPendingExpiresAt: null, mfaPendingVerified: false, mfaEnrolledAt: null };
+
+/** SKAI-1788: idempotent synthetic APP_OWNER in the host QA school (created by the main seed). */
+async function seedPlatformOwner(): Promise<SeedCredential> {
+  const host = await prisma.school.findUnique({ where: { slug: PLATFORM_OWNER.hostSchool } });
+  if (!host) throw new Error(`[qa-seed] ${PLATFORM_OWNER.hostSchool} is missing; run the full QA seed first`);
+  const password = strongPassword();
+  const hash = await bcrypt.hash(password, 10);
+  const flags = { role: PLATFORM_OWNER.role, isActive: true, isInstitutionOwner: false, canPurchaseSubscription: false, canManageMemberships: false, campusId: null, ...READY_FLAGS };
+  await prisma.user.upsert({
+    where: { schoolId_email: { schoolId: host.id, email: PLATFORM_OWNER.email } },
+    update: { password: hash, ...flags },
+    create: { email: PLATFORM_OWNER.email, fullName: PLATFORM_OWNER.fullName, password: hash, schoolId: host.id, ...flags },
+  });
+  return { school: PLATFORM_OWNER.school, role: PLATFORM_OWNER.key, email: PLATFORM_OWNER.email, password };
+}
+
+function writeCredentials(out: string, accounts: SeedCredential[]) {
+  writeFileSync(out, JSON.stringify({ generatedAt: new Date().toISOString(), note: "SKAI-999 synthetic QA accounts — move to the team password manager, then delete this file. Do NOT commit.", accounts }, null, 2), { mode: 0o600 });
+}
 
 async function main() {
   const decision = assertSeedAllowed();
   const reset = process.argv.includes("--reset");
+  const out = process.env.QA_CREDENTIALS_FILE || "qa-credentials.json";
+  if (process.argv.includes("--platform-owner-only")) {
+    console.log(`🧪 QA pilot seed (${decision.name} @ ${decision.host}) [--platform-owner-only]`);
+    const existing: SeedCredential[] = existsSync(out) ? JSON.parse(readFileSync(out, "utf8")).accounts ?? [] : [];
+    writeCredentials(out, mergeCredentials(existing, [await seedPlatformOwner()]));
+    console.log(`✅ Platform owner ${PLATFORM_OWNER.email} upserted; credentials merged into ${out} (passwords not printed).`);
+    return;
+  }
   console.log(`🧪 QA pilot seed (${decision.name} @ ${decision.host})${reset ? " [--reset]" : ""}`);
 
-  const credentials: Array<{ school: string; role: string; email: string; password: string }> = [];
+  const credentials: SeedCredential[] = [];
   let phone = PHONE_BASE;
 
   for (const s of SCHOOLS) {
@@ -103,8 +118,8 @@ async function main() {
     }
     const school = await prisma.school.upsert({
       where: { slug: s.slug },
-      update: { name: s.name, city: s.city, status: "ACTIVE" },
-      create: { name: s.name, slug: s.slug, city: s.city, regId: `SCH-${s.slug.toUpperCase()}`,
+      update: { name: s.name, city: s.city, status: "ACTIVE", registrationKind: s.kind },
+      create: { name: s.name, slug: s.slug, city: s.city, regId: `SCH-${s.slug.toUpperCase()}`, registrationKind: s.kind,
         contactEmail: `admin@${s.slug}.qa.local`, plan: "PRO", status: "ACTIVE", aiCreditsLimit: 1000 },
     });
     const campuses = [];
@@ -117,18 +132,20 @@ async function main() {
     }
     console.log(`  ✓ ${school.name} (${campuses.length} campuses)`);
 
-    for (const def of [...ROLES, NO_ACCESS]) {
+    for (const def of rolesFor(s.kind)) {
       const email = `${def.key}@${s.slug}.qa.local`;
       const password = strongPassword();
       const hash = await bcrypt.hash(password, 10);
-      const scoped = def.key !== "owner" && def.key !== "noaccess";
+      // STANDALONE admin = registering owner (register.ts): owner + purchase + membership flags.
+      const ownerFlags = { isInstitutionOwner: def.owner === true, canPurchaseSubscription: def.owner === true, canManageMemberships: def.owner === true };
+      const readyFlags = READY_FLAGS;
       await prisma.user.upsert({
         where: { schoolId_email: { schoolId: school.id, email } },
-        update: { password: hash, role: def.role, isActive: true },
+        update: { password: hash, role: def.role, isActive: true, ...ownerFlags, ...readyFlags },
         create: {
           email, fullName: def.fullName, role: def.role, password: hash,
-          schoolId: school.id, campusId: scoped ? campuses[0].id : undefined,
-          isActive: true, onboardingComplete: true,
+          schoolId: school.id, campusId: def.scoped ? campuses[0].id : undefined, ...ownerFlags, ...readyFlags,
+          isActive: true,
           phone: `+${String(++phone)}`,
         },
       });
@@ -136,9 +153,9 @@ async function main() {
     }
   }
 
+  credentials.push(await seedPlatformOwner());
   // Write credentials for the password manager — git-ignored, never committed.
-  const out = process.env.QA_CREDENTIALS_FILE || "qa-credentials.json";
-  writeFileSync(out, JSON.stringify({ generatedAt: new Date().toISOString(), note: "SKAI-999 synthetic QA accounts — move to the team password manager, then delete this file. Do NOT commit.", accounts: credentials }, null, 2), { mode: 0o600 });
+  writeCredentials(out, credentials);
   console.log(`\n✅ Seeded ${credentials.length} QA accounts across ${SCHOOLS.length} schools.`);
   console.log(`   Credentials written to ${out} (git-ignored, mode 600) — transfer to the password manager, then delete.`);
   console.log(`   Passwords are NOT printed here (NFR-SEC-09).`);

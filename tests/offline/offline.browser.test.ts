@@ -13,7 +13,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // a teacher's changes; old or future captures are refused; the device keeps pending work per account and sign-out
 // warns before clearing it.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.OFFLINE_TEST_APP || "http://localhost:3107";
 const evidence = process.env.OFFLINE_EVIDENCE_DIR || "/tmp/sko448-evidence";
 const TZ = "Asia/Karachi";
@@ -50,7 +50,8 @@ before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Offline School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO", timezone: TZ } as never });
   await db.campus.create({ data: { id: campusId, schoolId, name: "Offline North", regId: campusId, city: "Lahore" } });
   await db.academicCycle.create({ data: { schoolId, campusId, label: "2026", academicYear: 2026, status: "ACTIVE" } });
-  const teacher = await user("teacher", "TEACHER"); await user("teacher2", "TEACHER"); await user("lead", "PRINCIPAL"); await user("teacher-ar", "TEACHER", "ar");
+  // V2 §7.4 (e76a2743e): PRINCIPAL only views attendance; the campus office lead enters marks and applies queued changes.
+  const teacher = await user("teacher", "TEACHER"); await user("teacher2", "TEACHER"); await user("lead", "CAMPUS_ADMIN"); await user("teacher-ar", "TEACHER", "ar");
   await db.class.create({ data: { id: classA, schoolId, campusId, name: "Grade 4", section: "A", academicYear: 2026, classTeacherId: teacher } });
   await db.class.create({ data: { id: classB, schoolId, campusId, name: "Grade 4", section: "B", academicYear: 2026, classTeacherId: users.get("teacher-ar")!.id } });
   for (const [k, name, roll] of [["zain", "Synthetic Zain Ahmed", "401"], ["amna", "Synthetic Amna Tariq", "402"], ["bilal", "Synthetic Bilal Khan", "403"], ["sana", "Synthetic Sana Iqbal", "404"], ["omar", "Synthetic Omar Raza", "405"], ["hira", "Synthetic Hira Malik", "406"], ["ali", "Synthetic Ali Shah", "407"]] as const) {

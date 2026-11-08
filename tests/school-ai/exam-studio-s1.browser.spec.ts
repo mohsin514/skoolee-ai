@@ -2,6 +2,7 @@ import { captureEvidence } from "./screenshot-evidence";
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { resetDemoTenant, DEMO_SCHOOL_ID } from "../../scripts/demo/reset-demo-tenant";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 /**
  * SKO-500 (Exam Studio slice 1) on the synthetic demo tenant, against a loopback database only.
@@ -15,7 +16,7 @@ if (!/^postgres(ql)?:\/\/[^@]*@(127\.0\.0\.1|localhost):/.test(url)) throw new E
 const password = process.env.DEMO_PASSWORD ?? "";
 const shots = process.env.SKO500_SHOTS;
 const db = new PrismaClient();
-const origin = process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106";
+const origin = process.env.SCHOOL_AI_TEST_ORIGIN || SCHOOL_AI_ORIGIN;
 
 test.describe.configure({ mode: "serial" });
 test.beforeAll(async () => {

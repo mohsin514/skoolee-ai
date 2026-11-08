@@ -39,7 +39,10 @@ export function MessageEmail({
       logoUrl={logoUrl}
     >
       {html ? (
-        <Section style={detailBox} dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />
+        // Section renders its own table rows, so the sanitised HTML goes in a child, not on Section itself.
+        <Section style={detailBox}>
+          <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />
+        </Section>
       ) : (
         textBlocks(text || "").map((block, index) => (
           <Text key={index} style={index === 0 ? paragraph : mutedParagraph}>

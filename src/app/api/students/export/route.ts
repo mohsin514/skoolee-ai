@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/scope";
 import { requestSchool } from "@/lib/capacity/identity";
 import { withBackgroundAdmission } from "@/lib/capacity/admission";
+import { rosterSearchWhere, rosterStatusWhere } from "@/lib/students/roster-status";
 
 // GET /api/academic/students/export?classId=&search=&status=
 //
@@ -39,6 +40,11 @@ const COLUMNS: { header: string; get: (s: any) => unknown }[] = [
   { header: "Guardian Email", get: (s) => s.guardianEmail },
   { header: "Address", get: (s) => s.address },
   { header: "City", get: (s) => s.city },
+  // SKAI-1344: official identifiers so regulator returns can be reconciled without name/DOB matching.
+  { header: "Admission No", get: (s) => s.admissionNo },
+  { header: "Nationality", get: (s) => s.nationality },
+  { header: "Emirates ID", get: (s) => s.emiratesId },
+  { header: "eSIS / MOE ID", get: (s) => s.regulatorId },
 ];
 
 // SKO-451: a whole-roster export is background work; admission keeps one school's exports from starving the
@@ -68,17 +74,10 @@ async function exportStudents(req: NextRequest) {
       ...scopedCampusWhere(user, campusId),
       class: { is: archivedOnly ? {} : { archivedAt: null } },
       ...(classId ? { classId } : {}),
-      ...(archivedOnly
-        ? { status: { in: ["inactive", "archived", "transferred", "graduated"] } }
-        : { status: { notIn: ["inactive", "archived", "transferred", "graduated"] } }),
+      ...rosterStatusWhere(archivedOnly),
       ...(search
         ? {
-            OR: [
-              { fullName: { contains: search, mode: "insensitive" as const } },
-              { rollNo: { contains: search, mode: "insensitive" as const } },
-              { guardianName: { contains: search, mode: "insensitive" as const } },
-              { guardianPhone: { contains: search, mode: "insensitive" as const } },
-            ],
+            ...rosterSearchWhere(search),
           }
         : {}),
     };

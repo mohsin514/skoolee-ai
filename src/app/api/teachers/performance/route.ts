@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { teachingEvidence } from "@/lib/staff/teaching-evidence";
 
 // SKO-461: bounded, sourced teaching evidence. Leaders see their campus; a
@@ -11,8 +12,8 @@ export async function GET(req: NextRequest) {
     const campusId = await resolveCampusId(user, sp.get("campusId"));
     const year = Number(sp.get("academicYear"));
     const academicYear = Number.isInteger(year) && year > 2000 && year < 2200 ? year : new Date().getFullYear();
-    return Response.json({ success: true, data: await teachingEvidence(user, campusId, academicYear, sp.get("teacherId")) });
+    return ok(await teachingEvidence(user, campusId, academicYear, sp.get("teacherId")));
   } catch (error) {
-    return errorResponse(error, "[teachers/performance] GET failed");
+    return failFrom(error, "[teachers/performance] GET failed");
   }
 }

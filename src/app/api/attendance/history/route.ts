@@ -7,6 +7,7 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { bucketHistory } from "@/lib/attendance/history-buckets";
 
 export async function GET(req: NextRequest) {
   try {
@@ -43,34 +44,16 @@ export async function GET(req: NextRequest) {
       where: { classId, campusId },
     });
 
-    const studentIds = await prisma.student.findMany({
-      where: { classId, campusId },
-      select: { id: true },
-    });
-    const ids = studentIds.map((s) => s.id);
-
+    // SKAI-1620: a row belongs to the class it was taken in (as in the monthly report, SKAI-1407),
+    // so a pupil who moved here does not bring their earlier class's marks.
     const raw = await prisma.attendance.groupBy({
       by: ["date", "status"],
-      where: { campusId, studentId: { in: ids } },
+      where: { campusId, classId },
       _count: true,
       orderBy: { date: "desc" },
     });
 
-    const dateMap = new Map<string, { date: string; present: number; absent: number; leave: number; total: number }>();
-    for (const entry of raw) {
-      const dateKey = entry.date.toISOString().slice(0, 10);
-      if (!dateMap.has(dateKey)) {
-        dateMap.set(dateKey, { date: dateKey, present: 0, absent: 0, leave: 0, total: 0 });
-      }
-      const bucket = dateMap.get(dateKey)!;
-      const count = entry._count;
-      if (entry.status === "PRESENT") bucket.present = count;
-      else if (entry.status === "ABSENT") bucket.absent = count;
-      else if (entry.status === "LEAVE") bucket.leave = count;
-      bucket.total += count;
-    }
-
-    const history = Array.from(dateMap.values())
+    const history = bucketHistory(raw)
       .map((entry) => ({
         ...entry,
         unmarked: Math.max(studentCount - entry.total, 0),

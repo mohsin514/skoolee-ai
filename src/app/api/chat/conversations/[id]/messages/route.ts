@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ApiError, errorResponse } from "@/lib/api/scope";
 import { listMessages, MAX_MESSAGE_LENGTH, requireChatUser, sendMessage } from "@/lib/chat/service";
 import { rateLimit } from "@/lib/rate-limit";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       throw new ApiError("You are sending messages too quickly. Wait a moment.", 429);
     }
 
-    const parsed = sendSchema.safeParse(await req.json());
+    const parsed = sendSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid request", 400);
 
     const message = await sendMessage(user, id, parsed.data);

@@ -13,7 +13,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // trip change makes it conditional again; cancelling a paid place releases capacity once and hands one
 // refund request to finance; attendance is only for confirmed participants.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.ACTIVITIES_TEST_APP || "http://localhost:3107";
 const evidence = process.env.ACTIVITIES_EVIDENCE_DIR || "/tmp/sko440-evidence";
 const db = new PrismaClient(), password = "SyntheticActs440!";
@@ -166,20 +166,20 @@ test("cancelling a paid place releases capacity once and hands one refund reques
 test("attendance is only for confirmed participants", async () => {
   const s = await coord({ action: "session", activityId: ids.chess, startsAt: hour(10).toISOString(), endsAt: hour(11).toISOString() });
   assert.equal(s.status, 201);
-  assert.equal((await coord({ action: "attend", sessionId: s.json.data.id, studentId: ids[ids.chessHolder], status: "PRESENT" })).status, 200);
-  assert.equal((await coord({ action: "attend", sessionId: s.json.data.id, studentId: ids[ids.tripKid], status: "PRESENT" })).status, 409, "a waitlisted learner is not marked");
+  assert.equal((await coord({ action: "attend", sessionId: s.json.data.id, studentId: ids[ids.chessHolder], status: "PRESENT", expectedMarkedAt: null })).status, 200);
+  assert.equal((await coord({ action: "attend", sessionId: s.json.data.id, studentId: ids[ids.tripKid], status: "PRESENT", expectedMarkedAt: null })).status, 409, "a waitlisted learner is not marked");
 });
 
 test("screens: family activities (EN, phone), review with terms, coordinator roster, Arabic", async () => {
   const page = await (await context(`${ids.tripKid}Parent`)).newPage();
-  await page.goto(`${base}/parent/attendance`);
+  await page.goto(`${base}/parent/activities`);
   await page.locator(`[data-activity="${ids.visit}"] [data-activity-request]`).click();
   await page.locator("[data-activity-review]").waitFor();
   assert.ok((await page.locator("[data-activity-review]").innerText()).includes("Full refund if withdrawn"));
   await shot(page, "01-family-review-terms-en");
   await page.close();
   const phone = await (await context("bilalParent", { width: 390, height: 844 })).newPage();
-  await phone.goto(`${base}/parent/attendance`);
+  await phone.goto(`${base}/parent/activities`);
   await phone.locator("[data-family-activities]").waitFor();
   await phone.locator("[data-family-activities]").scrollIntoViewIfNeeded();
   assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, "no sideways scroll at phone width");
@@ -192,7 +192,7 @@ test("screens: family activities (EN, phone), review with terms, coordinator ros
   await shot(c, "03-coordinator-roster-refund");
   await c.close();
   const ar = await (await context("parent-ar")).newPage();
-  await ar.goto(`${base}/parent/attendance`);
+  await ar.goto(`${base}/parent/activities`);
   await ar.locator("[data-family-activities]").waitFor();
   assert.equal(await ar.evaluate(() => document.documentElement.dir), "rtl");
   await ar.locator("[data-family-activities]").scrollIntoViewIfNeeded();

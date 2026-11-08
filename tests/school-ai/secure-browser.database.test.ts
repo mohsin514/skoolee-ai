@@ -13,7 +13,7 @@ import { assessmentFixture } from "./assessment-fixture";
 
 // SKO-449 against the isolated database: profile lifecycle, pinned delivery and server-side admission.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PG55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PG55438.");
 const raw = new PrismaClient();
 const schoolId = `seb449-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), subjectId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid`, accessVersion: 0 });
@@ -88,6 +88,10 @@ test("an unsupported device gets an audited supervised alternative, never a sile
   assert.ok(started?.id, "the approved learner starts in a standard browser");
   const metadata = await ctx(other, () => getSchoolAiExam(other, examId));
   assert.equal((metadata.secureBrowser as { via?: string }).via, "SUPERVISED_ALTERNATIVE");
-  assert.equal(await raw.auditLog.count({ where: { schoolId, tableName: "secure_browser_exceptions" } }), 1);
+  // SKAI-1796: inside the transaction the service's richer row replaces the automatic one, so audit_logs holds
+  // exactly one approval row, naming the approver's assignment and student.
+  const audits = await raw.auditLog.findMany({ where: { schoolId, tableName: "secure_browser_exceptions" }, orderBy: { createdAt: "asc" } });
+  assert.equal(audits.length, 1, "one approval decision is recorded, nothing more");
+  assert.deepEqual([(audits[0].newValue as { studentId?: string }).studentId, audits[0].userId], [otherId, coordinator.userId]);
   await assert.rejects(() => raw.secureBrowserException.updateMany({ where: { schoolId }, data: { reason: "changed" } }), /kept as history/);
 });

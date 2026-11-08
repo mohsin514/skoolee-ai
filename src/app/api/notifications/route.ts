@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { inboxCounts, listInbox, VIEWS, type InboxView } from "@/lib/notifications/actions";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-416: ?view=all|mentions|actions&status=open|resolved. Items carry their current source state
 // (open / resolved / unavailable) rechecked for this viewer; unavailable items show no stored text.
@@ -11,7 +13,13 @@ export async function GET(req: NextRequest) {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
-    const limit = Math.min(Number(searchParams.get("limit")) || 20, 50);
+    const rawLimit = searchParams.get("limit");
+    const requestedLimit = rawLimit ? Number(rawLimit) : 20;
+    // A non-positive or fractional limit must fail loudly: silently coercing it made an unread inbox look empty.
+    if (!Number.isInteger(requestedLimit) || requestedLimit < 1) {
+      return Response.json({ error: "limit must be a positive integer" }, { status: 400 });
+    }
+    const limit = Math.min(requestedLimit, 50);
     const cursor = searchParams.get("cursor") || undefined;
     const unreadOnly = searchParams.get("unreadOnly") === "true";
     const view = (VIEWS as readonly string[]).includes(searchParams.get("view") ?? "") ? (searchParams.get("view") as InboxView) : "all";
@@ -40,7 +48,7 @@ export async function PATCH(req: NextRequest) {
     const user = await getAuthUser();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const now = new Date();
 
     // Marking read is attention only: it never resolves an assigned action (SKO-416).

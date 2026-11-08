@@ -70,3 +70,11 @@ test("authority lookup failures stop before any attempt metadata is returned", a
     lookupBoundary: async () => { assert.fail("failed authority lookup cannot query attempts"); },
   }), /authority lookup unavailable/);
 });
+
+test("SKAI-1063: an unavailable session store is a retryable error, never a learner sign-out", async () => {
+  await assert.rejects(candidateExamBoundaryForSession("signed-cookie", claims, {
+    isRevoked: async () => { throw new Error("session store unavailable"); },
+    resolvePrincipal: async () => { assert.fail("unknown session state cannot resolve an account"); },
+    lookupBoundary: async () => { assert.fail("unknown session state cannot query attempts"); },
+  }), /unavailable/);
+});

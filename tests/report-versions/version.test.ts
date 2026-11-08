@@ -25,11 +25,11 @@ import {
 } from "../../src/lib/academic/report-versions";
 import { sendReportCardPublishedNotifications } from "../../src/lib/notifications/service";
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-const currentLocal = ["127.0.0.1", "localhost"].includes(url.hostname) && url.port === "55438" && url.pathname === "/postgres" && process.env.DIRECT_URL === process.env.DATABASE_URL;
+const currentLocal = ["127.0.0.1", "localhost"].includes(url.hostname) && url.port === (process.env.QA_DB_PORT || "55438") && url.pathname === "/postgres" && process.env.DIRECT_URL === process.env.DATABASE_URL;
 const legacyLocal = url.hostname === "127.0.0.1" && url.port === "55410" && url.pathname === "/sko210";
 if (!currentLocal && !legacyLocal) throw new Error("Use the explicitly guarded isolated local report-version database");
 const app = new URL(process.env.AUTHZ_TEST_APP_URL || (currentLocal ? "http://localhost:3107" : "http://127.0.0.1:3210"));
-if (!["127.0.0.1", "localhost"].includes(app.hostname) || app.port !== (currentLocal ? "3107" : "3210") || !process.env.AUTH_SECRET) throw new Error("Explicit isolated app and AUTH_SECRET required; never load .env");
+if (!["127.0.0.1", "localhost"].includes(app.hostname) || app.port !== (currentLocal ? process.env.QA_APP_PORT || "3107" : "3210") || !process.env.AUTH_SECRET) throw new Error("Explicit isolated app and AUTH_SECRET required; never load .env");
 const raw = new PrismaClient();
 const schoolId = `versions-${randomUUID()}`,
   campusId = randomUUID(),

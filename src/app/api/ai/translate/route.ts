@@ -11,6 +11,8 @@ import {
   generateAIDraft,
 } from "@/lib/ai/openai";
 import { PIILeakError, Pseudonymizer } from "@/lib/ai/pseudonymize";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   let text = "";
   try {
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     text = typeof body?.text === "string" ? body.text.trim() : "";
   } catch {}
 

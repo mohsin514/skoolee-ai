@@ -195,23 +195,55 @@ export async function workspace(user: AuthUser, frameworkId?: string | null) {
   };
 }
 
-export async function staff(user: AuthUser) {
-  assert(!NOT_STAFF.includes(user.role), "Staff access is required.");
-  return prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: { notIn: ["PARENT", "STUDENT"] } }, select: { id: true, fullName: true, role: true }, orderBy: { fullName: "asc" }, take: 300 });
+export const STAFF_PAGE = 300;
+/** SKAI-1724: keyset over (fullName asc, id asc) so staff after the first 300 can be chosen as owners and reviewers. */
+export function staffPageWhere(cursor: string | null | undefined) {
+  if (!cursor) return {};
+  let parts: unknown = null;
+  try { parts = JSON.parse(Buffer.from(cursor.slice(0, 600), "base64url").toString("utf8")); } catch { /* refused below */ }
+  const [name, id] = Array.isArray(parts) ? parts : [];
+  assert(typeof name === "string" && typeof id === "string" && id.length > 0, "This list has changed. Reload it.", 400);
+  return { OR: [{ fullName: { gt: name } }, { fullName: name, id: { gt: id } }] };
+}
+export function staffNextCursor(rows: { id: string; fullName: string }[]) {
+  if (rows.length <= STAFF_PAGE) return null;
+  const last = rows[STAFF_PAGE - 1];
+  return Buffer.from(JSON.stringify([last.fullName, last.id]), "utf8").toString("base64url");
 }
 
-/** Linkable sources: learning actions and report cards on the user's campus. Clinic sources are linked by id only. */
-export async function sources(user: AuthUser) {
+export async function staff(user: AuthUser, cursor?: string | null) {
   assert(!NOT_STAFF.includes(user.role), "Staff access is required.");
+  const rows = await prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: { notIn: ["PARENT", "STUDENT"] }, ...staffPageWhere(cursor) }, select: { id: true, fullName: true, role: true }, orderBy: [{ fullName: "asc" }, { id: "asc" }], take: STAFF_PAGE + 1 });
+  return { people: rows.slice(0, STAFF_PAGE), nextCursor: staffNextCursor(rows) };
+}
+
+export const SOURCE_PAGE = 50;
+type PickerSource = "INTERVENTION" | "REPORT_CARD";
+type SourceItem = { type: PickerSource; id: string; label: string };
+export const sourceOffset = (raw: string | null | undefined) => { const n = Number(raw ?? 0); assert(Number.isInteger(n) && n >= 0 && n <= 100_000, "This list has changed. Reload it.", 400); return n; };
+
+/**
+ * Linkable sources: learning actions and report cards on the user's campus. Clinic sources are linked by id only.
+ * SKAI-1722: each type pages in a stable order; `more[type]` is the next offset, or null when every record is listed.
+ */
+export async function sources(user: AuthUser, only?: string | null, offset = 0) {
+  assert(!NOT_STAFF.includes(user.role), "Staff access is required.");
+  assert(!only || only === "INTERVENTION" || only === "REPORT_CARD", "Unknown source type.", 400);
   const campus = isLead(user) && user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "__none__" };
+  const want = (type: PickerSource) => !only || only === type;
   const [plans, reports] = await Promise.all([
-    prisma.interventionPlan.findMany({ where: { schoolId: user.schoolId, ...campus }, select: { id: true, version: true, status: true }, orderBy: { updatedAt: "desc" }, take: 50 }),
-    prisma.reportCard.findMany({ where: { schoolId: user.schoolId, ...campus }, select: { id: true, sourceRevision: true, exam: { select: { title: true } } }, orderBy: { id: "desc" }, take: 50 }),
+    want("INTERVENTION") ? prisma.interventionPlan.findMany({ where: { schoolId: user.schoolId, ...campus }, select: { id: true, version: true, status: true }, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], skip: offset, take: SOURCE_PAGE + 1 }) : [],
+    want("REPORT_CARD") ? prisma.reportCard.findMany({ where: { schoolId: user.schoolId, ...campus }, select: { id: true, sourceRevision: true, exam: { select: { title: true } } }, orderBy: { id: "desc" }, skip: offset, take: SOURCE_PAGE + 1 }) : [],
   ]);
-  return [
-    ...plans.map(p => ({ type: "INTERVENTION", id: p.id, label: `Learning action v${p.version} · ${p.status}` })),
-    ...reports.map(r => ({ type: "REPORT_CARD", id: r.id, label: `Report card · ${r.exam.title} · revision ${r.sourceRevision}` })),
+  const next = (rows: unknown[]) => rows.length > SOURCE_PAGE ? offset + SOURCE_PAGE : null;
+  const items: SourceItem[] = [
+    ...plans.slice(0, SOURCE_PAGE).map(p => ({ type: "INTERVENTION" as const, id: p.id, label: `Learning action v${p.version} · ${p.status}` })),
+    ...reports.slice(0, SOURCE_PAGE).map(r => ({ type: "REPORT_CARD" as const, id: r.id, label: `Report card · ${r.exam.title} · revision ${r.sourceRevision}` })),
   ];
+  const more: Partial<Record<PickerSource, number | null>> = {};
+  if (want("INTERVENTION")) more.INTERVENTION = next(plans);
+  if (want("REPORT_CARD")) more.REPORT_CARD = next(reports);
+  return { items, more };
 }
 
 const frameworkInput = z.object({
@@ -293,16 +325,23 @@ export async function addEvidence(user: AuthUser, raw: unknown) {
 
 /** Leads and granted reviewers judge evidence; never the person who added or owns it. */
 export async function reviewEvidence(user: AuthUser, raw: unknown) {
-  const input = parse(z.object({ itemId: z.string().uuid(), decision: z.enum(["ACCEPT", "REQUEST_MORE"]), note: z.string().trim().max(2000).nullish() }), raw);
+  const input = parse(z.object({ itemId: z.string().uuid(), decision: z.enum(["ACCEPT", "REQUEST_MORE"]), note: z.string().trim().max(2000).nullish(), expectedReviewState: z.enum(["PENDING", "ACCEPTED", "MORE_REQUESTED"]).optional() }), raw);
   const item = await prisma.evidenceItem.findFirst({ where: { id: input.itemId, schoolId: user.schoolId } });
   if (!item) throw new ApiError("Evidence not found", 404);
   const a = await access(user, item.frameworkId);
   assert(a.mode === "LEAD" || (a.mode === "REVIEWER" && item.audience !== "STAFF" && item.criterionIds.some(id => a.criteria!.has(id))), "You cannot review this evidence.");
   assert(item.createdById !== user.userId && item.ownerId !== user.userId, "Someone other than the person who added or owns this evidence must review it.", 409);
   if (input.decision === "REQUEST_MORE") assert(input.note && input.note.length >= 3, "Say what further evidence is needed.", 400);
-  const updated = await prisma.evidenceItem.update({ where: { id: item.id }, data: { reviewState: input.decision === "ACCEPT" ? "ACCEPTED" : "MORE_REQUESTED", reviewedById: user.userId, reviewedAt: new Date(), reviewNote: input.note ?? null } });
-  await writeAuditEvent(prisma, user, { table: "evidence_items", recordId: item.id, action: input.decision === "ACCEPT" ? "APPROVE" : "REJECT", after: { reviewState: updated.reviewState, note: input.note ?? "" } });
-  return updated;
+  const stale = "This evidence was reviewed since you opened it. Reload to see the latest decision.";
+  if (input.expectedReviewState) assert(item.reviewState === input.expectedReviewState, stale, 409);
+  // SKAI-1726: compare-and-set on the review state this request read, so a concurrent decision 409s instead of overwriting.
+  return prisma.$transaction(async tx => {
+    const changed = await tx.evidenceItem.updateMany({ where: { id: item.id, schoolId: user.schoolId, reviewState: item.reviewState, reviewedAt: item.reviewedAt }, data: { reviewState: input.decision === "ACCEPT" ? "ACCEPTED" : "MORE_REQUESTED", reviewedById: user.userId, reviewedAt: new Date(), reviewNote: input.note ?? null } });
+    assert(changed.count === 1, stale, 409);
+    const updated = await tx.evidenceItem.findFirstOrThrow({ where: { id: item.id, schoolId: user.schoolId } });
+    await writeAuditEvent(tx, user, { table: "evidence_items", recordId: item.id, action: input.decision === "ACCEPT" ? "APPROVE" : "REJECT", after: { reviewState: updated.reviewState, note: input.note ?? "" } });
+    return updated;
+  });
 }
 
 /** Opening a source is a separate, checked request; reviewers can review a criterion without opening restricted records. */
@@ -385,18 +424,36 @@ export async function grantReviewer(user: AuthUser, raw: unknown) {
   assert(await prisma.user.count({ where: { id: input.userId, schoolId: user.schoolId, isActive: true, role: { notIn: NOT_STAFF as never } } }), "Reviewer not found", 404);
   const expiresAt = new Date(`${input.expiresAt}T23:59:59Z`);
   assert(expiresAt > new Date(), "Choose a future expiry date.", 400);
-  const grant = await prisma.evidenceReviewerGrant.create({ data: { schoolId: user.schoolId, frameworkId: fw.id, userId: input.userId, criterionIds: input.criterionIds, expiresAt, grantedById: user.userId } });
-  await writeAuditEvent(prisma, user, { table: "evidence_reviewer_grants", recordId: grant.id, action: "GRANT", after: { userId: input.userId, criteria: input.criterionIds.length, expiresAt: input.expiresAt } });
-  return grant;
+  // SKAI-1727: a retry or double submit of the same reviewer, framework, criteria and expiry returns the active grant
+  // instead of adding a second row; a partial unique index backs this up against a concurrent insert.
+  const criterionIds = [...new Set(input.criterionIds)].sort();
+  const scope = { schoolId: user.schoolId, frameworkId: fw.id, userId: input.userId, criterionIds: { equals: criterionIds }, expiresAt, revokedAt: null };
+  const existing = await prisma.evidenceReviewerGrant.findFirst({ where: scope });
+  if (existing) return existing;
+  try {
+    return await prisma.$transaction(async tx => {
+      const grant = await tx.evidenceReviewerGrant.create({ data: { schoolId: user.schoolId, frameworkId: fw.id, userId: input.userId, criterionIds, expiresAt, grantedById: user.userId } });
+      await writeAuditEvent(tx, user, { table: "evidence_reviewer_grants", recordId: grant.id, action: "GRANT", after: { userId: input.userId, criteria: criterionIds.length, expiresAt: input.expiresAt } });
+      return grant;
+    });
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+    const winner = await prisma.evidenceReviewerGrant.findFirst({ where: scope });
+    if (!winner) throw error;
+    return winner;
+  }
 }
 
 export async function revokeReviewer(user: AuthUser, id: string) {
   assert(isLead(user), "Only school leaders revoke reviewer access.");
   const grant = await prisma.evidenceReviewerGrant.findFirst({ where: { id, schoolId: user.schoolId, revokedAt: null } });
   if (!grant) throw new ApiError("Grant not found", 404);
-  await prisma.evidenceReviewerGrant.update({ where: { id }, data: { revokedAt: new Date() } });
-  await writeAuditEvent(prisma, user, { table: "evidence_reviewer_grants", recordId: id, action: "REVOKE", after: { userId: grant.userId } });
-  return { id, revoked: true };
+  // SKAI-1727: revoking ends every active grant this reviewer holds on the framework, so no duplicate keeps access.
+  return prisma.$transaction(async tx => {
+    const ended = await tx.evidenceReviewerGrant.updateMany({ where: { schoolId: user.schoolId, frameworkId: grant.frameworkId, userId: grant.userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    await writeAuditEvent(tx, user, { table: "evidence_reviewer_grants", recordId: id, action: "REVOKE", after: { userId: grant.userId, grantsEnded: ended.count } });
+    return { id, revoked: true, grantsEnded: ended.count };
+  });
 }
 
 function packCriteria(manifest: unknown) { return ((manifest as { criteria?: { id: string }[] }).criteria ?? []).map(c => c.id); }

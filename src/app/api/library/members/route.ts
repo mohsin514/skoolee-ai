@@ -10,6 +10,8 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { createMember } from "@/lib/library/catalogue-command";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,7 +24,8 @@ export async function GET(req: NextRequest) {
       where: { campusId },
       include: {
         user: { select: { fullName: true, role: true } },
-        _count: { select: { issues: true } },
+        // SKAI-1625: Active Issues means open loans, the same rule as the lending desk.
+        _count: { select: { issues: { where: { returnedAt: null } } } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const data = await createMember(user, body);
 
     return Response.json({ success: true, data });

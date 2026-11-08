@@ -22,6 +22,7 @@ import {
   type ChatSettings,
   isLeadership,
   isStaff,
+  currentTeachingAssignmentWhere,
   spansAllCampuses,
   teacherClassIds,
 } from "./policy";
@@ -101,8 +102,9 @@ async function familyReach(
   const classIds = students.map((s) => s.classId);
 
   // Their children's teachers: class teachers, subject teachers, and anyone
-  // timetabled into those classes.
-  const [classes, subjects, slots] = await Promise.all([
+  // timetabled into those classes, whether recorded on the class/subject or as
+  // a current teaching assignment.
+  const [classes, subjects, slots, assignments] = await Promise.all([
     classIds.length
       ? prisma.class.findMany({
           where: { id: { in: classIds }, classTeacherId: { not: null } },
@@ -121,9 +123,16 @@ async function familyReach(
           select: { teacherId: true },
         })
       : Promise.resolve([]),
+    classIds.length
+      ? prisma.teachingAssignment.findMany({
+          where: { ...currentTeachingAssignmentWhere(), classId: { in: classIds } },
+          select: { teacherId: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const teacherIds = new Set<string>();
+  for (const a of assignments) if (a.teacherId) teacherIds.add(a.teacherId);
   for (const c of classes) if (c.classTeacherId) teacherIds.add(c.classTeacherId);
   for (const s of subjects) if (s.teacherId) teacherIds.add(s.teacherId);
   for (const s of slots) if (s.teacherId) teacherIds.add(s.teacherId);
@@ -337,6 +346,15 @@ async function describeContexts(user: AuthUser, ids: string[]): Promise<Map<stri
     // Subject teachers, labelled with what they actually teach.
     const classIds = students.map((s) => s.classId);
     if (classIds.length) {
+      const classLabels = new Map(students.map((s) => [s.classId, s.class ? `${s.class.name}${s.class.section ? `-${s.class.section}` : ""}` : ""]));
+      const leads = await prisma.teachingAssignment.findMany({
+        where: { ...currentTeachingAssignmentWhere(), role: "CLASS_TEACHER", classId: { in: classIds }, teacherId: { in: ids } },
+        select: { teacherId: true, classId: true },
+      });
+      for (const lead of leads) {
+        if (lead.teacherId && !out.has(lead.teacherId)) out.set(lead.teacherId, `Class teacher · ${classLabels.get(lead.classId) ?? ""}`);
+      }
+
       const subjects = await prisma.subject.findMany({
         where: { classId: { in: classIds }, teacherId: { in: ids } },
         select: { name: true, teacherId: true },

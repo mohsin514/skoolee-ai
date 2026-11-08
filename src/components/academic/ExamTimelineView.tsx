@@ -1,6 +1,8 @@
 "use client";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { DeskPill, DeskRowButton } from "@/components/ui/desk";
 
 import { Button } from "@/components/ui/button";
 import React, { useMemo } from "react";
@@ -32,8 +34,8 @@ export interface ScheduleRow {
 
 type Ui = (source: string, values?: unknown[]) => string;
 
-function relativeLabel(date: string, ui: Ui): { text: string; tone: "past" | "today" | "soon" | "future" } {
-  const days = daysFromToday(date);
+function relativeLabel(date: string, ui: Ui, timeZone?: string): { text: string; tone: "past" | "today" | "soon" | "future" } {
+  const days = daysFromToday(date, timeZone);
   if (days === 0) return { text: ui("Today"), tone: "today" };
   if (days === 1) return { text: ui("Tomorrow"), tone: "soon" };
   if (days < 0) return { text: ui(days === -1 ? "{0} day ago" : "{0} days ago", [Math.abs(days)]), tone: "past" };
@@ -65,7 +67,7 @@ export function ExamTimelineView({
   onOpen: (examId: string, tab?: DetailTab) => void;
 }) {
   const ui = useUiText();
-  const { language } = useLocale();
+  const { language, timezone } = useLocale();
   const days = useMemo(() => {
     const grouped = new Map<string, ScheduleRow[]>();
     rows.forEach((r) => {
@@ -98,7 +100,7 @@ export function ExamTimelineView({
   return (
     <div className="space-y-4">
       {days.map(({ date, papers }) => {
-        const rel = relativeLabel(date, ui);
+        const rel = relativeLabel(date, ui, timezone);
         return (
           <section
             key={date}
@@ -202,33 +204,19 @@ export function ExamTimelineView({
       })}
 
       {unscheduled.length > 0 ? (
-        <section className="overflow-hidden rounded-3xl border border-dashed border-status-warning-border bg-status-warning-surface">
-          <header className="border-b border-status-warning-border px-5 py-3">
-            <p className="text-sm font-bold text-status-warning-text">
-              {ui(unscheduled.length > 1 ? "{0} exams with no dates yet" : "{0} exam with no dates yet", [unscheduled.length])}
-            </p>
-            <p className="text-xs leading-relaxed text-status-warning-text">
-              {ui("These will not appear on the datesheet families see.")}
-            </p>
-          </header>
-          <ul className="divide-y divide-status-warning-border">
+        <section className="space-y-2" data-unscheduled-exams>
+          <Alert tone="warning" live="off" compact title={ui(unscheduled.length > 1 ? "{0} exams with no dates yet" : "{0} exam with no dates yet", [unscheduled.length])}>
+            {ui("These will not appear on the datesheet families see.")}
+          </Alert>
+          <ul className="space-y-2">
             {unscheduled.map((e) => (
               <li key={e.id}>
-                <Button variant="secondary"
-                  type="button"
-                  onClick={() => onOpen(e.id, "schedule")}
-                  className="flex w-full items-center justify-between gap-3 px-5 py-3 text-start"
-                >
-                  <span>
-                    <bdi className="block text-sm font-bold text-ink-strong">{e.title}</bdi>
-                    <span className="block text-xs text-ink-subtle">
-                      {classLabel(e.class)} · {e.term} {e.academicYear}
-                    </span>
+                <DeskRowButton tone="warning" icon={CalendarDays} onClick={() => onOpen(e.id, "schedule")} className="items-center" trailing={<DeskPill tone="warning">{ui("Set dates")}</DeskPill>}>
+                  <bdi className="block text-sm font-bold text-ink-strong">{e.title}</bdi>
+                  <span className="block text-xs text-ink-subtle">
+                    {classLabel(e.class)} · {e.term} {e.academicYear}
                   </span>
-                  <Badge variant="warning" className="shrink-0">
-                    {ui("Set dates")}
-                  </Badge>
-                </Button>
+                </DeskRowButton>
               </li>
             ))}
           </ul>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evaluateReadiness, isUnknownClassError, type ReadinessFacts } from "@/lib/readiness/checks";
+import { evaluateReadiness, isUnknownClassError, rehearsalStepsFor, type ReadinessFacts } from "@/lib/readiness/checks";
 
 const ready: ReadinessFacts = {
   adoptionMode: "FULL_OPERATIONS", institutionType: "GROUP", campuses: 2, localeConfirmed: true, activeCycles: 1, classes: 3, classesWithTeacher: 1, teachers: 2,
@@ -21,7 +21,7 @@ test("full operations requires verified guardians and fees; Exam Studio does not
   const full = evaluateReadiness(gaps);
   assert.equal(full.ready, false);
   assert.equal(full.nextRequired, "guardians");
-  const exam = evaluateReadiness({ ...gaps, adoptionMode: "EXAM_STUDIO", classesWithTeacher: 0 });
+  const exam = evaluateReadiness({ ...gaps, adoptionMode: "EXAM_STUDIO" });
   assert.equal(exam.ready, true, "Exam Studio runs beside the school's existing fee and family systems");
   assert.equal(exam.checks.find(check => check.id === "guardians")!.required, false);
 });
@@ -128,4 +128,67 @@ test("evaluateReadiness resolves every check href for the viewer", () => {
   assert.ok(teacher.checks.filter((check) => check.id !== "rehearsal").every((check) => check.href === null && check.handledElsewhere), "a teacher delegate gets no links");
   const school = evaluateReadiness(ready, { role: "ADMIN", institutionKind: "STANDALONE" });
   assert.equal(school.checks.find((check) => check.id === "campus")!.href, "/admin?view=school-settings&tab=profile");
+});
+
+test("SKAI-154: a group campus with no class or pupils blocks full operations, not Exam Studio", () => {
+  const campusBreakdown = [{ id: "c1", name: "North", classes: 3, students: 40 }, { id: "c2", name: "South", classes: 0, students: 0 }];
+  const full = evaluateReadiness({ ...ready, campusBreakdown });
+  assert.equal(full.ready, false, "the school-wide counts pass, but South has nothing to run");
+  assert.equal(full.nextRequired, "campusCoverage");
+  assert.deepEqual(full.checks.find(check => check.id === "campusCoverage")!.evidence, { campusesReady: 1, campusesTotal: 2 });
+  assert.deepEqual(full.campuses.map(campus => [campus.name, campus.ready]), [["North", true], ["South", false]]);
+  const exam = evaluateReadiness({ ...ready, adoptionMode: "EXAM_STUDIO", campusBreakdown });
+  assert.equal(exam.ready, true);
+  assert.equal(exam.checks.find(check => check.id === "campusCoverage")!.required, false);
+  const pupilsOnly = evaluateReadiness({ ...ready, campusBreakdown: [{ id: "c1", name: "North", classes: 0, students: 5 }] });
+  assert.equal(pupilsOnly.nextRequired, "campusCoverage", "a campus needs a class as well as pupils");
+});
+
+test("SKAI-154: the campus coverage link lands where each viewer can act", () => {
+  const facts = { ...ready, campusBreakdown: [{ id: "c2", name: "South", classes: 0, students: 0 }] };
+  const coverage = (viewer: Parameters<typeof evaluateReadiness>[1]) => evaluateReadiness(facts, viewer).checks.find(check => check.id === "campusCoverage")!;
+  assert.deepEqual([coverage({ role: "SUPER_ADMIN" }).href, coverage({ role: "SUPER_ADMIN" }).delegated], ["/super?view=campuses", true]);
+  assert.equal(coverage({ role: "CAMPUS_ADMIN" }).href, "/admin?view=academic-hub");
+  assert.equal(coverage({ role: "PRINCIPAL" }).href, "/principal?view=classes");
+  assert.equal(coverage({ role: "TEACHER" }).href, null);
+});
+
+// ─── SKAI-912: first-class setup follows the chosen adoption mode ───
+const examPilot: ReadinessFacts = {
+  ...ready, adoptionMode: "EXAM_STUDIO", institutionType: "STANDALONE", campuses: 1, classes: 1, teachers: 1, students: 12,
+  studentsWithoutGuardian: 12, feeStructures: 0, rehearsal: { assessment: "2026-10-30T00:00:00Z" },
+  campusBreakdown: [{ id: "c1", name: "Main", classes: 1, students: 12 }],
+};
+
+test("SKAI-912: an assessment-only pilot goes live with one class, its teacher and roster, and no ERP setup", () => {
+  const result = evaluateReadiness(examPilot);
+  assert.equal(result.ready, true);
+  for (const id of ["guardians", "fees", "campusCoverage"]) {
+    const check = result.checks.find(c => c.id === id)!;
+    assert.equal(check.required, false, `${id} must not gate an assessment-only pilot`);
+    assert.equal(check.later, true, `${id} is labelled as later work for full operations, not hidden`);
+  }
+  assert.deepEqual(result.checks.find(c => c.id === "rehearsal")!.evidence, { completedSteps: 1, totalSteps: 1 });
+});
+
+test("SKAI-912: the first class needs a responsible teacher in every mode, not just a teacher on staff", () => {
+  for (const adoptionMode of ["EXAM_STUDIO", "FULL_OPERATIONS"] as const) {
+    const result = evaluateReadiness({ ...examPilot, adoptionMode, classesWithTeacher: 0, teachers: 3 });
+    assert.equal(result.checks.find(c => c.id === "staff")!.passed, false, adoptionMode);
+  }
+});
+
+test("SKAI-912: Exam Studio rehearses the assessment only; full operations rehearses the whole day", () => {
+  assert.deepEqual([...rehearsalStepsFor("EXAM_STUDIO")], ["assessment"]);
+  assert.deepEqual([...rehearsalStepsFor("FULL_OPERATIONS")], ["attendance", "assessment", "family"]);
+  assert.equal(evaluateReadiness({ ...examPilot, rehearsal: { attendance: "x", family: "x" } }).nextRequired, "rehearsal");
+});
+
+test("SKAI-912: switching the same facts to full operations re-gates them without losing what was done", () => {
+  const full = evaluateReadiness({ ...examPilot, adoptionMode: "FULL_OPERATIONS" });
+  assert.equal(full.ready, false);
+  assert.equal(full.nextRequired, "guardians");
+  assert.equal(full.checks.some(c => c.later), false, "nothing is deferred in full operations");
+  assert.equal(full.checks.find(c => c.id === "roster")!.passed, true, "the roster already entered still counts");
+  assert.deepEqual(full.checks.find(c => c.id === "rehearsal")!.evidence, { completedSteps: 1, totalSteps: 3 });
 });

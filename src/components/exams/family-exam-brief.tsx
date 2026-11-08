@@ -16,20 +16,33 @@ export function FamilyExamBrief({ studentId }: { studentId: string | null }) {
   const [briefs, setBriefs] = useState<Brief[] | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  // A failed load is not "no briefs" (SKAI-1368): it gets its own message and a retry.
+  const [loadFailed, setLoadFailed] = useState(false);
   const query = studentId ? `?studentId=${encodeURIComponent(studentId)}` : "";
   const load = useCallback(async () => {
-    const response = await fetch(`/api/parent/exam-brief${query}`, { cache: "no-store" });
-    const payload = await response.json().catch(() => ({}));
-    setBriefs(response.ok && Array.isArray(payload.data) ? payload.data : []);
+    try {
+      const response = await fetch(`/api/parent/exam-brief${query}`, { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(payload.data)) { setLoadFailed(true); return; }
+      setBriefs(payload.data); setLoadFailed(false);
+    } catch { setLoadFailed(true); }
   }, [query]);
   useEffect(() => { void load(); }, [load]);
   const acknowledge = async (versionId: string) => {
     setBusy(versionId); setError("");
-    const response = await fetch(`/api/parent/exam-brief${query}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ versionId }) });
-    setBusy("");
+    // SKAI-1519: a network rejection clears busy and shows the same retryable error as a refused request.
+    let response: Response;
+    try { response = await fetch(`/api/parent/exam-brief${query}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ versionId }) }); }
+    catch { setError(ui("Could not record your acknowledgement. Please try again.")); return; }
+    finally { setBusy(""); }
     if (!response.ok) { setError(ui("Could not record your acknowledgement. Please try again.")); return; }
     await load();
   };
+  if (loadFailed && !briefs?.length) return <section aria-labelledby="family-exam-brief" className="sk-panel space-y-3 p-4" data-family-exam-brief-error>
+    <h2 id="family-exam-brief" className="text-base font-bold text-ink-strong">{ui("Exam date sheet changed")}</h2>
+    <p role="alert" className="text-sm text-status-error-text">{ui("The exam date sheet could not be loaded. Your child's exam dates are not affected; try again.")}</p>
+    <Button size="sm" variant="outline" onClick={() => void load()}>{ui("Try again")}</Button>
+  </section>;
   if (!briefs?.length) return null;
   return <section aria-labelledby="family-exam-brief" className="sk-panel space-y-3 p-4" data-family-exam-brief>
     <h2 id="family-exam-brief" className="flex items-center gap-2 text-base font-bold text-ink-strong"><BellRing aria-hidden="true" className="size-4" />{ui("Exam date sheet changed")}</h2>

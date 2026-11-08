@@ -1,7 +1,7 @@
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { RoleFrame } from "@/components/role-dashboard/RoleFrame";
 import { prisma } from "@/lib/db/prisma";
-import { requirePageSession } from "@/lib/auth/require-page-session";
+import { redirectIfSuspended, requirePageSession } from "@/lib/auth/require-page-session";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
@@ -13,6 +13,7 @@ export const metadata: Metadata = { title: "Messages" };
 export default async function MessagesLayout({ children }: { children: React.ReactNode }) {
   // The full-page messenger for every school role, framed in the caller's console. The page owns its chat stream, so the floating dock is off.
   const user = await requirePageSession();
+  redirectIfSuspended(user);
   if (user.role === "APP_OWNER") redirect("/owner");
   // Campus logo, else school logo: what the console's own sidebar shows (dashboard.ts). Read on the server so
   // the first paint has it (the session's `logoUrl` arrives only after the client's read); a failed read only costs the image.

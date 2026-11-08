@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ApiError, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { approvePlan, decide, executePlan, loadRollover, preparePlan, reverseDecision, setClassCapacity, setClassMap } from "@/lib/academic/rollover";
+import { readJsonBody } from "@/lib/api/validate";
 
 // SKO-404: reviewed year-end rollover. GET shows readiness, the versioned plan,
 // every learner's decision and the reconciliation; POST actions change it.
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const raw = await req.json().catch(() => null);
+    const raw = (await readJsonBody(req)) as Record<string, any> | null;
     const parsed = Body.safeParse(raw);
     if (!parsed.success) throw new ApiError("Invalid rollover request", 400);
     const campusId = await resolveCampusId(user, raw?.campusId);

@@ -9,11 +9,16 @@ class IdempotencyConflict extends Error {
   status = 409;
 }
 
-function assertSameRequest(existing: { kind: string; requestedPlan: string | null; details: unknown }, input: { kind: string; requestedPlan?: PlanType; details: Record<string, unknown> }) {
+export function assertSameRequest(existing: { kind: string; requestedPlan: string | null; effectiveAt?: Date | null; details: unknown }, input: { kind: string; requestedPlan?: PlanType; effectiveAt?: Date | null; details: Record<string, unknown> }) {
   const oldPeriod = (existing.details as { preview?: { billingPeriod?: string } } | null)?.preview?.billingPeriod;
   const nextPeriod = (input.details as { preview?: { billingPeriod?: string } } | null)?.preview?.billingPeriod;
+  // SKAI-1458: a grace request is bound to its deadline and reason too, so a changed one is a conflict, not a replay.
+  const oldGrace = existing.details as { requestedUntil?: string; reason?: string } | null;
+  const sameGrace = input.kind !== "GRACE_EXTENSION" || (
+    (existing.effectiveAt?.getTime() ?? null) === (input.effectiveAt?.getTime() ?? null) &&
+    oldGrace?.requestedUntil === input.details.requestedUntil && oldGrace?.reason === input.details.reason);
   if (existing.kind !== input.kind || existing.requestedPlan !== (input.requestedPlan || null) ||
-      (input.kind === "PLAN_CHANGE" && oldPeriod !== nextPeriod)) {
+      (input.kind === "PLAN_CHANGE" && oldPeriod !== nextPeriod) || !sameGrace) {
     throw new IdempotencyConflict("This request key already belongs to a different subscription action.");
   }
 }

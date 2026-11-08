@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
+import { Copy } from "lucide-react";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Alert } from "@/components/ui/alert";
 import { ErrorState } from "@/components/ui/error-state";
@@ -117,6 +118,6 @@ export function RolePermissionsPanel() {
       onCancel={() => setBulk(null)}
       onConfirm={async () => { if (!bulk) return; await setAll(bulk.modules, bulk.enabled); setBulk(null); }}
     />
-    {copyOpen && <Modal title={copy.copyTitle} onClose={() => { setCopyOpen(false); setCopyReason(""); }} dismissible={!busy} hideClose={busy} disableBackdropClose={busy} initialFocusRef={cancelRef} size="sm" footer={<div className="flex flex-wrap justify-end gap-2"><Button ref={cancelRef} variant="outline" disabled={busy} onClick={() => { setCopyOpen(false); setCopyReason(""); }}>{copy.cancel}</Button><Button loading={busy} disabled={busy || !writable || loading || !copyReasonReady} onClick={() => void save((snapshot?.modules ?? []).map(module => [module, snapshot?.matrix[source]?.[module] ?? off]), true)}>{busy ? copy.saving : copy.confirm}</Button></div>}><div className="space-y-3"><p className="text-sm leading-relaxed text-ink-muted">{copy.copyHint}</p><p><strong>{copy.source}:</strong> <bdi>{label(source)}</bdi> <strong>{copy.target}:</strong> <bdi>{label(role)}</bdi></p><FormField name={`${id}-copy-reason`} label={copy.reason} required hint={copyReasonReady ? undefined : copy.reasonShort}><Textarea value={copyReason} disabled={busy} rows={2} onChange={event => setCopyReason(event.target.value)} /></FormField>{failure}</div></Modal>}
+    {copyOpen && <Modal title={copy.copyTitle} icon={Copy} tone="amber" onClose={() => { setCopyOpen(false); setCopyReason(""); }} dismissible={!busy} hideClose={busy} disableBackdropClose={busy} initialFocusRef={cancelRef} size="sm" footer={<div className="flex flex-wrap justify-end gap-2"><Button ref={cancelRef} variant="outline" disabled={busy} onClick={() => { setCopyOpen(false); setCopyReason(""); }}>{copy.cancel}</Button><Button loading={busy} disabled={busy || !writable || loading || !copyReasonReady} onClick={() => void save((snapshot?.modules ?? []).map(module => [module, snapshot?.matrix[source]?.[module] ?? off]), true)}>{busy ? copy.saving : copy.confirm}</Button></div>}><div className="space-y-3"><Alert tone="warning" compact live="off">{copy.copyHint}</Alert><p><strong>{copy.source}:</strong> <bdi>{label(source)}</bdi> <strong>{copy.target}:</strong> <bdi>{label(role)}</bdi></p><FormField name={`${id}-copy-reason`} label={copy.reason} required hint={copyReasonReady ? undefined : copy.reasonShort}><Textarea value={copyReason} disabled={busy} rows={2} onChange={event => setCopyReason(event.target.value)} /></FormField>{failure}</div></Modal>}
   </section>;
 }

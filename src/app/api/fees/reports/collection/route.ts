@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       prisma.invoice.findMany({
         where: { currency, campusId: { in: campusIds } },
         select: {
-          enrollment: true, studentId: true, totalAmount: true, totalAmountPaid: true, balanceDue: true, status: true,
+          enrollment: true, studentId: true, totalAmount: true, totalAmountPaid: true, balanceDue: true, status: true, dueDate: true,
           student: { select: { class: { select: { id: true, name: true, section: true } } } },
         },
       }),
@@ -58,7 +58,10 @@ export async function GET(req: NextRequest) {
       totalOverdue: number;
     }>();
 
+    const now = new Date();
     for (const inv of invoices) {
+      // SKAI-1328: a cancelled invoice is not a charge; partly paid invoices are still outstanding.
+      if (inv.status === "CANCELLED") continue;
       const key = inv.enrollment?.classId || inv.student.class.id;
       const cls = classMap.get(key) ?? {
         className: inv.enrollment?.className || `${inv.student.class.name}${inv.student.class.section ? ` ${inv.student.class.section}` : ""}`,
@@ -70,7 +73,9 @@ export async function GET(req: NextRequest) {
       cls.studentIds.add(inv.studentId);
       cls.totalDue += inv.totalAmount;
       cls.totalPaid += inv.totalAmountPaid;
-      if (inv.status === "PENDING" || inv.status === "OVERDUE") {
+      // SKAI-391: overdue means past its due date, the same rule as the defaulters report; an unpaid
+      // invoice that is not due yet is outstanding, not overdue.
+      if ((inv.status === "PENDING" || inv.status === "PARTIAL" || inv.status === "OVERDUE") && inv.balanceDue > 0 && inv.dueDate < now) {
         cls.totalOverdue += inv.balanceDue;
       }
       classMap.set(key, cls);

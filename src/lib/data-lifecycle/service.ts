@@ -9,6 +9,7 @@ import { studentScope, publishedReportsWhere } from "@/lib/auth/policy";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { DATA_REGIONS, type DataRegion } from "@/config/data-regions";
 import { buildProcessingInventory, planPlacement } from "./inventory";
+import { executeSubjectRequest, planSubjectRequest, subjectRequestInputs, SUBJECT_KINDS } from "./subject-requests";
 
 // ─── Retention categories ─────────────────────────────────────────
 // Only categories whose expiry is safe and well defined are listed. Learner
@@ -136,6 +137,7 @@ export const requestInput = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("EXPORT"), studentId: z.string().min(1).max(128), reason: z.string().trim().min(5).max(500) }).strict(),
   z.object({ kind: z.literal("RETENTION_DELETION"), category: categorySchema, reason: z.string().trim().min(5).max(500) }).strict(),
   z.object({ kind: z.literal("MIGRATION"), targetRegion: z.enum(Object.keys(DATA_REGIONS) as [DataRegion, ...DataRegion[]]), reason: z.string().trim().min(5).max(500) }).strict(),
+  ...subjectRequestInputs,
 ]);
 
 export async function createLifecycleRequest(user: AuthUser, raw: unknown, env: Record<string, string | undefined> = process.env, now = new Date()) {
@@ -151,6 +153,11 @@ export async function createLifecycleRequest(user: AuthUser, raw: unknown, env: 
       return request;
     }
     assertAdmin(user);
+    if (input.kind === "GUARDIAN_EXPORT" || input.kind === "CORRECTION" || input.kind === "SUBJECT_DELETION") {
+      const request = await tx.dataLifecycleRequest.create({ data: await planSubjectRequest(tx, user, input) });
+      await audit(tx, user, "data_lifecycle_requests", request.id, { status: "REQUESTED", kind: request.kind });
+      return request;
+    }
     if (input.kind === "RETENTION_DELETION") {
       const { eligibleIds: _ids, ...plan } = await preview(tx, user.schoolId, input.category, now);
       const request = await tx.dataLifecycleRequest.create({ data: { schoolId: user.schoolId, kind: "RETENTION_DELETION", category: input.category, reason: input.reason, requestedBy: user.userId, plan: plan as unknown as Prisma.InputJsonValue } });
@@ -212,6 +219,11 @@ export async function reviewLifecycleRequest(user: AuthUser, raw: unknown, now =
       const current = await preview(tx, user.schoolId, category, now);
       const deleted = current.eligibleIds.length ? await deleteRecords(tx, category, user.schoolId, current.eligibleIds) : 0;
       data = { ...decided, status: "COMPLETED", completedAt: now, receipt: { category, scheduleVersion: current.scheduleVersion, cutoff: current.cutoff, deleted, held: current.held, categoryHeld: current.categoryHeld, stores: [...RETENTION_CATEGORIES[category].stores], backups: BACKUP_NOTE } };
+    } else if ((SUBJECT_KINDS as readonly string[]).includes(request.kind)) {
+      const outcome = await executeSubjectRequest(tx, user, request, now);
+      data = outcome.kind === "export"
+        ? { ...decided, status: "COMPLETED", completedAt: now, artifact: outcome.artifact, receipt: outcome.receipt, downloadToken: randomBytes(32).toString("hex"), downloadExpiresAt: new Date(now.getTime() + EXPORT_LINK_HOURS * 3_600_000) }
+        : { ...decided, status: "COMPLETED", completedAt: now, receipt: outcome.receipt };
     } else {
       data = { ...decided, status: "APPROVED", receipt: { note: "Approved plan awaits platform execution and reconciliation; no data has moved." } };
     }
@@ -224,10 +236,10 @@ export async function reviewLifecycleRequest(user: AuthUser, raw: unknown, now =
 /** Restricted delivery: only the requester, only with the token, only before expiry, only with current access. */
 export async function downloadExport(user: AuthUser, requestId: string, token: string, now = new Date()) {
   return schoolAiTransaction(user, async tx => {
-    const request = await tx.dataLifecycleRequest.findFirst({ where: { id: requestId, schoolId: user.schoolId, kind: "EXPORT", status: "COMPLETED", requestedBy: user.userId } });
+    const request = await tx.dataLifecycleRequest.findFirst({ where: { id: requestId, schoolId: user.schoolId, kind: { in: ["EXPORT", "GUARDIAN_EXPORT"] }, status: "COMPLETED", requestedBy: user.userId } });
     if (!request || !request.downloadToken || request.downloadToken !== token) throw new ApiError("Export not found.", 404);
     if (!request.downloadExpiresAt || request.downloadExpiresAt <= now) throw new ApiError("This export link has expired. Request a new export.", 410);
-    const stillInScope = await tx.student.findFirst({ where: { AND: [{ id: request.studentId! }, studentScope(user, "any")] }, select: { id: true } });
+    const stillInScope = request.kind === "GUARDIAN_EXPORT" ? canAdministerDataLifecycle(user) : await tx.student.findFirst({ where: { AND: [{ id: request.studentId! }, studentScope(user, "any")] }, select: { id: true } });
     if (!stillInScope) throw new ApiError("Export not found.", 404);
     await audit(tx, user, "data_lifecycle_requests", request.id, { status: "COMPLETED", decision: "DOWNLOADED" });
     return request.artifact;

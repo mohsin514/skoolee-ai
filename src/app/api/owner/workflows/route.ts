@@ -5,6 +5,7 @@ import { operateWorkflow, requireWorkflowOperator } from "@/lib/queue/operations
 import { z } from "zod";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { workflowOperationSchema } from "@/lib/queue/operation-contract";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
   catch { return Response.json({ error: "Cross-site request refused" }, { status: 403, headers: noStore }); }
   const user = await getAuthUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401, headers: noStore });
-  const parsed = workflowOperationSchema.safeParse(await request.json().catch(() => null));
+  const parsed = workflowOperationSchema.safeParse(await readJsonBody(request));
   if (!parsed.success) return Response.json({ error: "Select a valid action and its documented recovery reason." }, { status: 400, headers: noStore });
   try {
     const result = await prisma.$transaction(async tx => {

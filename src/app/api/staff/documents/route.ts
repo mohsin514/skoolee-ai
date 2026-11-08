@@ -6,6 +6,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Staff documents (CV, CNIC, degrees, contracts...).
 // GET    /api/staff/documents?userId= — list (admin only, school-scoped)
@@ -25,7 +27,7 @@ export async function GET(req: NextRequest) {
     const documentId = req.nextUrl.searchParams.get("documentId");
     if (documentId) {
       const document = await prisma.staffDocument.findFirst({
-        where: { id: documentId, userId, user: campusScope(user) },
+        where: { id: documentId, userId, user: { role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] }, ...campusScope(user) } },
         select: { fileKey: true, fileName: true },
       });
       if (!document) throw new ApiError("Document not found", 404);
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
       return privateDownloadResponse(document.fileKey, document.fileName);
     }
     const documents = await prisma.staffDocument.findMany({
-      where: { userId, user: campusScope(user) },
+      where: { userId, user: { role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] }, ...campusScope(user) } },
       select: { id: true, kind: true, fileKey: true, fileName: true, uploadedAt: true },
       orderBy: { uploadedAt: "desc" },
     });
@@ -55,7 +57,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { userId, kind, fileKey, fileName } = body as {
       userId?: string;
       kind?: string;
@@ -69,14 +71,19 @@ export async function POST(req: NextRequest) {
     if (!fileKey || !fileName) throw new ApiError("fileKey and fileName are required", 400);
 
     const staff = await prisma.user.findFirst({
-      where: { id: userId, ...campusScope(user) },
+      where: { id: userId, role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] }, ...campusScope(user) },
       select: { id: true },
     });
     if (!staff) throw new ApiError("Staff member not found", 404);
     const campusId = await resolveCampusId(user, fileKey.split("/")[1]);
     if (!matchesDocumentKey(fileKey, "staff-docs", campusId, staff.id)) throw new ApiError("Document upload does not match this record", 400);
 
-    const doc = await prisma.$transaction(async (tx) => {
+    // SKAI-1663: a retried save of the same upload key replays the committed document. The advisory lock
+    // serialises concurrent same-key saves so only one row, timeline event and audit CREATE is ever written.
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`staff-document:${user.schoolId}:${userId}:${fileKey}`}))`;
+      const existing = await tx.staffDocument.findFirst({ where: { userId, fileKey } });
+      if (existing) return { doc: existing, replay: true };
       const created = await tx.staffDocument.create({
         data: { userId, kind: String(kind).toUpperCase(), fileKey, fileName },
       });
@@ -90,9 +97,9 @@ export async function POST(req: NextRequest) {
         },
       });
       await writeAuditEvent(tx, user, { table: "staff_documents", recordId: created.id, action: "CREATE", campusId, after: { userId, kind: created.kind } });
-      return created;
+      return { doc: created, replay: false };
     });
-    return Response.json({ success: true, data: doc }, { status: 201 });
+    return Response.json({ success: true, data: result.doc, replay: result.replay }, { status: result.replay ? 200 : 201 });
   } catch (error) {
     return errorResponse(error, "[staff/documents] POST failed");
   }

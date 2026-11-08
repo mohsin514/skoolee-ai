@@ -4,17 +4,15 @@ import { DepartmentAppeals } from "@/components/school-ai/exam-studio/department
 import { schoolClock } from "@/lib/timetable/school-clock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DeskPill, DeskRowButton, DeskStats, StatTile } from "@/components/ui/desk";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "@/components/ui/toast";
 import {
-  AlertCircle, ArrowRight, CalendarCheck, CheckCircle2,
+  AlertCircle, ArrowRight, CalendarCheck, CheckCircle2, type LucideIcon,
   ClipboardList, GraduationCap, Sun, UserCheck, Users,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { TeacherPage } from "@/components/teacher/teacher-page";
-import { StatTiles } from "@/components/shared-admin/workspace";
 import {
   DashboardSkeleton, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
@@ -23,8 +21,9 @@ import { TeachingInsights } from "@/components/insights";
 import { ScheduleConflictsBanner } from "@/components/teacher/schedule-conflicts-banner";
 import { TodaySchedule, type TimetableSlot } from "@/components/teacher/today-schedule";
 import { clashingSlotIds } from "@/lib/timetable/clashes";
+import { readTeacherSchedule, scheduleAvailability as availabilityOf } from "@/lib/timetable/teacher-schedule-read";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
-import { localeTag } from "@/lib/locale/package";
+import { useCountLabel, useIsSingular } from "@/components/locale/use-count-label";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { FlagshipCard } from "@/components/ui/flagship";
 import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
@@ -48,6 +47,8 @@ import { TeachingLinePrompt } from "@/components/school-ai/exam-studio/teaching-
 export default function TeacherToday() {
   const router = useRouter();
   const ui = useUiText();
+  const count = useCountLabel();
+  const singular = useIsSingular();
   const locale = useLocale();
   const { data, loading, error, refetch } = useTeacherData();
   const access = useConsoleAccess();
@@ -60,7 +61,6 @@ export default function TeacherToday() {
   const [scheduleAvailability, setScheduleAvailability] = useState<"published" | "unpublished" | "failed">("published");
   const [selfAttendanceStatus, setSelfAttendanceStatus] = useState<"loading" | "unmarked" | "marked" | "failed">("loading");
   const [selfAttendanceTime, setSelfAttendanceTime] = useState<string | null>(null);
-  const [markingSelf, setMarkingSelf] = useState(false);
 
   const [attendanceRetry, setAttendanceRetry] = useState(0);
   useEffect(() => {
@@ -85,38 +85,19 @@ export default function TeacherToday() {
     return () => { active = false; };
   }, [locale.timezone, attendanceRetry]);
 
-  const handleMarkSelfAttendance = useCallback(async () => {
-    setMarkingSelf(true);
-    try {
-      const res = await fetch("/api/teacher-attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ? ui(json.error) : ui("Could not check you in. Please try again."));
-      setSelfAttendanceStatus("marked");
-      setSelfAttendanceTime(json.data?.checkInTime || new Date().toLocaleTimeString(localeTag(locale), { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: locale.timezone }));
-      toast.success(json.alreadyMarked ? ui("You were already checked in today.") : ui("You're checked in for today."));
-    } catch (err) { toast.error(err); }
-    finally { setMarkingSelf(false); }
-  }, [ui, locale]);
-
   useEffect(() => {
     (async () => {
+      // SKAI-1024: the same read and empty-state rule as /teacher/timetable (an empty week is "unpublished").
       try {
-        const res = await fetch("/api/timetable/teacher");
-        const json = await res.json();
-        if (json.success) {
-          setScheduleAvailability(json.data.length ? "published" : "unpublished");
-          const weekday = new Intl.DateTimeFormat("en", { timeZone: locale.timezone, weekday: "short" }).format(new Date());
-          const dayNum = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(weekday) + 1;
-          setTodaySlots(
-            (json.data as TimetableSlot[])
-              .filter((s) => s.dayOfWeek === dayNum && s.slotType === "CLASS" && s.subject)
-              .sort((a, b) => a.periodNumber - b.periodNumber)
-          );
-        } else { setScheduleAvailability("failed"); }
+        const slots = await readTeacherSchedule<TimetableSlot>();
+        setScheduleAvailability(availabilityOf(slots, null));
+        const weekday = new Intl.DateTimeFormat("en", { timeZone: locale.timezone, weekday: "short" }).format(new Date());
+        const dayNum = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(weekday) + 1;
+        setTodaySlots(
+          slots
+            .filter((s) => s.dayOfWeek === dayNum && s.slotType === "CLASS" && s.subject)
+            .sort((a, b) => a.periodNumber - b.periodNumber)
+        );
       } catch { setScheduleAvailability("failed"); }
       finally { setSlotsLoading(false); }
     })();
@@ -170,10 +151,11 @@ export default function TeacherToday() {
           <Button variant="outline" size="sm" onClick={() => setAttendanceRetry(value => value + 1)}>{ui("Try again")}</Button>
         </span>
       ) : (
-        <Button variant="outline" onClick={handleMarkSelfAttendance} loading={markingSelf}>
-          {markingSelf ? null : <UserCheck aria-hidden="true" />}
-          {ui("Check in for today")}
-        </Button>
+        // SKAI-1119: teachers cannot mark their own attendance; admins/principals record it.
+        <Badge variant="outline" className="min-h-11 rounded-xl px-3 text-xs">
+          <UserCheck aria-hidden="true" />
+          {ui("Not marked yet")}
+        </Badge>
       )}
     </span>
   );
@@ -212,7 +194,7 @@ export default function TeacherToday() {
                 tone="warning"
                 icon={CalendarCheck}
                 title={ui("Unmarked attendance")}
-                detail={ui("{0} pupils not marked today", [attendanceStats.unmarked])}
+                detail={ui("{0} not marked today", [count(attendanceStats.unmarked, "pupil")])}
                 onClick={() => router.push(nextRegisterClassId ? `/teacher/attendance?classId=${encodeURIComponent(nextRegisterClassId)}` : "/teacher/attendance")}
               />
             )}
@@ -258,15 +240,14 @@ export default function TeacherToday() {
         <TeachingLinePrompt slots={todaySlots} />
 
         {/* ── Four figures for the day ── */}
-        <StatTiles
-          columns={4}
-          tiles={[
-            { key: "classes", icon: GraduationCap, label: ui("Classes"), value: classHubs.length, tone: "violet" },
-            { key: "students", icon: Users, label: ui("Pupils"), value: data.totalStudents, tone: "emerald" },
-            { key: "present", icon: CheckCircle2, label: ui("Present today"), value: attendanceStats.present, tone: "emerald" },
-            { key: "tests", icon: ClipboardList, label: ui("Open tests"), value: activeExamCount, tone: "violet" },
-          ]}
-        />
+        {/* Each figure opens the screen it counts. */}
+        <DeskStats aria-label={ui("Today")}>
+          <StatTile index={0} icon={GraduationCap} tone="brand" label={singular(classHubs.length) ? ui("Class") : ui("Classes")} value={<bdi>{classHubs.length}</bdi>} valueProps={{ "data-count": "classes" }} />
+          <StatTile index={1} icon={Users} tone="info" label={singular(data.totalStudents) ? ui("Pupil") : ui("Pupils")} value={<bdi>{data.totalStudents}</bdi>} valueProps={{ "data-count": "students" }} />
+          <StatTile index={2} icon={CheckCircle2} tone="success" label={ui("Present today")} value={<bdi>{attendanceStats.present}</bdi>} valueProps={{ "data-count": "present" }}
+            hint={attendanceStats.unmarked > 0 ? ui("{0} not marked today", [count(attendanceStats.unmarked, "pupil")]) : undefined} />
+          <StatTile index={3} icon={ClipboardList} tone={missingMarksTotal > 0 ? "warning" : "brand"} label={ui("Open tests")} value={<bdi>{activeExamCount}</bdi>} valueProps={{ "data-count": "tests" }} />
+        </DeskStats>
 
         {/* ── How the term is going, under what needs doing today ── */}
         <TeachingInsights
@@ -286,39 +267,37 @@ function toMinutes(hhmm: string) {
   return (h || 0) * 60 + (m || 0);
 }
 
-/** A one-line "this needs you" row. Reads faster than a card and costs less. */
+/** A one-line "this needs you" row: a toned desk row with its count as the trailing pill. */
 function AlertRow({
   tone,
-  icon: Icon,
+  icon,
   title,
   detail,
   onClick,
 }: {
   tone: "warning" | "danger";
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   title: string;
   detail: string;
   onClick: () => void;
 }) {
-  const chips = {
-    warning: "bg-status-warning-surface text-status-warning-text",
-    danger: "bg-status-error-surface text-status-error-text",
-  } as const;
+  const ui = useUiText();
   return (
-    <Button variant="choice"
-      type="button"
+    <DeskRowButton
+      tone={tone}
+      icon={icon}
       onClick={onClick}
-      className="group sk-nudge-trigger w-full justify-start gap-3 p-3 text-start"
+      className="group sk-nudge-trigger"
+      trailing={
+        <span className="inline-flex items-center gap-2">
+          <DeskPill tone={tone}>{tone === "danger" ? ui("Needs you") : ui("Today")}</DeskPill>
+          {/* Points forward in the reading direction and leans that way on hover. */}
+          <ArrowRight aria-hidden="true" className="sk-nudge size-4 shrink-0 text-ink-subtle group-hover:text-primary rtl:rotate-180" />
+        </span>
+      }
     >
-      <span aria-hidden="true" className={cn("sk-icon-tile flex size-9 shrink-0 items-center justify-center rounded-xl", chips[tone])}>
-        <Icon className="size-4" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold leading-snug text-ink-strong">{title}</span>
-        <span className="block truncate text-xs font-normal text-ink-muted">{detail}</span>
-      </span>
-      {/* Points forward in the reading direction and leans that way on hover. */}
-      <ArrowRight aria-hidden="true" className="sk-nudge size-4 shrink-0 text-ink-subtle group-hover:text-primary rtl:rotate-180" />
-    </Button>
+      <span className="block text-sm font-semibold leading-snug text-ink-strong">{title}</span>
+      <span className="block text-xs font-normal text-ink-muted">{detail}</span>
+    </DeskRowButton>
   );
 }

@@ -12,7 +12,7 @@ import { assignAsset, budgetPosition, closeService, createBudget, decideRequest,
 // the order; returns reopen the remainder; invoices are matched; assets get tags, custodians and
 // service history.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `purchasing-${randomUUID()}`, campusId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid` });
 const teacher = actor("TEACHER"), campusAdmin = actor("CAMPUS_ADMIN"), principal = actor("PRINCIPAL"), accountant = actor("ACCOUNTANT");
@@ -29,7 +29,7 @@ before(async () => {
   ids.supplier = (await raw.supplier.create({ data: { schoolId, campusId, name: "Synthetic Supplies" } })).id;
 });
 after(async () => {
-  await raw.auditLog.deleteMany({ where: { schoolId } });
+  // Audit rows are append-only until retention ends (20261017100000_audit_log_append_only); they stay with the synthetic school.
   for (const m of [raw.assetService, raw.schoolAsset, raw.supplierInvoice, raw.goodsReceipt, raw.purchaseRequest, raw.purchaseBudget]) await (m as unknown as { deleteMany: (a: object) => Promise<unknown> }).deleteMany({ where: { schoolId } });
   await raw.school.deleteMany({ where: { id: schoolId } }); await raw.$disconnect(); await prisma.$disconnect();
 });
@@ -60,7 +60,15 @@ test("SD3: the campus's only campus admin may decide their own request, with a t
   const decided = await raw.purchaseRequest.findUniqueOrThrow({ where: { id: own.id } });
   assert.equal(decided.status, "APPROVED");
   assert.ok((decided.history as Array<{ selfApproved?: boolean }>).some((entry) => entry.selfApproved === true), "the history records a self-approval");
-  assert.equal(await raw.auditLog.count({ where: { schoolId, recordId: own.id, tableName: "purchase_requests" } }), 1);
+  // SKAI-1773: the decision is audited once (the create keeps its own row; the submit is a bulk "*" row).
+  const rows = await raw.auditLog.findMany({ where: { schoolId, tableName: "purchase_requests", recordId: { in: [own.id, "*"] } } });
+  const decision = rows.filter((row) => {
+    const value = row.newValue as { status?: string; where?: { id?: string; version?: number } } | null;
+    return (row.recordId === own.id && value?.status === "APPROVED") || (row.recordId === "*" && value?.where?.id === own.id && value.where.version === 2);
+  });
+  assert.equal(decision.length, 1);
+  const entry = decision[0].newValue as { status: string; selfApproved: boolean; reason: string };
+  assert.deepEqual([entry.status, entry.selfApproved, entry.reason, decision[0].userId], ["APPROVED", true, "Only administrator on this campus this term", campusAdmin.userId]);
 });
 
 test("changing an approved order's price withdraws the approval", async () => {

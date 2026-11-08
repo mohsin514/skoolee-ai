@@ -8,10 +8,12 @@ import type { Language } from "../../src/lib/locale/package";
 import { publicationCopy } from "../../src/components/school-ai/school-operations-publish-copy";
 import { riskCopy } from "../../src/components/school-ai/school-operations-risk-copy";
 import { lifecycleCopy } from "../../src/components/school-ai/school-operations-lifecycle-copy";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated School AI browser fixture.");
-const db = new PrismaClient(), schoolId = `ai-operations-browser-${randomUUID()}`, origin = "http://localhost:3106";
+const db = new PrismaClient(), schoolId = `ai-operations-browser-${randomUUID()}`, origin = SCHOOL_AI_ORIGIN;
 let campusId = "", adminId = "", teacherId = "", coverId = "", classId = "", subjectId = "", roomId = "", studentId = "";
 test.beforeAll(async () => { await db.school.create({ data: { id: schoolId, name: "Synthetic operations QA", slug: schoolId, regId: schoolId, city: "Test", contactEmail: `${schoolId}@example.invalid`, status: "ACTIVE", plan: "PRO" } }); });
 test.afterAll(async () => { await db.schoolAiSubstituteDuty.deleteMany({ where: { schoolId } }); await db.schoolAiExecution.deleteMany({ where: { schoolId } }); await db.attendance.deleteMany({ where: { schoolId } }); await db.studentEnrollment.deleteMany({ where: { schoolId } }); await db.school.delete({ where: { id: schoolId } }); await db.$disconnect(); });
@@ -24,7 +26,7 @@ test.beforeEach(async ({ context }) => {
   await db.classRoom.create({ data: { id: roomId, schoolId, campusId, roomNumber: "OPS-101", capacity: 30 } });
   await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Observed learner", rollNo: "1", gender: "OTHER", enrollmentDate: new Date("2026-01-01Z") } });
   await db.periodDefinition.createMany({ data: [{ periodNumber: 1, startTime: "08:00", endTime: "08:40" }, { periodNumber: 2, startTime: "08:40", endTime: "09:20" }].map(item => ({ ...item, schoolId, campusId, timeType: "CLASS" })) });
-  const token = await new SignJWT({ userId: adminId, schoolId, campusId, role: "ADMIN", email: `${adminId}@example.invalid`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  const token = await new SignJWT({ userId: adminId, schoolId, campusId, role: "ADMIN", email: `${adminId}@example.invalid`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
   await db.loginSession.create({ data: { userId: adminId, schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
   await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]);
 });

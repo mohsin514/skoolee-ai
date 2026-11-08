@@ -1,7 +1,7 @@
 "use client";
 
 import { PathwayPanel } from "@/components/pathways/pathway-panel";
-import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { DeskFilterStatus, DeskPill, DeskStats, StatTile, type DeskTone } from "@/components/ui/desk";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import {
-  CalendarCheck, Download, FileText, LayoutGrid, MessageCircle, MoreHorizontal, Phone, Table2, Users, X,
+  CalendarCheck, CalendarX2, CircleDashed, Download, FileText, LayoutGrid, MessageCircle, MoreHorizontal, Phone, Plane, Table2, UserCheck, Users, X,
 } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import {
@@ -187,30 +187,21 @@ export default function TeacherStudentsPage() {
           </span>
         </WorkspaceToolbar>
 
-        {/* Today's roll call as filter chips. The directory already knows who is
-            in; making that clickable turns "who do I chase up?" into one tap. */}
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-labelledby="today-filter-label">
-          <span id="today-filter-label" className="sk-eyebrow">{ui("Today")}</span>
-          {/* The dot carries each status colour; the label still says it. */}
+        {/* Today's roll call as filter tiles. The directory already knows who is
+            in; making each count a toggle turns "who do I chase up?" into one tap. */}
+        <DeskStats role="group" aria-label={ui("Today")}>
           {([
-            ["", ui("Everyone"), allStudents.length, null],
-            ["PRESENT", ui("Present"), todayCounts.PRESENT, "bg-status-success-text"],
-            ["ABSENT", ui("Absent"), todayCounts.ABSENT, "bg-status-error-text"],
-            ["LEAVE", ui("Leave"), todayCounts.LEAVE, "bg-status-warning-text"],
-            ["UNMARKED", ui("Unmarked"), todayCounts.UNMARKED, "bg-ink-faint"],
-          ] as [string, string, number, string | null][]).map(([key, label, count, dot]) => (
-            <Button className="justify-start" variant="choice" size="sm"
-              key={key || "all"}
-              type="button"
-              onClick={() => setTodayFilter(key)}
-              aria-pressed={todayFilter === key}
-            >
-              {dot ? <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", dot)} /> : null}
-              {label}
-              <bdi data-numeric className="tabular-nums text-ink-subtle">{count}</bdi>
-            </Button>
+            ["PRESENT", ui("Present"), todayCounts.PRESENT, "success", UserCheck],
+            ["ABSENT", ui("Absent"), todayCounts.ABSENT, "danger", CalendarX2],
+            ["LEAVE", ui("Leave"), todayCounts.LEAVE, "warning", Plane],
+            ["UNMARKED", ui("Unmarked"), todayCounts.UNMARKED, "neutral", CircleDashed],
+          ] as [string, string, number, DeskTone, typeof Users][]).map(([key, label, count, tone, icon], index) => (
+            <StatTile key={key} index={index} icon={icon} tone={tone} label={label} value={<bdi>{count}</bdi>}
+              valueProps={{ "data-count": key.toLowerCase() }}
+              onSelect={() => setTodayFilter((current) => (current === key ? "" : key))} selected={todayFilter === key} />
           ))}
-        </div>
+        </DeskStats>
+        <DeskFilterStatus shown={filtered.length} total={allStudents.length} onClear={() => { setSearch(""); setClassFilter(""); setTodayFilter(""); }} />
 
         {/* A class of forty is a scanning job, not a browsing one — the table
             puts roll number, grade and attendance in comparable columns. */}
@@ -431,7 +422,7 @@ export default function TeacherStudentsPage() {
  * Today's attendance, rendered where the teacher is already looking. Every register status has its own word
  * (late, part day and excused days are not "Unmarked").
  */
-const TODAY_TONE: Record<string, { label: string; variant: NonNullable<BadgeProps["variant"]> }> = {
+const TODAY_TONE: Record<string, { label: string; variant: DeskTone }> = {
   PRESENT: { label: "In today", variant: "success" },
   LATE: { label: "Late today", variant: "warning" },
   PARTIAL: { label: "Part day", variant: "info" },
@@ -457,9 +448,9 @@ function TodayChip({ status }: { status?: string | null }) {
   const ui = useUiText();
   const tone = status ? TODAY_TONE[status] : null;
   return (
-    <Badge variant={tone?.variant ?? "neutral"} dot>
+    <DeskPill tone={tone?.variant ?? "neutral"}>
       {todayLabel(ui, status)}
-    </Badge>
+    </DeskPill>
   );
 }
 

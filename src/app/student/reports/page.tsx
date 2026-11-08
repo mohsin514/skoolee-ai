@@ -7,6 +7,7 @@ import { toast } from "@/components/ui/toast";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { downloadReportCardPdf } from "@/lib/download";
 import { StatCard } from "@/components/student/student-ui";
+import { DeskStats } from "@/components/ui/desk";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -56,12 +57,12 @@ export default function ReportsPage() {
       <div className="space-y-3">
         {user.reportCards.length > 0 ? (
           <>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <DeskStats>
               <StatCard icon={FileText} label={ui("Report cards")} value={summary.total} sub={ui("Issued")} delay={40} />
               <StatCard icon={GraduationCap} label={ui("Best score")} value={`${summary.best}%`} sub={summary.best >= 80 ? ui("Excellent") : summary.best >= 60 ? ui("Good") : ui("Needs focus")} tone="green" ring={summary.best} delay={80} />
               <StatCard icon={Award} label={ui("Average")} value={`${summary.average}%`} sub={ui("Across {0} cards", [summary.total])} tone="purple" ring={summary.average} delay={120} />
               <StatCard icon={CheckCircle2} label={ui("Published")} value={summary.published} sub={summary.draft ? ui("{0} still in draft", [summary.draft]) : ui("All released")} tone={summary.draft ? "amber" : "green"} delay={160} />
-            </div>
+            </DeskStats>
 
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {user.reportCards.map((report: any, index: number) => (
@@ -90,7 +91,9 @@ function ReportCard({ report, index }: { report: any; index: number }) {
   const download = async () => {
     setDownloading(true);
     try {
-      await downloadReportCardPdf(report.id, `${(report.exam?.title || "report-card").replace(/[^a-z0-9]+/gi, "-")}.pdf`);
+      // SKAI-1489: an Arabic/Urdu-only title has no ASCII letters; fall back instead of "-.pdf".
+      const slug = (report.exam?.title ?? "").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "");
+      await downloadReportCardPdf(report.id, `${slug ? `report-card-${slug}` : "report-card"}.pdf`);
     } catch {
       toast.error(ui("Could not download this report card. Please try again."));
     } finally {
@@ -145,12 +148,13 @@ function ReportCard({ report, index }: { report: any; index: number }) {
         </div>
         <p className="text-xs text-ink-muted" dir="auto">{report.language === "ar" ? "النسخة المنشورة" : report.language === "ur" ? "شائع شدہ نسخہ" : "Published version"} <bdi className="font-semibold text-ink">v{report.version}</bdi></p>
         {report.correctionReason && <Alert tone="info" compact live="off" dir="auto">{report.language === "ar" ? "تصحيح:" : report.language === "ur" ? "تصحیح:" : "Correction:"} {report.correctionReason}</Alert>}
-        {report.remarksEn ? (
+        {/* SKAI-1553: show the remark in the report's own language, as Parent Results does. */}
+        {reportRemarks(report) ? (
           <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-3">
             <p className="sk-eyebrow mb-1">
               {ui("Teacher remarks")}
             </p>
-            <p className="text-sm leading-relaxed text-ink" dir="auto">{report.remarksEn}</p>
+            <p className="text-sm leading-relaxed text-ink" dir="auto">{reportRemarks(report)}</p>
           </div>
         ) : (
           <p className="text-xs text-ink-subtle">{ui("No remarks provided.")}</p>
@@ -159,6 +163,8 @@ function ReportCard({ report, index }: { report: any; index: number }) {
           <Button variant="outline" size="sm" type="button" loading={downloading} onClick={() => void download()} data-report-download={report.id}>
             {downloading ? null : <Download aria-hidden="true" />}
             {ui("Download")}
+            {/* SKAI-1557: each button names its own report for screen readers. */}
+            <span className="sr-only">: <bdi>{report.exam?.title || ui("Report card")}</bdi></span>
           </Button>
         ) : null}
       </div>
@@ -166,3 +172,7 @@ function ReportCard({ report, index }: { report: any; index: number }) {
   );
 }
 
+function reportRemarks(report: { language?: string | null; remarksEn?: string | null; remarksAr?: string | null; remarksUr?: string | null }) {
+  const own = report.language === "ar" ? report.remarksAr : report.language === "ur" ? report.remarksUr : report.remarksEn;
+  return own || report.remarksEn || report.remarksAr || report.remarksUr || "";
+}

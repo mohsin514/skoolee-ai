@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { requireAuthUser, errorResponse, ApiError } from "@/lib/api/scope";
 import {
+  assertPackageFitsSchool,
   checkoutAmount,
   createCheckoutIntent,
   onboardingCheckoutSchema,
@@ -17,13 +18,14 @@ import { COMMERCIAL_CONTRACT, encodePlanContractMetadata } from "@/config/commer
 import { COMMERCIAL_CATALOG_VERSION, type BillingPeriod } from "@/config/plans";
 import { getPaymentConfig } from "@/lib/payments/gateway";
 import { getPriceId, stripe, verifyStripePrice } from "@/lib/stripe/server";
-import { createSafePayOrder } from "@/lib/payments/safepay";
+import { resolvePaymentProvider } from "@/lib/payments/provider";
 import { PAY_LATER_PROVIDER, SALES_ASSISTED_PROVIDER, safePayAvailable, automatedCheckoutAvailable, regionalPaymentMethods, type OnboardingPaymentMethod } from "@/lib/billing/payment-routes";
 import { TEST_CHECKOUT_PROVIDER, safePaySandboxUrl, testCheckoutEnabled } from "@/lib/payments/test-checkout";
 
 import { saveSubscriptionRequest } from "@/lib/billing/lifecycle";
 import { getPackageCopy } from "@/app/onboarding/package/copy";
 import type { PlanType } from "@/types";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -132,7 +134,7 @@ export async function POST(req: NextRequest) {
     return await runWithTenantContext(setupTenantContext(user), async () => {
     await assertSetupPurchaser(user);
 
-    const parsed = onboardingCheckoutSchema.safeParse(await req.json());
+    const parsed = onboardingCheckoutSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
@@ -141,6 +143,8 @@ export async function POST(req: NextRequest) {
     const plan = parsed.data.plan;
     const planDetails = billing.plans[plan];
     const contract = packageContract(plan, planDetails);
+    const activeCampuses = await prisma.campus.count({ where: { schoolId: user.schoolId, archivedAt: null } });
+    assertPackageFitsSchool(plan, planDetails, { currentPlan: billing.school.plan, activeCampuses });
     let intent = await createCheckoutIntent(user, parsed.data, contract);
     activeIntentId = intent.id;
     if (["FAILED", "CANCELLED"].includes(intent.status)) {
@@ -339,20 +343,14 @@ export async function POST(req: NextRequest) {
         return Response.json({ success: true, intentId: intent.id, status: latest?.status ?? "PENDING", returnStep: intent.returnStep });
       }
 
-      const result = await createSafePayOrder(
-        {
-          merchantId: process.env.SAFEPAY_MERCHANT_ID!,
-          apiKey: process.env.SAFEPAY_API_KEY!,
-          secretKey: process.env.SAFEPAY_SECRET_KEY!,
-          returnUrl: `${statusUrl}&return=provider`,
-          sandbox: process.env.SAFEPAY_PRODUCTION !== "true",
-        },
-        {
-          amount: (periodPrice(selectedContract.price, parsed.data.billingPeriod as BillingPeriod) ?? 0) * 100,
+      // SafePay receives the same paisa amount as before; the adapter divides minor units by 100.
+      const result = await resolvePaymentProvider("PKR")!.createCheckout({
+          amountMinor: Math.round((periodPrice(selectedContract.price, parsed.data.billingPeriod as BillingPeriod) ?? 0) * 100 * 100),
+          currency: "PKR",
           orderRef,
           description: `Subscription for ${selectedContract.name} (${parsed.data.billingPeriod})`,
-          customerEmail: user.email,
-          customerName: user.fullName,
+          returnUrl: `${statusUrl}&return=provider`,
+          customer: { email: user.email, name: user.fullName },
           metadata: {
             checkoutIntentId: intent.id,
             schoolId: user.schoolId,
@@ -360,14 +358,13 @@ export async function POST(req: NextRequest) {
             billingPeriod: parsed.data.billingPeriod,
             commercialContract: encodePlanContractMetadata(selectedContract),
           },
-        },
-      );
-      if (!result.success || !result.redirectUrl) {
-        await prisma.onboardingCheckoutIntent.update({
-          where: { id: intent.id },
-          data: { status: "PENDING_SETTLEMENT", failureReason: result.error || "SafePay checkout creation is being reconciled." },
+      });
+      if (!result.ok) {
+        await prisma.onboardingCheckoutIntent.updateMany({
+          where: { id: intent.id, provider: "SAFEPAY", providerReference: orderRef, status: "CREATING_CHECKOUT" },
+          data: { status: "PENDING_SETTLEMENT", failureReason: result.message || "SafePay checkout creation is being reconciled." },
         });
-        throw new ApiError(result.error || "SafePay checkout could not be started.", 502);
+        throw new ApiError(result.message || "SafePay checkout could not be started.", 502);
       }
       await prisma.onboardingCheckoutIntent.update({
         where: { id: intent.id },
@@ -376,10 +373,16 @@ export async function POST(req: NextRequest) {
       return Response.json({ success: true, intentId: intent.id, status: "CHECKOUT_PENDING", url: result.redirectUrl });
     }
 
-    await prisma.onboardingCheckoutIntent.update({
-      where: { id: intent.id },
+    // SKAI-157: claim only an untouched intent, so a concurrent retry that already opened an online checkout
+    // is never switched to bank transfer underneath a payment in flight.
+    const bankClaim = await prisma.onboardingCheckoutIntent.updateMany({
+      where: { id: intent.id, provider: { in: ["NONE", "BANK_TRANSFER"] }, status: { in: ["PENDING", "PENDING_SETTLEMENT"] } },
       data: { provider: "BANK_TRANSFER", providerReference: intent.id, status: "PENDING_SETTLEMENT" },
     });
+    if (!bankClaim.count) {
+      const latest = await prisma.onboardingCheckoutIntent.findUnique({ where: { id: intent.id } });
+      return Response.json({ success: true, intentId: intent.id, status: latest?.status ?? "PENDING", url: latest?.checkoutUrl ?? undefined, returnStep: intent.returnStep });
+    }
     return Response.json({
       success: true,
       intentId: intent.id,

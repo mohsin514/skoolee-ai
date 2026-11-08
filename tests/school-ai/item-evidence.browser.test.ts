@@ -16,7 +16,7 @@ import { assessmentFixture } from "./assessment-fixture";
 // SKO-422 on the isolated app: the item-evidence API is staff-only and same-origin; the curriculum
 // workspace shows denominators and not-counted states before any interpretation, in EN and AR.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.ITEM_TEST_APP || "http://localhost:3108";
 const evidence = process.env.ITEM_EVIDENCE_DIR || "/tmp/sko422-evidence";
 const db = new PrismaClient(), password = "SyntheticItems422!";

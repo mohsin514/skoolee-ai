@@ -30,13 +30,15 @@ import {
   GraduationCap, Layers, Zap,
   type LucideIcon,
 } from "lucide-react";
-import { Modal } from "@/components/ui/modal";
+import { Modal, type ModalTone } from "@/components/ui/modal";
 import { PLANS, PLAN_ORDER, getPlanLimits } from "@/config/plans";
 import type { PlanType } from "@/types";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 
 // ─── shared bits ─────────────────────────────────────────
@@ -72,10 +74,12 @@ function makePassword(len = 14) {
  * another dialog unlocked the page underneath both of them.
  */
 function Shell({
-  title, subtitle, icon: Icon, onClose, children, wide, footer,
+  title, subtitle, icon: Icon, onClose, children, wide, footer, tone,
 }: {
   title: string; subtitle: string; icon: LucideIcon; onClose: () => void;
   children: React.ReactNode; wide?: boolean; footer?: React.ReactNode;
+  /** `emerald` for the completion step (credentials handed over); the default plum for the form. */
+  tone?: ModalTone;
 }) {
   const t = useUiText();
   return (
@@ -83,6 +87,7 @@ function Shell({
       title={t(title)}
       subtitle={t(subtitle)}
       icon={Icon}
+      tone={tone}
       eyebrow={t("Provisioning")}
       size={wide ? "md" : "sm"}
       onClose={onClose}
@@ -234,6 +239,22 @@ export function ProvisionSchoolModal({ onClose, onCreated, prefill, workflowHand
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Handoff | null>(null);
 
+  const schoolDraftValues = { ...form, kind: kind ?? "" };
+  const schoolDraftBaseline = useMemo(() => ({ ...schoolDraftValues }), []);
+  const schoolDraft = useFormDraft({
+    record: `owner:provision-school:${workflowHandoffId ?? "new"}`,
+    schema: 1,
+    values: schoolDraftValues,
+    baseline: schoolDraftBaseline,
+    fields: ["schoolName", "city", "contactEmail", "ownerName", "ownerEmail", "phone", "campusName", "campusCity", "board", "address", "plan", "status", "kind"] as const,
+    enabled: !done,
+    apply: (next) => {
+      const { kind: nextKind, ...nextForm } = next;
+      setForm(nextForm as typeof form);
+      setKind(nextKind === "GROUP" || nextKind === "STANDALONE" ? nextKind : null);
+    },
+  });
+
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const planDef = PLANS[form.plan];
   // R7: numbers in the viewer's language and numbering system (locale tag), never the bare language.
@@ -280,7 +301,7 @@ export function ProvisionSchoolModal({ onClose, onCreated, prefill, workflowHand
 
   if (done) {
     return (
-      <Shell title="School provisioned" subtitle="Hand these credentials to the school owner." icon={Building2} onClose={onClose}>
+      <Shell title="School provisioned" subtitle="Hand these credentials to the school owner." icon={Building2} tone="emerald" onClose={onClose}>
         <CredentialHandoff data={done} onDone={onClose} />
       </Shell>
     );
@@ -310,6 +331,7 @@ export function ProvisionSchoolModal({ onClose, onCreated, prefill, workflowHand
       wide
     >
       <div className="space-y-6 p-6">
+        <DraftRecovery recordLabel={t("School provision")} draft={schoolDraft} saving={busy} excluded={t("Passwords are never stored in browser drafts.")} />
         {error && <ErrorBanner message={error} />}
 
         <fieldset className="space-y-3">
@@ -531,7 +553,7 @@ export function AddUserModal({
 
   if (done) {
     return (
-      <Shell title="User created" subtitle="Hand these credentials over securely." icon={UserPlus} onClose={onClose}>
+      <Shell title="User created" subtitle="Hand these credentials over securely." icon={UserPlus} tone="emerald" onClose={onClose}>
         <CredentialHandoff data={done} onDone={onClose} />
       </Shell>
     );

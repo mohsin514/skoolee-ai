@@ -9,6 +9,7 @@ import { processingWorkflow } from "../lib/jobs/processing";
 import { reportDeliveryWorkflow } from "../lib/queue/report-delivery";
 import { announcementDeliveryWorkflow } from "../lib/queue/announcement-delivery";
 import { PrismaClient } from "@prisma/client";
+import { pooledDatabaseUrl } from "../lib/db/pool-url";
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import { consume, dispatch, type Reference } from "../lib/queue/outbox";
@@ -17,7 +18,7 @@ import { expireSupportGrants } from "../lib/owner/support-expiry";
 import { expireSchoolAiAttempts, type ExamExpiryCursor } from "../lib/school-ai/exam-expiry";
 
 // Dedicated service process: no request session, no inherited tenant, no dotenv loading.
-const db = new PrismaClient();
+const db = new PrismaClient({ datasourceUrl: pooledDatabaseUrl(process.env.DATABASE_URL) });
 const connection = new IORedis(process.env.REDIS_URL || "redis://127.0.0.1:6379", { maxRetriesPerRequest: null });
 const producerConnection = new IORedis(process.env.REDIS_URL || "redis://127.0.0.1:6379", { maxRetriesPerRequest: 1, enableOfflineQueue: false });
 const queue = new Queue<Reference>("durable-workflows", { connection: producerConnection });

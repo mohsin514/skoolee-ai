@@ -6,7 +6,8 @@ import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Alert } from "@/components/ui/alert";
-import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
+import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskStats, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { EmptyState } from "@/components/ui/empty-state";
 import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -19,6 +20,7 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
 /**
  * My leave — the member of staff's own leave: balances, the next time off, and request history,
@@ -45,7 +47,7 @@ type LeaveRequest = {
   leaveType?: { name?: string | null } | null;
 };
 
-const STATUS_BADGES: Record<string, NonNullable<BadgeProps["variant"]>> = {
+const STATUS_TONES: Record<string, DeskTone> = {
   PENDING: "warning",
   APPROVED: "success",
   REJECTED: "danger",
@@ -174,9 +176,9 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
         }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) {
+      if (!res.ok || !isApiOk(json)) {
         // A refused request is a form problem the member of staff can fix: it stays in the dialog.
-        setApplyError(json.error ? ui(json.error) : ui("Could not send your leave request. Please try again."));
+        setApplyError(ui(readApiError(json, "Could not send your leave request. Please try again.")));
         return;
       }
       toast.success(ui("Leave request sent for approval."));
@@ -199,7 +201,7 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
         body: JSON.stringify({ id }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) throw new Error(json.error || ui("Could not withdraw the request. Please try again."));
+      if (!res.ok || !isApiOk(json)) throw new Error(readApiError(json, ui("Could not withdraw the request. Please try again.")));
       toast.success(ui("Leave request withdrawn."));
       await load();
     } catch (error) {
@@ -222,8 +224,9 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
   }, [requests]);
 
   const statuses = useMemo(() => [...new Set(requests.map((r) => r.status).filter(Boolean))], [requests]);
+  // Pending requests lead: they are the ones still waiting on the approver (or on a withdrawal).
   const visibleRequests = useMemo(
-    () => (statusFilter ? requests.filter((r) => r.status === statusFilter) : requests),
+    () => urgencyFirst(statusFilter ? requests.filter((r) => r.status === statusFilter) : requests, (r) => (r.status === "PENDING" ? 0 : 1)),
     [requests, statusFilter],
   );
 
@@ -339,28 +342,31 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
               <h2 id="my-leave-history" className="flex items-center gap-2 text-base font-bold tracking-tight text-ink-strong">
                 <Plane aria-hidden="true" className="size-4 text-primary" /> {ui("Request history")}
               </h2>
-              <div role="group" aria-label={ui("Filter requests by status")} className="flex flex-wrap items-center gap-1.5">
-                {statuses.length > 1 ? (
-                  ["", ...statuses].map((st) => (
-                    <Button
-                      variant="choice"
-                      size="sm"
-                      key={st || "all"}
-                      type="button"
-                      onClick={() => setStatusFilter(st)}
-                      aria-pressed={statusFilter === st}
-                    >
-                      {st ? statusLabel(ui, st) : ui("All")}
-                      {st === "PENDING" && pendingCount > 0 ? <bdi className="ms-1 tabular-nums opacity-70">{number(pendingCount)}</bdi> : null}
-                    </Button>
-                  ))
-                ) : (
-                  <Badge variant={pendingCount > 0 ? "warning" : "neutral"} size="sm" dot data-numeric>
-                    {ui("{0} pending", [number(pendingCount)])}
-                  </Badge>
-                )}
-              </div>
+              {statuses.length > 1 ? null : (
+                <Badge variant={pendingCount > 0 ? "warning" : "neutral"} size="sm" dot data-numeric>
+                  {ui("{0} pending", [number(pendingCount)])}
+                </Badge>
+              )}
             </div>
+            {statuses.length > 1 ? (
+              <div className="mb-4 space-y-2">
+                <DeskStats role="group" aria-label={ui("Filter requests by status")}>
+                  {["PENDING", "APPROVED", "REJECTED", "CANCELLED"].filter((st) => statuses.includes(st)).map((st, index) => (
+                    <StatTile
+                      key={st}
+                      index={index}
+                      icon={STATUS_ICONS[st] || Clock}
+                      tone={STATUS_TONES[st]}
+                      value={<bdi className="tabular-nums">{number(requests.filter((r) => r.status === st).length)}</bdi>}
+                      label={statusLabel(ui, st)}
+                      selected={statusFilter === st}
+                      onSelect={() => setStatusFilter(statusFilter === st ? "" : st)}
+                    />
+                  ))}
+                </DeskStats>
+                <DeskFilterStatus shown={visibleRequests.length} total={requests.length} onClear={() => setStatusFilter("")} />
+              </div>
+            ) : null}
 
             <div className="space-y-3">
               {requests.length === 0 ? (
@@ -388,13 +394,11 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
                   }
                 />
               ) : (
-                visibleRequests.map((r) => {
+                <ul className="space-y-3">{visibleRequests.map((r) => {
                   const Icon = STATUS_ICONS[r.status] || Clock;
                   return (
-                    <div key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border border-border-subtle bg-card p-4" data-leave-request={r.id}>
-                      <div aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary">
-                        <Icon className="size-5" />
-                      </div>
+                    <li key={r.id} className={`${deskRow} flex flex-wrap items-center gap-x-4 gap-y-3`} data-tone={STATUS_TONES[r.status] || "warning"} data-leave-request={r.id}>
+                      <DeskRowIcon icon={Icon} />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-ink-strong">
                           <bdi>{r.leaveType?.name || ui("Leave")}</bdi> · <span className="tabular-nums">{days(r.days)}</span>
@@ -407,9 +411,9 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
                           <p className="mt-1 break-words text-xs font-medium text-status-error-text">{ui("Reviewer note: {0}", [r.reviewNote])}</p>
                         ) : null}
                       </div>
-                      <Badge variant={STATUS_BADGES[r.status] || STATUS_BADGES.PENDING} dot className="shrink-0">
+                      <DeskPill tone={STATUS_TONES[r.status] || "warning"} className="shrink-0">
                         {statusLabel(ui, r.status)}
-                      </Badge>
+                      </DeskPill>
                       {r.status === "PENDING" ? (
                         <Button
                           variant="outline"
@@ -422,9 +426,9 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
                           {ui("Withdraw")}
                         </Button>
                       ) : null}
-                    </div>
+                    </li>
                   );
-                })
+                })}</ul>
               )}
             </div>
           </section>
@@ -433,6 +437,7 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
 
       {showApply ? (
         <Modal
+          icon={Plane}
           title={ui("Apply for leave")}
           eyebrow={ui("My leave")}
           size="sm"

@@ -3,8 +3,10 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  CheckCircle2, Circle, ClipboardCheck, Coins, FlaskConical, Info, ListChecks, Rocket, Users, Building2, type LucideIcon,
+  CheckCircle2, Circle, ClipboardCheck, Coins, FlaskConical, Info, ListChecks, Rocket, Users, Building2, UserX, Wallet, Inbox, type LucideIcon,
 } from "lucide-react";
+import { DeskPill, DeskStats, StatTile } from "@/components/ui/desk";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -16,10 +18,17 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
 import { FlagshipChip } from "@/components/ui/flagship";
 import { ForwardArrow } from "@/components/onboarding/ForwardArrow";
-import { useLocale } from "@/components/locale/LocaleProvider";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { getReadinessCopy } from "./readiness-copy";
 import { getLaunchCopy } from "./readiness-launch-copy";
 import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
+import { SetupAreasGuide, type SetupArea } from "./SetupAreasGuide";
+import { TaskTracking, type TaskAction, type TrackedTask } from "./TaskTracking";
+import { setupAreaFromTaskKey } from "@/lib/onboarding/setup-areas";
+import type { SetupProgress as ProgressData } from "@/lib/readiness/progress";
+import { SetupProgress } from "./SetupProgress";
+import { getSetupProgressCopy } from "./setup-progress-copy";
+import { rehearsalStepsFor } from "@/lib/readiness/checks";
 
 /**
  * School readiness as "launch control": a hero with the share of required checks done, a spotlight on the
@@ -33,21 +42,25 @@ import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
  * hero heading drops to h2. Feedback follows R4: a load failure is an inline ErrorState with retry, an action
  * result is a toast, and go-live approval waits behind a ConfirmAction.
  */
-type Check = { id: string; required: boolean; passed: boolean; evidence: Record<string, number | boolean>; href: string | null; delegated?: boolean; handledElsewhere?: boolean };
-type Task = { id: string; key: string; title: string; ownerId: string | null; status: "OPEN" | "DONE" | "DEFERRED" };
+type Check = { id: string; required: boolean; later?: boolean; passed: boolean; evidence: Record<string, number | boolean>; href: string | null; delegated?: boolean; handledElsewhere?: boolean };
+type Task = TrackedTask;
 type Batch = { id: string; kind: string; state: string; sourceName: string; total: number; accepted: number; rejected: number; unresolved: number; unknownClass: number };
 type LeadView = {
   lead: true; readiness: { status: "SETUP" | "READY"; version: number; approvedAt: string | null; rehearsal: Record<string, string> };
   facts: { adoptionMode: "EXAM_STUDIO" | "FULL_OPERATIONS"; students: number; studentsWithoutGuardian: number; openingBalances: number; imports: { batches: Batch[] } };
-  checks: Check[]; ready: boolean; nextRequired: string | null; tasks: Task[]; staff: Array<{ id: string; fullName: string; role: string }>;
+  checks: Check[]; ready: boolean; campuses: CampusStatus[]; nextRequired: string | null; tasks: Task[]; staff: Array<{ id: string; fullName: string; role: string }>;
   locale: { country: string; timezone: string; currency: string };
   aiSetup?: boolean;
+  canSwitchMode?: boolean;
+  areas?: SetupArea[];
+  progress?: ProgressData;
 };
-type StaffView = { lead: false; tasks: Task[] };
+type CampusStatus = { id: string; name: string; classes: number; students: number; ready: boolean };
+type StaffView = { lead: false; tasks: Task[]; progress?: ProgressData };
 type Preview = { step: "attendance" | "assessment" | "family"; className: string; campusName: string; timezone: string; currency: string; learners: Array<{ name: string; status: string }>; subjects: string[] };
 const STEPS = ["attendance", "assessment", "family"] as const;
 const PHASES: { key: "foundation" | "people" | "money" | "rehearse"; icon: LucideIcon; checks: string[] }[] = [
-  { key: "foundation", icon: Building2, checks: ["campus", "locale", "academic"] },
+  { key: "foundation", icon: Building2, checks: ["campus", "locale", "academic", "campusCoverage"] },
   { key: "people", icon: Users, checks: ["staff", "roster", "guardians"] },
   { key: "money", icon: Coins, checks: ["fees", "imports"] },
   { key: "rehearse", icon: FlaskConical, checks: ["rehearsal"] },
@@ -64,6 +77,7 @@ async function call(body?: unknown) {
 
 export function ReadinessHome() {
   const { language } = useLocale();
+  const ui = useUiText();
   const t = getReadinessCopy(language);
   const l = getLaunchCopy(language);
   const rtl = language === "ar" || language === "ur";
@@ -73,8 +87,10 @@ export function ReadinessHome() {
   const [loadFailed, setLoadFailed] = useState<"denied" | "error" | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingApproval, setConfirmingApproval] = useState(false);
+  const [confirmingSwitch, setConfirmingSwitch] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [newTask, setNewTask] = useState({ title: "", ownerId: "" });
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try { setView(await call()); setLoadFailed(null); }
@@ -84,37 +100,56 @@ export function ReadinessHome() {
   async function run(work: () => Promise<unknown>, quiet = false) {
     setBusy(true);
     try { await work(); await load(); if (!quiet) toast.success(t.saved); return true; }
-    catch (error) { toast.error(error); }
+    // A conflict means the screen is stale: show the latest so the next try starts from it.
+    catch (error) { toast.error(error); if (error instanceof ReadinessError && error.status === 409) await load(); }
     finally { setBusy(false); }
   }
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-  const owner = (id: string | null) => !view || !view.lead || !id ? t.unassigned : view.staff.find(person => person.id === id)?.fullName ?? t.unassigned;
   const checkTitle = (id: string) => t.checks[id as keyof typeof t.checks] ?? id;
   /** Who finishes a check the viewer has no screen for (P9-08): campus admins (group admin), or the campus team. */
   const handoff = (check: Check) => check.delegated || check.handledElsewhere ? (
     <p className="flex items-start gap-1.5 text-xs font-semibold text-status-info-text"><Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{check.delegated ? l.delegated : l.handledElsewhere}</p>
   ) : null;
 
-  const taskRow = (task: Task, lead: boolean) => (
-    <li key={task.id} className="sk-launch-task" data-status={task.status}>
-      <div className="min-w-0">
-        <p className="font-semibold text-ink-strong">{t.optionalTasks[task.key] ?? task.title}</p>
-        <span className="sk-choice-tag mt-1" data-tone={task.status === "DONE" ? undefined : task.status === "DEFERRED" ? "brand" : "info"}>{t.statuses[task.status]}</span>
-      </div>
-      {lead && view?.lead ? (
-        <label className="grid gap-1 text-xs font-semibold text-ink-muted">{t.owner}
-          <Select value={task.ownerId ?? ""} disabled={busy} onChange={event => run(() => call({ op: "task", action: "assign", taskId: task.id, ownerId: event.target.value || null }))}>
-            <option value="">{t.unassigned}</option>{view.staff.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}
-          </Select>
-        </label>
-      ) : <p className="text-sm text-ink-muted">{lead ? `${t.owner}: ${owner(task.ownerId)}` : t.assignedToYou}</p>}
-      <div className="flex flex-wrap gap-2">
-        {task.status !== "DONE" && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => run(() => call({ op: "task", action: "status", taskId: task.id, status: "DONE" }))}>{t.markDone}</Button>}
-        {lead && task.status === "OPEN" && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => run(() => call({ op: "task", action: "status", taskId: task.id, status: "DEFERRED" }))}>{t.defer}</Button>}
-        {lead && task.status !== "OPEN" && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => run(() => call({ op: "task", action: "status", taskId: task.id, status: "OPEN" }))}>{t.reopen}</Button>}
-      </div>
-    </li>
+  /** Each campus with what it has, so a group sees which campus still blocks go-live (SKAI-154). */
+  const campusList = (campuses: CampusStatus[]) => (
+    <div className="space-y-1.5 pt-1">
+      <p className="text-xs font-semibold text-ink-strong">{t.campusesTitle}</p>
+      <p className="text-xs text-ink-muted">{t.campusesHelp}</p>
+      <ul className="grid gap-1.5 sm:grid-cols-2" aria-label={t.campusesTitle}>
+        {campuses.map(campus => (
+          <li key={campus.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border-subtle bg-surface-subtle px-3 py-2" data-campus-ready={campus.ready || undefined}>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-ink-strong">{campus.name}</span>
+              <span className="text-xs text-ink-muted"><bdi dir="ltr">{campus.classes}</bdi> {t.campusClasses} · <bdi dir="ltr">{campus.students}</bdi> {t.campusPupils}</span>
+            </span>
+            <DeskPill tone={campus.ready ? "success" : "info"}>{campus.ready ? t.campusReadyTag : t.campusWaitingTag}</DeskPill>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
+
+  const taskAction = (body: TaskAction) => void run(() => call({ op: "task", ...body }));
+  const taskRow = (task: Task, lead: boolean) => {
+    const status = (next: Task["status"]) => taskAction({ action: "status", taskId: task.id, status: next, expectedVersion: task.version });
+    const live = task.status === "OPEN" || task.status === "IN_PROGRESS";
+    return (
+      <li key={task.id} className="sk-launch-task" data-status={task.status}>
+        <div className="min-w-0 space-y-2">
+          <p className="font-semibold text-ink-strong">{t.optionalTasks[task.key] ?? task.title}</p>
+          <DeskPill tone={task.status === "DONE" ? "success" : task.status === "DEFERRED" ? "neutral" : task.status === "IN_PROGRESS" ? "brand" : "info"}>{t.statuses[task.status]}</DeskPill>
+          {!lead ? <p className="text-sm text-ink-muted">{t.assignedToYou}</p> : null}
+          <TaskTracking task={task} language={language} lead={lead && !!view?.lead} staff={view?.lead ? view.staff : []} busy={busy} onAction={taskAction} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {task.status !== "DONE" && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => status("DONE")}>{t.markDone}</Button>}
+          {lead && live && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => status("DEFERRED")}>{t.defer}</Button>}
+          {lead && !live && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => status("OPEN")}>{t.reopen}</Button>}
+        </div>
+      </li>
+    );
+  };
 
   const lead = view?.lead ? view : null;
   const required = lead ? lead.checks.filter(check => check.required) : [];
@@ -122,6 +157,9 @@ export function ReadinessHome() {
   const percent = required.length ? Math.round((doneRequired / required.length) * 100) : 0;
   const next = lead?.nextRequired ? lead.checks.find(check => check.id === lead.nextRequired) ?? null : null;
   const live = lead?.readiness.status === "READY";
+  // SKAI-912: the mode decides which rehearsal steps gate go-live; the others stay runnable, tagged for later.
+  const modeSteps: readonly string[] = lead ? rehearsalStepsFor(lead.facts.adoptionMode) : STEPS;
+  const otherMode = lead?.facts.adoptionMode === "EXAM_STUDIO" ? "FULL_OPERATIONS" as const : "EXAM_STUDIO" as const;
 
   return (
     <div lang={language} dir={rtl ? "rtl" : "ltr"} className="sk-launch" data-readiness>
@@ -146,6 +184,7 @@ export function ReadinessHome() {
           ) : null}
           {/* Flagship (addendum 2026-10-22): the AI setup questionnaire drafts what these checks ask for; a secondary link
               here because the spotlight below carries this screen's one primary action. */}
+          {lead?.canSwitchMode ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setConfirmingSwitch(true)} data-switch-mode={otherMode}>{l.switchMode[otherMode]}</Button> : null}
           {lead?.aiSetup && !live ? <Link href="/ai?setup=1" data-flagship-link="ai-workflows" className={buttonVariants({ variant: "link", className: "h-auto gap-2 p-0" })}><FlagshipChip />{t.aiSetup}</Link> : null}
         </div>
         {lead ? (
@@ -162,16 +201,21 @@ export function ReadinessHome() {
       {loadFailed === "error" && !view ? <ErrorState title={t.failedTitle} description={t.failed} onRetry={load} /> : null}
       {!view && !loadFailed ? <SkeletonList rows={4} label={t.loading} /> : null}
 
+      {/* ── Setup progress (SKAI-160): totals over the records below, with their read time ── */}
+      {view?.progress ? <SetupProgress progress={view.progress} language={language} lead={view.lead} busy={busy || refreshing} onRefresh={() => { setRefreshing(true); void load().finally(() => setRefreshing(false)); }} /> : null}
+
       {view && !view.lead ? (
         <section aria-labelledby="my-tasks" className="sk-panel space-y-3 p-4 sm:p-6">
           <h2 id="my-tasks" className="text-lg font-bold text-ink-strong">{t.myTasks}</h2>
           <p className="text-sm text-ink-muted">{t.myTasksHelp}</p>
-          <ul className="space-y-2">{view.tasks.map(task => taskRow(task, false))}</ul>
+          {view.tasks.length ? <ul className="space-y-2">{view.tasks.map(task => taskRow(task, false))}</ul> : <EmptyState size="sm" icon={Inbox} title={ui("Nothing is waiting on you.")} />}
         </section>
       ) : null}
 
       {lead ? <>
         <nav aria-label={l.sectionsLabel} className="sk-launch-nav">
+          {lead.progress ? <a href="#progress"><ListChecks aria-hidden="true" className="size-4" />{getSetupProgressCopy(language).title}</a> : null}
+          {lead.areas?.length ? <a href="#setup-areas"><ListChecks aria-hidden="true" className="size-4" />{l.nav.setupAreas}</a> : null}
           <a href="#checks"><ListChecks aria-hidden="true" className="size-4" />{l.nav.checks}</a>
           <a href="#practice"><FlaskConical aria-hidden="true" className="size-4" />{l.nav.practice}</a>
           <a href="#reconcile"><ClipboardCheck aria-hidden="true" className="size-4" />{l.nav.reconcile}</a>
@@ -198,6 +242,9 @@ export function ReadinessHome() {
           </>}
         </section>
 
+        {/* ── The wizard's setup areas (SKAI-111), in order ── */}
+        {lead.areas?.length ? <SetupAreasGuide language={language} areas={lead.areas} tasks={lead.tasks} staff={lead.staff} busy={busy} onAction={taskAction} /> : null}
+
         {/* ── The journey ── */}
         <section id="checks" aria-label={l.nav.checks} className="sk-launch-journey">
           {PHASES.map(phase => {
@@ -216,7 +263,7 @@ export function ReadinessHome() {
                         <p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong">
                           {checkTitle(check.id)}
                           <span className="sr-only"> — {check.passed ? t.passed : t.pending}</span>
-                          {!check.required ? <span className="sk-choice-tag" data-tone="brand">{l.optionalTag}</span> : null}
+                          {!check.required ? <span className="sk-choice-tag" data-tone="brand" data-later={check.later || undefined}>{check.later ? l.laterTag : l.optionalTag}</span> : null}
                         </p>
                         <p className="text-xs leading-relaxed text-ink-muted">{l.why[check.id as keyof typeof l.why]}</p>
                         <p className="flex flex-wrap gap-1.5">
@@ -224,6 +271,7 @@ export function ReadinessHome() {
                             <span key={key} className="sk-launch-chip"><bdi dir="ltr" className="font-bold">{typeof value === "boolean" ? (value ? t.yes : t.no) : value}</bdi> {t.evidence[key as keyof typeof t.evidence] ?? key}</span>
                           ))}
                         </p>
+                        {check.id === "campusCoverage" && lead.campuses.length ? campusList(lead.campuses) : null}
                         {!check.passed ? handoff(check) : null}
                       </div>
                       <div className="sk-launch-check-action">
@@ -250,7 +298,7 @@ export function ReadinessHome() {
             return (
               <li key={step} className="sk-launch-step" data-done={done || undefined}>
                 <span className="sk-launch-step-num" aria-hidden="true">{done ? <CheckCircle2 className="size-4" /> : index + 1}</span>
-                <p className="font-semibold text-ink-strong">{t.steps[step]}</p>
+                <p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong">{t.steps[step]}{modeSteps.includes(step) ? null : <span className="sk-choice-tag" data-tone="brand" data-later>{l.laterTag}</span>}</p>
                 {done ? <p className="text-xs text-status-success-text">{t.doneAt}: {date(lead.readiness.rehearsal[step])}</p> : null}
                 <Button type="button" size="sm" variant={done ? "outline" : "default"} disabled={busy}
                   onClick={() => run(async () => { const result = await call({ op: "rehearse", step }); setPreview(result.preview); }, true)}>{done ? t.rerun : t.run}</Button>
@@ -274,15 +322,15 @@ export function ReadinessHome() {
         <section id="reconcile" aria-labelledby="reconcile-heading" className="sk-panel space-y-3 p-4 sm:p-6">
           <h2 id="reconcile-heading" className="text-lg font-bold text-ink-strong">{t.reconcileTitle}</h2>
           <p className="text-sm text-ink-muted">{t.reconcileHelp}</p>
-          <div className="sk-launch-stats">
-            <div><span className="tabular-nums"><bdi dir="ltr">{lead.facts.students}</bdi></span><small>{t.evidence.students}</small></div>
-            <div data-tone={lead.facts.studentsWithoutGuardian ? "warning" : undefined}><span className="tabular-nums"><bdi dir="ltr">{lead.facts.studentsWithoutGuardian}</bdi></span><small>{t.guardiansMissing}</small></div>
-            <div><span className="tabular-nums"><bdi dir="ltr">{lead.facts.openingBalances}</bdi></span><small>{t.openingBalances}</small></div>
-          </div>
-          {lead.facts.imports.batches.length === 0 ? <p className="text-sm text-ink-muted">{t.noImports}</p> : (
+          <DeskStats data-readiness-reconcile>
+            <StatTile index={0} icon={Users} tone="brand" value={<bdi dir="ltr">{lead.facts.students}</bdi>} label={t.evidence.students} />
+            <StatTile index={1} icon={UserX} tone={lead.facts.studentsWithoutGuardian ? "warning" : "success"} value={<bdi dir="ltr">{lead.facts.studentsWithoutGuardian}</bdi>} label={t.guardiansMissing} />
+            <StatTile index={2} icon={Wallet} tone="info" value={<bdi dir="ltr">{lead.facts.openingBalances}</bdi>} label={t.openingBalances} />
+          </DeskStats>
+          {lead.facts.imports.batches.length === 0 ? <EmptyState size="sm" icon={ClipboardCheck} title={<>{t.noImports}</>} /> : (
             <ul className="grid gap-2 sm:grid-cols-2">{lead.facts.imports.batches.map(batch => (
               <li key={batch.id} className="sk-launch-batch">
-                <p className="font-semibold text-ink-strong"><bdi>{batch.sourceName}</bdi> <span className="text-xs text-ink-subtle">· {batch.kind} · {batch.state}</span></p>
+                <p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong"><bdi>{batch.sourceName}</bdi> <span className="text-xs text-ink-subtle">· {batch.kind}</span><DeskPill tone={batch.unresolved || batch.unknownClass ? "warning" : batch.rejected ? "danger" : "success"}>{batch.state}</DeskPill></p>
                 <p className="text-sm text-ink-muted">{t.source}: <bdi dir="ltr">{batch.total}</bdi> {t.rows} → <bdi dir="ltr">{batch.accepted}</bdi> {t.accepted} · <bdi dir="ltr">{batch.rejected}</bdi> {t.rejected} · <bdi dir="ltr">{batch.unresolved}</bdi> {t.unresolved}{batch.unknownClass ? <> · <strong className="text-status-warning-text"><bdi dir="ltr">{batch.unknownClass}</bdi> {t.unknownClass}</strong></> : null}</p>
               </li>
             ))}</ul>
@@ -293,7 +341,7 @@ export function ReadinessHome() {
         <section id="tasks" aria-labelledby="tasks-heading" className="sk-panel space-y-3 p-4 sm:p-6">
           <h2 id="tasks-heading" className="text-lg font-bold text-ink-strong">{t.tasksTitle}</h2>
           <p className="text-sm text-ink-muted">{t.tasksHelp}</p>
-          <ul className="space-y-2">{lead.tasks.map(task => taskRow(task, true))}</ul>
+          <ul className="space-y-2">{lead.tasks.filter(task => !lead.areas?.length || !setupAreaFromTaskKey(task.key)).map(task => taskRow(task, true))}</ul>
           <form className="grid gap-2 sm:grid-cols-[2fr_1fr_auto] sm:items-end" onSubmit={event => { event.preventDefault(); run(() => call({ op: "task", action: "create", title: newTask.title, ownerId: newTask.ownerId || null }).then(() => setNewTask({ title: "", ownerId: "" }))); }}>
             <label className="grid gap-1 text-sm font-semibold">{t.newTask}<Input required minLength={3} value={newTask.title} onChange={event => setNewTask({ ...newTask, title: event.target.value })} /></label>
             <label className="grid gap-1 text-sm font-semibold">{t.owner}<Select value={newTask.ownerId} onChange={event => setNewTask({ ...newTask, ownerId: event.target.value })}><option value="">{t.unassigned}</option>{lead.staff.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></label>
@@ -307,7 +355,7 @@ export function ReadinessHome() {
             <div className="min-w-0 space-y-1">
               <h2 id="approve-heading" className="flex items-center gap-2 text-lg font-bold text-ink-strong"><Rocket aria-hidden="true" className="size-5 text-primary" />{t.approveTitle}</h2>
               <p className="text-sm text-ink-muted">{lead.ready ? l.approveBar : t.approveBlocked} {t.approveHelp}</p>
-              <p className="text-xs text-ink-subtle"><bdi dir="ltr">{lead.tasks.filter(task => task.status === "OPEN").length}</bdi> {t.outstanding}</p>
+              <p className="text-xs text-ink-subtle"><bdi dir="ltr">{lead.tasks.filter(task => task.status === "OPEN" || task.status === "IN_PROGRESS").length}</bdi> {t.outstanding}</p>
             </div>
             {/* When every check is done the spotlight holds the primary "Approve go-live"; this one repeats it quietly. */}
             <Button type="button" variant="outline" disabled={busy || !lead.ready} onClick={() => setConfirmingApproval(true)} className="shrink-0 gap-2">
@@ -325,6 +373,16 @@ export function ReadinessHome() {
           busy={busy}
           onConfirm={async () => { if (await run(() => call({ op: "approve", expectedVersion: lead.readiness.version }))) setConfirmingApproval(false); }}
           onCancel={() => setConfirmingApproval(false)}
+        />
+        <ConfirmAction
+          open={confirmingSwitch}
+          tone="warning"
+          title={l.switchTitle}
+          description={l.switchBody}
+          confirmLabel={l.switchMode[otherMode]}
+          busy={busy}
+          onConfirm={async () => { if (await run(() => call({ op: "mode", mode: otherMode, expectedVersion: lead.readiness.version }))) setConfirmingSwitch(false); }}
+          onCancel={() => setConfirmingSwitch(false)}
         />
       </> : null}
     </div>

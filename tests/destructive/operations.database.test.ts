@@ -6,7 +6,7 @@ import type { AuthUser } from "../../src/lib/auth";
 import { prisma } from "../../src/lib/db/prisma";
 import { operationDelete, operationDeleteAuditTables, type OperationDeleteKind } from "../../src/lib/destructive/operations";
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const db = new PrismaClient(), schoolId = `delete309-${randomUUID()}`, otherSchool = `delete309-${randomUUID()}`, campusId = randomUUID(), campusB = randomUUID(), campusC = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid`, institutionKind: "GROUP" });
 const accountant = actor("ACCOUNTANT"), lead = actor("CAMPUS_ADMIN"), librarian = actor("LIBRARIAN"), denied = actor("TEACHER");
@@ -67,8 +67,11 @@ test("all twenty-eight shared setup operations delete only the reviewed record a
     const p = await preview(user, kind, id); assert.equal(p.blocked, false, kind); assert.equal(p.count, 1);
     const responses = await Promise.all([1, 2, 3].map(() => remove(user, kind, id, p.version)));
     assert.equal(responses.filter(r => "replayed" in r && !r.replayed).length, 1, kind);
-    const receipts = await db.auditLog.findMany({ where: { schoolId, recordId: id, tableName: operationDeleteAuditTables[kind] ?? kind } });
-    assert.equal(receipts.length, 1);
+    // The audit-trail extension also writes one generic row per delete (uuid id);
+    // the retry receipt is the deterministic 64-hex id. Exactly one of each.
+    const all = await db.auditLog.findMany({ where: { schoolId, recordId: id, tableName: operationDeleteAuditTables[kind] ?? kind } });
+    const receipts = all.filter(row => /^[a-f0-9]{64}$/.test(row.id));
+    assert.equal(receipts.length, 1, kind);
     assert.ok(receipts[0].oldValue, "Audit history must classify this as DELETE");
     assert.equal(receipts[0].newValue, null);
   }
@@ -118,7 +121,14 @@ test("student and staff documents recheck review, related-record scope, and comm
     assert.equal(p.label, row.fileName);
     await assert.rejects(() => preview(librarian, kind, row.id), { status: 403 });
     await Promise.all([remove(lead, kind, row.id, p.version), remove(lead, kind, row.id, p.version)]);
-    assert.equal(await db.auditLog.count({ where: { schoolId, recordId: row.id } }), 1);
+    // Count the retry receipts only; the audit-trail extension adds its own generic rows.
+    const receipts = (await db.auditLog.findMany({ where: { schoolId, recordId: row.id } })).filter(item => /^[a-f0-9]{64}$/.test(item.id));
+    assert.equal(receipts.length, 1, kind);
+    // SKAI-1478: the storage delete fails here (no bucket), so the key must survive as a retried tombstone.
+    const tombstone = await db.storageCleanup.findUnique({ where: { objectKey: row.fileKey } });
+    assert.equal(tombstone?.status, "PENDING", kind);
+    assert.ok((tombstone?.attempts ?? 0) >= 1, `${kind} cleanup was attempted`);
+    assert.equal(tombstone?.schoolId, schoolId);
   }
   assert.equal(await db.studentTimelineEvent.count({ where: { schoolId, studentId: pupil.id, title: "Document removed" } }), 1);
   const invalid = await db.studentDocument.create({ data: { schoolId, studentId: pupil.id, kind: "OTHER", fileName: "Invalid scoped key.pdf", fileKey: `student-docs/${campusB}/${pupil.id}/synthetic.pdf` } });
@@ -210,4 +220,17 @@ test("finance review retains changed prices, dependency history, credits and cro
   assert.equal((await db.feesMasterLine.findUniqueOrThrow({ where: { id: line.id } })).amount, 12346);
   assert.equal((await db.feeCarryForward.findUniqueOrThrow({ where: { id: credit.id } })).balance, -1250);
   assert.equal(await db.auditLog.count({ where: { schoolId, recordId: { in: [line.id, credit.id, assignment.id] } } }), 0);
+});
+test("SKAI-1281: a dormitory room with allocation history is kept, with or without a review token", async () => {
+  const type = await db.dormRoomType.create({ data: { ...scope, name: randomUUID() } });
+  const room = await db.dormRoom.create({ data: { ...scope, number: randomUUID(), roomTypeId: type.id, capacity: 2 } });
+  const cls = await db.class.create({ data: { ...scope, name: randomUUID(), section: "A", academicYear: 2026 } });
+  const student = await db.student.create({ data: { ...scope, classId: cls.id, fullName: "Synthetic Boarder", rollNo: randomUUID(), gender: "FEMALE" } });
+  await db.dormAllocation.create({ data: { ...scope, roomId: room.id, studentId: student.id, startDate: new Date("2026-09-01"), endDate: new Date("2026-10-01"), reason: "Synthetic stay", endReason: "Synthetic move", createdById: lead.userId } });
+  const p = await preview(lead, "dormitory/rooms", room.id);
+  assert.equal(p.blocked, true); assert.equal(p.dependents, 1); assert.match(p.message ?? "", /1 allocation record in its history/);
+  await assert.rejects(() => remove(lead, "dormitory/rooms", room.id, null), { status: 409, message: /out of service/ });
+  await assert.rejects(() => remove(lead, "dormitory/rooms", room.id, p.version), { status: 409 });
+  assert.ok(await db.dormRoom.findUnique({ where: { id: room.id } }), "room kept");
+  assert.equal(await db.dormAllocation.count({ where: { roomId: room.id } }), 1, "history kept");
 });

@@ -1,7 +1,11 @@
 import Link from "next/link";
+import { Alert } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
+import { langHref, trustChrome } from "@/lib/legal/public-locale";
+import { LANGUAGE_NATIVE_NAMES, directionFor } from "@/lib/locale/language-cookie";
+import { LANGUAGES, type Language } from "@/lib/locale/package";
 import {
-  ArrowLeft, ArrowRight, Sparkles, ShieldCheck, Lock, Eye, Database, CheckCircle2,
+  ArrowLeft, ArrowRight, Sparkles, ShieldCheck, Lock, Eye, Database, CheckCircle2, Languages,
 } from "lucide-react";
 
 export interface TrustPageCopy {
@@ -11,18 +15,20 @@ export interface TrustPageCopy {
     title: string;
     body: string;
   }[];
+  currentHref?: string;
+  /** SKAI-1000 trust-pack documents: draft banner and version. */
+  legal?: { draft: string; version: string };
 }
 
 const SECTION_ICONS = [ShieldCheck, Lock, Eye, Database];
 
-const NAV = [
-  { label: "Privacy", href: "/privacy", desc: "Who can see each school record" },
-  { label: "Security", href: "/security", desc: "How access and data are protected" },
-  { label: "AI Governance", href: "/ai-governance", desc: "How AI assists and is reviewed" },
-  { label: "Human Review Policy", href: "/human-review-policy", desc: "How drafts are approved before sharing" },
-];
 
-export function TrustPage({ copy }: { copy: TrustPageCopy }) {
+/**
+ * SKAI-1002: `lang` is the resolved page language (?lang, then cookie, then EN);
+ * `carry` is the language only when it came from the URL, so cross-links keep it.
+ */
+export function TrustPage({ copy, lang = "en", carry = null }: { copy: TrustPageCopy; lang?: Language; carry?: Language | null }) {
+  const t = trustChrome(lang);
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -33,7 +39,11 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
   };
 
   return (
-    <main className="min-h-screen font-sans text-ink-strong">
+    <main
+      lang={lang}
+      dir={directionFor(lang)}
+      className="min-h-screen font-sans text-ink-strong"
+    >
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -61,13 +71,28 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Link href="/ai-school-management-software" className={buttonVariants({ variant: "outline", size: "sm", className: "focus-on-dark" })}>
               <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5 rtl:rotate-180" />
-              Product
+              {t.product}
             </Link>
+
+            <nav aria-label={t.languageLabel} className="flex items-center gap-1.5">
+              <Languages aria-hidden="true" className="h-4 w-4 text-white/80" />
+              {LANGUAGES.filter((code) => code !== lang).map((code) => (
+                <Link
+                  key={code}
+                  href={langHref(copy.currentHref ?? "/privacy", code)}
+                  hrefLang={code}
+                  lang={code}
+                  className={buttonVariants({ variant: "outline", size: "sm", className: "focus-on-dark" })}
+                >
+                  {LANGUAGE_NATIVE_NAMES[code]}
+                </Link>
+              ))}
+            </nav>
 
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
               <Sparkles aria-hidden="true" className="h-3.5 w-3.5 text-brand-200" />
               <span className="sk-eyebrow text-brand-200">
-                Skoolee Trust
+                {t.eyebrow}
               </span>
             </span>
           </div>
@@ -83,13 +108,13 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
 
           <ul className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-xs font-medium text-white/80">
             <li className="flex items-center gap-1.5">
-              <ShieldCheck aria-hidden="true" className="h-4 w-4 shrink-0" /> Encrypted at rest &amp; in transit
+              <ShieldCheck aria-hidden="true" className="h-4 w-4 shrink-0" /> {t.chips[0]}
             </li>
             <li className="flex items-center gap-1.5">
-              <Lock aria-hidden="true" className="h-4 w-4 shrink-0" /> Role-scoped access
+              <Lock aria-hidden="true" className="h-4 w-4 shrink-0" /> {t.chips[1]}
             </li>
             <li className="flex items-center gap-1.5">
-              <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" /> Human-reviewed AI
+              <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" /> {t.chips[2]}
             </li>
           </ul>
         </div>
@@ -99,6 +124,17 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
 
       {/* ─── SECTIONS ─────────────────────────────────── */}
       <section className="mx-auto max-w-4xl px-4 pb-16 sm:px-6">
+        {copy.legal && (
+          <Alert
+            tone="warning"
+            live="off"
+            role="note"
+            className="mt-12 shadow-sm"
+            title={copy.legal.draft}
+          >
+            <span className="text-ink-muted">{copy.legal.version}</span>
+          </Alert>
+        )}
         <div className="sk-stagger grid gap-4 pt-12">
           {copy.sections.map((section, i) => {
             const Icon = SECTION_ICONS[i % SECTION_ICONS.length];
@@ -122,14 +158,14 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
         {/* Cross-navigation between the trust pages */}
         <div className="sk-panel mt-8 p-5 sm:p-6">
           <h2 className="sk-eyebrow text-primary">
-            Continue reading
+            {t.continueReading}
           </h2>
-          <nav aria-label="Trust policies" className="mt-4 grid gap-3 sm:grid-cols-2">
-            {NAV.map((nav) => (
+          <nav aria-label={t.navLabel} className="mt-4 grid gap-3 sm:grid-cols-2">
+            {t.nav.map((nav) => (
               <Link
                 key={nav.href}
-                href={nav.href}
-                aria-current={nav.label === copy.title ? "page" : undefined}
+                href={langHref(nav.href, carry)}
+                aria-current={(copy.currentHref ? nav.href === copy.currentHref : nav.label === copy.title) ? "page" : undefined}
                 className="sk-panel sk-hover-lift sk-nudge-trigger group flex items-start justify-between gap-3 p-4 aria-[current=page]:border-primary aria-[current=page]:bg-surface-selected"
               >
                 <span className="min-w-0">
@@ -151,7 +187,7 @@ export function TrustPage({ copy }: { copy: TrustPageCopy }) {
             href="/ai-school-management-software"
             className={buttonVariants({ variant: "ghost" })}
           >
-            Back to Skoolee AI
+            {t.back}
           </Link>
         </div>
       </section>

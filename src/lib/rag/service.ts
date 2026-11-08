@@ -91,7 +91,7 @@ export function publishKnowledge(user: AuthUser, id: string, version: number, em
     if (!chunks.length || chunks.length > 60) throw new SchoolAiError("Document is empty or exceeds the indexing limit.", 422);
     const masked = await maskKnowledge(user, chunks.map(chunk => `${doc.title}\n${chunk.text}`));
     let vectors: number[][] | null = null;
-    try { vectors = await embed(masked.texts); } catch { /* Keyword retrieval stays available; UI explicitly reports degraded indexing. */ }
+    try { vectors = await embed(masked.texts, { schoolId: user.schoolId, campusId: user.campusId, userId: user.userId, role: user.role, feature: "RAG_INDEX" }); } catch { /* Keyword retrieval stays available; UI explicitly reports degraded indexing. */ }
     if (vectors && (vectors.length !== chunks.length || vectors.some(vector => vector.length !== 512 || vector.some(n => !Number.isFinite(n))))) vectors = null;
     await assertKnowledgeAccess(user, true); // Permissions may have changed during a provider call.
     return prisma.$transaction(async tx => {
@@ -131,7 +131,7 @@ export function searchKnowledge(user: AuthUser, raw: string, embed: Embed = embe
     let vector: number[] | null = null;
     if (chunks.some(chunk => chunk.model === EMBEDDING_MODEL)) {
       const masked = await maskKnowledge(user, [query]);
-      try { vector = (await embed(masked.texts))?.[0] ?? null; } catch { /* Search remains lexical when provider is unavailable. */ }
+      try { vector = (await embed(masked.texts, { schoolId: user.schoolId, campusId: user.campusId, userId: user.userId, role: user.role, feature: "RAG_SEARCH" }))?.[0] ?? null; } catch { /* Search remains lexical when provider is unavailable. */ }
     }
     const ranked = hybridRank(query, chunks.map(chunk => ({ ...chunk, title: docs.find(doc => doc.id === chunk.documentId)!.title })), vector, EMBEDDING_MODEL);
     const sources = ranked.map(({ chunk }) => {

@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     const queuedExtraction = !nativeText && schoolAiProviderCapabilities().documentExtraction;
     if (nativeText) {
       try {
-        extraction = await extractDocument(bytes, fileName, mimeType, language);
+        extraction = await extractDocument(bytes, fileName, mimeType, language, { schoolId: user.schoolId, campusId, userId: user.userId, role: user.role, feature: "SCHOOL_AI_INTAKE" });
       } catch {
         extraction = { text: "", pages: [], uncertainties: [incomplete[language]], model: "manual-review", tokensUsed: 0 };
       }

@@ -22,7 +22,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { NO_ENTRY_ANIMATION } from "@/components/insights";
 import { STATUS } from "@/components/insights/palette";
 import { BrandButton } from "@/components/role-dashboard";
-import { resolveMediaUrl } from "@/lib/storage/s3";
+import { resolveMediaUrl } from "@/lib/storage/media-url";
 import { cn } from "@/lib/utils";
 import { downloadCSV } from "@/lib/csv";
 import { Input as SystemInput } from "@/components/ui/input";

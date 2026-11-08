@@ -3,6 +3,10 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { logSuperAdminAction } from "@/lib/audit";
 import { createPlanContract } from "@/config/commercial-contract";
+import { parseDataRegion } from "@/lib/school/data-region";
+import { parseAttendanceRegulator } from "@/lib/attendance/regulator";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(
   _req: NextRequest,
@@ -51,12 +55,12 @@ export async function PATCH(
     const user = await requirePlatformOwner();
 
     const { id } = await params;
-    const body = await req.json();
-    const { plan, status } = body;
+    const body = await parseBody(req, jsonObjectBody);
+    const { plan, status, dataRegion, attendanceRegulator } = body;
 
     const school = await prisma.school.findUnique({
       where: { id },
-      select: { id: true, name: true, status: true, plan: true },
+      select: { id: true, name: true, status: true, plan: true, dataRegion: true, attendanceRegulator: true },
     });
 
     if (!school) throw new ApiError("School not found", 404);
@@ -86,30 +90,50 @@ export async function PATCH(
       if (school.status === "DELETED") updateData.deletedAt = null;
     }
 
-    if (Object.keys(updateData).length === 0) {
-      throw new ApiError("No valid fields to update (plan or status)", 400);
+    // SKAI-1143: recording the region moves no data; routing on it comes later.
+    if (dataRegion !== undefined) {
+      try { updateData.dataRegion = parseDataRegion(dataRegion); }
+      catch (error) { throw new ApiError((error as Error).message, 400); }
     }
 
-    await prisma.school.update({
-      where: { id },
-      data: updateData,
-    });
+    // SKAI-1153: which regulator's attendance codes and calendar the register shows; NONE keeps today's register.
+    if (attendanceRegulator !== undefined) {
+      try { updateData.attendanceRegulator = parseAttendanceRegulator(attendanceRegulator); }
+      catch (error) { throw new ApiError((error as Error).message, 400); }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new ApiError("No valid fields to update (plan, status, dataRegion or attendanceRegulator)", 400);
+    }
 
     const changedFields: string[] = [];
     if (plan && plan !== school.plan) changedFields.push("plan");
     if (status && status !== school.status) changedFields.push("status");
+    if (updateData.dataRegion && updateData.dataRegion !== school.dataRegion) changedFields.push("dataRegion");
+    if (updateData.attendanceRegulator && updateData.attendanceRegulator !== school.attendanceRegulator) changedFields.push("attendanceRegulator");
 
-    if (changedFields.length > 0) {
-      await logSuperAdminAction({
+    // SKAI-1366: one audit entry per changed field, so a batched update still shows region and regulator changes.
+    const auditActions: Record<string, string> = {
+      status: status === "SUSPENDED" ? "school_suspended" : "school_activated",
+      plan: "plan_changed",
+      dataRegion: "data_region_changed",
+      attendanceRegulator: "attendance_regulator_changed",
+    };
+    // SKAI-1629: the change and its owner audit entries commit together; a failed audit rolls the change back.
+    await prisma.$transaction(async (tx) => {
+      await tx.school.update({ where: { id }, data: updateData });
+      for (const field of changedFields) {
+        await logSuperAdminAction({
         userId: user.userId,
-        action: status && status !== school.status ? (status === "SUSPENDED" ? "school_suspended" : "school_activated") : "plan_changed",
+        action: auditActions[field],
         targetType: "school",
         targetId: id,
         targetName: school.name,
-        oldValues: { plan: school.plan, status: school.status },
-        newValues: { plan: plan || school.plan, status: status || school.status },
-      }).catch(error => console.error("[owner/schools] audit write failed", error));
-    }
+        oldValues: { plan: school.plan, status: school.status, dataRegion: school.dataRegion, attendanceRegulator: school.attendanceRegulator },
+        newValues: { plan: plan || school.plan, status: status || school.status, dataRegion: updateData.dataRegion || school.dataRegion, attendanceRegulator: updateData.attendanceRegulator || school.attendanceRegulator },
+        }, tx);
+      }
+    });
 
     return Response.json({
       success: true,
@@ -159,6 +183,22 @@ export async function DELETE(
 
     if (school.status === "DELETED") {
       throw new ApiError("School is already deleted.", 409);
+    }
+
+    // SKAI-1356: archiving the school that holds the only active platform owner
+    // would lock every owner out. Refuse unless another live school keeps an owner.
+    const ownersInSchool = await prisma.user.count({ where: { schoolId: id, role: "APP_OWNER", isActive: true } });
+    if (ownersInSchool > 0) {
+      const ownersElsewhere = await prisma.user.count({
+        where: {
+          role: "APP_OWNER",
+          isActive: true,
+          school: { is: { id: { not: id }, status: { not: "DELETED" } } },
+        },
+      });
+      if (ownersElsewhere === 0) {
+        throw new ApiError("This school holds the only active platform owner. Add another platform owner before archiving it.", 409);
+      }
     }
 
     await prisma.school.update({

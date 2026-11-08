@@ -16,7 +16,7 @@ import { documentVersionLabel } from "../../src/lib/academic/datesheet-publicati
 // affected people and tells them once; documents print the version they show; a family can never take
 // another class's sheet; formal sessions stay under office control.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.DATESHEET_TEST_APP || "http://localhost:3108";
 const evidence = process.env.DATESHEET_EVIDENCE_DIR || "/tmp/sko413-evidence";
 const db = new PrismaClient(), password = "SyntheticDatesheet413!";
@@ -75,6 +75,12 @@ before(async () => {
     for (const [n, student] of seated.entries()) await db.examSeat.create({ data: { schoolId, campusId, examScheduleId: ids[key], examRoomId: examRoom.id, studentId: student, seatNumber: n + 1 } });
   }
   ids.unseated = pupils[2];
+  // SKAI-279: one guardian with a child in each class.
+  await user("family", "PARENT");
+  for (const child of [pupils[1], pupils[3]]) {
+    const relationship = await db.guardianRelationship.create({ data: { schoolId, campusId, studentId: child, guardianUserId: users.get("family")!.id, createdByUserId: users.get("officer")!.id, fullName: "Synthetic family", email: users.get("family")!.email, relationship: "Parent", status: "ACTIVE", verifiedAt: new Date() } });
+    await db.guardianAccessVersion.create({ data: { schoolId, relationshipId: relationship.id, createdByUserId: users.get("officer")!.id, reason: "Synthetic two-child fixture", effectiveFrom: new Date(Date.now() - 60_000), permissions: { learningRecords: true, attendance: false, finances: false, communication: false, pickup: false } } });
+  }
   await db.authAttempt.deleteMany({});
   await mkdir(evidence, { recursive: true });
   browser = await chromium.launch({ headless: true });
@@ -136,6 +142,13 @@ test("documents name the version they show; families cannot take another class's
   const own = await pupil.request.get(`${base}/api/academic/exam-documents?doc=datesheet&sessionId=${ids.session}`);
   assert.equal(own.status(), 200);
   assert.equal(own.headers()["content-type"], "application/pdf");
+  // SKAI-279: a guardian of two children gets each child's sheet by exam, not only the first child's.
+  const family = await context("family");
+  for (const exam of [ids.exam8, ids.exam9]) {
+    const sheet = await family.request.get(`${base}/api/academic/exam-documents?doc=datesheet&examId=${exam}`);
+    assert.equal(sheet.status(), 200, `family sheet for ${exam === ids.exam8 ? "Eight" : "Nine"}: ${sheet.status()}`);
+    assert.equal(sheet.headers()["content-type"], "application/pdf");
+  }
   assert.equal((await (await context("accountant")).request.get(`${base}/api/academic/exam-documents?doc=seating&sessionId=${ids.session}`)).status(), 403);
   assert.equal((await (await context("t1")).request.get(`${base}/api/academic/exam-documents?doc=seating&sessionId=${ids.session}`)).status(), 200);
 });

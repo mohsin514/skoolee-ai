@@ -2,11 +2,13 @@ import { test, expect, type BrowserContext } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { SignJWT } from "jose";
 import { createHash, randomUUID } from "node:crypto";
+import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated timetable owner-scope database.");
 const db = new PrismaClient(), schoolId = `timetable-owner-${randomUUID()}`, foreignSchool = `timetable-foreign-${randomUUID()}`;
-const origin = "http://localhost:3106", headers = { Origin: origin };
+const origin = SCHOOL_AI_ORIGIN, headers = { Origin: origin };
 const alpha = randomUUID(), beta = randomUUID(), foreignCampus = randomUUID(), owner = randomUUID(), manager = randomUUID(), teacher = randomUUID();
 const classA = randomUUID(), classB = randomUUID(), foreignClass = randomUUID(), foreignBoard = randomUUID(), subject = randomUUID(), room = randomUUID();
 const tokens: Record<string, string> = {};
@@ -16,7 +18,7 @@ test.beforeAll(async () => {
   await db.campus.createMany({ data: [[alpha, schoolId], [beta, schoolId], [foreignCampus, foreignSchool]].map(([id, tenant]) => ({ id, schoolId: tenant, name: "Scope campus", city: "Test", regId: id })) });
   for (const [id, role, campusId] of [[owner, "SUPER_ADMIN", null], [manager, "ADMIN", alpha], [teacher, "TEACHER", alpha]] as const) {
     await db.user.create({ data: { id, schoolId, campusId, role, email: `${id}@example.test`, fullName: "Synthetic actor", isActive: true, onboardingComplete: true, mfaEnabled: true } });
-    const token = await new SignJWT({ userId: id, schoolId, campusId, role, email: `${id}@example.test`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+    const token = await new SignJWT({ userId: id, schoolId, campusId, role, email: `${id}@example.test`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode(SCHOOL_AI_TEST_SECRET));
     tokens[role] = token;
     await db.loginSession.create({ data: { userId: id, schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
   }

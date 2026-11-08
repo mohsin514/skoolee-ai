@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { prisma } from "@/lib/db/prisma";
+import { csvCell } from "@/lib/csv";
 import { cleanSchoolProfileChange, requireSupportGrant } from "@/lib/owner/support-access";
 
 export const dynamic = "force-dynamic";
 
-const csvCell = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
-
+// SKAI-1015: the school profile is admin-entered free text (name, city, website), so the export uses the shared
+// formula-injection guard and a UTF-8 BOM like every other CSV download instead of a quote-only local encoder.
 export async function POST(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const actor = await requirePlatformOwner({ allowSupportAccess: true });
@@ -51,7 +52,7 @@ export async function POST(_req: NextRequest, context: { params: Promise<{ id: s
       return { action: updated, csv };
     });
     if (result.csv !== undefined) {
-      return new Response(result.csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": "attachment; filename=school-profile.csv", "Cache-Control": "no-store" } });
+      return new Response(`\uFEFF${result.csv}`, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": "attachment; filename=school-profile.csv", "Cache-Control": "no-store" } });
     }
     return Response.json({ success: true, data: result.action });
   } catch (error) { return errorResponse(error, "[owner/support/actions/execute] POST failed"); }

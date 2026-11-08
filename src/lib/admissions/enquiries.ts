@@ -33,7 +33,16 @@ export async function createEnquiry(user: AuthUser, body: Record<string, any>) {
 
   const campusId = user.role === "SUPER_ADMIN" && body.campusId ? await resolveCampusId(user, String(body.campusId)) : user.campusId!;
   const status = String(body.status ?? "ACTIVE").toUpperCase();
+  // SKAI-1668: an optional client request key makes a retried create replay the original enquiry. The key is
+  // recorded on the CREATE audit event; an advisory lock serialises concurrent creates with the same key.
+  const requestKey = typeof body.requestKey === "string" && /^[A-Za-z0-9-]{8,120}$/.test(body.requestKey) ? body.requestKey : null;
   return schoolAiTransaction(user, async tx => {
+    if (requestKey) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`admission-enquiry:${user.schoolId}:${requestKey}`}))`;
+      const prior = await tx.auditLog.findFirst({ where: { schoolId: user.schoolId, tableName: ENQUIRY_TABLE, newValue: { path: ["requestKey"], equals: requestKey } }, select: { recordId: true } });
+      const replay = prior ? await tx.admissionQuery.findFirst({ where: { id: prior.recordId, campusId } }) : null;
+      if (replay) return replay;
+    }
     const query = await tx.admissionQuery.create({
       data: {
         campusId,
@@ -47,10 +56,18 @@ export async function createEnquiry(user: AuthUser, body: Record<string, any>) {
         note,
       },
     });
-    await writeAuditEvent(tx, user, { table: ENQUIRY_TABLE, recordId: query.id, action: "CREATE", campusId: query.campusId, after: { source, status } });
+    await writeAuditEvent(tx, user, { table: ENQUIRY_TABLE, recordId: query.id, action: "CREATE", campusId: query.campusId, after: { source, status, ...(requestKey ? { requestKey } : {}) } });
     return query;
   });
 }
+
+// The relations the enquiry list returns and the detail panel renders.
+const ENQUIRY_DETAIL_INCLUDE = {
+  classInterested: { select: { id: true, name: true, section: true } },
+  assignedTo: { select: { id: true, fullName: true, role: true } },
+  convertedStudent: { select: { id: true, fullName: true, rollNo: true } },
+  _count: { select: { followUps: true } },
+} as const;
 
 export async function updateEnquiry(user: AuthUser, body: Record<string, any>) {
   const id = String(body.id ?? "");
@@ -121,6 +138,9 @@ export async function updateEnquiry(user: AuthUser, body: Record<string, any>) {
         return tx.admissionQuery.update({
           where: { id },
           data: { ...updates, status: updates.status ?? existing.status === "ACTIVE" ? "FOLLOW_UP" : updates.status ?? existing.status },
+          // SKAI-1778: the open detail replaces its state with this row, so it
+          // must carry the same relations as the list, or the owner reads "Unassigned".
+          include: ENQUIRY_DETAIL_INCLUDE,
         });
       },
       { timeout: 20000 }
@@ -130,10 +150,6 @@ export async function updateEnquiry(user: AuthUser, body: Record<string, any>) {
   return prisma.admissionQuery.update({
     where: { id },
     data: updates,
-    include: {
-      classInterested: { select: { id: true, name: true, section: true } },
-      assignedTo: { select: { id: true, fullName: true, role: true } },
-      convertedStudent: { select: { id: true, fullName: true, rollNo: true } },
-    },
+    include: ENQUIRY_DETAIL_INCLUDE,
   });
 }

@@ -12,7 +12,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // corrections keep the original; used accounts keep their type and are deactivated, not deleted;
 // another campus sees nothing.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.FEES_TEST_APP || "http://localhost:3107";
 const evidence = process.env.FEES_EVIDENCE_DIR || "/tmp/sko468-evidence";
 const db = new PrismaClient(), password = "SyntheticLedger468!";
@@ -206,7 +206,10 @@ test("Arabic accountant at phone width reads the report right-to-left without ov
   await page.waitForLoadState("networkidle");
   if (!page.url().includes("view=accounts")) await page.goto(`${base}/accountant?view=accounts`);
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");
-  await page.getByRole("tab", { name: "الأرباح", exact: true }).click({ timeout: 30_000 });
+  // Below `sm` the section strip is a Select (ViewTabs); pick the profit report from it.
+  const sections = page.locator("select").filter({ has: page.locator('option[value="profit"]') });
+  assert.equal(await sections.locator('option[value="profit"]').innerText({ timeout: 30_000 }), "الأرباح");
+  await sections.selectOption("profit");
   await page.locator("[data-profit-basis]").waitFor({ timeout: 15_000 });
   assert.equal(await page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true);
   await shot(page, "ledger-profit-ar-390");

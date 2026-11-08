@@ -2,7 +2,8 @@
 import { Alert } from "@/components/ui/alert";
 import { ErrorState } from "@/components/ui/error-state";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FolderOpen } from "lucide-react";
+import { ClipboardCheck, FilePlus2, FolderOpen, PenLine, Share2 } from "lucide-react";
+import { DeskPill, DeskRowIcon, deskRow, type DeskTone } from "@/components/ui/desk";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -37,6 +38,7 @@ async function call(url: string, method = "GET", body?: Record<string, unknown>)
 }
 const key = () => `pf-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 const statusLabel = (ui: Ui, s: string) => ({ DRAFT: ui("Draft"), PROPOSED: ui("Sent for review"), APPROVED: ui("Reviewed"), CHANGES_REQUESTED: ui("Revision requested") } as Record<string, string>)[s] ?? s;
+const statusTone = (s: string): DeskTone => (({ DRAFT: "neutral", PROPOSED: "warning", APPROVED: "success", CHANGES_REQUESTED: "danger" } as Record<string, DeskTone>)[s] ?? "neutral");
 const goalText = (ui: Ui, g: Entry["goal"]) => g?.title ? `${g.code ? `${g.code} ` : ""}${g.title}` : ui("Not linked to a learning goal");
 
 function SourceCard({ label, source, ui }: { label: string; source: Source | undefined; ui: Ui }) {
@@ -77,10 +79,22 @@ export function Portfolio({ studentId, addRequest, hideAdd = false }: { studentI
   const load = useCallback(async () => { setError(""); try { setData(await call(`/api/portfolio${q}`)); } catch (e) { setError(ui(e instanceof Error ? e.message : "The portfolio could not be loaded.")); } }, [q, ui]);
   useEffect(() => { void load(); }, [load]);
   const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); await load(); return false; } finally { setBusy(false); } };
-  const openAdd = async () => { setAdding(true); try { setAttempts((await call(`/api/portfolio?view=evidence${q ? `&${q.slice(1)}` : ""}`)).attempts); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "Could not load evidence to add.")); } };
+  // SKAI-1495: a failed evidence lookup is a persistent in-dialog error with Retry, not an empty chooser.
+  const [evidenceFailed, setEvidenceFailed] = useState(false);
+  const openAdd = async () => { setAdding(true); setEvidenceFailed(false); try { setAttempts((await call(`/api/portfolio?view=evidence${q ? `&${q.slice(1)}` : ""}`)).attempts); } catch (e) { setEvidenceFailed(true); toast.error(ui(e instanceof Error ? e.message : "Could not load evidence to add.")); } };
   const openAddRef = useRef(openAdd);
   useEffect(() => { openAddRef.current = openAdd; });
   useEffect(() => { if (addRequest) void openAddRef.current(); }, [addRequest]);
+  // SKAI-1580: when a reload shows the entry under review moved on (another reviewer, or the learner), the open
+  // dialog switches to the latest version and blocks a decision until the reviewer confirms they read it.
+  // Typed comment and staff note are separate state, so they survive as unsaved text.
+  const [reviewStale, setReviewStale] = useState(false);
+  useEffect(() => {
+    if (!reviewing || !data) return;
+    const latest = data.entries.find(e => e.id === reviewing.id);
+    if (!latest) { setReviewing(null); return; }
+    if (latest.version !== reviewing.version) { setReviewing(latest); setReviewStale(true); }
+  }, [data, reviewing]);
 
   if (error) return <section data-portfolio><ErrorState description={error} onRetry={() => void load()} retryLabel={ui("Try again")} /></section>;
   if (!data) return <section className="sk-panel p-5" data-portfolio aria-busy="true"><SkeletonList rows={3} label={ui("Loading the portfolio…")} /></section>;
@@ -91,11 +105,11 @@ export function Portfolio({ studentId, addRequest, hideAdd = false }: { studentI
   const shareable = data.entries.filter(e => e.approvedVersion !== null && e.familyVisible);
 
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-portfolio data-pf-role={data.role}>
-    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-bold">{learner ? ui("My learning portfolio") : ui("Learning portfolio of {0}", [data.student.name])}</h3><p className="text-xs text-ink-muted">{ui("Evidence of how understanding changed: work, feedback, a later revision and a reflection. No class rankings.")}</p></div>
+    <header className="flex flex-wrap items-center justify-between gap-2"><div className="min-w-0"><h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><FolderOpen aria-hidden="true" className="size-4 shrink-0 text-primary" />{learner ? ui("My learning portfolio") : ui("Learning portfolio of {0}", [data.student.name])}</h3><p className="text-xs text-ink-muted">{ui("Evidence of how understanding changed: work, feedback, a later revision and a reflection. No class rankings.")}</p></div>
       <div className="flex flex-wrap gap-2">{hideAdd ? null : <Button size="sm" onClick={() => void openAdd()} data-pf-add>{ui("Add evidence")}</Button>}<a className={buttonVariants({ variant: "outline", size: "sm" })} href={`/api/portfolio/export${q}`} target="_blank" rel="noreferrer" data-pf-export>{ui("Export reviewed entries")}</a>{!learner ? <Button size="sm" variant="outline" disabled={!shareable.length} onClick={() => { setSharing(true); setShare({ guardianUserId: data.guardians[0]?.id ?? "", days: "30", title: "", entryIds: shareable.map(e => e.id) }); }} data-pf-share>{ui("Share with a guardian")}</Button> : null}</div></header>
 
-    {!data.entries.length ? <div data-pf-empty><EmptyState size="sm" icon={FolderOpen} title={ui("Choose one piece of work that shows something you learned.")} /></div> : <ol className="space-y-3" data-pf-timeline>{data.entries.map(e => <li key={e.id} className={cn("rounded-2xl border p-3", e.status === "PROPOSED" ? "border-status-warning-border" : "border-edge/40")} data-pf-entry={e.id} data-pf-status={e.status}>
-      <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-bold text-brand-700" dir="auto">{goalText(ui, e.goal)}</p><p className="text-sm font-bold" dir="auto">{e.title}</p><p className="text-xs text-ink-muted">{statusLabel(ui, e.status)}{e.familyVisible ? <> · {ui("Visible to authorized guardians")}</> : null}{e.approvedVersion ? <> · {ui("Reviewed reflection version {0}", [String(e.approvedVersion)])}</> : null} · <bdi>{date(e.createdAt)}</bdi></p></div>
+    {!data.entries.length ? <div data-pf-empty><EmptyState size="sm" icon={FolderOpen} title={ui("Choose one piece of work that shows something you learned.")} /></div> : <ol className="space-y-3" data-pf-timeline>{data.entries.map(e => <li key={e.id} data-tone={statusTone(e.status)} className={cn(deskRow, "p-3 sm:p-4")} data-pf-entry={e.id} data-pf-status={e.status}>
+      <div className="flex flex-wrap items-start justify-between gap-2"><div className="flex min-w-0 flex-1 items-start gap-3"><DeskRowIcon icon={FolderOpen} /><div className="min-w-0"><p className="text-xs font-bold text-brand-700 [overflow-wrap:anywhere]" dir="auto">{goalText(ui, e.goal)}</p><p className="text-sm font-bold text-ink-strong [overflow-wrap:anywhere]" dir="auto">{e.title}</p><p className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-ink-muted"><DeskPill tone={statusTone(e.status)}>{statusLabel(ui, e.status)}</DeskPill>{e.familyVisible ? <> · {ui("Visible to authorized guardians")}</> : null}{e.approvedVersion ? <> · {ui("Reviewed reflection version {0}", [String(e.approvedVersion)])}</> : null} · <bdi>{date(e.createdAt)}</bdi></p></div></div>
         <div className="flex flex-wrap gap-2">{learner ? <Button size="sm" variant="outline" onClick={() => { setEditing(e); setReflection(e.reflection ?? ""); }} data-pf-reflect>{ui("Add reflection")}</Button> : <Button size="sm" variant={e.status === "PROPOSED" ? "default" : "outline"} onClick={() => { setReviewing(e); setComment(e.teacherComment ?? ""); setNote(e.staffNote ?? ""); setFamilyVisible(Boolean(e.familyVisible)); }} data-pf-review>{ui("Review")}</Button>}
           <Button size="sm" variant="secondary" disabled={busy} onClick={() => setConfirmRemove(e)} data-pf-remove>{ui("Remove")}</Button></div></div>
       <div className="mt-2 grid gap-2 md:grid-cols-2"><SourceCard label={ui("Earlier work")} source={e.earlier} ui={ui} /><SourceCard label={ui("Later work")} source={e.later} ui={ui} /></div>
@@ -132,42 +146,43 @@ export function Portfolio({ studentId, addRequest, hideAdd = false }: { studentI
       onCancel={() => setConfirmRevoke(null)}
       onConfirm={async () => { const shareId = confirmRevoke; if (shareId && await run(() => call("/api/portfolio", "POST", { action: "revoke", shareId }), "Share withdrawn. Old links no longer open.")) setConfirmRevoke(null); }}
     />
-    {adding ? <Modal size="sm" title={ui("Add evidence")} eyebrow={data.student.name} onClose={() => setAdding(false)}>
+    {adding ? <Modal size="sm" title={ui("Add evidence")} eyebrow={data.student.name} onClose={() => setAdding(false)} icon={FilePlus2} tone="violet" subtitle={ui("Choose one piece of work that shows something you learned.")}
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setAdding(false)}>{ui("Back")}</Button><Button disabled={busy || !draft.earlierVersionId || Boolean(earlier?.goals.length && !draft.outcomeId)} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "entry", studentId: data.student.id, ...draft, laterVersionId: draft.laterVersionId || undefined, outcomeId: draft.outcomeId || undefined, idempotencyKey: entryKey }), "Added to the portfolio.").then(ok => { if (ok) { setAdding(false); setDraft({ earlierVersionId: "", laterVersionId: "", outcomeId: "", reflection: "" }); setEntryKey(key()); } })} data-pf-add-save>{ui("Add to portfolio")}</Button></div>}>
       <div className="space-y-3" data-pf-add-dialog>
+        {evidenceFailed ? <Alert tone="danger" compact data-pf-evidence-error>{ui("Could not load evidence to add.")} <Button variant="ghost" type="button" className="text-xs font-bold" onClick={() => void openAdd()}>{ui("Retry")}</Button></Alert> : null}
         <FormField name="pf-earlier" label={ui("Work with returned feedback")}><Select value={draft.earlierVersionId} onChange={e => setDraft({ ...draft, earlierVersionId: e.target.value, laterVersionId: "", outcomeId: "" })}><option value="">{ui("Choose work")}</option>{attempts.filter(a => a.hasFeedback).map(a => <option key={a.id} value={a.id}>{a.title} · v{a.version}</option>)}</Select></FormField>
         {earlier?.goals.length ? <FormField name="pf-goal" label={ui("Learning goal")}><Select value={draft.outcomeId} onChange={e => setDraft({ ...draft, outcomeId: e.target.value })}><option value="">{ui("Choose a goal")}</option>{earlier.goals.map(g => <option key={g.id} value={g.id}>{g.code ? `${g.code} ` : ""}{g.title}</option>)}</Select></FormField> : earlier ? <p className="text-xs text-ink-muted">{ui("This work is not linked to a learning goal.")}</p> : null}
         {earlier ? <FormField name="pf-later" label={ui("A later revision (optional)")}><Select value={draft.laterVersionId} onChange={e => setDraft({ ...draft, laterVersionId: e.target.value })}><option value="">—</option>{laterChoices.map(a => <option key={a.id} value={a.id}>{a.title} · v{a.version}</option>)}</Select></FormField> : null}
         <FormField name="pf-reflection" label={ui("What did you change after the feedback?")}><Textarea rows={3} value={draft.reflection} onChange={e => setDraft({ ...draft, reflection: e.target.value })} maxLength={3000} /></FormField>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setAdding(false)}>{ui("Back")}</Button><Button disabled={busy || !draft.earlierVersionId || Boolean(earlier?.goals.length && !draft.outcomeId)} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "entry", studentId: data.student.id, ...draft, laterVersionId: draft.laterVersionId || undefined, outcomeId: draft.outcomeId || undefined, idempotencyKey: entryKey }), "Added to the portfolio.").then(ok => { if (ok) { setAdding(false); setDraft({ earlierVersionId: "", laterVersionId: "", outcomeId: "", reflection: "" }); setEntryKey(key()); } })} data-pf-add-save>{ui("Add to portfolio")}</Button></div>
       </div>
     </Modal> : null}
 
-    {editing ? <Modal size="sm" title={ui("Reflection")} eyebrow={editing.title} onClose={() => setEditing(null)}>
+    {editing ? <Modal size="sm" title={ui("Reflection")} eyebrow={editing.title} onClose={() => setEditing(null)} icon={PenLine} tone="sky"
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "reflect", entryId: editing.id, knownVersion: editing.version, reflection }), "Reflection saved.").then(ok => ok && setEditing(null))} data-pf-reflect-save>{ui("Save")}</Button><Button disabled={busy || !reflection.trim()} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "reflect", entryId: editing.id, knownVersion: editing.version, reflection, propose: true }), "Sent to your teacher for review.").then(ok => ok && setEditing(null))} data-pf-propose>{ui("Send for review")}</Button></div>}>
       <div className="space-y-3" data-pf-reflect-dialog>
         {editing.teacherComment && editing.status === "CHANGES_REQUESTED" ? <Alert tone="warning" compact live="off"><span dir="auto">{editing.teacherComment}</span></Alert> : null}
         <FormField name="pf-text" label={ui("What did you change after the feedback?")} hint={ui("Your teacher's feedback and your submitted work stay exactly as they were.")}><Textarea rows={4} value={reflection} onChange={e => setReflection(e.target.value)} maxLength={3000} /></FormField>
-        <div className="flex justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "reflect", entryId: editing.id, knownVersion: editing.version, reflection }), "Reflection saved.").then(ok => ok && setEditing(null))} data-pf-reflect-save>{ui("Save")}</Button><Button disabled={busy || !reflection.trim()} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "reflect", entryId: editing.id, knownVersion: editing.version, reflection, propose: true }), "Sent to your teacher for review.").then(ok => ok && setEditing(null))} data-pf-propose>{ui("Send for review")}</Button></div>
       </div>
     </Modal> : null}
 
-    {reviewing ? <Modal size="lg" title={ui("Review portfolio entry")} eyebrow={reviewing.title} subtitle={goalText(ui, reviewing.goal)} onClose={() => setReviewing(null)}>
+    {reviewing ? <Modal size="lg" title={ui("Review portfolio entry")} eyebrow={reviewing.title} subtitle={goalText(ui, reviewing.goal)} onClose={() => { setReviewing(null); setReviewStale(false); }} icon={ClipboardCheck} tone="amber"
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" disabled={busy || reviewStale || !comment.trim()} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "review", entryId: reviewing.id, knownVersion: reviewing.version, decision: "changes", teacherComment: comment, staffNote: note }), "Revision requested.").then(ok => ok && setReviewing(null))} data-pf-changes>{ui("Request a revision")}</Button><Button disabled={busy || reviewStale || !reviewing.reflection} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "review", entryId: reviewing.id, knownVersion: reviewing.version, decision: "approve", teacherComment: comment, staffNote: note, familyVisible }), familyVisible ? "Reviewed. Approved for family sharing." : "Reviewed.").then(ok => ok && setReviewing(null))} data-pf-approve>{ui("Approve this reflection")}</Button></div>}>
       <div className="space-y-3" data-pf-review-dialog>
+        {reviewStale ? <Alert tone="warning" compact live="polite"><span data-pf-review-stale>{ui("This entry changed while you were reviewing. Read the latest version below; your comment and note are kept but not saved.")}</span> <Button size="sm" variant="outline" onClick={() => setReviewStale(false)} data-pf-review-ack>{ui("I have read the latest version")}</Button></Alert> : null}
         <p className="text-sm"><span className="font-bold">{ui("Reflection")}:</span> <span dir="auto">{reviewing.reflection || ui("No reflection yet.")}</span></p>
         <FormField name="pf-comment" label={ui("Comment for the learner (and family, if shared)")}><Textarea rows={2} value={comment} onChange={e => setComment(e.target.value)} /></FormField>
         <FormField name="pf-note" label={ui("Staff note — never shown to learners or families")}><Textarea rows={2} value={note} onChange={e => setNote(e.target.value)} /></FormField>
         <label className="flex items-center gap-2 text-sm"><Checkbox checked={familyVisible} onChange={e => setFamilyVisible(e.target.checked)} data-pf-family /> {ui("Approve for family sharing")}</label>
-        <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" disabled={busy || !comment.trim()} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "review", entryId: reviewing.id, knownVersion: reviewing.version, decision: "changes", teacherComment: comment, staffNote: note }), "Revision requested.").then(ok => ok && setReviewing(null))} data-pf-changes>{ui("Request a revision")}</Button><Button disabled={busy || !reviewing.reflection} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "review", entryId: reviewing.id, knownVersion: reviewing.version, decision: "approve", teacherComment: comment, staffNote: note, familyVisible }), familyVisible ? "Reviewed. Approved for family sharing." : "Reviewed.").then(ok => ok && setReviewing(null))} data-pf-approve>{ui("Approve this reflection")}</Button></div>
       </div>
     </Modal> : null}
 
-    {sharing ? <Modal size="sm" title={ui("Share with a guardian")} eyebrow={data.student.name} onClose={() => setSharing(false)}>
+    {sharing ? <Modal size="sm" title={ui("Share with a guardian")} eyebrow={data.student.name} onClose={() => setSharing(false)} icon={Share2} tone="emerald" subtitle={ui("Only approved entries are shared. Private notes stay with staff.")}
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setSharing(false)}>{ui("Back")}</Button><Button disabled={busy || !share.guardianUserId || !share.entryIds.length} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "share", studentId: data.student.id, ...share, days: Number(share.days) }), "Shared with authorized guardians. Private notes stay with staff.").then(ok => ok && setSharing(false))} data-pf-share-save>{ui("Share collection")}</Button></div>}>
       <div className="space-y-3" data-pf-share-dialog>
         <FormField name="pf-guardian" label={ui("Guardian")}><Select value={share.guardianUserId} onChange={e => setShare({ ...share, guardianUserId: e.target.value })}>{data.guardians.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</Select></FormField>
         <FormField name="pf-title" label={ui("Collection name")}><Input value={share.title} onChange={e => setShare({ ...share, title: e.target.value })} maxLength={120} /></FormField>
         <fieldset className="space-y-1 text-sm"><legend className="text-xs font-bold">{ui("Entries approved for families")}</legend>{shareable.map(e => <label key={e.id} className="flex items-center gap-2"><Checkbox checked={share.entryIds.includes(e.id)} onChange={x => setShare({ ...share, entryIds: x.target.checked ? [...share.entryIds, e.id] : share.entryIds.filter(i => i !== e.id) })} /> <span dir="auto">{e.title}</span></label>)}</fieldset>
         <FormField name="pf-days" label={ui("Visible for (days)")}><Input type="number" min={1} max={180} value={share.days} onChange={e => setShare({ ...share, days: e.target.value })} /></FormField>
-        <p className="text-xs text-ink-muted">{ui("Only approved entries are shared. Private notes stay with staff.")}</p>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setSharing(false)}>{ui("Back")}</Button><Button disabled={busy || !share.guardianUserId || !share.entryIds.length} onClick={() => void run(() => call("/api/portfolio", "POST", { action: "share", studentId: data.student.id, ...share, days: Number(share.days) }), "Shared with authorized guardians. Private notes stay with staff.").then(ok => ok && setSharing(false))} data-pf-share-save>{ui("Share collection")}</Button></div>
       </div>
     </Modal> : null}
   </section>;
@@ -176,11 +191,22 @@ export function Portfolio({ studentId, addRequest, hideAdd = false }: { studentI
 /** Teacher view: choose a learner from your classes, then open their portfolio. */
 export function TeacherPortfolio() {
   const ui = useUiText();
-  const [learners, setLearners] = useState<{ id: string; name: string; className: string; toReview: number }[] | null>(null), [selected, setSelected] = useState("");
-  useEffect(() => { void call("/api/portfolio?view=learners").then(rows => { setLearners(rows); setSelected(s => s || rows.find((r: { toReview: number }) => r.toReview)?.id || rows[0]?.id || ""); }).catch(() => setLearners([])); }, []);
+  type Learner = { id: string; name: string; className: string; toReview: number };
+  type Page = { learners: Learner[]; nextCursor: string | null };
+  const [learners, setLearners] = useState<Learner[] | null>(null), [selected, setSelected] = useState("");
+  // SKAI-1716: the learner list pages beyond 400; a failed later page keeps the list and retries the same cursor.
+  const [cursor, setCursor] = useState<string | null>(null), [more, setMore] = useState<"idle" | "loading" | "failed">("idle");
+  const loadMore = () => { if (!cursor) return; setMore("loading"); void call(`/api/portfolio?view=learners&cursor=${encodeURIComponent(cursor)}`).then((page: Page) => { setLearners(rows => [...(rows ?? []), ...page.learners]); setCursor(page.nextCursor); setMore("idle"); }).catch(() => setMore("failed")); };
+  const [loadError, setLoadError] = useState("");
+  const loadLearners = useCallback(() => {
+    setLoadError("");
+    void call("/api/portfolio?view=learners").then((page: Page) => { const rows = page.learners; setLearners(rows); setCursor(page.nextCursor); setMore("idle"); setSelected(s => s || rows.find(r => r.toReview)?.id || rows[0]?.id || ""); }).catch(e => setLoadError(ui(e instanceof Error ? e.message : "The learners could not be loaded.")));
+  }, [ui]);
+  useEffect(() => { loadLearners(); }, [loadLearners]);
+  if (loadError) return <ErrorState description={loadError} onRetry={loadLearners} retryLabel={ui("Try again")} />;
   if (!learners) return <SkeletonList rows={3} label={ui("Loading the portfolio…")} />;
   if (!learners.length) return <p className="rounded-xl border border-dashed p-4 text-sm text-ink-muted">{ui("No learners in your classes yet.")}</p>;
-  return <div className="space-y-3"><FormField name="pf-learner" label={ui("Learner")}><Select value={selected} onChange={e => setSelected(e.target.value)} data-pf-learner>{learners.map(l => <option key={l.id} value={l.id}>{l.name} · {l.className}{l.toReview ? ` · ${ui("{0} to review", [String(l.toReview)])}` : ""}</option>)}</Select></FormField>{selected ? <Portfolio key={selected} studentId={selected} /> : null}</div>;
+  return <div className="space-y-3"><FormField name="pf-learner" label={ui("Learner")}><Select value={selected} onChange={e => setSelected(e.target.value)} data-pf-learner>{learners.map(l => <option key={l.id} value={l.id}>{l.name} · {l.className}{l.toReview ? ` · ${ui("{0} to review", [String(l.toReview)])}` : ""}</option>)}</Select></FormField>{cursor ? <div className="flex flex-wrap items-center gap-2" aria-live="polite" data-pf-more>{more === "failed" ? <p role="alert" className="text-sm text-status-danger-text">{ui("More learners could not be loaded. The list shown is kept.")}</p> : null}<Button type="button" variant="outline" size="sm" disabled={more === "loading"} aria-busy={more === "loading"} onClick={loadMore}>{more === "loading" ? ui("Loading more learners…") : more === "failed" ? ui("Try again") : ui("Load more learners")}</Button></div> : null}{selected ? <Portfolio key={selected} studentId={selected} /> : null}</div>;
 }
 
 /** Family view: collections shared with this guardian — only while the share and permission last. */
@@ -188,17 +214,23 @@ export function FamilyPortfolio({ studentId }: { studentId: string | null }) {
   const ui = useUiText();
   const { date } = useLocaleFormat();
   const [shares, setShares] = useState<{ id: string; title: string; expiresAt: string }[] | null>(null), [open, setOpen] = useState<{ id: string; title: string; student: string; entries: Entry[]; withdrawn: number } | null>(null), [error, setError] = useState("");
-  useEffect(() => { void call(`/api/portfolio?view=shares${studentId ? `&studentId=${encodeURIComponent(studentId)}` : ""}`).then(setShares).catch(() => setShares([])); }, [studentId]);
+  const [sharesError, setSharesError] = useState(""), [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    setSharesError("");
+    void call(`/api/portfolio?view=shares${studentId ? `&studentId=${encodeURIComponent(studentId)}` : ""}`).then(setShares).catch(e => setSharesError(ui(e instanceof Error ? e.message : "Shared progress could not be loaded.")));
+  }, [studentId, ui, attempt]);
+  // A failed request is shown with a retry, not mistaken for "nothing shared".
+  if (sharesError) return <section className="sk-panel p-4 sm:p-5" data-family-portfolio><ErrorState description={sharesError} onRetry={() => setAttempt(a => a + 1)} retryLabel={ui("Try again")} /></section>;
   const view = async (id: string) => { setError(""); try { setOpen(await call(`/api/portfolio?share=${encodeURIComponent(id)}`)); } catch (e) { setError(ui(e instanceof Error ? e.message : "This collection is not shared with your account.")); } };
   if (!shares?.length) return null;
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-family-portfolio>
-    <h3 className="text-base font-bold">{ui("Learning progress shared by the school")}</h3>
-    <ul className="space-y-2">{shares.map(s => <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm" data-fp-share={s.id}><span><span dir="auto">{s.title}</span> · {ui("Until {0}", [date(s.expiresAt)])}</span><span className="flex gap-2"><Button size="sm" onClick={() => void view(s.id)} data-fp-open>{ui("Open")}</Button><a className={buttonVariants({ variant: "outline", size: "sm" })} href={`/api/portfolio/export?share=${encodeURIComponent(s.id)}`} target="_blank" rel="noreferrer">{ui("Export")}</a></span></li>)}</ul>
+    <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><FolderOpen aria-hidden="true" className="size-4 shrink-0 text-primary" />{ui("Learning progress shared by the school")}</h3>
+    <ul className="space-y-2">{shares.map(s => <li key={s.id} className={cn(deskRow, "flex flex-wrap items-center gap-3 text-sm")} data-fp-share={s.id}><DeskRowIcon icon={FolderOpen} /><span className="min-w-0 flex-1 [overflow-wrap:anywhere]"><span dir="auto">{s.title}</span> · {ui("Until {0}", [date(s.expiresAt)])}</span><span className="flex gap-2"><Button size="sm" onClick={() => void view(s.id)} data-fp-open>{ui("Open")}</Button><a className={buttonVariants({ variant: "outline", size: "sm" })} href={`/api/portfolio/export?share=${encodeURIComponent(s.id)}`} target="_blank" rel="noreferrer">{ui("Export")}</a></span></li>)}</ul>
     {error ? <Alert tone="danger" compact>{error}</Alert> : null}
     {open ? <div className="space-y-3" data-fp-collection>
       <p className="text-sm font-bold"><span dir="auto">{open.title}</span> · <bdi>{open.student}</bdi></p>
       {open.withdrawn ? <p className="text-xs text-ink-muted">{ui("{0} entries are no longer shared.", [String(open.withdrawn)])}</p> : null}
-      {open.entries.map(e => <article key={e.id} className="rounded-2xl border border-edge/40 p-3" data-fp-entry={e.id}>
+      {open.entries.map(e => <article key={e.id} data-tone="success" className={cn(deskRow, "p-3")} data-fp-entry={e.id}>
         <p className="text-xs font-bold text-brand-700" dir="auto">{goalText(ui, e.goal)}</p><p className="text-sm font-bold" dir="auto">{e.title}</p>
         <div className="mt-2 grid gap-2 md:grid-cols-2"><SourceCard label={ui("Earlier work")} source={e.earlier} ui={ui} /><SourceCard label={ui("Later work")} source={e.later} ui={ui} /></div>
         <div className="mt-2"><Compare c={e.comparison} ui={ui} /></div>

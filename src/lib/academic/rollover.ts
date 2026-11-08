@@ -2,9 +2,11 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, assertPermission, canLeadAcademics, canManageOperations } from "@/lib/api/scope";
 import { applyEnrollment, applyWithdrawal, assertRegistrar, dateOnly } from "@/lib/students/enrollment";
+import { assertCapacityFitsEnrolled, parseClassCapacity } from "@/lib/academic/class-setup";
 import { calculateWeightedGrade } from "@/lib/academic/grade-calculator";
 import { getYearClosureReport } from "@/lib/academic/year-closure";
 import { notify } from "@/lib/notifications/in-app";
+import { schoolToday } from "@/lib/datetime";
 
 /**
  * SKO-404: year-end rollover as a reviewed, versioned plan.
@@ -25,7 +27,8 @@ type Baseline = { learners: number; balances: { currency: string; minor: number 
 
 const LEASE_MS = 2 * 60_000;
 const UNFINISHED_EXAM = ["DRAFT", "ACTIVE", "MARKS_ENTRY"];
-const today = () => dateOnly(new Date().toISOString().slice(0, 10));
+// SKAI-1413: "today" is the campus calendar date, not UTC, so execution opens at the campus midnight.
+const today = async (schoolId: string, campusId: string) => dateOnly(await schoolToday(schoolId, campusId));
 const classLabel = (c: { name: string; section: string | null }) => [c.name, c.section].filter(Boolean).join(" - ");
 
 export async function assertRolloverRead(user: AuthUser) {
@@ -155,16 +158,18 @@ export async function decide(user: AuthUser, planId: string, version: number, ro
   });
 }
 
-export async function setClassCapacity(user: AuthUser, campusId: string, classId: string, capacity: number | null) {
+export async function setClassCapacity(user: AuthUser, campusId: string, classId: string, rawCapacity: unknown) {
   await assertRegistrar(user);
-  if (capacity !== null && (!Number.isInteger(capacity) || capacity < 0 || capacity > 500)) throw new ApiError("Capacity must be a whole number from 0 to 500", 400);
-  const cls = await prisma.class.findFirst({ where: { id: classId, campusId } });
-  if (!cls) throw new ApiError("Class not found", 404);
-  await prisma.$transaction([
-    prisma.class.update({ where: { id: classId }, data: { capacity } }),
-    prisma.auditLog.create({ data: { tableName: "classes", recordId: classId, userId: user.userId, oldValue: { capacity: cls.capacity }, newValue: { capacity } } }),
-  ]);
-  return { capacity };
+  // SKAI-202: rollover edits capacity under the same rule as class setup (1–200 or blank, never below enrolled).
+  const capacity = parseClassCapacity(rawCapacity);
+  return prisma.$transaction(async tx => {
+    const cls = await tx.class.findFirst({ where: { id: classId, campusId, schoolId: user.schoolId } });
+    if (!cls) throw new ApiError("Class not found", 404);
+    assertCapacityFitsEnrolled(capacity, await tx.student.count({ where: { schoolId: user.schoolId, classId, archivedAt: null, status: "active" } }));
+    await tx.class.update({ where: { id: classId }, data: { capacity } });
+    await tx.auditLog.create({ data: { tableName: "classes", recordId: classId, userId: user.userId, oldValue: { capacity: cls.capacity }, newValue: { capacity } } });
+    return { capacity };
+  });
 }
 
 type Row = Awaited<ReturnType<typeof prisma.rolloverDecision.findMany>>[number];
@@ -197,7 +202,7 @@ export async function loadRollover(user: AuthUser, campusId: string, requestedYe
     prisma.class.findMany({ where: { campusId, academicYear: destinationYear, status: "ACTIVE", archivedAt: null }, select: { id: true, name: true, section: true, capacity: true, _count: { select: { students: { where: { status: "active", archivedAt: null } } } } }, orderBy: [{ name: "asc" }, { section: "asc" }] }),
     prisma.rolloverPlan.findFirst({ where: { campusId, sourceYear } }),
   ]);
-  const base = { years, sourceYear, destinationYear, readiness, sourceClasses: sourceClasses.map(c => ({ id: c.id, label: classLabel(c) })) };
+  const base = { today: await schoolToday(user.schoolId, campusId), years, sourceYear, destinationYear, readiness, sourceClasses: sourceClasses.map(c => ({ id: c.id, label: classLabel(c) })) };
   const destinations = destinationClasses.map(c => ({ id: c.id, label: classLabel(c), capacity: c.capacity, occupancy: c._count.students }));
   if (!plan) return { ...base, destinations: destinations.map(d => ({ ...d, incoming: 0 })), eligible: (await eligibleLearners(prisma, campusId, sourceYear)).length, plan: null };
 
@@ -240,7 +245,8 @@ export async function loadRollover(user: AuthUser, campusId: string, requestedYe
   const baseline = plan.baseline as Baseline | null;
   const reconciliation = baseline ? { baseline, now: await measure(prisma, rows), learners: rows.length,
     accounted: (statuses.DONE ?? 0) + (statuses.BLOCKED ?? 0) + (statuses.REVERSED ?? 0), clean: !(statuses.PENDING ?? 0) && !(statuses.BLOCKED ?? 0) } : null;
-  const events = await prisma.rolloverEvent.findMany({ where: { planId: plan.id }, orderBy: { createdAt: "desc" }, take: 30 });
+  // SKAI-1745: the plan's whole audit trail, newest first — a 30-event cap hid older approvals and corrections.
+  const events = await prisma.rolloverEvent.findMany({ where: { planId: plan.id }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
   const leaseActive = plan.status === "EXECUTING" && !!plan.leaseUntil && plan.leaseUntil > new Date();
   return {
     ...base, destinations: destinations.map(d => ({ ...d, incoming: incoming.get(d.id) ?? 0 })), eligible: rows.length,
@@ -333,7 +339,7 @@ async function applyRow(tx: TxClient, user: AuthUser, plan: { id: string; campus
 export async function executePlan(user: AuthUser, planId: string, version: number, limit = 50) {
   await assertRegistrar(user);
   const plan = await getPlan(user, planId);
-  if (plan.effectiveDate > today()) throw new ApiError(`Execution opens on the effective date, ${plan.effectiveDate.toISOString().slice(0, 10)}.`, 409);
+  if (plan.effectiveDate > await today(plan.schoolId, plan.campusId)) throw new ApiError(`Execution opens on the effective date, ${plan.effectiveDate.toISOString().slice(0, 10)}.`, 409);
   const now = new Date();
   const claimed = await prisma.rolloverPlan.updateMany({
     where: { id: planId, version, approvedVersion: version, OR: [{ status: { in: ["APPROVED", "PAUSED"] } }, { status: "EXECUTING", leaseUntil: { lt: now } }] },
@@ -386,7 +392,7 @@ export async function reverseDecision(user: AuthUser, planId: string, studentId:
     const row = await tx.rolloverDecision.findFirst({ where: { planId, studentId } });
     if (!row || row.executionStatus !== "DONE") throw new ApiError("Only an applied decision can be corrected", 409);
     if (row.decision !== "PROMOTE" && row.decision !== "RETAIN" || !row.newEnrollmentId) throw new ApiError("Graduation and transfer are corrected through re-admission, not here.", 409);
-    if (effectiveDate <= plan.effectiveDate || effectiveDate > today()) throw new ApiError("The correction date must be after the rollover date and no later than today.", 400);
+    if (effectiveDate <= plan.effectiveDate || effectiveDate > await today(plan.schoolId, plan.campusId)) throw new ApiError("The correction date must be after the rollover date and no later than today.", 400);
     const current = await tx.studentEnrollment.findFirst({ where: { studentId, status: "ACTIVE", endDate: null } });
     if (current?.id !== row.newEnrollmentId) throw new ApiError("The learner has moved since the rollover. Record a reviewed transfer instead.", 409);
     const [attendance, invoices, reports] = await Promise.all([

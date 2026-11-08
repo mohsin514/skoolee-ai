@@ -2,6 +2,7 @@ import { z } from "zod";
 import { errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { addAdjustment, approveRun, createCorrection, payrollOverview, prepareRun, recordProviderResult, savePolicy, saveProvider, setEmployee, submitRun, voidAdjustment } from "@/lib/payroll-runs/service";
+import { readJsonBody } from "@/lib/api/validate";
 
 // SKO-434: payroll policies, provider mappings, run versions, approval, export and provider results.
 const headers = { "Cache-Control": "private, no-store" };
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const user = await requireAuthUser();
-    const body = z.object({ action: z.enum(["policy", "provider", "employee", "adjust", "void-adjustment", "prepare", "approve", "submit", "result", "correct"]), id: z.string().min(1).max(120).optional(), data: z.unknown().optional(), reason: z.string().max(500).optional() }).strict().parse(await request.json().catch(() => ({})));
+    const body = z.object({ action: z.enum(["policy", "provider", "employee", "adjust", "void-adjustment", "prepare", "approve", "submit", "result", "correct"]), id: z.string().min(1).max(120).optional(), data: z.unknown().optional(), reason: z.string().max(500).optional() }).strict().parse(await readJsonBody(request));
     const id = body.id ?? "";
     const run = (): Promise<unknown> => {
       switch (body.action) {

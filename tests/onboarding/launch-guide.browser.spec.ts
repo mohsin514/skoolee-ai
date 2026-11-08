@@ -7,6 +7,7 @@ import { schoolAICopy } from "../../src/lib/school-ai/copy";
 import { launchCopy } from "../../src/components/onboarding/launch-copy";
 import { roleGuideCopy } from "../../src/components/onboarding/role-guide-copy";
 import { workspaceLaunchCopy } from "../../src/components/school-ai/workspace-launch-copy";
+const ONBOARDING_ORIGIN = (process.env.ONBOARDING_TEST_ORIGIN || "http://localhost:3110").replace(/\/+$/, "");
 
 
 /** M106: the floating "Replay guide" button is gone. Help → "Replay welcome" (SPEC §4.2) inside a role shell; where no
@@ -19,13 +20,13 @@ async function replayWelcome(page: Page) {
   } else await page.evaluate(() => window.dispatchEvent(new Event("skoolee:replay-welcome")));
 }
 
-const database = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const database = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== database || process.env.DIRECT_URL !== database) throw Error("Only the isolated local test database is allowed.");
 const db = new PrismaClient();
 const schoolId = `launch-guide-${randomUUID()}`;
 const campusId = `${schoolId}-north`, otherCampusId = `${schoolId}-south`;
 const accounts = new Map<string, { id: string; token: string; role: UserRole }>();
-const origin = "http://localhost:3110";
+const origin = ONBOARDING_ORIGIN;
 test.use({ video: process.env.ONBOARDING_RECORD_VIDEO === "1" ? { mode: "on", size: { width: 1440, height: 1000 } } : "off" });
 
 async function account(key: string, role: UserRole, options: { complete?: boolean; owner?: boolean; password?: boolean; campus?: string | null; language?: string } = {}) {

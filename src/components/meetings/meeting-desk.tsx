@@ -11,9 +11,11 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { CalendarClock, CalendarPlus } from "lucide-react";
+import { CalendarCheck, CalendarClock, CalendarPlus, CalendarX, CheckCircle2, TriangleAlert } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
+import { readApiError } from "@/lib/api/envelope-client";
 
 // SKO-420: the teacher's meeting desk — open windows, see each slot's state, handle bookings, record whether
 // a meeting took place, then write the shared summary and a few owned actions. Staff notes are a separate,
@@ -22,17 +24,26 @@ import { cn } from "@/lib/utils";
 type Slot = { startsAt: string; endsAt: string; start: string; end: string; state: "OPEN" | "TAKEN" | "BLOCKED" | "PAST" };
 type Window = { id: string; localDate: string; startTime: string; endTime: string; slotMinutes: number; bufferMinutes: number; maxBookings: number | null; mode: string; location: string | null; cancellationPolicy: string; slots: Slot[] };
 type Action = { id: string; text: string; ownerRole: string; dueDate: string; status: string };
-type Booking = { id: string; status: string; conflictReason: string | null; version: number; startsAt: string; endsAt: string; local: { date: string; time: string; end: string }; mode: string; location: string | null; agenda: string | null; accessNeeds: string | null; studentName: string; guardianName: string; followUp: { summary: string; sharedAt: string | null } | null; actions: Action[]; notes: { id: string; body: string; createdAt: string; author: string }[]; events: { version: number; action: string; createdAt: string }[] };
+type Booking = { id: string; status: string; conflictReason: string | null; version: number; startsAt: string; endsAt: string; local: { date: string; time: string; end: string }; mode: string; location: string | null; agenda: string | null; accessNeeds: string | null; studentName: string; guardianName: string; followUp: { summary: string; sharedAt: string | null; updatedAt?: string } | null; actions: Action[]; notes: { id: string; body: string; createdAt: string; author: string }[]; events: { version: number; action: string; createdAt: string }[] };
 type Desk = { timezone: string; today: string; windows: Window[]; bookings: Booking[] };
 type Draft = { text: string; ownerRole: "FAMILY" | "STAFF"; dueDate: string };
 
 async function call(url: string, method: string, body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved.");
+  if (!response.ok || json.error || json.success === false) throw new Error(readApiError(json, "The change was not saved."));
   return json.data;
 }
 const LIVE = ["CONFIRMED", "RESCHEDULE_NEEDED"];
+/** Tone and icon of a booking row and its dialog: a meeting that needs a new time leads, in warning. */
+const BOOKING_LOOK: Record<string, { tone: DeskTone; icon: typeof CalendarClock; modal: "amber" | "emerald" | "violet" | "rose" }> = {
+  RESCHEDULE_NEEDED: { tone: "warning", icon: TriangleAlert, modal: "amber" },
+  CONFIRMED: { tone: "brand", icon: CalendarCheck, modal: "violet" },
+  HELD: { tone: "success", icon: CheckCircle2, modal: "emerald" },
+  NOT_HELD: { tone: "neutral", icon: CalendarX, modal: "violet" },
+  CANCELLED: { tone: "neutral", icon: CalendarX, modal: "rose" },
+};
+const look = (status: string) => BOOKING_LOOK[status] ?? BOOKING_LOOK.CANCELLED;
 
 /**
  * `offerOpen`/`onOfferOpenChange` let the page put "Offer meeting slots" in its PageHeader (the
@@ -50,6 +61,7 @@ export function MeetingDesk({ offerOpen, onOfferOpenChange, onReadyChange }: { o
   const { date, dateTime } = useLocaleFormat();
   const [desk, setDesk] = useState<Desk | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ localDate: "", startTime: "14:00", endTime: "15:00", slotMinutes: "15", bufferMinutes: "5", maxBookings: "", mode: "IN_PERSON", location: "", cancellationPolicy: "" });
+  const [show, setShow] = useState<string | null>(null);
   const [open, setOpen] = useState<Booking | null>(null), [summary, setSummary] = useState(""), [drafts, setDrafts] = useState<Draft[]>([]), [note, setNote] = useState("");
   const load = useCallback(async () => {
     setError("");
@@ -68,6 +80,10 @@ export function MeetingDesk({ offerOpen, onOfferOpenChange, onReadyChange }: { o
   if (error) return <section className="sk-panel" data-meeting-desk><ErrorState title={ui("Couldn't load your meetings")} description={error} onRetry={() => void load()} /></section>;
   if (!desk) return <section className="sk-panel p-5" data-meeting-desk aria-busy="true"><SkeletonList rows={3} label={ui("Refreshing available times…")} /></section>;
   const upcoming = desk.bookings.filter(b => LIVE.includes(b.status)), recent = desk.bookings.filter(b => !LIVE.includes(b.status));
+  const ordered = urgencyFirst([...upcoming, ...recent], b => (b.status === "RESCHEDULE_NEEDED" ? 0 : 1));
+  const shown = show ? ordered.filter(b => b.status === show) : ordered;
+  const count = (st: string) => desk.bookings.filter(b => b.status === st).length;
+  const openSlots = desk.windows.reduce((n, w) => n + w.slots.filter(sl => sl.state === "OPEN").length, 0);
   const when = (b: Booking) => ui("{0}, {1}–{2} in the school's timezone", [date(b.local.date), b.local.time, b.local.end]);
   const stateLabel: Record<Slot["state"], string> = { OPEN: ui("Open"), TAKEN: ui("Booked"), BLOCKED: ui("Not available"), PAST: ui("Past") };
   const status = (b: Booking) => b.status === "RESCHEDULE_NEEDED" ? ui("Needs a new time") : b.status === "CONFIRMED" ? ui("Confirmed") : b.status === "HELD" ? ui("Took place") : b.status === "NOT_HELD" ? ui("Did not take place") : ui("Cancelled");
@@ -80,8 +96,13 @@ export function MeetingDesk({ offerOpen, onOfferOpenChange, onReadyChange }: { o
 
     {!desk.windows.length && !desk.bookings.length ? <EmptyState size="sm" icon={CalendarClock} title={ui("No meeting times offered yet")} description={ui("Offer a few slots and families can book one with you.")} action={<Button size="sm" onClick={() => setOffering(true)}><CalendarPlus aria-hidden="true" /> {ui("Offer meeting slots")}</Button>} /> : null}
 
-    {desk.windows.length ? <ul className="space-y-2" data-meeting-windows>{desk.windows.map(w => <li key={w.id} className="rounded-xl border border-edge/40 p-3" data-window={w.id}>
-      <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-ink-strong"><bdi>{date(w.localDate)}</bdi> <bdi>{w.startTime}–{w.endTime}</bdi> · {w.mode === "REMOTE" ? ui("Remote meeting") : w.mode === "EITHER" ? ui("In person or remote") : ui("In person")}{w.location ? <> · <bdi>{w.location}</bdi></> : null}</p>
+    {desk.windows.length || desk.bookings.length ? <DeskStats>
+      <StatTile index={0} icon={CalendarPlus} tone="info" value={openSlots} label={ui("Open slots")} />
+      {(["CONFIRMED", "RESCHEDULE_NEEDED", "HELD"] as const).map((st, i) => <StatTile key={st} index={i + 1} icon={look(st).icon} tone={look(st).tone} value={count(st)} label={st === "CONFIRMED" ? ui("Confirmed") : st === "HELD" ? ui("Took place") : ui("Needs a new time")} selected={show === st} onSelect={() => setShow(show === st ? null : st)} />)}
+    </DeskStats> : null}
+
+    {desk.windows.length ? <ul className="space-y-2" data-meeting-windows>{desk.windows.map(w => <li key={w.id} className={deskRow} data-tone="info" data-window={w.id}>
+      <div className="flex flex-wrap items-center justify-between gap-2"><p className="flex min-w-0 items-center gap-3 text-sm font-semibold text-ink-strong"><DeskRowIcon icon={CalendarPlus} /><span className="min-w-0"><bdi>{date(w.localDate)}</bdi> <bdi>{w.startTime}–{w.endTime}</bdi> · {w.mode === "REMOTE" ? ui("Remote meeting") : w.mode === "EITHER" ? ui("In person or remote") : ui("In person")}{w.location ? <> · <bdi>{w.location}</bdi></> : null}</span></p>
         <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirm({ kind: "withdraw", window: w })} data-window-withdraw>{ui("Withdraw these times")}</Button></div>
       <ul className="mt-2 flex flex-wrap gap-1.5">{w.slots.map(s => <li key={s.startsAt} className={cn("rounded-lg border px-2 py-1 text-xs", s.state === "OPEN" ? "border-status-success-border bg-status-success-surface" : s.state === "TAKEN" ? "border-status-brand-border bg-status-brand-surface font-semibold" : "border-border-subtle bg-surface-subtle text-ink-muted")} data-slot-state={s.state}><bdi>{s.start}–{s.end}</bdi> · {stateLabel[s.state]}</li>)}</ul>
     </li>)}</ul> : null}
@@ -89,13 +110,15 @@ export function MeetingDesk({ offerOpen, onOfferOpenChange, onReadyChange }: { o
     <div className="space-y-2" data-meeting-bookings>
       <p className="sk-eyebrow">{ui("Booked meetings")}</p>
       {!upcoming.length && !recent.length ? <p className="text-sm text-ink-muted">{ui("No meetings booked yet.")}</p> : null}
-      {[...upcoming, ...recent].map(b => <div key={b.id} className={cn("flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3", b.status === "RESCHEDULE_NEEDED" ? "border-status-warning-border bg-status-warning-surface" : "border-edge/40")} data-booking={b.id} data-booking-status={b.status}>
-        <div><p className="text-sm font-semibold text-ink-strong"><bdi>{b.studentName}</bdi> · <bdi>{b.guardianName}</bdi></p><p className="text-xs text-ink-muted"><bdi>{when(b)}</bdi> · {status(b)}{b.status === "RESCHEDULE_NEEDED" ? <> · {b.conflictReason === "LEAVE" ? ui("You are on leave at this time.") : b.conflictReason === "TIMETABLE" ? ui("You now teach at this time.") : ui("You withdrew this time.")}</> : null}</p></div>
+      <DeskFilterStatus shown={shown.length} total={ordered.length} onClear={() => setShow(null)} />
+      {shown.map(b => <div key={b.id} className={cn(deskRow, "flex flex-wrap items-center gap-3")} data-tone={look(b.status).tone} data-booking={b.id} data-booking-status={b.status}>
+        <DeskRowIcon icon={look(b.status).icon} />
+        <div className="min-w-0 flex-1"><p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-strong"><span className="min-w-0"><bdi>{b.studentName}</bdi> · <bdi>{b.guardianName}</bdi></span><DeskPill tone={look(b.status).tone}>{status(b)}</DeskPill></p><p className="text-xs text-ink-muted"><bdi>{when(b)}</bdi>{LIVE.includes(b.status) ? <> · <RelativeTime iso={b.startsAt} full={when(b)} /></> : null}{b.status === "RESCHEDULE_NEEDED" ? <> · {b.conflictReason === "LEAVE" ? ui("You are on leave at this time.") : b.conflictReason === "TIMETABLE" ? ui("You now teach at this time.") : ui("You withdrew this time.")}</> : null}</p></div>
         <Button size="sm" variant="outline" onClick={() => openBooking(b)} data-booking-open>{ui("Open")}</Button>
       </div>)}
     </div>
 
-    {offering ? <Modal size="lg" title={ui("Offer meeting slots")} eyebrow={ui("Parent meetings")} subtitle={ui("Families see these times and the policy before they book.")} onClose={() => setOffering(false)}
+    {offering ? <Modal size="lg" icon={CalendarPlus} title={ui("Offer meeting slots")} eyebrow={ui("Parent meetings")} subtitle={ui("Families see these times and the policy before they book.")} onClose={() => setOffering(false)}
       footer={<ModalActions busy={busy} busyLabel={ui("Opening…")} actionLabel={ui("Open these times")} onCancel={() => setOffering(false)} onAction={() => void createWindow()} blockedReason={!form.localDate ? ui("Choose a day.") : null} />}>
     <div className="space-y-3" data-meeting-window-form>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -136,12 +159,12 @@ export function MeetingDesk({ offerOpen, onOfferOpenChange, onReadyChange }: { o
       onConfirm={async () => { const b = confirm?.kind === "cancel" ? confirm.booking : null; if (b && await act({ action: "cancel", bookingId: b.id, knownVersion: b.version }, "Meeting cancelled. The family has been told.")) setConfirm(null); }}
     />
 
-    {open ? <Modal size="lg" title={open.studentName} eyebrow={status(open)} subtitle={when(open)} onClose={() => setOpen(null)}>
+    {open ? <Modal size="lg" icon={look(open.status).icon} tone={look(open.status).modal} title={open.studentName} eyebrow={status(open)} subtitle={when(open)} onClose={() => setOpen(null)}>
       <div className="space-y-4" data-booking-dialog>
         <div className="text-sm"><p>{ui("Guardian")}: <bdi>{open.guardianName}</bdi> · {open.mode === "REMOTE" ? ui("Remote meeting") : ui("In person")}{open.location ? <> · <bdi>{open.location}</bdi></> : null}</p>
           {open.agenda ? <p className="mt-1">{ui("Agenda")}: <bdi>{open.agenda}</bdi></p> : null}{open.accessNeeds ? <p className="mt-1 font-bold">{ui("Access needs")}: <bdi>{open.accessNeeds}</bdi></p> : null}</div>
         {LIVE.includes(open.status) ? <div className="flex flex-wrap gap-2">
-          {new Date(open.startsAt) <= new Date() && open.status === "CONFIRMED" ? <><Button size="sm" disabled={busy} onClick={() => void act({ action: "outcome", bookingId: open.id, outcome: "HELD" }, "Recorded.")} data-outcome-held>{ui("It took place")}</Button><Button size="sm" variant="outline" disabled={busy} onClick={() => void act({ action: "outcome", bookingId: open.id, outcome: "NOT_HELD" }, "Recorded.")} data-outcome-not-held>{ui("It did not take place")}</Button></> : null}
+          {new Date(open.startsAt) <= new Date() && open.status === "CONFIRMED" ? <><Button size="sm" disabled={busy} onClick={() => void act({ action: "outcome", bookingId: open.id, knownVersion: open.version, outcome: "HELD" }, "Recorded.")} data-outcome-held>{ui("It took place")}</Button><Button size="sm" variant="outline" disabled={busy} onClick={() => void act({ action: "outcome", bookingId: open.id, knownVersion: open.version, outcome: "NOT_HELD" }, "Recorded.")} data-outcome-not-held>{ui("It did not take place")}</Button></> : null}
           <Button size="sm" variant="outline" className="text-destructive" disabled={busy} onClick={() => setConfirm({ kind: "cancel", booking: open })} data-booking-cancel>{ui("Cancel meeting")}</Button>
         </div> : null}
         {open.status === "HELD" ? <div className="space-y-2 rounded-xl border border-status-success-border bg-status-success-surface p-3" data-followup>
@@ -155,7 +178,7 @@ export function MeetingDesk({ offerOpen, onOfferOpenChange, onReadyChange }: { o
           </div>)}
           {!open.followUp?.sharedAt ? <div className="flex flex-wrap justify-end gap-2">
             {drafts.length < 5 ? <Button size="sm" variant="secondary" onClick={() => setDrafts([...drafts, { text: "", ownerRole: "FAMILY", dueDate: desk.today }])} data-followup-add>{ui("Add an action")}</Button> : null}
-            <Button size="sm" variant="outline" disabled={busy || !summary.trim()} onClick={() => void act({ action: "followup", bookingId: open.id, summary, actions: drafts }, "Draft saved.")} data-followup-save>{ui("Save draft")}</Button>
+            <Button size="sm" variant="outline" disabled={busy || !summary.trim()} onClick={() => void act({ action: "followup", bookingId: open.id, knownFollowUpAt: open.followUp?.updatedAt ?? null, summary, actions: drafts }, "Draft saved.")} data-followup-save>{ui("Save draft")}</Button>
             <Button size="sm" disabled={busy || !open.followUp || open.followUp.summary !== summary} onClick={() => void act({ action: "share", bookingId: open.id }, "Shared with the family.")} data-followup-share>{ui("Share with the family")}</Button>
           </div> : null}
         </div> : null}

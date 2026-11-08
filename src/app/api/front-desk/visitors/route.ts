@@ -11,6 +11,10 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { getSchoolTimeZone } from "@/lib/datetime";
+import { zonedInstant } from "@/lib/meetings/time";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-466 visitor register.
 // GET   ?campusId=&status=ON_SITE|LEFT|REFUSED|all&q=&date=YYYY-MM-DD[&format=csv] → campus-scoped list with
@@ -23,6 +27,12 @@ const OVERDUE_MS = OVERDUE_HOURS * 3_600_000;
 const mask = (phone: string | null) => (phone ? `•••${phone.replace(/\D/g, "").slice(-3)}` : null);
 const visibleFields = <T extends { requestHash?: unknown; idempotencyKey?: unknown }>({ requestHash: _hash, idempotencyKey: _key, ...visit }: T) => visit;
 
+async function campusDayRange(date: string, schoolId: string, campusId: string) {
+  const timeZone = await getSchoolTimeZone(schoolId, campusId);
+  const next = new Date(Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10) + 1)).toISOString().slice(0, 10);
+  return { gte: zonedInstant(date, "00:00", timeZone), lt: zonedInstant(next, "00:00", timeZone) };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
@@ -34,11 +44,13 @@ export async function GET(request: NextRequest) {
     const q = (params.get("q") ?? "").trim().slice(0, 80);
     const date = params.get("date");
     if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new ApiError("Dates must be YYYY-MM-DD", 400);
+    // SKAI-1776: the date is the campus calendar day the register displays, not the UTC day.
+    const day = date ? await campusDayRange(date, user.schoolId, campusId) : null;
     const where = {
       campusId, schoolId: user.schoolId,
       ...(status !== "all" ? { status } : {}),
       ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" as const } }, { toMeet: { contains: q, mode: "insensitive" as const } }, { reference: { contains: q, mode: "insensitive" as const } }] } : {}),
-      ...(date ? { inTime: { gte: new Date(`${date}T00:00:00.000Z`), lte: new Date(`${date}T23:59:59.999Z`) } } : {}),
+      ...(day ? { inTime: day } : {}),
     };
     const seePhone = canManageFrontDesk(user);
     const now = Date.now();
@@ -69,7 +81,7 @@ export async function POST(request: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageFrontDesk(user)) throw new ApiError("Only front-desk staff and campus leaders can record visitors.", 403);
     await assertPermission(user, "front-desk", "add");
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     if (body.action && body.action !== "check-in" && body.action !== "refuse") throw new ApiError("Unknown action", 400);
     const campusId = await resolveCampusId(user, body.campusId);
     const { visit, replayed } = await checkIn(user, campusId, body);
@@ -84,8 +96,7 @@ export async function PATCH(request: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageFrontDesk(user)) throw new ApiError("Only front-desk staff and campus leaders can update visitors.", 403);
     await assertPermission(user, "front-desk", "edit");
-    const body = await request.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(request, idBody);
     const campusId = await resolveCampusId(user, body.campusId);
     // The old client sent {id, outTime} without an action; treat it as a check-out.
     const action = body.action ?? (body.outTime !== undefined ? "check-out" : null);

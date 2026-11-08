@@ -28,7 +28,7 @@ function fixture() {
     if (id === "@/lib/attendance/rule") return { attendanceRuleFor: async () => ({}) };
     return require(id);
   });
-  return (period: string) => module.exports.GET(new Request(`http://qa.test/api/attendance/school-summary?period=${period}`));
+  return (period: string) => mod.exports.GET(new Request(`http://qa.test/api/attendance/school-summary?period=${period}`));
 }
 
 test("class counts follow Today versus Week and use the attendance's historical class", async () => {
@@ -38,7 +38,10 @@ test("class counts follow Today versus Week and use the attendance's historical 
   assert.equal(today.classBreakdown[0].present, 1);
   assert.equal(week.classBreakdown[0].present, 2);
   assert.equal(week.classBreakdown[0].percentage, 100);
-  assert.equal(week.classBreakdown[0].unmarked, 0);
+  // SKAI-1537: unmarked counts pupil-days over the week's expected school days, so it depends on the
+  // weekday the suite runs; one pupil, two marked days. Of those two days, count the ones that are school days.
+  const markedSchoolDays = week.daysTracked;
+  assert.equal(week.classBreakdown[0].unmarked, Math.max(0, week.schoolDays - markedSchoolDays));
   assert.equal(week.present, week.classBreakdown[0].present);
 });
 

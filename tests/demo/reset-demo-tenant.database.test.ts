@@ -8,7 +8,7 @@ import { DEMO_LABEL, DEMO_SCHOOL_ID, resetDemoTenant } from "../../scripts/demo/
 // SKO-452: the demo reset restores the same labelled synthetic state every time, touches no other
 // tenant, and refuses a school at the demo id that is not labelled as the synthetic demo.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), otherId = `demo-other-${randomUUID()}`, password = "SyntheticDemoReset452!";
 
 before(async () => {

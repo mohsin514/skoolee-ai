@@ -8,7 +8,8 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip as HintTooltip, InfoTip } from "@/components/ui/tooltip";
 import { useMemo, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, BarChart3, CalendarCheck, GraduationCap, TrendingUp } from "lucide-react";
+import { DeskPill } from "@/components/ui/desk";
+import { BarChart3, CalendarCheck, GraduationCap, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { classLabel } from "@/components/teacher/teacher-components";
 import { TeacherPage } from "@/components/teacher/teacher-page";
@@ -22,9 +23,11 @@ import {
 import { useTeacherData } from "../teacher-data-context";
 import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { useCountLabel } from "@/components/locale/use-count-label";
 
 export default function TeacherInsightsPage() {
   const ui = useUiText();
+  const count = useCountLabel();
   const { data, loading, error, refetch } = useTeacherData();
   const router = useRouter();
 
@@ -273,7 +276,7 @@ export default function TeacherInsightsPage() {
                 </div>
               </div>
               <Badge variant="neutral" size="sm" data-numeric className="shrink-0">
-                {ui("{0} classes", [classBreakdown.length])}
+                {count(classBreakdown.length, "class")}
               </Badge>
             </div>
 
@@ -299,7 +302,7 @@ export default function TeacherInsightsPage() {
                       <TableCell className="px-4 py-3">
                         <p className="text-sm font-semibold text-ink-strong">{cls.label}</p>
                         <p className="text-xs text-ink-subtle">
-                          {ui(cls.role)} · {ui("{0} subjects", [cls.subjects])}
+                          {ui(cls.role)} · {count(cls.subjects, "subject")}
                         </p>
                       </TableCell>
                       <TableCell className="px-3 py-3 text-center text-sm tabular-nums text-ink-strong">
@@ -343,12 +346,9 @@ export default function TeacherInsightsPage() {
                       </TableCell>
                       <TableCell className="px-3 py-3 text-center">
                         {cls.missing > 0 ? (
-                          <Badge variant="danger" size="sm" data-numeric>
-                            <AlertCircle aria-hidden="true" />
-                            {cls.missing}
-                          </Badge>
+                          <DeskPill tone="danger" data-numeric>{cls.missing}</DeskPill>
                         ) : (
-                          <Badge variant="success" size="sm" dot>{ui("All in")}</Badge>
+                          <DeskPill tone="success">{ui("All in")}</DeskPill>
                         )}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-end">

@@ -4,6 +4,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, canManageCampusOps } from "@/lib/api/scope";
 import { isCampusOperator } from "@/lib/auth/institution";
 import { guardianHasAccess } from "@/lib/parent/guardian-access";
+import { authorizedGuardianCommunicationTargets } from "@/lib/auth/communication-policy";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { tripConsentStatus } from "@/lib/family/trips";
 import { requestAdjustment } from "@/lib/fees/adjustments-service";
@@ -46,6 +47,9 @@ export async function createActivity(user: AuthUser, body: Record<string, unknow
   if (!cancellationTerms) throw new ApiError("State the cancellation and refund terms families will see.", 400);
   const startsAt = new Date(String(body.startsAt ?? "")), endsAt = new Date(String(body.endsAt ?? ""));
   if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) throw new ApiError("Set when the activity starts and ends.", 400);
+  // SKAI-1712: families see only activities that have not ended (familyActivities: endsAt > now), so an
+  // activity that has already ended would publish to nobody. Instants compare the same in every campus timezone.
+  if (endsAt <= new Date()) throw new ApiError("This activity has already ended. Choose an end time in the future.", 400);
   const capacity = Number(body.capacity), costAmount = Number(body.costAmount ?? 0);
   if (!Number.isInteger(capacity) || capacity < 1 || capacity > 2000) throw new ApiError("Capacity is a whole number of places.", 400);
   if (!Number.isInteger(costAmount) || costAmount < 0) throw new ApiError("The cost is a whole amount (0 for free).", 400);
@@ -56,8 +60,16 @@ export async function createActivity(user: AuthUser, body: Record<string, unknow
   if (kind === "TRIP" && !tripId) throw new ApiError("Link the trip's consent record so places can depend on it.", 400);
   if (tripId && !await prisma.trip.count({ where: { id: tripId, schoolId: user.schoolId, campusId, status: "OPEN" } })) throw new ApiError("Trip not found", 400);
   const offerHours = Number(body.offerHours ?? 48);
+  const costCurrency = text(body.costCurrency, 3).toUpperCase() || (await getLocalePackage(user.schoolId, campusId || null)).currency;
   try {
-    return await prisma.activity.create({ data: { schoolId: user.schoolId, campusId, kind, title, description: text(body.description, 2000), location, startsAt, endsAt, capacity, classIds, staffIds: (Array.isArray(body.staffIds) ? body.staffIds : []).map(String), costAmount, costCurrency: text(body.costCurrency, 3).toUpperCase() || (await getLocalePackage(user.schoolId, campusId || null)).currency, tripId, offerHours: Number.isInteger(offerHours) && offerHours >= 1 && offerHours <= 336 ? offerHours : 48, cancellationTerms, coordinatorId: user.userId } });
+    // SKAI-601: a lost-response retry or second-tab submit of the same activity (same coordinator, campus, kind,
+    // title and times) replays the stored one instead of publishing a duplicate; the lock serialises concurrent submits.
+    return await prisma.$transaction(async tx => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`activity-create:${user.schoolId}:${campusId}:${user.userId}:${kind}:${title}:${startsAt.toISOString()}:${endsAt.toISOString()}`}))`;
+      const existing = await tx.activity.findFirst({ where: { schoolId: user.schoolId, campusId, coordinatorId: user.userId, kind, title, startsAt, endsAt, status: { not: "CANCELLED" } } });
+      if (existing) return existing;
+      return tx.activity.create({ data: { schoolId: user.schoolId, campusId, kind, title, description: text(body.description, 2000), location, startsAt, endsAt, capacity, classIds, staffIds: (Array.isArray(body.staffIds) ? body.staffIds : []).map(String), costAmount, costCurrency, tripId, offerHours: Number.isInteger(offerHours) && offerHours >= 1 && offerHours <= 336 ? offerHours : 48, cancellationTerms, coordinatorId: user.userId } });
+    });
   } catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ApiError("This trip already has an activity.", 409); throw error; }
 }
 
@@ -176,7 +188,9 @@ export async function answerOffer(user: AuthUser, body: Record<string, unknown>)
       await tx.activityPlace.update({ where: { id: place.id }, data: { status: "RESERVED", offerExpiresAt: null, version: { increment: 1 } } });
       await linkTrip(tx, activity, place.studentId);
       await syncRequirements(tx, activity);
-      return { status: "RESERVED", offered: [] as string[] };
+      // SKAI-1564: requirement sync may already confirm the place (free, no consent); report what was stored.
+      const after = await tx.activityPlace.findUniqueOrThrow({ where: { id: place.id }, select: { status: true } });
+      return { status: after.status, offered: [] as string[] };
     }
     await tx.activityPlace.update({ where: { id: place.id }, data: { status: "DECLINED", offerExpiresAt: null, version: { increment: 1 } } });
     return { status: "DECLINED", offered: await settle(tx, activity) };
@@ -229,10 +243,12 @@ export async function recordFee(user: AuthUser, body: Record<string, unknown>) {
     // A waiver is a money decision: it carries a reason (≥ 10 characters) recorded in the audit trail (role-ux R3).
     const reason = status === "WAIVED" ? text(body.reason, 500) : "";
     if (status === "WAIVED" && reason.length < 10) throw new ApiError("Give a reason of at least 10 characters for waiving this fee.", 400);
+    // SKAI-602: a retried or second-tab record of the same outcome is a replay: no second waiver audit, no version bump.
+    if (first.feeStatus === status && (status !== "PAID" || (first.invoiceId === invoiceId && first.paymentId === paymentId))) return { feeStatus: status, repeated: true };
     await tx.activityPlace.update({ where: { id: first.id }, data: { feeStatus: status, invoiceId, paymentId, version: { increment: 1 } } });
     if (status === "WAIVED") await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "activity_places", recordId: first.id, userId: user.userId, oldValue: { feeStatus: first.feeStatus }, newValue: { feeStatus: "WAIVED", reason } } });
     await syncRequirements(tx, activity);
-    return { feeStatus: status };
+    return { feeStatus: status, repeated: false };
   });
 }
 
@@ -244,11 +260,29 @@ const requirements = (activity: Act, place: { feeStatus: string; status: string 
 });
 
 /** Family view: activities open to this child, with explained availability and the child's place. */
-export async function familyActivities(user: AuthUser, studentId: string) {
+// SKAI-1705: one page of FAMILY_PAGE activities; `nextCursor` (the last id) reaches the rest. Every page re-runs the
+// guardian and child checks and the same school, campus, published and not-ended filter; the id tiebreak keeps
+// activities that share a start time in one stable order.
+/**
+ * SKAI-605: the read-time offer-expiry / waitlist job runs under the activity row lock against the activity as
+ * it is now (not the caller's snapshot), so it serialises with place requests and cancellation.
+ */
+async function settleLocked(snapshot: Act) {
+  await prisma.$transaction(async t => {
+    const tx = t as TxClient, activity = await lockActivity(tx, snapshot.schoolId, snapshot.id);
+    await settle(tx, activity);
+    await syncRequirements(tx, activity);
+  });
+}
+
+export const FAMILY_PAGE = 50;
+export async function familyActivities(user: AuthUser, studentId: string, cursor?: string | null) {
   const student = await familyChild(user, studentId);
   const now = new Date();
-  const activities = await prisma.activity.findMany({ where: { schoolId: user.schoolId, campusId: student.campusId, status: "PUBLISHED", endsAt: { gt: now } }, orderBy: { startsAt: "asc" }, take: 50 });
-  for (const a of activities) await prisma.$transaction(async tx => { await settle(tx as TxClient, a); await syncRequirements(tx as TxClient, a); });
+  const rows = await prisma.activity.findMany({ where: { schoolId: user.schoolId, campusId: student.campusId, status: "PUBLISHED", endsAt: { gt: now } }, orderBy: [{ startsAt: "asc" }, { id: "asc" }], take: FAMILY_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
+  const activities = rows.slice(0, FAMILY_PAGE);
+  const nextCursor = rows.length > FAMILY_PAGE ? activities[activities.length - 1].id : null;
+  for (const a of activities) await settleLocked(a);
   const places = await prisma.activityPlace.findMany({ where: { schoolId: user.schoolId, studentId: student.id, activityId: { in: activities.map(a => a.id) } } });
   const counts = await prisma.activityPlace.groupBy({ by: ["activityId"], where: { activityId: { in: activities.map(a => a.id) }, status: { in: HOLDING } }, _count: { _all: true } });
   const out = [];
@@ -261,7 +295,7 @@ export async function familyActivities(user: AuthUser, studentId: string) {
     out.push({ id: a.id, kind: a.kind, title: a.title, description: a.description, location: a.location, startsAt: a.startsAt, endsAt: a.endsAt, costAmount: a.costAmount, costCurrency: a.costCurrency, cancellationTerms: a.cancellationTerms, placesLeft: Math.max(0, a.capacity - taken), capacity: a.capacity, blocker,
       place: place ? { id: place.id, status: place.status, version: place.version, offerExpiresAt: place.offerExpiresAt, waitlistPosition: position, requirements: requirements(a, place, consent), refundState: place.refundState } : null });
   }
-  return { child: { id: student.id, name: student.fullName }, activities: out };
+  return { child: { id: student.id, name: student.fullName }, activities: out, nextCursor };
 }
 
 /** Coordinator roster: who is confirmed or conditional and what is missing; no care or medical detail. */
@@ -269,7 +303,7 @@ export async function roster(user: AuthUser, activityId: string) {
   const activity = await prisma.activity.findFirst({ where: { id: activityId, schoolId: user.schoolId } });
   // The principal reads any roster on the campus (oversight, §2.2 #46); only its coordinators run it.
   if (!activity || (!isCoordinator(user, activity) && !readsCampus(user, activity))) throw new ApiError("Activity not found", 404);
-  await prisma.$transaction(async tx => { await settle(tx as TxClient, activity); await syncRequirements(tx as TxClient, activity); });
+  await settleLocked(activity);
   const places = await prisma.activityPlace.findMany({ where: { activityId }, orderBy: { createdAt: "asc" } });
   const students = new Map((await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: places.map(p => p.studentId) } }, select: { id: true, fullName: true, rollNo: true, class: { select: { name: true, section: true } } } })).map(s => [s.id, s]));
   const consent = activity.tripId ? await tripConsentStatus(prisma, user.schoolId, activity.tripId, places.map(p => p.studentId)) : null;
@@ -278,7 +312,7 @@ export async function roster(user: AuthUser, activityId: string) {
   return {
     activity: { ...activity, placesTaken: places.filter(p => HOLDING.includes(p.status)).length, canRun: isCoordinator(user, activity) },
     places: places.map(p => { const s = students.get(p.studentId); return { id: p.id, studentId: p.studentId, name: s?.fullName ?? "", className: [s?.class?.name, s?.class?.section].filter(Boolean).join(" "), status: p.status, version: p.version, offerExpiresAt: p.offerExpiresAt, feeStatus: p.feeStatus, invoiceId: p.invoiceId, refundState: p.refundState, refundAdjustmentId: p.refundAdjustmentId, cancelReason: p.cancelReason, requirements: requirements(activity, p, consent?.get(p.studentId)) }; }),
-    sessions: sessions.map(s => ({ ...s, marks: marks.filter(m => m.sessionId === s.id).map(m => ({ studentId: m.studentId, status: m.status })) })),
+    sessions: sessions.map(s => ({ ...s, marks: marks.filter(m => m.sessionId === s.id).map(m => ({ studentId: m.studentId, status: m.status, markedAt: m.markedAt })) })),
   };
 }
 
@@ -303,9 +337,18 @@ export async function staffActivities(user: AuthUser) {
 export async function addSession(user: AuthUser, body: Record<string, unknown>) {
   const activity = await prisma.activity.findFirst({ where: { id: String(body.activityId ?? ""), schoolId: user.schoolId } });
   if (!activity || !isCoordinator(user, activity)) throw new ApiError("Activity not found", 404);
+  // SKAI-603: a cancelled activity takes no new sessions (the desk hides the button; a direct call is refused too).
+  if (activity.status === "CANCELLED") throw new ApiError("This activity was cancelled, so no sessions can be added.", 409);
   const startsAt = new Date(String(body.startsAt ?? "")), endsAt = new Date(String(body.endsAt ?? ""));
   if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) throw new ApiError("Set when the session starts and ends.", 400);
-  return prisma.activitySession.create({ data: { schoolId: user.schoolId, activityId: activity.id, startsAt, endsAt } });
+  // SKAI-1709: a retried or second-tab submit of the same slot replays the stored session instead of adding another.
+  // The lock is per activity and slot, held for the transaction, so concurrent identical submits serialise.
+  return prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`activity-session:${user.schoolId}:${activity.id}:${startsAt.toISOString()}:${endsAt.toISOString()}`}))`;
+    const existing = await tx.activitySession.findFirst({ where: { schoolId: user.schoolId, activityId: activity.id, startsAt, endsAt } });
+    if (existing) return { ...existing, replayed: true };
+    return { ...await tx.activitySession.create({ data: { schoolId: user.schoolId, activityId: activity.id, startsAt, endsAt } }), replayed: false };
+  });
 }
 
 /** Mark session attendance for confirmed participants only. */
@@ -315,8 +358,27 @@ export async function markAttendance(user: AuthUser, body: Record<string, unknow
   const studentId = String(body.studentId ?? ""), status = String(body.status ?? "");
   if (!["PRESENT", "ABSENT", "LATE_WITHDRAWAL"].includes(status)) throw new ApiError("Choose present, absent or late withdrawal.", 400);
   if (!await prisma.activityPlace.count({ where: { activityId: session.activityId, studentId, status: "CONFIRMED" } })) throw new ApiError("Only confirmed participants are marked.", 409);
-  return prisma.activityAttendance.upsert({ where: { sessionId_studentId: { sessionId: session.id, studentId } }, create: { schoolId: user.schoolId, sessionId: session.id, studentId, status, markedById: user.userId }, update: { status, markedById: user.userId, markedAt: new Date() } });
+  // SKAI-1710: compare-and-set on the mark the editor saw (markedAt, or null for "not marked yet"), so a stale tab
+  // gets 409 and the newer committed mark is kept instead of being silently overwritten.
+  if (!("expectedMarkedAt" in body)) throw new ApiError(STALE_MARK, 409);
+  const expected = body.expectedMarkedAt == null || body.expectedMarkedAt === "" ? null : new Date(String(body.expectedMarkedAt));
+  if (expected && Number.isNaN(expected.getTime())) throw new ApiError(STALE_MARK, 409);
+  const key = { sessionId: session.id, studentId };
+  // SKAI-604: when the stored mark is already this editor's identical mark (a lost-response retry), replay it.
+  const replayOrStale = async () => {
+    const current = await prisma.activityAttendance.findFirst({ where: { schoolId: user.schoolId, ...key } });
+    if (current && current.status === status && current.markedById === user.userId) return { id: current.id };
+    throw new ApiError(STALE_MARK, 409);
+  };
+  if (!expected) {
+    try { return await prisma.activityAttendance.create({ data: { schoolId: user.schoolId, ...key, status, markedById: user.userId } }); }
+    catch (e) { if ((e as { code?: string }).code === "P2002") return replayOrStale(); throw e; }
+  }
+  const won = await prisma.activityAttendance.updateMany({ where: { schoolId: user.schoolId, ...key, markedAt: expected }, data: { status, markedById: user.userId, markedAt: new Date() } });
+  if (won.count !== 1) return replayOrStale();
+  return (await prisma.activityAttendance.findFirst({ where: { schoolId: user.schoolId, ...key }, select: { id: true } }))!;
 }
+const STALE_MARK = "This item changed since you opened it. Reload to see the latest before saving.";
 
 export async function cancelActivity(user: AuthUser, activityId: string) {
   return schoolAiTransaction(user, async tx => {
@@ -329,9 +391,14 @@ export async function cancelActivity(user: AuthUser, activityId: string) {
   });
 }
 
-/** Guardians of these learners who can act (for notices). */
+/**
+ * Guardians of these learners who may receive an activity notice. SKAI-1713: resolved through the shared
+ * communication policy (current verified relationship, communication grant, per-child familyMessages
+ * consent), re-read at every call so a delayed or retried notice sees a later revocation.
+ */
 export async function guardiansOf(schoolId: string, studentIds: string[]) {
-  if (!studentIds.length) return [];
-  const rows = await prisma.guardianRelationship.findMany({ where: { schoolId, studentId: { in: studentIds }, status: "ACTIVE", guardianUserId: { not: null } }, select: { guardianUserId: true } });
-  return [...new Set(rows.map(r => r.guardianUserId!))];
+  const unique = [...new Set(studentIds)];
+  if (!unique.length) return [];
+  const targets = await Promise.all(unique.map(studentId => authorizedGuardianCommunicationTargets({ schoolId, studentId }, "IN_APP")));
+  return [...new Set(targets.flat().map(t => t.guardianUserId))];
 }

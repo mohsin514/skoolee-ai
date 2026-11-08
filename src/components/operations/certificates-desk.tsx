@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FileText, Plus } from "lucide-react";
+import { Award, Ban, CheckCircle2, Eye, FilePen, FileText, Hourglass, IdCard, Plus, Replace, ShieldCheck } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskSection, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -21,19 +21,25 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { forwardCommand, usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
 import { downloadCSV } from "@/lib/csv";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 // SKO-469: issue certificates and ID cards from approved template versions. Reception previews the exact
 // text for the chosen pupil (missing fields block issuing), a leader approves identity-sensitive documents,
 // downloads are the frozen document, and a correction is a reissue with a reason and a new serial.
 
 type Ui = ReturnType<typeof useUiText>;
-type Template = { id: string; kind: "STUDENT_CERTIFICATE" | "ID_CARD"; name: string; language: "en" | "ar" | "ur"; pageSize: string; requiresApproval: boolean; currentVersion: number; draft: { title: string; body: string }; approved: { version: number; title: string; body: string; approvedAt: string } | null };
+type Template = { id: string; kind: "STUDENT_CERTIFICATE" | "ID_CARD"; name: string; language: "en" | "ar" | "ur"; pageSize: string; requiresApproval: boolean; currentVersion: number; draftVersion?: number; draft: { title: string; body: string }; approved: { version: number; title: string; body: string; approvedAt: string } | null };
 type Status = "PENDING_APPROVAL" | "ISSUED" | "REJECTED" | "REVOKED" | "SUPERSEDED";
 type Issue = { id: string; serial: string; status: Status; title: string; language: string; issuedAt: string | null; createdAt: string; version: number; previousId: string | null; reissueReason: string | null; decisionNote: string | null; artifactHash: string; verifyToken: string; templateId: string; student: { id: string; fullName: string; rollNo: string }; templateVersion: { version: number; kind: string }; successors: { serial: string; status: Status }[]; requestedBy: string | null; approvedBy: string | null };
 type Student = { id: string; fullName: string; rollNo: string; admissionNo: string | null; className: string };
 type Preview = { title: string; body: string; missing: string[]; language: string; kind: string; templateVersion: number; requiresApproval: boolean; hasPhoto: boolean; schoolName: string };
 const VARIABLES = ["studentName", "studentNameUr", "rollNo", "admissionNo", "className", "section", "dateOfBirth", "guardianName", "nationality", "schoolName", "campusName", "issueDate", "serial", "photo"];
 const statusLabel = (ui: Ui, status: Status) => ({ PENDING_APPROVAL: ui("Waiting for approval"), ISSUED: ui("Issued"), REJECTED: ui("Rejected"), REVOKED: ui("Revoked"), SUPERSEDED: ui("Replaced") })[status];
+const statusTone = (status: Status): DeskTone => ({ PENDING_APPROVAL: "warning", ISSUED: "success", REJECTED: "danger", REVOKED: "danger", SUPERSEDED: "neutral" } as Record<Status, DeskTone>)[status];
+const rowTone = (status: Status): DeskTone | "muted" | undefined => status === "SUPERSEDED" || status === "REJECTED" ? "muted" : status === "ISSUED" ? undefined : statusTone(status);
+const statusIcon = (status: Status) => ({ PENDING_APPROVAL: Hourglass, ISSUED: CheckCircle2, REJECTED: Ban, REVOKED: Ban, SUPERSEDED: Replace } as const)[status];
+const statusRank = (status: Status) => ({ PENDING_APPROVAL: 0, ISSUED: 1, REVOKED: 2, REJECTED: 3, SUPERSEDED: 4 } as Record<Status, number>)[status];
 const kindLabel = (ui: Ui, kind: string) => kind === "ID_CARD" ? ui("ID card") : ui("Certificate");
 const languageLabel = (ui: Ui, language: string) => ({ en: ui("English"), ar: ui("Arabic"), ur: ui("Urdu") } as Record<string, string>)[language] ?? language;
 const fieldLabel = (ui: Ui, field: string) => ({ studentName: ui("Student name"), studentNameUr: ui("Student name (Urdu)"), rollNo: ui("Roll number"), admissionNo: ui("Admission number"), className: ui("Class"), section: ui("Section"), dateOfBirth: ui("Date of birth"), guardianName: ui("Guardian name"), nationality: ui("Nationality"), photo: ui("Photo") } as Record<string, string>)[field] ?? field;
@@ -57,14 +63,17 @@ export function CertificatesDesk({ showTemplates = true, hideHeader = false, com
   const [tab, setTab] = useState<"documents" | "templates">("documents");
   const [templates, setTemplates] = useState<Template[]>([]), [canApprove, setCanApprove] = useState(false);
   // "Issue certificate" from the header waits for the template list, so it never reports "none approved" mid-load.
-  const [templatesLoaded, setTemplatesLoaded] = useState(false);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false), [templatesFailed, setTemplatesFailed] = useState(false);
   useEffect(() => { onIssueAvailabilityChange?.(templatesLoaded && templates.some(template => template.currentVersion > 0)); }, [templatesLoaded, templates, onIssueAvailabilityChange]);
+  // A failed load keeps the templates we already have and says so; it is never mistaken for "no templates approved".
   const loadTemplates = useCallback(async () => {
     try {
       const response = await fetch("/api/front-desk/certificates", { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
-      if (response.ok && json.success) { setTemplates(json.data); setCanApprove(Boolean(json.canApprove)); }
-    } finally { setTemplatesLoaded(true); }
+      if (response.ok && json.success) { setTemplates(json.data); setCanApprove(Boolean(json.canApprove)); setTemplatesFailed(false); }
+      else setTemplatesFailed(true);
+    } catch { setTemplatesFailed(true); }
+    finally { setTemplatesLoaded(true); }
   }, []);
   useEffect(() => { const timer = setTimeout(() => void loadTemplates(), 0); return () => clearTimeout(timer); }, [loadTemplates]);
   const templatesOn = showTemplates && tab === "templates";
@@ -77,17 +86,21 @@ export function CertificatesDesk({ showTemplates = true, hideHeader = false, com
       {hideHeader ? <span /> : <PanelTitle icon={FileText} title={ui(templatesOn ? "Certificate templates" : "Certificates and ID cards")} />}
       {showTemplates ? <Button variant="outline" size="sm" onClick={() => setTab(templatesOn ? "documents" : "templates")}>{ui(templatesOn ? "Back to documents" : "Templates")}</Button> : null}
     </div>}
-    {templatesOn ? <TemplatesTab templates={templates} canApprove={canApprove} onChanged={() => void loadTemplates()} /> : <DocumentsTab templates={templates} canApprove={canApprove} command={documentsCommand} commandReady={templatesLoaded} showTemplates={showTemplates} />}
+    {templatesOn ? <TemplatesTab templates={templates} canApprove={canApprove} onChanged={() => void loadTemplates()} /> : <DocumentsTab templates={templates} canApprove={canApprove} command={documentsCommand} commandReady={templatesLoaded} showTemplates={showTemplates} templatesFailed={templatesFailed} onRetryTemplates={() => void loadTemplates()} />}
   </div>;
 }
 
-function DocumentsTab({ templates, canApprove, command, commandReady = true, showTemplates }: { templates: Template[]; canApprove: boolean; command?: PanelCommand | null; commandReady?: boolean; showTemplates: boolean }) {
+function DocumentsTab({ templates, canApprove, command, commandReady = true, showTemplates, templatesFailed = false, onRetryTemplates }: { templates: Template[]; canApprove: boolean; command?: PanelCommand | null; commandReady?: boolean; showTemplates: boolean; templatesFailed?: boolean; onRetryTemplates?: () => void }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
+  const [truncated, setTruncated] = useState(false);
   const [rows, setRows] = useState<Issue[]>([]), [status, setStatus] = useState(""), [q, setQ] = useState("");
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState("");
   const [issueOpen, setIssueOpen] = useState<{ reissue?: Issue } | null>(null), [deciding, setDeciding] = useState<{ issue: Issue; action: "approve" | "reject" | "revoke" } | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
+  // Counters over the loaded documents; pressing one narrows the list to that state (again to show all).
+  const [focus, setFocus] = useState<Status | null>(null);
+  const toggle = (next: Status) => setFocus(current => current === next ? null : next);
   const load = useCallback(async () => {
     setLoading(true); setLoadError("");
     try {
@@ -97,7 +110,7 @@ function DocumentsTab({ templates, canApprove, command, commandReady = true, sho
       const response = await fetch(`/api/front-desk/certificates?${params}`, { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to certificates for this campus.") : json.error || ui("Documents could not be loaded."));
-      setRows(json.data);
+      setRows(json.data); setTruncated(Boolean(json.truncated));
     } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("Documents could not be loaded.")); } finally { setLoading(false); }
   }, [status, q, ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
@@ -117,11 +130,15 @@ function DocumentsTab({ templates, canApprove, command, commandReady = true, sho
     finally { setDownloading(null); }
   };
   const approved = templates.filter(template => template.currentVersion > 0);
+  const tally = (state: Status) => rows.filter(row => row.status === state).length;
+  const shown = urgencyFirst(rows.filter(row => !focus || row.status === focus), row => statusRank(row.status));
   usePanelCommand(command, { "issue-certificate": () => { if (approved.length) setIssueOpen({}); else toast.info(ui(showTemplates ? "No template is approved yet." : "No template is approved yet. Your campus admin approves certificate templates before documents can be issued.")); } }, commandReady);
   usePanelCommand(command, {
     export: () => {
       if (loadError) return;
       if (!rows.length) { toast.info(ui("Nothing to export yet.")); return; }
+      // SKAI-1676: the history holds the newest 200; say so instead of exporting a silently partial file.
+      if (truncated) toast.warning(ui("Only the newest 200 documents were exported. Narrow the filters to export older documents."));
       const STATUS_EN: Record<Status, string> = { PENDING_APPROVAL: "Waiting for approval", ISSUED: "Issued", REJECTED: "Rejected", REVOKED: "Revoked", SUPERSEDED: "Replaced" };
       downloadCSV(`documents-${new Date().toISOString().slice(0, 10)}`, [
         ["Serial", "Document", "Kind", "Pupil", "Roll number", "Language", "Status", "Issued", "Requested by", "Approved by"],
@@ -137,17 +154,24 @@ function DocumentsTab({ templates, canApprove, command, commandReady = true, sho
       </div>
       {command !== undefined ? null : approved.length ? <Button onClick={() => setIssueOpen({})}><Plus className="size-4" aria-hidden="true" />{ui("Issue certificate")}</Button> : <Tooltip content={ui("Approve a template first.")}><span tabIndex={0} className="inline-flex"><Button disabled><Plus className="size-4" aria-hidden="true" />{ui("Issue certificate")}</Button></span></Tooltip>}
     </div>
-    {!approved.length ? <Alert tone="warning" live="off" data-no-approved-template>{ui(showTemplates ? "No template is approved yet. Create one under Templates and approve it before documents can be issued." : "No template is approved yet. Your campus admin approves certificate templates before documents can be issued.")}</Alert> : null}
+    {templatesFailed ? <Alert tone="danger" data-certificate-templates-error actions={<Button variant="outline" size="sm" onClick={onRetryTemplates}>{ui("Try again")}</Button>}>{ui("Certificate templates could not be loaded. Your approved templates are not affected; try again.")}</Alert> : null}
+    {!approved.length && !templatesFailed ? <Alert tone="warning" live="off" data-no-approved-template>{ui(showTemplates ? "No template is approved yet. Create one under Templates and approve it before documents can be issued." : "No template is approved yet. Your campus admin approves certificate templates before documents can be issued.")}</Alert> : null}
+    {rows.length && !status ? <DeskStats data-certificate-counts>
+      <StatTile index={0} icon={Hourglass} tone={tally("PENDING_APPROVAL") ? "warning" : "neutral"} value={tally("PENDING_APPROVAL")} label={ui("Waiting for approval")} onSelect={tally("PENDING_APPROVAL") || focus === "PENDING_APPROVAL" ? () => toggle("PENDING_APPROVAL") : undefined} selected={focus === "PENDING_APPROVAL"} />
+      <StatTile index={1} icon={Award} tone="success" value={tally("ISSUED")} label={ui("Issued")} onSelect={tally("ISSUED") || focus === "ISSUED" ? () => toggle("ISSUED") : undefined} selected={focus === "ISSUED"} />
+      <StatTile index={2} icon={Ban} tone={tally("REVOKED") ? "danger" : "neutral"} value={tally("REVOKED")} label={ui("Revoked")} onSelect={tally("REVOKED") || focus === "REVOKED" ? () => toggle("REVOKED") : undefined} selected={focus === "REVOKED"} />
+    </DeskStats> : null}
     {loading && !rows.length ? <SkeletonList rows={3} label={ui("Loading documents…")} />
       : loadError ? <ErrorState description={loadError} onRetry={() => void load()} retryLabel={ui("Retry")} />
       : !rows.length ? <EmptyState size="sm" icon={FileText} title={status || q ? ui("No documents match these filters.") : ui("No documents issued yet.")} action={!status && !q && approved.length ? <Button onClick={() => setIssueOpen({})}><Plus className="size-4" aria-hidden="true" />{ui("Issue certificate")}</Button> : undefined} />
-      : <ul className="space-y-2" aria-label={ui("Documents")}>{rows.map(row => <li key={row.id} className="space-y-2 rounded-2xl border border-border p-3 text-sm" data-issue={row.serial} data-issue-status={row.status}>
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="min-w-0 flex-1 font-semibold text-ink-strong"><bdi dir="ltr">{row.serial}</bdi> · <bdi>{row.title}</bdi></p>
-          <Badge size="sm" dot variant={row.status === "ISSUED" ? "success" : row.status === "PENDING_APPROVAL" ? "warning" : "neutral"}>{statusLabel(ui, row.status)}</Badge>
+      : <div className="space-y-2.5"><DeskFilterStatus shown={shown.length} total={rows.length} onClear={() => setFocus(null)} /><ul className="space-y-2.5" aria-label={ui("Documents")}>{shown.map(row => <li key={row.id} data-tone={rowTone(row.status)} className={`${deskRow} space-y-2 text-sm`} data-issue={row.serial} data-issue-status={row.status}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <DeskRowIcon icon={row.templateVersion.kind === "ID_CARD" ? IdCard : statusIcon(row.status)} />
+          <p className="min-w-0 flex-1 basis-40 font-semibold text-ink-strong"><bdi dir="ltr" className="font-mono text-xs font-semibold text-primary">{row.serial}</bdi> <span className="text-ink-faint">·</span> <bdi>{row.title}</bdi></p>
+          <DeskPill tone={statusTone(row.status)}>{statusLabel(ui, row.status)}</DeskPill>
         </div>
         <p className="text-xs text-ink-muted"><bdi>{row.student.fullName}</bdi> · <bdi dir="ltr">{row.student.rollNo}</bdi> · {kindLabel(ui, row.templateVersion.kind)} · {ui("Template version {0}", [row.templateVersion.version])} · {languageLabel(ui, row.language)}</p>
-        <p className="text-xs text-ink-muted">{row.requestedBy ? <>{ui("Requested by")} <bdi>{row.requestedBy}</bdi></> : null}{row.approvedBy && row.status !== "REJECTED" ? <> · {ui("Approved by")} <bdi>{row.approvedBy}</bdi></> : null}{row.issuedAt ? <> · <bdi>{dateTime(row.issuedAt)}</bdi></> : null}</p>
+        <p className="text-xs text-ink-muted">{row.requestedBy ? <>{ui("Requested by")} <bdi>{row.requestedBy}</bdi></> : null}{row.approvedBy && row.status !== "REJECTED" ? <> · {ui("Approved by")} <bdi>{row.approvedBy}</bdi></> : null}{row.issuedAt ? <> · <RelativeTime iso={row.issuedAt} full={dateTime(row.issuedAt)} /></> : null}</p>
         {row.reissueReason ? <p className="text-xs">{ui("Reissue reason")}: <bdi>{row.reissueReason}</bdi></p> : null}
         {row.decisionNote ? <p className="text-xs">{row.status === "REVOKED" ? ui("Revoked because") : row.status === "REJECTED" ? ui("Rejected because") : ui("Note")}: <bdi>{row.decisionNote}</bdi></p> : null}
         {row.successors.length ? <p className="text-xs">{ui("Replaced by")} <bdi dir="ltr">{row.successors.map(s => s.serial).join(", ")}</bdi></p> : null}
@@ -157,7 +181,7 @@ function DocumentsTab({ templates, canApprove, command, commandReady = true, sho
           {["ISSUED", "REVOKED"].includes(row.status) && !row.successors.some(s => ["ISSUED", "PENDING_APPROVAL"].includes(s.status)) ? <Button size="sm" variant="secondary" onClick={() => setIssueOpen({ reissue: row })}>{ui("Reissue")}</Button> : null}
           {canApprove && row.status === "ISSUED" ? <Button size="sm" variant="outline" className="text-destructive" onClick={() => setDeciding({ issue: row, action: "revoke" })}>{ui("Revoke")}</Button> : null}
         </div>
-      </li>)}</ul>}
+      </li>)}</ul></div>}
     {issueOpen ? <IssueDialog templates={approved} reissue={issueOpen.reissue} onClose={() => setIssueOpen(null)} onDone={() => { setIssueOpen(null); void load(); }} /> : null}
     {deciding ? <DecisionDialog issue={deciding.issue} action={deciding.action} onClose={() => setDeciding(null)} onDone={() => { setDeciding(null); void load(); }} /> : null}
   </div>;
@@ -168,12 +192,25 @@ function IssueDialog({ templates, reissue, onClose, onDone }: { templates: Templ
   const [templateId, setTemplateId] = useState(reissue?.templateId ?? templates[0]?.id ?? ""), [student, setStudent] = useState<Student | null>(reissue ? { id: reissue.student.id, fullName: reissue.student.fullName, rollNo: reissue.student.rollNo, admissionNo: null, className: "" } : null);
   const [query, setQuery] = useState(""), [matches, setMatches] = useState<Student[]>([]), [reason, setReason] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const issueDraft = useFormDraft({
+    record: `certificates:issue:${reissue?.id ?? "new"}`,
+    schema: 1,
+    values: { templateId, studentId: student?.id ?? "", query, reason },
+    baseline: { templateId: reissue?.templateId ?? templates[0]?.id ?? "", studentId: reissue?.student.id ?? "", query: "", reason: "" },
+    fields: ["templateId", "studentId", "query", "reason"] as const,
+    apply: (values) => { setTemplateId(String(values.templateId ?? "")); setQuery(String(values.query ?? values.studentId ?? "")); setReason(String(values.reason ?? "")); },
+  });
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
+  const [searchFailed, setSearchFailed] = useState(false), [searchNonce, setSearchNonce] = useState(0);
   useEffect(() => {
     if (reissue || query.trim().length < 2) return;
-    const timer = setTimeout(() => void fetch(`/api/front-desk/certificates?students=${encodeURIComponent(query.trim())}`, { cache: "no-store" }).then(r => r.json()).then(json => json.success && setMatches(json.data)).catch(() => undefined), 250);
+    const timer = setTimeout(() => {
+      fetch(`/api/front-desk/certificates?students=${encodeURIComponent(query.trim())}`, { cache: "no-store" })
+        .then(async r => { const json = await r.json().catch(() => ({})); if (!r.ok || !json.success) throw new Error("search"); setMatches(json.data); setSearchFailed(false); })
+        .catch(() => { setMatches([]); setSearchFailed(true); });
+    }, 250);
     return () => clearTimeout(timer);
-  }, [query, reissue]);
+  }, [query, reissue, searchNonce]);
   useEffect(() => {
     if (!student || !templateId) return;
     let cancelled = false;
@@ -191,33 +228,36 @@ function IssueDialog({ templates, reissue, onClose, onDone }: { templates: Templ
     try {
       const json = await send("POST", { ...payload, idempotencyKey: attempt.current.key });
       toast.success(json.data.status === "ISSUED" ? ui("{0} issued.", [json.data.serial]) : ui("{0} sent to your campus admin for approval.", [json.data.serial]));
+      issueDraft.markSaved();
       onDone();
     } catch (failure) {
       setError(failure instanceof TypeError ? ui("The connection failed before the server answered. Retrying will not issue the document twice.") : ui(failure instanceof Error ? failure.message : "The change was not saved."));
     } finally { setBusy(false); }
   };
-  return <Modal title={reissue ? ui("Reissue {0}", [reissue.serial]) : ui("Issue document")} eyebrow={ui("Certificates and ID cards")} size="lg" onClose={onClose} dirty={Boolean(student || reason)}>
+  return <Modal icon={reissue ? Replace : Award} tone={reissue ? "amber" : "violet"} title={reissue ? ui("Reissue {0}", [reissue.serial]) : ui("Issue document")} eyebrow={ui("Certificates and ID cards")} size="lg" onClose={onClose} dirty={Boolean(student || reason)}
+    footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void issue()} loading={busy} disabled={busy || !preview || preview.missing.length > 0}>{preview?.requiresApproval ? ui("Request approval") : ui("Issue")}</Button></div>}>
     <div className="space-y-3" data-issue-dialog>
+      <DraftRecovery recordLabel={ui("Certificate issue")} draft={issueDraft} saving={busy} excluded={ui("Preview content and student records are never stored in browser drafts.")} />
       {error ? <Alert tone="danger" compact data-issue-error>{error}</Alert> : null}
       <FormField name="issue-template" label={ui("Template")}><Select value={templateId} onChange={event => setTemplateId(event.target.value)}>{templates.map(template => <option key={template.id} value={template.id}>{template.name} · {kindLabel(ui, template.kind)} · {languageLabel(ui, template.language)} · v{template.currentVersion}</option>)}</Select></FormField>
       {reissue ? <p className="text-sm">{ui("Pupil")}: <bdi className="font-semibold text-ink-strong">{reissue.student.fullName}</bdi> · <bdi dir="ltr">{reissue.student.rollNo}</bdi></p> : <>
         <FormField name="issue-student" label={ui("Find the pupil (name, roll or admission number)")}><Input value={query} onChange={event => { setQuery(event.target.value); setStudent(null); setPreview(null); }} /></FormField>
         {!student && matches.length ? <ul className="max-h-48 space-y-1 overflow-y-auto" aria-label={ui("Matching pupils")}>{matches.map(match => <li key={match.id}><Button variant="choice" className="w-full justify-start text-start" onClick={() => setStudent(match)} data-student-option={match.rollNo}><bdi className="font-semibold text-ink-strong">{match.fullName}</bdi>&nbsp;· <bdi dir="ltr">{match.rollNo}</bdi>{match.admissionNo ? <>&nbsp;· <bdi dir="ltr">{match.admissionNo}</bdi></> : null}&nbsp;· <bdi>{match.className}</bdi></Button></li>)}</ul> : null}
-        {!student && query.trim().length >= 2 && !matches.length ? <p className="text-xs text-ink-muted">{ui("No pupil in this campus matches.")}</p> : null}
+        {!student && searchFailed && query.trim().length >= 2 ? <Alert tone="danger" compact data-pupil-search-error actions={<Button variant="outline" size="sm" onClick={() => setSearchNonce(n => n + 1)}>{ui("Try again")}</Button>}>{ui("Pupil search could not be completed. Try again.")}</Alert> : null}
+        {!student && !searchFailed && query.trim().length >= 2 && !matches.length ? <p className="text-xs text-ink-muted">{ui("No pupil in this campus matches.")}</p> : null}
         {student ? <p className="text-sm" data-chosen-student>{ui("Pupil")}: <bdi className="font-semibold text-ink-strong">{student.fullName}</bdi> · <bdi dir="ltr">{student.rollNo}</bdi>{student.className ? <> · <bdi>{student.className}</bdi></> : null}</p> : null}
       </>}
-      {preview ? <section className="space-y-2 rounded-xl border border-border p-3" aria-label={ui("Preview")} data-issue-preview>
-        <p className="sk-eyebrow">{ui("Preview")} · {kindLabel(ui, preview.kind)} · {languageLabel(ui, preview.language)} · {ui("Template version {0}", [preview.templateVersion])}</p>
-        <div dir={preview.language === "en" ? "ltr" : "rtl"} lang={preview.language} className="space-y-1 rounded-lg border border-edge bg-card p-3 text-sm text-ink">
+      {preview ? <DeskSection title={ui("Preview")} icon={Eye} tone={preview.missing.length ? "danger" : "brand"} aria-label={ui("Preview")} data-issue-preview action={<DeskPill tone="brand">{ui("Template version {0}", [preview.templateVersion])}</DeskPill>}>
+        <p className="text-xs text-ink-muted">{kindLabel(ui, preview.kind)} · {languageLabel(ui, preview.language)}</p>
+        <div dir={preview.language === "en" ? "ltr" : "rtl"} lang={preview.language} className="space-y-2 rounded-xl border-4 border-double border-brand-200 bg-card px-5 py-6 text-center text-sm text-ink shadow-(--shadow-panel)">
           <p className="font-semibold text-ink-strong">{preview.schoolName}</p>
           <p className="text-base font-bold text-ink-strong">{preview.title}</p>
           <p className="whitespace-pre-wrap leading-relaxed">{preview.body}</p>
         </div>
         {preview.missing.length ? <Alert tone="danger" compact data-preview-missing>{ui("Missing from the pupil's record: {0}", [preview.missing.map(field => fieldLabel(ui, field)).join(", ")])}</Alert> : null}
         <p className="text-xs text-ink-muted">{preview.requiresApproval ? ui("Sent to your campus admin for approval before it can be downloaded.") : ui("This document is issued as soon as you confirm.")}</p>
-      </section> : null}
+      </DeskSection> : null}
       {reissue ? <FormField name="issue-reason" label={ui("Reason for reissue")}><Input value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField> : null}
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void issue()} loading={busy} disabled={busy || !preview || preview.missing.length > 0}>{preview?.requiresApproval ? ui("Request approval") : ui("Issue")}</Button></div>
     </div>
   </Modal>;
 }
@@ -233,13 +273,13 @@ function DecisionDialog({ issue, action, onClose, onDone }: { issue: Issue; acti
     finally { setBusy(false); }
   };
   const title = action === "approve" ? ui("Approve {0}", [issue.serial]) : action === "reject" ? ui("Reject {0}", [issue.serial]) : ui("Revoke {0}", [issue.serial]);
-  return <Modal title={title} eyebrow={ui("Certificates and ID cards")} onClose={onClose} dirty={Boolean(note)}>
+  return <Modal icon={action === "approve" ? ShieldCheck : Ban} tone={action === "approve" ? "emerald" : "rose"} title={title} eyebrow={ui("Certificates and ID cards")} onClose={onClose} dirty={Boolean(note)}
+    footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy} disabled={busy} variant={action === "approve" ? "default" : "destructive"}>{action === "approve" ? ui("Approve and issue") : action === "reject" ? ui("Reject") : ui("Revoke")}</Button></div>}>
     <div className="space-y-3" data-decision={action}>
       {error ? <Alert tone="danger" compact>{error}</Alert> : null}
       <p className="text-sm"><bdi className="font-semibold text-ink-strong">{issue.title}</bdi> · <bdi>{issue.student.fullName}</bdi> · <bdi dir="ltr">{issue.student.rollNo}</bdi></p>
       {action === "approve" ? <p className="text-xs text-ink-muted">{ui("Check the pupil's name, dates and the template version. Approving issues the document with today's date.")}</p> : null}
       <FormField name="decision-note" label={action === "approve" ? ui("Note (optional)") : ui("Reason (required)")}><Input value={note} maxLength={500} onChange={event => setNote(event.target.value)} /></FormField>
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy} disabled={busy} variant={action === "approve" ? "default" : "destructive"}>{action === "approve" ? ui("Approve and issue") : action === "reject" ? ui("Reject") : ui("Revoke")}</Button></div>
     </div>
   </Modal>;
 }
@@ -269,10 +309,13 @@ function TemplatesTab({ templates, canApprove, onChanged }: { templates: Templat
       onCancel={() => setDeleting(null)}
     />
     {!templates.length ? <EmptyState size="sm" icon={FileText} title={ui("No templates yet. Create one, then approve it before documents can be issued.")} />
-      : <ul className="space-y-2" aria-label={ui("Templates")}>{templates.map(template => {
+      : <ul className="space-y-2.5" aria-label={ui("Templates")}>{templates.map(template => {
         const changed = !template.approved || template.approved.title !== template.draft.title || template.approved.body !== template.draft.body;
-        return <li key={template.id} className="space-y-1 rounded-2xl border border-border p-3 text-sm" data-template={template.name} data-template-version={template.currentVersion}>
-          <p className="font-semibold text-ink-strong"><bdi>{template.name}</bdi> · {kindLabel(ui, template.kind)} · {languageLabel(ui, template.language)}</p>
+        return <li key={template.id} data-tone={!template.approved ? "neutral" : changed ? "warning" : "success"} className={`${deskRow} space-y-2 text-sm`} data-template={template.name} data-template-version={template.currentVersion}>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <DeskRowIcon icon={template.kind === "ID_CARD" ? IdCard : Award} />
+            <p className="min-w-0 flex-1 basis-40 font-semibold text-ink-strong"><bdi>{template.name}</bdi> · {kindLabel(ui, template.kind)} · {languageLabel(ui, template.language)}</p>
+          </div>
           <p className="text-xs text-ink-muted">{template.approved ? ui("Approved version {0} · {1}", [template.approved.version, dateTime(template.approved.approvedAt)]) : ui("Draft — not approved")}{changed && template.approved ? ` · ${ui("Draft has unapproved changes")}` : ""}{template.requiresApproval ? ` · ${ui("Each document needs your campus admin's approval")}` : ""}</p>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" onClick={() => setEditing(template)}>{ui("Edit draft")}</Button>
@@ -292,11 +335,12 @@ function TemplateDialog({ template, onClose, onDone }: { template: Template | nu
   const set = (field: keyof typeof form) => (event: { target: { value: string } }) => setForm(current => ({ ...current, [field]: event.target.value }));
   const save = async () => {
     setBusy(true); setError("");
-    try { await send("POST", { action: "save-template", id: template?.id, ...form }); toast.success(ui("Draft saved. Approve it before documents use it.")); onDone(); }
+    try { await send("POST", { action: "save-template", id: template?.id, expectedDraftVersion: template?.draftVersion, ...form }); toast.success(ui("Draft saved. Approve it before documents use it.")); onDone(); }
     catch (failure) { setError(failure instanceof TypeError ? ui("The connection failed before the server answered. Your draft is kept; try again.") : ui(failure instanceof Error ? failure.message : "The change was not saved.")); }
     finally { setBusy(false); }
   };
-  return <Modal title={template ? ui("Edit template draft") : ui("New template")} eyebrow={ui("Certificates and ID cards")} size="lg" onClose={onClose} dirty={Boolean(form.body || form.title)}>
+  return <Modal icon={template ? FilePen : FileText} tone="violet" title={template ? ui("Edit template draft") : ui("New template")} eyebrow={ui("Certificates and ID cards")} size="lg" onClose={onClose} dirty={Boolean(form.body || form.title)}
+    footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} loading={busy} disabled={busy}>{ui("Save draft")}</Button></div>}>
     <div className="space-y-3" data-template-dialog>
       {error ? <Alert tone="danger" compact data-template-error>{error}</Alert> : null}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -309,7 +353,6 @@ function TemplateDialog({ template, onClose, onDone }: { template: Template | nu
       <FormField name="template-title" label={ui("Document title")}><Input value={form.title} maxLength={120} dir={form.language === "en" ? "ltr" : "rtl"} onChange={set("title")} /></FormField>
       <FormField name="template-body" label={ui("Document text")}><Textarea value={form.body} rows={6} maxLength={4000} dir={form.language === "en" ? "ltr" : "rtl"} onChange={set("body")} /></FormField>
       <p className="text-xs text-ink-muted">{ui("Insert pupil details with {{variable}}. Available:")} <bdi dir="ltr" className="break-words font-mono">{VARIABLES.map(name => `{{${name}}}`).join(" ")}</bdi></p>
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} loading={busy} disabled={busy}>{ui("Save draft")}</Button></div>
     </div>
   </Modal>;
 }

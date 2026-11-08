@@ -13,6 +13,8 @@ import {
   getAIModel,
   generateRemark,
 } from "@/lib/ai/openai";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -240,7 +242,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { batch, ...rest } = body;
 
     if (batch) {

@@ -1,5 +1,5 @@
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { roundConfigured, type AcademicModelConfiguration, type ResultPolicy, type RoundingRule, thresholdsFromConfiguration } from "@/lib/academic/model-config";
+import { bandFor, roundConfigured, type AcademicModelConfiguration, type ResultPolicy, type RoundingRule, thresholdsFromConfiguration } from "@/lib/academic/model-config";
 
 export type ExamType = "QUIZ" | "CLASS_TEST" | "MID_TERM" | "FINAL" | "CUSTOM";
 
@@ -15,6 +15,7 @@ export const EXAM_TYPE_LABELS: Record<ExamType, string> = {
 
 export function gradeForPercentage(percentage: number, thresholds?: GradeThresholds) {
   const t = thresholds || { aplus: 90, a: 80, b: 70, c: 60, d: 50 };
+  if (t.bands?.length) return bandFor(percentage, t.bands)?.label ?? "F";
   if (percentage >= t.aplus) return "A+";
   if (percentage >= t.a) return "A";
   if (percentage >= t.b) return "B";
@@ -33,6 +34,8 @@ export interface GradeThresholds {
   b: number;
   c: number;
   d: number;
+  /** The academic model's own bands, when the grade comes from an active version. */
+  bands?: Array<{ label: string; minimum: number }>;
 }
 
 export type WeightMode = "NORMALIZED" | "ABSOLUTE";
@@ -239,13 +242,15 @@ export async function calculateWeightedGrade(
   academicYear: number,
   db: TxClient = prisma,
   academicModelVersionId?: string | null,
+  /** SKAI-152: evaluate proposed rules without saving them (the editor's preview). */
+  configOverride?: WeightConfig,
 ): Promise<WeightedGradeResult> {
   const [student, config] = await Promise.all([
     db.student.findUnique({
       where: { id: studentId },
       select: { id: true, fullName: true, classId: true },
     }),
-    getOrCreateGradeWeightConfig(campusId, classId, academicYear, db, academicModelVersionId),
+    configOverride ?? getOrCreateGradeWeightConfig(campusId, classId, academicYear, db, academicModelVersionId),
   ]);
 
   if (!student) throw new Error("Student not found");
@@ -361,8 +366,9 @@ export async function calculateWeightedGradeForClass(
   campusId: string,
   academicYear: number
 ) {
+  // SKAI-212: only current learners are ranked and reported; archived or withdrawn pupils keep their history but leave the class list.
   const students = await prisma.student.findMany({
-    where: { classId, campusId },
+    where: { classId, campusId, archivedAt: null, status: "active" },
     select: { id: true, fullName: true, rollNo: true },
     orderBy: { rollNo: "asc" },
   });

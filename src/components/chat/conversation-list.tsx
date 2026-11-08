@@ -1,6 +1,8 @@
 "use client";
+import { useEffect, useState } from "react";
 import { chatUnreadBadge } from "./chat-styles";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -16,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { systemEventText } from "@/lib/chat/system-event-text";
 import { localeTag } from "@/lib/locale/package";
 
 type Ui = ReturnType<typeof useUiText>;
@@ -60,10 +63,22 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
     activeId,
     openConversation,
     isLoadingList,
+    listFailed,
+    retryList,
+    hasMoreConversations,
+    loadMoreConversations,
     isConnected,
     unreadTotal,
   } = useChat();
   const ui = useUiText();
+  // SKAI-1696: older pages load on request; a failure keeps the shown rows and the button retries the same cursor.
+  const [moreLoading, setMoreLoading] = useState(false);
+  const [moreFailed, setMoreFailed] = useState(false);
+  useEffect(() => { setMoreFailed(false); }, [filter, search]);
+  const loadMore = async () => {
+    setMoreLoading(true);
+    try { await loadMoreConversations(); setMoreFailed(false); } catch { setMoreFailed(true); } finally { setMoreLoading(false); }
+  };
 
   return (
     <MotionConfig reducedMotion="user">
@@ -125,15 +140,15 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
 
           <div
             className="relative flex gap-1 rounded-2xl bg-muted p-1"
-            role="tablist"
+            // SKAI-1602: a labelled toggle group, not a tablist: these buttons filter in place and have no tab panels.
+            role="group"
             aria-label={ui("Filter conversations")}
           >
             {FILTERS.map((f) => (
               <Button data-selected={filter === f.value} variant="choice" size="sm"
                 key={f.value}
                 type="button"
-                role="tab"
-                aria-selected={filter === f.value}
+                aria-pressed={filter === f.value}
                 onClick={() => setFilter(f.value)}
                 className="relative flex-1 border-transparent data-[selected=true]:border-border data-[selected=true]:bg-card data-[selected=true]:text-primary data-[selected=true]:shadow-sm"
               >
@@ -146,9 +161,14 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
 
         {/* ── Rows ── */}
         <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2">
+          {listFailed ? (
+            <div className="px-2 pb-2">
+              <ErrorState title={ui("Couldn't load conversations")} description={conversations.length ? ui("Showing the last list we loaded.") : ui("Check your connection and try again.")} retryLabel={ui("Try again")} onRetry={retryList} />
+            </div>
+          ) : null}
           {isLoadingList ? (
             <ListSkeleton />
-          ) : conversations.length === 0 ? (
+          ) : listFailed && conversations.length === 0 ? null : conversations.length === 0 ? (
             <EmptyList filter={filter} onNewChat={onNewChat} />
           ) : (
             <ul className="space-y-1">
@@ -164,6 +184,14 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
               ))}
             </ul>
           )}
+          {!isLoadingList && hasMoreConversations ? (
+            <div className="space-y-2 px-2 pt-2 text-center">
+              {moreFailed ? <p role="alert" className="text-sm text-status-danger-text">{ui("Older conversations could not be loaded.")}</p> : null}
+              <Button type="button" size="sm" variant="outline" loading={moreLoading} disabled={moreLoading} onClick={loadMore}>
+                {moreFailed ? ui("Try again") : ui("Show older conversations")}
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
     </MotionConfig>
@@ -243,6 +271,7 @@ function ConversationRow({
             {sentByMe && <span className="text-ink-subtle">{ui("You:")} </span>}
             {c.lastMessagePreview && MEDIA_PREVIEWS.has(c.lastMessagePreview)
               ? ui(c.lastMessagePreview)
+              : c.lastMessagePreview && c.lastMessageSenderId === null ? <bdi>{systemEventText(c.lastMessagePreview, ui)}</bdi>
               : c.lastMessagePreview || c.subtitle ? <bdi>{c.lastMessagePreview || c.subtitle}</bdi> : ui("No messages yet")}
           </span>
 

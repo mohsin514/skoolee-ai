@@ -4,7 +4,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { runAsCurrentActor } from "@/lib/auth/job-policy";
 import { assertCommunicationTarget } from "@/lib/auth/communication-policy";
 import { getPublishedVersion } from "@/lib/academic/report-versions";
-import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
+import { resolveSender, sendWhatsAppMessage } from "@/lib/whatsapp/client";
 import { sendEmailMessage, hasEmailProviderConfig } from "@/lib/email";
 import { WorkflowStopped, type WorkflowContext } from "./outbox";
 
@@ -54,13 +54,13 @@ export async function reportDeliveryWorkflow(
       await authorize();
       if (c.status === "SENT") return;
       if (!deliver && process.env.DISABLE_OUTBOUND_MESSAGES === "true") throw new WorkflowStopped("PROVIDER_UNAVAILABLE");
-      if (!deliver && c.channel === "WHATSAPP" && (!process.env.WHATSAPP_PHONE_NUMBER_ID || !process.env.WHATSAPP_ACCESS_TOKEN)) throw new WorkflowStopped("PROVIDER_UNAVAILABLE");
+      if (!deliver && c.channel === "WHATSAPP" && !(await resolveSender(c.schoolId))) throw new WorkflowStopped("PROVIDER_UNAVAILABLE");
       if (!deliver && c.channel === "EMAIL" && !hasEmailProviderConfig()) throw new WorkflowStopped("PROVIDER_UNAVAILABLE");
       await ctx.external(`deliver:${c.id}`, tx => authorize(tx as TxClient), async () => {
         const result = deliver
           ? await deliver(c)
           : c.channel === "WHATSAPP"
-            ? await sendWhatsAppMessage({ to: c.recipient, text: c.body })
+            ? await sendWhatsAppMessage({ to: c.recipient, text: c.body, schoolId: c.schoolId })
             : await sendEmailMessage({
                 to: c.recipient,
                 subject: c.subject || "Report published",

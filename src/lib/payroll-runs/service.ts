@@ -63,16 +63,34 @@ const PolicyInput = z.object({
   leaveYearStartMonth: z.number().int().min(1).max(12), rounding: z.enum(["HALF_UP", "DOWN"]), requireSeparation: z.boolean().default(true),
 }).strict();
 
+/**
+ * Takes a transaction-scoped lock on one version line (a campus's policies, or one provider code on a
+ * campus). Concurrent saves queue here, so each reads the latest committed version before it allocates.
+ */
+async function lockVersionLine(tx: TxClient, key: string) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+}
+
+/** A save that loses a race anyway gets a controlled, retryable answer, never a raw constraint error. */
+function versionConflict(error: unknown): never {
+  if ((error as { code?: string }).code === "P2002") throw new ApiError("Another version was saved for this campus first. Review the latest version and save again.", 409);
+  throw error;
+}
+
 /** Policies are versioned and never edited; a change is the next version from its effective date. */
 export async function savePolicy(user: AuthUser, raw: unknown) {
   await canApprove(user);
   const input = parse(PolicyInput, raw), campusId = campusOf(user);
+  const data = { ...input, effectiveFrom: new Date(`${input.effectiveFrom}T00:00:00Z`) };
   return prisma.$transaction(async (tx) => {
-    const last = await tx.payrollPolicy.findFirst({ where: { campusId }, orderBy: { version: "desc" }, select: { version: true } });
-    const policy = await tx.payrollPolicy.create({ data: { ...input, effectiveFrom: new Date(`${input.effectiveFrom}T00:00:00Z`), schoolId: user.schoolId, campusId, version: (last?.version ?? 0) + 1, createdById: user.userId } });
+    await lockVersionLine(tx, `payroll-policy:${campusId}`);
+    const last = await tx.payrollPolicy.findFirst({ where: { campusId }, orderBy: { version: "desc" } });
+    // A replay of the latest version's content returns it; nothing new is versioned or audited.
+    if (last && Object.entries(data).every(([key, value]) => JSON.stringify(last[key as keyof typeof last]) === JSON.stringify(value))) return last;
+    const policy = await tx.payrollPolicy.create({ data: { ...data, schoolId: user.schoolId, campusId, version: (last?.version ?? 0) + 1, createdById: user.userId } });
     await writeAuditEvent(tx, user, { table: "payroll_policies", recordId: policy.id, action: "CREATE", campusId, after: { version: policy.version, currency: policy.currency, effectiveFrom: input.effectiveFrom, packageLabel: policy.packageLabel } });
     return policy;
-  });
+  }).catch(versionConflict);
 }
 
 const ProviderInput = z.object({
@@ -81,17 +99,54 @@ const ProviderInput = z.object({
   columns: z.array(z.object({ header: text(1, 60), field: z.enum(EXPORT_FIELDS as [ExportField, ...ExportField[]]) }).strict()).min(2).max(20),
 }).strict();
 
-/** A provider mapping version is immutable; saving the same code creates the next version. */
+const PROVIDER_CHANGED = "This mapping changed while you were saving. Reload it, then save again.";
+
+/** Column pairs compared by value: Postgres jsonb does not keep the key order the payload was sent in. */
+const columnPairs = (columns: unknown) => (columns as { header: string; field: string }[]).map((c) => `${c.header}\u0000${c.field}`).join("\u0001");
+
+/** Whether a stored version already holds this payload, so saving it again is a replay. */
+const sameMapping = (stored: { name: string; currencies: string[]; columns: unknown }, input: z.infer<typeof ProviderInput>) =>
+  stored.name === input.name && stored.currencies.join(",") === input.currencies.join(",") && columnPairs(stored.columns) === columnPairs(input.columns);
+
+/**
+ * A provider mapping version is immutable. Saving the same code creates the next version, and a payload identical to
+ * the current version replays it. The version is allocated under a lock per campus and code, so racing saves never
+ * collide on the unique key. A save that did not read the version a racing save committed gets a 409, and a raw
+ * unique-constraint error is never returned. The audit row is written in the same transaction, so only committed versions are audited.
+ */
 export async function saveProvider(user: AuthUser, raw: unknown) {
   await canApprove(user);
   const input = parse(ProviderInput, raw), campusId = campusOf(user);
   assert(input.columns.some((c) => c.field === "providerEmployeeId") && input.columns.some((c) => c.field === "net"), "The mapping must export the provider employee id and net pay.", 400);
-  return prisma.$transaction(async (tx) => {
-    const last = await tx.payrollProvider.findFirst({ where: { campusId, code: input.code }, orderBy: { version: "desc" }, select: { version: true } });
-    const provider = await tx.payrollProvider.create({ data: { ...input, columns: json(input.columns), schoolId: user.schoolId, campusId, version: (last?.version ?? 0) + 1, createdById: user.userId } });
-    await writeAuditEvent(tx, user, { table: "payroll_providers", recordId: provider.id, action: "CREATE", campusId, after: { code: provider.code, version: provider.version, currencies: input.currencies.join(",") } });
-    return provider;
-  });
+  const seen = await prisma.payrollProvider.findFirst({ where: { campusId, code: input.code }, orderBy: { version: "desc" }, select: { version: true } });
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${campusId}:${input.code}`}, 0))`;
+      const last = await tx.payrollProvider.findFirst({ where: { campusId, code: input.code }, orderBy: { version: "desc" } });
+      if (last && sameMapping(last, input)) return last;
+      if ((last?.version ?? 0) !== (seen?.version ?? 0)) throw new ApiError(PROVIDER_CHANGED, 409);
+      const provider = await tx.payrollProvider.create({ data: { ...input, columns: json(input.columns), schoolId: user.schoolId, campusId, version: (last?.version ?? 0) + 1, createdById: user.userId } });
+      await writeAuditEvent(tx, user, { table: "payroll_providers", recordId: provider.id, action: "CREATE", campusId, after: { code: provider.code, version: provider.version, currencies: input.currencies.join(",") } });
+      return provider;
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ApiError(PROVIDER_CHANGED, 409);
+    throw error;
+  }
+}
+
+const SERIALISATION_RETRIES = 3;
+
+/** Retries a serialisable transaction that lost a race (Postgres 40001 / Prisma P2034). */
+async function retrySerialisable<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await run();
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (code !== "P2034" || attempt >= SERIALISATION_RETRIES) throw error;
+    }
+  }
 }
 
 /** Provider employee ids and a last working day. Changing either makes approved runs stale. */
@@ -101,10 +156,17 @@ export async function setEmployee(user: AuthUser, userId: string, raw: unknown) 
   const campusId = campusOf(user);
   const staff = await prisma.user.findFirst({ where: { id: userId, campusId }, select: { id: true } });
   assert(!!staff, "Staff member not found", 404);
-  const existing = await prisma.payrollEmployee.findUnique({ where: { schoolId_userId: { schoolId: user.schoolId, userId } } });
-  const providerIds = { ...((existing?.providerIds as Record<string, string>) ?? {}), ...(input.providerIds ?? {}) };
-  const leavingDate = input.leavingDate === undefined ? existing?.leavingDate ?? null : input.leavingDate ? new Date(`${input.leavingDate}T00:00:00Z`) : null;
-  const saved = await prisma.payrollEmployee.upsert({ where: { schoolId_userId: { schoolId: user.schoolId, userId } }, create: { schoolId: user.schoolId, campusId, userId, providerIds, leavingDate, updatedById: user.userId }, update: { providerIds, leavingDate, updatedById: user.userId } });
+  // SKAI-1504: the read and the write share one serialisable transaction, so a concurrent save of a
+  // disjoint provider key or the last working day cannot be overwritten by a stale snapshot.
+  // A losing concurrent write fails with a serialisation error and is retried against the fresh row.
+  const saved = await retrySerialisable(() => prisma.$transaction(async (tx) => {
+    const existing = await tx.payrollEmployee.findUnique({ where: { schoolId_userId: { schoolId: user.schoolId, userId } } });
+    const providerIds = { ...((existing?.providerIds as Record<string, string>) ?? {}), ...(input.providerIds ?? {}) };
+    // Only an explicit leavingDate is written; an omitted field keeps whatever a concurrent save stored.
+    const leavingDate = input.leavingDate === undefined ? existing?.leavingDate ?? null : input.leavingDate ? new Date(`${input.leavingDate}T00:00:00Z`) : null;
+    const data = input.leavingDate === undefined ? { providerIds, updatedById: user.userId } : { providerIds, leavingDate, updatedById: user.userId };
+    return tx.payrollEmployee.upsert({ where: { schoolId_userId: { schoolId: user.schoolId, userId } }, create: { schoolId: user.schoolId, campusId, userId, leavingDate, ...data }, update: data });
+  }, { isolationLevel: "Serializable" }));
   await invalidateApproved(campusId, "Employee payroll details changed");
   return saved;
 }
@@ -141,11 +203,20 @@ const rulesOf = (p: { id: string; version: number; packageLabel: string; currenc
 const amounts = (value: unknown) => Object.entries((value && typeof value === "object" ? value : {}) as Record<string, unknown>).map(([name, raw]) => ({ name, amount: Math.round(Number(raw)) })).filter((a) => Number.isFinite(a.amount) && a.amount !== 0);
 
 /** Everything a calculation reads, frozen. The hash covers inputs, policy and provider mapping. */
+/** Paid for a period when employed in it. Deactivation alone does not end pay: a recorded last working day does (SKAI-1505). */
+export function employedInPeriod(person: { isActive: boolean; joining: string | null; leaving: string | null }, start: string, end: string) {
+  if (person.joining && person.joining > end) return false;
+  if (person.leaving && person.leaving < start) return false;
+  return person.isActive || person.leaving !== null;
+}
+
 async function collectInputs(db: TxClient, campusId: string, year: number, month: number, policy: PolicyRules, provider: { id: string; code: string }, scope: string[]) {
   const start = periodStart(year, month), end = periodEnd(year, month);
   const staff = await db.user.findMany({
-    where: { campusId, isActive: true, role: { in: [...STAFF_ROLES] }, ...(scope.length ? { id: { in: scope } } : {}), staffProfile: { basicSalary: { gt: 0 } } },
-    select: { id: true, fullName: true, role: true, joiningDate: true, staffProfile: { select: { basicSalary: true, allowancesJson: true, deductionsJson: true, updatedAt: true } } },
+    // SKAI-1505: a deactivated member is still paid for the periods before a recorded last working day, so the
+    // active filter is applied per person below, after the leaving date is known.
+    where: { campusId, role: { in: [...STAFF_ROLES] }, ...(scope.length ? { id: { in: scope } } : {}), staffProfile: { basicSalary: { gt: 0 } } },
+    select: { id: true, fullName: true, role: true, isActive: true, joiningDate: true, staffProfile: { select: { basicSalary: true, allowancesJson: true, deductionsJson: true, updatedAt: true } } },
     orderBy: { id: "asc" },
   });
   const ids = staff.map((s) => s.id);
@@ -161,7 +232,7 @@ async function collectInputs(db: TxClient, campusId: string, year: number, month
     const emp = employees.find((e) => e.userId === s.id);
     const leaving = iso(emp?.leavingDate);
     const joining = iso(s.joiningDate);
-    if ((joining && joining > end) || (leaving && leaving < start)) continue; // not employed in this period
+    if (!employedInPeriod({ isActive: s.isActive, joining, leaving }, start, end)) continue;
     const allowed: Record<string, number> = {};
     for (const a of allocations.filter((a) => !a.userId && a.role === s.role)) allowed[a.leaveTypeId] = a.days;
     for (const a of allocations.filter((a) => a.userId === s.id)) allowed[a.leaveTypeId] = a.days; // per-person row wins

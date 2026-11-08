@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
+import { DeskPill, deskRow } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { ErrorState } from "@/components/ui/error-state";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonTable, SkeletonList } from "@/components/ui/skeleton";
@@ -52,8 +54,10 @@ export function WorkloadCover({ campusId }: { campusId?: string }) {
 
   const saveCapacity = async (row: Row, raw: string) => {
     const capacity = raw.trim() === "" ? null : Number(raw);
-    const response = await fetch("/api/staff/workload", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campusId, staffId: row.id, capacity }) });
+    const response = await fetch("/api/staff/workload", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campusId, staffId: row.id, capacity, expectedCapacity: row.capacity }) });
     const json = await response.json().catch(() => ({}));
+    // SKAI-1631: a stale edit keeps the typed value on screen and asks for a refresh instead of overwriting.
+    if (response.status === 409 && json.code === "CAPACITY_CONFLICT") { toast.error(ui("Someone else changed this capacity. Refresh the board to review it.")); return; }
     if (!response.ok || !json.success) { toast.error(ui(json.error || "Capacity was not saved.")); return; }
     toast.success(ui("Capacity saved for {0}.", [row.name])); void loadWeek(); void loadCover();
   };
@@ -102,11 +106,11 @@ export function WorkloadCover({ campusId }: { campusId?: string }) {
       </div>
       <p className="text-xs text-ink-muted">{ui(scopeNote)} {ui("A free period alone is not availability: leave, cover, invigilation and capacity are checked, and again at approval.")}</p>
       {coverError ? <div data-cover-error><Alert tone="danger" compact live="polite">{coverError}</Alert></div> : null}
-      {proposal ? <div role="status" className="rounded-xl border border-status-success-border bg-status-success-surface px-3 py-2 text-xs font-medium text-status-success-text" data-cover-proposal>{ui("Cover proposal for {0} lesson(s) submitted for approval. Nothing changes in the timetable until it is approved in the School AI workspace.", [proposal.duties])} <Link className="sk-link font-semibold" href="/ai">{ui("Open the workspace")}</Link></div> : null}
+      {proposal ? <div data-cover-proposal><Alert tone="success" compact live="polite">{ui("Cover proposal for {0} lesson(s) submitted for approval. Nothing changes in the timetable until it is approved in the School AI workspace.", [proposal.duties])} <Link className="sk-link font-semibold" href="/ai">{ui("Open the workspace")}</Link></Alert></div> : null}
       {!lessons ? <div role="status" aria-label={ui("Loading cover…")}><SkeletonList /></div>
         : !lessons.length ? <div data-cover-empty><EmptyState size="sm" icon={UserCheck} title={ui("No staffing gaps on {0}.", [formatDate(day)])} /></div>
-        : <ul className="space-y-3">{lessons.map(lesson => <li key={lesson.slotId} className="space-y-2 rounded-2xl border border-edge bg-surface-subtle/40 p-3" data-cover-lesson={lesson.slotId}>
-          <p className="text-sm font-semibold text-ink-strong"><bdi>{lesson.className}</bdi> · <bdi>{lesson.subject ?? ""}</bdi> · {lesson.startTime}–{lesson.endTime}</p>
+        : <ul className="space-y-3">{lessons.map(lesson => <li key={lesson.slotId} data-tone="warning" className={cn(deskRow, "space-y-2")} data-cover-lesson={lesson.slotId}>
+          <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-strong"><DeskPill tone="warning">{ui("No cover")}</DeskPill><bdi>{lesson.className}</bdi> · <bdi>{lesson.subject ?? ""}</bdi> · {lesson.startTime}–{lesson.endTime}</p>
           <p className="text-xs text-ink-muted">{ui("{0} is on approved leave; no cover is assigned.", [lesson.absentTeacher ?? ""])}</p>
           <fieldset className="space-y-1.5"><legend className="text-xs font-semibold">{ui("Candidates")}</legend>
             {lesson.candidates.map(candidate => <label key={candidate.id} className={`flex items-start gap-2 rounded-xl px-2 py-1.5 text-xs ${candidate.eligible ? "" : "opacity-70"}`} data-candidate={candidate.id} data-eligible={candidate.eligible}>

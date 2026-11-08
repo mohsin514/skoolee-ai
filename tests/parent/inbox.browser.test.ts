@@ -14,7 +14,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // the reply and the decision flow back; past-window items are expired, not overdue; a single-child link
 // stays single-child.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.INBOX_TEST_APP || "http://localhost:3107";
 const evidence = process.env.INBOX_EVIDENCE_DIR || "/tmp/sko419-evidence";
 const secret = new TextEncoder().encode(process.env.AUTH_SECRET || "/4XXCUlbpg5LxjwQcplP8JDypkNOSzUC7IShVucMoMU=");
@@ -121,7 +121,8 @@ test("a co-guardian's answer, the school's request for detail, the reply and the
 test("retired capability links do not authenticate or alter a signed-in family's scope", async () => {
   const token = await new SignJWT({ type: "parent_portal", studentId: ids.zoya, schoolId, relationshipId: ids.relZoya, guardianUserId: users.get("parent")!.id }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("1h").sign(secret);
   const anonymous = await browser.newContext();
-  assert.equal((await inbox(anonymous, `?token=${encodeURIComponent(token)}`)).status, 403);
+  // SKAI-1359 (#410): a request with no session is an authentication failure, so the retired token still yields 401.
+  assert.equal((await inbox(anonymous, `?token=${encodeURIComponent(token)}`)).status, 401);
   const parent = await context("parent");
   const ordinary = (await inbox(parent)).data;
   const withOldLink = (await inbox(parent, `?token=${encodeURIComponent(token)}`)).data;

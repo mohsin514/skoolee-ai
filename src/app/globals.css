@@ -776,6 +776,106 @@ button:disabled,
   font-weight: 600 !important;
 }
 
+/* ── Micro-interaction layer (SKAI-1329) ─────────────────────────────────────
+   Feel, not form: every rule here sits on an overlay, an extra background layer or an independent
+   transform property, so the pinned fills, borders, shadows and press-scale of the primitives stay
+   exactly as their specs expect. Everything stops under prefers-reduced-motion. */
+
+/* Primary button: a light sweep crosses on hover; while busy, a slow shimmer says "working". */
+.sk-btn-primary { overflow: hidden; isolation: isolate; }
+.sk-btn-primary::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.22) 48%, rgb(255 255 255 / 0.06) 56%, transparent 70%);
+  translate: -120% 0; transition: translate 700ms var(--ease-enter);
+}
+.sk-btn-primary:where(:hover, :focus-visible):not(:disabled):not([aria-disabled="true"])::after { translate: 120% 0; }
+.sk-btn-primary:dir(rtl)::after { translate: 120% 0; }
+.sk-btn-primary:dir(rtl):where(:hover, :focus-visible):not(:disabled):not([aria-disabled="true"])::after { translate: -120% 0; }
+.sk-btn-primary[aria-busy="true"]::after { transition: none; animation: sk-btn-shimmer 1.4s linear infinite; }
+@keyframes sk-btn-shimmer { from { translate: -120% 0; } to { translate: 120% 0; } }
+
+/* Arrows and chevrons lean toward where they lead (independent `translate`, so rtl:rotate-180 still applies). */
+:where(button, a, [role="button"]) > svg:is(.lucide-arrow-right, .lucide-chevron-right, .lucide-arrow-up-right, .lucide-move-right) { transition: translate var(--duration-control) var(--ease-enter); }
+:where(button, a, [role="button"]):where(:hover, :focus-visible) > svg:is(.lucide-arrow-right, .lucide-chevron-right, .lucide-arrow-up-right, .lucide-move-right) { translate: 2px 0; }
+:where(button, a, [role="button"]):where(:hover, :focus-visible):dir(rtl) > svg:is(.lucide-arrow-right, .lucide-chevron-right, .lucide-arrow-up-right, .lucide-move-right) { translate: -2px 0; }
+:where(button, a, [role="button"]) > svg.lucide-arrow-left { transition: translate var(--duration-control) var(--ease-enter); }
+:where(button, a, [role="button"]):where(:hover, :focus-visible) > svg.lucide-arrow-left { translate: -2px 0; }
+:where(button, a, [role="button"]):where(:hover, :focus-visible):dir(rtl) > svg.lucide-arrow-left { translate: 2px 0; }
+
+/* Toasts: a countdown line along the bottom edge (an extra background layer: Sonner owns both
+   pseudo-elements). It pauses while the stack is hovered/expanded or the toast holds focus, like the
+   timer itself, and is skipped for loading toasts and toasts that carry an action. */
+@property --sk-toast-left { syntax: "<percentage>"; inherits: false; initial-value: 100%; }
+[data-sonner-toast].skoolee-toast:not([data-type="loading"]):not(:has([data-button])) {
+  background:
+    linear-gradient(var(--sk-toast-accent), var(--sk-toast-accent)) left 0 top 10px / 3px calc(100% - 20px) no-repeat,
+    linear-gradient(color-mix(in srgb, var(--sk-toast-accent) 55%, transparent), color-mix(in srgb, var(--sk-toast-accent) 55%, transparent)) left 14px bottom 0 / calc((100% - 28px) * var(--sk-toast-left) / 100%) 2px no-repeat,
+    var(--normal-bg) !important;
+  animation: sk-toast-countdown var(--sk-toast-life, 5000ms) linear forwards;
+}
+[data-sonner-toast].skoolee-toast:dir(rtl):not([data-type="loading"]):not(:has([data-button])) {
+  background:
+    linear-gradient(var(--sk-toast-accent), var(--sk-toast-accent)) right 0 top 10px / 3px calc(100% - 20px) no-repeat,
+    linear-gradient(color-mix(in srgb, var(--sk-toast-accent) 55%, transparent), color-mix(in srgb, var(--sk-toast-accent) 55%, transparent)) right 14px bottom 0 / calc((100% - 28px) * var(--sk-toast-left) / 100%) 2px no-repeat,
+    var(--normal-bg) !important;
+}
+[data-sonner-toast].skoolee-toast[data-type="success"] { --sk-toast-life: 4000ms; }
+[data-sonner-toast].skoolee-toast[data-type="info"] { --sk-toast-life: 5000ms; }
+[data-sonner-toast].skoolee-toast[data-type="warning"] { --sk-toast-life: 6000ms; }
+[data-sonner-toast].skoolee-toast[data-type="error"] { --sk-toast-life: 7000ms; }
+[data-sonner-toast].skoolee-toast:is(:hover, :focus-within, [data-expanded="true"]) { animation-play-state: paused; }
+@keyframes sk-toast-countdown { from { --sk-toast-left: 100%; } to { --sk-toast-left: 0%; } }
+/* Errors and warnings carry a soft halo of their tone so they read as urgent at a glance. */
+[data-sonner-toast].skoolee-toast:is([data-type="error"], [data-type="warning"]) {
+  box-shadow: var(--shadow-toast), 0 0 0 1px rgb(255 255 255 / 0.6) inset, 0 12px 32px -14px color-mix(in srgb, var(--sk-toast-accent) 60%, transparent) !important;
+}
+
+/* Tooltips point at what they describe. */
+/* The popover UA sheet sets overflow:auto, which would clip the arrow. */
+.sk-tooltip { overflow: visible; }
+.sk-tooltip::after {
+  content: ""; position: absolute; inset-inline-start: auto; left: calc(var(--sk-tip-arrow, 50%) - 5px);
+  inline-size: 10px; block-size: 10px; background: inherit; transform: rotate(45deg); border-radius: 2px;
+}
+.sk-tooltip:not([data-side="bottom"])::after { bottom: -4px; }
+.sk-tooltip[data-side="bottom"]::after { top: -4px; }
+
+/* Urgent status dots breathe slowly, so the eye finds them first. */
+.sk-desk-pill:is([data-tone="danger"], [data-tone="warning"]) .sk-desk-pill-dot,
+[data-badge-dot="danger"], [data-badge-dot="warning"], [data-badge-dot="destructive"] { animation: sk-dot-live 2.4s var(--ease-standard) infinite; }
+@keyframes sk-dot-live {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 0%, transparent); }
+}
+/* Pills inside a clickable row or button lift a hair with it. */
+:where(a, button, [role="button"]):hover .sk-desk-pill { translate: 0 -1px; transition: translate var(--duration-control) var(--ease-enter); }
+
+/* Stat numbers settle into place instead of popping. */
+.sk-stat-tile-value { animation: sk-count-in 520ms var(--ease-enter) both; animation-delay: calc(var(--sk-i, 0) * 60ms + 80ms); }
+@keyframes sk-count-in { from { opacity: 0; translate: 0 6px; filter: blur(3px); } to { opacity: 1; translate: 0 0; filter: none; } }
+
+/* Scrollable areas fade at an edge only while more content is waiting past it (scroll-driven; static elsewhere). */
+@supports (animation-timeline: scroll()) {
+  .sk-scroll-cue {
+    --sk-cue: 18px;
+    mask-image: linear-gradient(to bottom, transparent 0, #000 var(--sk-cue-top, 0px), #000 calc(100% - var(--sk-cue-bottom, var(--sk-cue))), transparent 100%);
+    animation: sk-scroll-cue linear both; animation-timeline: scroll(self);
+  }
+  @property --sk-cue-top { syntax: "<length>"; inherits: false; initial-value: 0px; }
+  @property --sk-cue-bottom { syntax: "<length>"; inherits: false; initial-value: 18px; }
+  @keyframes sk-scroll-cue { 0% { --sk-cue-top: 0px; --sk-cue-bottom: 18px; } 8% { --sk-cue-top: 18px; } 92% { --sk-cue-bottom: 18px; } 100% { --sk-cue-top: 18px; --sk-cue-bottom: 0px; } }
+}
+
+/* A console view's content rises in when it first appears. */
+[data-console-content] > * { animation: sk-enter 360ms var(--ease-enter) both; }
+[data-console-content] > :nth-child(2) { animation-delay: 40ms; }
+[data-console-content] > :nth-child(3) { animation-delay: 80ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-btn-primary::after, [data-sonner-toast].skoolee-toast, .sk-stat-tile-value, [data-console-content] > *,
+  .sk-desk-pill-dot, [data-badge-dot] { animation: none !important; transition: none !important; }
+}
+
 /* F61 shared interaction tokens. Use words with every status color. */
 :root {
   /* Semantic geometry and elevation retain the existing component values. */
@@ -2383,6 +2483,117 @@ html[data-step-direction="back"]::view-transition-new(sk-step-card) { animation-
   .sk-crest-frame > .sk-crest { inline-size: 100%; }
   .sk-id-plate { display: grid; gap: .75rem; padding: 1rem; border-radius: var(--radius-control); background: var(--surface-subtle); border: 1px solid var(--border-subtle); }
 
+  /* ── Page header (PageHeader icon) and console header (ConsolePage) ── */
+  .sk-page-icon { position: relative; display: grid; place-items: center; inline-size: 2.75rem; block-size: 2.75rem; flex: none; border-radius: 1rem; color: #fff;
+    background: linear-gradient(140deg, var(--brand-500), var(--brand-700) 55%, var(--berry)); box-shadow: 0 10px 22px -12px rgb(129 39 207 / .75), inset 0 1px 0 rgb(255 255 255 / .35);
+    animation: sk-enter-scale 360ms var(--ease-enter) both; }
+  .sk-page-icon::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(70% 60% at 30% 20%, rgb(255 255 255 / .35), transparent 70%); pointer-events: none; }
+  .sk-page-icon > svg { position: relative; z-index: 1; }
+  /* SKAI-110: the shared desk kit (SKAI-1270) obeys reduced motion like the rest of the Charter Desk block. */
+  @media (prefers-reduced-motion: reduce) {
+    .sk-page-icon, .sk-stat-tile, .sk-desk-filter-status { animation: none !important; }
+    .sk-notif-item, .sk-desk-row, .sk-desk-row::before { transition: none !important; }
+  }
+  .sk-console-head { position: relative; isolation: isolate; }
+  .sk-console-head::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background: radial-gradient(60% 140% at 100% 0%, color-mix(in srgb, var(--brand-500) 9%, transparent), transparent 70%), radial-gradient(40% 120% at 0% 100%, color-mix(in srgb, var(--berry) 5%, transparent), transparent 70%); }
+
+  /* ── Operational desks (src/components/ui/desk.tsx): stat tiles, record rows, pills, timeline, sections ──
+     One tone vocabulary for every desk. Each tone sets four local properties that the parts read. */
+  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li, .sk-notif-item) {
+    --dk-ink: var(--brand-700); --dk-solid: var(--brand-600); --dk-surface: var(--status-brand-surface); --dk-border: var(--brand-200);
+  }
+  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li, .sk-notif-item)[data-tone="info"] { --dk-ink: var(--status-info-text); --dk-solid: #2563eb; --dk-surface: var(--status-info-surface); --dk-border: var(--status-info-border); }
+  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li, .sk-notif-item)[data-tone="success"] { --dk-ink: var(--status-success-text); --dk-solid: #059669; --dk-surface: var(--status-success-surface); --dk-border: var(--status-success-border); }
+  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li, .sk-notif-item)[data-tone="warning"] { --dk-ink: var(--status-warning-text); --dk-solid: #d97706; --dk-surface: var(--status-warning-surface); --dk-border: var(--status-warning-border); }
+  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li, .sk-notif-item)[data-tone="danger"] { --dk-ink: var(--status-error-text); --dk-solid: #dc2626; --dk-surface: var(--status-error-surface); --dk-border: var(--status-error-border); }
+  :is(.sk-stat-tile, .sk-desk-row, .sk-desk-pill, .sk-desk-section, .sk-desk-timeline > li, .sk-notif-item)[data-tone="neutral"] { --dk-ink: var(--ink-muted); --dk-solid: var(--ink-faint); --dk-surface: var(--surface-subtle); --dk-border: var(--border-subtle); }
+
+  @media (min-width: 640px) { .sk-stat-tile-value { font-size: 1.75rem; line-height: 2.125rem; } }
+  .sk-desk-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: .625rem; min-width: 0; }
+  .sk-stat-tile { position: relative; isolation: isolate; display: grid; align-content: start; gap: .125rem; min-width: 0; overflow: hidden; padding: .875rem 1rem;
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-control); background: hsl(var(--card)); box-shadow: var(--shadow-xs);
+    transition: transform var(--duration-control) var(--ease-enter), box-shadow var(--duration-control) var(--ease-standard), border-color var(--duration-control) var(--ease-standard);
+    animation: sk-enter 420ms var(--ease-enter) both; animation-delay: calc(var(--sk-i, 0) * 60ms); }
+  /* A soft wash of the tone from the top-end corner and a hairline accent along the top edge. */
+  .sk-stat-tile::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--dk-solid) 13%, transparent), transparent 62%); }
+  .sk-stat-tile:dir(rtl)::before { background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--dk-solid) 13%, transparent), transparent 62%); }
+  .sk-stat-tile::after { content: ""; position: absolute; inset-inline: 1.125rem; inset-block-start: 0; block-size: 2px; border-radius: 0 0 2px 2px; background: linear-gradient(90deg, var(--dk-solid), color-mix(in srgb, var(--dk-solid) 0%, transparent)); opacity: .7; }
+  .sk-stat-tile:dir(rtl)::after { background: linear-gradient(270deg, var(--dk-solid), color-mix(in srgb, var(--dk-solid) 0%, transparent)); }
+  .sk-stat-tile:hover { transform: translateY(-2px); border-color: var(--dk-border); box-shadow: 0 14px 30px -18px color-mix(in srgb, var(--dk-solid) 70%, transparent); }
+  .sk-stat-tile-icon { position: absolute; inset-block-start: .875rem; inset-inline-end: .875rem; display: grid; place-items: center; inline-size: 2rem; block-size: 2rem; border-radius: .75rem;
+    background: var(--dk-surface); color: var(--dk-solid); box-shadow: inset 0 0 0 1px var(--dk-border); }
+  .sk-stat-tile-icon > svg { inline-size: 1rem; block-size: 1rem; }
+  .sk-stat-tile-value { padding-inline-end: 2.5rem; font-size: 1.5rem; line-height: 2rem; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--ink-strong); }
+  .sk-stat-tile[data-tone="danger"] .sk-stat-tile-value, .sk-stat-tile[data-tone="warning"] .sk-stat-tile-value { color: var(--dk-ink); }
+  .sk-stat-tile-label { font-size: var(--text-xs); font-weight: 600; line-height: 1.125rem; color: var(--ink-muted); overflow-wrap: anywhere; }
+  .sk-stat-tile-hint { margin-block-start: .25rem; font-size: var(--text-2xs); line-height: 1rem; color: var(--ink-subtle); overflow-wrap: anywhere; }
+
+  button.sk-stat-tile { inline-size: 100%; font: inherit; text-align: start; cursor: pointer; }
+  button.sk-stat-tile:active { transform: translateY(0) scale(.985); }
+  .sk-stat-tile[data-selected] { border-color: var(--dk-solid); background: color-mix(in srgb, var(--dk-surface) 70%, hsl(var(--card))); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dk-solid) 18%, transparent), 0 14px 30px -18px color-mix(in srgb, var(--dk-solid) 70%, transparent); }
+  .sk-stat-tile[data-selected]::after { opacity: 1; block-size: 3px; }
+  .sk-stat-tile > span { display: block; }
+
+  /* Notification centre (NotificationCenter): segmented views, day headings, toned items with an unread dot. */
+  .sk-notif-tabs { display: flex; gap: .25rem; margin: .625rem .75rem 0; padding: .25rem; border-radius: 1rem; background: var(--surface-subtle); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+  .sk-notif-day { position: sticky; inset-block-start: -.625rem; z-index: 1; margin: .5rem .25rem .25rem; padding-block: .25rem; background: hsl(var(--card)); font-size: var(--text-2xs); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-subtle); }
+  .sk-notif-item { position: relative; padding: .625rem .75rem; border-radius: var(--radius-control-small); border: 1px solid transparent; transition: background-color var(--duration-control) var(--ease-standard), border-color var(--duration-control) var(--ease-standard); }
+  .sk-notif-item:hover { background: var(--surface-hover); border-color: var(--border-subtle); }
+  .sk-notif-item[data-unread] { background: color-mix(in srgb, var(--dk-surface) 70%, hsl(var(--card))); border-color: color-mix(in srgb, var(--dk-border) 60%, transparent); }
+  .sk-notif-item[data-tone="muted"] { opacity: .75; }
+  .sk-notif-icon { display: grid; place-items: center; inline-size: 2.25rem; block-size: 2.25rem; flex: none; border-radius: .75rem; background: var(--dk-surface); color: var(--dk-solid); box-shadow: inset 0 0 0 1px var(--dk-border); }
+  .sk-notif-item[data-tone="muted"] .sk-notif-icon { background: var(--surface-subtle); color: var(--ink-faint); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+  .sk-notif-dot { display: inline-block; inline-size: .5rem; block-size: .5rem; margin-inline-end: .375rem; border-radius: 999px; background: var(--dk-solid); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dk-solid) 20%, transparent); vertical-align: middle; }
+
+  /* Quick filter and the "N of M shown" line under it. */
+  .sk-desk-filter { position: relative; min-width: 0; }
+  .sk-desk-filter-icon { position: absolute; inset-block-start: 50%; inset-inline-start: 1rem; inline-size: 1.125rem; block-size: 1.125rem; transform: translateY(-50%); color: var(--ink-faint); pointer-events: none; }
+  .sk-desk-filter:focus-within .sk-desk-filter-icon { color: var(--brand-600); }
+  .sk-desk-filter-key { position: absolute; inset-block-start: 50%; inset-inline-end: .875rem; transform: translateY(-50%); pointer-events: none; }
+  .sk-desk-filter-clear { position: absolute; inset-block-start: 50%; inset-inline-end: .375rem; display: grid; place-items: center; inline-size: 2.25rem; block-size: 2.25rem; transform: translateY(-50%); border-radius: .75rem; color: var(--ink-muted); }
+  .sk-desk-filter-clear:hover { background: var(--surface-hover); color: var(--brand-700); }
+  .sk-desk-filter-clear > svg { inline-size: 1rem; block-size: 1rem; }
+  .sk-desk-filter-status { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; font-size: var(--text-xs); color: var(--ink-muted); animation: sk-fade 200ms var(--ease-standard) both; }
+  .sk-desk-filter-status > button { font-weight: 700; color: var(--brand-700); text-decoration: underline; text-underline-offset: 3px; }
+
+  /* Record row: a card with a tone rail on the inline-start edge; lifts on hover when it is a control. */
+  .sk-desk-row { position: relative; display: block; min-width: 0; padding: .875rem 1rem; padding-inline-start: 1.25rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-control);
+    background: hsl(var(--card)); color: var(--ink-strong); text-align: start; box-shadow: var(--shadow-xs);
+    transition: transform var(--duration-control) var(--ease-enter), box-shadow var(--duration-control) var(--ease-standard), border-color var(--duration-control) var(--ease-standard), background-color var(--duration-control) var(--ease-standard); }
+  .sk-desk-row::before { content: ""; position: absolute; inset-block: .625rem; inset-inline-start: .4375rem; inline-size: 3px; border-radius: 999px; background: var(--dk-border); transition: background-color var(--duration-control) var(--ease-standard), inset-block var(--duration-control) var(--ease-enter); }
+  .sk-desk-row:not([data-tone]):not(:hover)::before { background: var(--brand-100); }
+  .sk-desk-row[data-tone="warning"], .sk-desk-row[data-tone="danger"] { border-color: var(--dk-border); background: linear-gradient(90deg, color-mix(in srgb, var(--dk-surface) 100%, transparent), hsl(var(--card)) 70%); }
+  .sk-desk-row[data-tone="warning"]:dir(rtl), .sk-desk-row[data-tone="danger"]:dir(rtl) { background: linear-gradient(270deg, color-mix(in srgb, var(--dk-surface) 100%, transparent), hsl(var(--card)) 70%); }
+  .sk-desk-row:is([data-tone="warning"], [data-tone="danger"], [data-tone="success"], [data-tone="info"])::before { background: var(--dk-solid); }
+  .sk-desk-row[data-tone="muted"] { background: var(--surface-subtle); color: var(--ink-muted); box-shadow: none; }
+  :is(button, a).sk-desk-row, .sk-desk-row:is([role="button"], [data-interactive]) { cursor: pointer; }
+  :is(button, a).sk-desk-row:hover, .sk-desk-row:is([role="button"], [data-interactive]):hover { transform: translateY(-1px); border-color: var(--dk-border); box-shadow: 0 16px 34px -22px color-mix(in srgb, var(--dk-solid) 80%, transparent); }
+  :is(button, a).sk-desk-row:hover::before, .sk-desk-row:is([role="button"], [data-interactive]):hover::before { inset-block: .375rem; background: var(--dk-solid); }
+  :is(button, a).sk-desk-row:active { transform: translateY(0) scale(.995); }
+  .sk-desk-row-icon { display: grid; place-items: center; inline-size: 2.25rem; block-size: 2.25rem; flex: none; border-radius: .75rem; background: var(--dk-surface, var(--status-brand-surface)); color: var(--dk-solid, var(--brand-600)); box-shadow: inset 0 0 0 1px var(--dk-border, var(--brand-200)); }
+  .sk-desk-row-icon > svg { inline-size: 1.125rem; block-size: 1.125rem; }
+
+  .sk-desk-pill { display: inline-flex; max-inline-size: 100%; align-items: center; gap: .375rem; padding: .1875rem .5rem; border-radius: 999px; border: 1px solid var(--dk-border); background: var(--dk-surface); color: var(--dk-ink);
+    font-size: var(--text-2xs); font-weight: 700; line-height: 1rem; white-space: nowrap; vertical-align: middle; }
+  .sk-desk-pill-dot { inline-size: .375rem; block-size: .375rem; flex: none; border-radius: 999px; background: var(--dk-solid); }
+  .sk-desk-pill[data-tone="danger"] .sk-desk-pill-dot, .sk-desk-pill[data-tone="warning"] .sk-desk-pill-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--dk-solid) 22%, transparent); }
+
+  /* Timeline: a hairline rail with a dot per event. */
+  .sk-desk-timeline { position: relative; display: grid; gap: .75rem; padding-inline-start: 1.5rem; }
+  .sk-desk-timeline::before { content: ""; position: absolute; inset-block: .375rem; inset-inline-start: .4375rem; inline-size: 2px; border-radius: 999px; background: linear-gradient(180deg, var(--brand-200), var(--border-subtle)); }
+  .sk-desk-timeline > li { position: relative; min-width: 0; }
+  .sk-desk-timeline > li::before { content: ""; position: absolute; inset-block-start: .3125rem; inset-inline-start: -1.375rem; inline-size: .75rem; block-size: .75rem; border-radius: 999px; background: hsl(var(--card)); box-shadow: inset 0 0 0 2.5px var(--dk-solid), 0 0 0 3px hsl(var(--card)); }
+  .sk-desk-timeline > li:first-child::before { background: var(--dk-solid); box-shadow: 0 0 0 3px hsl(var(--card)), 0 0 0 6px color-mix(in srgb, var(--dk-solid) 18%, transparent); }
+
+  .sk-desk-section { display: grid; gap: .75rem; min-width: 0; padding: 1rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-control); background: hsl(var(--card)); }
+  @media (min-width: 640px) { .sk-desk-section { padding: 1.125rem 1.25rem; } }
+  .sk-desk-section[data-tone="danger"], .sk-desk-section[data-tone="warning"] { border-color: var(--dk-border); background: linear-gradient(180deg, var(--dk-surface), hsl(var(--card)) 4.5rem); }
+  .sk-desk-section-head { display: flex; align-items: center; gap: .625rem; min-width: 0; }
+  .sk-desk-section-head > h3 { font-size: var(--text-md); font-weight: 700; line-height: 1.375rem; color: var(--ink-strong); }
+  .sk-desk-section-icon { display: grid; place-items: center; inline-size: 2rem; block-size: 2rem; flex: none; border-radius: .75rem; background: var(--dk-surface); color: var(--dk-solid); box-shadow: inset 0 0 0 1px var(--dk-border); }
+  .sk-desk-section-icon > svg { inline-size: 1rem; block-size: 1rem; }
+
   /* ── Follow-up list (FollowUpList): later work, one tone per item ── */
   .sk-follow-up { display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; }
   @container (min-width: 34rem) { .sk-follow-up { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -2587,6 +2798,8 @@ html[data-step-direction="back"]::view-transition-new(sk-step-card) { animation-
   .sk-package-next[data-tone="warning"] > svg { color: var(--status-warning-text); }
   .sk-choice-tag[data-tone="info"] { background: var(--status-info-surface); border-color: var(--status-info-border); color: var(--status-info-text); }
   .sk-choice-tag[data-tone="brand"] { background: var(--status-brand-surface); border-color: var(--status-brand-border); color: var(--status-brand-text); }
+  .sk-choice-tag[data-tone="danger"] { background: var(--status-error-surface); border-color: var(--status-error-border); color: var(--status-error-text); }
+  .sk-choice-tag[data-tone="warning"] { background: var(--status-warning-surface); border-color: var(--status-warning-border); color: var(--status-warning-text); }
 
   /* Footer: Oolee's verdict bubble and the actions (the recommended action mirrored). */
   .sk-chooser-footer { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; }
@@ -3146,4 +3359,78 @@ html:has(.sk-step-dock) [data-sonner-toaster][data-y-position="bottom"] { bottom
     [data-field-shell]:focus-within { outline: 2px solid Highlight; }
     .sk-ai-rail::before, .sk-ai-rail > [data-part="fill"] { background: CanvasText; }
   }
+}
+
+/* SKAI-1331 workspace flexibility: focus mode, sidebar peek, compact header, density, card maximize, back to top.
+   Unlayered on purpose: these are user-chosen modes that must win over the utilities they adjust. */
+.sk-focus-dock {
+  position: fixed; inset-block-end: calc(var(--mobile-nav-height, 0px) + 16px); inset-inline-end: 16px; z-index: 1200;
+  display: flex; align-items: center; gap: .625rem; padding: .375rem .375rem .375rem .875rem;
+  border: 1px solid var(--border-subtle); border-radius: 999px; background: hsl(var(--card) / 0.92);
+  box-shadow: var(--shadow-lg); backdrop-filter: blur(10px);
+  animation: sk-dock-in 260ms var(--ease-enter, cubic-bezier(.16,1,.3,1)) both;
+}
+@keyframes sk-dock-in { from { opacity: 0; translate: 0 12px; } }
+/* The hidden mobile bar reserves no space in focus mode (its height is set inline, hence !important). */
+[data-role-shell][data-focus] { --mobile-nav-height: 0px !important; }
+[data-role-shell][data-focus] [data-page-card] { transition: border-radius 200ms ease; }
+@media (min-width: 768px) { [data-role-shell][data-focus] main#workspace-content { padding: 12px; } }
+
+/* Peek: the folded rail opens over the page with a lifted edge; nothing beneath it moves. */
+.sk-sidebar { transition: width 220ms cubic-bezier(.16,1,.3,1), box-shadow 220ms ease; }
+.sk-sidebar[data-sidebar-peek] { box-shadow: var(--shadow-2xl), var(--shadow-lg); }
+
+/* Compact header: slims while reading down a long page, returns on the way back up. */
+@media (min-width: 768px) {
+  [data-workspace-header] { transition: padding 200ms ease, margin 200ms ease, box-shadow 200ms ease; }
+  [data-role-shell][data-header-compact] [data-workspace-header] { padding-block: 4px; margin-block-end: 8px; box-shadow: var(--shadow-xs); }
+  [data-role-shell][data-header-compact] [data-workspace-header] [data-tour="shell.header.cycle"] { display: none; }
+}
+
+/* Compact density: tighter rows, tiles and panels so more fits on screen. Touch targets keep their 44px minimum. */
+[data-density="compact"] [data-page-card] {
+  .sk-desk-row { padding-block: .5rem; }
+  .sk-stat-tile { padding: .625rem .75rem; }
+  .sk-desk-section { padding: .75rem .875rem; gap: .5rem; }
+  .sk-panel > [role="button"] { padding-block: .875rem; }
+  :is(td, th) { padding-block: .375rem; }
+  :is(.space-y-6) > :not(:last-child) { margin-block-end: 1rem; }
+  :is(.space-y-4) > :not(:last-child) { margin-block-end: .625rem; }
+  :is(.gap-6) { gap: 1rem; }
+  :is(.gap-4) { gap: .625rem; }
+}
+
+/* A folded section shrinks to its head instead of stretching to its neighbour's height. */
+.sk-desk-section[data-collapsed] { align-self: start; }
+
+/* A card opened full screen sits over the page; the page behind it is dimmed and does not scroll. */
+.sk-max-backdrop { position: fixed; inset: 0; z-index: 1290; background: rgb(24 16 34 / 0.42); backdrop-filter: blur(3px); animation: sk-max-fade 180ms ease both; }
+[data-maximized] {
+  position: fixed !important; inset: 16px; z-index: 1300; margin: 0 !important; max-width: none !important;
+  overflow: auto !important; overscroll-behavior: contain; box-shadow: var(--shadow-2xl);
+  align-content: start;
+  animation: sk-max-in 220ms cubic-bezier(.16,1,.3,1) both;
+}
+@media (min-width: 1024px) { [data-maximized] { inset: 32px max(32px, calc((100vw - 1280px) / 2)); } }
+html[data-card-maximized] { overflow: hidden; }
+@keyframes sk-max-fade { from { opacity: 0; } }
+@keyframes sk-max-in { from { opacity: 0; scale: .97; } }
+
+/* Secondary card controls stay quiet until the card is hovered or focused; touch screens always show them. */
+@media (hover: hover) and (pointer: fine) {
+  .sk-reveal-on-hover { opacity: 0; transition: opacity 150ms ease; }
+  :is(.sk-panel, .sk-desk-section):is(:hover, :focus-within) .sk-reveal-on-hover, .sk-reveal-on-hover:focus-visible, [data-maximized] .sk-reveal-on-hover { opacity: 1; }
+}
+
+.sk-back-to-top {
+  position: absolute; inset-block-end: 16px; inset-inline-end: 16px; z-index: 20; border-radius: 999px;
+  box-shadow: var(--shadow-md); animation: sk-dock-in 220ms cubic-bezier(.16,1,.3,1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-focus-dock, .sk-max-backdrop, [data-maximized], .sk-back-to-top { animation: none; }
+  .sk-sidebar, [data-workspace-header] { transition: none; }
+}
+@media (forced-colors: active) {
+  .sk-focus-dock, [data-maximized] { border: 1px solid CanvasText; }
 }

@@ -9,7 +9,7 @@ import {
   releaseLegalHold, reviewLifecycleRequest, setRetentionSchedule,
 } from "../../src/lib/data-lifecycle/service";
 
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only isolated PG55438.");
 const db = new PrismaClient(), schoolIds: string[] = [];
 after(async () => { await db.school.deleteMany({ where: { id: { in: schoolIds } } }); await db.$disconnect(); await prisma.$disconnect(); });
@@ -28,7 +28,7 @@ async function fixture() {
     await db.user.create({ data: { id: userId, email, password: "x", fullName: `Synthetic ${role}`, role, schoolId, campusId: campus, isActive: true, onboardingComplete: true, isInstitutionOwner: !!extra.isInstitutionOwner } });
     return { userId, email, role, schoolId, campusId: campus, accessVersion: 0, ...extra };
   };
-  const owner = await person("SUPER_ADMIN", { isInstitutionOwner: true }, null), secondAdmin = await person("SUPER_ADMIN", {}, null);
+  const owner = await person("SUPER_ADMIN", { isInstitutionOwner: true }, null), secondAdmin = await person("SUPER_ADMIN", { institutionKind: "GROUP" }, null);
   const campusAdmin = await person("CAMPUS_ADMIN"), parent = await person("PARENT"), teacher = await person("TEACHER");
   const pupil = async (name: string) => { const id = randomUUID(); await db.student.create({ data: { id, schoolId, campusId, classId, fullName: name, rollNo: id.slice(0, 6), gender: "FEMALE", enrollmentDate: new Date("2026-09-01Z") } }); return id; };
   const child = await pupil("Synthetic child"), sibling = await pupil("Synthetic other learner");

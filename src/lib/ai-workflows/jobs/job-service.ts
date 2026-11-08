@@ -53,7 +53,9 @@ export function startJob(user: AuthUser, raw: unknown): Promise<AiWorkflowJob> {
     let parentJobId: string | null = null;
     if (input.parentJobId) {
       const parent = await prisma.aiWorkflowJob.findFirst({ where: { ...jobWhere(user, input.parentJobId), actorRole: user.role, status: "COMPLETED" }, include: { steps: true } });
-      parentJobId = parent?.id ?? null;
+      // SKAI-1373: a continuation whose parent is missing or not completed is refused, never started standalone.
+      if (!parent) throw new WorkflowError("NOT_FOUND");
+      parentJobId = parent.id;
       const steps = parent?.steps.filter(step => step.planVersion === parent.planVersion) ?? [];
       if (steps.length === 1 && steps[0].capabilityKey === "assistant.app_knowledge" && steps[0].status === "SUCCEEDED") {
         const previous = (steps[0].modelInput as { query?: unknown })?.query;

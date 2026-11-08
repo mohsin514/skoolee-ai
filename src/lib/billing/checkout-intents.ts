@@ -41,6 +41,24 @@ export function assertSubscriptionPurchaser(user: AuthUser) {
   }
 }
 
+/**
+ * SKAI-156: the server-side twin of the chooser's downgrade rule. During setup a school never moves below the
+ * package it already holds as Free, and never picks a package with fewer campus slots than its active campuses
+ * (archived campuses do not count). The chooser hides these choices; a direct API call is refused the same way.
+ */
+export function assertPackageFitsSchool(
+  plan: PlanType,
+  details: { price: number | null; maxCampuses: number },
+  school: { currentPlan: string; activeCampuses: number },
+) {
+  if (plan === "FREE" && school.currentPlan !== "FREE") {
+    throw new ApiError("Your current package stays active. Moving to a smaller package happens from Billing after setup.", 409);
+  }
+  if (details.maxCampuses >= 0 && school.activeCampuses > details.maxCampuses) {
+    throw new ApiError(`This package allows ${details.maxCampuses} campus${details.maxCampuses === 1 ? "" : "es"}, but the school has ${school.activeCampuses} active. Archive a campus or choose a larger package.`, 409);
+  }
+}
+
 export function packageContract(plan: PlanType, details = PLANS[plan]): PlanContract {
   return createPlanContract(plan, {
     name: details.name,
@@ -146,6 +164,9 @@ export async function settleVerifiedCheckoutIntent(input: {
   const { runWithTenantContext } = await import("@/lib/db/tenant-context");
   const { activatePlan } = await import("@/lib/billing/entitlements");
   return runWithTenantContext({ schoolId: input.schoolId }, () => prisma.$transaction(async (tx) => {
+    // SKAI-157: replayed or concurrent confirmations (webhook retries, a return page and a webhook at once)
+    // wait on this row lock and then see SETTLED, so the plan is activated exactly once.
+    await tx.$queryRaw`SELECT id FROM onboarding_checkout_intents WHERE id=${input.id} AND school_id=${input.schoolId} FOR UPDATE`;
     const intent = await tx.onboardingCheckoutIntent.findFirst({
       where: { id: input.id, schoolId: input.schoolId },
     });

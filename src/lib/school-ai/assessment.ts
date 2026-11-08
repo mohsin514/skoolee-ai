@@ -26,6 +26,12 @@ export const curriculumDataSchema = z.object({
     sourceRecordId: id.optional(),
     sourceVersion: z.number().int().positive().optional(),
     pageRange: draftText(40).optional(),
+    url: z.string().url().optional(),
+    checksum: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
+    rightsScope: draftText(500).optional(),
+    reviewedAt: z.string().datetime().optional(),
+    reviewDueAt: z.string().datetime().optional(),
+    authoritativeNotice: draftText(500).optional(),
   }).strict()).max(30),
   lessonPlans: z.array(lessonPlanSchema).max(50).optional(),
   sectionCoverage: z.array(z.object({
@@ -47,10 +53,20 @@ export const curriculumDataSchema = z.object({
     unit: draftText(200).optional(),
   }).strict()).max(200),
   pack: z.object({
+    packId: id.optional(),
+    version: z.number().int().positive().optional(),
     authority: draftText(200),
     edition: draftText(80),
     language: assessmentLanguageSchema,
     rights: z.enum(["APPROVED", "UNDER_REVIEW", "MANUAL"]),
+    examYear: draftText(20).optional(),
+    teachingYear: draftText(80).optional(),
+    grade: draftText(80).optional(),
+    term: draftText(80).optional(),
+    marks: z.number().positive().optional(),
+    durationMinutes: z.number().int().positive().optional(),
+    choices: z.number().int().positive().optional(),
+    paperRules: draftText(1000).optional(),
   }).strict().optional(),
   // SKO-500: approving this curriculum also approves the cited SOURCE revision (one approval, not two).
   approvalBundle: z.object({ sourceRecordId: id, sourceVersion: z.number().int().positive() }).strict().optional(),
@@ -75,8 +91,11 @@ export const blueprintSchema = z.object({
 }).strict();
 
 export const bankDifficultySchema = z.enum(["UNSPECIFIED", "EASY", "MEDIUM", "HARD"]);
+/** SKAI-1758: single source for the per-question tag cap (schema + editor). */
+export const QUESTION_TAG_LIMIT = 12;
+export const QUESTION_TAG_MAX_LENGTH = 80;
 export const questionBankMetadataSchema = z.object({
-  tags: z.array(z.string().trim().min(1).max(80)).max(12),
+  tags: z.array(z.string().trim().min(1).max(QUESTION_TAG_MAX_LENGTH)).max(QUESTION_TAG_LIMIT, `A question can have at most ${QUESTION_TAG_LIMIT} tags. Remove extra tags and save again.`),
   difficulty: bankDifficultySchema,
 }).strict();
 export const questionOriginSchema = z.object({
@@ -146,6 +165,8 @@ export const paperDataSchema = z.object({
   examType: z.enum(["QUIZ", "CLASS_TEST", "MID_TERM", "FINAL"]).optional(),
   // SKO-500: the office paper slot this paper answers, when it was requested from the date sheet.
   slotId: id.optional(),
+  // SKAI-1008: the catalogue pack version (and its content hash) this paper was generated against.
+  curriculumPackPin: z.object({ packId: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).max(120), version: z.number().int().positive(), contentSha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict().optional(),
   generation: z.object({
     kind: z.enum(["MANUAL", "AI", "UPLOADED"]),
     model: draftText(200).nullable(),
@@ -221,12 +242,28 @@ export function validateCurriculumApproval(curriculum: CurriculumData): string[]
   if (!curriculum.academicYear.trim()) errors.push("Academic year is required.");
   if (!curriculum.board.trim()) errors.push("Curriculum or board is required.");
   if (!curriculum.sources.length) errors.push("Add at least one source.");
+  if (curriculum.pack && (!curriculum.pack.packId || !curriculum.pack.version)) errors.push("Versioned packs require an immutable pack ID and version.");
+  if (curriculum.pack?.authority.toLowerCase().includes("fbise") && !curriculum.pack.examYear) errors.push("FBISE packs require an exam year.");
+  if (curriculum.pack?.authority.toLowerCase().includes("lahore")) {
+    const pack = curriculum.pack;
+    if (!pack.term) errors.push("BISE Lahore packs require a term.");
+    if (!pack.examYear) errors.push("BISE Lahore packs require the examination year.");
+    if (!pack.grade) errors.push("BISE Lahore packs require the grade.");
+    if (!pack.marks || !pack.durationMinutes || !pack.choices) errors.push("BISE Lahore packs require marks, duration and choice rules.");
+    if (!pack.paperRules?.trim()) errors.push("BISE Lahore packs require the approved paper and assessment rules.");
+    for (const source of curriculum.sources) if (!source.authoritativeNotice?.trim() || !source.reviewedAt) errors.push(`BISE Lahore source ${source.title || source.id} needs an authority notice and review date.`);
+    const historical2026 = /annual[- ]exam[- ]?2026|reduced/i.test(`${pack.edition} ${pack.paperRules ?? ""}`) || pack.marks === 75;
+    if (historical2026 && pack.examYear !== "2026") errors.push("The reduced Grade 9 2026 paper rules are historical and cannot be used for another examination year.");
+  }
+  if (curriculum.pack?.examYear && curriculum.pack.teachingYear && curriculum.pack.examYear === curriculum.pack.teachingYear) errors.push("Exam year must remain distinct from teaching year.");
+  if (curriculum.pack?.rights === "APPROVED" && curriculum.sources.some(source => !source.url || !source.checksum || !source.rightsScope || !source.reviewedAt)) errors.push("Approved pack sources need URL, checksum, rights scope and review metadata.");
   if (!unique(curriculum.sources.map((source) => source.id))) errors.push("Source identifiers must be unique.");
   if (!unique(curriculum.outcomes.map((outcome) => outcome.id))) errors.push("Outcome identifiers must be unique.");
   for (const source of curriculum.sources) {
     if (!source.title.trim() || !source.reference.trim() || !source.excerpt.trim() || !source.approved) {
       errors.push(`Source ${source.title || source.id} needs a title, reference, readable content and confirmation.`);
     }
+    if (source.reviewDueAt && source.reviewDueAt < new Date().toISOString()) errors.push(`Source ${source.title || source.id} is stale and must be reviewed before publication.`);
   }
   if (!curriculum.sources.some((source) => source.kind !== "PAST_PAPER" && source.approved)) {
     errors.push("A past paper alone cannot establish curriculum coverage; add a syllabus, textbook or approved teacher plan.");
@@ -251,6 +288,22 @@ export function validateCurriculumApproval(curriculum: CurriculumData): string[]
     for (const row of curriculum.sectionCoverage) {
       if (!row.confirmed || !unique(row.outcomeIds) || row.outcomeIds.some(outcomeId => !curriculum.outcomes.some(outcome => outcome.id === outcomeId && outcome.taught))) errors.push(`Section ${row.section}: confirm distinct taught curriculum outcomes.`);
     }
+  }
+  return errors;
+}
+
+/** Board-specific pack rules fail closed until the named exam contract is evidenced. */
+export function validateMarketContract(curriculum: CurriculumData): string[] {
+  const pack = curriculum.pack;
+  if (!pack) return ["A versioned curriculum pack is required."];
+  const authority = pack.authority.toLowerCase();
+  const errors: string[] = [];
+  if (authority.includes("fbise") && !pack.examYear) errors.push("FBISE packs require an exam year.");
+  if (authority.includes("lahore")) {
+    if (!pack.examYear || !pack.term) errors.push("BISE Lahore packs require exam year and term.");
+    if (!pack.marks || !pack.durationMinutes || !pack.choices) errors.push("BISE Lahore packs require marks, duration and choice rules.");
+    if (!curriculum.sources.every(source => source.authoritativeNotice)) errors.push("BISE Lahore packs require an authority notice for every source.");
+    if (pack.edition.includes("2026") && pack.examYear !== "2026") errors.push("historical 2026 rules cannot be used for another exam year.");
   }
   return errors;
 }

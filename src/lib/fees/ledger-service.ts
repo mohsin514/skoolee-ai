@@ -23,11 +23,12 @@ export function ledgerSource(row: { paymentId?: string | null; payrollLineId?: s
   return "MANUAL";
 }
 
-const day = (value: string | null, end: boolean) => {
+export const ledgerDay = (value: string | null, end: boolean) => {
   if (!value) return null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new ApiError("Dates must be YYYY-MM-DD", 400);
   const parsed = new Date(`${value}T${end ? "23:59:59.999" : "00:00:00.000"}Z`);
-  if (Number.isNaN(parsed.getTime())) throw new ApiError("Invalid date", 400);
+  // Date rolls 2026-02-31 into March; round-tripping the day rejects it instead of moving the entry.
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) throw new ApiError("Invalid date", 400);
   return parsed;
 };
 
@@ -39,7 +40,7 @@ export function ledgerWhere(scope: Prisma.LedgerEntryWhereInput, filters: Ledger
   const kind = filters.kind?.toUpperCase();
   if (kind) { if (kind !== "INCOME" && kind !== "EXPENSE") throw new ApiError("kind must be INCOME or EXPENSE", 400); where.kind = kind; }
   if (filters.accountId) where.accountId = filters.accountId;
-  const from = day(filters.from ?? null, false), to = day(filters.to ?? null, true);
+  const from = ledgerDay(filters.from ?? null, false), to = ledgerDay(filters.to ?? null, true);
   if (from && to && from > to) throw new ApiError("from must be before to", 400);
   if (from || to) where.date = { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) };
   const source = filters.source?.toUpperCase();
@@ -97,7 +98,7 @@ export async function postManualEntry(user: AuthUser, campusId: string, body: Ma
     const sourceName = String(body.sourceName ?? "").trim();
     if (sourceName.length < 3 || sourceName.length > 200) throw new ApiError("Describe what this money is for (3–200 characters).", 400);
     const dateText = String(body.date ?? "");
-    const date = day(dateText, false);
+    const date = ledgerDay(dateText, false);
     if (!date) throw new ApiError("Choose the date of the transaction.", 400);
     if (date.getTime() > Date.now() + 86_400_000) throw new ApiError("The transaction date cannot be in the future.", 400);
     if (!body.accountId) throw new ApiError("Choose an account.", 400);

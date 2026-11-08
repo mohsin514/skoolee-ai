@@ -23,7 +23,7 @@ function fixture() {
     if (id.startsWith("@/")) return {};
     return require(id);
   });
-  return (role: string, input = {}) => module.exports.listResources({ userId: "teacher-a", schoolId: "school-a", campusId: "campus-a", role }, input);
+  return (role: string, input = {}) => mod.exports.listResources({ userId: "teacher-a", schoolId: "school-a", campusId: "campus-a", role }, input);
 }
 
 test("a teacher without assigned classes gets an empty scoped library", async () => {

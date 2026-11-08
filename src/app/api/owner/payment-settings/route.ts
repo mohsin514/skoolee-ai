@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { createConnectAccount, createConnectOnboardingLink, appUrl } from "@/lib/stripe/server";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +49,7 @@ export async function POST(req: Request) {
   try {
     const user = await requirePlatformOwner();
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { action } = body;
 
     if (action === "start-connect-onboarding") {

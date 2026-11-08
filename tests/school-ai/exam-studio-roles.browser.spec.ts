@@ -2,12 +2,13 @@ import { captureEvidence } from "./screenshot-evidence";
 import { test, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { PrismaClient, type UserRole } from "@prisma/client";
 import { resetDemoTenant, DEMO_SCHOOL_ID } from "../../scripts/demo/reset-demo-tenant";
+const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 /** Run serially against the synthetic tenant only, after the slice suites (each resets it). */
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
 if (!["127.0.0.1", "localhost"].includes(database.hostname)) throw new Error("Use only a loopback database for this suite.");
 const db = new PrismaClient();
-const origin = process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106";
+const origin = process.env.SCHOOL_AI_TEST_ORIGIN || SCHOOL_AI_ORIGIN;
 const password = process.env.DEMO_PASSWORD ?? "";
 const headers = { Origin: origin };
 const shots = process.env.EXAM_STUDIO_ROLE_SHOTS;

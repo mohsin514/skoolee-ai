@@ -115,21 +115,33 @@ function deny(reason: string): PolicyDecision {
 // ─── Relationship lookups ────────────────────────────────────────
 
 /**
+ * A teaching assignment in force today. Allocation (SKAI-1265) records class
+ * and subject teachers here, so a teacher can be attached to a class with
+ * nothing set on Class.classTeacherId or Subject.teacherId.
+ */
+export function currentTeachingAssignmentWhere(at = new Date()) {
+  return { teacherId: { not: null }, effectiveFrom: { lte: at }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: at } }] };
+}
+
+/**
  * Every class a teacher is attached to: as class teacher, as a subject
- * teacher, or through a published timetable slot. All three appear in the
- * product as "my classes", so all three grant contact with those families.
+ * teacher, through a current teaching assignment, or through a published
+ * timetable slot. All appear in the product as "my classes", so all grant
+ * contact with those families.
  */
 export async function teacherClassIds(userId: string, db: TxClient = prisma): Promise<string[]> {
-  const [led, subjects, slots] = await Promise.all([
+  const [led, subjects, slots, assignments] = await Promise.all([
     db.class.findMany({ where: { classTeacherId: userId }, select: { id: true } }),
     db.subject.findMany({ where: { teacherId: userId }, select: { classId: true } }),
     db.timetableSlot.findMany({
       where: { teacherId: userId },
       select: { timetable: { select: { classId: true } } },
     }),
+    db.teachingAssignment.findMany({ where: { ...currentTeachingAssignmentWhere(), teacherId: userId }, select: { classId: true } }),
   ]);
 
   const ids = new Set<string>();
+  for (const a of assignments) ids.add(a.classId);
   for (const c of led) ids.add(c.id);
   for (const s of subjects) ids.add(s.classId);
   for (const s of slots) if (s.timetable?.classId) ids.add(s.timetable.classId);

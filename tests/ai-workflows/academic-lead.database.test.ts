@@ -65,7 +65,7 @@ async function prepare(ctx: CapabilityContext, key: string, input: unknown) {
 
 test("entries keep their static classes; Exam Studio keys are class C deep links only", () => {
   assert.deepEqual(ACADEMIC_LEAD_ENTRIES.map(item => [item.key, item.class]), [
-    ["academic.class.assign_teacher", "B"], ["academic.subject.create", "B"], ["academic.subject.assign_teacher", "B"], ["staff.set_workload_capacity", "B"],
+    ["academic.class.assign_teacher", "B"], ["academic.subject.create", "B"], ["academic.subject.assign_teacher", "B"], ["academic.subject.allocate_teachers_bulk", "B"], ["staff.set_workload_capacity", "B"],
     ["timetable.create", "B"], ["exams.session.create", "B"], ["exams.invigilation.assign", "B"], ["academic.model.create_draft", "B"],
     ["improvement.create_framework", "B"], ["staff.propose_cover", "B"], ["learning_actions.save_draft", "B"],
     ["corrections.decide_mark", "C"], ["learning_actions.activate", "C"], ["academic.model.activate", "C"], ["reports.approve_versions", "C"],

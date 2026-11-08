@@ -2,11 +2,12 @@
 import { AdvancedQuestionOptions } from "./assessment-extensions";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DeskPill } from "@/components/ui/desk";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
-import type { AssessmentLocale, CurriculumData, PaperData, Question } from "@/lib/school-ai/assessment";
+import { QUESTION_TAG_LIMIT, QUESTION_TAG_MAX_LENGTH, type AssessmentLocale, type CurriculumData, type PaperData, type Question } from "@/lib/school-ai/assessment";
 import type { EligibleBankEntry } from "@/lib/school-ai/question-bank-service";
 import { questionBankCopy } from "./question-bank-copy";
 import { questionBankExposureCopy } from "./question-bank-exposure-copy";
@@ -16,7 +17,8 @@ import { blueprintCoverageGaps } from "@/lib/school-ai/question-bank";
 export function QuestionBankLabels({ question, locale, onChange }: { question: Question; locale: AssessmentLocale; onChange: (next: Partial<Question>) => void }) {
   const t = questionBankCopy(locale);
   const [tagsText, setTagsText] = useState(question.bankMetadata?.tags.join(", ") ?? "");
-  return <fieldset className="space-y-3 rounded-xl border border-border p-4"><legend className="px-1 text-sm font-semibold">{t.labels}</legend><FormField name={`bank-tags-${question.id}`} label={t.tags} hint={t.limit}><Input maxLength={970} value={tagsText} onChange={(event) => { setTagsText(event.target.value); onChange({ bankMetadata: { difficulty: question.bankMetadata?.difficulty ?? "UNSPECIFIED", tags: event.target.value.split(/[,،]/).map((tag) => tag.trim()).filter(Boolean) } }); }} /></FormField><FormField name={`bank-difficulty-${question.id}`} label={t.difficulty} hint={t.difficultyHint}><Select value={question.bankMetadata?.difficulty ?? "UNSPECIFIED"} onChange={(event) => onChange({ bankMetadata: { tags: question.bankMetadata?.tags ?? [], difficulty: event.target.value as "UNSPECIFIED" | "EASY" | "MEDIUM" | "HARD" } })}><option value="UNSPECIFIED">{t.unspecified}</option><option value="EASY">{t.easy}</option><option value="MEDIUM">{t.medium}</option><option value="HARD">{t.hard}</option></Select></FormField><p className="text-xs text-ink-subtle">{t.unchanged}</p>{question.reusedFrom && <div className="space-y-1 text-sm"><p className="break-all">{t.derived}: {question.reusedFrom.paperId} · {t.version} {question.reusedFrom.paperVersion} · {t.originId}: {question.reusedFrom.questionId}</p><p>{t.curriculum}: {question.reusedFrom.curriculumVersion}</p><p className="text-ink-subtle">{t.reviewRequired}</p></div>}</fieldset>;
+  const [overLimit, setOverLimit] = useState(false);
+  return <fieldset className="space-y-3 rounded-xl border border-border p-4"><legend className="px-1 text-sm font-semibold">{t.labels}</legend><FormField name={`bank-tags-${question.id}`} label={t.tags} hint={t.limit} error={overLimit ? t.limit : undefined}><Input maxLength={QUESTION_TAG_LIMIT * (QUESTION_TAG_MAX_LENGTH + 1)} value={tagsText} onChange={(event) => { const tags = event.target.value.split(/[,،]/).map((tag) => tag.trim()).filter(Boolean); setOverLimit(tags.length > QUESTION_TAG_LIMIT); if (tags.length > QUESTION_TAG_LIMIT) return; setTagsText(event.target.value); onChange({ bankMetadata: { difficulty: question.bankMetadata?.difficulty ?? "UNSPECIFIED", tags } }); }} /></FormField><FormField name={`bank-difficulty-${question.id}`} label={t.difficulty} hint={t.difficultyHint}><Select value={question.bankMetadata?.difficulty ?? "UNSPECIFIED"} onChange={(event) => onChange({ bankMetadata: { tags: question.bankMetadata?.tags ?? [], difficulty: event.target.value as "UNSPECIFIED" | "EASY" | "MEDIUM" | "HARD" } })}><option value="UNSPECIFIED">{t.unspecified}</option><option value="EASY">{t.easy}</option><option value="MEDIUM">{t.medium}</option><option value="HARD">{t.hard}</option></Select></FormField><p className="text-xs text-ink-subtle">{t.unchanged}</p>{question.reusedFrom && <div className="space-y-1 text-sm"><p className="break-all">{t.derived}: {question.reusedFrom.paperId} · {t.version} {question.reusedFrom.paperVersion} · {t.originId}: {question.reusedFrom.questionId}</p><p>{t.curriculum}: {question.reusedFrom.curriculumVersion}</p><p className="text-ink-subtle">{t.reviewRequired}</p></div>}</fieldset>;
 }
 
 export function QuestionBank({ paper, curriculum, campusId, locale, onReuse, onBusyChange }: { paper: PaperData; curriculum: CurriculumData; campusId: string; locale: AssessmentLocale; onReuse: (paper: PaperData) => void; onBusyChange: (busy: boolean) => void }) {
@@ -65,10 +67,10 @@ export function QuestionBank({ paper, curriculum, campusId, locale, onReuse, onB
   const isDuplicate = (item: EligibleBankEntry) => paper.questions.some((question) => normalized(question.prompt) === normalized(item.question.prompt));
   const alignmentBadge = (item: EligibleBankEntry) => {
     if (!item.alignment) return null;
-    if (item.alignment.mode === "SAME_VERSION") return <span className="rounded-full border px-2 py-0.5">{align.sameVersion}</span>;
+    if (item.alignment.mode === "SAME_VERSION") return <DeskPill tone="info">{align.sameVersion}</DeskPill>;
     const lists = item.question.outcomeIds.map((id) => item.alignment?.mode === "MAPPED" ? item.alignment.targets[id] ?? [] : []);
     const text = lists.every((list) => list.length) ? align.mapped : lists.some((list) => list.length) ? align.partlyMapped : align.unmapped;
-    return <span className={`rounded-full border px-2 py-0.5 ${lists.every((list) => list.length) ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-rose-300 bg-rose-50 text-rose-900"}`}>{text}</span>;
+    return <DeskPill tone={lists.every((list) => list.length) ? "success" : "danger"}>{text}</DeskPill>;
   };
   // Within the same curriculum version any taught section objective may be chosen; otherwise only lead-recorded mappings.
   const allowedTargets = (sourceOutcomeId: string): Array<{ id: string; title: string; relation?: "SAME" | "PARTIAL" | "STABLE_ID" }> => {

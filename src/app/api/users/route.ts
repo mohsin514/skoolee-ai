@@ -4,17 +4,19 @@ import { writeAuditEvent } from "@/lib/audit-events";
 import {
   ApiError,
   canManageCampusOps,
-  errorResponse,
   requireAuthUser,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { id, ...updates } = body;
     if (!id) throw new ApiError("User id is required", 400);
 
@@ -36,6 +38,14 @@ export async function PATCH(req: NextRequest) {
       "cnic", "gender", "qualification", "specialization", "experience",
       "address", "city", "province", "postalCode", "emergencyContact", "emergencyPhone",
     ] as const;
+    // Same rule as teacher onboarding: 7 to 15 digits, or blank to clear.
+    if (updates.emergencyPhone) {
+      const digits = String(updates.emergencyPhone).match(/\d/g)?.length ?? 0;
+      const validShape = /^\+?[\d\s().-]+$/.test(String(updates.emergencyPhone).trim());
+      if (!validShape || digits < 7 || digits > 15) {
+        throw new ApiError("Enter a phone number with 7 to 15 digits", 400);
+      }
+    }
     for (const field of optionalStringFields) {
       if (updates[field] !== undefined) {
         data[field] = updates[field] ? String(updates[field]).trim() : null;
@@ -96,8 +106,8 @@ export async function PATCH(req: NextRequest) {
       return next;
     });
 
-    return Response.json({ success: true, data: updated });
+    return ok(updated);
   } catch (error) {
-    return errorResponse(error, "[users] PATCH failed");
+    return failFrom(error, "[users] PATCH failed");
   }
 }

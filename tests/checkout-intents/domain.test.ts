@@ -98,3 +98,17 @@ test("intent validation bounds sizing and keeps idempotency and return-state fie
     plan: "FREE", expectedCampuses: 1, expectedEnrollment: 10, returnStep: "/admin", idempotencyKey: "synthetic-key-000001",
   }).success, false);
 });
+
+test("SKAI-156: setup never downgrades to Free or below the school's active campuses", async () => {
+  const { assertPackageFitsSchool } = await import("@/lib/billing/checkout-intents");
+  // A paid school cannot drop to Free through a direct API call.
+  assert.throws(() => assertPackageFitsSchool("FREE", PLANS.FREE, { currentPlan: "PRO", activeCampuses: 1 }), { status: 409 });
+  assert.doesNotThrow(() => assertPackageFitsSchool("FREE", PLANS.FREE, { currentPlan: "FREE", activeCampuses: 1 }));
+  // Three active campuses do not fit a one-campus package; they fit Pro (5) and Custom (unlimited).
+  assert.throws(() => assertPackageFitsSchool("BASIC", PLANS.BASIC, { currentPlan: "PRO", activeCampuses: 3 }), { status: 409 });
+  assert.doesNotThrow(() => assertPackageFitsSchool("PRO", PLANS.PRO, { currentPlan: "PRO", activeCampuses: 3 }));
+  assert.doesNotThrow(() => assertPackageFitsSchool("ENTERPRISE", PLANS.ENTERPRISE, { currentPlan: "PRO", activeCampuses: 40 }));
+  // Upgrades and same-size choices pass; the boundary is inclusive.
+  assert.doesNotThrow(() => assertPackageFitsSchool("BASIC", PLANS.BASIC, { currentPlan: "FREE", activeCampuses: 1 }));
+  assert.throws(() => assertPackageFitsSchool("PRO", PLANS.PRO, { currentPlan: "PRO", activeCampuses: 6 }), { status: 409 });
+});

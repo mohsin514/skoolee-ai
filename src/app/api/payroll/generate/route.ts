@@ -3,6 +3,9 @@ import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { computePayrollLine, proRateFactor, unpaidLeaveDeductionForMonth } from "@/lib/payroll";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { PAYROLL_ROLES, parsePayrollPeriod, parsePayrollRole, type PayrollRole } from "@/lib/payroll-period";
 
 // POST /api/payroll/generate
 // body: { campusId?, role?, month, year }
@@ -16,14 +19,11 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "payroll", "add");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
 
-    const month = parseInt(String(body.month ?? ""), 10);
-    const year = parseInt(String(body.year ?? ""), 10);
-    if (!Number.isFinite(month) || month < 1 || month > 12) throw new ApiError("month must be 1-12", 400);
-    if (!Number.isFinite(year) || year < 2000 || year > 2100) throw new ApiError("year must be 2000-2100", 400);
-    const role = body.role ? String(body.role).toUpperCase() : undefined;
+    const { month, year } = parsePayrollPeriod(body.month, body.year);
+    const role = parsePayrollRole(body.role);
 
     const existing = await prisma.payrollRun.findUnique({
       where: { campusId_month_year: { campusId, month, year } },
@@ -82,13 +82,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function collectStaff(campusId: string, role?: string) {
+async function collectStaff(campusId: string, role?: PayrollRole) {
   const staff = await prisma.user.findMany({
     where: {
       campusId,
       isActive: true,
-      role: { in: ["TEACHER", "PRINCIPAL", "CAMPUS_ADMIN", "ADMIN", "SUPER_ADMIN"] },
-      ...(role ? { role: role as any } : {}),
+      role: { in: [...PAYROLL_ROLES] },
+      ...(role ? { role } : {}),
     },
     select: {
       id: true,

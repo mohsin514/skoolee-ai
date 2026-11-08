@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormField } from "@/components/ui/form-field";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
 // SKO-429: ask about school policy. Answers quote the current approved policy with its version and
 // section; conflicts and gaps say so plainly and offer a reviewed message to the right office.
@@ -28,7 +29,7 @@ const NOTE_LABEL: Record<string, string> = {
 async function call(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json" } }).catch(() => null);
   const json = await response?.json().catch(() => null);
-  if (!response?.ok || !json?.success) throw new Error(json?.error || "Request failed");
+  if (!response?.ok || !isApiOk(json)) throw new Error(readApiError(json, "Request failed"));
   return json.data;
 }
 

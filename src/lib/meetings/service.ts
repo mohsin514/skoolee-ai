@@ -66,6 +66,11 @@ async function liveByWindow(db: TxClient, windowIds: string[]) {
 
 function assertStaff(user: AuthUser) { if (user.role !== "TEACHER" && !canManageOperations(user)) throw new ApiError("Only staff can manage meetings.", 403); }
 
+type WindowDetails = { slotMinutes: number; bufferMinutes: number; maxBookings: number | null; mode: string; location: string | null; cancellationPolicy: string | null };
+export const sameWindowDetails = (a: WindowDetails, b: WindowDetails) =>
+  a.slotMinutes === b.slotMinutes && a.bufferMinutes === b.bufferMinutes && (a.maxBookings ?? null) === (b.maxBookings ?? null)
+  && a.mode === b.mode && (a.location || null) === (b.location || null) && (a.cancellationPolicy || null) === (b.cancellationPolicy || null);
+
 export async function createWindow(user: AuthUser, body: Record<string, unknown>) {
   assertStaff(user);
   const localDate = String(body.localDate ?? ""), startTime = String(body.startTime ?? ""), endTime = String(body.endTime ?? "");
@@ -85,7 +90,20 @@ export async function createWindow(user: AuthUser, body: Record<string, unknown>
   if (!cancellationPolicy) throw new ApiError("Explain how families can cancel or change a meeting.", 400);
   const timezone = await timezoneFor(user.schoolId, user.campusId ?? null);
   if (localDate < calendarDateIn(timezone)) throw new ApiError("Choose today or a later day.", 400);
-  return prisma.meetingWindow.create({ data: { schoolId: user.schoolId, campusId: user.campusId ?? "", teacherId: user.userId, localDate, startTime, endTime, timezone, slotMinutes, bufferMinutes, maxBookings, mode, location, cancellationPolicy, createdById: user.userId } });
+  // SKAI-1673: one open window per teacher, day and time. The teacher row lock serialises a retried or doubled create,
+  // so the second one finds the first window and replays it instead of offering every slot twice.
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.userId} FOR UPDATE`;
+    const existing = await tx.meetingWindow.findFirst({ where: { schoolId: user.schoolId, teacherId: user.userId, localDate, startTime, endTime, status: "OPEN" } });
+    if (existing) {
+      // SKAI-1786: only an unchanged retry replays. Different family-facing details are a conflict, never a stale success.
+      if (!sameWindowDetails(existing, { slotMinutes, bufferMinutes, maxBookings, mode, location, cancellationPolicy })) {
+        throw new ApiError("You already have a window at this time with different details. Withdraw it or choose another time.", 409);
+      }
+      return existing;
+    }
+    return tx.meetingWindow.create({ data: { schoolId: user.schoolId, campusId: user.campusId ?? "", teacherId: user.userId, localDate, startTime, endTime, timezone, slotMinutes, bufferMinutes, maxBookings, mode, location, cancellationPolicy, createdById: user.userId } });
+  });
 }
 
 /** Withdraw a window; any live booking in it needs a new time and both sides are told (see ./notify). */
@@ -145,7 +163,7 @@ export async function staffDesk(user: AuthUser) {
   return {
     timezone, today,
     windows: windows.map(w => ({ ...w, slots: windowSlots(w, busy, new Set(live.filter(l => l.windowId === w.id).map(l => l.startsAt.getTime())), live.filter(l => l.windowId === w.id).length, now) })),
-    bookings: bookings.map(b => ({ id: b.id, status: b.status, conflictReason: b.conflictReason, version: b.version, startsAt: b.startsAt, endsAt: b.endsAt, local: { ...localParts(b.startsAt, b.window.timezone), end: localParts(b.endsAt, b.window.timezone).time }, mode: b.mode, location: b.window.location, agenda: b.agenda, accessNeeds: b.accessNeeds, studentName: people.students.get(b.studentId) ?? "", guardianName: people.users.get(b.guardianUserId) ?? "", followUp: b.followUp ? { summary: b.followUp.summary, sharedAt: b.followUp.sharedAt } : null, actions: b.actions, notes: b.notes.map(n => ({ id: n.id, body: n.body, createdAt: n.createdAt, author: people.users.get(n.authorId) ?? "" })), events: b.events.map(e => ({ version: e.version, action: e.action, createdAt: e.createdAt, detail: e.detail })) })),
+    bookings: bookings.map(b => ({ id: b.id, status: b.status, conflictReason: b.conflictReason, version: b.version, startsAt: b.startsAt, endsAt: b.endsAt, local: { ...localParts(b.startsAt, b.window.timezone), end: localParts(b.endsAt, b.window.timezone).time }, mode: b.mode, location: b.window.location, agenda: b.agenda, accessNeeds: b.accessNeeds, studentName: people.students.get(b.studentId) ?? "", guardianName: people.users.get(b.guardianUserId) ?? "", followUp: b.followUp ? { summary: b.followUp.summary, sharedAt: b.followUp.sharedAt, updatedAt: b.followUp.updatedAt } : null, actions: b.actions, notes: b.notes.map(n => ({ id: n.id, body: n.body, createdAt: n.createdAt, author: people.users.get(n.authorId) ?? "" })), events: b.events.map(e => ({ version: e.version, action: e.action, createdAt: e.createdAt, detail: e.detail })) })),
   };
 }
 
@@ -174,6 +192,8 @@ export async function recordOutcome(user: AuthUser, body: Record<string, unknown
     if (!["HELD", "NOT_HELD"].includes(outcome)) throw new ApiError("Say whether the meeting took place.", 400);
     if (!["CONFIRMED", "HELD", "NOT_HELD"].includes(booking.status)) throw new ApiError("This meeting is not confirmed.", 409);
     if (booking.startsAt > new Date()) throw new ApiError("Record the outcome after the meeting time.", 409);
+    // SKAI-1731: the booking row is locked above; a tab that saw an older version gets 409 and nothing changes.
+    if (Number(body.knownVersion) !== booking.version) throw new ApiError("This meeting changed since you opened it. Review the latest details.", 409);
     await tx.meetingBooking.update({ where: { id: booking.id }, data: { status: outcome, version: { increment: 1 } } });
     await event(tx, booking, booking.version + 1, outcome, user.userId, {});
     return { status: outcome };
@@ -187,6 +207,10 @@ export async function saveFollowUp(user: AuthUser, body: Record<string, unknown>
     if (booking.status !== "HELD") throw new ApiError("Record that the meeting took place before writing the follow-up.", 409);
     const existing = await tx.meetingFollowUp.findUnique({ where: { bookingId: booking.id } });
     if (existing?.sharedAt) throw new ApiError("The follow-up was already shared with the family.", 409);
+    // SKAI-1732: the booking row is locked above; a tab whose draft token (null = no draft yet) is not the stored
+    // draft's updatedAt gets 409 before the summary or actions are replaced.
+    const seen = body.knownFollowUpAt == null || body.knownFollowUpAt === "" ? null : new Date(String(body.knownFollowUpAt)).getTime();
+    if (!("knownFollowUpAt" in body) || seen !== (existing ? existing.updatedAt.getTime() : null)) throw new ApiError("This meeting changed since you opened it. Review the latest details.", 409);
     const summary = text(body.summary, 2000);
     if (!summary) throw new ApiError("Write the summary the family will read.", 400);
     const raw = Array.isArray(body.actions) ? body.actions as Record<string, unknown>[] : [];
@@ -244,6 +268,24 @@ async function childTeachers(schoolId: string, student: { classId: string | null
   return users.map(u => ({ id: u.id, name: u.fullName ?? "", classTeacher: u.id === student.class?.classTeacherId, subjects: subjects.filter(s => s.teacherId === u.id).map(s => s.name) }));
 }
 
+// SKAI-1682: history pages newest-first by (startsAt, id); `nextCursor` reaches every older booking.
+export const FAMILY_MEETING_PAGE = 20;
+async function familyBookingPage(user: AuthUser, studentId: string, names: Map<string, string>, cursor?: string) {
+  const rows = await prisma.meetingBooking.findMany({ where: { schoolId: user.schoolId, studentId }, include: { followUp: true, actions: { orderBy: { createdAt: "asc" } }, window: { select: { location: true, timezone: true, cancellationPolicy: true } }, events: { orderBy: { version: "desc" }, take: 1 } }, orderBy: [{ startsAt: "desc" }, { id: "desc" }], take: FAMILY_MEETING_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
+  const page = rows.slice(0, FAMILY_MEETING_PAGE);
+  return {
+    nextCursor: rows.length > FAMILY_MEETING_PAGE ? page[page.length - 1].id : null,
+    bookings: page.map(b => ({ id: b.id, status: b.status, conflictReason: b.conflictReason, version: b.version, teacherId: b.teacherId, teacherName: names.get(b.teacherId) ?? "", startsAt: b.startsAt, endsAt: b.endsAt, local: { ...localParts(b.startsAt, b.window.timezone), end: localParts(b.endsAt, b.window.timezone).time }, mode: b.mode, location: b.window.location, cancellationPolicy: b.window.cancellationPolicy, agenda: b.agenda, accessNeeds: b.accessNeeds, mine: b.guardianUserId === user.userId, lastChange: b.events[0] ? { version: b.events[0].version, action: b.events[0].action, at: b.events[0].createdAt } : null, ...sharedView(b) })),
+  };
+}
+
+/** One older page of a guardian's meeting history, after `cursor` (a booking id from the previous page). */
+export async function familyMeetingHistory(user: AuthUser, studentId: string, cursor: string) {
+  const { student } = await guardianChild(user, studentId);
+  const teachers = await childTeachers(user.schoolId, student);
+  return familyBookingPage(user, student.id, new Map(teachers.map(t => [t.id, t.name])), cursor);
+}
+
 export async function familyMeetings(user: AuthUser, studentId: string) {
   const { student } = await guardianChild(user, studentId);
   const timezone = await timezoneFor(user.schoolId, student.campusId);
@@ -254,12 +296,12 @@ export async function familyMeetings(user: AuthUser, studentId: string) {
   const live = await liveByWindow(prisma, windows.map(w => w.id));
   const busy = new Map<string, Busy>();
   for (const t of new Set(windows.map(w => w.teacherId))) busy.set(t, await teacherBusy(prisma, user.schoolId, t));
-  const bookings = await prisma.meetingBooking.findMany({ where: { schoolId: user.schoolId, studentId: student.id }, include: { followUp: true, actions: { orderBy: { createdAt: "asc" } }, window: { select: { location: true, timezone: true, cancellationPolicy: true } }, events: { orderBy: { version: "desc" }, take: 1 } }, orderBy: { startsAt: "desc" }, take: 20 });
   const names = new Map(teachers.map(t => [t.id, t.name]));
+  const history = await familyBookingPage(user, student.id, names);
   return {
     timezone, child: { id: student.id, name: student.fullName }, teachers,
     windows: windows.map(w => ({ id: w.id, teacherId: w.teacherId, localDate: w.localDate, mode: w.mode, location: w.location, slotMinutes: w.slotMinutes, cancellationPolicy: w.cancellationPolicy, slots: windowSlots(w, busy.get(w.teacherId)!, new Set(live.filter(l => l.windowId === w.id).map(l => l.startsAt.getTime())), live.filter(l => l.windowId === w.id).length, now).filter(s => s.state === "OPEN").map(({ state: _state, ...s }) => s) })).filter(w => w.slots.length),
-    bookings: bookings.map(b => ({ id: b.id, status: b.status, conflictReason: b.conflictReason, version: b.version, teacherId: b.teacherId, teacherName: names.get(b.teacherId) ?? "", startsAt: b.startsAt, endsAt: b.endsAt, local: { ...localParts(b.startsAt, b.window.timezone), end: localParts(b.endsAt, b.window.timezone).time }, mode: b.mode, location: b.window.location, cancellationPolicy: b.window.cancellationPolicy, agenda: b.agenda, accessNeeds: b.accessNeeds, mine: b.guardianUserId === user.userId, lastChange: b.events[0] ? { version: b.events[0].version, action: b.events[0].action, at: b.events[0].createdAt } : null, ...sharedView(b) })),
+    bookings: history.bookings, nextCursor: history.nextCursor,
   };
 }
 

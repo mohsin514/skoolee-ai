@@ -2,8 +2,9 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { ApiError, canManageLibrary } from "@/lib/api/scope";
+import { ApiError, assertPermission, assertStaffRole, canManageLibrary } from "@/lib/api/scope";
 import { isCampusOperator } from "@/lib/auth/institution";
+import { writeAuditEvent } from "@/lib/audit-events";
 import { DEFAULT_RULES, dueDate, finePreview, type LoanRules } from "./rules";
 
 /**
@@ -41,12 +42,38 @@ const PolicyInput = z.object({
   currency: z.string().trim().regex(/^[A-Z]{3}$/u), closures: z.array(day).max(400).default([]),
 }).strict();
 
-/** Rules are versioned: saving adds a version; loans keep the version they were issued under. */
+const RULE_KEYS = ["loanDays", "maxLoans", "maxRenewals", "graceDays", "finePerDay", "fineCap", "lostCharge", "holdDays", "currency"] as const;
+const RULES_CHANGED = "These library rules changed while you were saving. Reload them, then save again.";
+
+/** Whether a stored version already holds these rules, so saving them again is a replay. */
+const sameRules = (stored: Record<(typeof RULE_KEYS)[number], number | string> & { closures: unknown }, input: z.infer<typeof PolicyInput>, closures: string[]) =>
+  RULE_KEYS.every((key) => stored[key] === input[key]) && JSON.stringify(stored.closures) === JSON.stringify(closures);
+
+/**
+ * Rules are versioned: saving adds a version, and loans keep the version they were issued under. A payload identical to
+ * the current version replays it. The version is allocated under a lock per campus, so racing saves never collide on the
+ * unique key. A save that did not read the version a racing save committed gets a 409, and a unique violation is mapped to
+ * the same 409. The audit row is written in the same transaction, so only committed versions are audited.
+ */
 export async function saveRules(user: AuthUser, raw: unknown) {
   assertDesk(user);
   const input = parse(PolicyInput, raw), campusId = campusOf(user);
-  const latest = await currentRules(prisma, user.schoolId, campusId);
-  return prisma.libraryLoanPolicy.create({ data: { ...input, closures: [...new Set(input.closures)].sort(), schoolId: user.schoolId, campusId, version: latest.version + 1, createdById: user.userId } });
+  const closures = [...new Set(input.closures)].sort();
+  const seen = await prisma.libraryLoanPolicy.findFirst({ where: { schoolId: user.schoolId, campusId }, orderBy: { version: "desc" }, select: { version: true } });
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${campusId}:library-loan-policy`}, 0))`;
+      const last = await tx.libraryLoanPolicy.findFirst({ where: { schoolId: user.schoolId, campusId }, orderBy: { version: "desc" } });
+      if (last && sameRules(last, input, closures)) return last;
+      if ((last?.version ?? 0) !== (seen?.version ?? 0)) throw new ApiError(RULES_CHANGED, 409);
+      const policy = await tx.libraryLoanPolicy.create({ data: { ...input, closures, schoolId: user.schoolId, campusId, version: (last?.version ?? 0) + 1, createdById: user.userId } });
+      await writeAuditEvent(tx, user, { table: "library_loan_policies", recordId: policy.id, action: "CREATE", campusId, after: { version: policy.version, currency: policy.currency } });
+      return policy;
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ApiError(RULES_CHANGED, 409);
+    throw error;
+  }
 }
 
 /** Register physical copies. Existing titles without copies get one per counted copy first. */
@@ -55,6 +82,8 @@ export async function addCopies(user: AuthUser, raw: unknown) {
   const input = parse(z.object({ bookId: text(1, 120), barcodes: z.array(barcode).min(1).max(100) }).strict(), raw), campusId = campusOf(user);
   if (new Set(input.barcodes).size !== input.barcodes.length) throw new ApiError("Each barcode can be used once.", 400);
   return prisma.$transaction(async (tx) => {
+    // SKAI-1562: lock the title so two registrations cannot count the same unbarcoded copies twice.
+    await tx.$queryRaw`SELECT id FROM books WHERE id = ${input.bookId} AND school_id = ${user.schoolId} AND campus_id = ${campusId} FOR UPDATE`;
     const book = await tx.book.findFirst({ where: { id: input.bookId, schoolId: user.schoolId, campusId } });
     if (!book) throw new ApiError("Book not found", 404);
     const taken = await tx.bookCopy.findMany({ where: { campusId, barcode: { in: input.barcodes } }, select: { barcode: true } });
@@ -62,7 +91,10 @@ export async function addCopies(user: AuthUser, raw: unknown) {
     const existing = await tx.bookCopy.count({ where: { bookId: book.id } });
     await tx.bookCopy.createMany({ data: input.barcodes.map((code) => ({ schoolId: user.schoolId, campusId, bookId: book.id, barcode: code })) });
     // The title counters stay the single source the older screens read.
-    const add = existing === 0 ? Math.max(0, input.barcodes.length - book.copiesTotal) : input.barcodes.length;
+    // Counted copies that have no barcode yet absorb new barcodes first, whatever the batch size;
+    // only barcodes beyond them are new stock.
+    const unbarcoded = Math.max(0, book.copiesTotal - existing);
+    const add = Math.max(0, input.barcodes.length - unbarcoded);
     await tx.book.update({ where: { id: book.id }, data: { copiesTotal: { increment: add }, copiesAvailable: { increment: add } } });
     return tx.bookCopy.findMany({ where: { bookId: book.id }, orderBy: { barcode: "asc" } });
   });
@@ -98,6 +130,8 @@ export async function issueCopy(user: AuthUser, raw: unknown) {
   return prisma.$transaction(async (tx) => {
     const member = await tx.libraryMember.findFirst({ where: { id: input.memberId, schoolId: user.schoolId, campusId } });
     if (!member) throw new ApiError("Member not found", 404);
+    // SKAI-1671: serialise issues per reader so two desks lending different copies cannot both pass the limit count.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`library-reader-loans:${member.id}`}))`;
     const copy = await tx.bookCopy.findFirst({ where: { schoolId: user.schoolId, campusId, barcode: input.barcode } });
     if (!copy) throw new ApiError("Copy not found", 404);
     const rules = await currentRules(tx, user.schoolId, campusId);
@@ -163,6 +197,30 @@ export async function returnCopy(user: AuthUser, raw: unknown) {
   });
 }
 
+/**
+ * SKAI-1288: return a loan from the circulation list (a title without a barcoded copy). It charges
+ * the same overdue fine as the lending desk, under the loan's own rule version.
+ */
+export async function returnIssue(user: AuthUser, id: string) {
+  const existing = await prisma.bookIssue.findFirst({ where: { id, book: { campus: { schoolId: user.schoolId } } }, include: { book: { select: { campusId: true } } } });
+  if (!existing) throw new ApiError("Issue not found", 404);
+  if (existing.returnedAt) throw new ApiError("Book already returned", 409);
+  // SKO-436: loans of a barcoded copy are returned at the lending desk, which also settles the
+  // copy, any fine and the reservation queue.
+  if (existing.copyId) throw new ApiError("Return this copy by scanning it at the lending desk.", 409);
+  const now = new Date(), campusId = existing.book.campusId;
+  return prisma.$transaction(async (tx) => {
+    const rules = (existing.policySnapshot as LoanRules | null) ?? (await currentRules(tx, user.schoolId, campusId));
+    const fine = finePreview(existing.dueAt, now, rules);
+    // One conditional update decides the return, so a repeated request cannot add a copy twice.
+    const closed = await tx.bookIssue.updateMany({ where: { id, returnedAt: null }, data: { returnedAt: now, fine: fine.amount } });
+    if (!closed.count) throw new ApiError("Book already returned", 409);
+    if (fine.amount > 0) await tx.libraryCharge.create({ data: { schoolId: user.schoolId, campusId, issueId: id, memberId: existing.memberId, kind: "FINE", amount: fine.amount, currency: fine.currency, detail: fine as unknown as Prisma.InputJsonValue } });
+    await tx.book.update({ where: { id: existing.bookId }, data: { copiesAvailable: { increment: 1 } } });
+    return tx.bookIssue.findUniqueOrThrow({ where: { id } });
+  });
+}
+
 export async function renewLoan(user: AuthUser, raw: unknown) {
   assertDesk(user);
   const input = parse(z.object({ issueId: text(1, 120) }).strict(), raw);
@@ -172,7 +230,10 @@ export async function renewLoan(user: AuthUser, raw: unknown) {
     const rules = (loan.policySnapshot as LoanRules | null) ?? (await currentRules(tx, user.schoolId, campusOf(user)));
     if (loan.renewals >= rules.maxRenewals) throw new ApiError(`This loan has used its ${rules.maxRenewals} renewals.`, 409);
     if (await tx.bookReservation.count({ where: { bookId: loan.bookId, status: "WAITING" } })) throw new ApiError("Another reader is waiting for this title, so it cannot be renewed.", 409);
-    return tx.bookIssue.update({ where: { id: loan.id }, data: { dueAt: dueDate(new Date(), rules), renewals: { increment: 1 } } });
+    // SKAI-1643: claim the renewal count we read, so two desks renewing at once extend the loan once.
+    const claimed = await tx.bookIssue.updateMany({ where: { id: loan.id, schoolId: user.schoolId, returnedAt: null, renewals: loan.renewals }, data: { dueAt: dueDate(loan.dueAt > new Date() ? loan.dueAt : new Date(), rules), renewals: loan.renewals + 1 } });
+    if (claimed.count !== 1) throw new ApiError("This loan was just renewed or returned. Refresh to see its new due date.", 409);
+    return tx.bookIssue.findUniqueOrThrow({ where: { id: loan.id } });
   });
 }
 
@@ -245,5 +306,22 @@ export async function deskOverview(user: AuthUser) {
     prisma.bookReservation.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: ["WAITING", "READY"] } }, orderBy: { createdAt: "asc" }, take: 200 }),
     prisma.libraryCharge.findMany({ where: { schoolId: user.schoolId, campusId, status: "OPEN" }, orderBy: { createdAt: "desc" }, take: 200 }),
   ]);
-  return { rules, canWaive: canWaiveCharge(user), books, reservations, charges };
+  // SKAI-1665: the desk keeps sight of what it handed to the fees office instead of losing it from view.
+  // SKAI-1669: posted charges stay listed with their invoice link, so the desk sees what finance did with them.
+  const handed = await prisma.libraryCharge.findMany({ where: { schoolId: user.schoolId, campusId, OR: [{ status: { in: ["HANDED_TO_FEES", "POSTED"] } }, { invoiceId: { not: null } }] }, orderBy: { decidedAt: "desc" }, take: 100 });
+  return { rules, canWaive: canWaiveCharge(user), books, reservations, charges, handed };
+}
+
+/**
+ * SKAI-1665: the fees office queue for library charges handed over by the desk — campus-scoped, finance view
+ * permission, with the member's name and number and the librarian's recorded reason as provenance.
+ */
+export async function handedLibraryCharges(user: AuthUser) {
+  assertStaffRole(user);
+  await assertPermission(user, "fees", "view");
+  const campusId = campusOf(user);
+  const charges = await prisma.libraryCharge.findMany({ where: { schoolId: user.schoolId, campusId, status: "HANDED_TO_FEES" }, orderBy: { decidedAt: "asc" }, take: 200 });
+  const members = await prisma.libraryMember.findMany({ where: { schoolId: user.schoolId, campusId, id: { in: [...new Set(charges.map(c => c.memberId))] } }, select: { id: true, memberNo: true, user: { select: { fullName: true } } } });
+  const byId = new Map(members.map(m => [m.id, m]));
+  return charges.map(c => ({ id: c.id, issueId: c.issueId, kind: c.kind, amount: c.amount, currency: c.currency, reason: c.waiverReason, handedById: c.waivedById, handedAt: c.decidedAt, memberNo: byId.get(c.memberId)?.memberNo ?? null, memberName: byId.get(c.memberId)?.user.fullName ?? null }));
 }

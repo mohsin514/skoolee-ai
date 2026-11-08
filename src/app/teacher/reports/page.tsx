@@ -7,12 +7,13 @@ import { InputGroup, FieldAction } from "@/components/ui/input-group";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
-import { ArrowRight, BrainCircuit, ChevronDown, FileText, Search, SearchX, X } from "lucide-react";
+import { ArrowRight, BrainCircuit, CheckCircle2, ChevronDown, FileCheck2, FileText, Search, SearchX, Send, X } from "lucide-react";
+import { DeskPill, DeskRowButton, DeskStats, RelativeTime, StatTile } from "@/components/ui/desk";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { Select } from "@/components/ui/select";
 import {
-  classLabel, ReportCardDetailModal, ReportsSkeleton, StatusPill, TeacherErrorState, useTeacherData,
+  classLabel, formatDate, ReportCardDetailModal, ReportsSkeleton, StatusPill, statusDeskTone, TeacherErrorState, useTeacherData,
 } from "@/components/teacher/teacher-components";
 import { useAcademicYear } from "@/components/academic-year/CycleGate";
 import { apiErrorMessage } from "@/lib/errors";
@@ -20,6 +21,13 @@ import { cn } from "@/lib/utils";
 import { Input as SystemInput } from "@/components/ui/input";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
+
+/** An ISO timestamp for a date the payload may carry as a Date or a string; null when it is missing or invalid. */
+function isoOf(value: unknown): string | null {
+  if (!value) return null;
+  const at = new Date(value as string);
+  return Number.isNaN(at.getTime()) ? null : at.toISOString();
+}
 
 /** "PRINCIPAL_REVIEWED" → "Principal reviewed", for filter chips. */
 function statusLabel(status: string) {
@@ -120,29 +128,36 @@ export default function ReportsPage() {
     [allCards],
   );
 
-  useEffect(() => {
+  // SKAI-1539: a failed deep-link load is its own state with a Retry; only HTTP 200 reportCard:null is "not ready".
+  const [deepLinkFailed, setDeepLinkFailed] = useState(false);
+  const openDeepLink = useCallback(async () => {
     const studentId = searchParams.get("studentId");
     const classId = searchParams.get("classId");
-    if (studentId && classId && data) {
-      (async () => {
-        try {
-          const rcRes = await fetch(`/api/reports/generate-from-grades?studentId=${studentId}&classId=${classId}&academicYear=${academicYear}`);
-          const rcBody = await rcRes.text();
-          const rcResult = JSON.parse(rcBody);
-          const reportCard = rcResult.reportCard || null;
-          if (reportCard) {
-            setSelectedReportCard({
-              ...reportCard,
-              student: { ...reportCard.student, class: reportCard.student?.class || {} },
-              subjectBreakdown: reportCard.subjectBreakdown || [],
-            });
-          } else {
-            toast.error(ui("This report card isn't ready yet. Your academic lead generates final grades and report cards."));
-          }
-        } catch { toast.error(ui("Could not open this report card. Please try again.")); }
-      })();
+    if (!studentId || !classId) return;
+    setDeepLinkFailed(false);
+    try {
+      const rcRes = await fetch(`/api/reports/generate-from-grades?studentId=${encodeURIComponent(studentId)}&classId=${encodeURIComponent(classId)}&academicYear=${academicYear}`);
+      if (!rcRes.ok) throw new Error(`report card ${rcRes.status}`);
+      const rcResult = await rcRes.json();
+      if (!rcResult || typeof rcResult !== "object" || !("reportCard" in rcResult)) throw new Error("report card payload");
+      const reportCard = rcResult.reportCard || null;
+      if (reportCard) {
+        setSelectedReportCard({
+          ...reportCard,
+          student: { ...reportCard.student, class: reportCard.student?.class || {} },
+          subjectBreakdown: reportCard.subjectBreakdown || [],
+        });
+      } else {
+        toast.error(ui("This report card isn't ready yet. Your academic lead generates final grades and report cards."));
+      }
+    } catch {
+      setDeepLinkFailed(true);
     }
-  }, [searchParams, data, academicYear, ui]);
+  }, [searchParams, academicYear, ui]);
+
+  useEffect(() => {
+    if (data) void openDeepLink();
+  }, [data, openDeepLink]);
 
   useEffect(() => {
     if (!data || selectedReportExamId) return;
@@ -178,12 +193,16 @@ export default function ReportsPage() {
     try {
       const res = await fetch("/api/ai/generate-remarks", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ examId: selectedReportExamId }),
+        body: JSON.stringify({ batch: true, examId: selectedReportExamId }),
       });
       const text = await res.text();
       const result = JSON.parse(text);
       if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not draft remarks. Please try again.")));
-      toast.success(ui("Remarks drafted for every pupil. Review each one before you save it."));
+      // The batch answers 200 with per-pupil failures; only a full success is announced as one.
+      const failed = Array.isArray(result.failed) ? result.failed.length : 0;
+      if (failed && !result.succeeded) throw new Error(ui("The AI service is unavailable. Continue these drafts manually."));
+      if (failed) toast.error(ui("Remarks drafted for {0} pupils; {1} could not be drafted. Continue those manually.", [String(result.succeeded), String(failed)]));
+      else toast.success(ui("Remarks drafted for every pupil. Review each one before you save it."));
       await loadData();
     } catch (error: any) { toast.error(friendlyErrorMessage(error, ui("Could not draft remarks. Please try again."))); }
     finally { setRemarkBusy(false); }
@@ -233,12 +252,12 @@ export default function ReportsPage() {
   }, []);
 
   const saveRemarks = useCallback(async (remarks: { en: string; ur: string }) => {
-    if (!selectedReportCard) return;
+    if (!selectedReportCard) return false;
     setSavingRemarks(true);
     try {
       const res = await fetch(`/api/reports/${selectedReportCard.id}/remarks`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ remarksEn: remarks.en || null, remarksUr: remarks.ur || null }),
+        body: JSON.stringify({ remarksEn: remarks.en || null, remarksUr: remarks.ur || null, expectedRemarks: { remarksEn: selectedReportCard.remarksEn ?? null, remarksUr: selectedReportCard.remarksUr ?? null } }),
       });
       const text = await res.text();
       const result = JSON.parse(text);
@@ -246,8 +265,10 @@ export default function ReportsPage() {
       toast.success(ui("Remarks saved."));
       setSelectedReportCard((prev: any) => ({ ...prev, ...result.reportCard }));
       await loadData();
+      return true;
     } catch (error: any) { toast.error(friendlyErrorMessage(error, ui("Could not save remarks. Please try again."))); }
     finally { setSavingRemarks(false); }
+    return false;
   }, [selectedReportCard, loadData, ui]);
 
   if (loading && !data) return <ReportsSkeleton />;
@@ -269,6 +290,13 @@ export default function ReportsPage() {
       }]}
     >
       <div className="space-y-3">
+        {deepLinkFailed ? (
+          <ErrorState
+            title={ui("Could not open this report card. Please try again.")}
+            retryLabel={ui("Try again")}
+            onRetry={() => void openDeepLink()}
+          />
+        ) : null}
 
         {/* The test the AI drafts remarks for. */}
         <FormField
@@ -366,41 +394,39 @@ export default function ReportsPage() {
                     </FieldAction>
                   ) : null}
                 </InputGroup>
-                {cardStatuses.length > 1 ? (
-                  <div className="flex flex-wrap gap-1.5" role="group" aria-label={ui("Filter report cards by status")}>
-                    {["", ...cardStatuses].map((st) => (
-                      <Button variant="choice" size="sm"
-                        key={st || "all"}
-                        type="button"
-                        onClick={() => setStatusFilter(st)}
-                        aria-pressed={statusFilter === st}
-                      >
-                        {st ? ui(statusLabel(String(st))) : ui("All")}
-                      </Button>
-                    ))}
-                  </div>
-                ) : null}
               </div>
             ) : null}
           </div>
+          {/* Each status is a filter tile: press one to see only those cards, press it again for all. */}
+          {cardStatuses.length > 1 ? (
+            <DeskStats role="group" aria-label={ui("Filter report cards by status")} className="mb-3">
+              {cardStatuses.map((st, index) => (
+                <StatTile key={String(st)} index={index} icon={st === "SENT" ? Send : st === "PUBLISHED" ? CheckCircle2 : st === "DRAFT" ? FileText : FileCheck2}
+                  tone={statusDeskTone(String(st))} label={ui(statusLabel(String(st)))}
+                  value={<bdi>{allCards.filter((report) => report.status === st).length}</bdi>}
+                  onSelect={() => setStatusFilter((current) => (current === st ? "" : String(st)))} selected={statusFilter === st} />
+              ))}
+            </DeskStats>
+          ) : null}
           {scopeFailed ? (
             <ErrorState title={ui("Couldn't load the report cards for this link")} onRetry={loadScoped} retryLabel={ui("Try again")} />
           ) : scopeLoading ? <SkeletonList rows={4} label={ui("Loading report cards…")} /> : null}
           <div className={cn("sk-stagger space-y-2", (scopeLoading || scopeFailed) && "hidden")}>
             {(showAllCards ? visibleCards : visibleCards.slice(0, 12)).map((report: any) => (
-              <Button variant="choice" key={report.id} type="button" onClick={() => openReportCard(report)}
-                className="group w-full flex-col items-start gap-2 p-4 text-start sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink-strong transition-colors group-hover:text-primary"><bdi>{report.student?.fullName || ui("Pupil")}</bdi></p>
-                  <p className="mt-0.5 text-xs font-normal text-ink-subtle"><bdi>{report.exam?.title || ui("Report card")}</bdi> — <bdi>{classLabel(report.student?.class)}</bdi></p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <Badge variant="secondary">
-                    <span data-numeric className="tabular-nums">{Math.round(report.percentage || 0)}%</span>
-                  </Badge>
-                  <StatusPill status={report.status} />
-                </div>
-              </Button>
+              <DeskRowButton key={report.id} onClick={() => openReportCard(report)} icon={report.isSent ? Send : FileText}
+                tone={report.isSent ? "success" : report.status === "DRAFT" ? "warning" : undefined} className="group"
+                trailing={
+                  <span className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <DeskPill tone="brand"><span data-numeric className="tabular-nums">{Math.round(report.percentage || 0)}%</span></DeskPill>
+                    <StatusPill status={report.status} />
+                  </span>
+                }>
+                <span className="block truncate text-sm font-semibold text-ink-strong transition-colors group-hover:text-primary"><bdi>{report.student?.fullName || ui("Pupil")}</bdi></span>
+                <span className="block text-xs font-normal text-ink-subtle">
+                  <bdi>{report.exam?.title || ui("Report card")}</bdi> — <bdi>{classLabel(report.student?.class)}</bdi>
+                  {isoOf(report.generatedAt) ? <> · <RelativeTime iso={isoOf(report.generatedAt)!} full={formatDate(report.generatedAt)} /></> : null}
+                </span>
+              </DeskRowButton>
             ))}
             {visibleCards.length > 12 ? (
               <Button variant="outline"

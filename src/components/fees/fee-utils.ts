@@ -86,11 +86,16 @@ export function exportCSV(rows: Record<string, string | number>[], filename: str
 }
 
 /** Exports and fallbacks only; screens use `useLocaleFormat().date` (school locale package). */
+// Date-only business dates are stored as UTC midnight. Formatting them in the viewer's zone shifts them a day back
+// west of UTC (SKAI-1398), so they are rendered in UTC; the screen and CSV exports both call this function.
+const UTC_MIDNIGHT_DATE = /^\d{4}-\d{2}-\d{2}(T00:00:00(\.000)?Z)?$/;
+
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: UTC_MIDNIGHT_DATE.test(iso) ? "UTC" : undefined,
   });
 }
 

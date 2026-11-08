@@ -10,7 +10,7 @@ import type { PaperData } from "../../src/lib/school-ai/assessment";
 import { assessmentFixture } from "./assessment-fixture";
 
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only the isolated school AI fixture database on 127.0.0.1:55438/postgres.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only the isolated school AI fixture database on 127.0.0.1:55438/postgres.");
 const raw = new PrismaClient();
 const schoolId = `ai-bank-${randomUUID()}`, campusId = randomUUID(), anotherCampusId = randomUUID(), classId = randomUUID(), otherClassId = randomUUID(), subjectId = randomUUID();
 const actor = (role: AuthUser["role"], campus = campusId): AuthUser => ({ userId: randomUUID(), schoolId, campusId: campus, role, email: `${randomUUID()}@example.invalid` });

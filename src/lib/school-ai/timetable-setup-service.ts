@@ -23,7 +23,7 @@ export async function getTimetableSetupOptions(user: AuthUser, requestedCampusId
       prisma.class.findMany({ where: { schoolId: user.schoolId, campusId, status: "ACTIVE", archivedAt: null }, select: { id: true, name: true, section: true, academicYear: true, teachingMode: true, classTeacherId: true }, orderBy: [{ academicYear: "desc" }, { name: "asc" }, { section: "asc" }], take: 501 }),
       prisma.subject.findMany({ where: { schoolId: user.schoolId, campusId, class: { status: "ACTIVE", archivedAt: null } }, select: { id: true, name: true, classId: true, teacherId: true }, orderBy: { name: "asc" }, take: 4001 }),
       prisma.user.findMany({ where: { schoolId: user.schoolId, campusId, isActive: true, role: { in: ["TEACHER", "PRINCIPAL"] } }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" }, take: 1001 }),
-      prisma.classRoom.findMany({ where: { schoolId: user.schoolId, campusId }, select: { id: true, roomNumber: true, capacity: true }, orderBy: { roomNumber: "asc" }, take: 1001 }),
+      prisma.classRoom.findMany({ where: { schoolId: user.schoolId, campusId, archivedAt: null }, select: { id: true, roomNumber: true, capacity: true }, orderBy: { roomNumber: "asc" }, take: 1001 }),
       prisma.periodDefinition.findMany({ where: { schoolId: user.schoolId, campusId, timeType: "CLASS" }, select: { periodNumber: true, startTime: true, endTime: true }, orderBy: { periodNumber: "asc" }, take: 101 }),
       getLocalePackage(user.schoolId, campusId),
     ]);

@@ -51,6 +51,23 @@
   "source": "appendix-a"
  },
  {
+  "key": "academic.calendar.update_holiday",
+  "cluster": "C1 Academic structure",
+  "method": "PUT",
+  "route": "/api/academic/calendar",
+  "roles": [
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "partial",
+  "reuse": "inline-prisma",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "academic.class.archive",
   "cluster": "C1 Academic structure",
   "method": "DELETE",
@@ -540,6 +557,24 @@
   "idempotent": "yes",
   "aiToday": "none",
   "reuse": "inline-prisma",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "academic.subject.allocate_teachers_bulk",
+  "cluster": "C1 Academic structure",
+  "method": "POST",
+  "route": "/api/subjects/allocations",
+  "roles": [
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
   "addedByVerifier": false,
   "source": "appendix-a"
  },
@@ -1393,6 +1428,84 @@
   "roles": [],
   "risk": "ACCESS_GRANT",
   "idempotent": "no",
+  "aiToday": "none",
+  "reuse": "wrapper",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "auth.otp_fallback",
+  "cluster": "C2 People, staff and access",
+  "method": "POST",
+  "route": "/api/auth/otp/fallback",
+  "roles": [],
+  "risk": "ACCESS_GRANT",
+  "idempotent": "no",
+  "aiToday": "none",
+  "reuse": "wrapper",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "auth.otp_request",
+  "cluster": "C2 People, staff and access",
+  "method": "POST",
+  "route": "/api/auth/otp/request",
+  "roles": [],
+  "risk": "ACCESS_GRANT",
+  "idempotent": "no",
+  "aiToday": "none",
+  "reuse": "wrapper",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "auth.otp_sms_status",
+  "cluster": "C2 People, staff and access",
+  "method": "POST",
+  "route": "/api/auth/otp/sms-status",
+  "roles": [],
+  "risk": "COMMUNICATION",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "wrapper",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "auth.otp_status",
+  "cluster": "C2 People, staff and access",
+  "method": "POST",
+  "route": "/api/auth/otp/status",
+  "roles": [],
+  "risk": "READ",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "wrapper",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "auth.otp_verify",
+  "cluster": "C2 People, staff and access",
+  "method": "POST",
+  "route": "/api/auth/otp/verify",
+  "roles": [],
+  "risk": "ACCESS_GRANT",
+  "idempotent": "no",
+  "aiToday": "none",
+  "reuse": "wrapper",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "auth.otp_whatsapp_status",
+  "cluster": "C2 People, staff and access",
+  "method": "POST",
+  "route": "/api/auth/otp/whatsapp-status",
+  "roles": [],
+  "risk": "COMMUNICATION",
+  "idempotent": "yes",
   "aiToday": "none",
   "reuse": "wrapper",
   "addedByVerifier": false,
@@ -2700,6 +2813,21 @@
   ],
   "risk": "CREATE",
   "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "family.guardian_consent",
+  "cluster": "C3 Students, admissions and family",
+  "method": "POST",
+  "route": "/api/family/consent",
+  "roles": [
+   "PARENT"
+  ],
+  "risk": "APPROVAL_DECISION",
+  "idempotent": "no",
   "aiToday": "none",
   "reuse": "direct",
   "addedByVerifier": false,
@@ -7056,6 +7184,38 @@
   "source": "appendix-a"
  },
  {
+  "key": "whatsapp.connect_waba",
+  "cluster": "C5 Attendance, communication and engagement",
+  "method": "POST",
+  "route": "/api/whatsapp/connection",
+  "roles": [
+   "SUPER_ADMIN",
+   "ADMIN"
+  ],
+  "risk": "ACCESS_GRANT",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "whatsapp.disconnect_waba",
+  "cluster": "C5 Attendance, communication and engagement",
+  "method": "POST",
+  "route": "/api/whatsapp/connection",
+  "roles": [
+   "SUPER_ADMIN",
+   "ADMIN"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "no",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "whatsapp.inbound_webhook",
   "cluster": "C5 Attendance, communication and engagement",
   "method": "POST",
@@ -7065,6 +7225,52 @@
   "idempotent": "yes",
   "aiToday": "none",
   "reuse": "wrapper",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "whatsapp.managed_provision",
+  "cluster": "C5 Attendance, communication and engagement",
+  "method": "POST",
+  "route": "/api/owner/whatsapp-managed",
+  "roles": [
+   "APP_OWNER"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "whatsapp.managed_settings",
+  "cluster": "C5 Attendance, communication and engagement",
+  "method": "POST",
+  "route": "/api/whatsapp/managed",
+  "roles": [
+   "SUPER_ADMIN",
+   "ADMIN"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "whatsapp.managed_top_up",
+  "cluster": "C5 Attendance, communication and engagement",
+  "method": "POST",
+  "route": "/api/owner/whatsapp-managed",
+  "roles": [
+   "APP_OWNER"
+  ],
+  "risk": "CREATE",
+  "idempotent": "no",
+  "aiToday": "none",
+  "reuse": "direct",
   "addedByVerifier": false,
   "source": "appendix-a"
  },
@@ -8009,6 +8215,22 @@
   "idempotent": "yes",
   "aiToday": "none",
   "reuse": "wrapper",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "fees.set_fee_cap_policy",
+  "cluster": "C6 Finance, payroll, purchasing and inventory",
+  "method": "PUT",
+  "route": "/api/fees/fee-cap-policy",
+  "roles": [
+   "SUPER_ADMIN",
+   "ADMIN"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "inline-prisma",
   "addedByVerifier": false,
   "source": "appendix-a"
  },
@@ -9487,6 +9709,24 @@
   "idempotent": "yes",
   "aiToday": "none",
   "reuse": "inline-prisma",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "fees.library_charge_decide",
+  "cluster": "C7 Campus operations",
+  "method": "POST",
+  "route": "/api/fees/library-charges",
+  "roles": [
+   "SUPER_ADMIN",
+   "ADMIN",
+   "CAMPUS_ADMIN",
+   "ACCOUNTANT"
+  ],
+  "risk": "FINANCIAL",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
   "addedByVerifier": false,
   "source": "appendix-a"
  },
@@ -11204,6 +11444,19 @@
   "source": "appendix-a"
  },
  {
+  "key": "auth.login_fallback",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/auth/login/fallback",
+  "roles": [],
+  "risk": "UPDATE",
+  "idempotent": "no",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "campus.create",
   "cluster": "C8 Platform, group governance and onboarding",
   "route": "server action src/app/actions/addCampus.ts",
@@ -11235,6 +11488,61 @@
   "source": "existing-tool"
  },
  {
+  "key": "curriculum.record_pack_evidence",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/school-ai/curriculum-packs/[id]/evidence",
+  "roles": [
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "curriculum.request_pack",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/school-ai/curriculum-packs",
+  "roles": [
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL"
+  ],
+  "risk": "CREATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "curriculum.transition_pack",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/school-ai/curriculum-packs/[id]/transition",
+  "roles": [
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL",
+   "APP_OWNER"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "governance.reset_user_password",
   "cluster": "C8 Platform, group governance and onboarding",
   "method": "PUT",
@@ -11263,6 +11571,21 @@
   "idempotent": "yes",
   "aiToday": "none",
   "reuse": "inline-prisma",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "governance.set_active_campus",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/super/active-campus",
+  "roles": [
+   "SUPER_ADMIN"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
   "addedByVerifier": false,
   "source": "appendix-a"
  },
@@ -11335,6 +11658,23 @@
   "source": "appendix-a"
  },
  {
+  "key": "offline.resolve_class_edit",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/offline",
+  "roles": [
+   "SUPER_ADMIN",
+   "ADMIN",
+   "CAMPUS_ADMIN"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "offline.resolve_conflict",
   "cluster": "C8 Platform, group governance and onboarding",
   "method": "POST",
@@ -11380,6 +11720,23 @@
    "ADMIN",
    "CAMPUS_ADMIN",
    "TEACHER"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "offline.sync_class_edits",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/offline",
+  "roles": [
+   "SUPER_ADMIN",
+   "ADMIN",
+   "CAMPUS_ADMIN"
   ],
   "risk": "UPDATE",
   "idempotent": "yes",
@@ -11704,6 +12061,36 @@
   "source": "appendix-a"
  },
  {
+  "key": "platform.record_pack_expansion_decision",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/owner/pack-expansion",
+  "roles": [
+   "APP_OWNER"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "platform.record_pilot_readiness",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/owner/pilot-readiness",
+  "roles": [
+   "APP_OWNER"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "platform.reset_user_password",
   "cluster": "C8 Platform, group governance and onboarding",
   "method": "PUT",
@@ -11745,6 +12132,21 @@
   "idempotent": "yes",
   "aiToday": "none",
   "reuse": "inline-prisma",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "platform.set_ai_cost_rates",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "PUT",
+  "route": "/api/owner/ai-cost-report",
+  "roles": [
+   "APP_OWNER"
+  ],
+  "risk": "FINANCIAL",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
   "addedByVerifier": false,
   "source": "appendix-a"
  },
@@ -12139,6 +12541,19 @@
   "source": "appendix-a"
  },
  {
+  "key": "system.notification_automation_sweep",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/cron/notification-automation",
+  "roles": [],
+  "risk": "COMMUNICATION",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "system.risk_digest",
   "cluster": "C8 Platform, group governance and onboarding",
   "method": "POST",
@@ -12458,6 +12873,25 @@
   ],
   "risk": "UPDATE",
   "idempotent": "no",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "exams.attempts.finalise_objective",
+  "cluster": "C9a school-ai exams and Exam Studio",
+  "method": "POST",
+  "route": "src/app/api/school-ai/exams/[id]/attempts/finalise-objective/route.ts:8",
+  "roles": [
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL",
+   "TEACHER"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
   "aiToday": "none",
   "reuse": "direct",
   "addedByVerifier": false,

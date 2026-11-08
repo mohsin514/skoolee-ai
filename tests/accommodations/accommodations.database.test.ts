@@ -12,7 +12,7 @@ import { assessmentFixture } from "../school-ai/assessment-fixture";
 
 // SKO-410 against the isolated database: approval roles, projections, versioning and exam binding.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PG55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PG55438.");
 const raw = new PrismaClient();
 const schoolId = `acc410-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), subjectId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid`, accessVersion: 0 });
@@ -87,8 +87,8 @@ test("the effective time is bound at start: revoking the plan never changes a st
   assert.equal(new Date(resumed!.deadlineAt).getTime(), new Date(attempt!.deadlineAt).getTime(), "reconnecting keeps the same entitlement");
   assert.equal((await ctx(learner, () => getSchoolAiExam(learner, exam.id))).extraMinutes, 0, "future starts no longer see the revoked plan");
 
-  await assert.rejects(() => liveAdjustment(teacher, exam.id, { studentId, addedMinutes: 10, reason: "Fire alarm" }), { status: 403 });
-  const live = await liveAdjustment(coordinator, exam.id, { studentId, addedMinutes: 10, reason: "Fire alarm interrupted the room" });
+  await assert.rejects(() => liveAdjustment(teacher, exam.id, { studentId, addedMinutes: 10, reason: "Fire alarm", requestKey: "33333333-3333-4333-8333-333333333333" }), { status: 403 });
+  const live = await liveAdjustment(coordinator, exam.id, { studentId, addedMinutes: 10, reason: "Fire alarm interrupted the room", requestKey: "44444444-4444-4444-8444-444444444444" });
   assert.equal(live.newDeadline.getTime() - live.oldDeadline.getTime(), 600_000);
   assert.equal((await raw.schoolAiExamAttempt.findFirstOrThrow({ where: { assignmentId: exam.id } })).deadlineAt.getTime(), live.newDeadline.getTime());
   const roster = await ctx(coordinator, () => getSchoolAiAccommodations(coordinator, exam.id));

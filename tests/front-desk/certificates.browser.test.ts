@@ -14,7 +14,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // corrections are reissues with a reason and a new serial; revocation and replacement show on the public
 // verification link, which reveals only the document's face; other campuses and roles are refused.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.DESK_TEST_APP || "http://localhost:3107";
 const evidence = process.env.DESK_EVIDENCE_DIR || "/tmp/sko469-evidence";
 const db = new PrismaClient(), password = "SyntheticCert469!";
@@ -140,7 +140,7 @@ test("a reception request waits for a leader, a retry issues once, and the downl
 
   // The pupil moves class and the template is re-approved; the issued document does not change.
   await db.student.update({ where: { id: pupils.complete }, data: { guardianName: "Synthetic Guardian Changed" } });
-  await post(desk, { action: "save-template", id: certTemplate, kind: "STUDENT_CERTIFICATE", name: "Bonafide", language: "en", title: "Bonafide Certificate (2027)", body: "Certified: {{studentName}} of {{className}}, guardian {{guardianName}}, born {{dateOfBirth}}. {{serial}}" });
+  await post(desk, { action: "save-template", id: certTemplate, expectedDraftVersion: (await db.certificateTemplate.findUniqueOrThrow({ where: { id: certTemplate } })).draftVersion, kind: "STUDENT_CERTIFICATE", name: "Bonafide", language: "en", title: "Bonafide Certificate (2027)", body: "Certified: {{studentName}} of {{className}}, guardian {{guardianName}}, born {{dateOfBirth}}. {{serial}}" });
   assert.equal((await post(lead, { action: "approve-template", id: certTemplate })).status(), 200);
   const again = await download(desk, issue.id);
   assert.equal(sha(again.body), sha(first.body), "re-downloading the original is unchanged");

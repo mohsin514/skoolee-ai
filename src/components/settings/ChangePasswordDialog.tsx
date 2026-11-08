@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, XCircle } from "luci
 import { toast } from "@/components/ui/toast";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { Modal } from "@/components/ui/modal";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -134,9 +135,7 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
         </ul>
 
         {error && (
-          <p role="alert" className="flex items-start gap-2 rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3 text-sm font-bold text-status-error-text">
-            <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{t(error)}
-          </p>
+          <Alert tone="danger" compact icon={AlertTriangle}>{t(error)}</Alert>
         )}
       </div>
     </Modal>

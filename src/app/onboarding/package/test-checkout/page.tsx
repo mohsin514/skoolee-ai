@@ -7,6 +7,7 @@ import { AuthShell } from "@/components/auth/AuthShell";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DeskPill } from "@/components/ui/desk";
 import { getPackageCopy } from "../copy";
 
 type Intent = { id: string; plan: "FREE" | "BASIC" | "PRO" | "ENTERPRISE"; billingPeriod: string; amount: number | null; currency: string | null; status: string; provider: string };
@@ -64,9 +65,13 @@ function TestCheckout() {
 
   return (
     <section aria-labelledby="test-checkout-title" className="sk-panel sk-gradient-border sk-step-card space-y-5">
-      <header>
-        <p className="sk-folio text-primary">Skoolee · Test checkout</p>
-        <h1 id="test-checkout-title" className="mt-2 text-2xl font-bold tracking-tight text-ink-strong">Test payment</h1>
+      <header className="flex flex-wrap items-start gap-3">
+        <span aria-hidden="true" className="sk-page-icon"><CreditCard className="size-5" /></span>
+        <div className="min-w-0 flex-1">
+          <p className="sk-folio text-primary">Skoolee · Test checkout</p>
+          <h1 id="test-checkout-title" className="mt-1 text-2xl font-bold tracking-tight text-ink-strong">Test payment</h1>
+        </div>
+        {intent && <DeskPill tone={open ? "info" : "neutral"}>{copy.stateNames[intent.status] ?? intent.status}</DeskPill>}
       </header>
       <Alert tone="warning" icon={FlaskConical} live="off" role="note" title="Development only — no money moves">
         This page stands in for the payment provider on a local dev server. Pay activates the package in this database only.

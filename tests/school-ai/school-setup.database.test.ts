@@ -10,7 +10,7 @@ import { getSchoolSetupOptions } from "../../src/lib/school-ai/school-setup-serv
 import type { SchoolSetupProposal, SchoolSetupPreview } from "../../src/lib/school-ai/school-setup";
 import { createPlanContract } from "../../src/config/commercial-contract";
 import { createStaffInvitation } from "../../src/lib/staff/invitation-write";
-const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use isolated PG55438 only.");
 const db = new PrismaClient(), schoolIds: string[] = [];
 after(async () => { await db.school.deleteMany({ where: { id: { in: schoolIds } } }); await db.$disconnect(); await prisma.$disconnect(); });

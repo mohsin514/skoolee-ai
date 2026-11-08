@@ -17,7 +17,7 @@ import { assessmentFixture } from "./assessment-fixture";
 // reviewer's own scripts, hide originals in blind mode and flag differences above the threshold for a
 // lead (never the second marker) to decide.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
-if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
+if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PORT || "55438") || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `moderation-${randomUUID()}`, campusId = randomUUID(), classId = randomUUID(), subjectId = randomUUID();
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid` });
 const marker = actor("CAMPUS_ADMIN"), lead = actor("PRINCIPAL"), moderator = actor("CAMPUS_ADMIN");
@@ -87,7 +87,9 @@ test("released results change only through an independently approved correction"
   const input = { attemptId: attempts[1], version: 1, reason: "Alternative method meets criterion r2.", review: review(2, 3) };
   const proposed = await ctx(marker, () => proposeResultCorrection(marker, examId, input));
   assert.equal((await ctx(marker, () => proposeResultCorrection(marker, examId, input))).id, proposed.id, "an exact retry replays");
-  await assert.rejects(() => ctx(lead, () => proposeResultCorrection(lead, examId, { ...input, review: review(0, 2) })), { status: 409 }, "a contradictory correction cannot be pending at the same time");
+  await assert.rejects(() => ctx(lead, () => proposeResultCorrection(lead, examId, { ...input, review: review(2, 1) })), { status: 409 }, "a contradictory correction cannot be pending at the same time");
+  // SKAI-1014: a silent change to the auto-scored q1 is refused (422) before it can queue.
+  await assert.rejects(() => ctx(lead, () => proposeResultCorrection(lead, examId, { ...input, review: review(0, 2) })), { status: 422 });
   assert.equal((await raw.schoolAiExamAttempt.findUniqueOrThrow({ where: { id: attempts[1] } })).reviewVersion, 1, "a proposal does not change the published result");
   await assert.rejects(() => ctx(marker, () => decideResultCorrection(marker, examId, { correctionId: proposed.id, version: 1, decision: "APPROVE", note: "Approving my own correction." })), { status: 403 });
   const race = await Promise.allSettled([lead, moderator].map((who) => ctx(who, () => decideResultCorrection(who, examId, { correctionId: proposed.id, version: 1, decision: "APPROVE", note: "Rubric criterion r2 is met." }))));

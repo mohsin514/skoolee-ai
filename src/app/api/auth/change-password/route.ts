@@ -2,11 +2,13 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import bcrypt from "bcryptjs";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function PUT(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const { currentPassword, newPassword } = await req.json();
+    const { currentPassword, newPassword } = await parseBody(req, jsonObjectBody, { preserve: ["currentPassword", "newPassword"] });
 
     if (!currentPassword || typeof currentPassword !== "string") {
       throw new ApiError("Current password is required", 400);

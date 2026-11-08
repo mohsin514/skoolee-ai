@@ -260,10 +260,15 @@ export async function recordVisit(user: AuthUser, body: Record<string, unknown>)
   if (!OUTCOMES.includes(outcome)) throw new ApiError("Choose the outcome of the visit.", 400);
   const arrivedAt = when(body.arrivedAt, new Date());
   if (arrivedAt.getTime() > Date.now() + 5 * 60_000) throw new ApiError("The visit time cannot be in the future.", 400);
+  const visit = { schoolId: user.schoolId, campusId: m.campusId, studentId: student.id, arrivedAt, observation, actionTaken, outcome, recordedById: user.userId };
   return schoolAiTransaction(user, async tx => {
-    const row = await tx.clinicVisit.create({ data: { schoolId: user.schoolId, campusId: m.campusId, studentId: student.id, arrivedAt, observation, actionTaken, outcome, recordedById: user.userId } });
+    // A lost-response retry or a double click sends the identical visit again: replay it, never a second row.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`clinic-visit:${user.schoolId}:${student.id}:${user.userId}`}))`;
+    const existing = await tx.clinicVisit.findFirst({ where: visit, select: { id: true } });
+    if (existing) return { id: existing.id, replayed: true };
+    const row = await tx.clinicVisit.create({ data: visit });
     await log(user, { domain: "CLINIC", recordType: "CLINIC_VISIT", recordId: row.id, studentId: student.id, action: "CREATE" }, tx);
-    return { id: row.id };
+    return { id: row.id, replayed: false };
   });
 }
 
@@ -271,10 +276,19 @@ export async function saveCarePlan(user: AuthUser, body: Record<string, unknown>
   const m = await member(user, "CLINIC", ["NURSE", "LEAD"]);
   const student = await campusStudent(user.schoolId, m.campusId, String(body.studentId ?? ""));
   const data = { allergies: text(body.allergies, 2000) || null, actionPlan: text(body.actionPlan, 4000) || null, teacherSummary: text(body.teacherSummary, 600) || null, updatedById: user.userId };
+  // The version the editor opened (null for a new plan). Older clients that omit it keep last-write-wins.
+  const checkVersion = "expectedUpdatedAt" in body;
+  const expected = body.expectedUpdatedAt ? new Date(String(body.expectedUpdatedAt)).getTime() : null;
+  if (checkVersion && expected !== null && Number.isNaN(expected)) throw new ApiError("Reload the care plan and try again.", 400);
   return schoolAiTransaction(user, async tx => {
+    if (checkVersion) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`care-plan:${user.schoolId}:${student.id}`}))`;
+      const current = await tx.carePlan.findFirst({ where: { schoolId: user.schoolId, studentId: student.id }, select: { updatedAt: true } });
+      if ((current?.updatedAt.getTime() ?? null) !== expected) throw new ApiError("Someone else saved this care plan after you opened it. Reload to see their changes, then edit again.", 409);
+    }
     const row = await tx.carePlan.upsert({ where: { studentId: student.id }, create: { schoolId: user.schoolId, campusId: m.campusId, studentId: student.id, ...data }, update: data });
     await log(user, { domain: "CLINIC", recordType: "CARE_PLAN", recordId: row.id, studentId: student.id, action: "UPDATE" }, tx);
-    return { id: row.id };
+    return { id: row.id, updatedAt: row.updatedAt.toISOString() };
   });
 }
 
@@ -291,10 +305,15 @@ export async function addInstruction(user: AuthUser, body: Record<string, unknow
     validFrom: when(body.validFrom), validUntil: when(body.validUntil),
   };
   if (data.validUntil <= data.validFrom) throw new ApiError("The instruction must end after it starts.", 400);
+  const instruction = { schoolId: user.schoolId, campusId: m.campusId, studentId: student.id, approvedById: user.userId, ...data };
   return schoolAiTransaction(user, async tx => {
-    const row = await tx.medicationInstruction.create({ data: { schoolId: user.schoolId, campusId: m.campusId, studentId: student.id, approvedById: user.userId, ...data } });
+    // A lost-response retry or a double click sends the identical instruction again: replay the active one, never a second row.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`medication-instruction:${user.schoolId}:${student.id}:${user.userId}`}))`;
+    const existing = await tx.medicationInstruction.findFirst({ where: { ...instruction, endedAt: null }, select: { id: true } });
+    if (existing) return { id: existing.id, replayed: true };
+    const row = await tx.medicationInstruction.create({ data: instruction });
     await log(user, { domain: "CLINIC", recordType: "MEDICATION_INSTRUCTION", recordId: row.id, studentId: student.id, action: "CREATE" }, tx);
-    return { id: row.id };
+    return { id: row.id, replayed: false };
   });
 }
 
@@ -315,15 +334,30 @@ export async function recordDose(user: AuthUser, body: Record<string, unknown>) 
   const givenAt = when(body.givenAt, new Date());
   if (givenAt.getTime() > Date.now() + 5 * 60_000) throw new ApiError("The time given cannot be in the future.", 400);
   const dose = required(body.dose, 100, "Give the dose given.");
-  return schoolAiTransaction(user, async tx => {
+  // A client retry sends the same key. Without one, an identical administration (same instruction, time and dose) is still one dose.
+  const idempotencyKey = text(body.idempotencyKey, 128) || null;
+  const result = await schoolAiTransaction(user, async tx => {
     const ins = await tx.medicationInstruction.findFirst({ where: { id: String(body.instructionId ?? ""), schoolId: user.schoolId, campusId: m.campusId } });
     if (!ins) throw new ApiError("Instruction not found", 404);
     if (ins.endedAt || ins.validFrom > givenAt || ins.validUntil <= givenAt) throw new ApiError("There is no approved instruction in effect at that time. Do not give the medicine; contact the family and the authorizing professional.", 409);
     if (dose.replace(/\s+/g, " ").toLowerCase() !== ins.dose.replace(/\s+/g, " ").toLowerCase()) throw new ApiError(`The dose must match the approved instruction (${ins.dose}). The clinic cannot change a dose.`, 409);
-    const row = await tx.medicationDose.create({ data: { schoolId: user.schoolId, instructionId: ins.id, studentId: ins.studentId, givenAt, dose: ins.dose, actorId: user.userId, note: text(body.note, 500) || null } });
+    const existing = await tx.medicationDose.findFirst({ where: idempotencyKey ? { schoolId: user.schoolId, idempotencyKey } : { schoolId: user.schoolId, instructionId: ins.id, givenAt, dose: ins.dose } });
+    if (existing) {
+      if (existing.instructionId !== ins.id || existing.givenAt.getTime() !== givenAt.getTime()) throw new ApiError("This submission key was already used for a different administration.", 409);
+      return { id: existing.id, replayed: true };
+    }
+    const row = await tx.medicationDose.create({ data: { schoolId: user.schoolId, instructionId: ins.id, studentId: ins.studentId, givenAt, dose: ins.dose, actorId: user.userId, note: text(body.note, 500) || null, idempotencyKey } });
     await log(user, { domain: "CLINIC", recordType: "MEDICATION_DOSE", recordId: row.id, studentId: ins.studentId, action: "CREATE" }, tx);
-    return { id: row.id };
+    return { id: row.id, replayed: false };
+  }).catch(async error => {
+    // A concurrent identical submission committed the same key first; replay its dose.
+    if (idempotencyKey && (error as { code?: unknown } | null)?.code === "P2002") {
+      const kept = await schoolAiTransaction(user, tx => tx.medicationDose.findFirst({ where: { schoolId: user.schoolId, idempotencyKey } }));
+      if (kept) return { id: kept.id, replayed: true };
+    }
+    throw error;
   });
+  return result;
 }
 
 /** General staff at the student's campus see the summary the clinic wrote for them — nothing else. */
@@ -382,9 +416,14 @@ export async function reportConcern(user: AuthUser, body: Record<string, unknown
   throw new ApiError("Could not record the concern; your text is still on this page. Try again.", 503);
 }
 
-export async function myReports(user: AuthUser) {
+// SKAI-1698: the reporter's receipts page newest-first past the first 20 with an id cursor; every page keeps
+// school + reporter scope and returns only the reference, date and an opaque id.
+export const MY_REPORTS_PAGE = 20;
+export async function myReports(user: AuthUser, cursor?: string | null) {
   assertStaffRole(user);
-  return prisma.safeguardingConcern.findMany({ where: { schoolId: user.schoolId, reporterId: user.userId }, orderBy: { createdAt: "desc" }, take: 20, select: { reference: true, createdAt: true } });
+  const rows = await prisma.safeguardingConcern.findMany({ where: { schoolId: user.schoolId, reporterId: user.userId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: MY_REPORTS_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), select: { id: true, reference: true, createdAt: true } });
+  const items = rows.slice(0, MY_REPORTS_PAGE);
+  return { items, nextCursor: rows.length > MY_REPORTS_PAGE ? items[items.length - 1].id : null };
 }
 
 /** Lead queue: reference, status, owner and dates — no names, observations or conclusions. */
@@ -438,7 +477,10 @@ export async function concernDetail(user: AuthUser, concernId: string) {
 /** Lead actions change the case under its version so two leads never overwrite each other. */
 async function leadChange(user: AuthUser, body: Record<string, unknown>, change: (tx: TxClient, c: Prisma.SafeguardingConcernGetPayload<object>, m: { campusId: string }) => Promise<{ data: Prisma.SafeguardingConcernUpdateManyMutationInput; kind: string; text: string | null; detail?: Record<string, unknown> }>) {
   const m = await member(user, "SAFEGUARDING");
-  const version = Number(body.version);
+  // The version the lead's screen showed; without it the change cannot be checked against other leads' entries.
+  const raw = body.version;
+  const version = typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() !== "" ? Number(raw) : NaN;
+  if (!Number.isInteger(version) || version < 0) throw new ApiError("Reload the case and try again.", 400);
   return schoolAiTransaction(user, async tx => {
     const c = await tx.safeguardingConcern.findFirst({ where: { id: String(body.concernId ?? ""), schoolId: user.schoolId, campusId: m.campusId } });
     if (!c) throw new ApiError("Record unavailable.", 404);
@@ -523,10 +565,17 @@ export async function proposeDisclosure(user: AuthUser, body: Record<string, unk
       if (!s) throw new ApiError("Choose an active staff member.", 400);
       recipientName = s.fullName;
     } else if (recipientName.length < 3) throw new ApiError("Name the agency and contact.", 400);
-    const row = await tx.safeguardingDisclosure.create({ data: { schoolId: user.schoolId, concernId: c.id, recipientType, recipientUserId, recipientName, purpose, content, contentHash: contentHash(content), proposedById: user.userId } });
+    // SKAI-1704: a lost-response, relogin or second-tab retry of the same proposal (same proposer, recipient, purpose
+    // and exact content) replays the pending one: no second disclosure, chronology entry, audit row or review alert.
+    // The lock serialises concurrent identical proposals on this concern.
+    const hash = contentHash(content);
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`safeguarding-disclosure:${user.schoolId}:${c.id}:${user.userId}:${hash}`}))`;
+    const pending = await tx.safeguardingDisclosure.findFirst({ where: { schoolId: user.schoolId, concernId: c.id, status: "PROPOSED", proposedById: user.userId, recipientType, recipientUserId, recipientName, purpose, contentHash: hash }, select: { id: true } });
+    if (pending) return { id: pending.id, campusId: c.campusId, replayed: true };
+    const row = await tx.safeguardingDisclosure.create({ data: { schoolId: user.schoolId, concernId: c.id, recipientType, recipientUserId, recipientName, purpose, content, contentHash: hash, proposedById: user.userId } });
     await entry(tx, user, c.id, "DISCLOSURE", null, { disclosureId: row.id, status: "PROPOSED", recipientType, recipientName, purpose });
     await log(user, { domain: "SAFEGUARDING", recordType: "DISCLOSURE", recordId: row.id, studentId: c.studentId, action: "CREATE" }, tx);
-    return { id: row.id, campusId: c.campusId };
+    return { id: row.id, campusId: c.campusId, replayed: false };
   });
 }
 
@@ -573,9 +622,13 @@ export async function releaseDisclosure(user: AuthUser, id: string) {
 }
 
 /** Released messages addressed to this person: the approved text and date only, no case reference. */
-export async function messagesForMe(user: AuthUser) {
-  const rows = await prisma.safeguardingDisclosure.findMany({ where: { schoolId: user.schoolId, recipientUserId: user.userId, status: "RELEASED", recipientType: isFamilyRole(user) ? "GUARDIAN" : "STAFF" }, orderBy: { releasedAt: "desc" }, take: 20, select: { id: true, purpose: true, content: true, releasedAt: true } });
-  return rows;
+export const CARE_MESSAGES_PAGE = 20;
+
+/** SKAI-1708: newest first, a page at a time; `cursor` is the last id of the previous page. Same scope on every page. */
+export async function messagesForMe(user: AuthUser, cursor?: string | null) {
+  const rows = await prisma.safeguardingDisclosure.findMany({ where: { schoolId: user.schoolId, recipientUserId: user.userId, status: "RELEASED", recipientType: isFamilyRole(user) ? "GUARDIAN" : "STAFF" }, orderBy: [{ releasedAt: "desc" }, { id: "desc" }], take: CARE_MESSAGES_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), select: { id: true, purpose: true, content: true, releasedAt: true } });
+  const items = rows.slice(0, CARE_MESSAGES_PAGE);
+  return { items, nextCursor: rows.length > CARE_MESSAGES_PAGE ? items[items.length - 1].id : null };
 }
 
 // ─── Export ──────────────────────────────────────────────────────────────
@@ -602,7 +655,9 @@ export async function exportConcern(user: AuthUser, concernId: string) {
 
 export async function exportClinic(user: AuthUser, studentId: string) {
   const record = await clinicRecord(user, studentId);
-  await log(user, { domain: "CLINIC", recordType: "CLINIC_EXPORT", studentId, action: "EXPORT" });
+  // An export under emergency access is a use of that grant: log it against the grant so oversight counts it.
+  const grant = record.access.emergency ? await activeGrant(user, "CLINIC", studentId) : null;
+  await log(user, { domain: "CLINIC", recordType: "CLINIC_EXPORT", studentId, action: "EXPORT", emergencyAccessId: grant?.id });
   const lines = [
     `CONFIDENTIAL — clinic record for ${record.student.fullName}`,
     `Exported ${stamp(new Date())}${record.access.emergency ? " under emergency access" : ""}`,
@@ -648,9 +703,15 @@ export async function revokeEmergency(user: AuthUser, id: string) {
 export async function oversight(user: AuthUser, domainParam: string | null) {
   const domain = domainOf(domainParam);
   const m = await member(user, domain, ["LEAD"]);
+  // Access logs carry no campus: a row belongs to this campus when it is about one of its students, or,
+  // with no student, when this campus's workspace member acted. Another campus's activity never shows here.
+  const [campusStudents, campusMembers] = await Promise.all([
+    prisma.student.findMany({ where: { schoolId: user.schoolId, campusId: m.campusId }, select: { id: true } }),
+    prisma.confidentialMember.findMany({ where: { schoolId: user.schoolId, campusId: m.campusId, domain }, select: { userId: true } }),
+  ]);
   const [grants, logs] = await Promise.all([
     prisma.emergencyAccess.findMany({ where: { schoolId: user.schoolId, campusId: m.campusId, domain }, orderBy: { createdAt: "desc" }, take: 50 }),
-    prisma.confidentialAccessLog.findMany({ where: { schoolId: user.schoolId, domain }, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.confidentialAccessLog.findMany({ where: { schoolId: user.schoolId, domain, OR: [{ studentId: { in: campusStudents.map(s => s.id) } }, { studentId: null, actorId: { in: [...new Set(campusMembers.map(c => c.userId))] } }] }, orderBy: { createdAt: "desc" }, take: 100 }),
   ]);
   const people = await names(user.schoolId, [...grants.flatMap(g => [g.userId, g.reviewedById]), ...logs.map(l => l.actorId)]);
   const students = await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: [...new Set(grants.map(g => g.studentId))] } }, select: { id: true, fullName: true } });

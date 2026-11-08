@@ -388,6 +388,8 @@ export async function reviewSchoolAiAttempt(user: AuthUser, assignmentId: string
     if (!attempt || attempt.status !== "SUBMITTED") throw new ApiError("Only a submitted, unreviewed attempt can be moderated.", 409);
     const errors = validateExamReview(paper, responsesSchema.parse(attempt.responses), review);
     if (errors.length) throw new ApiError(errors.join(" "));
+    const { assertObjectiveOverrides } = await import("./exam-results");
+    await assertObjectiveOverrides(tx, user, { paper, responses: attempt.responses, review, attemptId: attempt.id, campusId: assignment.campusId });
     const saved = { ...review, total: review.marks.reduce((sum, mark) => sum + mark.marks, 0) };
     const changed = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "SUBMITTED", sequence: attempt.sequence, reviewVersion: 0 }, data: { status: "REVIEWED", reviewedAt: now, reviewedById: user.userId, reviewVersion: 1, review: json(saved) } });
     if (changed.count !== 1) throw new ApiError("This attempt was already reviewed. Refresh the marking desk.", 409);

@@ -2,13 +2,15 @@ import { NextRequest } from "next/server";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { prisma } from "@/lib/db/prisma";
 import { cleanSchoolProfileChange, requireSupportGrant, SUPPORT_ACTION, SUPPORT_SCOPE } from "@/lib/owner/support-access";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
     const actor = await requirePlatformOwner({ allowSupportAccess: true });
-    const { domain, action, payload } = await req.json();
+    const { domain, action, payload } = await parseBody(req, jsonObjectBody);
     const grant = await requireSupportGrant(actor);
     if (!SUPPORT_SCOPE.includes(domain) || !grant.scope.includes(domain)) throw new ApiError("This domain is outside the approved support scope", 403);
     if (!SUPPORT_ACTION.includes(action) || !grant.actions.includes(action)) throw new ApiError("This action is outside the approved support scope", 403);

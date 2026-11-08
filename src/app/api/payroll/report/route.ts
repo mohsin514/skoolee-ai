@@ -21,11 +21,14 @@ export async function GET(req: NextRequest) {
     const runs = await prisma.payrollRun.findMany({
       where: {
         campusId,
-        OR: [
-          { year: from.year, month: { gte: from.month } },
-          { year: to.year, month: { lte: to.month } },
-          { year: { gt: from.year, lt: to.year } },
-        ],
+        // SKAI-1762: within one year both bounds apply to the same row; OR-ing them matched every month.
+        OR: from.year === to.year
+          ? [{ year: from.year, month: { gte: from.month, lte: to.month } }]
+          : [
+              { year: from.year, month: { gte: from.month } },
+              { year: to.year, month: { lte: to.month } },
+              { year: { gt: from.year, lt: to.year } },
+            ],
       },
       include: {
         lines: {

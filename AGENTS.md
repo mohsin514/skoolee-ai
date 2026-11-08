@@ -23,3 +23,10 @@ Full copy also lives at `AGENT-PR-RULES.md` in the repo root.
 12. **Statuses.** Opening a PR moves the ticket to In Review. After the dev deploy it moves to Deployed to Dev. Never move a ticket to Done — QA does that, after checking the evidence the ticket asks for.
 13. **When a check fails,** fix the cause and push again. Never bypass a required check or merge without the "PR hygiene" and "PR gate" checks green and a human approval.
 <!-- END:pr-rules -->
+
+## Tracker of record (D6, from 29 October 2026)
+
+Jira project **SKAI** is the only delivery tracker. Linear (workspace `skoolee-ai-app`, keys `SKO-`) is a read-only archive: do not create, move or comment on Linear issues. The export lives in `docs/archive/linear/`; open SKO items and their suggested SKAI homes are in `docs/archive/linear/open-items-crosswalk.md`.
+
+Jira SKAI statuses, in order: **To Do -> In Progress -> In Review -> Deployed to Dev -> Done**. Move a ticket to In Progress when you start, In Review when the PR opens, Deployed to Dev after the dev deploy; QA moves it to Done. Branches, PR titles and commits carry the SKAI key (enforced by `.github/workflows/pr-hygiene.yml`). Historical docs that cite SKO- keys or Linear statuses are kept as-is for history.
+

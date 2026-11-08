@@ -4,6 +4,7 @@ import styles from "./ask-composer.module.css";
 import { ArrowUp, Mic, Paperclip, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
+import { Label } from "@/components/ui/label";
 import { useComposerInputs } from "./use-composer-inputs";
 import { LiveAnnouncer } from "@/components/ui/live-announcer";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,6 +52,7 @@ export function AskComposer({ value, onChange, onSubmit, starting, language, lab
   const inputs = useComposerInputs(value, onChange, max, language, starting);
   const occupied = starting || inputs.reading || inputs.listening;
   const hintId = useId();
+  const fieldId = useId();
   const length = value.length;
   const ready = Boolean(value.trim());
   const level = answering ? (length >= max - 200 ? 2 : length >= max - 1000 ? 1 : 0) : length >= WARN_FROM ? 2 : length >= COUNTER_FROM ? 1 : 0;
@@ -112,8 +114,9 @@ export function AskComposer({ value, onChange, onSubmit, starting, language, lab
       {banner ? <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-brand-100 bg-brand-50/70 px-3 py-2 text-xs sm:px-4">{banner}</div> : null}
       {/* One surface: the input group strips the field's own border, so there is no box inside the box. */}
       <div className={cn("sk-input-group flex items-start pt-3 sm:pt-4", styles.field)}>
+        <Label htmlFor={fieldId} className="sr-only">{answering ? runText("yourAnswer", language) : t(UI, "askTitle", language)}</Label>
         <Textarea
-          ref={fieldRef} data-ai-request={answering ? undefined : ""} data-ai-answer={answering ? "" : undefined} value={value} rows={2} maxLength={max} dir="auto" enterKeyHint="send"
+          id={fieldId} ref={fieldRef} data-ai-request={answering ? undefined : ""} data-ai-answer={answering ? "" : undefined} value={value} rows={2} maxLength={max} dir="auto" enterKeyHint="send"
           readOnly={occupied} aria-busy={starting || undefined}
           placeholder={placeholder} aria-labelledby={answering ? undefined : labelledBy} aria-label={answering ? runText("yourAnswer", language) : labelledBy ? undefined : t(UI, "askTitle", language)} aria-describedby={hintId}
           className="min-h-[4.5rem] max-h-64 resize-none overflow-y-auto pt-2 pb-1 text-base leading-relaxed [field-sizing:content] placeholder:text-ink-faint"

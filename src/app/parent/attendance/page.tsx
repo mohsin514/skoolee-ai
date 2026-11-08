@@ -6,6 +6,7 @@ import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
 import { ParentPage } from "@/components/parent/parent-page";
 import { ParentErrorState, ParentListSkeleton, ParentStat } from "@/components/parent/parent-components";
+import { DeskStats } from "@/components/ui/desk";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
@@ -65,11 +66,11 @@ export default function ParentAttendancePage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <DeskStats>
               <ParentStat icon={Clock} label={tr("Attendance rate")} value={attendance.rate !== null ? `${attendance.rate}%` : "—"} sub={attendance.rate === null ? tr("No rate yet") : attendance.rate >= 75 ? tr("Good standing") : tr("Below 75%")} />
-              <ParentStat icon={CheckCircle2} label={tr("Present")} value={attendance.present} sub={tr("{0}% of recorded days", [attendance.total ? Math.round((attendance.present / attendance.total) * 100) : 0])} tone="green" />
-              <ParentStat icon={X} label={tr("Absent / leave")} value={missed} sub={tr("Days missed")} tone="rose" />
-            </div>
+              <ParentStat icon={CheckCircle2} label={tr("Present")} value={attendance.present} sub={tr("{0}% of recorded days", [attendance.total ? Math.round((attendance.present / attendance.total) * 100) : 0])} tone="green" index={1} />
+              <ParentStat icon={X} label={tr("Absent / leave")} value={missed} sub={tr("Days missed")} tone="rose" index={2} />
+            </DeskStats>
 
             <section aria-labelledby="recent-attendance-heading" className="sk-panel p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -83,8 +84,10 @@ export default function ParentAttendancePage() {
                     <div key={i} className="flex flex-col items-center gap-1">
                       {/* The date and status show on hover, keyboard focus or a long press. */}
                       <Tooltip content={label} describe={false}>
+                        {/* SKAI-1661: focusable so the tooltip's focus handlers run and keyboard users reach each day. */}
                         <span
                           role="img"
+                          tabIndex={0}
                           aria-label={label}
                           className={`block size-6 rounded-lg shadow-xs transition-transform motion-safe:hover:scale-110 ${STATUS_DOT[a.status] || "bg-ink-faint"}`}
                         />

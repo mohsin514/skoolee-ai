@@ -10,6 +10,7 @@ import * as apiScope from "../../src/lib/api/scope";
 import * as uploads from "../../src/lib/storage/private-upload";
 import * as sessionCookie from "../../src/lib/auth/session-cookie";
 import { checkRevocation } from "../../src/lib/auth/session-revocation";
+import * as fileSignature from "../../src/lib/storage/file-signature";
 
 const require = createRequire(import.meta.url);
 const { transformSync } = createRequire(require.resolve("tsx"))("esbuild");
@@ -17,7 +18,7 @@ const { transformSync } = createRequire(require.resolve("tsx"))("esbuild");
 // Its intent validation, bounded body reader and current permission checks remain real.
 const routeCode: string = transformSync(readFileSync(resolve("src/app/api/uploads/file/route.ts"), "utf8"), { loader: "ts", format: "cjs" }).code;
 const actor: AuthUser = { userId: "admin-a", schoolId: "school-a", campusId: "campus-a", role: "CAMPUS_ADMIN", email: "synthetic@example.invalid", accessVersion: 3 };
-const intent: uploads.PrivateUploadIntent = { kind: "student", targetId: "student-a", storageKey: "student-docs/campus-a/student-a/file.pdf", contentType: "application/pdf", sizeBytes: 4 };
+const intent: uploads.PrivateUploadIntent = { kind: "student", targetId: "student-a", storageKey: "student-docs/campus-a/student-a/file.pdf", contentType: "application/pdf", sizeBytes: 6 };
 
 async function fixture() {
   const state = { permission: true, accountActive: true, sessionActive: true, authCalls: 0, authorizationCalls: 0, sessionChecks: 0, writes: [] as { key: string; bytes: string; contentType: string }[], storageStatus: 0 };
@@ -31,6 +32,7 @@ async function fixture() {
     if (id === "@/lib/api/scope") return { ...apiScope, requireAuthUser: async () => { state.authCalls += 1; return actor; } };
     if (id === "@/lib/storage/private-upload") return { ...uploads, authorizePrivateUpload: async (user: AuthUser, selected: uploads.PrivateUploadIntent) => { state.authorizationCalls += 1; return uploads.authorizePrivateUpload(user, selected, db); } };
     if (id === "@/lib/auth/session-cookie") return sessionCookie;
+    if (id === "@/lib/storage/file-signature") return fileSignature;
     if (id === "@/lib/auth/session-revocation") return { checkRevocation: (hash: string) => {
       state.sessionChecks += 1;
       assert.equal(hash, sessionCookie.hashSessionToken("synthetic-session"));
@@ -44,13 +46,13 @@ async function fixture() {
   };
   new Function("module", "exports", "require", routeCode)(loaded, loaded.exports, boundaryRequire);
   const url = await uploads.createPrivateUploadUrl(actor, { ...intent, fileName: "Synthetic.pdf" });
-  const send = async (whileReceiving?: () => void) => {
+  const send = async (whileReceiving?: () => void, head = "%PDF") => {
     const body = new ReadableStream<Uint8Array>({
-      start(controller) { controller.enqueue(new TextEncoder().encode("AB")); },
+      start(controller) { controller.enqueue(new TextEncoder().encode(head)); },
       pull(controller) {
         assert.equal(state.authorizationCalls, 1, "first authorization precedes consuming the remaining body");
         whileReceiving?.();
-        controller.enqueue(new TextEncoder().encode("CD")); controller.close();
+        controller.enqueue(new TextEncoder().encode("-1")); controller.close();
       },
     });
     const request = new NextRequest(new URL(url, "http://synthetic.invalid"), { method: "PUT", headers: { "content-type": "application/pdf", cookie: `${sessionCookie.SESSION_COOKIE_NAME}=synthetic-session` }, body, duplex: "half" } as ConstructorParameters<typeof NextRequest>[1]);
@@ -65,7 +67,7 @@ test("private upload writes only after both current permission checks and uncach
   assert.equal(response.status, 200); assert.deepEqual(await response.json(), { success: true });
   assert.equal(response.headers.get("cache-control"), "private, no-store");
   assert.equal(state.authCalls, 2); assert.equal(state.authorizationCalls, 2); assert.equal(state.sessionChecks, 1);
-  assert.deepEqual(state.writes, [{ key: intent.storageKey, bytes: "ABCD", contentType: intent.contentType }]);
+  assert.deepEqual(state.writes, [{ key: intent.storageKey, bytes: "%PDF-1", contentType: intent.contentType }]);
 });
 
 test("revoking permission or deactivating the account during receipt prevents the storage effect", async () => {
@@ -94,4 +96,11 @@ test("storage replay and provider errors return recoverable responses without ex
     assert.doesNotMatch(await response.text(), /student-docs|student-a|school-a/);
     assert.deepEqual(state.writes, []);
   }
+});
+
+test("content whose bytes do not match the declared type is refused with 415 and never stored", async () => {
+  const { state, send } = await fixture();
+  const response = await send(undefined, "<htm");
+  assert.equal(response.status, 415);
+  assert.deepEqual(state.writes, []);
 });

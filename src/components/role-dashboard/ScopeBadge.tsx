@@ -49,12 +49,22 @@ export interface ShellSession {
 let sessionPromise: Promise<ShellSession | null> | null = null;
 let sessionValue: ShellSession | null = null;
 const listeners = new Set<() => void>();
+/**
+ * SKAI-1021: forget the shell's last good session. "Keep the last good session on screen" is right for a network
+ * blip, never for a signed-out answer or a sign-out: the next identity in this tab must not see the previous one.
+ */
+export function resetShellSession() {
+  sessionPromise = null;
+  if (sessionValue === null) return;
+  sessionValue = null;
+  listeners.forEach((listener) => listener());
+}
 function loadSession(force = false): Promise<ShellSession | null> {
   if (sessionPromise && !force) return sessionPromise;
   const request: Promise<ShellSession | null> = fetch("/api/auth/session", { cache: "no-store" })
     .then((response) => {
       // Signed out: the shell's cached access map belongs to nobody any more.
-      if (response.status === 401) noteNavigationIdentity(null);
+      if (response.status === 401) { noteNavigationIdentity(null); resetShellSession(); }
       return response.ok ? response.json() : null;
     })
     .then((body) => (body?.user ?? null) as ShellSession | null)

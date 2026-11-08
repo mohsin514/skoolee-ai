@@ -13,7 +13,7 @@ import { prisma as appPrisma } from "../../src/lib/db/prisma";
 // exception list, another leader approves, the accountant exports (twice: one reference), records
 // one rejected row and opens a correction for it alone; a teacher sees no salaries. EN and AR.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || url.port !== (process.env.QA_DB_PORT || "55438") || url.pathname !== "/postgres") throw Error(`Only isolated local DB ${process.env.QA_DB_PORT || "55438"} is allowed`);
 const base = process.env.PAYROLL_TEST_APP || "http://localhost:3108";
 const evidence = process.env.PAYROLL_EVIDENCE_DIR || "/tmp/sko434-evidence";
 const db = new PrismaClient(), password = "SyntheticPayroll434!";
@@ -65,8 +65,9 @@ test("prepare, fix an exception, approve by another leader, export once, correct
   await page.goto(`${base}/accountant?view=payroll`);
   const panel = page.locator("section[data-payroll-runs]");
   await panel.waitFor({ timeout: 60_000 });
-  await panel.getByLabel("Month", { exact: true }).fill("3"); await panel.getByLabel("Year", { exact: true }).fill("2027");
-  await panel.getByText(/KSA-demo v2 \(version 2\)/u).waitFor({ timeout: 30_000 });
+  await panel.getByLabel("Month", { exact: true }).selectOption("3"); await panel.getByLabel("Year", { exact: true }).fill("2027");
+  // The policy details now sit in the approver's settings; a preparer sees "Prepare run" enabled once a policy applies.
+  await page.locator("button:enabled", { hasText: "Prepare run" }).waitFor({ timeout: 30_000 });
   // role-ux §4.4: "Prepare run" is the Payroll view's PageHeader primary; approval belongs to the campus admin (G26).
   await page.getByRole("button", { name: "Prepare run" }).click();
   await panel.getByText("2 employees · 1 items need review").waitFor({ timeout: 30_000 });
@@ -81,7 +82,7 @@ test("prepare, fix an exception, approve by another leader, export once, correct
   const admin = await context("admin");
   assert.equal((await admin.request.post(`${base}/api/payroll/runs`, { headers: { Origin: base }, data: { action: "approve", id: run.id, reason: "Checked against attendance, leave and salary records." } })).status(), 200);
   await page.reload();
-  await panel.getByLabel("Month", { exact: true }).fill("3"); await panel.getByLabel("Year", { exact: true }).fill("2027");
+  await panel.getByLabel("Month", { exact: true }).selectOption("3"); await panel.getByLabel("Year", { exact: true }).fill("2027");
   await panel.getByRole("button", { name: "Export to provider" }).click({ timeout: 30_000 });
   await panel.getByText("Approved run exported; provider confirmation is pending.").waitFor({ timeout: 30_000 });
   await panel.getByText("Exported does not mean paid.").first().waitFor();
@@ -109,7 +110,7 @@ test("the payroll run reads right to left on a phone (AR)", async () => {
   const panel = page.locator("section[data-payroll-runs]");
   await panel.waitFor({ timeout: 60_000 });
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");
-  await panel.getByLabel("الشهر", { exact: true }).fill("3"); await panel.getByLabel("السنة", { exact: true }).fill("2027");
+  await panel.getByLabel("الشهر", { exact: true }).selectOption("3"); await panel.getByLabel("السنة", { exact: true }).fill("2027");
   await panel.getByText("قائمة التصحيح").waitFor({ timeout: 30_000 });
   await panel.evaluate((el) => el.scrollIntoView({ block: "start" }));
   await page.waitForTimeout(300);

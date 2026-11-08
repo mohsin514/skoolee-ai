@@ -32,7 +32,7 @@ export const moveLineInput = z.strictObject({
 export type MoveLineInput = z.infer<typeof moveLineInput>;
 
 export interface TeachingLineView {
-  subject: { id: string; name: string; classId: string; className: string };
+  subject: { id: string; name: string; classId: string; campusId: string; className: string };
   curriculum: { id: string; version: number; title: string; sharedFromClassId: string | null } | null;
   units: Array<{ unit: string; outcomes: Array<{ id: string; title: string; page: string; taught: boolean; taughtOn: string | null }> }>;
   linePosition: string | null;
@@ -79,9 +79,9 @@ export async function currentCurriculumFor(tx: TxClient, user: AuthUser, subject
 
 const asDate = (value: Date) => value.toISOString().slice(0, 10);
 
-function view(subject: { id: string; name: string; classId: string; class: { name: string; section: string | null } }, current: Awaited<ReturnType<typeof currentCurriculumFor>>, rows: ProgressRow[], canMove: boolean): TeachingLineView {
+function view(subject: { id: string; name: string; classId: string; campusId: string; class: { name: string; section: string | null } }, current: Awaited<ReturnType<typeof currentCurriculumFor>>, rows: ProgressRow[], canMove: boolean): TeachingLineView {
   const className = [subject.class.name, subject.class.section].filter(Boolean).join(" ");
-  if (!current) return { subject: { id: subject.id, name: subject.name, classId: subject.classId, className }, curriculum: null, units: [], linePosition: null, lastTaughtOn: null, taughtCount: 0, totalCount: 0, canMove };
+  if (!current) return { subject: { id: subject.id, name: subject.name, classId: subject.classId, campusId: subject.campusId, className }, curriculum: null, units: [], linePosition: null, lastTaughtOn: null, taughtCount: 0, totalCount: 0, canMove };
   const curriculum = curriculumDataSchema.parse(current.record.data) as CurriculumData;
   const taught = taughtOutcomeIds(curriculum, rows);
   const dates = new Map(rows.map(row => [row.outcomeId, row.taughtOn]));
@@ -93,7 +93,7 @@ function view(subject: { id: string; name: string; classId: string; class: { nam
     bucket.outcomes.push({ id: outcome.id, title: outcome.title, page: outcome.sourcePage, taught: taught.has(outcome.id), taughtOn: dates.get(outcome.id) ?? null });
   }
   return {
-    subject: { id: subject.id, name: subject.name, classId: subject.classId, className },
+    subject: { id: subject.id, name: subject.name, classId: subject.classId, campusId: subject.campusId, className },
     curriculum: { id: current.record.id, version: current.record.version, title: current.record.title, sharedFromClassId: current.sharedFromClassId },
     units, linePosition: linePosition(curriculum, rows), lastTaughtOn: lastTaughtOn(rows), taughtCount: taught.size, totalCount: lineOrder(curriculum).length, canMove,
   };

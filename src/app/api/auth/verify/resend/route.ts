@@ -2,7 +2,7 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { authRateLimit } from "@/lib/auth/rate-limit";
-import { createVerificationToken, pendingVerificationWhere } from "@/lib/auth/verification";
+import { issueVerificationToken, pendingVerificationWhere, VERIFICATION_RESENT_ACTION } from "@/lib/auth/verification";
 import { sendVerificationEmail } from "@/lib/email";
 import { clientIp } from "@/lib/http/client-ip";
 
@@ -25,8 +25,11 @@ export async function POST(req: NextRequest) {
       const users = await prisma.user.findMany({ where: { email, ...pendingVerificationWhere }, select: { id: true, email: true, schoolId: true, preferredLanguage: true } });
       for (const user of users) {
         try {
-          await sendVerificationEmail(user.email, user.id, await createVerificationToken(user.id), user.preferredLanguage);
-          await prisma.auditLog.create({ data: { schoolId: user.schoolId, userId: user.id, tableName: "account_security", recordId: user.id, newValue: { action: "email_verification.resent" } } });
+          const { token, tokenId } = await issueVerificationToken(user.id);
+          await sendVerificationEmail(user.email, user.id, token, user.preferredLanguage);
+          // SKAI-84: recorded only after delivery, so a failed send never strands the user without
+          // a working link; once recorded, every earlier link stops working (see /api/auth/verify).
+          await prisma.auditLog.create({ data: { schoolId: user.schoolId, userId: user.id, tableName: "account_security", recordId: user.id, newValue: { action: VERIFICATION_RESENT_ACTION, tokenId } } });
         } catch {
           console.warn("[verify-resend] delivery failed");
         }
