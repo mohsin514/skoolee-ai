@@ -1,5 +1,6 @@
 "use client";
 
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
 import { toast } from "@/components/ui/toast";
@@ -45,7 +46,7 @@ function RatesForm({ rates, onClose, onDone }: { rates: CostRates; onClose: () =
     try {
       const response = await fetch("/api/owner/ai-cost-report", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usdPerMillionTokens, pkrPerUsd: fx.trim() ? Number(fx) : null }) });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The change was not saved."));
       toast.success(ui("Cost rates saved."));
       await onDone();
     } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); }

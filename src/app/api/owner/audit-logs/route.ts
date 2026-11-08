@@ -3,7 +3,8 @@ import { assertListBudget } from "@/lib/lists/access";
 import { ownerPagination, boundedInteger } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
+import { ApiError, requirePlatformOwner } from "@/lib/api/scope";
+import { failFrom, okPage } from "@/lib/api/envelope";
 
 export const dynamic = "force-dynamic";
 
@@ -34,12 +35,8 @@ export async function GET(req: NextRequest) {
         take: limit,
       });
 
-    return Response.json({
-      success: true,
-      data: logs,
-      pagination: { page, limit, total, pages },
-    });
+    return okPage(logs, { page, limit, total, pages });
   } catch (error) {
-    return errorResponse(error, "[owner/audit-logs] GET failed");
+    return failFrom(error, "[owner/audit-logs] GET failed");
   }
 }

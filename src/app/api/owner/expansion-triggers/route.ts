@@ -1,4 +1,5 @@
-import { errorResponse, requirePlatformOwner } from "@/lib/api/scope";
+import { requirePlatformOwner } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { EXPANSION_OBSERVATIONS } from "@/lib/expansion/trigger-config";
 import { evaluateExpansionTriggers } from "@/lib/expansion/triggers";
 
@@ -8,8 +9,8 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requirePlatformOwner();
-    return Response.json({ success: true, data: { asOf: EXPANSION_OBSERVATIONS.asOf, triggers: evaluateExpansionTriggers() } });
+    return ok({ asOf: EXPANSION_OBSERVATIONS.asOf, triggers: evaluateExpansionTriggers() });
   } catch (error) {
-    return errorResponse(error, "[owner/expansion-triggers] GET failed");
+    return failFrom(error, "[owner/expansion-triggers] GET failed");
   }
 }

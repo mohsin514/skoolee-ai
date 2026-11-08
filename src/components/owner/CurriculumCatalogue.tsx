@@ -1,5 +1,6 @@
 "use client";
 
+import { readApiError } from "@/lib/api/envelope-client";
 import { useCallback, useEffect, useState } from "react";
 import { BookCheck, PackageCheck, PackageSearch } from "lucide-react";
 import { useLocale } from "@/components/locale/LocaleProvider";
@@ -23,7 +24,7 @@ export function CurriculumCatalogue() {
     try {
       const response = await fetch("/api/owner/curriculum-packs", { cache: "no-store" });
       const payload = await response.json();
-      if (response.ok && Array.isArray(payload.data)) setRows(payload.data); else setError(typeof payload.error === "string" ? payload.error : t.loadError);
+      if (response.ok && Array.isArray(payload.data)) setRows(payload.data); else setError(readApiError(payload, t.loadError));
     } catch { setError(t.loadError); }
   }, [t.loadError]);
   useEffect(() => { void load(); }, [load]);
