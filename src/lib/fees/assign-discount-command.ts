@@ -14,7 +14,10 @@ export async function assignDiscount(user: AuthUser, body: Record<string, unknow
   const discountId = String(body.discountId), studentId = String(body.studentId);
 
   // Campus-pinned staff may assign only within their own campus; institution administrators see the whole school.
-  const campusPin = !isInstitutionAuthority(user) && user.campusId ? { campusId: user.campusId } : {};
+  // A non-institution user with no campus fails closed rather than seeing the whole school.
+  const institution = isInstitutionAuthority(user);
+  if (!institution && !user.campusId) throw new ApiError("Discount not found", 404);
+  const campusPin = institution ? {} : { campusId: user.campusId as string };
 
   const discount = await prisma.feeDiscount.findFirst({
     where: { id: discountId, ...campusPin, campus: { schoolId: user.schoolId } },
