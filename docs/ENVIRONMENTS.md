@@ -114,7 +114,16 @@ connection before deploying that change. Do not use `db push`, reset, or mark a
 baseline applied merely to bypass a migration error. Code-only fixes can deploy
 without the release approval setup introduced in SKO-212.
 
-## Controlled deployment: staging, QA, production and demo
+## Git-triggered deployment: dev, QA and demo (SKAI-1799)
+
+`dev`, `qa` and `demo` deploy through the Vercel Git integration (`vercel.json`
+→ `git.deploymentEnabled`); each Vercel project builds only its own branch via
+`scripts/vercel/ignore-build.sh`. Recovery CI still runs on every push but does
+not gate the build. Nothing migrates these databases automatically: apply
+versioned migrations (`prisma migrate deploy` with that environment's
+`DIRECT_URL`) before merging schema-dependent changes.
+
+## Controlled deployment: staging and production
 
 `.github/workflows/deploy.yml` verifies synthetic recovery before touching these
 environments. It requires a reviewed exact SHA, evidence link and forward-recovery
@@ -122,20 +131,42 @@ decision, applies versioned migrations, checks migration status/schema drift,
 builds that exact checkout and promotes its prebuilt Vercel artifact. Missing
 configuration now produces named error messages rather than an unexplained exit 1.
 
-Keep Git-triggered deployments for these branches disabled. Confirm provider
+Keep Git-triggered deployments for `staging` and `production` disabled. Confirm provider
 settings and cancel old queued deployments during rollout. Follow [the recovery
 runbook](recovery/RUNBOOK.md) for required secrets, per-release approvals, baseline
 adoption and incident authorization. Manual dispatch must select the branch
 matching the requested environment. Remote settings are not configured by this PR.
 
-## Deploy flow
+Each of the GitHub environments `staging` and `production` needs:
+
+| Kind | Name | Value |
+| --- | --- | --- |
+| Secret | `DATABASE_URL`, `DIRECT_URL` | that environment's database |
+| Secret | `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | that environment's Vercel project |
+| Variable | `VERCEL_AUTO_DEPLOY_DISABLED` | `true` |
+| Variable | `FORWARD_RECOVERY_DECISION` | `approved-forward-repair-or-isolated-restore` |
+| Variable | `RELEASE_EVIDENCE_URL` | `https://` link to the release evidence |
+| Variable | `RELEASE_APPROVED_SHA` | the exact commit being released, set per release |
+| Variable | `AI_FEATURES_ENABLED` | `false` until AI-05 passes |
+
+## Deploy flow (SKAI-1799)
 
 ```
-feature branch → dev → staging → qa → production
-                                        └→ demo (independent, from main or production)
+feature branch → dev → qa → staging → production
+                                         └→ demo (refreshed from production)
 ```
 
-Merge forward; never push straight to `production` without going through QA.
+| Step | Branch | How it deploys | Gate before merging forward |
+| --- | --- | --- | --- |
+| 1 | `dev` | Vercel Git, on every merged feature PR | CI green on the feature PR |
+| 2 | `qa` | Vercel Git, on the dev → qa PR | Migrations applied to the QA DB; QA passes the tickets in **Deployed to Dev** |
+| 3 | `staging` | Gated `Migrate & Deploy` | QA sign-off; `RELEASE_APPROVED_SHA` set to the staging commit |
+| 4 | `production` | Gated `Migrate & Deploy` | Staging checked; `RELEASE_APPROVED_SHA` set to the production commit |
+| — | `demo` | Vercel Git, on the production → demo PR | Only released code; reset the synthetic demo tenant after |
+
+- Promote with a PR from the previous branch only (dev → qa → staging → production → demo). Never skip a step or push straight to `staging` or `production`.
+- Staging rehearses the exact production release (same gated workflow, migrations and AI-05 check), which is why it sits right before production.
+- Demo follows production, so sales never shows unreleased work.
 
 ## Demo tenant (exam chain, SKO-500)
 
