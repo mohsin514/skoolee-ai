@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { ApiError, errorResponse, requireAuthUser, readJsonObject } from "@/lib/api/scope";
-import { lifecycleOverview, placeLegalHold, previewRetention, releaseLegalHold, setRetentionSchedule } from "@/lib/data-lifecycle/service";
+import { lifecycleOverview, placeLegalHold, searchDataSubjects, previewRetention, releaseLegalHold, setRetentionSchedule } from "@/lib/data-lifecycle/service";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store" };
@@ -8,7 +8,9 @@ const noStore = { "Cache-Control": "private, no-store" };
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const category = req.nextUrl.searchParams.get("preview");
+    const params = req.nextUrl.searchParams;
+    if (params.has("subjectSearch")) return Response.json({ success: true, subjects: await searchDataSubjects(user, params.get("subjectSearch"), params.get("q")) }, { headers: noStore });
+    const category = params.get("preview");
     const body = category ? { success: true, preview: await previewRetention(user, category) } : { success: true, ...(await lifecycleOverview(user)) };
     return Response.json(body, { headers: noStore });
   } catch (error) {
