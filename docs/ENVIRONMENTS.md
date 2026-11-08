@@ -114,7 +114,16 @@ connection before deploying that change. Do not use `db push`, reset, or mark a
 baseline applied merely to bypass a migration error. Code-only fixes can deploy
 without the release approval setup introduced in SKO-212.
 
-## Controlled deployment: staging, QA, production and demo
+## Git-triggered deployment: dev, QA and demo (SKAI-1799)
+
+`dev`, `qa` and `demo` deploy through the Vercel Git integration (`vercel.json`
+→ `git.deploymentEnabled`); each Vercel project builds only its own branch via
+`scripts/vercel/ignore-build.sh`. Recovery CI still runs on every push but does
+not gate the build. Nothing migrates these databases automatically: apply
+versioned migrations (`prisma migrate deploy` with that environment's
+`DIRECT_URL`) before merging schema-dependent changes.
+
+## Controlled deployment: staging and production
 
 `.github/workflows/deploy.yml` verifies synthetic recovery before touching these
 environments. It requires a reviewed exact SHA, evidence link and forward-recovery
@@ -122,11 +131,23 @@ decision, applies versioned migrations, checks migration status/schema drift,
 builds that exact checkout and promotes its prebuilt Vercel artifact. Missing
 configuration now produces named error messages rather than an unexplained exit 1.
 
-Keep Git-triggered deployments for these branches disabled. Confirm provider
+Keep Git-triggered deployments for `staging` and `production` disabled. Confirm provider
 settings and cancel old queued deployments during rollout. Follow [the recovery
 runbook](recovery/RUNBOOK.md) for required secrets, per-release approvals, baseline
 adoption and incident authorization. Manual dispatch must select the branch
 matching the requested environment. Remote settings are not configured by this PR.
+
+Each of the GitHub environments `staging` and `production` needs:
+
+| Kind | Name | Value |
+| --- | --- | --- |
+| Secret | `DATABASE_URL`, `DIRECT_URL` | that environment's database |
+| Secret | `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | that environment's Vercel project |
+| Variable | `VERCEL_AUTO_DEPLOY_DISABLED` | `true` |
+| Variable | `FORWARD_RECOVERY_DECISION` | `approved-forward-repair-or-isolated-restore` |
+| Variable | `RELEASE_EVIDENCE_URL` | `https://` link to the release evidence |
+| Variable | `RELEASE_APPROVED_SHA` | the exact commit being released, set per release |
+| Variable | `AI_FEATURES_ENABLED` | `false` until AI-05 passes |
 
 ## Deploy flow
 
