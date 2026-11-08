@@ -7,6 +7,8 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 function parseLocalDate(date: string): Date {
   const [y, m, d] = date.split("-").map(Number);
@@ -148,42 +150,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
 
+    // SKAI-1119: teachers must not mark their own attendance. Marking is admin/principal-only.
     if (user.role === "TEACHER") {
-      const campusId = user.campusId;
-      if (!campusId) throw new ApiError("No campus assigned", 400);
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const now = new Date();
-      const checkInTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-
-      const existing = await prisma.teacherAttendance.findUnique({
-        where: { userId_date: { userId: user.userId, date: today } },
-      });
-
-      if (existing) {
-        return Response.json({
-          success: true,
-          message: "Attendance already marked today",
-          data: existing,
-          alreadyMarked: true,
-        });
-      }
-
-      const record = await prisma.teacherAttendance.create({
-        data: {
-          campusId,
-          userId: user.userId,
-          date: today,
-          status: "PRESENT",
-          checkInTime,
-          notes: body.notes || null,
-        },
-      });
-
-      return Response.json({ success: true, data: record, message: "Attendance marked" });
+      throw new ApiError("Teachers cannot mark their own attendance", 403);
     }
 
     if (!["ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "SUPER_ADMIN"].includes(user.role)) {

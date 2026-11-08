@@ -1,0 +1,29 @@
+{
+  "environment": "isolated synthetic loopback",
+  "capturedAt": "2026-10-15T11:03:43.175Z",
+  "migrations": 51,
+  "batch": [
+    {
+      "id": "c90fa194-6594-4a7f-a67d-95605e316dd0",
+      "state": "completed",
+      "checkpoint": 30,
+      "attempts": 2,
+      "confirmed_effects": 30
+    }
+  ],
+  "states": [
+    {
+      "state": "cancelled",
+      "count": 7
+    },
+    {
+      "state": "completed",
+      "count": 8
+    },
+    {
+      "state": "failed",
+      "count": 3
+    }
+  ],
+  "providerCalls": 0
+}

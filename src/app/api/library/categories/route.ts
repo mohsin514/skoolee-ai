@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -8,6 +9,9 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { createCategory, renameCategory } from "@/lib/library/catalogue-command";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -33,17 +37,8 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const name = String(body.name || "").trim();
-    if (!name) throw new ApiError("name is required", 400);
-
-    const existing = await prisma.bookCategory.findFirst({ where: { campusId, name } });
-    if (existing) throw new ApiError("Category with this name already exists", 409);
-
-    const data = await prisma.bookCategory.create({
-      data: { campusId, name },
-    });
+    const body = await parseBody(req, jsonObjectBody);
+    const data = await createCategory(user, body);
 
     return Response.json({ success: true, data });
   } catch (error) {
@@ -56,26 +51,8 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
-    const { id, name } = body;
-    if (!id) throw new ApiError("id is required", 400);
-
-    const existing = await prisma.bookCategory.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-    });
-    if (!existing) throw new ApiError("Category not found", 404);
-
-    if (name && name !== existing.name) {
-      const dup = await prisma.bookCategory.findFirst({
-        where: { campusId: existing.campusId, name, id: { not: id } },
-      });
-      if (dup) throw new ApiError("Category with this name already exists", 409);
-    }
-
-    const data = await prisma.bookCategory.update({
-      where: { id },
-      data: { ...(name ? { name } : {}) },
-    });
+    const body = await parseBody(req, jsonObjectBody);
+    const data = await renameCategory(user, body);
 
     return Response.json({ success: true, data });
   } catch (error) {
@@ -83,27 +60,6 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
-
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
-    if (!id) throw new ApiError("id is required", 400);
-
-    const existing = await prisma.bookCategory.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-    });
-    if (!existing) throw new ApiError("Category not found", 404);
-
-    const bookCount = await prisma.book.count({ where: { categoryId: id } });
-    if (bookCount > 0) throw new ApiError("Cannot delete category that has books assigned", 409);
-
-    await prisma.bookCategory.delete({ where: { id } });
-
-    return Response.json({ success: true, data: { id } });
-  } catch (error) {
-    return errorResponse(error, "[library] DELETE categories failed");
-  }
+export async function DELETE(request: NextRequest) {
+  return operationDeleteResponse(request, "library/categories");
 }

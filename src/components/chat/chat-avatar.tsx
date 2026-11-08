@@ -12,11 +12,11 @@ import { cn } from "@/lib/utils";
  * the list, the thread header and the member chips.
  */
 const TINTS = [
-  "from-[#8127cf] to-[#b10e6b]",
-  "from-[#6a1fb0] to-[#9c48ea]",
-  "from-[#b10e6b] to-[#e0559a]",
-  "from-[#5b21b6] to-[#8127cf]",
-  "from-[#9c48ea] to-[#c86dd7]",
+  "from-primary to-berry",
+  "from-brand-700 to-brand-400",
+  "from-berry to-[#e0559a]",
+  "from-[#5b21b6] to-primary",
+  "from-brand-400 to-[#c86dd7]",
   "from-[#7c3aed] to-[#db2777]",
 ] as const;
 
@@ -28,8 +28,8 @@ export function tintFor(seed: string | null | undefined) {
 }
 
 const SIZES = {
-  sm: { box: "h-8 w-8 rounded-xl", text: "text-[10px]", dot: "h-2.5 w-2.5" },
-  md: { box: "h-10 w-10 rounded-2xl", text: "text-[11px]", dot: "h-3 w-3" },
+  sm: { box: "h-8 w-8 rounded-xl", text: "text-2xs", dot: "h-2.5 w-2.5" },
+  md: { box: "h-10 w-10 rounded-2xl", text: "text-2xs", dot: "h-3 w-3" },
   lg: { box: "h-11 w-11 rounded-2xl", text: "text-xs", dot: "h-3 w-3" },
   xl: { box: "h-14 w-14 rounded-[20px]", text: "text-sm", dot: "h-3.5 w-3.5" },
 } as const;
@@ -61,7 +61,7 @@ export function ChatAvatar({
     <span className={cn("relative inline-flex shrink-0", className)}>
       <span
         className={cn(
-          "grid place-items-center overflow-hidden bg-gradient-to-br font-black text-white",
+          "grid place-items-center overflow-hidden bg-gradient-to-br font-bold text-white",
           "shadow-[0_6px_16px_-6px_rgba(129,39,207,0.55)]",
           tintFor(seed ?? name),
           s.box,
@@ -77,7 +77,7 @@ export function ChatAvatar({
       </span>
 
       {online !== undefined && (
-        <span className={cn("absolute -bottom-0.5 -right-0.5 grid place-items-center", s.dot)}>
+        <span className={cn("absolute -bottom-0.5 -end-0.5 grid place-items-center", s.dot)}>
           {online && (
             <span
               className="sk-ping absolute inset-0 rounded-full bg-emerald-400"
@@ -87,7 +87,7 @@ export function ChatAvatar({
           <span
             className={cn(
               "relative h-full w-full rounded-full border-2 border-white",
-              online ? "bg-emerald-500" : "bg-[#cfc2d6]"
+              online ? "bg-emerald-500" : "bg-edge"
             )}
           />
         </span>

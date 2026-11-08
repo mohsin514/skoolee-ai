@@ -1,9 +1,12 @@
 "use client";
 
+import { Button as SystemButton } from "@/components/ui/button";
 import { useMemo, useState } from "react";
 import { AlertTriangle, ChevronDown, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTeacherAvailability } from "@/components/shared-admin/teacher-picker";
+import { DeskPill, DeskRowIcon, deskRow } from "@/components/ui/desk";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 /**
  * Campus-wide roll-up of teacher scheduling problems.
@@ -17,6 +20,7 @@ import { useTeacherAvailability } from "@/components/shared-admin/teacher-picker
 export function TeacherConflictsBanner() {
   const { availability, loading } = useTeacherAvailability();
   const [open, setOpen] = useState(false);
+  const ui = useUiText();
 
   const { doubleBooked, overCommitted, totalClashes } = useMemo(() => {
     const doubleBooked = availability.filter((t) => t.conflicts.length > 0);
@@ -28,77 +32,82 @@ export function TeacherConflictsBanner() {
   if (loading || (doubleBooked.length === 0 && overCommitted.length === 0)) return null;
 
   return (
-    <div className="sk-rise mb-5 overflow-hidden rounded-[24px] border border-rose-200/70 bg-gradient-to-br from-rose-50 to-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(190,18,60,0.20)]">
-      <button
+    <div className="sk-rise mb-5 overflow-hidden rounded-3xl border border-status-error-border bg-gradient-to-br from-status-error-surface to-card shadow-md">
+      <SystemButton variant="ghost"
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full cursor-pointer items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-rose-50/60"
+        aria-expanded={open}
+        className="flex h-auto w-full items-center justify-between gap-3 whitespace-normal p-4 text-start"
       >
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
-            <AlertTriangle className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-status-error-surface text-status-error-text">
+            <AlertTriangle className="h-5 w-5" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-black text-[#1f1a23]">Teacher scheduling conflicts</p>
-            <p className="mt-0.5 text-[10px] font-bold text-ink-muted">
+            <p className="text-sm font-bold text-ink-strong">{ui("Teacher scheduling conflicts")}</p>
+            <p className="mt-0.5 text-xs font-normal leading-relaxed text-ink-muted">
               {doubleBooked.length > 0
-                ? `${doubleBooked.length} teacher${doubleBooked.length !== 1 ? "s" : ""} double-booked across ${totalClashes} period${totalClashes !== 1 ? "s" : ""}`
+                ? ui(
+                    doubleBooked.length === 1
+                      ? totalClashes === 1 ? "1 teacher double-booked in 1 period" : "1 teacher double-booked across {1} periods"
+                      : totalClashes === 1 ? "{0} teachers double-booked in 1 period" : "{0} teachers double-booked across {1} periods",
+                    [doubleBooked.length, totalClashes],
+                  )
                 : null}
               {doubleBooked.length > 0 && overCommitted.length > 0 ? " · " : null}
               {overCommitted.length > 0
-                ? `${overCommitted.length} taking every period of more than one section`
+                ? ui("{0} taking every period of more than one section", [overCommitted.length])
                 : null}
             </p>
           </div>
         </div>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-rose-500 transition-transform", open && "rotate-180")} />
-      </button>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-status-error-text transition-transform", open && "rotate-180")} />
+      </SystemButton>
 
       {open ? (
-        <div className="space-y-3 border-t border-rose-200/50 p-4">
+        <div className="space-y-2 border-t border-status-error-border p-4">
           {overCommitted.map((t) => (
-            <div key={`over-${t.id}`} className="rounded-2xl bg-white p-3">
-              <div className="flex items-center gap-2">
-                <Users className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-                <p className="text-xs font-black text-[#1f1a23]">{t.fullName}</p>
-                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-amber-600">
-                  Over-committed
-                </span>
+            <div key={`over-${t.id}`} data-tone="warning" className={cn(deskRow, "flex items-start gap-3")}>
+              <DeskRowIcon icon={Users} />
+              <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <bdi className="min-w-0 truncate text-sm font-semibold text-ink-strong">{t.fullName}</bdi>
+                <DeskPill tone="warning">{ui("Over-committed")}</DeskPill>
               </div>
-              <p className="mt-1 pl-5 text-[10px] font-bold leading-relaxed text-ink-muted">
-                Takes every period of {t.wholeSectionClasses.map((c) => c.label).join(", ")} — only one is possible.
+              <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+                {ui("Takes every period of {0} — only one is possible.", [t.wholeSectionClasses.map((c) => c.label).join(", ")])}
               </p>
+              </div>
             </div>
           ))}
 
           {doubleBooked.map((t) => (
-            <div key={`clash-${t.id}`} className="rounded-2xl bg-white p-3">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-600" />
-                <p className="text-xs font-black text-[#1f1a23]">{t.fullName}</p>
-                <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-rose-600">
-                  {t.conflicts.length} clash{t.conflicts.length !== 1 ? "es" : ""}
-                </span>
+            <div key={`clash-${t.id}`} data-tone="danger" className={cn(deskRow, "flex items-start gap-3")}>
+              <DeskRowIcon icon={AlertTriangle} />
+              <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <bdi className="min-w-0 truncate text-sm font-semibold text-ink-strong">{t.fullName}</bdi>
+                <DeskPill tone="danger">{ui("{0} clash(es)", [t.conflicts.length])}</DeskPill>
               </div>
-              <div className="mt-2 flex flex-wrap gap-1.5 pl-5">
+              <div className="mt-2 flex flex-wrap gap-1.5">
                 {t.conflicts.slice(0, 8).map((c) => (
                   <span
                     key={`${t.id}-${c.day}-${c.period}`}
-                    title={c.classes.join(" & ")}
-                    className="rounded-lg bg-rose-50 px-2 py-1 text-[9px] font-black text-rose-700"
+                    className="rounded-lg border border-status-error-border bg-status-error-surface px-2 py-1 text-2xs font-medium tabular-nums text-status-error-text"
                   >
                     {c.label} · {c.classes.join(" / ")}
                   </span>
                 ))}
                 {t.conflicts.length > 8 ? (
-                  <span className="rounded-lg bg-[#f3f4f9] px-2 py-1 text-[9px] font-black text-ink-muted">
-                    +{t.conflicts.length - 8} more
+                  <span className="rounded-lg bg-muted px-2 py-1 text-2xs font-medium text-ink-muted">
+                    {ui("+{0} more", [t.conflicts.length - 8])}
                   </span>
                 ) : null}
               </div>
-              <p className="mt-2 pl-5 text-[9px] font-bold text-ink-muted">
-                Fix in Timetable — move one of the clashing periods to a free slot or a different teacher.
+              <p className="mt-2 text-xs leading-relaxed text-ink-muted">
+                {ui("Fix in Timetable — move one of the clashing periods to a free slot or a different teacher.")}
               </p>
+              </div>
             </div>
           ))}
         </div>

@@ -1,0 +1,112 @@
+import type { AuthUser } from "@/lib/auth";
+import { prisma } from "@/lib/db/prisma";
+import { ApiError, resolveCampusId } from "@/lib/api/scope";
+import { rangeTenths, utcDay } from "@/lib/leave";
+import { notify } from "@/lib/notifications/in-app";
+import { isStaffRole } from "@/lib/roles";
+
+/**
+ * Apply for leave (POST /api/leave), extracted so the route and the AI Workflows `leave.apply` capability run
+ * the same command. Body: { campusId?, leaveTypeId, fromDate, toDate, reason?, days?, attachmentKey? }.
+ * Throws ApiError with the route's exact messages and statuses; the reviewers (academic lead for teaching
+ * staff, the campus operator for everyone else) are notified, and approval stays with them.
+ */
+/**
+ * SKAI-1323: accept only a real YYYY-MM-DD calendar day. Impossible dates such as
+ * 2026-02-30 must not be normalised into a neighbouring day.
+ */
+/** A caller-supplied duration must be a finite positive number; NaN otherwise reached the database as a 500. */
+export function explicitDaysToTenths(value: unknown): number {
+  const days = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isFinite(days) || days <= 0) throw new ApiError("days must be a positive number of days", 400);
+  return Math.max(1, Math.round(days * 10));
+}
+
+function calendarDate(value: unknown): Date | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  if (isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) return null;
+  return date;
+}
+
+export async function applyLeave(user: AuthUser, body: Record<string, unknown>) {
+  // Leave is for members of staff; families and the platform operator have no leave record.
+  if (!isStaffRole(user.role)) throw new ApiError("Leave applications are for school staff.", 403);
+
+  const campusId = await resolveCampusId(user, body.campusId as string | null | undefined);
+  const leaveTypeId = String(body.leaveTypeId ?? "");
+  const fromDate = calendarDate(body.fromDate);
+  const toDate = calendarDate(body.toDate);
+
+  if (!leaveTypeId) throw new ApiError("leaveTypeId is required", 400);
+  if (!fromDate) throw new ApiError("Valid fromDate is required", 400);
+  if (!toDate) throw new ApiError("Valid toDate is required", 400);
+
+  const start = utcDay(fromDate);
+  const end = utcDay(toDate);
+  if (end < start) throw new ApiError("toDate cannot be before fromDate", 400);
+
+  const leaveType = await prisma.leaveType.findFirst({
+    where: { id: leaveTypeId, campusId },
+  });
+  if (!leaveType) throw new ApiError("Leave type not found", 404);
+
+  // Overlapping-request guard: any non-terminal request for the same user
+  // whose date range intersects this one is a conflict.
+  const days = body.days !== undefined ? explicitDaysToTenths(body.days) : rangeTenths(start, end);
+
+  // SKAI-1408: the overlap check and the insert run under a per-person lock, so two tabs cannot both pass the check.
+  const request = await prisma.$transaction(async (tx) => {
+    // SKAI-1533: pg_advisory_xact_lock returns void, which $queryRaw cannot deserialise; $executeRaw runs it for the lock only.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${user.userId}, 0))`;
+    const overlap = await findOverlappingLeave(tx, campusId, user.userId, start, end);
+    if (overlap) {
+      throw new ApiError(
+        `This overlaps your existing ${overlap.status.toLowerCase()} ${overlap.leaveType.name} leave (${overlap.fromDate.toISOString().slice(0, 10)} → ${overlap.toDate.toISOString().slice(0, 10)})`,
+        409
+      );
+    }
+    return tx.leaveRequest.create({
+      data: {
+        // SKAI-1400: the school is part of every leave row (required, with a foreign key to schools).
+        schoolId: user.schoolId,
+        campusId,
+        userId: user.userId,
+        leaveTypeId,
+        fromDate: start,
+        toDate: end,
+        days,
+        reason: body.reason ? String(body.reason).trim().slice(0, 2000) || null : null,
+        attachmentKey: body.attachmentKey ? String(body.attachmentKey) : null,
+      },
+    });
+  });
+
+  notify("LEAVE_APPLIED", {
+    schoolId: user.schoolId,
+    campusId,
+    leaveId: request.id,
+    actorId: user.userId,
+    actorName: user.fullName,
+    leaveTypeName: leaveType.name,
+    fromDate: start.toISOString().slice(0, 10),
+    toDate: end.toISOString().slice(0, 10),
+  });
+
+  return request;
+}
+
+/** The route's overlap rule: a PENDING or APPROVED request of this person whose range intersects [start, end]. */
+export function findOverlappingLeave(db: Pick<typeof prisma, "leaveRequest">, campusId: string, userId: string, start: Date, end: Date) {
+  return db.leaveRequest.findFirst({
+    where: {
+      campusId,
+      userId,
+      status: { in: ["PENDING", "APPROVED"] },
+      fromDate: { lte: end },
+      toDate: { gte: start },
+    },
+    include: { leaveType: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+}

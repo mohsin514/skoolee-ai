@@ -1,0 +1,98 @@
+[
+  {
+    "route": "/design-system",
+    "viewport": "desktop",
+    "language": "en",
+    "dir": null,
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "route": "/design-system",
+    "viewport": "desktop",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "route": "/design-system",
+    "viewport": "tablet",
+    "language": "en",
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "route": "/design-system",
+    "viewport": "tablet",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "route": "/design-system",
+    "viewport": "phone",
+    "language": "en",
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "route": "/design-system",
+    "viewport": "phone",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "route": "/design-system?patterns=application",
+    "viewport": "desktop",
+    "language": "en",
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "route": "/design-system?patterns=application",
+    "viewport": "desktop",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "route": "/design-system?patterns=application",
+    "viewport": "tablet",
+    "language": "en",
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "route": "/design-system?patterns=application",
+    "viewport": "tablet",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "route": "/design-system?patterns=application",
+    "viewport": "phone",
+    "language": "en",
+    "dir": "ltr",
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "route": "/design-system?patterns=application",
+    "viewport": "phone",
+    "language": "ar",
+    "dir": "rtl",
+    "overflow": false,
+    "errors": []
+  }
+]

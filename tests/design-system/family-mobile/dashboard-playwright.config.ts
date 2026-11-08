@@ -1,0 +1,2 @@
+import { defineConfig } from '@playwright/test';
+export default defineConfig({ testDir: '.', testMatch: 'dashboard-layout.spec.ts', workers: 1, timeout: 30000, use: { viewport: { width: 320, height: 720 }, contextOptions: { reducedMotion: 'reduce' }, screenshot: 'only-on-failure', trace: 'retain-on-failure' }, reporter: 'list', outputDir: '../../../test-results/design-system/family-dashboard-layout' });

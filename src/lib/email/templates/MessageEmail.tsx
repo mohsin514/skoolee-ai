@@ -4,6 +4,7 @@ import { detailBox, mutedParagraph, paragraph, SkooleeEmail } from "./SkooleeEma
 import { sanitizeHtml } from "@/lib/sanitize-html";
 
 interface MessageEmailProps {
+  language?: "en" | "ar" | "ur";
   subject: string;
   text?: string;
   html?: string;
@@ -21,22 +22,27 @@ function textBlocks(text: string) {
 
 export function MessageEmail({
   subject,
+  language = "en",
   text,
   html,
   actionUrl,
-  actionLabel = "View in Skoolee AI",
+  actionLabel,
   logoUrl,
 }: MessageEmailProps) {
   return (
     <SkooleeEmail
       preview={subject}
-      eyebrow="Campus Notification"
+      language={language}
+      eyebrow={language === "ur" ? "کیمپس کی اطلاع" : language === "ar" ? "إشعار الحرم المدرسي" : "Campus Notification"}
       title={subject}
-      action={actionUrl ? { label: actionLabel, href: actionUrl } : undefined}
+      action={actionUrl ? { label: actionLabel || (language === "ur" ? "Skoolee AI میں دیکھیں" : language === "ar" ? "عرض في Skoolee AI" : "View in Skoolee AI"), href: actionUrl } : undefined}
       logoUrl={logoUrl}
     >
       {html ? (
-        <Section style={detailBox} dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />
+        // Section renders its own table rows, so the sanitised HTML goes in a child, not on Section itself.
+        <Section style={detailBox}>
+          <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />
+        </Section>
       ) : (
         textBlocks(text || "").map((block, index) => (
           <Text key={index} style={index === 0 ? paragraph : mutedParagraph}>

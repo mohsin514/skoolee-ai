@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.owner-audit.json",
+  "include": ["next-env.d.ts", "src/**/*.ts", "src/**/*.tsx", "tests/owner/**/*.ts", "tests/super/**/*.ts"]
+}

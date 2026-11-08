@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import { BarChart3, Brain, School } from "lucide-react";
-import { ProductPage } from "../product-page";
+import { ProductPage, productMetadata } from "../product-page";
+import type { LangSearchParams } from "../public-lang";
 
-export const metadata: Metadata = {
-  title: "AI School Management Software",
-  description: "SkooleeAI helps schools manage students, staff, fees, report cards, WhatsApp communication, and AI performance insights from one dashboard.",
+const SEO: Metadata = {
   alternates: { canonical: "https://skooleeai.com/" },
   keywords: ["AI school management software", "school ERP", "AI report cards", "SkooleeAI"],
 };
 
-export default function Page() {
+export const generateMetadata = ({ searchParams }: { searchParams: LangSearchParams }) => productMetadata("ai-school-management-software", searchParams, SEO);
+
+export default function Page({ searchParams }: { searchParams: LangSearchParams }) {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -33,21 +34,7 @@ export default function Page() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <ProductPage
-        copy={{
-          eyebrow: "AI school management software",
-          title: "Run academic, fee, and parent workflows from one AI-ready school platform.",
-          description:
-            "SkooleeAI brings student records, classes, marks, report cards, fee invoices, WhatsApp updates, and human-reviewed AI drafts into a single school operating system.",
-          highlights: ["Free Basic plan for small schools", "Stripe upgrades built in, 20% off with annual billing", "Human review before AI output is shared", "Pakistan-ready academic workflows"],
-          sections: [
-            { icon: School, title: "Academic operations", body: "Create campuses, classes, subjects, students, exams, marks, and report cards with role-based access for owners, admins, principals, and teachers." },
-            { icon: Brain, title: "AI assistance", body: "Generate draft remarks, performance summaries, intervention ideas, and review queues while keeping school leaders in control." },
-            { icon: BarChart3, title: "Market-ready SaaS", body: "Plan limits, billing status, AI credits, PDF export, WhatsApp access, and analytics are controlled by subscription." },
-          ],
-          proof: ["Trial, active, and suspended states are enforced.", "Plans cover students, teachers, campus enrolments, AI credits, WhatsApp, PDF, and analytics.", "Trust pages explain privacy, AI governance, security, and review policy."],
-        }}
-      />
+      <ProductPage id="ai-school-management-software" icons={[School, Brain, BarChart3]} searchParams={searchParams} />
     </div>
   );
 }

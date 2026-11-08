@@ -1,0 +1,13 @@
+✔ SKAI-52: stale administration pages clamp after authorized counts, including empty lists (5182.386916ms)
+✔ SKAI-52: owner paging survives refresh, Back and filters (5402.39775ms)
+SKAI-52 inventory traversal: 501 rows / 6 requests / 256 ms (local QA, not a production SLO)
+✔ SKAI-52: 501 inventory rows traverse bounded stable pages without crossing tenants or campuses (641.441417ms)
+✔ SKAI-52: owner Arabic phone layout and denied-role evidence (4674.85125ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 16560.677375

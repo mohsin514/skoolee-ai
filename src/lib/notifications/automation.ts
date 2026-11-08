@@ -58,6 +58,15 @@ async function staffRecipients({
   });
 }
 
+/**
+ * SKAI-823: one same-day alert per recorded absence (student + date), framed by the 30-day count.
+ * Counts of 3 or more keep the original key so alerts already sent under it are not repeated.
+ */
+export function absenceAlertKey(studentId: string, date: Date, absenceCount: number) {
+  const day = date.toISOString().slice(0, 10);
+  return absenceCount >= 3 ? `attendance-absence-3:${studentId}:${day}` : `attendance-absence-day:${studentId}:${day}`;
+}
+
 export async function triggerRepeatedAbsenceAlert({
   studentId,
   date,
@@ -76,21 +85,21 @@ export async function triggerRepeatedAbsenceAlert({
     },
   });
 
-  if (absenceCount < 3) return [];
+  if (absenceCount < 1) return [];
 
   return sendStudentTemplatedCommunication({
     studentId,
     key: "ATTENDANCE_ALERT",
     channels: PARENT_CHANNELS,
     context: {
-      date: formatDate(date),
+      date: date.toISOString().slice(0, 10),
       absenceCount,
     },
     createdById,
     relatedType: "ATTENDANCE",
     relatedId: studentId,
     approvedData: true,
-    idempotencyBase: `attendance-absence-3:${studentId}:${date.toISOString().slice(0, 10)}`,
+    idempotencyBase: absenceAlertKey(studentId, date, absenceCount),
     metadata: { absenceCount, windowDays: 30 },
   });
 }
@@ -127,6 +136,7 @@ export async function triggerFeeDueReminders({
         context: {
           term: `${invoice.invoiceDate.toLocaleDateString("en-PK", { month: "long", year: "numeric" })}`,
           balanceDue: balance.toLocaleString("en-PK"),
+          balanceDueMinor: balance,
           dueDate: formatDate(invoice.dueDate),
         },
         relatedType: "INVOICE",
@@ -173,6 +183,7 @@ export async function triggerFeeOverdueReminders({
         context: {
           term: `${invoice.invoiceDate.toLocaleDateString("en-PK", { month: "long", year: "numeric" })}`,
           balanceDue: balance.toLocaleString("en-PK"),
+          balanceDueMinor: balance,
           dueDate: formatDate(invoice.dueDate),
         },
         relatedType: "INVOICE",
@@ -230,7 +241,7 @@ export async function triggerMarksEntryDeadlineReminders({
           context: {
             recipientName: recipient.fullName,
             examTitle: exam.title,
-            deadlineDate: formatDate(deadline),
+            deadlineDate: deadline.toISOString().slice(0, 10),
             className: [exam.class.name, exam.class.section].filter(Boolean).join(" - "),
             schoolName: exam.campus.school.name,
           },

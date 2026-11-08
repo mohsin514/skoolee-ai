@@ -1,7 +1,9 @@
+import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { requirePageSession } from "@/lib/auth/require-page-session";
 import { prisma } from "@/lib/db/prisma";
+import { getDisplayLocale } from "@/lib/locale/display";
 
 export default async function OperationalLayout({ children }: { children: React.ReactNode }) {
   // Was getAuthUser(), whose null result fell through to rendering the console
@@ -11,19 +13,25 @@ export default async function OperationalLayout({ children }: { children: React.
   const user = await requirePageSession();
   const requestHeaders = await headers();
   const pathname = requestHeaders.get("x-pathname") || "";
+  // The proxy decides what counts as the billing workspace (/billing, /super?view=billing, /admin?view=billing and
+  // the legacy entry points) and passes it as x-billing-workspace, because a layout cannot read searchParams (G43).
   const billingPath =
     requestHeaders.get("x-billing-workspace") === "1" ||
+    pathname === "/billing" ||
     pathname.startsWith("/super/billing") ||
     pathname.startsWith("/dashboard/billing");
 
-  const school = await prisma.school.findUnique({
-    where: { id: user.schoolId },
-    select: { status: true },
-  });
-
-  if (school?.status === "SUSPENDED" && !billingPath) {
-    redirect("/subscription-suspended");
+  // Platform operators must remain able to restore schools, including the
+  // institution attached to their account. Match the proxy's owner exemption.
+  if (user.role !== "APP_OWNER") {
+    const school = await prisma.school.findUnique({
+      where: { id: user.schoolId },
+      select: { status: true },
+    });
+    if (school?.status === "SUSPENDED" && !billingPath) {
+      redirect("/subscription-suspended");
+    }
   }
 
-  return children;
+  return <LocaleProvider initialLocale={await getDisplayLocale(user)}>{children}</LocaleProvider>;
 }

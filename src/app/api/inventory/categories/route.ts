@@ -1,13 +1,16 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   assertModuleRead,
-  canManageOperations,
+  canManageCampusOps,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 
@@ -32,10 +35,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
     const campusId = await resolveCampusId(user);
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { name } = body;
 
     if (!name) throw new ApiError("name required", 400);
@@ -58,10 +61,10 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
     const campusId = await resolveCampusId(user);
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { id, name } = body;
 
     if (!id) throw new ApiError("id required", 400);
@@ -87,29 +90,6 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
-
-    const campusId = await resolveCampusId(user);
-    const id = req.nextUrl.searchParams.get("id");
-    if (!id) throw new ApiError("id required", 400);
-
-    const category = await prisma.itemCategory.findFirst({
-      where: { id, campusId },
-      include: { _count: { select: { items: true } } },
-    });
-    if (!category) throw new ApiError("Category not found", 404);
-
-    if (category._count.items > 0) {
-      throw new ApiError("Cannot delete category that is referenced by items", 409);
-    }
-
-    await prisma.itemCategory.delete({ where: { id } });
-
-    return Response.json({ success: true, data: { id } });
-  } catch (error) {
-    return errorResponse(error, "[inventory/categories] DELETE failed");
-  }
+export async function DELETE(request: NextRequest) {
+  return operationDeleteResponse(request, "inventory/categories");
 }

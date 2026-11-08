@@ -37,8 +37,13 @@ export async function POST(req: NextRequest) {
       where: {
         planEndsAt: { not: null },
         status: { in: ["ACTIVE", "TRIAL"] },
+        // SKO-373: Stripe-managed renewals are driven by verified provider
+        // events; this sweep only covers manually renewed (SafePay/bank) plans.
+        stripeSubscriptionId: null,
+        // An operator-approved grace extension is honoured until it ends.
+        NOT: { subscriptionLifecycleState: "APPROVED_GRACE", graceEndsAt: { gt: new Date() } },
       },
-      select: { id: true, name: true, plan: true, planEndsAt: true },
+      select: { id: true, name: true, plan: true, planEndsAt: true, status: true },
     });
 
     const suspended: string[] = [];
@@ -50,10 +55,19 @@ export async function POST(req: NextRequest) {
       if (overdue <= 0) continue;
 
       if (overdue > graceMs) {
-        await prisma.school.update({
-          where: { id: school.id },
-          data: { status: "SUSPENDED" },
+        // SKAI-750: suspend only if nothing changed since the scan. A renewal that lands between the
+        // read and this write moves planEndsAt (or the status), so the update matches nothing.
+        const changed = await prisma.$transaction(async (tx) => {
+          const result = await tx.school.updateMany({
+            where: { id: school.id, planEndsAt: end, status: school.status, stripeSubscriptionId: null },
+            data: { status: "SUSPENDED", subscriptionLifecycleState: "PAST_DUE" },
+          });
+          if (result.count === 0) return false;
+          await tx.auditLog.create({ data: { schoolId: school.id, userId: "subscription-expiry-cron", tableName: "schools", recordId: school.id,
+            oldValue: { status: school.status, planEndsAt: end.toISOString() }, newValue: { status: "SUSPENDED", subscriptionLifecycleState: "PAST_DUE", reason: `Paid period ended more than ${GRACE_PERIOD_DAYS} days ago` } } });
+          return true;
         });
+        if (!changed) continue;
         notify("SUBSCRIPTION_SUSPENDED", {
           schoolId: school.id,
           actorName: "System",

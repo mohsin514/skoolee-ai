@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { assertFeesRead, ApiError, canManageFinance, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { generateInvoicePdf } from "@/lib/pdf";
 
 export const runtime = "nodejs";
@@ -9,8 +9,9 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
 
+    await assertFeesRead(user);
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id is required", 400);
 
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
     return new Response(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/pdf",
+        "Cache-Control": "private, no-store", // SKAI-744: pupil grades and family finance PDFs never sit in a shared or browser cache
         "Content-Disposition": `attachment; filename="invoice-${invoiceNumber}.pdf"`,
       },
     });

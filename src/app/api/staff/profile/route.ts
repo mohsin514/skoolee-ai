@@ -1,6 +1,13 @@
+import { campusScope } from "@/lib/auth/policy";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { writeAuditEvent } from "@/lib/audit-events";
+import { parseEmiratesId, parseNationality, parseRegulatorId, regulatorAuditChange } from "@/lib/identity/regulator-ids";
+import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { getLocalePackage } from "@/lib/locale/store";
+import { salaryChangeDetail } from "@/lib/staff/salary-detail";
 
 // Staff payroll / bank records (Module 8).
 // GET  /api/staff/profile?userId= — full profile + documents + timeline (admin only).
@@ -13,13 +20,13 @@ const CONTRACT_TYPES = new Set(["PERMANENT", "CONTRACT", "PART_TIME"]);
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
         await assertPermission(user, "staff", "view");
     const userId = req.nextUrl.searchParams.get("userId");
     if (!userId) throw new ApiError("userId required", 400);
 
     const staff = await prisma.user.findFirst({
-      where: { id: userId, schoolId: user.schoolId },
+      where: { id: userId, role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] }, ...campusScope(user) },
       select: {
         id: true,
         fullName: true,
@@ -32,6 +39,28 @@ export async function GET(req: NextRequest) {
           select: { id: true, kind: true, fileKey: true, fileName: true, uploadedAt: true },
           orderBy: { uploadedAt: "desc" },
         },
+        // SKAI-1117: assigned classes (as class teacher) and subjects taught.
+        ledClasses: {
+          where: { ...campusScope(user), archivedAt: null },
+          select: {
+            id: true,
+            name: true,
+            section: true,
+            academicYear: true,
+            _count: { select: { students: true, subjects: true } },
+          },
+          orderBy: { name: "asc" },
+        },
+        taughtSubjects: {
+          where: campusScope(user),
+          select: {
+            id: true,
+            name: true,
+            totalMarks: true,
+            class: { select: { id: true, name: true, section: true } },
+          },
+          orderBy: { name: "asc" },
+        },
         staffTimelineEvents: {
           select: { id: true, kind: true, title: true, detail: true, createdAt: true },
           orderBy: { createdAt: "desc" },
@@ -41,17 +70,12 @@ export async function GET(req: NextRequest) {
     });
     if (!staff) throw new ApiError("Staff member not found", 404);
 
-    const documents = await Promise.all(
-      staff.staffDocuments.map(async (doc) => {
-        const { getDownloadUrl } = await import("@/lib/storage/s3");
-        return {
-          ...doc,
-          downloadUrl: await getDownloadUrl(doc.fileKey).catch(() => null),
-        };
-      })
-    );
+    const documents = staff.staffDocuments.map(({ fileKey: _fileKey, ...doc }) => ({
+      ...doc,
+      downloadUrl: `/api/staff/documents?userId=${encodeURIComponent(userId)}&documentId=${encodeURIComponent(doc.id)}`,
+    }));
 
-    return Response.json({ success: true, data: { ...staff, staffDocuments: documents } });
+    return Response.json({ success: true, data: { ...staff, staffDocuments: documents } }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return errorResponse(error, "[staff/profile] GET failed");
   }
@@ -60,15 +84,15 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const userId = String(body.userId ?? "");
     if (!userId) throw new ApiError("userId is required", 400);
 
     const staff = await prisma.user.findFirst({
-      where: { id: userId, schoolId: user.schoolId },
-      select: { id: true, fullName: true, staffProfile: true },
+      where: { id: userId, role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] }, ...campusScope(user) },
+      select: { id: true, fullName: true, campusId: true, staffProfile: true },
     });
     if (!staff) throw new ApiError("Staff member not found", 404);
 
@@ -92,8 +116,9 @@ export async function PATCH(req: NextRequest) {
       data.contractType = ct || null;
     }
     if (body.basicSalary !== undefined) {
-      const salary = Math.round(Number(body.basicSalary));
-      if (!Number.isFinite(salary) || salary < 0) throw new ApiError("basicSalary must be a non-negative integer (paisa)", 400);
+      // SKAI-1325: salary is stored as whole paisa in an Int32 column; never round or overflow silently.
+      const salary = Number(body.basicSalary);
+      if (!Number.isSafeInteger(salary) || salary < 0 || salary > 2147483647) throw new ApiError("basicSalary must be a non-negative whole number of paisa within range", 400);
       data.basicSalary = salary;
     }
     if (body.allowances !== undefined) data.allowancesJson = body.allowances;
@@ -102,6 +127,12 @@ export async function PATCH(req: NextRequest) {
     if (body.bankAccountName !== undefined) data.bankAccountName = String(body.bankAccountName ?? "").trim() || null;
     if (body.bankAccountNumber !== undefined) data.bankAccountNumber = String(body.bankAccountNumber ?? "").trim() || null;
     if (body.bankName !== undefined) data.bankName = String(body.bankName ?? "").trim() || null;
+    // SKAI-1149: regulator fields are validated and normalised; a malformed value is refused, never dropped.
+    for (const [key, parse] of [["emiratesId", parseEmiratesId], ["nationality", parseNationality], ["regulatorId", parseRegulatorId]] as const) {
+      if (body[key] === undefined) continue;
+      try { data[key] = parse(body[key]); } catch (error) { throw new ApiError((error as Error).message, 400); }
+    }
+    const regulatorChange = regulatorAuditChange(existing ?? {}, data as Record<string, string | null | undefined>);
 
     const events: Array<{ kind: string; title: string; detail: string }> = [];
     const changed = (before: unknown, after: unknown) =>
@@ -126,7 +157,7 @@ export async function PATCH(req: NextRequest) {
       events.push({
         kind: "SALARY",
         title: "Basic salary updated",
-        detail: `Rs. ${(current.basicSalary / 100).toLocaleString("en-PK")} → Rs. ${(Number(data.basicSalary ?? 0) / 100).toLocaleString("en-PK")}`,
+        detail: salaryChangeDetail(current.basicSalary, Number(data.basicSalary ?? 0), await getLocalePackage(user.schoolId, staff.campusId)),
       });
     }
     if (inBody("bankAccountNumber") && changed(current.bankAccountNumber, data.bankAccountNumber)) {
@@ -137,17 +168,31 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
-    const profile = await prisma.staffProfile.upsert({
-      where: { userId },
-      create: { userId, ...data },
-      update: data,
-    });
-
-    if (events.length > 0) {
-      await prisma.staffTimelineEvent.createMany({
-        data: events.map((e) => ({ ...e, userId, actorId: user.userId })),
+    const profile = await prisma.$transaction(async (tx) => {
+      const saved = await tx.staffProfile.upsert({
+        where: { userId },
+        create: { userId, ...data },
+        update: data,
       });
-    }
+
+      if (events.length > 0) {
+        await tx.staffTimelineEvent.createMany({
+          data: events.map((e) => ({ ...e, userId, actorId: user.userId })),
+        });
+      }
+      // Field names, contract type and salary only; bank details and labels stay out, regulator IDs masked.
+      await writeAuditEvent(tx, user, {
+        table: "staff_profiles", recordId: saved.id, action: existing ? "UPDATE" : "CREATE",
+        ...(existing ? { before: { contractType: current.contractType, basicSalary: current.basicSalary } } : {}),
+        after: {
+          userId, fieldsChanged: Object.keys(data).sort().join(","), contractType: saved.contractType ?? null, basicSalary: saved.basicSalary,
+          bankDetailsChanged: ["bankAccountName", "bankAccountNumber", "bankName"].some((field) => inBody(field) && changed(current[field as keyof typeof current], data[field])),
+          // Identifiers are masked to the last four characters (regulatorAuditChange).
+          ...Object.fromEntries(regulatorChange.fields.flatMap((field) => [[`${field}From`, regulatorChange.from[field]], [`${field}To`, regulatorChange.to[field]]])),
+        },
+      });
+      return saved;
+    });
 
     return Response.json({ success: true, data: profile, events: events.length });
   } catch (error) {

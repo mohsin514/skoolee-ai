@@ -23,7 +23,7 @@
 // localhost, which does not exist on a serverless host) would otherwise hang
 // every send and every conversation list.
 // ─────────────────────────────────────────────────────────────────
-import { redis } from "@/lib/queue/connection";
+import { redis, isRealtimeEnabled } from "@/lib/queue/connection";
 
 export type ChatEventType =
   | "message"
@@ -82,7 +82,7 @@ const TIMED_OUT = Symbol("redis-timeout");
  * Never throws.
  */
 async function settle<T>(work: () => Promise<T>, fallback: T): Promise<T> {
-  if (Date.now() < circuitOpenUntil) return fallback;
+  if (!isRealtimeEnabled() || Date.now() < circuitOpenUntil) return fallback;
 
   let timer: ReturnType<typeof setTimeout> | undefined;
 

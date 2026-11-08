@@ -21,6 +21,20 @@
         "3200"
       ],
       "port": 3200
+    },
+    {
+      "name": "qa-roleux",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "DATABASE_URL=postgresql://postgres@127.0.0.1:55470/roleux",
+        "DIRECT_URL=postgresql://postgres@127.0.0.1:55470/roleux",
+        "NEXT_BUILD_DIR=.next-roleux",
+        "NEXT_PUBLIC_APP_URL=http://localhost:3470",
+        "DISABLE_OUTBOUND_MESSAGES=1",
+        "EMAIL_DEV_MODE=true",
+        "npx", "next", "dev", "-p", "3470"
+      ],
+      "port": 3470
     }
   ]
 }

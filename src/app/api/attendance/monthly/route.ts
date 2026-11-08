@@ -1,11 +1,15 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canMarkAttendance, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ruleRate } from "@/lib/attendance";
+import { attendanceRuleFor } from "@/lib/attendance/rule";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canMarkAttendance(user)) throw new ApiError("Insufficient permissions", 403);
+    // SKO-405: every percentage uses the school's published counting rule.
+    const rule = await attendanceRuleFor(user.schoolId);
 
     const { searchParams } = new URL(req.url);
     const classId = searchParams.get("classId");
@@ -18,8 +22,10 @@ export async function GET(req: NextRequest) {
       : await resolveCampusId(user, user.campusId);
 
     const [year, mon] = month.split("-").map(Number);
-    const startDate = new Date(year, mon - 1, 1);
-    const endDate = new Date(year, mon, 0); // last day of month
+    // SKAI-1351: attendance dates are stored at UTC midnight, so the month is built in UTC; local midnight
+    // in a positive UTC offset would drop the last day.
+    const startDate = new Date(Date.UTC(year, mon - 1, 1));
+    const endDate = new Date(Date.UTC(year, mon, 0)); // last day of month
 
     if (studentId) {
       // Student monthly report
@@ -50,7 +56,7 @@ export async function GET(req: NextRequest) {
       const absent = records.filter(r => r.status === "ABSENT").length;
       const leave = records.filter(r => r.status === "LEAVE").length;
       const total = records.length;
-      const percentage = total > 0 ? Math.round(((present + leave) / total) * 100 * 10) / 10 : 0;
+      const percentage = ruleRate(records, rule);
 
       return Response.json({
         type: "student",
@@ -88,17 +94,23 @@ export async function GET(req: NextRequest) {
       });
       if (!cls) throw new ApiError("Class not found", 404);
 
-      const students = await prisma.student.findMany({
+      // SKAI-1407: a row belongs to the class it was taken in. Pupils who moved out mid-month keep their earlier rows here.
+      const classRecords = await prisma.attendance.findMany({
+        where: { classId, campusId, date: { gte: startDate, lte: endDate } },
+        select: { studentId: true, status: true, date: true },
+      });
+      const currentStudents = await prisma.student.findMany({
         where: { classId, campusId },
         select: { id: true, fullName: true, rollNo: true, profileImageUrl: true },
         orderBy: { rollNo: "asc" },
       });
-
-      const studentIds = students.map(s => s.id);
-      const records = await prisma.attendance.findMany({
-        where: { studentId: { in: studentIds }, campusId, date: { gte: startDate, lte: endDate } },
-        select: { studentId: true, status: true, date: true },
-      });
+      const currentIds = new Set(currentStudents.map(s => s.id));
+      const movedOutIds = [...new Set(classRecords.map(r => r.studentId))].filter(id => !currentIds.has(id));
+      const movedOut = movedOutIds.length
+        ? await prisma.student.findMany({ where: { id: { in: movedOutIds }, campusId }, select: { id: true, fullName: true, rollNo: true, profileImageUrl: true }, orderBy: { rollNo: "asc" } })
+        : [];
+      const students = [...currentStudents, ...movedOut];
+      const records = classRecords;
 
       // Group by student
       const studentStats = students.map(student => {
@@ -107,7 +119,7 @@ export async function GET(req: NextRequest) {
         const absent = studentRecords.filter(r => r.status === "ABSENT").length;
         const leave = studentRecords.filter(r => r.status === "LEAVE").length;
         const total = studentRecords.length;
-        const percentage = total > 0 ? Math.round(((present + leave) / total) * 100 * 10) / 10 : 0;
+        const percentage = ruleRate(studentRecords, rule);
 
         // Calculate consecutive absences
         const sortedRecords = studentRecords.sort((a, b) => b.date.getTime() - a.date.getTime());
@@ -158,17 +170,18 @@ export async function GET(req: NextRequest) {
       }),
       prisma.attendance.findMany({
         where: { campusId, date: { gte: startDate, lte: endDate } },
-        select: { studentId: true, status: true, student: { select: { classId: true } } },
+        select: { studentId: true, status: true, classId: true, student: { select: { classId: true } } },
       }),
     ]);
 
+    // SKAI-1407: group by the class each row was taken in. Rows without a stored class fall back to the current class.
     const classSummaries = classes.map(cls => {
-      const classRecords = allRecords.filter(r => r.student.classId === cls.id);
+      const classRecords = allRecords.filter(r => (r.classId ?? r.student.classId) === cls.id);
       const present = classRecords.filter(r => r.status === "PRESENT").length;
       const absent = classRecords.filter(r => r.status === "ABSENT").length;
       const leave = classRecords.filter(r => r.status === "LEAVE").length;
       const total = classRecords.length;
-      const percentage = total > 0 ? Math.round(((present + leave) / total) * 100 * 10) / 10 : 0;
+      const percentage = ruleRate(classRecords, rule);
 
       return {
         classId: cls.id,
@@ -181,16 +194,15 @@ export async function GET(req: NextRequest) {
     const totalPresent = allRecords.filter(r => r.status === "PRESENT").length;
     const totalAbsent = allRecords.filter(r => r.status === "ABSENT").length;
     const totalLeave = allRecords.filter(r => r.status === "LEAVE").length;
-    const overallPercentage = allRecords.length > 0
-      ? Math.round(((totalPresent + totalLeave) / allRecords.length) * 100 * 10) / 10
-      : 0;
+    const overallPercentage = ruleRate(allRecords, rule);
 
     // Count at-risk students campus-wide
     const studentAttendance = new Map<string, { present: number; total: number }>();
     for (const r of allRecords) {
       const entry = studentAttendance.get(r.studentId) || { present: 0, total: 0 };
+      if (rule.excluded.includes(r.status)) continue;
       entry.total++;
-      if (r.status === "PRESENT" || r.status === "LEAVE") entry.present++;
+      if (rule.attended.includes(r.status)) entry.present++;
       studentAttendance.set(r.studentId, entry);
     }
     const atRiskCount = Array.from(studentAttendance.values()).filter(s => s.total > 0 && (s.present / s.total) * 100 < 75).length;

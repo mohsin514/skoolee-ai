@@ -4,13 +4,15 @@ import {
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
     const user = await requireAuthUser();
-    if (user.role !== "SUPER_ADMIN") throw new ApiError("Forbidden", 403);
+    // G12: the institution authority (group admin, or the school admin of a single school), school-scoped.
+    if (!isInstitutionAuthority(user)) throw new ApiError("Only the institution administrator can open this.", 403);
 
     const schoolId = user.schoolId;
 
@@ -39,6 +41,7 @@ export async function GET() {
       prisma.superAdminAuditLog.count({
         where: {
           createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+          OR: [{ user: { schoolId } }, { newValues: { path: ["schoolId"], equals: schoolId } }],
         },
       }),
       prisma.payment.aggregate({

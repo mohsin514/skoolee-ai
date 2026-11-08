@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ruleRate } from "@/lib/attendance";
+import { attendanceRuleFor } from "@/lib/attendance/rule";
+import { dayKey, expectedDays, unmarkedPupilDays } from "@/lib/attendance/period-unmarked";
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,6 +12,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const period = searchParams.get("period") || "today";
+    if (!["today", "week", "month"].includes(period)) throw new ApiError("Invalid attendance period", 400);
     const campusId = user.role === "SUPER_ADMIN"
       ? await resolveCampusId(user, searchParams.get("campusId"))
       : await resolveCampusId(user, user.campusId);
@@ -33,7 +37,7 @@ export async function GET(req: NextRequest) {
       prisma.student.count({ where: { campusId, campus: { schoolId: user.schoolId } } }),
       prisma.attendance.findMany({
         where: { campusId, date: { gte: startDate, lte: endDate } },
-        select: { status: true, studentId: true, date: true, student: { select: { classId: true } } },
+        select: { status: true, studentId: true, date: true, classId: true },
       }),
       prisma.class.findMany({
         where: { campusId, campus: { schoolId: user.schoolId } },
@@ -46,13 +50,12 @@ export async function GET(req: NextRequest) {
     const absent = records.filter(r => r.status === "ABSENT").length;
     const leave = records.filter(r => r.status === "LEAVE").length;
 
-    // Per-class breakdown for today only
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    const todayRecords = records.filter(r => r.date >= todayStart);
-
+    const rule = await attendanceRuleFor(user.schoolId);
+    const keyed = records.map(r => ({ ...r, day: dayKey(r.date) }));
+    // SKAI-1537: unmarked counts pupil-days over the expected school days, in the same unit as marked.
+    const days = expectedDays(startDate, endDate, keyed.map(r => r.day));
     const classBreakdown = classCounts.map(cls => {
-      const classRecords = todayRecords.filter(r => r.student.classId === cls.id);
+      const classRecords = records.filter(r => r.classId === cls.id);
       return {
         classId: cls.id,
         className: [cls.name, cls.section].filter(Boolean).join(" "),
@@ -61,15 +64,15 @@ export async function GET(req: NextRequest) {
         absent: classRecords.filter(r => r.status === "ABSENT").length,
         leave: classRecords.filter(r => r.status === "LEAVE").length,
         marked: classRecords.length,
-        unmarked: cls._count.students - classRecords.length,
+        unmarked: unmarkedPupilDays(cls._count.students, days, keyed.filter(r => r.classId === cls.id).map(r => ({ studentId: r.studentId, date: r.day }))),
+        percentage: ruleRate(classRecords, rule),
       };
     });
 
     // Unique dates with attendance
     const uniqueDates = new Set(records.map(r => r.date.toISOString().slice(0, 10)));
-    const attendanceRate = records.length > 0
-      ? Math.round(((present + leave) / records.length) * 100 * 10) / 10
-      : 0;
+    // SKO-405: the school's published counting rule.
+    const attendanceRate = ruleRate(records, rule);
 
     return Response.json({
       period,
@@ -78,6 +81,7 @@ export async function GET(req: NextRequest) {
       totalRecords: records.length,
       attendanceRate,
       daysTracked: uniqueDates.size,
+      schoolDays: days.size,
       classBreakdown,
     });
   } catch (error) {

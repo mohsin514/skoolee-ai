@@ -12,6 +12,10 @@ import { cn } from "@/lib/utils";
  *
  * Built on the existing `.skeleton-shimmer` / `.animate-skeleton-in` styles in
  * globals.css so everything shimmers identically.
+ *
+ * These sit INSIDE the shell's one page card (addendum 2026-10-22): rows and tiles use the same token surfaces as
+ * the real rows (`bg-card`) and panels (`sk-panel`), never a card of their own around the page. The whole-page
+ * placeholder (PageCard + PageHeader + body) is `PageSkeleton` in role-dashboard/RoleShellSkeleton.tsx.
  */
 
 export function Skeleton({
@@ -24,7 +28,7 @@ export function Skeleton({
 }) {
   return (
     <div
-      className={cn("skeleton-shimmer rounded-lg bg-[#e8e0ec]/50", className)}
+      className={cn("skeleton-shimmer rounded-lg bg-border-subtle/50", className)}
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
       aria-hidden="true"
     />
@@ -52,7 +56,7 @@ export function SkeletonBar({
       aria-hidden="true"
       className={cn(
         "skeleton-shimmer rounded-2xl",
-        tone === "dark" ? "bg-white/12" : "bg-[#e8e0ec]/55",
+        tone === "dark" ? "bg-white/12" : "bg-border-subtle/55",
         className,
       )}
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
@@ -73,7 +77,7 @@ export function SkeletonRegion({
   return (
     <div className={className} role="status" aria-busy="true" aria-label={label}>
       {children}
-      <span className="sr-only">{label}…</span>
+      <span className="sr-only">{/(?:…|\.\.\.)$/.test(label) ? label : `${label}…`}</span>
     </div>
   );
 }
@@ -93,7 +97,7 @@ export function SkeletonList({
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="animate-skeleton-in flex items-center gap-4 rounded-2xl border border-[#cfc2d6]/10 bg-white p-4"
+          className="animate-skeleton-in flex items-center gap-4 rounded-2xl border border-edge/10 bg-card p-4"
           style={{ animationDelay: `${i * 60}ms` }}
         >
           <Skeleton className="h-11 w-11 shrink-0 rounded-xl" />
@@ -108,7 +112,7 @@ export function SkeletonList({
   );
 }
 
-/** Card grid — for dashboards and stat tiles. */
+/** Card grid — for dashboards and stat tiles (the `sk-panel` tile shape StatTile and TileSkeleton use). */
 export function SkeletonCards({
   count = 4,
   className,
@@ -129,7 +133,7 @@ export function SkeletonCards({
         <div
           key={i}
           className={cn(
-            "animate-skeleton-in rounded-[24px] border border-[#cfc2d6]/12 bg-white p-5",
+            "sk-panel animate-skeleton-in p-5",
             cardClassName,
           )}
           style={{ animationDelay: `${i * 80}ms` }}
@@ -158,13 +162,13 @@ export function SkeletonTable({
   return (
     <SkeletonRegion
       className={cn(
-        "overflow-hidden rounded-2xl border border-[#cfc2d6]/12 bg-white",
+        "overflow-hidden rounded-2xl border border-edge/12 bg-card",
         className,
       )}
       label={label}
     >
       <div
-        className="grid gap-4 border-b border-[#cfc2d6]/12 bg-[#faf7fc] px-4 py-3"
+        className="grid gap-4 border-b border-edge/12 bg-surface-subtle px-4 py-3"
         style={{ gridTemplateColumns: `repeat(${columns}, minmax(0,1fr))` }}
       >
         {Array.from({ length: columns }).map((_, i) => (
@@ -174,7 +178,7 @@ export function SkeletonTable({
       {Array.from({ length: rows }).map((_, r) => (
         <div
           key={r}
-          className="animate-skeleton-in grid gap-4 border-b border-[#cfc2d6]/8 px-4 py-3 last:border-0"
+          className="animate-skeleton-in grid gap-4 border-b border-edge/8 px-4 py-3 last:border-0"
           style={{
             gridTemplateColumns: `repeat(${columns}, minmax(0,1fr))`,
             animationDelay: `${r * 50}ms`,

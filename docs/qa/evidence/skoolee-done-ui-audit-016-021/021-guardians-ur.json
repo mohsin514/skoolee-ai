@@ -1,0 +1,49 @@
+{
+  "surface": "021-guardians",
+  "route": "/dashboard/guardians",
+  "status": 200,
+  "language": "ur",
+  "dir": null,
+  "title": "Dashboard | SkooleeAI",
+  "headings": [
+    "سرپرست اور رسائی",
+    "موجودہ سرپرست",
+    "سرپرست شامل کریں"
+  ],
+  "dimensions": [
+    {
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "lang": "en",
+      "dir": "ltr",
+      "noOverflow": true,
+      "screenshot": "021-guardians-ur-1440.png"
+    },
+    {
+      "viewport": 768,
+      "scrollWidth": 768,
+      "lang": "en",
+      "dir": "ltr",
+      "noOverflow": true,
+      "screenshot": "021-guardians-ur-768.png"
+    },
+    {
+      "viewport": 390,
+      "scrollWidth": 390,
+      "lang": "en",
+      "dir": "ltr",
+      "noOverflow": true,
+      "screenshot": "021-guardians-ur-390.png"
+    }
+  ],
+  "focus": {
+    "tag": "A",
+    "text": "Dashboard",
+    "visible": true,
+    "outlineStyle": "solid",
+    "outlineWidth": "2px"
+  },
+  "pageErrors": [
+    "Invalid or unexpected token"
+  ]
+}

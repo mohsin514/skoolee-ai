@@ -1,3 +1,4 @@
+import { withExamSchedulingWrite, resolveExamSchedulingCampus } from "@/lib/academic/exam-scheduling-write";
 import { NextRequest } from "next/server";
 import {
   assertPermission,
@@ -5,9 +6,10 @@ import {
   canManageOperations,
   errorResponse,
   requireAuthUser,
-  resolveCampusId,
 } from "@/lib/api/scope";
 import { allocateExamRooms, getSeatingPlan } from "@/lib/academic/exam-rooms";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Multi-room exam seating (§58).
 //
@@ -22,10 +24,12 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     assertStaffRole(user);
-    const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
+    // SKAI-1300: staff roles without exam access must not read planning or seating.
+    await assertPermission(user, "exams", "view");
     const scheduleId = req.nextUrl.searchParams.get("scheduleId");
     if (!scheduleId) return Response.json({ error: "scheduleId is required" }, { status: 400 });
 
+    const campusId = await resolveExamSchedulingCampus(user, req.nextUrl.searchParams.get("campusId"), { kind: "schedule", id: scheduleId });
     return Response.json({ success: true, data: await getSeatingPlan(campusId, scheduleId) });
   } catch (error) {
     return errorResponse(error, "[exam-schedule/rooms] GET failed");
@@ -40,16 +44,18 @@ export async function PUT(req: NextRequest) {
     }
     await assertPermission(user, "exams", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const scheduleId = String(body.scheduleId ?? "");
     const roomIds = Array.isArray(body.roomIds) ? body.roomIds.map(String) : null;
     if (!scheduleId || !roomIds) {
       return Response.json({ error: "scheduleId and roomIds[] are required" }, { status: 400 });
     }
 
-    const campusId = await resolveCampusId(user, body.campusId);
-    const plan = await allocateExamRooms({ campusId, scheduleId, roomIds });
+    const campusId = await resolveExamSchedulingCampus(user, body.campusId, { kind: "schedule", id: scheduleId });
+    return await withExamSchedulingWrite(user, campusId, "edit", async (prisma) => {
+    const plan = await allocateExamRooms({ db: prisma, campusId, scheduleId, roomIds });
     return Response.json({ success: true, data: plan });
+    });
   } catch (error) {
     return errorResponse(error, "[exam-schedule/rooms] PUT failed");
   }

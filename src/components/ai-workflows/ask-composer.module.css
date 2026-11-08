@@ -1,0 +1,20 @@
+/* A single rounded focus surface, including the toolbar. */
+.composer[data-field-shell] {
+  border-radius: 1.75rem;
+  border-color: color-mix(in srgb, var(--brand-500) 16%, var(--field-border));
+}
+.composer[data-field-shell]:focus-within {
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-500) 13%, transparent),
+    0 8px 30px -10px color-mix(in srgb, var(--brand-500) 32%, transparent);
+}
+.composer > .field,
+.composer > .field:focus-within {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+@media (forced-colors: active) {
+  .composer[data-field-shell]:focus-within { outline: 2px solid Highlight; }
+}

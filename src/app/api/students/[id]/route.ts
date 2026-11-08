@@ -3,11 +3,12 @@ import { prisma } from "@/lib/db/prisma";
 import {
   assertPermission,
   assertStaffRole,
-  canManageOperations,
+  canManageAcademics,
   errorResponse,
   requireAuthUser,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { resolveGuardianName, verifiedGuardianLinkInclude } from "@/lib/students/guardian-display";
 
 // GET /api/students/<id> — the full record behind one student.
 //
@@ -24,7 +25,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const user = await requireAuthUser();
     assertStaffRole(user);
-    if (!canManageOperations(user)) {
+    if (!canManageAcademics(user)) {
       return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     }
     await assertPermission(user, "students", "view");
@@ -39,6 +40,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         category: { select: { id: true, name: true } },
         group: { select: { id: true, name: true } },
         documents: { select: { id: true, kind: true, fileName: true } },
+        guardianRelationships: verifiedGuardianLinkInclude(user.schoolId),
         reportCards: {
           select: {
             id: true,
@@ -58,7 +60,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     if (!student) return Response.json({ error: "Student not found" }, { status: 404 });
-    return Response.json({ success: true, data: student });
+    const { guardianRelationships, ...profile } = student;
+    return Response.json({
+      success: true,
+      data: { ...profile, guardianName: resolveGuardianName(student, guardianRelationships) },
+    });
   } catch (error) {
     return errorResponse(error, "[students/id] GET failed");
   }

@@ -1,27 +1,20 @@
 import { NextRequest } from "next/server";
-import { errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { assertFeesRead, errorResponse, requireAuthUser } from "@/lib/api/scope";
 
+/**
+ * SKAI-1765: invoice generation is synchronous — POST /api/fees/generate-invoices returns the outcome
+ * itself and persists no job. This endpoint used to answer "completed" for any month-shaped id, including
+ * months never generated and other schools' months. With no job to resolve, every id is not found; the
+ * fees-read check still runs first.
+ */
 export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ jobId: string }> }
+  _req: NextRequest,
+  _ctx: { params: Promise<{ jobId: string }> }
 ) {
   try {
     const user = await requireAuthUser();
-    const { jobId } = await params;
-
-    const match = jobId.match(/^invoice-gen-(\d{4}-\d{2})$/);
-    if (!match) {
-      return Response.json({ error: "Invalid job ID format" }, { status: 400 });
-    }
-
-    const generationMonth = match[1];
-
-    return Response.json({
-      success: true,
-      jobId,
-      status: "completed",
-      message: `Invoice generation for ${generationMonth} completed`,
-    });
+    await assertFeesRead(user);
+    return Response.json({ error: "Invoice generation job not found" }, { status: 404 });
   } catch (error) {
     return errorResponse(error, "[fees/generation-job] GET failed");
   }

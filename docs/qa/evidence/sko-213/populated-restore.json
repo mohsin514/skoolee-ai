@@ -1,0 +1,46 @@
+{
+  "destination": "127.0.0.1:55413/sko213_restored",
+  "syntheticOnly": true,
+  "checks": [
+    {
+      "table": "corrections",
+      "rows": 18,
+      "identicalContentHash": true
+    },
+    {
+      "table": "correction_notes",
+      "rows": 18,
+      "identicalContentHash": true
+    },
+    {
+      "table": "payment_allocations",
+      "rows": 28,
+      "identicalContentHash": true
+    },
+    {
+      "table": "payment_receipts",
+      "rows": 24,
+      "identicalContentHash": true
+    },
+    {
+      "table": "payments",
+      "rows": 24,
+      "identicalContentHash": true
+    },
+    {
+      "table": "invoices",
+      "rows": 14,
+      "identicalContentHash": true
+    },
+    {
+      "table": "ledger_entries",
+      "rows": 24,
+      "identicalContentHash": true
+    },
+    {
+      "table": "report_versions",
+      "rows": 6,
+      "identicalContentHash": true
+    }
+  ]
+}

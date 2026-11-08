@@ -90,7 +90,12 @@ export function fixtureFor(role: UserRole): RoleFixture {
  * Keyed by role, mapping a requested path to where it legitimately lands.
  */
 export const DOCUMENTED_REDIRECTS: Partial<Record<UserRole, Record<string, string>>> = {
+  // The legacy /dashboard console is retired (SPEC §6.1): every role lands on its own console.
   APP_OWNER: { "/dashboard": "/owner", "/super": "/owner" },
   SUPER_ADMIN: { "/dashboard": "/super" },
+  CAMPUS_ADMIN: { "/dashboard": "/admin" },
+  ADMIN: { "/dashboard": "/admin" },
   PRINCIPAL: { "/dashboard": "/principal" },
+  TEACHER: { "/dashboard": "/teacher" },
+  ACCOUNTANT: { "/dashboard": "/accountant" },
 };
