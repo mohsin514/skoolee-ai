@@ -15,6 +15,8 @@ import {
 import { getYearClosureReport } from "@/lib/academic/year-closure";
 import { admissionNumberAllocator } from "@/lib/students/admission-number";
 import { writeAuditEvent } from "@/lib/audit-events";
+import { lockTimetableCampus } from "@/lib/timetable/locking";
+import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -76,53 +78,58 @@ export async function POST(req: NextRequest) {
     if (action === "close-year") {
       const { academicYear, force } = body;
       if (!academicYear) throw new ApiError("academicYear is required", 400);
+      const year = Number(academicYear);
 
       /**
        * This archives students into history and marks classes COMPLETED, so it
        * is subject to the same gate as ending the cycle. Without this an admin
        * could bypass the checklist entirely through the Academic Years screen.
+       *
+       * SKAI-1439: the checklist and the writes run in one serializable transaction holding the campus
+       * lock, the same lock exam and timetable writes take, so a concurrent edit cannot slip in between.
        */
-      const closure = await getYearClosureReport(campusId, Number(academicYear));
-      if (!closure.canClose) {
-        // G35: force-closing an unready year is the academic lead's call (SA removed) — the principal,
-        // or a campus operator only while the campus has no principal.
-        const leadsAcademics = Boolean(force) && await canLeadAcademics(user, campusId);
-        if (!force || !leadsAcademics) {
-          throw new ApiError(
-            `Academic year ${academicYear} is not ready to close. ${closure.blockingReasons.join(" ")}`,
-            409,
-          );
+      const closed = await schoolAiTransaction(user, async (tx) => {
+        await lockTimetableCampus(tx, user.schoolId, campusId);
+        const closure = await getYearClosureReport(campusId, year, tx);
+        if (!closure.canClose) {
+          // G35: force-closing an unready year is the academic lead's call (SA removed) — the principal,
+          // or a campus operator only while the campus has no principal.
+          const leadsAcademics = Boolean(force) && await canLeadAcademics(user, campusId);
+          if (!force || !leadsAcademics) {
+            throw new ApiError(
+              `Academic year ${academicYear} is not ready to close. ${closure.blockingReasons.join(" ")}`,
+              409,
+            );
+          }
         }
-      }
-      // A forced close overrides outstanding checklist items, so the academic lead must say why on the server too.
-      const overrideReason = !closure.canClose ? String(body.reason ?? "").trim() : "";
-      if (!closure.canClose && overrideReason.length < 10) {
-        throw new ApiError("Give a reason of at least 10 characters to close a year with outstanding work.", 400);
-      }
+        // A forced close overrides outstanding checklist items, so the academic lead must say why on the server too.
+        const overrideReason = !closure.canClose ? String(body.reason ?? "").trim() : "";
+        if (!closure.canClose && overrideReason.length < 10) {
+          throw new ApiError("Give a reason of at least 10 characters to close a year with outstanding work.", 400);
+        }
 
-      const classes = await prisma.class.findMany({
-        where: { campusId, academicYear, status: "ACTIVE" },
-        include: {
-          students: {
-            select: {
-              id: true,
-              rollNo: true,
-              fullName: true,
-              admissionNo: true,
-              reportCards: {
-                where: { exam: { academicYear } },
-                select: { percentage: true, grade: true },
-                orderBy: { generatedAt: "desc" },
-                take: 1,
+        const classes = await tx.class.findMany({
+          where: { campusId, academicYear, status: "ACTIVE" },
+          include: {
+            students: {
+              select: {
+                id: true,
+                rollNo: true,
+                fullName: true,
+                admissionNo: true,
+                reportCards: {
+                  where: { exam: { academicYear } },
+                  select: { percentage: true, grade: true },
+                  orderBy: { generatedAt: "desc" },
+                  take: 1,
+                },
               },
             },
           },
-        },
-      });
+        });
 
-      if (classes.length === 0) throw new ApiError("No active classes found for this year", 404);
+        if (classes.length === 0) throw new ApiError("No active classes found for this year", 404);
 
-      await prisma.$transaction(async (tx) => {
         // SKAI-1680: one close per campus/year. The lock serialises simultaneous closes; claiming the classes
         // ACTIVE -> COMPLETED up front means a second close finds them gone, rolls back and never re-notifies.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`academic-year-close:${user.schoolId}:${campusId}:${academicYear}`}))`;
@@ -174,6 +181,11 @@ export async function POST(req: NextRequest) {
             after: { status: "CLOSED", forced: true, overrideReason: overrideReason.slice(0, 1000), overrideReasons: closure.blockingReasons.join(" ").slice(0, 1000) },
           });
         }
+
+        return {
+          closedClasses: classes.length,
+          totalStudents: classes.reduce((sum, c) => sum + c.students.length, 0),
+        };
       });
 
       notify("ACADEMIC_YEAR_CLOSED", {
@@ -186,9 +198,9 @@ export async function POST(req: NextRequest) {
 
       return Response.json({
         success: true,
-        message: `Closed ${classes.length} classes for academic year ${academicYear}`,
-        closedClasses: classes.length,
-        totalStudents: classes.reduce((sum, c) => sum + c.students.length, 0),
+        message: `Closed ${closed.closedClasses} classes for academic year ${academicYear}`,
+        closedClasses: closed.closedClasses,
+        totalStudents: closed.totalStudents,
       });
     }
 
