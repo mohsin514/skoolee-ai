@@ -132,6 +132,7 @@
     "test:safepay": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/payments/safepay-webhook.test.ts tests/payments/safepay-simulate-plan.test.ts",
     "test:bank-units": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/payments/bank-statement-units.test.ts",
     "test:admissions-same-child": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/admissions/convert-same-child.test.ts",
+    "test:admissions-intake-seats": "node --import tsx --test tests/admissions/intake-seats.test.ts",
     "test:admissions-waitlist-rank": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/admissions/waitlist-rank-lock.test.ts",
     "test:chat-message-time": "node --import tsx --test tests/chat/message-time.test.ts",
     "test:profile-namesake-link": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/profile/student-namesake-link.test.ts",

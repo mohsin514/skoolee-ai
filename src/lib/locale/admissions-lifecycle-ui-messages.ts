@@ -12,6 +12,7 @@ export const admissionsLifecycleUiEntries: readonly (readonly [string, string, s
   ["Moved down.", "تم النزول مرتبة.", "ایک درجہ نیچے منتقل ہوا۔"],
   ["Family must respond by (optional)", "يجب على الأسرة الرد قبل (اختياري)", "خاندان کو جواب کی آخری تاریخ (اختیاری)"],
   ["Please respond by {0}.", "يرجى الرد قبل {0}.", "براہ کرم {0} تک جواب دیں۔"],
+  ["Offer saved, but this class is over-offered: {0} of {1} seats are taken or offered.", "حُفظ العرض، لكن هذا الصف تجاوز عدد مقاعده: {0} من {1} مقعدًا مشغولة أو معروضة.", "پیشکش محفوظ ہو گئی، لیکن اس کلاس میں گنجائش سے زیادہ پیشکشیں ہیں: {1} میں سے {0} نشستیں لی جا چکی یا پیش کی جا چکی ہیں۔"],
 ];
 export const arabicAdmissionsLifecycleUi: Record<string, string> = Object.fromEntries(admissionsLifecycleUiEntries.map(([key, ar]) => [key, ar]));
 export const urduAdmissionsLifecycleUi: Record<string, string> = Object.fromEntries(admissionsLifecycleUiEntries.map(([key, , ur]) => [key, ur]));
