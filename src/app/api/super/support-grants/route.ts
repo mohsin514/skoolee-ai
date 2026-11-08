@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, requireAuthUser } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { stopSupportGrant } from "@/lib/owner/support-access";
 import { prisma as basePrisma } from "@/lib/db/prisma";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
@@ -19,15 +20,15 @@ export async function GET() {
       include: { incident: { select: { reference: true, purpose: true, impact: true, status: true } } },
       orderBy: { createdAt: "desc" }, take: 50,
     });
-    return Response.json({ success: true, data: grants });
-  } catch (error) { return errorResponse(error, "[super/support-grants] GET failed"); }
+    return ok(grants);
+  } catch (error) { return failFrom(error, "[super/support-grants] GET failed"); }
 }
 
 export async function PATCH(req: NextRequest) {
   try {
     const actor = await requireAuthUser();
     if (!isInstitutionAuthority(actor)) throw new ApiError("Only the institution administrator can review support access.", 403);
-    if (actor.mfaVerified !== true) return Response.json({ error: "Turn on two-step sign-in before you review support access.", code: "MFA_REQUIRED" }, { status: 403 });
+    if (actor.mfaVerified !== true) throw new ApiError("Turn on two-step sign-in before you review support access.", 403, "MFA_REQUIRED");
     const { grantId, decision, evidence } = await parseBody(req, jsonObjectBody);
     if (typeof grantId !== "string" || !["approve", "reject", "review", "revoke"].includes(decision)) throw new ApiError("Invalid support review", 400);
     const grant = await prisma.supportGrant.findFirst({ where: { id: grantId, schoolId: actor.schoolId } });
@@ -40,11 +41,11 @@ export async function PATCH(req: NextRequest) {
         await tx.superAdminAuditLog.create({ data: { userId: actor.userId, action: `support_access_${nextStatus}`, targetType: "support_grant", targetId: grant.id, newValues: { schoolId: actor.schoolId } } });
         return tx.supportGrant.findUniqueOrThrow({ where: { id: grant.id } });
       });
-      return Response.json({ success: true, data: updated });
+      return ok(updated);
     }
     if (decision === "revoke" && grant.status === "active") {
       const updated = await stopSupportGrant(grant.id, actor.userId);
-      return Response.json({ success: true, data: updated });
+      return ok(updated);
     }
     if (grant.emergencyReason && decision === "review" && grant.status === "active") {
       const note = typeof evidence === "string" ? evidence.trim() : "";
@@ -55,8 +56,8 @@ export async function PATCH(req: NextRequest) {
         await tx.superAdminAuditLog.create({ data: { userId: actor.userId, action: "support_emergency_access_reviewed", targetType: "support_grant", targetId: grant.id, newValues: { schoolId: actor.schoolId, evidence: note } } });
         return tx.supportGrant.findUniqueOrThrow({ where: { id: grant.id } });
       });
-      return Response.json({ success: true, data: updated });
+      return ok(updated);
     }
     throw new ApiError("This grant cannot be changed in its current state", 409);
-  } catch (error) { return errorResponse(error, "[super/support-grants] PATCH failed"); }
+  } catch (error) { return failFrom(error, "[super/support-grants] PATCH failed"); }
 }
