@@ -1,7 +1,7 @@
 // SKAI-1788: the QA seed creates a synthetic platform owner (APP_OWNER).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PLATFORM_OWNER, SCHOOLS, mergeCredentials } from "../../scripts/qa/pilot-seed-plan";
+import { PLATFORM_OWNER, SCHOOLS, mergeCredentials, platformOwnerBlockedBy } from "../../scripts/qa/pilot-seed-plan";
 
 test("the platform owner is a synthetic APP_OWNER hosted by a seeded QA school", () => {
   assert.equal(PLATFORM_OWNER.role, "APP_OWNER");
@@ -20,4 +20,10 @@ test("merging replaces the same account and keeps every other lane credential", 
   assert.equal(merged.find((a) => a.role === "admin")?.password, "keep");
   assert.equal(merged.find((a) => a.role === "platform-owner")?.password, "new");
   assert.equal(mergeCredentials([], merged).length, 2);
+});
+
+test("the QA owner is skipped when a different platform owner already exists (single-owner DBs)", () => {
+  assert.equal(platformOwnerBlockedBy([]), null);
+  assert.equal(platformOwnerBlockedBy([PLATFORM_OWNER.email.toUpperCase()]), null);
+  assert.equal(platformOwnerBlockedBy(["owner@real.example"]), "owner@real.example");
 });
