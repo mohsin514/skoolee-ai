@@ -69,18 +69,32 @@ export async function sync(user: AuthUser, body: Record<string, unknown>) {
   const ops = (Array.isArray(body.operations) ? body.operations : []) as Op[];
   if (ops.length > 300) throw new ApiError("Send at most 300 changes at a time.", 400);
   const outcomes: Outcome[] = [];
+  // SKAI-743: access to the class register (and the pupil on it) is checked before any server value is read, so a
+  // caller without access never sees the current record. Replays never echo a refused operation's server value.
+  const rosters = new Map<string, Promise<Set<string> | null>>();
+  const roster = (classId: string, date: string) => {
+    const key = `${classId}|${date}`;
+    if (!rosters.has(key)) rosters.set(key, registerView(user, classId, date).then(v => new Set(v.entries.map(e => e.studentId)), (error: unknown) => {
+      if (error instanceof ApiError && (error.status === 403 || error.status === 404)) return null;
+      throw error;
+    }));
+    return rosters.get(key)!;
+  };
+  const replay = (o: Outcome): Outcome => (o.status === "REJECTED_ACCESS" ? { ...o, server: undefined } : o);
+  const refused = "Your access to this class changed. An authorised reviewer can decide this change.";
   for (const op of [...ops].sort((a, b) => String(a.capturedAt).localeCompare(String(b.capturedAt)))) {
     if (!op?.operationId || op.kind !== "ATTENDANCE_MARK" || !op.classId || !/^\d{4}-\d{2}-\d{2}$/.test(op.date) || !op.studentId || !STATUSES.includes(op.payload?.status)) { outcomes.push({ operationId: String(op?.operationId ?? ""), status: "INVALID", message: "This change is not a supported offline action." }); continue; }
     const prior = await prisma.offlineOperation.findFirst({ where: { schoolId: user.schoolId, operationId: op.operationId } });
     if (prior) {
       // The same operation from another account is never revealed or applied.
       if (prior.userId !== user.userId) { outcomes.push({ operationId: op.operationId, status: "INVALID", message: "This change belongs to another account." }); continue; }
-      outcomes.push({ operationId: op.operationId, status: prior.status, message: prior.message, server: prior.serverValue, repeated: true }); continue;
+      outcomes.push(replay({ operationId: op.operationId, status: prior.status, message: prior.message, server: prior.serverValue, repeated: true })); continue;
     }
     const captured = new Date(op.capturedAt);
     if (Number.isNaN(captured.getTime()) || captured.getTime() > Date.now() + 5 * 60_000) { outcomes.push(await record(user, deviceId, op, "EXPIRED", { message: "The capture time is not valid." })); continue; }
     if (captured.getTime() < Date.now() - MAX_AGE_DAYS * 86_400_000) { outcomes.push(await record(user, deviceId, op, "EXPIRED", { message: `Changes older than ${MAX_AGE_DAYS} days are not synced. Mark the register again online.` })); continue; }
     if (op.date > await schoolToday(user.schoolId, user.campusId)) { outcomes.push(await record(user, deviceId, op, "EXPIRED", { message: "Attendance cannot be recorded for a future day." })); continue; }
+    if (!(await roster(op.classId, op.date))?.has(op.studentId)) { outcomes.push(replay(await record(user, deviceId, op, "REJECTED_ACCESS", { message: refused }))); continue; }
     const now = await current(user, op.studentId, op.date);
     if ((now?.version ?? 0) !== (op.base?.version ?? 0)) { outcomes.push(await record(user, deviceId, op, "CONFLICT", { message: "A newer entry was recorded after this was captured.", serverValue: now, attendanceId: now?.id })); continue; }
     try {
@@ -91,10 +105,10 @@ export async function sync(user: AuthUser, body: Record<string, unknown>) {
     } catch (error) {
       if (!(error instanceof ApiError)) throw error;
       const access = error.status === 403 || error.status === 404;
-      outcomes.push(await record(user, deviceId, op, access ? "REJECTED_ACCESS" : "CONFLICT", { message: access ? "Your access to this class changed. An authorised reviewer can decide this change." : error.message, serverValue: now }));
+      outcomes.push(replay(await record(user, deviceId, op, access ? "REJECTED_ACCESS" : "CONFLICT", { message: access ? refused : error.message, serverValue: access ? undefined : now })));
     }
   }
-  return { outcomes, accepted: outcomes.filter(o => o.status === "ACCEPTED").length };
+  return { outcomes, accepted: outcomes.filter(o => o.status === "ACCEPTED" && !o.repeated).length };
 }
 
 /** The person who captured a conflict decides it: keep the server value, apply theirs over it, or ask for a correction. */
