@@ -237,6 +237,17 @@ export function buildMimeMessage(input: SmtpMailInput, recipients: string[]) {
 }
 
 async function connect(config: SmtpConfig) {
+  let opened: net.Socket | tls.TLSSocket | undefined;
+  try {
+    return await openSession(config, (socket) => { opened = socket; });
+  } catch (error) {
+    // SKAI-745: a refused or dropped connection must reject, never leave a dangling socket.
+    opened?.destroy();
+    throw error;
+  }
+}
+
+async function openSession(config: SmtpConfig, track: (socket: net.Socket | tls.TLSSocket) => void) {
   // SKAI-937/944: EHLO with the sender's domain, not the SMTP login's (e.g. gmail.com).
   const domain = getEmailDomain();
   
@@ -248,12 +259,14 @@ async function connect(config: SmtpConfig) {
       servername: config.host,
       rejectUnauthorized: config.rejectUnauthorized,
     });
+    track(socket);
     await onceSocketEvent(socket, "secureConnect");
   } else {
     socket = net.connect({
       host: config.host,
       port: config.port,
     });
+    track(socket);
     await onceSocketEvent(socket, "connect");
   }
   const greeting = await readResponse(socket);
@@ -270,6 +283,7 @@ async function connect(config: SmtpConfig) {
       servername: config.host,
       rejectUnauthorized: config.rejectUnauthorized,
     });
+    track(socket);
     await onceSocketEvent(socket, "secureConnect");
     await command(socket, `EHLO ${domain}`, [250]);
   }
