@@ -62,7 +62,32 @@ export async function buildCostReport(months: number) {
     return [s.id, { name: s.name, plan: normalizePlan(s.plan), planPricePkr: contract.price, planCredits: contract.aiCredits }];
   }));
   const aggregates: UsageAggregate[] = usage.map(r => ({ schoolId: r.school_id, month: r.month, model: r.model, tokens: Number(r.tokens), credits: Number(r.credits), calls: Number(r.calls) }));
-  return { since: since.toISOString(), rates, rows: computeCostReport(aggregates, plans, rates) };
+  const latest = await runUnscoped("ai cost report: newest usage time across schools", () => prisma.aIUsageLog.findFirst({ where: { createdAt: { gte: since } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }));
+  // SKAI-721: when the figures were computed and the newest usage they include, so the page can show last refresh and staleness.
+  return { since: since.toISOString(), generatedAt: new Date().toISOString(), latestUsageAt: latest?.createdAt.toISOString() ?? null, rates, rows: computeCostReport(aggregates, plans, rates) };
+}
+
+export const DETAIL_LIMIT = 200;
+
+/**
+ * SKAI-721: drill-through from one school-month row to its source ai_usage_logs records. Only metadata the cost
+ * figures are built from is returned (feature, action, model, tokens, credits, time) — never prompts, outputs or user ids.
+ */
+export async function buildCostDetail(schoolId: string, month: string) {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(schoolId)) throw new ApiError("Invalid schoolId", 400);
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
+  if (!match) throw new ApiError("month must be YYYY-MM", 400);
+  const start = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)), end = new Date(Date.UTC(Number(match[1]), Number(match[2]), 1));
+  const rows = await runUnscoped("ai cost report: one school-month of usage records for platform-owner drill-through", () => prisma.aIUsageLog.findMany({
+    where: { schoolId, createdAt: { gte: start, lt: end } }, orderBy: { createdAt: "desc" }, take: DETAIL_LIMIT + 1,
+    select: { id: true, feature: true, action: true, model: true, tokensUsed: true, metadata: true, createdAt: true },
+  }));
+  const records = rows.slice(0, DETAIL_LIMIT).map(r => {
+    const charged = (r.metadata as Record<string, unknown> | null)?.creditsCharged;
+    const credits = typeof charged === "number" && Number.isInteger(charged) && charged >= 0 ? charged : typeof charged === "string" && /^[0-9]{1,9}$/.test(charged) ? Number(charged) : 1;
+    return { id: r.id, feature: r.feature, action: r.action, model: r.model, tokens: r.tokensUsed, credits, createdAt: r.createdAt.toISOString() };
+  });
+  return { schoolId, month, truncated: rows.length > DETAIL_LIMIT, records };
 }
 
 export function costReportCsv(rows: Awaited<ReturnType<typeof buildCostReport>>["rows"]) {

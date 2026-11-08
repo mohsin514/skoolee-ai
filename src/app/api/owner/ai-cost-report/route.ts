@@ -1,17 +1,19 @@
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
-import { buildCostReport, costReportCsv, saveCostRates } from "@/lib/owner/ai-cost-report";
+import { buildCostDetail, buildCostReport, costReportCsv, saveCostRates } from "@/lib/owner/ai-cost-report";
 import { readJsonBody } from "@/lib/api/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store" };
 
-// SKAI-1042: AI cost per credit per school and month. GET ?months=1..24[&format=csv]; PUT {usdPerMillionTokens, pkrPerUsd}.
+// SKAI-1042: AI cost per credit per school and month. GET ?months=1..24[&format=csv] or ?schoolId=&month=YYYY-MM (SKAI-721 drill-through); PUT {usdPerMillionTokens, pkrPerUsd}.
 export async function GET(request: Request) {
   try {
     await requirePlatformOwner();
     const params = new URL(request.url).searchParams;
+    const detailSchool = params.get("schoolId");
+    if (detailSchool !== null) return Response.json({ success: true, data: await buildCostDetail(detailSchool, params.get("month") ?? "") }, { headers: noStore });
     const months = Number(params.get("months") ?? 6);
     const report = await buildCostReport(months);
     if (params.get("format") === "csv") {
