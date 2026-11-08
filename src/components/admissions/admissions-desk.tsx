@@ -207,7 +207,14 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
   const run = async (body: Record<string, unknown>, message: string, method = "PATCH") => {
     if (!detail) return;
     setBusy(true); setError("");
-    try { await send(method, { id, version: detail.version, ...body }); toast.success(message); setOfficeNote(""); setFamilyMessage(""); await load(); }
+    try {
+      const json = await send(method, { id, version: detail.version, ...body });
+      const seats = json.data?.seats as { capacity: number | null; committed: number; over: boolean } | undefined;
+      // SKAI-1257: an offer beyond the class's seats is saved, but the office is told it is over-offering.
+      if (seats?.over) toast.warning(ui("Offer saved, but this class is over-offered: {0} of {1} seats are taken or offered.", [seats.committed, seats.capacity ?? 0]));
+      else toast.success(message);
+      setOfficeNote(""); setFamilyMessage(""); await load();
+    }
     catch (failure) { setError(errorText(ui, failure)); } finally { setBusy(false); }
   };
   const definition = detail?.formVersion.definition;
