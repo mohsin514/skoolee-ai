@@ -26,6 +26,14 @@ test("missing rights, stale editions, source conflicts and past-paper-only sourc
   assert.match(validateContractForPublication({ ...c, unverified: [{ field: "totalMarks", evidenceRequest: "Obtain ToS" }] }, now).join(" "), /Unverified totalMarks/);
 });
 
+test("a coursework-only component needs no duration, but a timed paper still does", () => {
+  const c = synthetic();
+  const coursework = { ...c, paper: { ...c.paper, totalMarks: 40, durationMinutes: undefined, sections: [{ id: "NEA", format: "COURSEWORK" as const, marks: 40, questionCount: 1, attempt: 1 }] } };
+  assert.deepEqual(validateContractForPublication(coursework, now), []);
+  assert.match(validateContractForPublication({ ...c, paper: { ...c.paper, durationMinutes: undefined } }, now).join(" "), /duration are required/);
+  assert.match(validateContractForPublication({ ...coursework, paper: { ...coursework.paper, sections: [...coursework.paper.sections, { id: "P1", format: "LONG", marks: 20, questionCount: 2, attempt: 2 }], totalMarks: 60 } }, now).join(" "), /duration are required/);
+});
+
 test("marks totals, choices and board-specific rules are enforced", () => {
   const c = synthetic();
   assert.match(validateContractForPublication({ ...c, paper: { ...c.paper, totalMarks: 75 } }, now).join(" "), /do not equal/);
