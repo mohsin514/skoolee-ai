@@ -5,7 +5,7 @@ import { NextRequest } from "next/server";
 import { randomUUID } from "crypto";
 import { Prisma, type Student } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { applyEnrollment, classSeats } from "@/lib/students/enrollment";
+import { applyEnrollment, applyGraduation, classSeats, dateOnly } from "@/lib/students/enrollment";
 import {
   ApiError,
   assertPermission,
@@ -294,6 +294,20 @@ export async function PATCH(req: NextRequest) {
           const seats = await classSeats(prisma, { id: classId, capacity: want.capacity });
           if (seats.capacity != null && seats.occupied + want.count > seats.capacity) throw new ApiError(`A class has ${seats.free} free seat(s) for ${want.count} restored pupil(s). Raise its capacity or restore fewer; nobody was restored.`, 409);
         }
+      }
+
+      // SKAI-1470: graduation is a lifecycle boundary, not a status flag. Every selected pupil goes through the
+      // reviewed graduation step in one transaction; an already-graduated pupil is reported unchanged.
+      if (status === "graduated") {
+        const effectiveDate = body.effectiveDate === undefined ? dateOnly(new Date().toISOString().slice(0, 10)) : dateOnly(body.effectiveDate);
+        const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim().slice(0, 500) : "Graduated";
+        const outcomes = await prisma.$transaction(async (tx) => {
+          const rows: { id: string; outcome: "changed" | "unchanged" }[] = [];
+          for (const student of owned) rows.push({ id: student.id, outcome: await applyGraduation(tx, { studentId: student.id, effectiveDate, actorId: user.userId, reason }) });
+          return rows;
+        });
+        const updated = outcomes.filter((o) => o.outcome === "changed").length;
+        return Response.json({ success: true, updated, unchanged: outcomes.length - updated, outcomes, status });
       }
 
       const archiveReason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim().slice(0, 500) : "Administrative archive";

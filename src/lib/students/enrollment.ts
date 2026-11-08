@@ -149,6 +149,35 @@ export async function applyWithdrawal(tx: TxClient, input: { studentId: string; 
 }
 
 /**
+ * SKAI-1470: bulk graduation closes each pupil's open placement as GRADUATED at the boundary, archives the
+ * pupil, revokes the student login and sessions, and writes timeline plus audit evidence. A pupil whose
+ * latest placement is already GRADUATED is "unchanged"; one with no open placement needs reconciliation.
+ * Run inside one transaction so a refusal for any pupil leaves every selected pupil untouched.
+ */
+export async function applyGraduation(tx: TxClient, input: { studentId: string; effectiveDate: Date; actorId: string; reason: string }): Promise<"changed" | "unchanged"> {
+  const pupil = await tx.student.findFirst({ where: { id: input.studentId, consolidatedIntoId: null } });
+  if (!pupil) throw new ApiError("Pupil not found", 404);
+  const from = await tx.studentEnrollment.findFirst({ where: { studentId: pupil.id, endDate: null, status: "ACTIVE" } });
+  if (!from) {
+    const last = await tx.studentEnrollment.findFirst({ where: { studentId: pupil.id, endDate: { not: null } }, orderBy: { endDate: "desc" } });
+    if (last?.status === "GRADUATED") return "unchanged";
+    throw new ApiError("A selected pupil has no open placement to graduate. Reconcile their enrolment; nobody was graduated.", 409);
+  }
+  if (input.effectiveDate <= from.startDate || input.effectiveDate > new Date()) throw new ApiError("Graduation must be after the current enrollment began and no later than today; nobody was graduated.", 409);
+  // Claim the open placement; a concurrent graduation of the same pupil finds nothing left to close.
+  const claimed = await tx.studentEnrollment.updateMany({ where: { id: from.id, endDate: null, status: "ACTIVE" }, data: { endDate: input.effectiveDate, status: "GRADUATED" } });
+  if (claimed.count !== 1) return "unchanged";
+  await tx.student.update({ where: { id: pupil.id }, data: { status: "graduated", archivedAt: pupil.archivedAt ?? input.effectiveDate, archiveReason: pupil.archiveReason ?? input.reason } });
+  if (pupil.studentUserId) {
+    await tx.user.updateMany({ where: { id: pupil.studentUserId, role: "STUDENT" }, data: { isActive: false, accessVersion: { increment: 1 } } });
+    await tx.loginSession.updateMany({ where: { userId: pupil.studentUserId, isActive: true }, data: { isActive: false, logoutAt: new Date() } });
+  }
+  await tx.studentTimelineEvent.create({ data: { studentId: pupil.id, kind: "GRADUATED", title: "Graduated", detail: JSON.stringify({ enrollmentId: from.id, effectiveDate: input.effectiveDate.toISOString().slice(0, 10), reason: input.reason }), actorId: input.actorId } });
+  await tx.auditLog.create({ data: { tableName: "student_enrollments", recordId: from.id, userId: input.actorId, oldValue: { status: "ACTIVE" }, newValue: { status: "GRADUATED", effectiveDate: input.effectiveDate.toISOString(), reason: input.reason } } });
+  return "changed";
+}
+
+/**
  * SKAI-1387: re-admits a withdrawn pupil into a live class at the campus they left. Reopens placement,
  * the student login and the timeline; graduated or transferred pupils are not re-admitted here.
  */
