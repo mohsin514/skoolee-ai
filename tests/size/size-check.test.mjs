@@ -31,3 +31,13 @@ test("formatTable shows route, size and status", () => {
   assert.match(table, /\/login\s+3\s+400\.0 KB\s+300\.0 KB\s+OVER by 100\.0 KB/);
   assert.match(table, /\/terms\s+2\s+100\.0 KB\s+300\.0 KB\s+ok/);
 });
+
+test("the CI page-weight step blocks: no continue-on-error", async () => {
+  const { readFileSync } = await import("node:fs");
+  const yml = readFileSync(new URL("../../.github/workflows/pr-checks.yml", import.meta.url), "utf8");
+  const start = yml.indexOf("- name: Page-weight budget");
+  assert.ok(start >= 0, "Page-weight budget step is missing");
+  const step = yml.slice(start, yml.indexOf("- name:", start + 10));
+  assert.doesNotMatch(step, /continue-on-error/);
+  assert.match(step, /size:check/);
+});
