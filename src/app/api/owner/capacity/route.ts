@@ -1,4 +1,5 @@
-import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
+import { ApiError, requirePlatformOwner } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { applyPolicy, recordRun, report, revertPolicy } from "@/lib/capacity/service";
 import { resetPeaks } from "@/lib/capacity/telemetry";
@@ -12,8 +13,8 @@ const noStore = { "Cache-Control": "private, no-store" };
 export async function GET() {
   try {
     await requirePlatformOwner();
-    return Response.json({ success: true, data: await report() }, { headers: noStore });
-  } catch (error) { return errorResponse(error, "[owner/capacity] GET failed"); }
+    return ok(await report(), { headers: noStore });
+  } catch (error) { return failFrom(error, "[owner/capacity] GET failed"); }
 }
 
 export async function POST(request: Request) {
@@ -22,12 +23,12 @@ export async function POST(request: Request) {
     const owner = await requirePlatformOwner();
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     switch (body.action) {
-      case "apply": return Response.json({ success: true, data: await applyPolicy(owner.userId, body) }, { status: 201, headers: noStore });
-      case "revert": return Response.json({ success: true, data: await revertPolicy(owner.userId, body) }, { headers: noStore });
+      case "apply": return ok(await applyPolicy(owner.userId, body), { status: 201, headers: noStore });
+      case "revert": return ok(await revertPolicy(owner.userId, body), { headers: noStore });
       // Start of a measured run: background peaks are counted from here.
-      case "reset-peaks": resetPeaks(); return Response.json({ success: true, data: { reset: true } }, { headers: noStore });
-      case "record-run": return Response.json({ success: true, data: await recordRun(owner.userId, body) }, { status: 201, headers: noStore });
+      case "reset-peaks": resetPeaks(); return ok({ reset: true }, { headers: noStore });
+      case "record-run": return ok(await recordRun(owner.userId, body), { status: 201, headers: noStore });
       default: throw new ApiError("Unknown action", 400);
     }
-  } catch (error) { return errorResponse(error, "[owner/capacity] POST failed"); }
+  } catch (error) { return failFrom(error, "[owner/capacity] POST failed"); }
 }
