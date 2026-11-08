@@ -1,7 +1,8 @@
 import { defaultPricingSchema } from "@/lib/owner/pricing";
 import { saveDefaultPlanPrices } from "@/lib/owner/default-pricing-service";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
+import { ApiError, requirePlatformOwner } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { clientIp } from "@/lib/http/client-ip";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -22,9 +23,9 @@ export async function GET() {
       ENTERPRISE: { price: null },
     };
 
-    return Response.json({ success: true, data: defaults });
+    return ok(defaults);
   } catch (error) {
-    return errorResponse(error, "[owner/platform-config] GET failed");
+    return failFrom(error, "[owner/platform-config] GET failed");
   }
 }
 
@@ -41,9 +42,9 @@ export async function PUT(request: Request) {
 
     const pricingSaved = await saveDefaultPlanPrices(user, pricing, { expected: expected?.data, ipAddress: clientIp(request.headers), userAgent: request.headers.get("user-agent") || undefined });
 
-    return Response.json({ success: true, message: "Default plan prices updated.", data: pricingSaved });
+    return ok(pricingSaved);
   } catch (error) {
     console.error("[owner/platform-config] PUT error:", error instanceof Error ? error.message : error, error instanceof Error ? error.stack : "");
-    return errorResponse(error, "[owner/platform-config] PUT failed");
+    return failFrom(error, "[owner/platform-config] PUT failed");
   }
 }

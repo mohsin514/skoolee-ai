@@ -2183,7 +2183,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
     try {
       const res = await fetch("/api/owner/platform-config", { cache: "no-store" });
       const json = await res.json();
-      if (res.ok && json.success && json.data) {
+      if (res.ok && isApiOk(json) && json.data) {
         setSavedDefaults(json.data);
         setDefaultPricing(priceFields(json.data));
       } else {
@@ -2215,7 +2215,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
         body: JSON.stringify({ pricing, expected: savedDefaults }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error);
+      if (!res.ok) throw new Error(readApiError(json));
       setSavedDefaults(json.data);
       toast.success(t("Default prices saved. Schools see the new catalogue prices from their next renewal."));
       setDefaultsFailed(false);
