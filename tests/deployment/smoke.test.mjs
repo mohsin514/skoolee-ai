@@ -8,7 +8,7 @@ const login = () => new Response('<input id="password"><select id="login-languag
 const ready = (build = '0123456789ab', database = 'up') => Response.json({ ok: database === 'up', checks: { database }, build }, {
   status: database === 'up' ? 200 : 503,
 });
-const route = url => url.endsWith('/login') ? login() : url.endsWith('/api/public/ready') ? ready() : denied();
+const route = url => url.endsWith('/login') ? login() : url.endsWith('/api/public/ready') ? ready() : url.endsWith('/api/students') ? Response.json({ error: 'Unauthorized' }, { status: 401 }) : denied();
 const denied = () => Response.json({ user: null, activeExamUrl: null }, {
   status: 401, headers: { 'cache-control': 'private, no-store' },
 });
@@ -32,7 +32,7 @@ test('checks every route with anonymous GETs and no redirects', async () => {
     return route(url);
   });
   assert.equal(result.passed, true);
-  assert.deepEqual(paths, ['/login', '/api/auth/session', '/api/public/ready']);
+  assert.deepEqual(paths, ['/login', '/api/auth/session', '/api/public/ready', '/api/students']);
 });
 
 test('fails on login redirects, generic HTML, or incorrect session outcomes', async () => {
@@ -50,7 +50,7 @@ test('fails on login redirects, generic HTML, or incorrect session outcomes', as
 test('reports failures without exposing exception details', async () => {
   const report = await smoke('https://example.com', async () => { throw new Error('sensitive detail'); });
   assert.equal(report.passed, false);
-  assert.equal(report.checks.length, 3);
+  assert.equal(report.checks.length, 4);
   assert.equal(JSON.stringify(report).includes('sensitive detail'), false);
 });
 
@@ -61,4 +61,11 @@ test('certifies the deployed commit and database readiness', async () => {
   const down = await smoke('https://example.com', async url => url.endsWith('/api/public/ready') ? ready('0123456789ab', 'down') : route(url));
   assert.equal(down.passed, false);
   assert.match(down.scope, /deployed commit not certified/);
+});
+
+// SKAI-867: an anonymous request that reaches a school roster means tenant isolation is open.
+test('fails when an anonymous request is served the student roster', async () => {
+  const open = await smoke('https://example.com', async url => url.endsWith('/api/students') ? Response.json([{ id: 'synthetic' }]) : route(url));
+  assert.equal(open.passed, false);
+  assert.equal(open.checks.find(c => c.path === '/api/students').passed, false);
 });
