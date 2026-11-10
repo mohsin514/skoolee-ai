@@ -1,4 +1,5 @@
-import { errorResponse, requirePlatformOwner } from "@/lib/api/scope";
+import { requirePlatformOwner } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { goNoGoBoard } from "@/lib/pilots/go-no-go-service";
 
 export const dynamic = "force-dynamic";
@@ -7,8 +8,8 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requirePlatformOwner();
-    return Response.json({ success: true, data: await goNoGoBoard() }, { headers: { "Cache-Control": "no-store" } });
+    return ok(await goNoGoBoard(), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    return errorResponse(error, "[owner/pilot-go-no-go] GET failed");
+    return failFrom(error, "[owner/pilot-go-no-go] GET failed");
   }
 }

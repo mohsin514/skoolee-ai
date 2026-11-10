@@ -136,7 +136,7 @@ export async function sendEmailMessage({
       })
     );
 
-    return deliverEmail({
+    return await deliverEmail({
       to,
       subject,
       html: renderedHtml,

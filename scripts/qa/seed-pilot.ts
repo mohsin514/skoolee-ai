@@ -25,36 +25,10 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { PLATFORM_OWNER, SCHOOLS, mergeCredentials, rolesFor, type SeedCredential } from "./pilot-seed-plan";
+import { assertSeedAllowed } from "./seed-env-guard";
+import { PLATFORM_OWNER, SCHOOLS, mergeCredentials, platformOwnerBlockedBy, rolesFor, type SeedCredential } from "./pilot-seed-plan";
 
 const prisma = new PrismaClient();
-
-// ─── env guard (self-contained; mirrors prisma/seed-guard) ───────────────────
-const HOSTED_MARKERS = ["supabase.com", "supabase.co", "rds.amazonaws.com", "neon.tech", "render.com", "railway.app"];
-const LOCAL_HOSTS = ["localhost", "127.0.0.1", "::1", "host.docker.internal"];
-
-function dbHost(url?: string): string | null {
-  if (!url) return null;
-  try { return new URL(url).hostname.toLowerCase(); }
-  catch { const m = url.match(/@([^:/?]+)/); return m ? m[1].toLowerCase() : null; }
-}
-
-function assertSeedAllowed() {
-  const env = process.env;
-  const name = (env.APP_ENV || env.VERCEL_ENV || env.ENVIRONMENT || env.NODE_ENV || "development").toLowerCase();
-  if (["production", "prod", "staging", "qa", "preview"].includes(name)) {
-    throw new Error(`[qa-seed] refusing: environment "${name}" is internet-facing (NFR-SEC-09)`);
-  }
-  const host = dbHost(env.DIRECT_URL || env.DATABASE_URL);
-  const hosted = HOSTED_MARKERS.find((m) => host?.includes(m));
-  if (hosted && env.ALLOW_HOSTED_SEED !== "1") {
-    throw new Error(`[qa-seed] refusing: DB host "${host}" looks hosted; set ALLOW_HOSTED_SEED=1 for a deliberate dev seed`);
-  }
-  if (!hosted && host && !LOCAL_HOSTS.includes(host)) {
-    throw new Error(`[qa-seed] refusing: DB host "${host}" is not a known local host (NFR-SEC-09)`);
-  }
-  return { name, host: host ?? "unknown" };
-}
 
 // ─── strong unique password generator ────────────────────────────────────────
 const UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ", LOWER = "abcdefghijkmnpqrstuvwxyz", DIGIT = "23456789", SYM = "!@#$%^&*?";
@@ -76,8 +50,18 @@ const PHONE_BASE = 92300_0000000; // synthetic +92-300 test range
 // factor enrolled, so privileged roles sign in through the existing "Do it later" MFA deferral.
 const READY_FLAGS = { emailVerifiedAt: new Date(), mustChangePassword: false, onboardingComplete: true, mfaEnabled: false, mfaSecret: null, mfaPendingSecret: null, mfaPendingTicket: null, mfaPendingExpiresAt: null, mfaPendingVerified: false, mfaEnrolledAt: null };
 
-/** SKAI-1788: idempotent synthetic APP_OWNER in the host QA school (created by the main seed). */
-async function seedPlatformOwner(): Promise<SeedCredential> {
+/**
+ * SKAI-1788: idempotent synthetic APP_OWNER in the host QA school (created by the main seed).
+ * Returns null (and changes nothing) when another platform owner exists, because the dev DB
+ * allows only one APP_OWNER (trigger users_single_app_owner) and would raise P2002.
+ */
+async function seedPlatformOwner(): Promise<SeedCredential | null> {
+  const owners = await prisma.user.findMany({ where: { role: PLATFORM_OWNER.role }, select: { email: true } });
+  const blocker = platformOwnerBlockedBy(owners.map((o) => o.email));
+  if (blocker) {
+    console.warn(`  ⚠ skipped platform owner: this DB already has a different APP_OWNER and allows only one; use that account for /owner QA`);
+    return null;
+  }
   const host = await prisma.school.findUnique({ where: { slug: PLATFORM_OWNER.hostSchool } });
   if (!host) throw new Error(`[qa-seed] ${PLATFORM_OWNER.hostSchool} is missing; run the full QA seed first`);
   const password = strongPassword();
@@ -102,7 +86,9 @@ async function main() {
   if (process.argv.includes("--platform-owner-only")) {
     console.log(`🧪 QA pilot seed (${decision.name} @ ${decision.host}) [--platform-owner-only]`);
     const existing: SeedCredential[] = existsSync(out) ? JSON.parse(readFileSync(out, "utf8")).accounts ?? [] : [];
-    writeCredentials(out, mergeCredentials(existing, [await seedPlatformOwner()]));
+    const owner = await seedPlatformOwner();
+    if (!owner) { process.exitCode = 2; return; }
+    writeCredentials(out, mergeCredentials(existing, [owner]));
     console.log(`✅ Platform owner ${PLATFORM_OWNER.email} upserted; credentials merged into ${out} (passwords not printed).`);
     return;
   }
@@ -153,9 +139,16 @@ async function main() {
     }
   }
 
-  credentials.push(await seedPlatformOwner());
-  // Write credentials for the password manager — git-ignored, never committed.
+  // Write school credentials BEFORE the platform-owner step: their passwords are already changed in the DB,
+  // so a failure there must never lose them (SKAI-1788 regression on dev).
   writeCredentials(out, credentials);
+  try {
+    const owner = await seedPlatformOwner();
+    if (owner) { credentials.push(owner); writeCredentials(out, credentials); }
+  } catch (e) {
+    console.error(`  ⚠ platform owner step failed; school credentials are already saved to ${out}:`, e);
+    process.exitCode = 1;
+  }
   console.log(`\n✅ Seeded ${credentials.length} QA accounts across ${SCHOOLS.length} schools.`);
   console.log(`   Credentials written to ${out} (git-ignored, mode 600) — transfer to the password manager, then delete.`);
   console.log(`   Passwords are NOT printed here (NFR-SEC-09).`);

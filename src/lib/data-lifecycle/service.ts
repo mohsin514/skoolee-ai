@@ -246,6 +246,27 @@ export async function downloadExport(user: AuthUser, requestId: string, token: s
   });
 }
 
+// ─── Data-subject picker (SKAI-1192) ──────────────────────────────
+// Administrators find a learner or guardian by name, roll/admission number or
+// email instead of pasting an ID. Results are pinned to their own school.
+export async function searchDataSubjects(user: AuthUser, subject: string | null, query: string | null) {
+  if (!canAdministerDataLifecycle(user)) throw new ApiError("Data lifecycle administration permission is required.", 403);
+  if (subject !== "STUDENT" && subject !== "GUARDIAN") throw new ApiError("Choose a learner or guardian search.", 400);
+  const q = (query ?? "").trim().slice(0, 80);
+  if (q.length < 2) return [];
+  const match = { contains: q, mode: "insensitive" as const };
+  return schoolAiTransaction(user, async tx => {
+    if (subject === "STUDENT") {
+      const rows = await tx.student.findMany({ where: { schoolId: user.schoolId, OR: [{ fullName: match }, { rollNo: match }, { admissionNo: match }] },
+        select: { id: true, fullName: true, rollNo: true, admissionNo: true, archivedAt: true }, orderBy: { fullName: "asc" }, take: 10 });
+      return rows.map(row => ({ id: row.id, label: row.fullName, detail: [row.admissionNo || row.rollNo, row.archivedAt ? "archived" : null].filter(Boolean).join(" · ") }));
+    }
+    const rows = await tx.guardianRelationship.findMany({ where: { schoolId: user.schoolId, OR: [{ fullName: match }, { email: match }, { phone: match }] },
+      select: { id: true, fullName: true, email: true, relationship: true, status: true, student: { select: { fullName: true } } }, orderBy: { fullName: "asc" }, take: 10 });
+    return rows.map(row => ({ id: row.id, label: row.fullName, detail: [row.relationship, row.student?.fullName, row.email, row.status === "ACTIVE" ? null : row.status.toLowerCase()].filter(Boolean).join(" · ") }));
+  });
+}
+
 // ─── Overview ─────────────────────────────────────────────────────
 export async function lifecycleOverview(user: AuthUser, env: Record<string, string | undefined> = process.env, now = new Date()) {
   const admin = canAdministerDataLifecycle(user);

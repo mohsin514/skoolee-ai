@@ -1,4 +1,5 @@
-import { errorResponse, requirePlatformOwner } from "@/lib/api/scope";
+import { requirePlatformOwner } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { clientIp } from "@/lib/http/client-ip";
 import { listExpansionStatus, recordExpansionDecision } from "@/lib/school-ai/pack-expansion-store";
 import { readJsonBody } from "@/lib/api/validate";
@@ -9,9 +10,9 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await requirePlatformOwner();
-    return Response.json({ success: true, data: await listExpansionStatus() });
+    return ok(await listExpansionStatus());
   } catch (error) {
-    return errorResponse(error, "[owner/pack-expansion] GET failed");
+    return failFrom(error, "[owner/pack-expansion] GET failed");
   }
 }
 
@@ -20,8 +21,8 @@ export async function POST(request: Request) {
     const user = await requirePlatformOwner();
     const body = (await readJsonBody(request)) as { record?: unknown } | null;
     const row = await recordExpansionDecision(user, body?.record, { ipAddress: clientIp(request.headers), userAgent: request.headers.get("user-agent") || undefined });
-    return Response.json({ success: true, data: { id: row.id, outcome: row.outcome } });
+    return ok({ id: row.id, outcome: row.outcome });
   } catch (error) {
-    return errorResponse(error, "[owner/pack-expansion] POST failed");
+    return failFrom(error, "[owner/pack-expansion] POST failed");
   }
 }

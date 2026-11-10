@@ -8,7 +8,8 @@ import { createTenantSchema } from "@/lib/db/tenant";
 import { onboardingSchema } from "@/lib/validators/schemas";
 import { seedRolePermissions } from "@/lib/auth/seed-permissions";
 import { createPlanContract } from "@/config/commercial-contract";
-import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
+import { ApiError, requirePlatformOwner } from "@/lib/api/scope";
+import { created, fail, failFrom } from "@/lib/api/envelope";
 import { z } from "zod";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -21,19 +22,16 @@ export async function POST(req: NextRequest) {
     // §7.3 G21: provisioning a tenant is platform work — the platform operator only (a group admin cannot mint schools).
     await requirePlatformOwner();
   } catch (error) {
-    return errorResponse(error instanceof ApiError && error.status === 401 ? error : new ApiError("Only the platform operator can create a school.", 403));
+    return failFrom(error instanceof ApiError && error.status === 401 ? error : new ApiError("Only the platform operator can create a school.", 403));
   }
   try {
     const body = await parseBody(req, jsonObjectBody);
     const kind = registrationKindSchema.safeParse(body?.registrationKind ?? undefined);
-    if (!kind.success) return Response.json({ error: { registrationKind: ["Choose GROUP or STANDALONE."] } }, { status: 400 });
+    if (!kind.success) return fail("VALIDATION_FAILED", "Choose GROUP or STANDALONE.", { registrationKind: ["Choose GROUP or STANDALONE."] });
     const parsed = onboardingSchema.safeParse(body);
     
     if (!parsed.success) {
-      return Response.json(
-        { error: parsed.error.flatten().fieldErrors },
-        { status: 400 }
-      );
+      return fail("VALIDATION_FAILED", "Check the school details.", parsed.error.flatten().fieldErrors as Record<string, string[]>);
     }
 
     const { schoolName, slug, address, phone, email } = parsed.data;
@@ -44,10 +42,7 @@ export async function POST(req: NextRequest) {
     });
     
     if (existingSchool) {
-      return Response.json(
-        { error: "This subdomain is already taken" },
-        { status: 409 }
-      );
+      return fail("CONFLICT", "This subdomain is already taken");
     }
 
     // 2. Create School record (Global Schema)
@@ -73,22 +68,17 @@ export async function POST(req: NextRequest) {
     //    defaults when no row exists, so an empty table is still safe.
     await seedRolePermissions(school.id);
 
-    return Response.json({
-      success: true,
+    return created({
       id: school.id,
       slug: school.slug,
       schemaName: schemaName,
       registrationKind: kind.data,
     });
   } catch (error) {
-    console.error("[tenants] POST error:", error);
-    return Response.json(
-      { error: "Failed to create school" },
-      { status: 500 }
-    );
+    return failFrom(error, "Failed to create school");
   }
 }
 
 export async function GET() {
-  return Response.json({ error: "Method not supported" }, { status: 405 });
+  return fail("BAD_REQUEST", "Method not supported", undefined, 405);
 }

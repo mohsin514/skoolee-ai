@@ -1,5 +1,6 @@
 "use client";
 
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
 import { toast } from "@/components/ui/toast";
@@ -42,7 +43,7 @@ type Report = {
 async function call(url: string, method = "GET", body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved.");
+  if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The change was not saved."));
   return json.data;
 }
 const ms = (n: number | null) => n === null ? "—" : `${n} ms`;

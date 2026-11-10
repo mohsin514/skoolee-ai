@@ -7,6 +7,7 @@ import { isCampusOperator } from "@/lib/auth/institution";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
+import { intakeSeats, type IntakeSeats } from "@/lib/admissions/intake-seats";
 import { resolveSourceActions } from "@/lib/notifications/actions";
 import { deliverNotification } from "@/lib/notifications/in-app";
 import { ASSESSMENT_ACTIONS, actOnAssessment, assignWaitlistRank, moveOnWaitlist, offerDeadline, offerLapsed } from "./assessments";
@@ -397,12 +398,15 @@ export async function actOnApplication(user: AuthUser, campusId: string, body: R
     const updated = await db.admissionApplication.update({ where: { id }, data: { status: transition.to, intakeClassId, offerExpiresAt, waitlistRank, ...bump } });
     await db.admissionApplicationEvent.create({ data: { ...event, kind: action === "request-info" ? "INFO_REQUESTED" : action === "record-acceptance" ? "ACCEPTED" : action === "withdraw" ? "WITHDRAWN" : "STAGE", fromStatus: application.status, toStatus: transition.to, officeNote, familyMessage, detail: action === "offer" ? { intakeClassId, offerExpiresAt: offerExpiresAt?.toISOString() ?? null } : waitlistRank ? { waitlistRank } : undefined } });
     if (["REJECTED", "DECLINED", "WITHDRAWN"].includes(transition.to)) await resolveSourceActions({ schoolId: user.schoolId, sourceType: "application", sourceId: id, resolution: "CANCELLED" }, db);
-    return { updated, notify: null };
+    // SKAI-1257: count this offer against the class's seats and warn (never block) when it over-offers.
+    const seats = action === "offer" && intakeClassId ? await intakeSeats(db, user.schoolId, campusId, intakeClassId) : null;
+    return { updated, notify: null, seats };
   });
   if (result.notify) await deliverNotification("ADMISSION_APPLICATION_ASSIGNED", { schoolId: user.schoolId, campusId, actorId: user.userId, actorName: user.fullName ?? null, ownerId: result.notify, applicationId: result.updated.id, reference: result.updated.reference })
     .catch(error => console.error("[admissions] owner notification failed", error));
   const { resumeKeyHash: _key, ...data } = result.updated;
-  return data;
+  const seats = "seats" in result ? (result.seats as IntakeSeats | null) : null;
+  return seats ? { ...data, seats } : data;
 }
 
 /** Staff enter an application for a family (for example from an enquiry); it follows the same rules. */

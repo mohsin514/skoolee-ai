@@ -1,5 +1,6 @@
 "use client";
 
+import { isApiOk } from "@/lib/api/envelope-client";
 /**
  * SKAI-1108 founder console: the market expansion triggers from the SKAI-1006 decision log. Read-only; thresholds
  * live in `src/lib/expansion/trigger-config.ts` and a market reopens only when its trigger is met.
@@ -33,7 +34,7 @@ export default function ExpansionTriggersPage() {
     setFailed(false);
     const res = await fetch("/api/owner/expansion-triggers", { cache: "no-store" }).catch(() => null);
     const json = res?.ok ? await res.json().catch(() => null) : null;
-    if (!json?.success) { setFailed(true); return; }
+    if (!isApiOk(json)) { setFailed(true); return; }
     setData(json.data);
   }, []);
   useEffect(() => { void load(); }, [load]);

@@ -83,20 +83,26 @@ npx tsx src/workers/notification-worker.ts &
 
 ## Architecture
 
-- **Multi-tenant**: Each school = separate PostgreSQL schema (`school_{slug}`).
-- **Auth**: Clerk middleware handles authentication and redirects to onboarding if needed.
-- **Tenant Resolution**: Middleware extracts the school slug and passes it via headers.
-- **AI**: Provider-backed drafts for Urdu/English remarks and school insights, credit-metered per school.
-- **Payments**: Stripe subscriptions (Free/Basic/Pro) integrated with credit limits.
-- **Queue**: BullMQ for bulk PDFs, batch AI remarks, WhatsApp notifications.
+- **Multi-tenant (shared tables)**: every tenant row carries `school_id` (and `campus_id` where relevant). A fail-closed Prisma guard (`src/lib/db/tenant-context.ts`) rejects queries without a tenant scope; unscoped access must be named with `runUnscoped`. Regenerate the registry with `node scripts/gen-tenant-registry.mjs` after schema changes.
+- **Auth**: first-party JWT sessions in an HTTP-only cookie (`src/lib/auth/issue-session.ts`), role/capability checks in `src/lib/auth/policy.ts`, optional MFA. There is no Clerk and no schema-per-school.
+- **AI**: provider switchboard (see AI Provider above), pseudonymized prompts, feature flags off in production until the AI-05 evaluation passes.
+- **Workers**: outbox, PDF, remark and notification workers (`src/workers/`, `npm run worker:outbox`) consume the durable event outbox; they need Redis.
+- **Environments and release**: see `docs/ENVIRONMENTS.md`, `.github/workflows/deploy.yml` (exact reviewed-commit promotion) and `docs/recovery/RUNBOOK.md` (smoke checks, rollback vs forward repair, incident workflow).
+
+## Post-deploy smoke
+
+```bash
+node scripts/deployment/smoke.mjs https://dev.skooleeai.com <approved-commit-sha>
+```
+
+Anonymous only: login page, session denial, student-roster denial (tenant isolation fails closed), database readiness and that the serving build is the approved commit. Signed-in journeys, job dispatch and provider health are manual checks listed in the runbook.
 
 ## Key Features
 
 - **Marks Entry**: Fast tabbing interface with debounced AI remark generation.
-- **Bilingual Support**: AI generates remarks in both English and Urdu.
+- **Bilingual Support**: English, Urdu and Arabic (right-to-left).
 - **WhatsApp Integration**: Send PDF report cards directly to parents.
 - **Automated Grading**: Auto-calculation of grades and percentages.
-- **Scalable Multi-tenancy**: Schema-per-tenant isolation for high security and performance.
 
 ## License
 

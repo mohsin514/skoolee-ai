@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 // SKAI-1680: closing an academic year is serialised and claims its classes once, so a second close rolls back.
 const source = readFileSync("src/app/api/academic-year/route.ts", "utf8");
-const tx = source.slice(source.indexOf("await prisma.$transaction(async (tx) => {"));
+const tx = source.slice(source.indexOf("const closed = await schoolAiTransaction(user, async (tx) => {"));
 
 test("close takes a campus/year lock and claims ACTIVE classes before writing history", () => {
   const lock = tx.indexOf("pg_advisory_xact_lock(hashtext(${`academic-year-close:${user.schoolId}:${campusId}:${academicYear}`}))");

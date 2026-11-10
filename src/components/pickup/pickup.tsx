@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { ErrorState } from "@/components/ui/error-state";
+import { calendarDateIn } from "@/lib/calendar-date";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowIcon, DeskSection, DeskStats, RelativeTime, StatTile, deskRow, deskTimeline, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { CheckCircle2, Clock3, MoreHorizontal, QrCode, ScanLine, ShieldAlert, ShieldCheck, ShieldQuestion, ShieldX, UserCheck, UserRoundSearch } from "lucide-react";
@@ -34,8 +35,6 @@ async function call(url: string, method = "GET", body?: Record<string, unknown>)
   if (!response.ok || !json.success) throw Object.assign(new Error(json.error || "Permission cannot be verified. Keep the student supervised and contact the pickup lead."), { status: response.status });
   return json.data;
 }
-const todayLocal = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10); };
-
 type Item = { id: string; recipientName: string; recipientRelation: string; idMethod: string; validFrom: string; validUntil: string; status: string; releasedAt: string | null };
 
 /**
@@ -47,7 +46,7 @@ export function FamilyPickups({ studentId, addRequest, hideAdd = false }: { stud
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
   const [data, setData] = useState<{ timezone: string; items: Item[]; nextCursor?: string | null } | null>(null), [denied, setDenied] = useState(false), [failed, setFailed] = useState(false), [busy, setBusy] = useState(false);
-  const [form, setForm] = useState({ recipientName: "", recipientRelation: "", idMethod: "PHOTO_ID", idLast4: "", date: todayLocal(), from: "14:00", until: "16:00" }), [code, setCode] = useState<{ code: string; qr: string } | null>(null), [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ recipientName: "", recipientRelation: "", idMethod: "PHOTO_ID", idLast4: "", date: "", from: "14:00", until: "16:00" }), [code, setCode] = useState<{ code: string; qr: string } | null>(null), [open, setOpen] = useState(false);
   const [withdrawing, setWithdrawing] = useState<Item | null>(null), [filterText, setFilterText] = useState("");
   // Only a change after mount opens the form, so a remount (child switch) never reopens it.
   const lastAddRequest = useRef(addRequest);
@@ -75,6 +74,9 @@ export function FamilyPickups({ studentId, addRequest, hideAdd = false }: { stud
   if (denied) return null;
   if (!data && failed) return <section className="sk-panel p-4 sm:p-5" data-family-pickup><ErrorState title={ui("Pickup authorizations could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void load()} /></section>;
   if (!data) return null;
+  // Day defaults to today on the child's campus calendar, not the guardian device's; the server reads it in the same zone.
+  const campusToday = calendarDateIn(data.timezone);
+  const day = form.date || campusToday;
   const needle = filterText.trim().toLowerCase();
   const items = urgencyFirst(data.items.filter(i => !needle || `${i.recipientName} ${i.recipientRelation}`.toLowerCase().includes(needle)), i => i.status === "ACTIVE" ? 0 : 1);
   const status = (s: string) => ({ ACTIVE: ui("Ready to use"), USED: ui("Used"), REVOKED: ui("Withdrawn"), EXPIRED: ui("Expired") } as Record<string, string>)[s] ?? s;
@@ -102,13 +104,13 @@ export function FamilyPickups({ studentId, addRequest, hideAdd = false }: { stud
       onCancel={() => setWithdrawing(null)}
     />
     {open ? <Modal icon={UserCheck} tone="violet" title={ui("Authorize a pickup")} onClose={() => setOpen(false)}
-      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>{ui("Back")}</Button><Button disabled={busy || form.recipientName.trim().length < 3 || !form.recipientRelation.trim()} onClick={() => void run(async () => { const r = await call("/api/pickup", "POST", { action: "issue", studentId, ...form, idLast4: form.idLast4 || undefined }); setCode(r); setOpen(false); }, "Pickup authorized. Share the code only with the person collecting.")} data-pickup-issue>{ui("Create pickup code")}</Button></div>}>
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>{ui("Back")}</Button><Button disabled={busy || form.recipientName.trim().length < 3 || !form.recipientRelation.trim()} onClick={() => void run(async () => { const r = await call("/api/pickup", "POST", { action: "issue", studentId, ...form, date: day, idLast4: form.idLast4 || undefined }); setCode(r); setOpen(false); }, "Pickup authorized. Share the code only with the person collecting.")} data-pickup-issue>{ui("Create pickup code")}</Button></div>}>
       <div className="space-y-3" data-pickup-form>
         <FormField name="pu-name" label={ui("Who will collect?")}><Input value={form.recipientName} onChange={e => setForm({ ...form, recipientName: e.target.value })} maxLength={120} /></FormField>
         <FormField name="pu-rel" label={ui("Relationship to the child")}><Input value={form.recipientRelation} onChange={e => setForm({ ...form, recipientRelation: e.target.value })} maxLength={60} /></FormField>
         <FormField name="pu-method" label={ui("How will the school check their identity?")}><Select value={form.idMethod} onChange={e => setForm({ ...form, idMethod: e.target.value })}>{METHODS.map(m => <option key={m} value={m}>{methodLabel(ui, m)}</option>)}</Select></FormField>
         {form.idMethod === "PHOTO_ID" ? <FormField name="pu-last4" label={ui("Last four characters of their ID (optional)")} hint={ui("Never the full number.")}><Input value={form.idLast4} onChange={e => setForm({ ...form, idLast4: e.target.value })} maxLength={4} dir="ltr" /></FormField> : null}
-        <div className="grid gap-2 sm:grid-cols-3"><FormField name="pu-date" label={ui("Day")}><Input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></FormField><FormField name="pu-from" label={ui("From")}><Input type="time" value={form.from} onChange={e => setForm({ ...form, from: e.target.value })} dir="ltr" /></FormField><FormField name="pu-until" label={ui("Until")}><Input type="time" value={form.until} onChange={e => setForm({ ...form, until: e.target.value })} dir="ltr" /></FormField></div>
+        <div className="grid gap-2 sm:grid-cols-3"><FormField name="pu-date" label={ui("Day")} hint={ui("School timezone: {0}.", [data.timezone])}><Input type="date" value={day} min={campusToday} onChange={e => setForm({ ...form, date: e.target.value })} data-pickup-day-zone={data.timezone} /></FormField><FormField name="pu-from" label={ui("From")}><Input type="time" value={form.from} onChange={e => setForm({ ...form, from: e.target.value })} dir="ltr" /></FormField><FormField name="pu-until" label={ui("Until")}><Input type="time" value={form.until} onChange={e => setForm({ ...form, until: e.target.value })} dir="ltr" /></FormField></div>
       </div>
     </Modal> : null}
     {code ? <Modal icon={QrCode} tone="emerald" title={ui("Pickup code")} onClose={() => setCode(null)}

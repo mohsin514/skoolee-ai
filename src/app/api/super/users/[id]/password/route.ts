@@ -3,9 +3,9 @@ import { prisma } from "@/lib/db/prisma";
 import bcrypt from "bcryptjs";
 import {
   ApiError,
-  errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { logSuperAdminAction } from "@/lib/audit";
 import { parseBody } from "@/lib/api/validate";
@@ -21,7 +21,7 @@ export async function PUT(
     if (!isInstitutionAuthority(user)) throw new ApiError("Only the institution administrator can open this.", 403);
 
     // A forced password reset needs a verified second factor (G12).
-    if (user.mfaVerified !== true) return Response.json({ error: "Turn on two-step sign-in before you reset someone's password.", code: "MFA_REQUIRED" }, { status: 403 });
+    if (user.mfaVerified !== true) throw new ApiError("Turn on two-step sign-in before you reset someone's password.", 403, "MFA_REQUIRED");
 
     const { id: targetUserId } = await params;
     const { newPassword } = await parseBody(req, jsonObjectBody, { preserve: ["newPassword"] });
@@ -97,8 +97,8 @@ export async function PUT(
       status: "success",
     }).catch(() => {});
 
-    return Response.json({ success: true, message: "Password changed successfully" });
+    return ok({ message: "Password changed successfully" });
   } catch (error) {
-    return errorResponse(error, "[super/users/password] PUT failed");
+    return failFrom(error, "[super/users/password] PUT failed");
   }
 }
