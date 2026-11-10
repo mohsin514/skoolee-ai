@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
+import { ApiError, requirePlatformOwner } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 
 export const dynamic = "force-dynamic";
 
@@ -83,9 +84,7 @@ export async function GET() {
     const studentsPerSchool = new Map(studentsBySchool.map((r) => [r.schoolId, r._count]));
     const campusesPerSchool = new Map(campusesBySchool.map((r) => [r.schoolId, r._count]));
 
-    return Response.json({
-      success: true,
-      data: {
+    return ok({
         schoolCount,
         campusCount,
         studentCount,
@@ -110,9 +109,8 @@ export async function GET() {
           students: studentsPerSchool.get(school.id) ?? 0,
           campuses: campusesPerSchool.get(school.id) ?? 0,
         })),
-      },
     });
   } catch (error) {
-    return errorResponse(error, "[owner/stats] GET failed");
+    return failFrom(error, "[owner/stats] GET failed");
   }
 }

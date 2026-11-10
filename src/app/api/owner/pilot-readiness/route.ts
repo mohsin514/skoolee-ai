@@ -1,4 +1,5 @@
-import { errorResponse, ApiError, requirePlatformOwner } from "@/lib/api/scope";
+import { ApiError, requirePlatformOwner } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { prisma } from "@/lib/db/prisma";
 import {
   marketTrustBoard, pilotActivationGate, PilotGateError, recordCommercialEvent, recordTrustReview,
@@ -33,9 +34,9 @@ export async function GET(request: Request) {
     const school = schoolId ? await requireSchool(schoolId) : null;
     const records = school ? await schoolPilotRecords(school) : null;
     const gate = school ? await pilotActivationGate(school) : null;
-    return Response.json({ success: true, data: { board, schools, records, gate } }, { headers: noStore });
+    return ok({ board, schools, records, gate }, { headers: noStore });
   } catch (error) {
-    return errorResponse(error, "[owner/pilot-readiness] GET failed");
+    return failFrom(error, "[owner/pilot-readiness] GET failed");
   }
 }
 
@@ -53,8 +54,8 @@ export async function POST(request: Request) {
       }
     };
     const result = await run().catch(rethrow);
-    return Response.json({ success: true, data: result }, { status: 201, headers: noStore });
+    return ok(result, { status: 201, headers: noStore });
   } catch (error) {
-    return errorResponse(error, "[owner/pilot-readiness] POST failed");
+    return failFrom(error, "[owner/pilot-readiness] POST failed");
   }
 }

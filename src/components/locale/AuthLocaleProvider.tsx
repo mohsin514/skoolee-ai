@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { StaticLocaleProvider } from "@/components/locale/LocaleProvider";
-import { defaultLocale, type Language } from "@/lib/locale/package";
+import { defaultLocale, type Language } from "@/lib/locale/package-core";
 import { loadUiCatalog } from "@/lib/locale/ui-translate";
 import { EXPLICIT_LANGUAGE_KEY, directionFor, readLanguageCookieClient, writeLanguageCookieClient } from "@/lib/locale/language-cookie";
 

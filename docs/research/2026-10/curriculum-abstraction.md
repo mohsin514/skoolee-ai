@@ -45,7 +45,7 @@ The database, seed, activation lifecycle, approval rules, Exam Studio gate and h
 | Language enum `en`, `ar`, `ur` | contract schema, `pilotEligibilityInputSchema`, `ContractRequest` | Open: add `hi` when a CBSE Hindi pack ships |
 | Pilot geographies (PK, KSA, Dubai only) | `pilot-eligibility.ts` | Open on purpose: scope is a SKAI-1007 product decision, not a code defect |
 | Packs registered in a code list | `shippedCurriculumPacks()` | Open: acceptable while packs are reviewed in PRs; a loader over `packs/` is optional |
-| Section formats `MCQ`/`SHORT`/`LONG`/`PRACTICAL` | `paperSectionSchema` | Open: IB/GCSE structured and extended-response questions fit `SHORT`/`LONG`; coursework does not |
+| Section formats `MCQ`/`SHORT`/`LONG`/`PRACTICAL` | `paperSectionSchema` | Fixed (SKAI-1166): `COURSEWORK` covers assessed components that are not timed papers; coursework-only components need no duration |
 | Exam year is a 4-digit year, teaching year `YYYY-YY` | contract schema | Fits all four (northern-hemisphere sessions) |
 
 ## Evidence
@@ -57,4 +57,3 @@ The database, seed, activation lifecycle, approval rules, Exam Studio gate and h
 
 - Add `hi` to the language enums with the first CBSE pack.
 - Decide the UAE/India geography list with the SKAI-1007 owner before any non-Dubai pilot.
-- Add a `COURSEWORK` section format if a board's assessed component is not a timed paper.

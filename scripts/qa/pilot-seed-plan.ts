@@ -81,3 +81,13 @@ export function mergeCredentials(existing: SeedCredential[], updates: SeedCreden
   const emails = new Set(updates.map((a) => a.email));
   return [...existing.filter((a) => !emails.has(a.email)), ...updates];
 }
+
+/**
+ * SKAI-1788: some databases (dev Supabase) enforce a single APP_OWNER with a trigger. When another,
+ * non-QA platform owner already exists, the QA owner must be skipped rather than tripping that trigger.
+ * Returns the email of the blocking owner, or null when the QA owner can be upserted.
+ */
+export function platformOwnerBlockedBy(existingOwnerEmails: string[]): string | null {
+  const other = existingOwnerEmails.find((e) => e.toLowerCase() !== PLATFORM_OWNER.email.toLowerCase());
+  return other ?? null;
+}

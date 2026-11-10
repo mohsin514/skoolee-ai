@@ -1,5 +1,6 @@
 "use client";
 
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 import { useCallback, useEffect, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -50,7 +51,7 @@ export function PilotReadinessConsole() {
     setError(null);
     const res = await fetch(`/api/owner/pilot-readiness${schoolId ? `?schoolId=${encodeURIComponent(schoolId)}` : ""}`, { cache: "no-store" });
     const json = await res.json().catch(() => null);
-    if (!res.ok || !json?.success) { setError(json?.error ?? "Could not load pilot readiness."); return; }
+    if (!res.ok || !isApiOk(json)) { setError(readApiError(json, "Could not load pilot readiness.")); return; }
     setData(json.data);
   }, [schoolId]);
   useEffect(() => { void load(); }, [load]);
@@ -58,7 +59,7 @@ export function PilotReadinessConsole() {
   const post = useCallback(async (action: string, body: Record<string, unknown>, success: string) => {
     const res = await fetch("/api/owner/pilot-readiness", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, schoolId, ...body }) });
     const json = await res.json().catch(() => null);
-    if (!res.ok || !json?.success) { toast.error(ui(json?.error ?? "Could not save.")); return null; }
+    if (!res.ok || !isApiOk(json)) { toast.error(ui(readApiError(json, "Could not save."))); return null; }
     toast.success(ui(success)); await load(); return json.data;
   }, [schoolId, load, ui]);
 

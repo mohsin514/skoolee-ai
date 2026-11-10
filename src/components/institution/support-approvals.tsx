@@ -15,6 +15,7 @@ import { FormField } from "@/components/ui/form-field";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
+import { readApiData, readApiError } from "@/lib/api/envelope-client";
 
 /**
  * Vendor support access requests for this school (M10): the institution authority approves, declines or
@@ -52,8 +53,8 @@ export function SupportApprovalsPanel() {
     try {
       const response = await fetch("/api/super/support-grants", { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(json.error);
-      setItems(json.data || []);
+      if (!response.ok) throw new Error(readApiError(json));
+      setItems(readApiData<Grant[]>(json, []));
     } catch (error) {
       setLoadError(friendlyErrorMessage(error, t("Support requests could not be loaded right now. Please try again.")));
     } finally {
@@ -68,7 +69,7 @@ export function SupportApprovalsPanel() {
     try {
       const response = await fetch("/api/super/support-grants", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ grantId: item.id, decision, evidence: evidence[item.id] }) });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok) { toast.error(friendlyErrorMessage(json.error, t("Could not update support grant"))); return; }
+      if (!response.ok) { toast.error(friendlyErrorMessage(readApiError(json, t("Could not update support grant")), t("Could not update support grant"))); return; }
       toast.success(decision === "approve" ? t("Support access approved") : decision === "reject" ? t("Support request rejected") : decision === "revoke" ? t("Support access revoked") : t("Emergency review recorded"));
       await refresh();
       return true;

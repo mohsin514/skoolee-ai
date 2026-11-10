@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { getEffectiveDisplayLocale } from "@/app/actions/locale";
-import { defaultLocale, formatMoney, formatDateOnly, formatInstant, localeTag, type LocalePackage } from "@/lib/locale/package";
+import { defaultLocale, formatMoney, formatDateOnly, formatInstant, localeTag, type LocalePackage } from "@/lib/locale/package-core";
 import { loadUiCatalog, translateUi } from "@/lib/locale/ui-translate";
 import { UiCatalogGate } from "./UiCatalogGate";
 const LocaleContext = createContext<LocalePackage | null>(null);

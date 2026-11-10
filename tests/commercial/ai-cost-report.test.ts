@@ -52,3 +52,37 @@ test("the route is platform-owner only, unscoped reads state a reason, and CSV u
   assert.match(lib, /\.map\(csvCell\)/);
   assert.equal(COST_REPORT_CSV_HEADER.length, 16);
 });
+
+// SKAI-721: unknown spend stays unknown in totals; stale detection; drill-through reconciliation.
+import { isReportStale, reconcileDetail, totalSpendUsd } from "../../src/lib/owner/ai-cost-math";
+
+test("total spend is null when any row is unpriced, never a misleading 0", () => {
+  assert.equal(totalSpendUsd([{ spendUsd: 1.5 }, { spendUsd: null }]), null);
+  assert.equal(totalSpendUsd([{ spendUsd: 1.5 }, { spendUsd: 2.25 }]), 3.75);
+  assert.equal(totalSpendUsd([]), 0);
+});
+
+test("a report older than 15 minutes is stale; an unparsable time counts as stale", () => {
+  const now = Date.parse("2026-11-08T10:00:00Z");
+  assert.equal(isReportStale("2026-11-08T09:50:00Z", now), false);
+  assert.equal(isReportStale("2026-11-08T09:44:00Z", now), true);
+  assert.equal(isReportStale("not a date", now), true);
+});
+
+test("drill-through records reconcile with the row, per school (two schools kept apart)", () => {
+  const alpha = { calls: 2, tokens: 2000, credits: 3 }, beta = { calls: 1, tokens: 500, credits: 1 };
+  const alphaRecords = [{ tokens: 1200, credits: 1 }, { tokens: 800, credits: 2 }], betaRecords = [{ tokens: 500, credits: 1 }];
+  assert.equal(reconcileDetail(alpha, alphaRecords).matches, true);
+  assert.equal(reconcileDetail(beta, betaRecords).matches, true);
+  assert.equal(reconcileDetail(alpha, betaRecords).matches, false);
+  assert.equal(reconcileDetail(alpha, alphaRecords.slice(0, 1)).complete, false);
+});
+
+test("the drill-through is served by the owner-only route and returns no prompts, outputs or user ids", () => {
+  const route = readFileSync("src/app/api/owner/ai-cost-report/route.ts", "utf8");
+  assert.ok(route.indexOf("requirePlatformOwner()") < route.indexOf("buildCostDetail(detailSchool"));
+  const lib = readFileSync("src/lib/owner/ai-cost-report.ts", "utf8");
+  const select = lib.slice(lib.indexOf("export async function buildCostDetail"));
+  assert.doesNotMatch(select.slice(0, select.indexOf("const records")), /output: true|userId: true|metadata: false/);
+  assert.doesNotMatch(select.slice(select.indexOf("const records")), /output|userId/);
+});

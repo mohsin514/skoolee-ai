@@ -5,7 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import type { AuthUser } from "../../src/lib/auth";
 import { prisma } from "../../src/lib/db/prisma";
 import {
-  createLifecycleRequest, downloadExport, reviewLifecycleRequest,
+  createLifecycleRequest, downloadExport, reviewLifecycleRequest, searchDataSubjects,
 } from "../../src/lib/data-lifecycle/service";
 
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
@@ -111,4 +111,17 @@ test("another school's administrators cannot request, review or download a data-
   const stored = await db.dataLifecycleRequest.findUniqueOrThrow({ where: { id: created.id } });
   await assert.rejects(() => downloadExport({ ...b.owner, userId: a.owner.userId }, created.id, stored.downloadToken!, now), { status: 404 });
   assert.equal((await db.student.findUniqueOrThrow({ where: { id: a.child } })).archivedAt, null);
+});
+
+test("SKAI-1192 subject picker finds learners and guardians only in the admin's own school", async () => {
+  const a = await fixture(), b = await fixture();
+  const learners = await searchDataSubjects(a.owner, "STUDENT", "synthetic child");
+  assert.deepEqual(learners.map(row => row.id), [a.child]);
+  const guardians = await searchDataSubjects(a.owner, "GUARDIAN", "Synthetic guardian");
+  assert.equal(guardians.length, 1);
+  assert.match(guardians[0].detail, /Synthetic child/);
+  assert.ok(!(await searchDataSubjects(b.owner, "STUDENT", "synthetic")).some(row => row.id === a.child || row.id === a.sibling), "another school never sees school A learners");
+  assert.deepEqual(await searchDataSubjects(a.owner, "STUDENT", "x"), [], "one-letter queries return nothing");
+  for (const denied of [a.campusAdmin, a.teacher, a.parent]) await assert.rejects(searchDataSubjects(denied, "STUDENT", "synthetic"), /permission/);
+  await assert.rejects(searchDataSubjects(a.owner, "OTHER", "synthetic"), /Choose/);
 });

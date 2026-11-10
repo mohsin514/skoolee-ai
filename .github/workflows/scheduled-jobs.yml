@@ -1,0 +1,68 @@
+name: Scheduled jobs
+# SKAI-747 (PM-30.15): schedule the POST-only cron routes under src/app/api/cron. Vercel Cron sends GET,
+# so these are called from here with Authorization: Bearer CRON_SECRET (same pattern as
+# conversation-retention.yml). Runtime contract and ownership: docs/operations/scheduled-jobs.md.
+# Skips quietly until CRON_APP_URL and CRON_SECRET are configured. Jobs that touch billing, family
+# messaging or AI stay off until the repository variable SCHEDULED_SENSITIVE_JOBS is set to "true"
+# after code-owner sign-off (AGENTS.md rule 10).
+on:
+  schedule:
+    - cron: '*/15 * * * *' # integrations webhook deliveries
+    - cron: '10 * * * *'   # service-desk escalations, group-policy activation
+    - cron: '20 1 * * *'   # subscription-expiry (sensitive)
+    - cron: '5 0 1 * *'    # ai-credits-reset (sensitive)
+    - cron: '0 6 * * *'    # meeting-reminders (sensitive)
+    - cron: '0 7 * * 1'    # family-digests, risk-digest (sensitive)
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Cron route to run once (e.g. service-desk)'
+        required: true
+        type: choice
+        options: [integrations, service-desk, group-policy, subscription-expiry, ai-credits-reset, meeting-reminders, family-digests, risk-digest]
+permissions:
+  contents: read
+concurrency:
+  group: scheduled-jobs-${{ github.event.schedule || inputs.job }}
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      APP_URL: ${{ secrets.CRON_APP_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      SENSITIVE: ${{ vars.SCHEDULED_SENSITIVE_JOBS }}
+      SCHEDULE: ${{ github.event.schedule }}
+      MANUAL_JOB: ${{ inputs.job }}
+    steps:
+      - name: Call cron routes
+        run: |
+          set -u
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then echo "CRON_APP_URL or CRON_SECRET not set; skipping."; exit 0; fi
+          case "$SCHEDULE" in
+            '*/15 * * * *') jobs="integrations" ;;
+            '10 * * * *')   jobs="service-desk group-policy" ;;
+            '20 1 * * *')   jobs="subscription-expiry" ;;
+            '5 0 1 * *')    jobs="ai-credits-reset" ;;
+            '0 6 * * *')    jobs="meeting-reminders" ;;
+            '0 7 * * 1')    jobs="family-digests risk-digest" ;;
+            '')             jobs="$MANUAL_JOB" ;;
+            *) echo "Unknown schedule '$SCHEDULE'"; exit 1 ;;
+          esac
+          failed=0
+          for job in $jobs; do
+            case "$job" in
+              subscription-expiry|ai-credits-reset|meeting-reminders|family-digests|risk-digest)
+                if [ "$SENSITIVE" != "true" ] && [ -n "$SCHEDULE" ]; then echo "$job: sensitive job not enabled (SCHEDULED_SENSITIVE_JOBS); skipping."; continue; fi ;;
+            esac
+            ok=0
+            # Bounded retry: every route is idempotent (claims, leases or month markers), so a repeat is safe.
+            for attempt in 1 2 3; do
+              if curl --fail-with-body --silent --show-error --max-time 90 -X POST \
+                   -H "Authorization: Bearer $CRON_SECRET" "${APP_URL%/}/api/cron/$job"; then ok=1; echo; break; fi
+              echo "$job: attempt $attempt failed"; sleep $((attempt * 20))
+            done
+            if [ "$ok" != 1 ]; then echo "::error::$job failed after 3 attempts"; failed=1; fi
+          done
+          exit $failed
