@@ -5,9 +5,9 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
-  errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
+import { failFrom, ok, okPage } from "@/lib/api/envelope";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
 
 export const dynamic = "force-dynamic";
@@ -43,12 +43,8 @@ export async function GET(req: NextRequest) {
         take: limit,
       });
 
-    return Response.json({
-      success: true,
-      data: logs,
-      pagination: { page, limit, total, pages },
-    });
+    return okPage(logs, { page, limit, total, pages });
   } catch (error) {
-    return errorResponse(error, "[super/audit-logs] GET failed");
+    return failFrom(error, "[super/audit-logs] GET failed");
   }
 }

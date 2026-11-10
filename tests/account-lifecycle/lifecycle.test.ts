@@ -85,6 +85,20 @@ test('invitations require reviewed context and one atomic claim; expired context
  await raw.staffInvitation.update({ where: { id: expired.id }, data: { campusId: campusB } }); await assert.rejects(acceptInvite(expired.token, password, 'Synthetic', invitationContext(expired)), /details changed/); assert.equal(await raw.user.count({ where: { email: expired.email } }), 0);
  const r = await post('/api/invite/reissue', { token: expired.token }); assert.equal(r.status, 200); const current = await raw.staffInvitation.findUniqueOrThrow({ where: { id: expired.id } }); assert.notEqual(current.token, expired.token); assert.equal(current.campusId, campusB); assert.equal(await raw.staffInvitation.count({ where: { email: expired.email } }), 1);
 });
+test('SKAI-1375: archived or paused campuses and suspended schools reject invitation acceptance without side effects', async () => {
+ const make = (campus: string, role: 'TEACHER' | 'LIBRARIAN' = 'TEACHER') => raw.staffInvitation.create({ data: { schoolId, campusId: campus, email: `${randomUUID()}@example.invalid`, role, token: randomUUID(), expiresAt: new Date(Date.now() + 60_000) } });
+ const unchanged = async (invite: { id: string; email: string }) => { assert.equal((await raw.staffInvitation.findUniqueOrThrow({ where: { id: invite.id } })).status, 'pending'); assert.equal(await raw.user.count({ where: { email: invite.email } }), 0); };
+ for (const field of ['archivedAt', 'pausedAt'] as const) {
+  const invite = await make(campusB);
+  await raw.campus.update({ where: { id: campusB }, data: { [field]: new Date() } });
+  try { await assert.rejects(acceptInvite(invite.token, password, 'Synthetic', invitationContext(invite)), /campus is not accepting/); await unchanged(invite); }
+  finally { await raw.campus.update({ where: { id: campusB }, data: { [field]: null } }); }
+ }
+ const invites = [await make(campusId, 'LIBRARIAN'), await make(campusB, 'LIBRARIAN')];
+ await raw.school.update({ where: { id: schoolId }, data: { status: 'SUSPENDED' } });
+ try { for (const invite of invites) { await assert.rejects(acceptInvite(invite.token, password, 'Synthetic', invitationContext(invite)), /school is not accepting/); await unchanged(invite); } }
+ finally { await raw.school.update({ where: { id: schoolId }, data: { status: 'ACTIVE' } }); }
+});
 test('MFA rate limit is shared in persistent store', async () => { const ticket = cookie(await login('PRINCIPAL'), 'skoolee-mfa'); let status = 0; for (let i = 0; i < 11; i++) status = (await mfa(ticket, { action: 'challenge', code: 'bad' })).status; assert.equal(status, 429); assert.ok(await raw.authAttempt.count()); });
 
 async function manage(session: string, body: unknown) { return post('/api/account/mfa', body, session); }

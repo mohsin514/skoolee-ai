@@ -204,17 +204,17 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
 
     {data?.admin && <form aria-labelledby="dsr-heading" className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2 lg:grid-cols-3 lg:items-end" onSubmit={event => { event.preventDefault(); run(() => call("/api/data-lifecycle/requests", { method: "POST", body: JSON.stringify(dsrBody(dsr)) })); }}>
       <p className="sm:col-span-2 lg:col-span-3"><span id="dsr-heading" className="block text-lg font-bold">{t.dsr.title}</span><span className="text-sm text-ink-muted">{t.dsr.help}</span></p>
-      <label className="grid gap-1 text-sm font-semibold">{t.dsr.action}<Select value={dsr.action} onChange={event => { const action = event.target.value as DsrAction; setDsr({ ...dsr, action, subject: action === "GUARDIAN_EXPORT" ? "GUARDIAN" : action === "EXPORT" ? "STUDENT" : dsr.subject }); }}>
+      <label className="grid gap-1 text-sm font-semibold">{t.dsr.action}<Select value={dsr.action} onChange={event => { const action = event.target.value as DsrAction; const subject = action === "GUARDIAN_EXPORT" ? "GUARDIAN" : action === "EXPORT" ? "STUDENT" : dsr.subject; setDsr({ ...dsr, action, subject, subjectId: subject === dsr.subject ? dsr.subjectId : "" }); }}>
         {(Object.keys(t.dsr.actions) as DsrAction[]).map(id => <option key={id} value={id}>{t.dsr.actions[id]}</option>)}</Select></label>
-      <label className="grid gap-1 text-sm font-semibold">{t.dsr.subject}<Select value={dsr.subject} disabled={dsr.action === "EXPORT" || dsr.action === "GUARDIAN_EXPORT"} onChange={event => { const subject = event.target.value as DsrSubject; setDsr({ ...dsr, subject, field: dsrFields[subject][0] }); }}>
+      <label className="grid gap-1 text-sm font-semibold">{t.dsr.subject}<Select value={dsr.subject} disabled={dsr.action === "EXPORT" || dsr.action === "GUARDIAN_EXPORT"} onChange={event => { const subject = event.target.value as DsrSubject; setDsr({ ...dsr, subject, subjectId: subject === dsr.subject ? dsr.subjectId : "", field: dsrFields[subject][0] }); }}>
         {(["STUDENT", "GUARDIAN"] as const).map(id => <option key={id} value={id}>{t.dsr.subjects[id]}</option>)}</Select></label>
-      <label className="grid gap-1 text-sm font-semibold">{t.dsr.recordId}<Input required dir="ltr" value={dsr.subjectId} onChange={event => setDsr({ ...dsr, subjectId: event.target.value })} /></label>
+      <SubjectPicker subject={dsr.subject} value={dsr.subjectId} onChange={subjectId => setDsr(current => ({ ...current, subjectId }))} copy={t.dsr} />
       {dsr.action === "CORRECTION" && <>
         <label className="grid gap-1 text-sm font-semibold">{t.dsr.field}<Select value={dsr.field} onChange={event => setDsr({ ...dsr, field: event.target.value })}>{dsrFields[dsr.subject].map(id => <option key={id} value={id}>{t.dsr.fields[id]}</option>)}</Select></label>
         <label className="grid gap-1 text-sm font-semibold">{t.dsr.newValue}<Input value={dsr.value} onChange={event => setDsr({ ...dsr, value: event.target.value })} /></label>
       </>}
       <label className="grid gap-1 text-sm font-semibold">{t.reason}<Input required minLength={5} value={dsr.reason} onChange={event => setDsr({ ...dsr, reason: event.target.value })} /></label>
-      <Button type="submit" variant={dsr.action === "SUBJECT_DELETION" ? "destructive" : "default"} disabled={busy}>{t.dsr.submit}</Button>
+      <Button type="submit" variant={dsr.action === "SUBJECT_DELETION" ? "destructive" : "default"} disabled={busy || !dsr.subjectId}>{t.dsr.submit}</Button>
     </form>}
 
     {data && (!data.admin || data.learners.length > 0) && <form aria-labelledby="export-heading" className="grid gap-3 rounded-xl border p-4 sm:grid-cols-[1fr_2fr_auto] sm:items-end" onSubmit={event => { event.preventDefault(); run(() => call("/api/data-lifecycle/requests", { method: "POST", body: JSON.stringify({ kind: "EXPORT", ...exportForm }) })); }}>
@@ -248,4 +248,38 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
       })}</ul>}
     </section>}
   </section>;
+}
+
+type SubjectMatch = { id: string; label: string; detail: string };
+type PickerCopy = { recordId: string; searchHint: string; noMatches: string; selected: string; change: string };
+/** SKAI-1192: school-scoped search so administrators pick a record by name instead of pasting an ID. */
+function SubjectPicker({ subject, value, onChange, copy }: { subject: DsrSubject; value: string; onChange: (id: string) => void; copy: PickerCopy }) {
+  const [query, setQuery] = useState("");
+  const [matches, setMatches] = useState<SubjectMatch[] | null>(null);
+  const [chosen, setChosen] = useState<SubjectMatch | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { setChosen(null); setQuery(""); setMatches(null); }, [subject]);
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) { setMatches(null); return; }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/data-lifecycle?subjectSearch=${subject}&q=${encodeURIComponent(q)}`, { signal: controller.signal, cache: "no-store" })
+        .then(async response => { const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || copy.noMatches); setError(null); setMatches(body.subjects ?? []); })
+        .catch(failure => { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : copy.noMatches); });
+    }, 250);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [query, subject, copy.noMatches]);
+  if (value && chosen) return <div className="grid gap-1 text-sm font-semibold"><span>{copy.selected}</span>
+    <div className="flex min-w-0 items-center justify-between gap-2 rounded-lg border px-3 py-2"><span className="min-w-0 [overflow-wrap:anywhere]">{chosen.label}{chosen.detail ? <span className="block text-xs font-normal text-ink-muted">{chosen.detail}</span> : null}</span>
+      <Button type="button" size="sm" variant="outline" onClick={() => { onChange(""); setChosen(null); }}>{copy.change}</Button></div></div>;
+  return <div className="grid gap-1 text-sm font-semibold">
+    <label className="grid gap-1">{copy.recordId}<Input type="search" autoComplete="off" value={query} aria-describedby="dsr-subject-hint" onChange={event => setQuery(event.target.value)} /></label>
+    <span id="dsr-subject-hint" className="text-xs font-normal text-ink-muted">{copy.searchHint}</span>
+    {error && <span role="alert" className="text-xs text-destructive">{error}</span>}
+    {matches && (matches.length === 0 ? <span className="text-xs font-normal text-ink-muted">{copy.noMatches}</span>
+      : <ul className="grid gap-1" aria-label={copy.recordId}>{matches.map(match => <li key={match.id}>
+        <Button type="button" variant="ghost" className="h-auto w-full justify-start text-start" onClick={() => { setChosen(match); onChange(match.id); }}>
+          <span className="min-w-0 [overflow-wrap:anywhere]">{match.label}{match.detail ? <span className="block text-xs font-normal text-ink-muted">{match.detail}</span> : null}</span></Button></li>)}</ul>)}
+  </div>;
 }

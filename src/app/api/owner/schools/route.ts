@@ -276,7 +276,7 @@ export async function POST(req: NextRequest) {
       targetType: "school",
       targetId: result.school.id,
       targetName: result.school.name,
-      newValues: { plan, status, kind, ownerEmail, campusName },
+      newValues: { plan, status, kind, ownerEmail, campusName, campusId: result.campus.id, ownerId: result.owner.id },
     }).catch(() => {});
 
     return Response.json(

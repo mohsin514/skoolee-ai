@@ -102,7 +102,7 @@ test("time findings pair comparable tasks, keep missing cases visible and withho
   ids.earlyClaim = (await early.json()).data.id;
   const refused = await act(ids.pilot, "review", { claimId: ids.earlyClaim, version: 1, decision: "APPROVE", note: "Checking the evidence first." });
   assert.equal(refused.status(), 409);
-  assert.match((await refused.json()).error, /Too few paired observations/);
+  assert.match((await refused.json()).error.message, /Too few paired observations/);
   await observe(ids.pilot, "T-05", "BASELINE", 1500, 300); await observe(ids.pilot, "T-05", "FOLLOW_UP", 900, 300);
   time = (await detail(ids.pilot)).findings.time[0];
   assert.equal(time.counts.paired, 5);
@@ -127,22 +127,22 @@ test("claims need measured evidence and permission, freeze at approval and go st
   const claim = async (statement: string, findingKey: string, identifiable = false) => (await (await act(ids.pilot, "claim", { statement, findingKey, identifiable })).json()).data.id as string;
   ids.conversion = await claim("The pilot school converted to a paid plan after the pilot.", "PAID_CONVERSION");
   const intent = await act(ids.pilot, "review", { claimId: ids.conversion, version: 1, decision: "APPROVE", note: "Checking conversion evidence." });
-  assert.match((await intent.json()).error, /none is a measured result/, "verbal intent is not conversion");
+  assert.match((await intent.json()).error.message, /none is a measured result/, "verbal intent is not conversion");
 
   ids.accuracy = await claim("After teacher review, every sampled mark matched the approved sheet.", "CORRECTNESS_FINAL:MARKS_ENTRY");
   const noPermission = await act(ids.pilot, "review", { claimId: ids.accuracy, version: 1, decision: "APPROVE", note: "Evidence checked against sheets." });
-  assert.match((await noPermission.json()).error, /case-study permission/);
+  assert.match((await noPermission.json()).error.message, /case-study permission/);
   assert.equal((await act(ids.pilot, "charter", { caseStudyPermission: "AGGREGATE" })).status(), 409, "permission needs a reference");
   assert.equal((await act(ids.pilot, "charter", { caseStudyPermission: "AGGREGATE", permissionReference: "Email from principal, 2026-11-02 (synthetic)" })).status(), 200);
   ids.named = await claim("QA-01 School A cut marks entry time in its pilot.", "TIME:MARKS_ENTRY", true);
-  assert.match((await (await act(ids.pilot, "review", { claimId: ids.named, version: 1, decision: "APPROVE", note: "Checking named permission." })).json()).error, /anonymised figures only/);
+  assert.match((await (await act(ids.pilot, "review", { claimId: ids.named, version: 1, decision: "APPROVE", note: "Checking named permission." })).json()).error.message, /anonymised figures only/);
   assert.equal((await act(ids.pilot, "review", { claimId: ids.accuracy, version: 1, decision: "APPROVE", note: "Evidence checked against sheets." })).status(), 200);
   assert.equal((await act(ids.pilot, "review", { claimId: ids.earlyClaim, version: 1, decision: "APPROVE", note: "Five pairs now recorded." })).status(), 200);
   assert.equal((await act(ids.pilot, "review", { claimId: ids.accuracy, version: 1, decision: "RETURN", note: "Stale version check." })).status(), 409, "a stale review version is refused");
 
   const synthClaim = (await (await act(ids.synthetic, "claim", { statement: "The demo shows how marks entry is measured.", findingKey: "TIME:MARKS_ENTRY" })).json()).data.id;
   await act(ids.synthetic, "charter", { caseStudyPermission: "AGGREGATE", permissionReference: "Not applicable (synthetic)" });
-  assert.match((await (await act(ids.synthetic, "review", { claimId: synthClaim, version: 1, decision: "APPROVE", note: "Trying a synthetic approval." })).json()).error, /synthetic pilot/);
+  assert.match((await (await act(ids.synthetic, "review", { claimId: synthClaim, version: 1, decision: "APPROVE", note: "Trying a synthetic approval." })).json()).error.message, /synthetic pilot/);
 
   let out = await exported();
   const mine = out.statements.filter((s: { claimId: string }) => [ids.accuracy, ids.earlyClaim].includes(s.claimId));

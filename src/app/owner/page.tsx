@@ -15,6 +15,7 @@ import { useListField } from "@/hooks/use-list-field";
  */
 
 import { loadOwnerPages } from "@/lib/owner/load-pages";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 import { useConsoleView } from "@/components/nav/useConsoleView";
 import { PageHeader, type PageAction } from "@/components/ui/page-header";
 import { Menu } from "@/components/ui/menu";
@@ -431,7 +432,7 @@ export default function OwnerDashboard() {
     try {
       const res = await fetch("/api/owner/stats", { cache: "no-store" });
       const json = await res.json().catch(() => ({}));
-      if (res.ok && json.success) {
+      if (res.ok && isApiOk(json)) {
         setStats(json.data);
         setStatsFailed(false);
       } else {
@@ -1628,7 +1629,7 @@ function AuditLogView() {
       const res = await fetch(`/api/owner/audit-logs?${qp}`, { cache: "no-store" });
       const json = await res.json();
       if (version !== loadLogsVersion.current) return;
-      if (json.success) {
+      if (isApiOk(json)) {
         setLogs(json.data);
         setTotalPages(json.pagination.pages);
         setTotal(json.pagination.total);
@@ -1839,7 +1840,7 @@ function SessionsView() {
       const res = await fetch(`/api/owner/sessions?${qp}`, { cache: "no-store" });
       const json = await res.json();
       if (version !== loadSessionsVersion.current) return;
-      if (json.success) {
+      if (isApiOk(json)) {
         setSessions(json.data);
         setPagination(json.pagination);
       } else {
@@ -1863,7 +1864,7 @@ function SessionsView() {
         body: JSON.stringify({ sessionId }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error);
+      if (!res.ok) throw new Error(readApiError(json));
       toast.success(t("Session ended. The user has been signed out of it."));
       void loadSessions(pagination.page);
     } catch (err) {
@@ -2182,7 +2183,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
     try {
       const res = await fetch("/api/owner/platform-config", { cache: "no-store" });
       const json = await res.json();
-      if (res.ok && json.success && json.data) {
+      if (res.ok && isApiOk(json) && json.data) {
         setSavedDefaults(json.data);
         setDefaultPricing(priceFields(json.data));
       } else {
@@ -2214,7 +2215,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
         body: JSON.stringify({ pricing, expected: savedDefaults }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error);
+      if (!res.ok) throw new Error(readApiError(json));
       setSavedDefaults(json.data);
       toast.success(t("Default prices saved. Schools see the new catalogue prices from their next renewal."));
       setDefaultsFailed(false);

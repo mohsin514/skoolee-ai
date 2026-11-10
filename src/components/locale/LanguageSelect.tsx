@@ -2,7 +2,7 @@
 import { FormField } from "@/components/ui/form-field";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { LANGUAGES, type Language } from "@/lib/locale/package";
+import { LANGUAGES, type Language } from "@/lib/locale/package-core";
 import { LANGUAGE_NATIVE_NAMES, parseLanguage } from "@/lib/locale/language-cookie";
 
 type Props = {

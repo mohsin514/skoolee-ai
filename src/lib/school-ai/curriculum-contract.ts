@@ -51,7 +51,8 @@ export const contractSourceSchema = z.object({
 
 export const paperSectionSchema = z.object({
   id: text(40),
-  format: z.enum(["MCQ", "SHORT", "LONG", "PRACTICAL"]),
+  /** COURSEWORK is an assessed component that is not a timed paper (e.g. GCSE NEA, IB internal assessment). */
+  format: z.enum(["MCQ", "SHORT", "LONG", "PRACTICAL", "COURSEWORK"]),
   marks: z.number().positive(),
   questionCount: z.number().int().positive(),
   attempt: z.number().int().positive(),
@@ -115,7 +116,8 @@ export function validateContractForPublication(raw: unknown, now = new Date()): 
   if (!c.register.reviewDueOn) errors.push("A review/expiry date is required.");
   else if (c.register.reviewDueOn <= day(now)) errors.push("The contract edition is stale; review the sources and approve a new version.");
   if (!c.outcomes.some(outcome => outcome.assessed)) errors.push("At least one assessed learning outcome is required.");
-  if (!c.paper.totalMarks || !c.paper.durationMinutes) errors.push("Total marks and duration are required.");
+  const timed = c.paper.sections.some(section => section.format !== "COURSEWORK");
+  if (!c.paper.totalMarks || (timed && !c.paper.durationMinutes)) errors.push("Total marks and duration are required.");
   if (!c.paper.sections.length) errors.push("At least one paper section is required.");
   for (const section of c.paper.sections) if (section.attempt > section.questionCount) errors.push(`Section ${section.id} asks for more answers than questions offered.`);
   const sectionMarks = c.paper.sections.reduce((sum, section) => sum + section.marks, 0);

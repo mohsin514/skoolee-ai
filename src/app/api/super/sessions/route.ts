@@ -4,9 +4,9 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
-  errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -40,9 +40,9 @@ export async function GET(req: NextRequest) {
       take: limit,
     });
 
-    return Response.json({ success: true, data: sessions });
+    return ok(sessions);
   } catch (error) {
-    return errorResponse(error, "[super/sessions] GET failed");
+    return failFrom(error, "[super/sessions] GET failed");
   }
 }
 
@@ -62,8 +62,8 @@ export async function DELETE(req: NextRequest) {
     });
     if (ended.count !== 1) throw new ApiError("Session not found", 404);
 
-    return Response.json({ success: true, message: "Session terminated" });
+    return ok({ message: "Session terminated" });
   } catch (error) {
-    return errorResponse(error, "[super/sessions] DELETE failed");
+    return failFrom(error, "[super/sessions] DELETE failed");
   }
 }

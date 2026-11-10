@@ -2,11 +2,9 @@
 import { FieldAction, InputGroup } from "@/components/ui/input-group";
 import { useState, useEffect, useEffectEvent, useRef, useCallback, type CSSProperties } from "react";
 import { useSearchParams } from "next/navigation";
-import { useForm, useWatch, type Control } from "react-hook-form";
 import { safeReturnPath } from "@/lib/auth/return-path";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "@/components/ui/toast";
-import { loginSchema, type LoginFormData } from "@/lib/validators/schemas";
+import { useLoginForm, type LoginFields as LoginFormData } from "@/components/auth/use-login-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { resolveMediaUrl } from "@/lib/storage/media-url";
@@ -247,8 +245,7 @@ const resendableErrors = new Set([
  * its own, so a keystroke re-renders this hint rather than the whole page.
  * Pure (no request) and never part of the field's description.
  */
-function EmailTypoRescue({ control, language, onApply }: { control: Control<LoginFormData>; language: Language; onApply: (fixed: string) => void }) {
-  const value = useWatch({ control, name: "email" });
+function EmailTypoRescue({ value, language, onApply }: { value: string; language: Language; onApply: (fixed: string) => void }) {
   return <EmailTypoHint language={language} value={value ?? ""} onApply={onApply} />;
 }
 
@@ -385,8 +382,8 @@ export default function LoginPage() {
   }, [cooldown]);
 
   const {
-    register, handleSubmit, getValues, setValue, setFocus, control, formState: { errors },
-  } = useForm<LoginFormData>({ resolver: zodResolver(loginSchema) });
+    register, handleSubmit, getValues, setValue, setFocus, errors, email: watchedEmail,
+  } = useLoginForm();
 
   // Email handoff from forgot password or register (this tab only, read once):
   // prefill the address and go straight to the password. Runs after hydration.
@@ -413,12 +410,12 @@ export default function LoginPage() {
   }, []);
 
   // Register in visual order so invalid submit focuses email before password.
-  // The password field also composes React Hook Form's onBlur with Caps Lock.
+  // The password field also composes the form hook's onBlur with Caps Lock.
   const emailField = register("email");
   const passwordField = register("password");
 
   const applyEmailFix = (fixed: string) => {
-    setValue("email", fixed, { shouldDirty: true, shouldValidate: !!errors.email });
+    setValue("email", fixed, { shouldValidate: !!errors.email });
     setFocus("email");
   };
 
@@ -695,7 +692,7 @@ export default function LoginPage() {
                   />
                 </InputGroup>
                 {errors.email && <FieldError id="login-email-error">{localize(errors.email.message ?? "")}</FieldError>}
-                <EmailTypoRescue control={control} language={language} onApply={applyEmailFix} />
+                <EmailTypoRescue value={watchedEmail} language={language} onApply={applyEmailFix} />
               </div>
 
               <div className="space-y-1.5">

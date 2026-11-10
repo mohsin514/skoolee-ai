@@ -95,11 +95,10 @@ jobs:
       - name: Production build
         run: pnpm run build
       - name: Page-weight budget (public + login first load <= 300 KB gzip, G-10)
-        # Report-only for now: /login measures ~907 KB and public pages ~788 KB gzip
-        # first-load JS, mostly the all-roles translation table. This step becomes
-        # blocking (remove continue-on-error) once the route/role locale split lands.
-        # Do not lower the 300 KB budget. https://skooleeai.atlassian.net/browse/SKAI-953
-        continue-on-error: true
+        # Blocking since SKAI-953: SKAI-1004 moved the EN/AR/UR catalog behind an on-demand
+        # import, so /login measures 300.0 KB and public pages <= 256 KB gzip first-load JS.
+        # Do not lower the 300 KB budget or add continue-on-error back.
+        # https://skooleeai.atlassian.net/browse/SKAI-953
         run: |
           if node -e 'process.exit(require("./package.json").scripts?.["size:check"] ? 0 : 1)'; then pnpm run size:check
           else echo "::warning::size:check not implemented yet (phase-in)"; fi

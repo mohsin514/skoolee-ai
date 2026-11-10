@@ -1,5 +1,6 @@
 "use client";
 
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 /**
  * SKAI-1019/1020 founder console: deferred science, later-grade and alternative-curriculum candidates, their current
  * ADOPT/DEFER/REJECT decision and exactly which prerequisites block each. Nothing here activates a pack: availability
@@ -46,7 +47,7 @@ export default function PackExpansionPage() {
     setFailed(false);
     const res = await fetch("/api/owner/pack-expansion", { cache: "no-store" }).catch(() => null);
     const json = res?.ok ? await res.json().catch(() => null) : null;
-    if (!json?.success) { setFailed(true); return; }
+    if (!isApiOk(json)) { setFailed(true); return; }
     setRows(json.data);
     setCandidate((c) => c || json.data[0]?.id || "");
   }, []);
@@ -60,8 +61,8 @@ export default function PackExpansionPage() {
     const res = await fetch("/api/owner/pack-expansion", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ record }) }).catch(() => null);
     const json = await res?.json().catch(() => null);
     setSaving(false);
-    if (json?.success) { setMessage({ tone: "success", text: t.saved }); await load(); }
-    else setMessage({ tone: "danger", text: json?.error ?? t.loadFailed });
+    if (isApiOk(json)) { setMessage({ tone: "success", text: t.saved }); await load(); }
+    else setMessage({ tone: "danger", text: readApiError(json, t.loadFailed) });
   }
 
   return (

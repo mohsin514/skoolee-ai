@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
-  errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
 
 export const dynamic = "force-dynamic";
@@ -57,9 +57,7 @@ export async function GET() {
       }),
     ]);
 
-    return Response.json({
-      success: true,
-      data: {
+    return ok({
         campusCount,
         studentCount,
         teacherCount,
@@ -71,9 +69,8 @@ export async function GET() {
         totalRevenue: totalPayments._sum.amount || 0,
         totalPaymentCount: totalPayments._count,
         pendingInvoices,
-      },
-    });
+      });
   } catch (error) {
-    return errorResponse(error, "[super/stats] GET failed");
+    return failFrom(error, "[super/stats] GET failed");
   }
 }

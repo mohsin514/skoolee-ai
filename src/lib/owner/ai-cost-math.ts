@@ -47,3 +47,23 @@ export function computeCostReport(usage: UsageAggregate[], plans: Map<string, Pl
   }
   return rows.sort((a, b) => b.month.localeCompare(a.month) || a.schoolName.localeCompare(b.schoolName));
 }
+
+/** SKAI-721: total spend across rows, or null when any row's spend is unknown — never a misleading 0. */
+export function totalSpendUsd(rows: Pick<CostRow, "spendUsd">[]): number | null {
+  let sum = 0;
+  for (const r of rows) { if (r.spendUsd === null) return null; sum += r.spendUsd; }
+  return round(sum, 4);
+}
+
+/** SKAI-721: a loaded report is stale once it is older than `maxMinutes` (default 15). */
+export const COST_REPORT_STALE_MINUTES = 15;
+export function isReportStale(generatedAt: string, now = Date.now(), maxMinutes = COST_REPORT_STALE_MINUTES) {
+  const at = Date.parse(generatedAt);
+  return !Number.isFinite(at) || now - at > maxMinutes * 60_000;
+}
+
+/** SKAI-721: drill-through reconciliation — the listed source records' credits and tokens against the row's totals. */
+export function reconcileDetail(row: Pick<CostRow, "calls" | "tokens" | "credits">, records: { tokens: number; credits: number }[]) {
+  const tokens = records.reduce((s, r) => s + r.tokens, 0), credits = records.reduce((s, r) => s + r.credits, 0);
+  return { complete: records.length === row.calls, matches: records.length === row.calls && tokens === row.tokens && credits === row.credits, tokens, credits };
+}

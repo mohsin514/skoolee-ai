@@ -175,3 +175,31 @@ test("inside a transaction a failed audit write fails the transaction so it can 
     auditedOperation({ delegate: "student", operation: "create", args: {}, query: async () => ({ id: "s3", schoolId: "school-a" }), client })
   ), /could not serialize/);
 });
+
+// SKAI-1358: a platform owner provisioning a school has no school context; the school row is filed under itself.
+const asOwner = <T>(fn: () => Promise<T>) =>
+  runWithTenantContext({ schoolId: "", userId: "owner-1", unscoped: true } as never, fn);
+
+test("creating a school as the platform owner files the audit row under the new school", async () => {
+  const { audits, client } = fakeClient();
+  const created = { id: "school-b", name: "Synthetic Group" };
+  await asOwner(() =>
+    auditedOperation({ delegate: "school", operation: "create", args: { data: {} }, query: async () => created, client })
+  );
+
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0].tableName, "schools");
+  assert.equal(audits[0].recordId, "school-b");
+  assert.equal(audits[0].schoolId, undefined);
+  assert.equal(audits[0].userId, "owner-1");
+});
+
+test("other school changes stay with the owner log, not audit_logs", async () => {
+  const before = { id: "school-b", name: "Synthetic Group" };
+  const { audits, client } = fakeClient();
+  (client as unknown as Record<string, unknown>).school = { findUnique: async () => before };
+  await asOwner(() =>
+    auditedOperation({ delegate: "school", operation: "update", args: { where: { id: "school-b" }, data: {} }, query: async () => before, client })
+  );
+  assert.equal(audits.length, 0);
+});

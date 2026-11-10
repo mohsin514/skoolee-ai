@@ -32,6 +32,22 @@ pnpm run qa:seed            # seed / refresh (idempotent upsert)
 pnpm run qa:seed -- --reset # drop the QA schools first, then reseed a clean state
 ```
 
+## Richer academics (SKAI-1249)
+
+After the base seed, add classes, exams, timetable, payroll and curriculum data:
+
+```bash
+pnpm run qa:seed:academics                    # qa-alpha (default)
+pnpm run qa:seed:academics -- --school=qa-beta
+```
+
+On the first campus it creates 3 classes (Grade 5-A, 6-A, 7-B) with 6 students each (the first
+two in Grade 5-A are linked to the QA guardian; the first is the QA student account), 4 subjects
+per class with syllabus topics, a published Mid-Term with marks and a draft Final with schedules,
+class and exam periods, a published Mon-Fri timetable, and a DRAFT payroll run for last month for
+the principal, teacher and accountant. It is idempotent, uses the same environment guard, only
+accepts `qa-*` schools and creates no credentials. Plan: `scripts/qa/academics-seed-plan.ts`.
+
 ## Credentials & safety (NFR-SEC-09 / G-01)
 
 - Every account gets a **unique strong password** — there is **no shared demo password**.
@@ -51,3 +67,13 @@ pnpm run qa:seed -- --reset # drop the QA schools first, then reseed a clean sta
 4. Run `pnpm run qa:seed -- --reset` to restore a known state.
 
 Source of truth: PRD v2.0 · QA-01 · E1-FR-03.
+
+## Large class fixture (SKAI-1199 / SKO-166)
+
+After `pnpm run qa:seed`, run `pnpm run qa:seed:large-class` (optionally `-- --size 250`, 100 to 1000)
+to add a "QA Large Class L" with 120 synthetic students to the first campus of qa-alpha, qa-beta and qa-solo.
+It uses the same seed guard, is idempotent (replaces only `QAL-` roll numbers) and touches no accounts.
+
+Checks to run against it, per school, as admin, principal and teacher, in EN and AR:
+student roster paging and search, attendance marking for the whole class, marks entry, report cards,
+CSV/PDF exports, and the class picker. Confirm a qa-beta admin cannot see qa-alpha's large class.
