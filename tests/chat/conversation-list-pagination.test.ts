@@ -17,7 +17,9 @@ test("the service pages memberships with a keyset cursor and reports nextCursor"
   assert.match(fn, /const nextCursor = hasMore \? \(page\[page\.length - 1\]\?\.id \?\? null\) : null;/);
   // Every page still goes through the membership + current-access check.
   assert.match(fn, /userId: user\.userId,\n\s*leftAt: null,/);
-  assert.match(fn, /assertCurrentConversationAccess\(user, row\)/);
+  // SKAI-1837: the same check, batched across the page (tests/chat/conversation-list-access-batch.test.ts).
+  assert.match(fn, /await accessibleConversationList\(user, loaded\)/);
+  assert.match(fn, /where: \{ id: \{ in: ids \}, schoolId: user\.schoolId \}/);
 });
 
 test("the GET route accepts ?cursor= and returns nextCursor", () => {

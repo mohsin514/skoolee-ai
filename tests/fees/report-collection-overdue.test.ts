@@ -11,23 +11,18 @@ const compile = (path: string) => transformSync(readFileSync(path, "utf8"), { lo
 const routeCode = compile("src/app/api/fees/reports/collection/route.ts");
 const day = 86_400_000;
 
+// SKAI-1826: the rules now run in SQL (tests/fees/report-collection-sql.database.test.ts proves the totals on a
+// real database); this checks the query keeps them and its tenant scope, and that rows map to the report shape.
+let sql = "", values: unknown[] = [], groupByArgs: any = null;
 function fixture() {
-  const cls = { id: "class-a", name: "Year 1", section: "A" };
-  const row = (status: string, total: number, paid: number, dueInDays: number) => ({
-    enrollment: null, studentId: `pupil-${status}-${dueInDays}`, totalAmount: total, totalAmountPaid: paid, balanceDue: total - paid,
-    status, dueDate: new Date(Date.now() + dueInDays * day), student: { class: cls },
-  });
-  const rows = [
-    row("PENDING", 10000, 0, -5), // past due
-    row("PARTIAL", 10000, 4000, -1), // past due, part paid
-    row("PENDING", 10000, 0, 20), // not due yet
-    row("PAID", 10000, 10000, -5),
-    row("CANCELLED", 10000, 0, -5),
-  ];
   const db = {
     campus: { findMany: async () => [{ id: "campus-a" }] },
-    invoice: { findMany: async () => rows },
-    payment: { findMany: async () => [{ paymentMethod: "CASH", amount: 14000 }] },
+    $queryRaw: async (strings: TemplateStringsArray, ...params: unknown[]) => {
+      sql = strings.join("?");
+      values = params;
+      return [{ classKey: "class-a", className: "Year 1 A", totalStudents: BigInt(4), totalDue: BigInt(40000), totalPaid: BigInt(14000), totalOverdue: BigInt(16000) }];
+    },
+    payment: { groupBy: async (args: unknown) => { groupByArgs = args; return [{ paymentMethod: "CASH", _sum: { amount: 14000 }, _count: { _all: 2 } }]; } },
   };
   const mod = { exports: {} as any };
   new Function("module", "exports", "require", routeCode)(mod, mod.exports, (id: string) => {
@@ -48,8 +43,17 @@ function fixture() {
 test("overdue counts only balances past their due date; not-yet-due, paid and cancelled invoices are excluded", async () => {
   const res = await fixture()();
   assert.equal(res.status, 200);
-  const [row] = (await res.json()).data.byClass;
-  assert.equal(row.totalDue, 40000, "cancelled is not a charge");
-  assert.equal(row.totalPaid, 14000);
-  assert.equal(row.totalOverdue, 16000, "10000 pending + 6000 part-paid, both past due; the invoice due in 20 days is not overdue");
+  const { byClass, byMethod } = (await res.json()).data;
+  assert.deepEqual(byClass, [{ currency: "PKR", className: "Year 1 A", totalStudents: 4, totalDue: 40000, totalPaid: 14000, totalOverdue: 16000, collectionRate: 35 }]);
+  assert.deepEqual(byMethod, [{ currency: "PKR", method: "CASH", count: 2, total: 14000, percentage: 100 }]);
+  assert.match(sql, /i\.status::text <> 'CANCELLED'/, "cancelled is not a charge");
+  assert.match(sql, /FILTER \(\s*WHERE i\.status::text IN \('PENDING', 'PARTIAL', 'OVERDUE'\) AND i\.balance_due > 0\s+AND i\.due_date < \(\?::timestamptz AT TIME ZONE 'UTC'\)/);
+  assert.match(sql, /COALESCE\(NULLIF\(e\.class_id, ''\), s\.class_id\)/, "the billed enrollment's class comes first");
+});
+
+test("the raw query and the payment group-by keep the school, campus and currency scope", async () => {
+  await fixture()();
+  assert.match(sql, /WHERE i\.school_id = \? AND i\.campus_id = ANY\(\?::text\[\]\) AND i\.currency = \?/);
+  assert.deepEqual(values.slice(1), ["school-a", ["campus-a"], "PKR"]);
+  assert.deepEqual(groupByArgs.where, { schoolId: "school-a", campusId: { in: ["campus-a"] }, invoice: { currency: "PKR" } });
 });
