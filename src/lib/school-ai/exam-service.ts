@@ -91,13 +91,33 @@ export async function resultDecisionAccess(user: AuthUser, assignment: { created
   return paper;
 }
 
+async function assertCandidateMembership(user: AuthUser, assignment: { status: string; classId: string; studentIds: Prisma.JsonValue }, db: TxClient) {
+  const student = await studentFor(user, db);
+  if (assignment.status !== "ACTIVE" || assignment.classId !== student.classId || !Array.isArray(assignment.studentIds) || !assignment.studentIds.includes(student.id)) throw new ApiError("Exam unavailable.", 404);
+  return student;
+}
+
+const candidateAssignmentSelect = { id: true, campusId: true, classId: true, status: true, studentIds: true, mode: true, proctorPolicy: true, version: true } as const satisfies Prisma.SchoolAiExamAssignmentSelect;
+
+/**
+ * SKAI-1882: the candidate's polled endpoints (notices, recording status) need the same membership checks as
+ * scopedAssignment, but not the frozen paper. Selecting only these columns keeps each poll independent of
+ * paper size; a caller that needs question order loads the paper itself, only when it has to.
+ */
+export async function candidateAssignment(user: AuthUser, id: string, db: TxClient = prisma) {
+  if (user.role !== "STUDENT") throw new ApiError("This exam entry is for an assigned student account.", 403);
+  const assignment = await db.schoolAiExamAssignment.findFirst({ where: { id, schoolId: user.schoolId, campusId: user.campusId ?? "" }, select: candidateAssignmentSelect });
+  if (!assignment) throw new ApiError("Exam unavailable.", 404);
+  if (!DELIVERED_EXAM_MODES.includes(assignment.mode)) throw new ApiError("This exam mode has not been configured for delivery.", 409);
+  return { assignment, student: await assertCandidateMembership(user, assignment, db) };
+}
+
 export async function scopedAssignment(user: AuthUser, id: string, db: TxClient = prisma, purpose: ExamAccessPurpose = "MARKING") {
   const assignment = await db.schoolAiExamAssignment.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) } });
   if (!assignment) throw new ApiError("Exam unavailable.", 404);
   if (!DELIVERED_EXAM_MODES.includes(assignment.mode)) throw new ApiError("This exam mode has not been configured for delivery.", 409);
   if (user.role === "STUDENT") {
-    const student = await studentFor(user, db);
-    if (assignment.status !== "ACTIVE" || assignment.classId !== student.classId || !Array.isArray(assignment.studentIds) || !assignment.studentIds.includes(student.id)) throw new ApiError("Exam unavailable.", 404);
+    const student = await assertCandidateMembership(user, assignment, db);
     return { assignment, paper: paperDataSchema.parse(assignment.paperSnapshot), student };
   }
   const paper = await staffExamAccess(user, assignment, "view", db, purpose);
