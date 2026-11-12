@@ -1050,18 +1050,27 @@ function IssuesTab() {
   const [members, setMembers] = useState<any[]>([]);
   const { date } = useLocaleFormat();
   const [show, setShow] = useState<"all" | "open" | "overdue" | "returned">("all");
+  // SKAI-1825: loans are read one page at a time; the full lending history grows all year.
+  const [total, setTotal] = useState(0);
+  const paged = useListPagination(total, "loans");
+  // Turning a page reads only loans; members reload on first load, retry and after an issue or return.
+  const refsLoaded = useRef(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (refreshRefs?: unknown) => {
     const version = ++loadSequence.current;
+    const withRefs = refreshRefs === true || !refsLoaded.current;
     setLoading(true); setLoadFailed(null);
     try {
-      const [ir, mr] = await Promise.all([readRequest("/api/library/issues"), readRequest("/api/library/members")]);
-      const [ij, mj] = await Promise.all([checkedListJson(ir), checkedListJson(mr)]);
+      const q = `?${new URLSearchParams({ page: String(paged.requestedPage), limit: String(paged.controls.perPage) })}`;
+      // Books are picked through server-side search (SKAI-1820), so only loans and members are read here.
+      const [ir, mr] = await Promise.all([readRequest(`/api/library/issues${q}`), withRefs ? readRequest("/api/library/members") : null]);
+      const [ij, mj] = await Promise.all([checkedListJson(ir), mr ? checkedListJson(mr) : null]);
       if (version !== loadSequence.current) return;
-      if (ij.success) setRows(ij.data || []);
-      if (mj.success) setMembers(mj.data || []);
-    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
-  }, []);
+      if (ij.success) { setRows(ij.data || []); setTotal(ij.pagination?.total ?? (ij.data || []).length); }
+      if (mj?.success) setMembers(mj.data || []);
+      if (withRefs) refsLoaded.current = true;
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setTotal(0); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
+  }, [paged.requestedPage, paged.controls.perPage]);
   useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // The route reads `dueAt`; this form sent `dueDate`, so the librarian's
@@ -1075,7 +1084,7 @@ function IssuesTab() {
       toast.success(ui("Book issued."));
       setShowAdd(false);
       form.reset();
-      load();
+      load(true);
     },
   });
 
@@ -1083,7 +1092,7 @@ function IssuesTab() {
     try {
       const r = await fetch("/api/library/issues", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action: "return" }) });
       const j = await r.json(); if (!j.success) throw new Error(j.error);
-      toast.success(ui("Book returned.")); load();
+      toast.success(ui("Book returned.")); load(true);
     } catch (e: any) { toast.error(e); }
   };
 
@@ -1127,7 +1136,7 @@ function IssuesTab() {
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Book", "Member", "Issued", "Due", "Status", "Action"].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : shown.length === 0 ? <EmptyRow cols={6} filtered /> : shown.map((i: any) => (
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={() => load(true)} /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : shown.length === 0 ? <EmptyRow cols={6} filtered /> : shown.map((i: any) => (
               <tr key={i.id} className={`border-b border-edge/10 hover:bg-surface-sunken/50 ${issueState(i) === "overdue" ? "bg-status-error-surface/50" : ""}`} data-issue-state={issueState(i)}>
                 <td className={tdCls}><bdi className="font-semibold">{i.book?.title || i.bookId}</bdi></td>
                 <td className={tdCls}><bdi>{i.member?.user?.fullName || i.memberId}</bdi></td>
@@ -1140,6 +1149,7 @@ function IssuesTab() {
           </tbody>
         </table>
       </div>
+      <Pagination {...paged.controls} />
     </>
   );
 }
