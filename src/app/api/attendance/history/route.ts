@@ -9,6 +9,8 @@ import {
 } from "@/lib/api/scope";
 import { bucketHistory } from "@/lib/attendance/history-buckets";
 
+const HISTORY_DAYS = 60;
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
@@ -40,18 +42,24 @@ export async function GET(req: NextRequest) {
     });
     if (!cls) throw new ApiError("Class not found or not assigned to you", 404);
 
-    const studentCount = await prisma.student.count({
-      where: { classId, campusId },
-    });
+    // SKAI-1870: find the 60 most recent marked days first, so the grouped scan stops there instead of
+    // reading the class's whole history. The count runs alongside it.
+    const [studentCount, recentDays] = await Promise.all([
+      prisma.student.count({ where: { classId, campusId } }),
+      prisma.attendance.groupBy({ by: ["date"], where: { campusId, classId }, orderBy: { date: "desc" }, take: HISTORY_DAYS }),
+    ]);
+    const oldestDay = recentDays.at(-1)?.date;
 
     // SKAI-1620: a row belongs to the class it was taken in (as in the monthly report, SKAI-1407),
     // so a pupil who moved here does not bring their earlier class's marks.
-    const raw = await prisma.attendance.groupBy({
-      by: ["date", "status"],
-      where: { campusId, classId },
-      _count: true,
-      orderBy: { date: "desc" },
-    });
+    const raw = oldestDay
+      ? await prisma.attendance.groupBy({
+          by: ["date", "status"],
+          where: { campusId, classId, date: { gte: oldestDay } },
+          _count: true,
+          orderBy: { date: "desc" },
+        })
+      : [];
 
     const history = bucketHistory(raw)
       .map((entry) => ({
@@ -60,7 +68,7 @@ export async function GET(req: NextRequest) {
         marked: entry.total === studentCount,
       }))
       .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 60);
+      .slice(0, HISTORY_DAYS);
 
     return Response.json({ success: true, history, studentCount });
   } catch (error) {
