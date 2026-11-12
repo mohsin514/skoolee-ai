@@ -248,5 +248,5 @@ test("settings forms take the console's sticky per-tab Save; the group Settings 
 });
 
 test("network enrolment months follow the app language (R7, P9-12)", () => {
-  assert.match(code("src/components/insights/NetworkOverview.tsx"), /enrolmentTrend\(students, 12, tag\)/);
+  assert.match(code("src/components/insights/NetworkOverview.tsx"), /enrolmentTrend\(enrolments, 12, tag\)/);
 });

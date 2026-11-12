@@ -2466,6 +2466,7 @@ model ReportCard {
   @@index([enrollmentId])
   @@index([campusId])
   @@index([schoolId, campusId])
+  @@index([schoolId, studentId, generatedAt])
   @@map("report_cards")
 }
 
@@ -6050,6 +6051,7 @@ model BookIssue {
   @@index([memberId, returnedAt])
   @@index([bookId])
   @@index([schoolId, returnedAt, dueAt])
+  @@index([schoolId, issuedAt])
   @@index([memberId])
   @@map("book_issues")
 }
