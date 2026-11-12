@@ -6,7 +6,8 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import bcrypt from "bcryptjs";
 import { logSuperAdminAction } from "@/lib/audit";
-import { isUserRole, type UserRole } from "@/lib/roles";
+import { isUserRole, roleLabel, type UserRole } from "@/lib/roles";
+import { sendAccountSetupEmail } from "@/lib/owner/account-setup-email";
 import {
   assertSeatAvailable,
   generatePassword,
@@ -191,11 +192,15 @@ export async function POST(req: NextRequest) {
       newValues: { role, schoolId, campusId, schoolName: school.name },
     }).catch(() => {});
 
+    // SKAI-1801: the new user gets a single-use set-password link; the owner still sees the one-time credentials.
+    const emailDelivery = await sendAccountSetupEmail({ id: created.id, email: created.email, fullName: created.fullName, schoolName: created.school.name, roleLabel: roleLabel(created.role) });
+
     return Response.json(
       {
         success: true,
         data: {
           ...created,
+          emailDelivery,
           // Shown once. Not recoverable.
           tempPassword,
         },

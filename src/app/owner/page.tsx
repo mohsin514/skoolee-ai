@@ -603,7 +603,7 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
     try {
       const active = await fetch("/api/owner/support/session", { cache: "no-store" });
       const activeJson = await active.json();
-      if (active.ok && activeJson.success) { setSupportSession(activeJson.data); setGrants([]); return; }
+      if (active.ok && activeJson.success && activeJson.data) { setSupportSession(activeJson.data); setGrants([]); return; }
       setSupportSession(null); setPreview(null);
       const response = await fetch("/api/owner/support/grants", { cache: "no-store" }); const json = await response.json();
       if (!response.ok) throw new Error(json.error || t("Failed to load support grants"));
@@ -624,7 +624,7 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
       void fetch("/api/owner/support/session", { cache: "no-store" }).then(async (response) => {
         if (!response.ok) { void load(); return; }
         const json = await response.json();
-        if (!json.success || json.data.id !== supportSession.id) { setSupportSession(null); setPreview(null); }
+        if (!json.success || json.data?.id !== supportSession.id) { setSupportSession(null); setPreview(null); }
       }).catch(() => { setSupportSession(null); setPreview(null); });
     }, 10_000);
     return () => window.clearInterval(poll);

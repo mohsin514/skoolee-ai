@@ -9,6 +9,8 @@ import bcrypt from "bcryptjs";
 import { PLANS } from "@/config/plans";
 import { createPlanContract } from "@/config/commercial-contract";
 import { logSuperAdminAction } from "@/lib/audit";
+import { roleLabel } from "@/lib/roles";
+import { sendAccountSetupEmail } from "@/lib/owner/account-setup-email";
 import {
   assertEmailAvailable,
   generatePassword,
@@ -279,10 +281,14 @@ export async function POST(req: NextRequest) {
       newValues: { plan, status, kind, ownerEmail, campusName, campusId: result.campus.id, ownerId: result.owner.id },
     }).catch(() => {});
 
+    // SKAI-1801: the school's first owner gets a single-use set-password link by email.
+    const emailDelivery = await sendAccountSetupEmail({ id: result.owner.id, email: result.owner.email, fullName: ownerName, schoolName: result.school.name, roleLabel: roleLabel(result.owner.role) });
+
     return Response.json(
       {
         success: true,
         data: {
+          emailDelivery,
           schoolId: result.school.id,
           schoolName: result.school.name,
           slug: result.school.slug,
