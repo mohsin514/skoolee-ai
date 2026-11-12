@@ -27,6 +27,7 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  dropSessions DropSession[]
   stripeWebhookReceipts StripeWebhookReceipt[]
   correctionNotes CorrectionNote[]
   paymentAllocations PaymentAllocation[]
@@ -1498,6 +1499,7 @@ model Class {
   classTeacherId String? @map("class_teacher_id")
   classTeacher   User?   @relation("ClassTeacher", fields: [classTeacherId], references: [id])
   academicYear   Int     @map("academic_year")
+  cycle AcademicCycle @relation(fields: [campusId, academicYear], references: [campusId, academicYear], onDelete: NoAction, onUpdate: NoAction)
   status         String  @default("ACTIVE") // ACTIVE, COMPLETED
   // How teaching is organised for this section:
   // SINGLE  = the class teacher takes every subject
@@ -1527,6 +1529,7 @@ model Class {
   @@index([classTeacherId])
   @@unique([schoolId, id])
   @@index([schoolId, campusId])
+  @@index([campusId, academicYear])
   @@map("classes")
 }
 
@@ -5665,6 +5668,8 @@ enum InvoiceStatus {
 
 // ─── ACADEMIC CYCLE ──────────────────────────────────────
 model AcademicCycle {
+  classes Class[]
+  enrollments StudentEnrollment[]
   id           String    @id @default(uuid())
   schoolId     String    @default("") @map("school_id")
   school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -6791,6 +6796,7 @@ model StudentEnrollment {
   className String @map("class_name")
   curriculum String
   academicYear Int @map("academic_year")
+  cycle AcademicCycle @relation(fields: [campusId, academicYear], references: [campusId, academicYear], onDelete: NoAction, onUpdate: NoAction)
   rollNo String @map("roll_no")
   status String @default("ACTIVE")
   startDate DateTime @db.Date @map("start_date")
@@ -6803,6 +6809,7 @@ model StudentEnrollment {
   @@index([studentId])
   @@index([schoolId, campusId])
   @@index([schoolId, classId])
+  @@index([campusId, academicYear])
   @@map("student_enrollments")
 }
 
@@ -11032,4 +11039,42 @@ model StorageCleanup {
   @@index([schoolId, status])
   @@index([receiptId])
   @@map("storage_cleanups")
+}
+
+/// SKAI-1847: a short-lived phone-to-computer upload handoff. The signed-in creator opens it; a phone holding its
+/// signed link may only add files to it until it expires or is closed. Files stay in private staging (drop/…)
+/// and never reach a record by themselves: the creator's own destination upload applies its usual checks.
+model DropSession {
+  id          String     @id @default(uuid())
+  schoolId    String     @map("school_id")
+  school      School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdById String     @map("created_by_id")
+  label       String
+  accept      String[]
+  maxFiles    Int        @map("max_files")
+  status      String     @default("OPEN") // OPEN | CLOSED
+  expiresAt   DateTime   @map("expires_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  items       DropItem[]
+
+  @@index([schoolId, createdById])
+  @@index([expiresAt])
+  @@map("drop_sessions")
+}
+
+model DropItem {
+  id          String      @id @default(uuid())
+  schoolId    String      @map("school_id")
+  sessionId   String      @map("session_id")
+  session     DropSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  storageKey  String      @unique @map("storage_key")
+  fileName    String      @map("file_name")
+  contentType String      @map("content_type")
+  sizeBytes   Int         @map("size_bytes")
+  sha256      String
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  @@unique([sessionId, sha256])
+  @@index([schoolId])
+  @@map("drop_items")
 }

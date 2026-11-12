@@ -8,7 +8,7 @@ name: Scheduled jobs
 on:
   schedule:
     - cron: '*/15 * * * *' # integrations webhook deliveries
-    - cron: '10 * * * *'   # service-desk escalations, group-policy activation
+    - cron: '10 * * * *'   # service-desk escalations, group-policy activation, drop-purge
     - cron: '20 1 * * *'   # subscription-expiry (sensitive)
     - cron: '5 0 1 * *'    # ai-credits-reset (sensitive)
     - cron: '0 6 * * *'    # meeting-reminders (sensitive)
@@ -19,7 +19,7 @@ on:
         description: 'Cron route to run once (e.g. service-desk)'
         required: true
         type: choice
-        options: [integrations, service-desk, group-policy, subscription-expiry, ai-credits-reset, meeting-reminders, family-digests, risk-digest]
+        options: [integrations, service-desk, group-policy, drop-purge, subscription-expiry, ai-credits-reset, meeting-reminders, family-digests, risk-digest]
 permissions:
   contents: read
 concurrency:
@@ -42,7 +42,7 @@ jobs:
           if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then echo "CRON_APP_URL or CRON_SECRET not set; skipping."; exit 0; fi
           case "$SCHEDULE" in
             '*/15 * * * *') jobs="integrations" ;;
-            '10 * * * *')   jobs="service-desk group-policy" ;;
+            '10 * * * *')   jobs="service-desk group-policy drop-purge" ;;
             '20 1 * * *')   jobs="subscription-expiry" ;;
             '5 0 1 * *')    jobs="ai-credits-reset" ;;
             '0 6 * * *')    jobs="meeting-reminders" ;;
