@@ -1,28 +1,28 @@
 # AI Workflows capability coverage (generated — do not edit)
 
-Total capabilities: **892**; connected: **149**.
+Total capabilities: **898**; connected: **149**.
 
-Risk: ACCESS_GRANT 57 · APPROVAL_DECISION 72 · COMMUNICATION 40 · CREATE 229 · DESTRUCTIVE 79 · FINANCIAL 60 · PUBLISH 29 · READ 49 · UPDATE 277
+Risk: ACCESS_GRANT 58 · APPROVAL_DECISION 72 · COMMUNICATION 40 · CREATE 230 · DESTRUCTIVE 82 · FINANCIAL 60 · PUBLISH 29 · READ 50 · UPDATE 277
 
-Reuse: direct 587 · inline-prisma 230 · wrapper 75
+Reuse: direct 588 · inline-prisma 230 · wrapper 80
 
-Idempotent: no 260 · unknown 50 · versioned 1 · yes 581
+Idempotent: no 261 · unknown 50 · versioned 1 · yes 586
 
 ## By role
 
 | Role | Capabilities | Connected |
 |---|---|---|
 | APP_OWNER | 66 | 14 |
-| SUPER_ADMIN | 673 | 18 |
-| ADMIN | 709 | 89 |
-| CAMPUS_ADMIN | 662 | 87 |
-| PRINCIPAL | 391 | 23 |
-| TEACHER | 250 | 24 |
-| ACCOUNTANT | 141 | 27 |
-| LIBRARIAN | 104 | 20 |
-| RECEPTIONIST | 121 | 25 |
-| STUDENT | 59 | 14 |
-| PARENT | 54 | 16 |
+| SUPER_ADMIN | 676 | 18 |
+| ADMIN | 712 | 89 |
+| CAMPUS_ADMIN | 665 | 87 |
+| PRINCIPAL | 394 | 23 |
+| TEACHER | 253 | 24 |
+| ACCOUNTANT | 144 | 27 |
+| LIBRARIAN | 107 | 20 |
+| RECEPTIONIST | 124 | 25 |
+| STUDENT | 62 | 14 |
+| PARENT | 57 | 16 |
 
 ## By cluster
 
@@ -34,8 +34,8 @@ Idempotent: no 260 · unknown 50 · versioned 1 · yes 581
 | C4 Teaching and assessment | 110 | 20 |
 | C5 Attendance, communication and engagement | 71 | 14 |
 | C6 Finance, payroll, purchasing and inventory | 121 | 26 |
-| C7 Campus operations | 113 | 24 |
-| C8 Platform, group governance and onboarding | 76 | 14 |
+| C7 Campus operations | 118 | 24 |
+| C8 Platform, group governance and onboarding | 77 | 14 |
 | C8 Reviewed RAG knowledge | 4 | 1 |
 | C9a school-ai exams and Exam Studio | 95 | 1 |
 | C9b school-ai workspace, setup, runs, assistant, plus /api/ai and /api/automatio | 61 | 0 |
