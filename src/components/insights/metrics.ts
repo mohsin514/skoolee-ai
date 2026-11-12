@@ -39,24 +39,30 @@ export interface AttendanceDay {
   rate: number;
 }
 
+/** One payload row of the campus trend: how many marks of one status were recorded on one day (SKAI-1813). */
+export interface AttendanceCount {
+  date: string | Date;
+  status: string;
+  count: number;
+}
+
 /**
- * Aggregates the per-student attendance rows the dashboard already ships into
+ * Folds the payload's per-day, per-status mark counts (`attendanceTrend`) into
  * one row per day it was actually marked. Days nobody was marked simply do not
  * appear — an unmarked day is missing data, not a zero.
  */
-export function attendanceTrend(students: any[], days = 21): AttendanceDay[] {
+export function attendanceTrend(counts: AttendanceCount[], days = 21): AttendanceDay[] {
   const byDay = new Map<string, { present: number; absent: number; leave: number }>();
 
-  for (const student of students ?? []) {
-    for (const record of student?.attendance ?? []) {
-      if (!record?.date) continue;
-      const key = dayKey(record.date);
-      const bucket = byDay.get(key) ?? { present: 0, absent: 0, leave: 0 };
-      if (record.status === "PRESENT") bucket.present += 1;
-      else if (record.status === "ABSENT") bucket.absent += 1;
-      else if (record.status === "LEAVE") bucket.leave += 1;
-      byDay.set(key, bucket);
-    }
+  for (const row of counts ?? []) {
+    if (!row?.date) continue;
+    const key = dayKey(row.date);
+    const bucket = byDay.get(key) ?? { present: 0, absent: 0, leave: 0 };
+    const count = Number(row.count) || 0;
+    if (row.status === "PRESENT") bucket.present += count;
+    else if (row.status === "ABSENT") bucket.absent += count;
+    else if (row.status === "LEAVE") bucket.leave += count;
+    byDay.set(key, bucket);
   }
 
   return [...byDay.entries()]
@@ -98,12 +104,11 @@ export function attendanceRate(summary: { present?: number; absent?: number; lea
   return Math.round(((s.present ?? 0) / marked) * 100);
 }
 
-/** Per-student attendance rate across their whole marked history. */
+/** Per-student attendance rate across their whole marked history, from the payload's `attendanceMarks` tally. */
 export function studentAttendanceRate(student: any): number | null {
-  const rows = student?.attendance ?? [];
-  if (rows.length === 0) return null;
-  const present = rows.filter((r: any) => r.status === "PRESENT").length;
-  return Math.round((present / rows.length) * 100);
+  const total = Number(student?.attendanceMarks?.total) || 0;
+  if (total === 0) return null;
+  return Math.round(((Number(student.attendanceMarks.present) || 0) / total) * 100);
 }
 
 /* ─── Academic performance ───────────────────────────────── */
@@ -156,7 +161,7 @@ export interface ClassPerformance {
  * average so the chart can drop them instead of plotting a misleading zero.
  *
  * `studentsByClass` wins over the roster nested on the class: only the payload's
- * top-level student list carries attendance history, and a class average with
+ * top-level student list carries attendance marks, and a class average with
  * no attendance beside it is half a picture.
  */
 export function classPerformance(classes: any[], studentsByClass?: Map<string, any[]>): ClassPerformance[] {
