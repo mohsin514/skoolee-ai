@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { latestRequest } from "@/lib/http/request-pool";
 import { AlarmClock, Download, DoorOpen, Eye, LogIn, LogOut, PencilLine, ShieldAlert, UserCheck } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -59,18 +60,22 @@ export function VisitorRegister({ canManage = true, hideHeader = false, command 
     if (date) search.set("date", date);
     return search;
   }, [status, q, date]);
+  // SKAI-1859: a newer query aborts the older list request, and only the newest one writes state.
+  const [listLoad] = useState(latestRequest);
   const load = useCallback(async () => {
+    const request = listLoad.start();
     setLoading(true); setLoadError("");
     try {
-      const response = await fetch(`/api/front-desk/visitors?${params()}`, { cache: "no-store" });
+      const response = await fetch(`/api/front-desk/visitors?${params()}`, { cache: "no-store", signal: request.signal });
       const json = await response.json().catch(() => ({}));
+      if (!request.isCurrent()) return;
       if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to the visitor register for this campus.") : json.error || ui("The visitor register could not be loaded."));
       const order = { ON_SITE: 0, REFUSED: 1, LEFT: 2 } as const;
       setRows([...json.data].sort((a: Visit, b: Visit) => order[a.status] - order[b.status] || b.inTime.localeCompare(a.inTime)));
       setCounts({ onSite: json.onSite, overdue: json.overdue, overdueHours: json.overdueHours });
-    } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("The visitor register could not be loaded.")); } finally { setLoading(false); }
-  }, [params, ui]);
-  useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
+    } catch (failure) { if (request.isCurrent()) setLoadError(failure instanceof Error ? ui(failure.message) : ui("The visitor register could not be loaded.")); } finally { if (request.isCurrent()) setLoading(false); }
+  }, [listLoad, params, ui]);
+  useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => { clearTimeout(timer); listLoad.cancel(); }; }, [load, q, listLoad]);
 
   const set = (field: keyof typeof EMPTY) => (event: { target: { value: string } }) => setForm(current => ({ ...current, [field]: event.target.value }));
   const submit = async () => {
