@@ -2,7 +2,8 @@ import { validateStoredExamSchedules } from "@/lib/academic/exam-bookings";
 import { withExamSchedulingWrite } from "@/lib/academic/exam-scheduling-write";
 import { ApiError, canLeadAcademics } from "@/lib/api/scope";
 import { reviewExam, publishExam } from "@/lib/academic/report-versions";
-import { assertSharedModuleRead } from "@/lib/api/scope";
+import { assertModuleRead, assertSharedModuleRead } from "@/lib/api/scope";
+import { examProgressFor, type ProgressDb } from "@/lib/academic/exam-progress";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
@@ -174,6 +175,17 @@ export async function GET(req: NextRequest) {
       },
       orderBy: [{ academicYear: "desc" }, { title: "asc" }],
     });
+
+    // SKAI-1815: the board asks for marking progress here instead of one GET /api/marks per exam.
+    // Staff only, behind the same guard /api/marks uses; a refusal leaves every exam's progress unavailable.
+    if (searchParams.get("withProgress") === "1") {
+      const closed = exams.filter((e) => e.status !== "DRAFT" && e.status !== "ACTIVE");
+      const allowed = await assertModuleRead(user, "exams").then(() => true, () => false);
+      const progress = allowed
+        ? await examProgressFor(prisma as unknown as ProgressDb, user, closed)
+        : Object.fromEntries(closed.map((e) => [e.id, null]));
+      return Response.json({ success: true, exams, progress });
+    }
 
     return Response.json({ success: true, exams });
   } catch (error) {
