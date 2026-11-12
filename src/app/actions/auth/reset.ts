@@ -76,7 +76,7 @@ export async function resetPassword(token: string, newPassword: string): Promise
     const claimed = await prisma.$transaction(async tx => {
       const claim = await tx.passwordReset.deleteMany({ where: { token: hashed, expiresAt: { gt: new Date() } } });
       if (claim.count !== 1) return false;
-      const user = await tx.user.update({ where: { id: request.userId! }, data: { password, accessVersion: { increment: 1 }, lastPasswordChange: new Date() } });
+      const user = await tx.user.update({ where: { id: request.userId! }, data: { password, mustChangePassword: false, accessVersion: { increment: 1 }, lastPasswordChange: new Date() } });
       // SKAI-1318: the reset runs unscoped, so the tenant guard cannot fill school_id; without it the FK fails and the reset rolls back.
       if (current?.password) {
         await tx.passwordHistory.create({ data: { schoolId: user.schoolId, userId: user.id, oldPasswordHash: current.password, changedBy: user.id, changeReason: "password_reset" } });

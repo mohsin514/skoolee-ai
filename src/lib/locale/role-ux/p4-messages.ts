@@ -460,6 +460,10 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   ["Temporary password", "كلمة مرور مؤقتة", "عارضی پاس ورڈ"],
   ["Tenant users", "مستخدمو المدارس", "اسکولوں کے صارفین"],
   ["The account is active and ready to use.", "الحساب نشط وجاهز للاستخدام.", "اکاؤنٹ فعال اور استعمال کے لیے تیار ہے۔"],
+  // SKAI-1801: owner-created accounts get a set-password email.
+  ["A set-password link was emailed to {0}.", "أُرسل رابط تعيين كلمة المرور إلى {0}.", "پاس ورڈ سیٹ کرنے کا لنک {0} کو ای میل کر دیا گیا۔"],
+  ["The setup email could not be sent. Share the sign-in details below securely.", "تعذّر إرسال بريد الإعداد. شارك بيانات تسجيل الدخول أدناه بأمان.", "سیٹ اپ ای میل نہیں بھیجی جا سکی۔ نیچے دی گئی سائن اِن تفصیلات محفوظ طریقے سے شیئر کریں۔"],
+  ["Email is turned off here. Share the sign-in details below securely.", "البريد الإلكتروني معطّل هنا. شارك بيانات تسجيل الدخول أدناه بأمان.", "یہاں ای میل بند ہے۔ نیچے دی گئی سائن اِن تفصیلات محفوظ طریقے سے شیئر کریں۔"],
   ["The audit log did not load", "تعذّر تحميل سجل التدقيق", "آڈٹ لاگ لوڈ نہیں ہو سکا"],
   ["The bank details could not be saved. Please try again.", "تعذّر حفظ البيانات المصرفية. حاول مرة أخرى.", "بینک کی تفصیلات محفوظ نہیں ہو سکیں۔ دوبارہ کوشش کریں۔"],
   ["The campus admin runs timetable, exams and report cards until a principal is appointed.", "يدير مدير الفرع الجدول والاختبارات وبطاقات التقارير حتى يُعيَّن مدير.", "پرنسپل کی تقرری تک ٹائم ٹیبل، امتحانات اور رپورٹ کارڈ کیمپس منتظم چلاتا ہے۔"],

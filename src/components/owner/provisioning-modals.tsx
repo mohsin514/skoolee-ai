@@ -124,6 +124,8 @@ interface Handoff {
   email: string;
   password: string;
   lines: { label: string; value: string }[];
+  /** SKAI-1801: whether the set-password email went out. */
+  emailDelivery?: "sent" | "failed" | "disabled";
 }
 
 function CredentialHandoff({ data, onDone }: { data: Handoff; onDone: () => void }) {
@@ -153,6 +155,15 @@ ${t("You will be asked to set your own password on first sign-in.")}`;
       <Alert tone="success" live="polite" icon={Check} title={data.heading} className="mb-5">
         {t("The account is active and ready to use.")}
       </Alert>
+      {data.emailDelivery && (
+        <Alert tone={data.emailDelivery === "sent" ? "info" : "warning"} live="polite" compact className="mb-5">
+          {data.emailDelivery === "sent"
+            ? t("A set-password link was emailed to {0}.", [data.email])
+            : data.emailDelivery === "failed"
+              ? t("The setup email could not be sent. Share the sign-in details below securely.")
+              : t("Email is turned off here. Share the sign-in details below securely.")}
+        </Alert>
+      )}
 
       <dl className="mb-5 space-y-2 rounded-2xl bg-surface-subtle p-4">
         {data.lines.map((l) => (
@@ -280,6 +291,7 @@ export function ProvisionSchoolModal({ onClose, onCreated, prefill, workflowHand
         heading: t("{0} is live", [d.schoolName]),
         email: d.ownerEmail,
         password: d.tempPassword,
+        emailDelivery: d.emailDelivery,
         lines: [
           { label: t("School"), value: d.schoolName },
           { label: t("Kind"), value: t(d.kind === "GROUP" ? "School group" : "Single school") },
@@ -536,6 +548,7 @@ export function AddUserModal({
         heading: t("{0} can now sign in", [d.fullName]),
         email: d.email,
         password: d.tempPassword,
+        emailDelivery: d.emailDelivery,
         lines: [
           { label: t("Name"), value: d.fullName },
           { label: t("Role"), value: roleLabelFor({ role: d.role, institutionKind: d.role === "ADMIN" ? "STANDALONE" : "GROUP" }, language) },
