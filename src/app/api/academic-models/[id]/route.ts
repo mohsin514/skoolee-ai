@@ -5,7 +5,7 @@ import { academicModelConfigurationSchema, changedConfigurationSections, preview
 import { Prisma } from "@prisma/client";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
-import { cycleYearProblems, isModelCurrent } from "@/lib/academic/cycle-rules";
+import { cycleYearProblems, isActivationRace, isModelCurrent } from "@/lib/academic/cycle-rules";
 
 type Context = { params: Promise<{ id: string }> };
 function overlap(aStart: Date, aEnd: Date | null, bStart: Date, bEnd: Date | null) {
@@ -137,7 +137,9 @@ export async function POST(request: NextRequest, context: Context) {
 
     const grading = configuration.grading;
     const grades = new Map(grading.thresholds.map((threshold) => [threshold.label.toUpperCase(), threshold.minimum]));
-    const activated = await prisma.$transaction(async (tx) => {
+    let activated;
+    try {
+    activated = await prisma.$transaction(async (tx) => {
       const currentActive = await tx.academicModelVersion.findMany({ where: { campusId: model.campusId, academicYear: model.academicYear, status: "ACTIVE" }, select: { id: true, effectiveFrom: true, effectiveTo: true, configuration: true } });
       const raceConflict = currentActive.find((active) => {
         const activeConfig = active.configuration as unknown as AcademicModelConfiguration;
@@ -174,8 +176,19 @@ export async function POST(request: NextRequest, context: Context) {
       await tx.auditLog.create({ data: { tableName: "academic_model_versions", recordId: model.id, userId: user.userId, oldValue: { status: "DRAFT" }, newValue: { status: "ACTIVE", version: model.version, changedSections, effectiveFrom: model.effectiveFrom, effectiveTo: model.effectiveTo, impactedStudents: studentCount, impactedPublishedReports: publishedReportCount, regrade: { evaluated: regrade.evaluated, gradeChanges: regrade.gradeChanges, passFlips: regrade.passFlips, publishedChanges: regrade.publishedChanges }, acknowledgedImpact: needsAcknowledgement } } });
       return version;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 30_000 });
+    } catch (error) {
+      // SKAI-208: a concurrent duplicate activation (double click, client retry) loses the
+      // serializable race. Answer it idempotently instead of with a 500.
+      if (!isActivationRace(error)) throw error;
+      const latest = await prisma.academicModelVersion.findFirst({ where: { id: model.id, schoolId: user.schoolId } });
+      if (latest?.status === "ACTIVE") {
+        return Response.json({ success: true, alreadyActive: true, model: latest, preview: { changedSections, simulation, regrade, impact: preview.impact } });
+      }
+      throw new ApiError("This version changed while you were reviewing it. Reload to see its current state.", 409);
+    }
     return Response.json({ success: true, model: activated, preview: { changedSections, simulation, regrade, impact: preview.impact } });
   } catch (error) {
     return errorResponse(error, "[academic-models/:id] POST failed");
   }
 }
+
