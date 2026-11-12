@@ -37,5 +37,7 @@ jobs:
       - run: pnpm run test:record-cascades
       - run: pnpm run test:academic-year-db
       - run: pnpm run test:enrollment-placement-db
+      - run: pnpm run test:status-values-db
       - run: pnpm run test:business-numbers-db
       - run: pnpm run test:school-fks-db
+      - run: pnpm run test:campus-pinning-db
