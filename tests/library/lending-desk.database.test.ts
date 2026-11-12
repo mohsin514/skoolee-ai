@@ -119,3 +119,28 @@ test("SKAI-1288: a circulation return without a barcoded copy charges the overdu
   await assert.rejects(() => ctx(librarian, () => returnIssue(librarian, issue.id)), { status: 409 });
   assert.equal(await raw.libraryCharge.count({ where: { issueId: issue.id } }), 1, "a repeated return charges nothing more");
 });
+
+test("SKAI-1447: reservations need a member of this school and campus; others get 404 and no queue row", async () => {
+  const otherCampus = randomUUID(), otherSchool = `library-${randomUUID()}`, otherSchoolCampus = randomUUID();
+  await raw.campus.create({ data: { id: otherCampus, schoolId, name: "Synthetic South", regId: otherCampus, city: "Synthetic" } });
+  await raw.school.create({ data: { id: otherSchool, name: "Synthetic other school", slug: otherSchool, regId: otherSchool, contactEmail: `${otherSchool}@example.invalid`, city: "Synthetic", status: "ACTIVE", plan: "PRO" } });
+  await raw.campus.create({ data: { id: otherSchoolCampus, schoolId: otherSchool, name: "Synthetic", regId: otherSchoolCampus, city: "Synthetic" } });
+  try {
+    const southUser = await raw.user.create({ data: { id: randomUUID(), schoolId, campusId: otherCampus, role: "STUDENT", email: `${randomUUID()}@example.invalid`, fullName: "Synthetic South reader", onboardingComplete: true } });
+    const foreignUser = await raw.user.create({ data: { id: randomUUID(), schoolId: otherSchool, campusId: otherSchoolCampus, role: "STUDENT", email: `${randomUUID()}@example.invalid`, fullName: "Synthetic foreign reader", onboardingComplete: true } });
+    const south = await raw.libraryMember.create({ data: { schoolId, campusId: otherCampus, userId: southUser.id, memberNo: "LM-S1" } });
+    const foreign = await raw.libraryMember.create({ data: { schoolId: otherSchool, campusId: otherSchoolCampus, userId: foreignUser.id, memberNo: "LM-F1" } });
+    const before = await raw.bookReservation.count({ where: { bookId: ids.novel } });
+    for (const memberId of [south.id, foreign.id, randomUUID()]) {
+      await assert.rejects(() => ctx(librarian, () => reserveTitle(librarian, { memberId, bookId: ids.novel })), { status: 404 });
+    }
+    await assert.rejects(() => ctx(readerUsers[0], () => reserveTitle(readerUsers[0], { memberId: members[0], bookId: ids.novel })), { status: 403 });
+    assert.equal(await raw.bookReservation.count({ where: { bookId: ids.novel } }), before, "no queue rows were written");
+    await assert.rejects(() => raw.bookReservation.create({ data: { schoolId, campusId, bookId: ids.novel, memberId: randomUUID() } }), "the foreign key rejects an unknown member");
+  } finally {
+    await raw.school.deleteMany({ where: { id: otherSchool } });
+    await raw.libraryMember.deleteMany({ where: { campusId: otherCampus } });
+    await raw.user.deleteMany({ where: { campusId: otherCampus } });
+    await raw.campus.deleteMany({ where: { id: otherCampus } });
+  }
+});

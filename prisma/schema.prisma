@@ -5758,7 +5758,8 @@ model LibraryMember {
   memberNo  String   @map("member_no")
   createdAt DateTime @default(now()) @map("created_at")
 
-  issues BookIssue[]
+  issues       BookIssue[]
+  reservations BookReservation[]
 
   @@unique([campusId, userId])
   @@unique([campusId, memberNo])
@@ -8659,6 +8660,8 @@ model BookReservation {
   campusId   String    @map("campus_id")
   bookId     String    @map("book_id")
   memberId   String    @map("member_id")
+  /// SKAI-1447: a reservation must point at a real library member.
+  member     LibraryMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
   status     String    @default("WAITING")
   copyId     String?   @map("copy_id")
   readyUntil DateTime? @map("ready_until")
