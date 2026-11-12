@@ -55,6 +55,19 @@ export async function GET(req: NextRequest) {
 
     const total = await prisma.school.count({ where });
     const { page, skip, pages } = pageWindow(total, requestedPage, limit);
+    const orderBy = [{ createdAt: "desc" as const }, { id: "desc" as const }];
+    // SKAI-1867: ?view=options feeds the owner pickers (school filter, Add user). Same filters,
+    // order and paging, but only names and campuses: no per-campus student/staff/class counts.
+    if (searchParams.get("view") === "options") {
+      const data = await prisma.school.findMany({
+        where,
+        select: { id: true, name: true, plan: true, campuses: { select: { id: true, name: true } } },
+        orderBy,
+        skip,
+        take: limit,
+      });
+      return Response.json({ success: true, data, pagination: { page, limit, total, pages } });
+    }
     const schools = await prisma.school.findMany({
         where,
         include: {
@@ -73,7 +86,7 @@ export async function GET(req: NextRequest) {
           },
           _count: { select: { users: { where: { role: { notIn: ["PARENT", "STUDENT", "APP_OWNER"] } } } } },
         },
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        orderBy,
         skip,
         take: limit,
       });
