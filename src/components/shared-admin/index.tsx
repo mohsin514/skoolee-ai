@@ -5784,7 +5784,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
     return c;
   }, [students]);
 
-  const filtered = students.filter((s) => {
+  const filtered = useMemo(() => students.filter((s) => {
     if (statusFilter !== "all" && s.status !== statusFilter) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
@@ -5793,7 +5793,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
       s.rollNo?.toLowerCase().includes(q) ||
       s.guardianName?.toLowerCase().includes(q)
     );
-  });
+  }), [students, statusFilter, searchQuery]);
 
   const archivePage = useListPage(filtered, "archive");
 
