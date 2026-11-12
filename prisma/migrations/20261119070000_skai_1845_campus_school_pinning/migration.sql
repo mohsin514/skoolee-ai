@@ -10,7 +10,7 @@
 -- checked on 2026-11-13 and had none across 6,600+ rows.
 -- Rollback: re-add <table>_campus_id_fkey on (campus_id) and drop <table>_school_id_campus_id_fkey.
 
-CREATE UNIQUE INDEX "campuses_school_id_id_key" ON "campuses"("school_id", "id");
+CREATE UNIQUE INDEX IF NOT EXISTS "campuses_school_id_id_key" ON "campuses"("school_id", "id");
 CREATE INDEX "subjects_school_id_campus_id_idx" ON "subjects"("school_id", "campus_id");
 CREATE INDEX "students_school_id_campus_id_idx" ON "students"("school_id", "campus_id");
 CREATE INDEX "report_cards_school_id_campus_id_idx" ON "report_cards"("school_id", "campus_id");
