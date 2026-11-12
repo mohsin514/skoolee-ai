@@ -11,29 +11,38 @@ import {
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 import { returnIssue } from "@/lib/library/desk";
+import { listPagination, pageWindow } from "@/lib/lists/query";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     await assertModuleRead(user, "library");
-    const { searchParams } = new URL(req.url);
+    const searchParams = req.nextUrl.searchParams;
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
     const status = searchParams.get("status");
+    // SKAI-1825: one page of loans, not the campus's whole lending history.
+    const { page: requestedPage, limit } = listPagination(searchParams, 50, 100);
+    const where = {
+      schoolId: user.schoolId,
+      book: { campusId },
+      ...(status === "issued" ? { returnedAt: null } : {}),
+      ...(status === "returned" ? { returnedAt: { not: null } } : {}),
+    };
+    const total = await prisma.bookIssue.count({ where });
+    const { page, skip, pages } = pageWindow(total, requestedPage, limit);
 
     const data = await prisma.bookIssue.findMany({
-      where: {
-        book: { campusId },
-        ...(status === "issued" ? { returnedAt: null } : {}),
-        ...(status === "returned" ? { returnedAt: { not: null } } : {}),
-      },
-      include: {
+      where,
+      select: {
+        id: true, bookId: true, memberId: true, issuedAt: true, dueAt: true, returnedAt: true,
         book: { select: { title: true } },
-        member: { include: { user: { select: { fullName: true } } } },
+        member: { select: { memberNo: true, user: { select: { fullName: true } } } },
       },
-      orderBy: { issuedAt: "desc" },
+      orderBy: status === "issued" ? [{ dueAt: "asc" }, { id: "asc" }] : [{ issuedAt: "desc" }, { id: "asc" }],
+      skip, take: limit,
     });
 
-    return Response.json({ success: true, data });
+    return Response.json({ success: true, data, pagination: { page, limit, total, pages } }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return errorResponse(error, "[library] GET issues failed");
   }

@@ -130,21 +130,42 @@ function blockOf(user: AuthUser, auth: { campusId: string; status: string; valid
   return null;
 }
 
-async function gateView(db: TxClient, user: AuthUser, check: { id: string; status: string; blockReason: string | null; exceptionStatus: string | null; authorizationId: string | null; studentId: string }) {
-  const [student, auth, restriction] = await Promise.all([
-    db.student.findFirst({ where: { id: check.studentId, schoolId: user.schoolId }, select: { fullName: true, rollNo: true, class: { select: { name: true, section: true } } } }),
-    check.authorizationId ? db.pickupAuthorization.findFirst({ where: { id: check.authorizationId } }) : null,
-    activeRestriction(db, user.schoolId, check.studentId),
+type GateCheck = { id: string; status: string; blockReason: string | null; exceptionStatus: string | null; authorizationId: string | null; studentId: string };
+
+// SKAI-1824: the gate rows for many checks in a fixed number of school-scoped queries (students, authorizations and
+// active restrictions together, then the authorizers), however many checks there are.
+async function gateViews(db: TxClient, user: AuthUser, checks: GateCheck[]) {
+  if (!checks.length) return [];
+  const schoolId = user.schoolId, now = new Date();
+  const studentIds = [...new Set(checks.map(c => c.studentId))];
+  const authIds = [...new Set(checks.flatMap(c => (c.authorizationId ? [c.authorizationId] : [])))];
+  const [students, auths, restrictions] = await Promise.all([
+    db.student.findMany({ where: { schoolId, id: { in: studentIds } }, select: { id: true, fullName: true, rollNo: true, class: { select: { name: true, section: true } } } }),
+    authIds.length ? db.pickupAuthorization.findMany({ where: { schoolId, id: { in: authIds } } }) : [],
+    // Same rule as activeRestriction: the newest unlifted, unexpired restriction per student.
+    db.pickupRestriction.findMany({ where: { schoolId, studentId: { in: studentIds }, liftedAt: null, OR: [{ endsAt: null }, { endsAt: { gt: now } }] }, orderBy: { createdAt: "desc" } }),
   ]);
-  const authorizer = auth ? await db.user.findFirst({ where: { id: auth.issuedById }, select: { fullName: true } }) : null;
-  return {
-    checkId: check.id, status: check.status, blockReason: check.blockReason, exceptionStatus: check.exceptionStatus,
-    student: { name: student?.fullName ?? "", className: [student?.class?.name, student?.class?.section].filter(Boolean).join(" "), rollNo: student?.rollNo ?? null },
-    recipient: auth ? { name: auth.recipientName, relation: auth.recipientRelation, idMethod: auth.idMethod, idLast4: auth.idLast4, validUntil: auth.validUntil, authorizedBy: authorizer?.fullName ?? "" } : null,
-    // The gate sees what to do, never why.
-    restriction: restriction ? { kind: restriction.kind, instruction: restriction.instruction } : null,
-  };
+  const issuerIds = [...new Set(auths.map(a => a.issuedById))];
+  const authorizers = issuerIds.length ? await db.user.findMany({ where: { schoolId, id: { in: issuerIds } }, select: { id: true, fullName: true } }) : [];
+  const studentById = new Map(students.map(s => [s.id, s])), authById = new Map(auths.map(a => [a.id, a]));
+  const nameById = new Map(authorizers.map(u => [u.id, u.fullName]));
+  const restrictionByStudent = new Map<string, (typeof restrictions)[number]>();
+  for (const r of restrictions) if (!restrictionByStudent.has(r.studentId)) restrictionByStudent.set(r.studentId, r);
+  return checks.map(check => {
+    const student = studentById.get(check.studentId);
+    const auth = check.authorizationId ? authById.get(check.authorizationId) : undefined;
+    const restriction = restrictionByStudent.get(check.studentId);
+    return {
+      checkId: check.id, status: check.status, blockReason: check.blockReason, exceptionStatus: check.exceptionStatus,
+      student: { name: student?.fullName ?? "", className: [student?.class?.name, student?.class?.section].filter(Boolean).join(" "), rollNo: student?.rollNo ?? null },
+      recipient: auth ? { name: auth.recipientName, relation: auth.recipientRelation, idMethod: auth.idMethod, idLast4: auth.idLast4, validUntil: auth.validUntil, authorizedBy: nameById.get(auth.issuedById) ?? "" } : null,
+      // The gate sees what to do, never why.
+      restriction: restriction ? { kind: restriction.kind, instruction: restriction.instruction } : null,
+    };
+  });
 }
+
+const gateView = async (db: TxClient, user: AuthUser, check: GateCheck) => (await gateViews(db, user, [check]))[0];
 
 /** Scan: open a check. A valid code is never a release — identity is still to be checked. */
 export async function scan(user: AuthUser, body: Record<string, unknown>) {
@@ -235,9 +256,8 @@ export async function gateQueue(user: AuthUser) {
   if (!isGate(user)) throw new ApiError("Pickup verification access is required.", 403);
   const today = new Date(Date.now() - 18 * 3_600_000);
   const checks = await prisma.pickupCheck.findMany({ where: { schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }), createdAt: { gte: today } }, orderBy: { createdAt: "desc" }, take: 50 });
-  const views = [];
-  for (const c of checks) views.push({ ...(await gateView(prisma, user, c)), gate: c.gate, createdAt: c.createdAt });
-  return { lead: isLead(user), checks: views };
+  const views = await gateViews(prisma, user, checks);
+  return { lead: isLead(user), checks: views.map((view, i) => ({ ...view, gate: checks[i].gate, createdAt: checks[i].createdAt })) };
 }
 
 // ─── Restrictions (leads) ────────────────────────────────────────────────

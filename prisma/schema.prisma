@@ -4128,6 +4128,7 @@ model PickupCheck {
 
   @@index([schoolId, studentId])
   @@index([schoolId, campusId, status])
+  @@index([schoolId, campusId, createdAt])
   @@map("pickup_checks")
 }
 

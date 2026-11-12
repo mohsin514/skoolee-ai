@@ -73,6 +73,27 @@ export function pickBoardInForce<B, V extends { effectiveFrom: Date }>(read: { b
   return { timetable: chosen.board, inForce: chosen.inForce, upcoming };
 }
 
+type CampusDb = { timetable: Pick<TxClient["timetable"], "findMany">; timetableVersion: Pick<TxClient["timetableVersion"], "groupBy" | "findMany"> };
+
+/** SKAI-1833: every class's published version in force on `today` across a campus, in three bounded queries
+ *  (boards, the in-force version number per board, then only those versions' slots) instead of one full version
+ *  history per board. Per class only the newest academic year with a version in force counts, as in
+ *  publishedClassTimetable, so a past year's boards never add lessons and a next-year board published early
+ *  never hides the current one. Every term board of that year with a version in force is kept. */
+export async function campusTimetablesInForce(schoolId: string, campusId: string, today: string, db: CampusDb = prisma) {
+  const boards = await db.timetable.findMany({ where: { schoolId, campusId, status: "PUBLISHED" }, select: { id: true, academicYear: true, class: { select: { id: true, name: true, section: true } } } });
+  if (!boards.length) return [];
+  const live = await db.timetableVersion.groupBy({ by: ["timetableId"], where: { schoolId, timetableId: { in: boards.map(board => board.id) }, effectiveFrom: { lte: day(today) } }, _max: { version: true } });
+  const inForce = new Map(live.flatMap(row => row._max.version == null ? [] : [[row.timetableId, row._max.version] as const]));
+  const newestYear = new Map<string, number>();
+  for (const board of boards) if (inForce.has(board.id)) newestYear.set(board.class.id, Math.max(newestYear.get(board.class.id) ?? -Infinity, board.academicYear));
+  const chosen = boards.filter(board => inForce.has(board.id) && board.academicYear === newestYear.get(board.class.id));
+  if (!chosen.length) return [];
+  const rows = await db.timetableVersion.findMany({ where: { schoolId, OR: chosen.map(board => ({ timetableId: board.id, version: inForce.get(board.id)! })) }, select: { timetableId: true, version: true, slots: true } });
+  const byBoard = new Map(rows.map(row => [row.timetableId, row]));
+  return chosen.flatMap(board => { const version = byBoard.get(board.id); return version ? [{ board, inForce: version }] : []; });
+}
+
 /** The class's published timetable as people see it today: the version in force, and any scheduled change. */
 export async function publishedClassTimetable(classId: string) {
   // SKAI-1626: a next-year board published early must not hide the board still in force.
