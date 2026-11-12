@@ -67,6 +67,7 @@ import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { apiErrorMessage } from "@/lib/errors";
 import { downloadCSV } from "@/lib/csv";
 import { getCampusDashboardData } from "@/app/actions/dashboard";
+import { createLatestOnlyLoader, mergeStudentEdit, mergeSubjectEdit, mergeTeacherEdit } from "@/lib/dashboard/console-data-merge";
 import { cancelInvitation, removeStaff, resendInvitation } from "@/app/actions/invite";
 import { RoleShell } from "@/components/role-dashboard";
 import { CommandCentreSkeleton, PAGE_CARD_BODY, PageSkeleton, RoleShellSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
@@ -328,20 +329,24 @@ export default function CampusConsolePage() {
   const [guardianAddRequest, setGuardianAddRequest] = useState(0);
 
   // R4: a load failure is an inline ErrorState with retry (never a toast, never a forced sign-out).
-  const loadData = useCallback(async () => {
+  // SKAI-1823: only the newest read reaches the screen; an older reload that lands late is dropped.
+  const [loader] = useState(() => createLatestOnlyLoader<any>(() => getCampusDashboardData(), {
+    onData: (nextData) => { setData(nextData); setLoadFailure(null); },
+    onError: async (error) => { setLoadFailure({ suspended: looksSuspended(error) || (await probeSuspended()) }); },
+    onSettled: () => setLoading(false),
+  }));
+  const loadData = useCallback(() => {
     setLoading(true);
-    try {
-      const nextData = await getCampusDashboardData();
-      setData(nextData);
-      setLoadFailure(null);
-      return nextData;
-    } catch (error) {
-      setLoadFailure({ suspended: looksSuspended(error) || (await probeSuspended()) });
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    return loader.run();
+  }, [loader]);
+  /** Folds a saved row into the loaded campus; reloads when the merge declines or a read is still in flight. */
+  const applyLocalEdit = (merge: (current: any) => any): Promise<any> => {
+    const merged = loader.inFlight() ? null : merge(loader.current());
+    if (!merged) return loadData();
+    loader.replace(merged);
+    setData(merged);
+    return Promise.resolve(merged);
+  };
 
   useEffect(() => {
     loadData();
@@ -838,7 +843,7 @@ export default function CampusConsolePage() {
       if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
       toast.success(ui("Student updated"));
       setSelectedStudent((current: any) => (current?.id === studentId ? { ...current, ...result.data } : current));
-      await loadData();
+      await applyLocalEdit((current) => mergeStudentEdit(current, studentId, result.data));
     } catch (error) {
       toast.error(friendlyErrorMessage(error, failed));
     } finally {
@@ -854,7 +859,7 @@ export default function CampusConsolePage() {
       const result = await res.json();
       if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
       toast.success(ui("Subject updated"));
-      const nextData = await loadData();
+      const nextData = await applyLocalEdit((current) => mergeSubjectEdit(current, classId, subjectId, updates, result.data));
       syncSelectedClass(nextData, classId);
     } catch (error) {
       toast.error(friendlyErrorMessage(error, failed));
@@ -871,7 +876,7 @@ export default function CampusConsolePage() {
       if (!res.ok) throw new Error(readApiError(result, failed));
       toast.success(ui("Teacher updated"));
       setSelectedTeacher((current: any) => (current?.id === teacherId ? { ...current, ...result.data } : current));
-      await loadData();
+      await applyLocalEdit((current) => mergeTeacherEdit(current, teacherId, result.data));
     } catch (error) {
       toast.error(friendlyErrorMessage(error, failed));
     }

@@ -55,7 +55,16 @@ const currentRelease = (tx: TxClient, user: AuthUser, assignment: Assignment) =>
   ? tx.assignmentVersion.findFirst({ where: { schoolId: user.schoolId, assignmentId: assignment.id, version: assignment.currentVersion } })
   : Promise.resolve(null);
 
-type LearnerAccess = { assignment: Assignment; release: Release; student: { id: string; classId: string; archivedAt: Date | null; fullName: string }; canSubmit: boolean };
+type LearnerStudent = { id: string; classId: string; archivedAt: Date | null; fullName: string };
+type LearnerAccess = { assignment: Assignment; release: Release; student: LearnerStudent; canSubmit: boolean };
+/** The audience/release decision, shared by one opened assignment and the batched list (SKAI-1816). */
+function learnerDecision(user: AuthUser, assignment: Assignment, release: Release | null, candidates: LearnerStudent[], tookPart: (studentId: string) => boolean, now: Date): LearnerAccess | null {
+  if (!release || release.opensAt > now) return null;
+  const student = candidates.find(s => release.audience.includes(s.id)) ?? candidates.find(s => tookPart(s.id));
+  if (!student) return null;
+  const canSubmit = user.role === "STUDENT" && assignment.status === "RELEASED" && release.audience.includes(student.id) && student.classId === assignment.classId && !student.archivedAt;
+  return { assignment, release, student, canSubmit };
+}
 /**
  * A learner may open released, opened work addressed to them, and keep reading work they took
  * part in after leaving the class. Only a currently enrolled recipient may submit.
@@ -68,12 +77,11 @@ async function learnerAccess(tx: TxClient, user: AuthUser, assignmentId: string,
   const students = await learnerStudents(tx, user);
   const candidates = studentId ? students.filter(s => s.id === studentId) : students;
   const withWork = await tx.assignmentSubmission.findMany({ where: { schoolId: user.schoolId, assignmentId, studentId: { in: candidates.map(s => s.id) }, latestVersion: { gt: 0 } }, select: { studentId: true } });
-  const student = candidates.find(s => release.audience.includes(s.id)) ?? candidates.find(s => withWork.some(w => w.studentId === s.id));
-  if (!student) throw notFound();
-  const canSubmit = user.role === "STUDENT" && assignment.status === "RELEASED" && release.audience.includes(student.id) && student.classId === assignment.classId && !student.archivedAt;
-  return { assignment, release, student, canSubmit };
+  const access = learnerDecision(user, assignment, release, candidates, id => withWork.some(w => w.studentId === id), now);
+  if (!access) throw notFound();
+  return access;
 }
-async function learnerStudents(tx: TxClient, user: AuthUser) {
+async function learnerStudents(tx: TxClient, user: AuthUser): Promise<LearnerStudent[]> {
   if (user.role === "STUDENT") return tx.student.findMany({ where: { schoolId: user.schoolId, studentUserId: user.userId }, select: { id: true, classId: true, archivedAt: true, fullName: true } });
   if (user.role === "PARENT") return tx.student.findMany({ where: { AND: [studentScope(user, "learningRecords"), { archivedAt: null }] }, select: { id: true, classId: true, archivedAt: true, fullName: true } });
   return [];
@@ -94,9 +102,10 @@ const returnedFeedback = (row: VersionRow) => row.feedback?.status === "RETURNED
   : null;
 const staffFeedback = (row: VersionRow) => row.feedback ? { ...returnedFeedback(row), status: row.feedback.status, criteria: row.feedback.criteria as Score[], comment: row.feedback.comment, totalPoints: row.feedback.totalPoints, gradebookTransfer: row.feedback.gradebookTransfer, updatedAt: row.feedback.updatedAt.toISOString() } : null;
 
+const rubricView = (row: Prisma.AssignmentRubricVersionGetPayload<object>) => ({ version: row.version, criteria: parseRubric(row.criteria), totalPoints: row.totalPoints, createdAt: row.createdAt });
 async function rubricsOf(tx: TxClient, user: AuthUser, assignmentId: string) {
   const rows = await tx.assignmentRubricVersion.findMany({ where: { schoolId: user.schoolId, assignmentId }, orderBy: { version: "asc" } });
-  return rows.map(row => ({ version: row.version, criteria: parseRubric(row.criteria), totalPoints: row.totalPoints, createdAt: row.createdAt }));
+  return rows.map(rubricView);
 }
 async function resourcesOf(tx: TxClient, user: AuthUser, classId: string, ids: string[]) {
   if (!ids.length) return [];
@@ -110,14 +119,44 @@ function learnerState(submission: { status: string; latestVersion: number; draft
   return submission.status;
 }
 
-async function learnerView(tx: TxClient, user: AuthUser, access: LearnerAccess, now: Date) {
-  const { assignment, release, student } = access;
+const learnerSubmissionInclude = { versions: { include: { feedback: true }, orderBy: { version: "desc" as const } } };
+type LearnerData = {
+  rubrics: ReturnType<typeof rubricView>[]; extensions: Prisma.AssignmentExtensionGetPayload<object>[];
+  submission: Prisma.AssignmentSubmissionGetPayload<{ include: typeof learnerSubmissionInclude }> | null; resources: { id: string; title: string }[];
+};
+async function learnerData(tx: TxClient, user: AuthUser, { assignment, release, student }: LearnerAccess): Promise<LearnerData> {
   const [rubrics, extensions, submission, resources] = await Promise.all([
     rubricsOf(tx, user, assignment.id),
     tx.assignmentExtension.findMany({ where: { schoolId: user.schoolId, assignmentId: assignment.id, studentId: student.id }, orderBy: { createdAt: "desc" } }),
-    tx.assignmentSubmission.findFirst({ where: { schoolId: user.schoolId, assignmentId: assignment.id, studentId: student.id }, include: { versions: { include: { feedback: true }, orderBy: { version: "desc" } } } }),
+    tx.assignmentSubmission.findFirst({ where: { schoolId: user.schoolId, assignmentId: assignment.id, studentId: student.id }, include: learnerSubmissionInclude }),
     resourcesOf(tx, user, assignment.classId, release.resourceIds),
   ]);
+  return { rubrics, extensions, submission, resources };
+}
+/**
+ * SKAI-1816: the same data as learnerData for every visible (assignment, learner) pair in four
+ * school-scoped queries, so a list costs a fixed number of round trips however much work exists.
+ */
+async function learnerDataFor(tx: TxClient, user: AuthUser, list: LearnerAccess[]): Promise<(access: LearnerAccess) => LearnerData> {
+  const assignmentIds = [...new Set(list.map(a => a.assignment.id))], studentIds = [...new Set(list.map(a => a.student.id))];
+  const resourceIds = [...new Set(list.flatMap(a => a.release.resourceIds))];
+  const [rubrics, extensions, submissions, resources] = list.length ? await Promise.all([
+    tx.assignmentRubricVersion.findMany({ where: { schoolId: user.schoolId, assignmentId: { in: assignmentIds } }, orderBy: { version: "asc" } }),
+    tx.assignmentExtension.findMany({ where: { schoolId: user.schoolId, assignmentId: { in: assignmentIds }, studentId: { in: studentIds } }, orderBy: { createdAt: "desc" } }),
+    tx.assignmentSubmission.findMany({ where: { schoolId: user.schoolId, assignmentId: { in: assignmentIds }, studentId: { in: studentIds } }, include: learnerSubmissionInclude }),
+    resourceIds.length ? tx.learningResource.findMany({ where: { schoolId: user.schoolId, id: { in: resourceIds }, status: "PUBLISHED", audience: { in: ["CLASS", "CLASS_AND_GUARDIANS"] } }, select: { id: true, title: true, classId: true } }) : [],
+  ]) : [[], [], [], []];
+  return ({ assignment, release, student }) => ({
+    rubrics: rubrics.filter(r => r.assignmentId === assignment.id).map(rubricView),
+    extensions: extensions.filter(e => e.assignmentId === assignment.id && e.studentId === student.id),
+    submission: submissions.find(s => s.assignmentId === assignment.id && s.studentId === student.id) ?? null,
+    resources: resources.filter(r => r.classId === assignment.classId && release.resourceIds.includes(r.id)).map(({ id, title }) => ({ id, title })),
+  });
+}
+
+const openLearnerView = async (tx: TxClient, user: AuthUser, access: LearnerAccess, now: Date) => learnerView(user, access, now, await learnerData(tx, user, access));
+function learnerView(user: AuthUser, access: LearnerAccess, now: Date, { rubrics, extensions, submission, resources }: LearnerData) {
+  const { assignment, release, student } = access;
   const rubric = rubrics.find(r => r.version === release.rubricVersion);
   const due = effectiveDue(release.dueAt, extensions);
   const latest = submission?.versions[0];
@@ -166,13 +205,18 @@ export async function listAssignments(user: AuthUser, raw: unknown, now = new Da
   return schoolAiTransaction(user, async tx => {
     if (user.role === "STUDENT" || user.role === "PARENT") {
       const students = await learnerStudents(tx, user);
-      const subs = await tx.assignmentSubmission.findMany({ where: { schoolId: user.schoolId, studentId: { in: students.map(s => s.id) }, latestVersion: { gt: 0 } }, select: { assignmentId: true } });
+      const subs = await tx.assignmentSubmission.findMany({ where: { schoolId: user.schoolId, studentId: { in: students.map(s => s.id) }, latestVersion: { gt: 0 } }, select: { assignmentId: true, studentId: true } });
       const { page: rows, nextCursor } = assignmentPage(await tx.assignment.findMany({ where: { schoolId: user.schoolId, status: { not: "DRAFT" }, AND: [{ OR: [{ classId: { in: students.map(s => s.classId) } }, { id: { in: subs.map(s => s.assignmentId) } }] }, assignmentPageWhere(input.cursor)] }, orderBy: pageOrder, take: ASSIGNMENT_PAGE_SIZE + 1 }));
-      const items = [];
-      for (const row of rows) for (const student of students) {
-        const access = await learnerAccess(tx, user, row.id, now, student.id).catch(() => null);
-        if (access) items.push(await learnerView(tx, user, access, now));
-      }
+      // SKAI-1816: one query for the current releases and four for the learner data, never one per row.
+      const released = rows.filter(r => r.currentVersion);
+      const releases = released.length ? await tx.assignmentVersion.findMany({ where: { schoolId: user.schoolId, OR: released.map(r => ({ assignmentId: r.id, version: r.currentVersion! })) } }) : [];
+      const tookPart = new Set(subs.map(s => `${s.assignmentId}|${s.studentId}`));
+      const visible = rows.flatMap(row => {
+        const release = row.currentVersion ? releases.find(r => r.assignmentId === row.id && r.version === row.currentVersion) ?? null : null;
+        return students.map(student => learnerDecision(user, row, release, [student], id => tookPart.has(`${row.id}|${id}`), now)).filter(a => a !== null);
+      });
+      const dataOf = await learnerDataFor(tx, user, visible);
+      const items = visible.map(access => learnerView(user, access, now, dataOf(access)));
       items.sort((a, b) => new Date(a.effectiveDueAt).getTime() - new Date(b.effectiveDueAt).getTime());
       return { mode: user.role === "PARENT" ? "guardian" as const : "learner" as const, assignments: items, nextCursor };
     }
@@ -210,7 +254,7 @@ export async function listAssignments(user: AuthUser, raw: unknown, now = new Da
 
 export async function getAssignment(user: AuthUser, assignmentId: string, now = new Date()) {
   return schoolAiTransaction(user, async tx => {
-    if (user.role === "STUDENT" || user.role === "PARENT") return { mode: "learner" as const, assignment: await learnerView(tx, user, await learnerAccess(tx, user, assignmentId, now), now) };
+    if (user.role === "STUDENT" || user.role === "PARENT") return { mode: "learner" as const, assignment: await openLearnerView(tx, user, await learnerAccess(tx, user, assignmentId, now), now) };
     const assignment = await authorAssignment(tx, user, assignmentId);
     const release = await currentRelease(tx, user, assignment);
     const [versions, rubrics, submissions, extensions, enrolled, resources] = await Promise.all([
@@ -448,7 +492,7 @@ export async function saveDraft(user: AuthUser, assignmentId: string, raw: unkno
   const input = draftInput.parse(raw);
   return schoolAiTransaction(user, async tx => {
     const access = await learnerAccess(tx, user, assignmentId, now);
-    if (!(await learnerView(tx, user, access, now)).canEditDraft) throw new ApiError("This work cannot be changed now.", 409);
+    if (!(await openLearnerView(tx, user, access, now)).canEditDraft) throw new ApiError("This work cannot be changed now.", 409);
     const submission = await submissionRow(tx, user, assignmentId, access.student.id);
     const row = await tx.assignmentSubmission.update({ where: { id: submission.id }, data: { draftText: input.text, draftSavedAt: now } });
     return { savedAt: row.draftSavedAt };
@@ -461,7 +505,7 @@ export async function prepareDraftFile(user: AuthUser, assignmentId: string, raw
   const input = fileInput.parse(raw);
   return schoolAiTransaction(user, async tx => {
     const access = await learnerAccess(tx, user, assignmentId, now);
-    if (!(await learnerView(tx, user, access, now)).canEditDraft) throw new ApiError("This work cannot be changed now.", 409);
+    if (!(await openLearnerView(tx, user, access, now)).canEditDraft) throw new ApiError("This work cannot be changed now.", 409);
     if (!allowedContentTypes(access.release.allowedTypes).includes(input.contentType)) throw new ApiError("This file type is not accepted for this assignment.", 400);
     const submission = await submissionRow(tx, user, assignmentId, access.student.id);
     const leaf = `${randomUUID()}-${input.fileName.toLowerCase().replace(/[^a-z0-9.]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "file"}`;
@@ -507,7 +551,7 @@ export async function submitWork(user: AuthUser, assignmentId: string, raw: unkn
     const submission = await submissionRow(tx, user, assignmentId, access.student.id);
     const replay = await tx.assignmentSubmissionVersion.findFirst({ where: { schoolId: user.schoolId, submissionId: submission.id, idempotencyKey: input.idempotencyKey } });
     if (replay) return receiptOf(replay, true);
-    const view = await learnerView(tx, user, access, now);
+    const view = await openLearnerView(tx, user, access, now);
     if (!access.canSubmit) throw new ApiError("You can no longer submit this assignment.", 409);
     if (access.release.submissionMode === "PAPER") throw new ApiError("Hand this work in on paper; your teacher records it.", 409);
     if (!view.canEditDraft) throw new ApiError(view.state === "RETURNED" ? "Feedback was returned. Ask your teacher to reopen the work for a new version." : "This work cannot be submitted again now.", 409);

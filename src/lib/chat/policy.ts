@@ -148,12 +148,14 @@ export async function teacherClassIds(userId: string, db: TxClient = prisma): Pr
   return [...ids];
 }
 
+/** Decides whether a teacher and a family account share a child. Swapped out by the batch path. */
+type TeacherSharesStudent = (teacherId: string, family: ChatPeer) => Promise<boolean>;
+
 /**
  * True when a teacher and a family account meet over at least one child.
  * One query, not one per class: the join is done in the database.
  */
-async function teacherSharesStudent(teacherId: string, family: ChatPeer, db: TxClient): Promise<boolean> {
-  const classIds = await teacherClassIds(teacherId, db);
+async function teacherSharesStudentIn(classIds: string[], family: ChatPeer, db: TxClient): Promise<boolean> {
   if (classIds.length === 0) return false;
 
   const link = await db.student.findFirst({
@@ -170,6 +172,51 @@ async function teacherSharesStudent(teacherId: string, family: ChatPeer, db: TxC
   return link !== null;
 }
 
+async function teacherSharesStudent(teacherId: string, family: ChatPeer, db: TxClient): Promise<boolean> {
+  return teacherSharesStudentIn(await teacherClassIds(teacherId, db), family, db);
+}
+
+/**
+ * The batch form of teacherSharesStudent for one teacher and many family
+ * accounts: two queries in all (guardians, pupils) instead of one per peer.
+ * Same conditions as the single check, plus an explicit school scope.
+ */
+async function teacherReachableFamilies(
+  schoolId: string,
+  classIds: string[],
+  families: ChatPeer[],
+  db: TxClient,
+): Promise<Set<string>> {
+  const reachable = new Set<string>();
+  if (classIds.length === 0 || families.length === 0) return reachable;
+
+  const parentIds = families.filter((f) => f.role === "PARENT").map((f) => f.id);
+  const pupilIds = families.filter((f) => f.role !== "PARENT").map((f) => f.id);
+  const inClasses = { schoolId, classId: { in: classIds }, status: "active" };
+  const liveFor = { ...liveGuardianRelationshipWhere(null, "communication"), guardianUserId: { in: parentIds } };
+
+  const [guardianRows, pupilRows] = await Promise.all([
+    parentIds.length === 0
+      ? []
+      : db.student.findMany({
+          where: { ...inClasses, guardianRelationships: { some: liveFor } },
+          select: { guardianRelationships: { where: liveFor, select: { guardianUserId: true } } },
+        }),
+    pupilIds.length === 0
+      ? []
+      : db.student.findMany({
+          where: { ...inClasses, studentUserId: { in: pupilIds } },
+          select: { studentUserId: true },
+        }),
+  ]);
+
+  for (const row of guardianRows) {
+    for (const relation of row.guardianRelationships) if (relation.guardianUserId) reachable.add(relation.guardianUserId);
+  }
+  for (const row of pupilRows) if (row.studentUserId) reachable.add(row.studentUserId);
+  return reachable;
+}
+
 /** A guardian and a pupil who belong to the same student record. */
 async function sharesStudentRecord(a: ChatPeer, b: ChatPeer, db: TxClient): Promise<boolean> {
   const parent = a.role === "PARENT" ? a : b;
@@ -181,6 +228,100 @@ async function sharesStudentRecord(a: ChatPeer, b: ChatPeer, db: TxClient): Prom
   });
 
   return link !== null;
+}
+
+/**
+ * The two relationship lookups canDirectMessage depends on. The default runs one query per call; a list of
+ * threads swaps in a prefetched set (SKAI-1837) so N threads cost a constant number of queries.
+ */
+export interface ChatRelations {
+  teacherSharesStudent(teacherId: string, family: ChatPeer): Promise<boolean>;
+  sharesStudentRecord(a: ChatPeer, b: ChatPeer): Promise<boolean>;
+}
+
+/** Every class each teacher is attached to, the same four sources as teacherClassIds, in one round of queries. */
+async function teacherClassIdsByTeacher(teacherIds: string[], db: TxClient): Promise<Map<string, Set<string>>> {
+  const map = new Map(teacherIds.map((id) => [id, new Set<string>()]));
+  if (teacherIds.length === 0) return map;
+  const [led, subjects, slots, assignments] = await Promise.all([
+    db.class.findMany({ where: { classTeacherId: { in: teacherIds } }, select: { id: true, classTeacherId: true } }),
+    db.subject.findMany({ where: { teacherId: { in: teacherIds } }, select: { classId: true, teacherId: true } }),
+    db.timetableSlot.findMany({ where: { teacherId: { in: teacherIds } }, select: { teacherId: true, timetable: { select: { classId: true } } } }),
+    db.teachingAssignment.findMany({ where: { ...currentTeachingAssignmentWhere(), teacherId: { in: teacherIds } }, select: { classId: true, teacherId: true } }),
+  ]);
+  const add = (teacherId: string | null, classId: string | null | undefined) => { if (teacherId && classId) map.get(teacherId)?.add(classId); };
+  for (const a of assignments) add(a.teacherId, a.classId);
+  for (const c of led) add(c.classTeacherId, c.id);
+  for (const s of subjects) add(s.teacherId, s.classId);
+  for (const s of slots) add(s.teacherId, s.timetable?.classId);
+  return map;
+}
+
+const pairKey = (a: string, b: string) => `${a}\u0000${b}`;
+
+/**
+ * SKAI-1837: answers every relationship question canDirectMessage can ask about `actor` and `peers` with a
+ * fixed number of queries. Same predicates as teacherSharesStudent / sharesStudentRecord; any pair not
+ * prefetched falls back to the per-pair query, so a mismatch can only cost speed, never widen access.
+ */
+export async function prefetchChatRelations(actor: AuthUser, peers: ChatPeer[], db: TxClient = prisma): Promise<ChatRelations> {
+  const actorPeer: ChatPeer = { id: actor.userId, role: actor.role, campusId: actor.campusId, isActive: true };
+  const families = peers.filter((peer) => !isStaff(peer.role));
+  const teacherPairs: Array<[string, ChatPeer]> = actor.role === "TEACHER"
+    ? families.map((family) => [actor.userId, family])
+    : isStaff(actor.role) ? [] : peers.filter((peer) => peer.role === "TEACHER").map((teacher) => [teacher.id, actorPeer]);
+  const familyPairs = isStaff(actor.role) ? [] : families.filter((peer) => peer.role !== actor.role).map((peer) => {
+    const parent = actor.role === "PARENT" ? actorPeer : peer;
+    const student = actor.role === "STUDENT" ? actorPeer : peer;
+    return [parent.id, student.id] as const;
+  });
+
+  const shared = new Set<string>();
+  const known = new Set<string>();
+  if (teacherPairs.length) {
+    const classMap = await teacherClassIdsByTeacher([...new Set(teacherPairs.map(([teacherId]) => teacherId))], db);
+    const classIds = [...new Set([...classMap.values()].flatMap((set) => [...set]))];
+    const parentIds = [...new Set(teacherPairs.filter(([, f]) => f.role === "PARENT").map(([, f]) => f.id))];
+    const studentIds = [...new Set(teacherPairs.filter(([, f]) => f.role !== "PARENT").map(([, f]) => f.id))];
+    const guardianWhere = { AND: [liveGuardianRelationshipWhere(null, "communication"), { guardianUserId: { in: parentIds } }] };
+    const students = classIds.length ? await db.student.findMany({
+      where: { schoolId: actor.schoolId, classId: { in: classIds }, status: "active", OR: [{ guardianRelationships: { some: guardianWhere } }, { studentUserId: { in: studentIds } }] },
+      select: { classId: true, studentUserId: true, guardianRelationships: { where: guardianWhere, select: { guardianUserId: true } } },
+    }) : [];
+    const familiesByClass = new Map<string, Set<string>>();
+    for (const student of students) {
+      const set = familiesByClass.get(student.classId) ?? new Set<string>();
+      for (const link of student.guardianRelationships) if (link.guardianUserId) set.add(link.guardianUserId);
+      if (student.studentUserId && studentIds.includes(student.studentUserId)) set.add(student.studentUserId);
+      familiesByClass.set(student.classId, set);
+    }
+    for (const [teacherId, family] of teacherPairs) {
+      known.add(pairKey(teacherId, family.id));
+      if ([...(classMap.get(teacherId) ?? [])].some((classId) => familiesByClass.get(classId)?.has(family.id))) shared.add(pairKey(teacherId, family.id));
+    }
+  }
+  if (familyPairs.length) {
+    const parentIds = [...new Set(familyPairs.map(([parentId]) => parentId))];
+    const guardianWhere = { AND: [liveGuardianRelationshipWhere(null, "communication"), { guardianUserId: { in: parentIds } }] };
+    const records = await db.student.findMany({
+      where: { schoolId: actor.schoolId, studentUserId: { in: [...new Set(familyPairs.map(([, studentId]) => studentId))] }, guardianRelationships: { some: guardianWhere } },
+      select: { studentUserId: true, guardianRelationships: { where: guardianWhere, select: { guardianUserId: true } } },
+    });
+    const linked = new Set(records.flatMap((record) => record.guardianRelationships.map((link) => pairKey(link.guardianUserId ?? "", record.studentUserId ?? ""))));
+    for (const [parentId, studentId] of familyPairs) {
+      known.add(pairKey(parentId, studentId));
+      if (linked.has(pairKey(parentId, studentId))) shared.add(pairKey(parentId, studentId));
+    }
+  }
+
+  return {
+    teacherSharesStudent: async (teacherId, family) =>
+      known.has(pairKey(teacherId, family.id)) ? shared.has(pairKey(teacherId, family.id)) : teacherSharesStudent(teacherId, family, db),
+    sharesStudentRecord: async (a, b) => {
+      const key = pairKey((a.role === "PARENT" ? a : b).id, (a.role === "STUDENT" ? a : b).id);
+      return known.has(key) ? shared.has(key) : sharesStudentRecord(a, b, db);
+    },
+  };
 }
 
 // ─── The decision ────────────────────────────────────────────────
@@ -198,6 +339,60 @@ export async function canDirectMessage(
   target: ChatPeer,
   settings: ChatSettings,
   db: TxClient = prisma,
+  relations: ChatRelations = { teacherSharesStudent: (teacherId, family) => teacherSharesStudent(teacherId, family, db), sharesStudentRecord: (a, b) => sharesStudentRecord(a, b, db) },
+): Promise<PolicyDecision> {
+  return decide(actor, target, settings, db, relations);
+}
+
+/**
+ * canDirectMessage for many targets at once, as a group or class channel
+ * needs. Decisions (and deny reasons) are exactly those of canDirectMessage,
+ * returned in the order of `targets`; only the lookups are shared. A teaching
+ * actor's classes and reachable families are resolved once, and any other
+ * teacher's classes are memoised, so the query count no longer grows with
+ * the number of members.
+ */
+export async function canDirectMessageMany(
+  actor: AuthUser,
+  targets: ChatPeer[],
+  settings: ChatSettings,
+  db: TxClient = prisma,
+): Promise<PolicyDecision[]> {
+  const classIdsByTeacher = new Map<string, Promise<string[]>>();
+  const classIdsFor = (teacherId: string) => {
+    let ids = classIdsByTeacher.get(teacherId);
+    if (!ids) {
+      ids = teacherClassIds(teacherId, db);
+      classIdsByTeacher.set(teacherId, ids);
+    }
+    return ids;
+  };
+
+  let actorReachable: Set<string> | null = null;
+  if (actor.role === "TEACHER") {
+    const families = targets.filter((t) => t.isActive && t.id !== actor.userId && t.role !== "APP_OWNER" && !isStaff(t.role));
+    if (families.length > 0) {
+      actorReachable = await teacherReachableFamilies(actor.schoolId, await classIdsFor(actor.userId), families, db);
+    }
+  }
+
+  const shares: TeacherSharesStudent = async (teacherId, family) =>
+    actorReachable && teacherId === actor.userId
+      ? actorReachable.has(family.id)
+      : teacherSharesStudentIn(await classIdsFor(teacherId), family, db);
+
+  const decisions: PolicyDecision[] = [];
+  const relations: ChatRelations = { teacherSharesStudent: shares, sharesStudentRecord: (a, b) => sharesStudentRecord(a, b, db) };
+  for (const target of targets) decisions.push(await decide(actor, target, settings, db, relations));
+  return decisions;
+}
+
+async function decide(
+  actor: AuthUser,
+  target: ChatPeer,
+  settings: ChatSettings,
+  db: TxClient,
+  relations: ChatRelations,
 ): Promise<PolicyDecision> {
   if (actor.userId === target.id) {
     return deny("You cannot start a conversation with yourself");
@@ -246,7 +441,7 @@ export async function canDirectMessage(
       const teacherId = actorIsStaff ? actor.userId : target.id;
       const familyPeer = actorIsStaff ? target : actorAsPeer;
 
-      if (await teacherSharesStudent(teacherId, familyPeer, db)) return ALLOW;
+      if (await relations.teacherSharesStudent(teacherId, familyPeer)) return ALLOW;
 
       return deny(
         actorIsStaff
@@ -258,7 +453,7 @@ export async function canDirectMessage(
 
   // Guardian ↔ their own pupil.
   if (!actorIsStaff && !targetIsStaff && actorRole !== targetRole) {
-    if (await sharesStudentRecord(actorAsPeer, target, db)) return ALLOW;
+    if (await relations.sharesStudentRecord(actorAsPeer, target)) return ALLOW;
 
     return deny(
       actorRole === "PARENT"
