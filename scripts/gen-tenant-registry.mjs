@@ -39,6 +39,7 @@ const GLOBAL = [
   "PackExpansionDecision", // SKAI-1019/1020: founder decisions on deferred curriculum packs; no tenant data.
   "CurriculumPackVersion", // SKAI-1008: platform curriculum catalogue; contract content only, no school data.
   "MarketTrustReview", // SKAI-1016: per-market platform trust evidence; references only, no school data.
+  "StatusValueViolation", // SKAI-1808: counts of unknown status values per table and column; written by a trigger, no school or pupil data.
   "ResourcePolicy", "PerformanceRun", // SKO-451: platform-operator capacity policy and measured runs; schools by reference, no pupil data.
 ];
 

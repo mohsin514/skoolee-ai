@@ -6,7 +6,7 @@ import { ApiError, assertStaffRole, canManageOperations } from "@/lib/api/scope"
 import { assertPermission } from "@/lib/permissions";
 import { campusScope, studentScope } from "@/lib/auth/policy";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { requireMembership } from "@/lib/chat/membership";
+import { requireConversationAccess } from "@/lib/chat/membership";
 import { getChatSettings } from "@/lib/chat/policy";
 import { matchesDocumentKey } from "./document-key-scope";
 
@@ -42,7 +42,7 @@ export async function authorizePrivateUpload(user: AuthUser, intent: PrivateUplo
   if (!actor) throw new ApiError("This upload is unavailable.", 403);
   if (intent.kind === "chat") {
     if (user.role === "APP_OWNER" || !(await getChatSettings(user.schoolId, db)).attachmentsEnabled) throw new ApiError("This upload is unavailable.", 403);
-    await requireMembership(user, intent.targetId, db);
+    await requireConversationAccess(user, intent.targetId, db);
     const prefix = `chat/${user.schoolId}/${intent.targetId}/`, leaf = intent.storageKey.slice(prefix.length);
     if (!intent.storageKey.startsWith(prefix) || !leaf || /[/\\\x00-\x1f]/.test(leaf) || [".", ".."].includes(leaf)) throw new ApiError("This upload is unavailable.", 403);
     return;

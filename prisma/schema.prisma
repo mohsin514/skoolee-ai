@@ -1492,12 +1492,13 @@ model Class {
   schoolId       String  @default("") @map("school_id")
   school         School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId       String  @map("campus_id")
-  campus         Campus  @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  campus         Campus  @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: Cascade)
   name           String
   section        String?
   classTeacherId String? @map("class_teacher_id")
   classTeacher   User?   @relation("ClassTeacher", fields: [classTeacherId], references: [id])
   academicYear   Int     @map("academic_year")
+  cycle AcademicCycle @relation(fields: [campusId, academicYear], references: [campusId, academicYear], onDelete: NoAction, onUpdate: NoAction)
   status         String  @default("ACTIVE") // ACTIVE, COMPLETED
   // How teaching is organised for this section:
   // SINGLE  = the class teacher takes every subject
@@ -1526,6 +1527,8 @@ model Class {
   @@index([campusId])
   @@index([classTeacherId])
   @@unique([schoolId, id])
+  @@index([schoolId, campusId])
+  @@index([campusId, academicYear])
   @@map("classes")
 }
 
@@ -1545,7 +1548,7 @@ model Student {
   schoolId             String    @default("") @map("school_id")
   school               School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId             String    @map("campus_id")
-  campus               Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  campus               Campus    @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: Cascade)
   classId              String    @map("class_id")
   class                Class     @relation(fields: [classId], references: [id], onDelete: NoAction)
   studentUserId        String?   @unique @map("student_user_id")
@@ -1626,6 +1629,7 @@ model Student {
   @@index([groupId])
   @@index([transportRouteId])
   @@index([dormRoomId])
+  @@index([schoolId, campusId])
   @@map("students")
 }
 
@@ -1637,7 +1641,7 @@ model GuardianRelationship {
   schoolId            String   @default("") @map("school_id")
   school              School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId            String   @map("campus_id")
-  campus              Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  campus              Campus   @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: Cascade)
   studentId           String   @map("student_id")
   student             Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   guardianUserId      String?  @map("guardian_user_id")
@@ -2082,7 +2086,7 @@ model Subject {
   schoolId   String  @default("") @map("school_id")
   school     School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId   String  @map("campus_id")
-  campus     Campus  @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  campus     Campus  @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: Cascade)
   classId    String  @map("class_id")
   class      Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
   name       String
@@ -2105,6 +2109,7 @@ model Subject {
   @@index([campusId])
   @@index([classId])
   @@index([teacherId])
+  @@index([schoolId, campusId])
   @@map("subjects")
 }
 
@@ -2180,7 +2185,7 @@ model Exam {
   schoolId        String       @default("") @map("school_id")
   school          School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId        String       @map("campus_id")
-  campus          Campus       @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  campus          Campus       @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: Cascade)
   classId         String       @map("class_id")
   class           Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
   title           String
@@ -2230,6 +2235,7 @@ model Exam {
   @@index([subjectId])
   @@index([academicModelVersionId])
   @@index([lockedBy])
+  @@index([schoolId, campusId])
   @@map("exams")
 }
 
@@ -2353,7 +2359,7 @@ model Mark {
   schoolId      String  @default("") @map("school_id")
   school        School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String  @map("campus_id")
-  campus        Campus  @relation(fields: [campusId], references: [id], onDelete: NoAction)
+  campus        Campus  @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   examId        String  @map("exam_id")
   exam          Exam    @relation(fields: [examId], references: [id], onDelete: NoAction)
   studentId     String  @map("student_id")
@@ -2378,6 +2384,7 @@ model Mark {
   @@index([studentId])
   @@index([subjectId])
   @@index([enteredBy])
+  @@index([schoolId, campusId])
   @@map("marks")
 }
 
@@ -2418,7 +2425,7 @@ model ReportCard {
   schoolId          String    @default("") @map("school_id")
   school            School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId          String    @map("campus_id")
-  campus            Campus    @relation("CampusReports", fields: [campusId], references: [id], onDelete: NoAction)
+  campus            Campus    @relation("CampusReports", fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   studentId         String    @map("student_id")
   student           Student   @relation(fields: [studentId], references: [id], onDelete: NoAction)
   examId            String    @map("exam_id")
@@ -2457,6 +2464,7 @@ model ReportCard {
   @@index([campusId, generatedAt])
   @@index([enrollmentId])
   @@index([campusId])
+  @@index([schoolId, campusId])
   @@map("report_cards")
 }
 
@@ -2468,7 +2476,7 @@ model Attendance {
   schoolId  String           @default("") @map("school_id")
   school    School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId  String           @map("campus_id")
-  campus    Campus           @relation(fields: [campusId], references: [id], onDelete: NoAction)
+  campus    Campus           @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   classId   String?          @map("class_id")
   class     Class?           @relation(fields: [classId], references: [id])
   studentId String           @map("student_id")
@@ -2495,6 +2503,7 @@ model Attendance {
   @@index([schoolId])
   @@index([enrollmentId])
   @@index([markedBy])
+  @@index([schoolId, campusId])
   @@map("attendance")
 }
 
@@ -2782,7 +2791,7 @@ model Invoice {
   schoolId        String        @default("") @map("school_id")
   school          School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId        String        @map("campus_id")
-  campus          Campus        @relation(fields: [campusId], references: [id], onDelete: NoAction)
+  campus          Campus        @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   studentId       String        @map("student_id")
   student         Student       @relation(fields: [studentId], references: [id], onDelete: NoAction)
   invoiceNumber   String?       @map("invoice_number")
@@ -2814,6 +2823,7 @@ model Invoice {
   @@index([schoolId])
   @@unique([schoolId, invoiceNumber])
   @@index([enrollmentId])
+  @@index([schoolId, campusId])
   @@map("invoices")
 }
 
@@ -2829,7 +2839,7 @@ model Payment {
   schoolId        String       @default("") @map("school_id")
   school          School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId        String       @map("campus_id")
-  campus          Campus       @relation(fields: [campusId], references: [id], onDelete: NoAction)
+  campus          Campus       @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   invoiceId       String       @map("invoice_id")
   invoice         Invoice      @relation(fields: [invoiceId], references: [id], onDelete: NoAction)
   studentId       String       @map("student_id")
@@ -2863,6 +2873,7 @@ model Payment {
   @@unique([schoolId, workflowHandoffId])
   @@index([reversalOfId])
   @@index([recordedBy])
+  @@index([schoolId, campusId])
   @@map("payments")
 }
 
@@ -2929,7 +2940,7 @@ model LedgerEntry {
   schoolId      String         @default("") @map("school_id")
   school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String         @map("campus_id")
-  campus        Campus         @relation(fields: [campusId], references: [id], onDelete: NoAction)
+  campus        Campus         @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   kind          String // INCOME | EXPENSE
   sourceName    String         @map("source_name")
   accountId     String         @map("account_id")
@@ -2961,6 +2972,7 @@ model LedgerEntry {
   @@index([accountId])
   @@index([schoolId])
   @@index([bankAccountId])
+  @@index([schoolId, campusId])
   @@map("ledger_entries")
 }
 
@@ -2992,7 +3004,7 @@ model OnlinePaymentOrder {
   schoolId    String    @default("") @map("school_id")
   school      School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId    String    @map("campus_id")
-  campus      Campus    @relation(fields: [campusId], references: [id], onDelete: NoAction)
+  campus      Campus    @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   invoiceId   String    @map("invoice_id")
   invoice     Invoice   @relation(fields: [invoiceId], references: [id], onDelete: NoAction)
   studentId   String    @map("student_id")
@@ -3008,6 +3020,7 @@ model OnlinePaymentOrder {
   @@index([invoiceId, status])
   @@index([schoolId])
   @@index([campusId])
+  @@index([schoolId, campusId])
   @@map("online_payment_orders")
 }
 
@@ -3030,7 +3043,7 @@ model PaymentPlan {
   schoolId          String    @default("") @map("school_id")
   school            School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId          String?   @map("campus_id")
-  campus            Campus?   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  campus            Campus?   @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: Cascade)
   studentId         String?   @map("student_id")
   student           Student?  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   originalAmountDue Int       @map("original_amount_due")
@@ -3055,6 +3068,7 @@ model PaymentPlan {
   @@index([invoiceId])
   @@index([campusId])
   @@index([studentId])
+  @@index([schoolId, campusId])
   @@map("payment_plans")
 }
 
@@ -3113,7 +3127,7 @@ model FinancialAdjustment {
   schoolId           String    @default("") @map("school_id")
   school             School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId           String    @map("campus_id")
-  campus             Campus    @relation(fields: [campusId], references: [id], onDelete: NoAction)
+  campus             Campus    @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   studentId          String    @map("student_id")
   invoiceId          String    @map("invoice_id")
   paymentId          String?   @map("payment_id")
@@ -5653,6 +5667,8 @@ enum InvoiceStatus {
 
 // ─── ACADEMIC CYCLE ──────────────────────────────────────
 model AcademicCycle {
+  classes Class[]
+  enrollments StudentEnrollment[]
   id           String    @id @default(uuid())
   schoolId     String    @default("") @map("school_id")
   school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -6779,6 +6795,7 @@ model StudentEnrollment {
   className String @map("class_name")
   curriculum String
   academicYear Int @map("academic_year")
+  cycle AcademicCycle @relation(fields: [campusId, academicYear], references: [campusId, academicYear], onDelete: NoAction, onUpdate: NoAction)
   rollNo String @map("roll_no")
   status String @default("ACTIVE")
   startDate DateTime @db.Date @map("start_date")
@@ -6791,6 +6808,7 @@ model StudentEnrollment {
   @@index([studentId])
   @@index([schoolId, campusId])
   @@index([schoolId, classId])
+  @@index([campusId, academicYear])
   @@map("student_enrollments")
 }
 
@@ -7715,6 +7733,22 @@ model SchoolAiExposureEntry {
   @@index([schoolId, campusId, paperId, paperVersion], map: "school_ai_exposure_entries_paper_idx")
   @@index([campusId])
   @@map("school_ai_exposure_entries")
+}
+
+// ─── SKAI-1808: free-text status watch (platform-level; written only by a database trigger) ───
+// Any write of a status value outside src/lib/db/status-values.ts is recorded here and still allowed, so the
+// lists can become CHECK constraints once this table stays empty for a release.
+model StatusValueViolation {
+  id          String   @id @default(uuid())
+  tableName   String   @map("table_name")
+  columnName  String   @map("column_name")
+  value       String
+  occurrences Int      @default(1)
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+
+  @@unique([tableName, columnName, value])
+  @@map("status_value_violations")
 }
 
 // ─── Data lifecycle (SKO-447) ─────────────────────────────────────

@@ -7,6 +7,7 @@ import { CurrencySelect } from "@/components/locale/CurrencySelect";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createLatestRequest } from "@/lib/latest-request";
+import { runBounded } from "@/lib/bounded-pool";
 import {
   BarChart3,
   CreditCard,
@@ -37,6 +38,9 @@ import {
   paymentMethodLabel,
   usePanelCommand,
 } from "./fee-utils";
+
+/** Reminders in flight at once for "Send reminders to all" (bounded to spare the server and WhatsApp provider). */
+const REMIND_ALL_CONCURRENCY = 4;
 
 export type ReportTab = "defaulters" | "collection" | "methods";
 /** Reports & reminders sections (also the accountant's PageHeader tabs). */
@@ -161,7 +165,8 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
     }
   };
 
-  // One reminder per family, sent one after another so a failure names the families it missed.
+  // One reminder per family. SKAI-1863: a few at a time (not one after another) so a long list does not hold
+  // the dialog for minutes; each family is still tried once and every failure is counted.
   const remindAll = async () => {
     setSendingAll(true);
     let sent = 0, failedCount = 0;
@@ -171,13 +176,13 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
       toast.error(tr("Defaulters could not be loaded"));
       return;
     }
-    for (const d of everyone) {
+    await runBounded(everyone, REMIND_ALL_CONCURRENCY, async (d) => {
       try {
         const res = await fetch(`${API}/remind`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId: d.studentId }) });
         const json = await res.json().catch(() => ({}));
         if (res.ok && json.success) sent += 1; else failedCount += 1;
       } catch { failedCount += 1; }
-    }
+    });
     setSendingAll(false);
     setConfirmAll(false);
     if (failedCount) toast.warning(tr("{0} reminders sent; {1} could not be sent. Try those again from their rows.", [sent, failedCount]));
