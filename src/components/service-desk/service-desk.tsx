@@ -1,4 +1,5 @@
 "use client";
+import { SmartUpload } from "@/components/ui/smart-upload";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -164,7 +165,8 @@ export function ServiceDesk() {
       <FormField name="sd-category" label={ui("Who should handle this request?")} hint={form?.suggestion && form.suggestion.categoryId === draft.categoryId ? ui("Suggested from your description. Change it if it is wrong.") : undefined}>
         <Select className="w-full min-w-0" value={draft.categoryId} onChange={e => setDraft({ ...draft, categoryId: e.target.value })} data-sd-category><option value="">{ui("Choose a type")}</option>{form?.categories.map(c => <option key={c.id} value={c.id}>{c.name} · {c.team}{c.safety ? ` · ${ui("Safety")}` : ""}</option>)}</Select></FormField>
       {chosen ? <p className="text-xs text-ink-muted" data-sd-target>{chosen.resolveHours ? ui("The school aims to resolve this within {0} hours.", [String(chosen.resolveHours)]) : ui("The school has not set a target time for this type.")}</p> : null}
-      <FormField name="sd-photo" label={ui("Photo (optional)")}><input className="block w-full max-w-full text-sm" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={async e => { const f = e.target.files?.[0]; setPhoto(f ? await readPhoto(f) : null); }} data-sd-photo /></FormField>
+      <FormField name="sd-photo" label={ui("Photo (optional)")}><SmartUpload compact accept="image/jpeg,image/png,image/webp" maxBytes={5 * 1024 * 1024} label={ui("Photo (optional)")} actionLabel={ui("Add photo")} inputData={{ "data-sd-photo": true }} onFiles={async ([f]) => setPhoto(await readPhoto(f))} /></FormField>
+      {photo && <div className="flex items-center gap-3"><img src={`data:${photo.contentType};base64,${photo.data}`} alt={ui("Photo (optional)")} className="size-16 rounded-xl border border-border object-cover" /><Button type="button" variant="ghost" size="sm" onClick={() => setPhoto(null)}>{ui("Remove")}</Button></div>}
       <div className="flex justify-end"><Button disabled={busy || !draft.title.trim() || !draft.description.trim() || !draft.location.trim() || !draft.categoryId} onClick={() => void submit()} data-sd-submit>{ui("Send request")}</Button></div>
     </div> : null}
 
