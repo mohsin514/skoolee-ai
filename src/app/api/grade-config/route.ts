@@ -6,7 +6,7 @@ import { ApiError, assertPermission, assertStaffRole, canLeadAcademics } from "@
 import { assertWritable, recordProvenance } from "@/lib/group-policy/service";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
-import { calculateWeightedGrade, defaultWeightConfig, type WeightConfig } from "@/lib/academic/grade-calculator";
+import { calculateWeightedGradesForStudents, defaultWeightConfig, type WeightConfig } from "@/lib/academic/grade-calculator";
 import { describeWeightProblem, summarizeWeightImpact, validateCategoryWeights, type StudentOutcome } from "@/lib/academic/grade-weights";
 
 /**
@@ -372,20 +372,22 @@ export async function POST(request: NextRequest) {
       };
       const students = await prisma.student.findMany({
         where: { classId: { in: sections.map((s) => s.id) }, campusId: session.campusId },
-        select: { id: true, classId: true },
+        select: { id: true, fullName: true, classId: true },
       });
-      const outcome = (r: { studentId: string; overallPercentage: number; overallGrade: string; passed: boolean }): StudentOutcome =>
-        ({ studentId: r.studentId, percentage: r.overallPercentage, grade: r.overallGrade, passed: r.passed });
-      const before: (StudentOutcome | null)[] = [];
-      const after: (StudentOutcome | null)[] = [];
-      for (const student of students) {
-        const run = (override?: WeightConfig) =>
-          calculateWeightedGrade(student.id, session.campusId!, student.classId!, academicYear, prisma, undefined, override)
-            .then(outcome).catch(() => null);
-        const [was, now] = await Promise.all([run(), run(proposed)]);
-        before.push(was);
-        after.push(now);
+      const outcome = (r: { studentId: string; overallPercentage: number; overallGrade: string; passed: boolean } | null): StudentOutcome | null =>
+        r ? { studentId: r.studentId, percentage: r.overallPercentage, grade: r.overallGrade, passed: r.passed } : null;
+      // SKAI-1832: batch each section once (current and proposed rules) instead of querying per pupil.
+      const wasById = new Map<string, StudentOutcome | null>();
+      const nowById = new Map<string, StudentOutcome | null>();
+      for (const section of sections) {
+        const pupils = students.filter((s) => s.classId === section.id);
+        if (!pupils.length) continue;
+        const was = await calculateWeightedGradesForStudents(pupils, session.campusId!, section.id, academicYear, prisma);
+        const now = await calculateWeightedGradesForStudents(pupils, session.campusId!, section.id, academicYear, prisma, undefined, proposed);
+        pupils.forEach((pupil, i) => { wasById.set(pupil.id, outcome(was[i])); nowById.set(pupil.id, outcome(now[i])); });
       }
+      const before = students.map((s) => wasById.get(s.id) ?? null);
+      const after = students.map((s) => nowById.get(s.id) ?? null);
       return NextResponse.json({ success: true, preview: summarizeWeightImpact(before, after), version: currentVersion });
     }
 
