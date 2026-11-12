@@ -45,22 +45,52 @@ What is already right and we build on:
 
 ## 3. Target architecture
 
-```
-                    ┌──────────────────────── Global control plane ────────────────────────┐
-                    │  identity + session directory · school→cell map · billing · owner     │
-                    └───────────────▲──────────────────────────────────▲────────────────────┘
-                                    │ (rare, cached)                    │
- Client ── CDN/WAF/bot ── Edge proxy (JWT verify, cell routing, global rate limit, static/ISR)
-                                    │
-             ┌──────────────────────┼──────────────────────┐
-             ▼                      ▼                      ▼
-        ┌─ Cell 01 ─┐          ┌─ Cell 02 ─┐          ┌─ Cell N ─┐     each cell ≈ 250k–500k concurrent users
-        │ Next.js app (stateless, autoscaled)           │
-        │ Realtime gateway (WS/SSE, ~100k sockets/node) │
-        │ Redis cluster: cache · limits · pub/sub · queues
-        │ Postgres primary + PgBouncer + 2 read replicas│
-        │ Outbox workers · AI gateway (per-school budget)
-        └───────────────────────────────────────────────┘
+Purple boxes are global and shared by every school; teal boxes are repeated in every cell.
+
+```mermaid
+flowchart TB
+  users["10M users<br/>web, Android, iOS"]
+
+  subgraph edge["Global edge (all schools)"]
+    direction LR
+    cdn["DNS + CDN<br/>static assets, cached pages"]
+    waf["WAF + bot protection<br/>block abuse early"]
+    lb["Load balancer<br/>health-checked, autoscaling"]
+    router["Edge router<br/>JWT check, school to cell"]
+    cdn --> waf --> lb --> router
+  end
+
+  subgraph cell1["Cell 1 (about 500 schools, 250k-500k users)"]
+    direction LR
+    app["App servers<br/>Next.js, stateless"]
+    rt["Realtime gateway<br/>WebSockets, about 100k per node"]
+    redis[("Redis cluster<br/>cache, limits, pub/sub")]
+    pg[("Postgres<br/>primary + 2 read replicas")]
+    workers["Queue workers<br/>outbox, BullMQ"]
+    ai["AI gateway<br/>per-school budgets"]
+    app --> redis
+    app --> pg
+    app --> workers
+    workers --> ai
+    redis --> rt
+  end
+
+  cellN["Cells 2..N<br/>same stack, 20-40 cells"]
+
+  control["Control plane<br/>sign-in, school to cell map"]
+  obs["Observability<br/>traces, metrics, SLO alerts"]
+
+  users --> edge
+  router --> cell1
+  router --> cellN
+  router -. "rare, cached" .-> control
+  cell1 -.-> obs
+  cellN -.-> obs
+
+  classDef global fill:#EEEDFE,stroke:#534AB7,color:#26215C
+  classDef percell fill:#E1F5EE,stroke:#0F6E56,color:#04342C
+  class cdn,waf,lb,router,control,obs global
+  class app,rt,redis,pg,workers,ai,cellN percell
 ```
 
 ### 3.1 Cells (sharding by school)
@@ -174,3 +204,47 @@ Exit criteria per phase: the one-cell load test meets every SKO-451 objective at
 - **Fixed-window limits** over sliding-window: one round trip, one key, good enough at the edges we protect; the
   edge WAF handles burst smoothing.
 - **Keep OpenAI as the AI provider**; scale work changes how calls are budgeted, not which model is used (AI-05 rule).
+
+## 6. Running it on Vercel
+
+The app already deploys to Vercel (`vercel.json`). Vercel provides the edge layer of the diagram out of the box:
+its global network routes each request to the nearest location, balances it across function instances and scales
+them automatically. We do not build or operate a load balancer. Our work is the data layer behind it, plus the two
+pieces Vercel cannot run.
+
+### 6.1 Mapping every box
+
+| Box in the diagram | On Vercel | Notes |
+|---|---|---|
+| DNS + CDN | Built in | Cache public pages with ISR / `use cache` and `Cache-Control`; static assets are immutable |
+| WAF + bot protection | Vercel Firewall | WAF custom rules, per-IP rate-limit rules, bot protection, managed rulesets |
+| Load balancer + autoscaling | Built in | Turn on Fluid compute so one instance serves many concurrent I/O-bound requests |
+| Edge router | `src/proxy.ts` (already runs on every request) | Put `cellId` in the session JWT so routing needs no lookup |
+| App servers | Vercel Functions | Pin the function region next to the cell databases (e.g. `bom1` Mumbai, `dxb1` Dubai) |
+| Redis cluster | Upstash Redis (Vercel Marketplace), one per cell | Works with the shared limiter in `src/lib/rate-limit.ts` (SKAI-1804) |
+| Postgres | One Supabase project per cell | Supavisor pooler for runtime (`src/lib/db/pool-url.ts`), read replicas for reports |
+| Realtime gateway | **Outside Vercel** | Vercel Functions cannot hold WebSockets open. Use a managed service (Ably, Pusher) or Centrifugo on Fly.io / AWS |
+| Queue workers | **Outside Vercel** | BullMQ (`src/workers/outbox-worker.ts`) needs a long-running process: Railway, Fly.io or AWS ECS. Vercel Cron keeps scheduled jobs |
+| AI gateway | Vercel AI Gateway in front of OpenAI | Adds budgets and logs; the provider stays OpenAI. Switching the gateway needs an AI-05 evaluation first |
+| Control plane | A small separate database + Vercel Edge Config for the cell list and flags | The per-school map lives in the database; the token carries the cell |
+| Observability | Vercel Observability + OpenTelemetry (`@vercel/otel`) | Log drains to Grafana or Datadog; SLOs from `src/lib/capacity/policy.ts` |
+| Safe deploys | Rolling releases, skew protection, instant rollback | Roll out by percentage before 100% |
+
+### 6.2 Cells on Vercel: one project, per-cell data
+
+Start with **one Vercel project** for the whole app tier, because Vercel already scales it, and make only the data
+per cell: each cell has its own Supabase database and Upstash Redis. On each request the app reads `cellId` from the
+session and picks that cell's Prisma client and Redis client. One codebase, one deploy, and a database incident still
+touches only that cell's schools.
+
+Separate Vercel projects per cell only make sense later, for example to keep one country's data and compute in its
+own region. The edge router would then rewrite to that cell's project.
+
+### 6.3 Limits and costs to plan for
+
+- **Plan:** 10M concurrent users needs Vercel Enterprise for function concurrency limits, spend controls and support.
+- **Cost:** at ~1M req/s, function duration is the main bill. Every page served from the CDN or data cache instead of
+  a function is money saved, so caching (§3.3) is a cost lever as much as a speed one.
+- **Long-lived connections:** today each open tab holds an SSE function open on Vercel. At 10M tabs that is both the
+  most expensive and the least scalable path, which is why the realtime gateway moves off Vercel first.
+- **Function time limits:** long exports and AI batches belong in queue workers, not in request handlers.
