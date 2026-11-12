@@ -107,11 +107,19 @@ export async function lookup(user: AuthUser, code: string) {
   await expireHolds(user.schoolId, campusId);
   const member = await prisma.libraryMember.findFirst({ where: { schoolId: user.schoolId, campusId, memberNo: value }, include: { user: { select: { fullName: true } } } });
   if (member) {
-    const rules = await currentRules(prisma, user.schoolId, campusId);
-    const loans = await prisma.bookIssue.findMany({ where: { memberId: member.id, returnedAt: null }, include: { book: { select: { title: true } } }, orderBy: { dueAt: "asc" } });
-    const copies = await prisma.bookCopy.findMany({ where: { id: { in: loans.map((l) => l.copyId).filter((x): x is string => !!x) } }, select: { id: true, barcode: true } });
-    const holds = await prisma.bookReservation.findMany({ where: { memberId: member.id, status: { in: ["WAITING", "READY"] } }, orderBy: { createdAt: "asc" } });
-    const charges = await prisma.libraryCharge.findMany({ where: { memberId: member.id, status: "OPEN" } });
+    // SKAI-1858: once the card matches, the reader's rules, loans (with their copies), holds and charges load together.
+    const loansWithCopies = async () => {
+      const loans = await prisma.bookIssue.findMany({ where: { schoolId: user.schoolId, memberId: member.id, returnedAt: null }, include: { book: { select: { title: true } } }, orderBy: { dueAt: "asc" } });
+      const copyIds = loans.map((l) => l.copyId).filter((x): x is string => !!x);
+      const copies = copyIds.length ? await prisma.bookCopy.findMany({ where: { schoolId: user.schoolId, id: { in: copyIds } }, select: { id: true, barcode: true } }) : [];
+      return { loans, copies };
+    };
+    const [rules, { loans, copies }, holds, charges] = await Promise.all([
+      currentRules(prisma, user.schoolId, campusId),
+      loansWithCopies(),
+      prisma.bookReservation.findMany({ where: { schoolId: user.schoolId, memberId: member.id, status: { in: ["WAITING", "READY"] } }, orderBy: { createdAt: "asc" } }),
+      prisma.libraryCharge.findMany({ where: { schoolId: user.schoolId, memberId: member.id, status: "OPEN" } }),
+    ]);
     return { kind: "MEMBER" as const, member: { id: member.id, memberNo: member.memberNo, name: member.user.fullName }, maxLoans: rules.maxLoans,
       loans: loans.map((l) => ({ id: l.id, title: l.book.title, barcode: copies.find((c) => c.id === l.copyId)?.barcode ?? null, dueAt: l.dueAt, renewals: l.renewals })),
       reservations: holds.map((h) => ({ id: h.id, bookId: h.bookId, status: h.status, readyUntil: h.readyUntil })), openCharges: charges.map((c) => ({ id: c.id, kind: c.kind, amount: c.amount, currency: c.currency })) };
@@ -305,16 +313,18 @@ export async function deskOverview(user: AuthUser) {
   assertDesk(user);
   const campusId = campusOf(user);
   await expireHolds(user.schoolId, campusId);
-  const [rules, books, reservations, charges] = await Promise.all([
+  // SKAI-1858: the desk pulse needs only the campus's copy totals; titles are picked through the books search.
+  const [rules, shelf, reservations, charges] = await Promise.all([
     currentRules(prisma, user.schoolId, campusId),
-    prisma.book.findMany({ where: { schoolId: user.schoolId, campusId }, select: { id: true, title: true, copiesTotal: true, copiesAvailable: true }, orderBy: { title: "asc" }, take: 300 }),
+    prisma.book.aggregate({ where: { schoolId: user.schoolId, campusId }, _sum: { copiesTotal: true, copiesAvailable: true } }),
     prisma.bookReservation.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: ["WAITING", "READY"] } }, orderBy: { createdAt: "asc" }, take: 200 }),
     prisma.libraryCharge.findMany({ where: { schoolId: user.schoolId, campusId, status: "OPEN" }, orderBy: { createdAt: "desc" }, take: 200 }),
   ]);
   // SKAI-1665: the desk keeps sight of what it handed to the fees office instead of losing it from view.
   // SKAI-1669: posted charges stay listed with their invoice link, so the desk sees what finance did with them.
   const handed = await prisma.libraryCharge.findMany({ where: { schoolId: user.schoolId, campusId, OR: [{ status: { in: ["HANDED_TO_FEES", "POSTED"] } }, { invoiceId: { not: null } }] }, orderBy: { decidedAt: "desc" }, take: 100 });
-  return { rules, canWaive: canWaiveCharge(user), books, reservations, charges, handed };
+  const stock = { copiesTotal: shelf._sum.copiesTotal ?? 0, copiesAvailable: shelf._sum.copiesAvailable ?? 0 };
+  return { rules, canWaive: canWaiveCharge(user), stock, reservations, charges, handed };
 }
 
 /**
