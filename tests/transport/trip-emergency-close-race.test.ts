@@ -15,7 +15,10 @@ const tx = {
     updateMany: async ({ where, data }: { where: { id: string; status: { in: string[] } }; data: Partial<Trip> }) => { await pause(); const t = trips.find(x => x.id === where.id && where.status.in.includes(x.status)); if (!t) return { count: 0 }; Object.assign(t, { ...data, version: 0 }); return { count: 1 }; },
   },
   tripPassenger: { findMany: async ({ where }: { where: { tripId: string; status: { in: string[] } } }) => { await pause(); return passengers.filter(p => p.tripId === where.tripId && where.status.in.includes(p.status)); } },
-  tripException: { create: async ({ data }: { data: { studentId: string } }) => { await pause(); exceptions.push(data); return { id: `x${exceptions.length}` }; } },
+  tripException: {
+    create: async ({ data }: { data: { studentId: string } }) => { await pause(); exceptions.push(data); return { id: `x${exceptions.length}` }; },
+    createMany: async ({ data }: { data: { studentId: string }[] }) => { await pause(); exceptions.push(...data); return { count: data.length }; },
+  },
   tripEvent: { create: async ({ data }: { data: { kind: string } }) => { events.push(data); return data; } },
 };
 mock.module("@/lib/db/prisma", { namedExports: { prisma: tx } });
