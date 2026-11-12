@@ -1,5 +1,6 @@
 "use client";
 import { loadListPages } from "@/lib/lists/load-pages";
+import { latestRequest } from "@/lib/http/request-pool";
 import { useListPage } from "@/hooks/use-list-page";
 import { useListField } from "@/hooks/use-list-field";
 import { matchesEnquirySearch } from "@/lib/admissions/enquiry-search";
@@ -2366,6 +2367,33 @@ export function StudentAdmissionsPanel({
   const [linkSearch, setLinkSearch] = useState("");
   const [linkResults, setLinkResults] = useState<any[]>([]);
   const [linkBusy, setLinkBusy] = useState(false);
+  const [linkRequest] = useState(latestRequest);
+
+  // SKAI-1855: search once the admin pauses (250 ms), from 2 characters, and only the newest answer is shown.
+  useEffect(() => {
+    const q = linkSearch.trim().toLowerCase();
+    if (q.length < 2) {
+      linkRequest.cancel();
+      setLinkResults([]);
+      return;
+    }
+    // A changed query drops the older in-flight search so its answer cannot show during the pause.
+    linkRequest.cancel();
+    const timer = setTimeout(() => {
+      const request = linkRequest.start();
+      fetch(`/api/students?search=${encodeURIComponent(q)}&limit=6`, { signal: request.signal })
+        .then((r) => r.json())
+        .then((j) => {
+          if (request.isCurrent() && j.success) {
+            setLinkResults((j.data || []).filter((s: any) => s.id !== student.id));
+          }
+        })
+        .catch(() => {});
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [linkSearch, linkRequest, student.id]);
+
+  useEffect(() => () => linkRequest.cancel(), [linkRequest]);
 
   useEffect(() => {
     let active = true;
@@ -2566,18 +2594,7 @@ export function StudentAdmissionsPanel({
               label={ui("Search a student by name, roll or admission no.")}
               value={linkSearch}
               placeholder={ui("e.g. Ahmed or ALG-A-001")}
-              onChange={(v) => {
-                setLinkSearch(v);
-                const q = v.trim().toLowerCase();
-                fetch(`/api/students?search=${encodeURIComponent(q)}&limit=6`)
-                  .then((r) => r.json())
-                  .then((j) => {
-                    if (j.success) {
-                      setLinkResults((j.data || []).filter((s: any) => s.id !== student.id));
-                    }
-                  })
-                  .catch(() => {});
-              }}
+              onChange={setLinkSearch}
             />
             {linkResults.length > 0 ? (
               <div className="space-y-2">
@@ -5784,7 +5801,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
     return c;
   }, [students]);
 
-  const filtered = students.filter((s) => {
+  const filtered = useMemo(() => students.filter((s) => {
     if (statusFilter !== "all" && s.status !== statusFilter) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
@@ -5793,7 +5810,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
       s.rollNo?.toLowerCase().includes(q) ||
       s.guardianName?.toLowerCase().includes(q)
     );
-  });
+  }), [students, statusFilter, searchQuery]);
 
   const archivePage = useListPage(filtered, "archive");
 
@@ -6126,37 +6143,44 @@ export function LeaveManagementPanel({
   const roleWord = (role?: string) => (role ? ui(LEAVE_ROLE_WORDS[role] ?? formatStatus(role)) : ui("Staff"));
   const days = (tenths: number) => leaveDaysLabel(tenths, ui);
 
+  const [leaveLoad] = useState(latestRequest);
   const load = useCallback(async () => {
+    // SKAI-1855: a filter change aborts the older load, and only the newest load writes state.
+    const request = leaveLoad.start();
     setLoading(true);
     setLoadError(null);
     const scope = campusId ? `&campusId=${encodeURIComponent(campusId)}` : "";
-    const read = (url: string) => fetch(url, { cache: "no-store" }).then(async (r) => ({ ok: r.ok, json: await r.json().catch(() => ({})) }));
+    const read = (url: string) => fetch(url, { cache: "no-store", signal: request.signal }).then(async (r) => ({ ok: r.ok, json: await r.json().catch(() => ({})) }));
     try {
-      const [typesRes, allocRes, reqRes] = await Promise.all([
+      // Balances are read alongside the rest instead of after them; a failed balances read
+      // still surfaces only once the queue is in place, as before.
+      const [typesRes, allocRes, reqRes, balRes] = await Promise.all([
         ownsSetup || showsBalances ? read(`/api/leave/types${campusId ? `?campusId=${encodeURIComponent(campusId)}` : ""}`) : Promise.resolve(null),
         ownsSetup ? read(`/api/leave/allocations?academicYear=${academicYear}${scope}`) : Promise.resolve(null),
         read(`/api/leave?mode=all&academicYear=${academicYear}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ""}${scope}`),
+        showsBalances ? read(`/api/leave?mode=balances&academicYear=${academicYear}${scope}`).catch((error: unknown) => ({ error })) : Promise.resolve(null),
       ]);
+      if (!request.isCurrent()) return;
       // The queue is what this view is for: without it there is nothing honest to show.
       if (!reqRes.ok || !isApiOk(reqRes.json)) throw new Error(readApiError(reqRes.json, "Leave requests could not be loaded."));
       setRequests(reqRes.json.data.requests || []);
       setStaffUsers(reqRes.json.data.users || []);
       if (typesRes && isApiOk(typesRes.json)) setTypes(typesRes.json.data || []);
       if (allocRes && isApiOk(allocRes.json)) setAllocations(allocRes.json.data || []);
-      if (showsBalances) {
-        const balRes = await read(`/api/leave?mode=balances&academicYear=${academicYear}${scope}`);
-        if (isApiOk(balRes.json)) setStaffBalances(balRes.json.data.staff || []);
-      }
+      if (balRes && "error" in balRes) throw balRes.error;
+      if (balRes && isApiOk(balRes.json)) setStaffBalances(balRes.json.data.staff || []);
     } catch (error) {
-      setLoadError(friendlyErrorMessage(error, ui("Leave requests could not be loaded.")));
+      if (request.isCurrent()) setLoadError(friendlyErrorMessage(error, ui("Leave requests could not be loaded.")));
     } finally {
-      setLoading(false);
+      if (request.isCurrent()) setLoading(false);
     }
-  }, [campusId, academicYear, statusFilter, ownsSetup, showsBalances]);
+  }, [leaveLoad, campusId, academicYear, statusFilter, ownsSetup, showsBalances]);
 
   useEffect(() => {
     load();
   }, [load, reloadTick]);
+
+  useEffect(() => () => leaveLoad.cancel(), [leaveLoad]);
 
   const addType = async () => {
     if (!typeForm.name.trim()) {

@@ -18,7 +18,7 @@ import type { AuthUser } from "@/lib/auth";
 import { ApiError, requireAuthUser } from "@/lib/api/scope";
 import { roleLabel, type UserRole } from "@/lib/roles";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
-import { conversationListInclude, accessibleConversationList, requireMembership, currentClassMembers, type ConversationRow } from "./membership";
+import { conversationListInclude, accessibleConversationList, currentMemberCount, requireConversationAccess, requireMembership, type ConversationRow } from "./membership";
 import {
   canCreateAnnouncement,
   canCreateGroup,
@@ -30,7 +30,7 @@ import {
   type ChatPeer,
   type ChatSettings,
 } from "./policy";
-import { publishToUsers, whoIsOnline, isOffline } from "./realtime";
+import { publishToUsers, whoIsOnline } from "./realtime";
 import { headPrivateObject } from "@/lib/storage/s3";
 import { CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TYPES } from "./attachment-rules";
 import type {
@@ -331,7 +331,7 @@ export async function listMessages(
   conversationId: string,
   options: { cursor?: string; limit?: number; after?: string } = {}
 ): Promise<{ messages: ChatMessageView[]; nextCursor: string | null; hasMoreAfter?: boolean }> {
-  await requireMembership(user, conversationId);
+  await requireConversationAccess(user, conversationId);
 
   const limit = boundedInteger(String(options.limit ?? DEFAULT_PAGE_SIZE), DEFAULT_PAGE_SIZE, 100);
 
@@ -741,14 +741,16 @@ export async function sendMessage(
 
   const view = await serialiseMessage(created);
 
-  const currentRow = await currentClassMembers(row);
-  await publishToUsers(recipientIds(currentRow), {
+  // SKAI-1878: `row` came from requireMembership, which already dropped CLASS parents whose guardian link has
+  // lapsed (currentClassMembers). Re-running that guardian query for the live push and again for the
+  // notification fallback cost two more queries over every parent member on each send.
+  await publishToUsers(recipientIds(row), {
     type: "message",
     conversationId,
     payload: view,
   });
 
-  await notifyAbsentMembers(user, currentRow, view, settings);
+  await notifyAbsentMembers(user, row, view, settings);
 
   return view;
 }
@@ -772,7 +774,7 @@ async function notifyAbsentMembers(
   settings: ChatSettings
 ): Promise<void> {
   try {
-    row = await currentClassMembers(row);
+    // `row` is already the current membership (requireMembership applied currentClassMembers).
     const candidates = row.members.filter((m) => m.userId !== user.userId && !m.isMuted);
     if (candidates.length === 0) return;
 
@@ -786,12 +788,10 @@ async function notifyAbsentMembers(
     const quiet = !message.isUrgent && isWithinQuietHours(settings, new Date(), school?.timezone ?? "Asia/Karachi");
     if (quiet) return;
 
-    const offline: string[] = [];
-    await Promise.all(
-      candidates.map(async (m) => {
-        if (await isOffline(m.userId)) offline.push(m.userId);
-      })
-    );
+    // One MGET for the whole room. When Redis is unavailable whoIsOnline answers "nobody", so everyone falls back
+    // to a notification, exactly as the per-member lookup did.
+    const online = await whoIsOnline(candidates.map((m) => m.userId));
+    const offline = candidates.filter((m) => !online.has(m.userId)).map((m) => m.userId);
     if (offline.length === 0) return;
 
     const title =
@@ -840,9 +840,12 @@ async function notifyAbsentMembers(
       },
     });
 
-    const { redis } = await import("@/lib/queue/connection");
-    for (const notif of rows) {
-      redis.publish(`notif:${notif.userId}`, JSON.stringify(notif)).catch(() => {});
+    // One pipelined round trip for every bell update, still fire-and-forget.
+    if (rows.length) {
+      const { redis } = await import("@/lib/queue/connection");
+      const pipeline = redis.pipeline();
+      for (const notif of rows) pipeline.publish(`notif:${notif.userId}`, JSON.stringify(notif));
+      pipeline.exec().catch(() => {});
     }
   } catch (error) {
     // The message is already committed and delivered live; a failed courtesy
@@ -866,7 +869,7 @@ async function systemMessage(db: TxClient, user: AuthUser, conversationId: strin
 // ─── Read state ──────────────────────────────────────────────────
 
 export async function markRead(user: AuthUser, conversationId: string): Promise<void> {
-  const { row } = await requireMembership(user, conversationId);
+  const { row } = await requireConversationAccess(user, conversationId);
   const readAt = new Date();
 
   await prisma.conversationMember.updateMany({
@@ -875,9 +878,13 @@ export async function markRead(user: AuthUser, conversationId: string): Promise<
   });
 
   // Tell the others their message has been seen; only meaningful in a thread
-  // small enough for a read receipt to mean something.
-  if (row.kind === "DIRECT" || row.members.length <= 20) {
-    await publishToUsers(recipientIds(row, user.userId), {
+  // small enough for a read receipt to mean something. SKAI-1879: a group is counted
+  // first, so a large channel's roster is never loaded just to be skipped.
+  const recipients = row.kind === "DIRECT"
+    ? row.members.map((m) => m.userId).filter((id) => id !== user.userId)
+    : (await currentMemberCount(row)) <= 20 ? recipientIds((await requireMembership(user, conversationId)).row, user.userId) : null;
+  if (recipients) {
+    await publishToUsers(recipients, {
       type: "read",
       conversationId,
       payload: { userId: user.userId, readAt: readAt.toISOString() },
@@ -993,7 +1000,7 @@ export async function updateMemberPreferences(
   conversationId: string,
   prefs: { isMuted?: boolean; isPinned?: boolean; isArchived?: boolean }
 ): Promise<ConversationView> {
-  await requireMembership(user, conversationId);
+  await requireConversationAccess(user, conversationId);
 
   await prisma.conversationMember.updateMany({
     where: { conversationId, userId: user.userId },

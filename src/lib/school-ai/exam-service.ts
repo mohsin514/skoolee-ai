@@ -91,13 +91,33 @@ export async function resultDecisionAccess(user: AuthUser, assignment: { created
   return paper;
 }
 
+async function assertCandidateMembership(user: AuthUser, assignment: { status: string; classId: string; studentIds: Prisma.JsonValue }, db: TxClient) {
+  const student = await studentFor(user, db);
+  if (assignment.status !== "ACTIVE" || assignment.classId !== student.classId || !Array.isArray(assignment.studentIds) || !assignment.studentIds.includes(student.id)) throw new ApiError("Exam unavailable.", 404);
+  return student;
+}
+
+const candidateAssignmentSelect = { id: true, campusId: true, classId: true, status: true, studentIds: true, mode: true, proctorPolicy: true, version: true } as const satisfies Prisma.SchoolAiExamAssignmentSelect;
+
+/**
+ * SKAI-1882: the candidate's polled endpoints (notices, recording status) need the same membership checks as
+ * scopedAssignment, but not the frozen paper. Selecting only these columns keeps each poll independent of
+ * paper size; a caller that needs question order loads the paper itself, only when it has to.
+ */
+export async function candidateAssignment(user: AuthUser, id: string, db: TxClient = prisma) {
+  if (user.role !== "STUDENT") throw new ApiError("This exam entry is for an assigned student account.", 403);
+  const assignment = await db.schoolAiExamAssignment.findFirst({ where: { id, schoolId: user.schoolId, campusId: user.campusId ?? "" }, select: candidateAssignmentSelect });
+  if (!assignment) throw new ApiError("Exam unavailable.", 404);
+  if (!DELIVERED_EXAM_MODES.includes(assignment.mode)) throw new ApiError("This exam mode has not been configured for delivery.", 409);
+  return { assignment, student: await assertCandidateMembership(user, assignment, db) };
+}
+
 export async function scopedAssignment(user: AuthUser, id: string, db: TxClient = prisma, purpose: ExamAccessPurpose = "MARKING") {
   const assignment = await db.schoolAiExamAssignment.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) } });
   if (!assignment) throw new ApiError("Exam unavailable.", 404);
   if (!DELIVERED_EXAM_MODES.includes(assignment.mode)) throw new ApiError("This exam mode has not been configured for delivery.", 409);
   if (user.role === "STUDENT") {
-    const student = await studentFor(user, db);
-    if (assignment.status !== "ACTIVE" || assignment.classId !== student.classId || !Array.isArray(assignment.studentIds) || !assignment.studentIds.includes(student.id)) throw new ApiError("Exam unavailable.", 404);
+    const student = await assertCandidateMembership(user, assignment, db);
     return { assignment, paper: paperDataSchema.parse(assignment.paperSnapshot), student };
   }
   const paper = await staffExamAccess(user, assignment, "view", db, purpose);
@@ -328,7 +348,17 @@ export async function getSchoolAiAttempt(user: AuthUser, id: string, now = new D
   return receipt(attempt, paper, now);
 }
 
-export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unknown, now?: Date) {
+/** SKAI-1883: an in-progress autosave receipt without the paper or the answers the candidate just sent. */
+function slimReceipt(attempt: { id: string; status: string; startedAt: Date; deadlineAt: Date; sequence: number; submittedAt: Date | null; pausedAt?: Date | null }, now: Date) {
+  return { id: attempt.id, status: attempt.status, pausedAt: attempt.pausedAt ?? null, startedAt: attempt.startedAt, deadlineAt: attempt.deadlineAt, sequence: attempt.sequence, submittedAt: attempt.submittedAt, serverNow: now.toISOString() };
+}
+
+/** With `slim`, a save that leaves the attempt IN_PROGRESS omits `paper` and `responses`; a closed attempt always gets the full receipt. */
+type SaveReceipt = ReturnType<typeof receipt> & { accepted: boolean };
+type SlimSaveReceipt = ReturnType<typeof slimReceipt> & { accepted: boolean };
+export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unknown, now?: Date): Promise<SaveReceipt>;
+export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unknown, now: Date | undefined, options: { slim?: boolean }): Promise<SaveReceipt | SlimSaveReceipt>;
+export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unknown, now?: Date, options: { slim?: boolean } = {}): Promise<SaveReceipt | SlimSaveReceipt> {
   const input = saveExamSchema.parse(raw);
   return retryDatabaseTransaction(() => prisma.$transaction(async (tx) => {
     const { assignment, paper, student } = await scopedAssignment(user, id, tx);
@@ -344,7 +374,7 @@ export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unkno
     if (decision === "REPLAY") {
       if (stableResponses(input.responses) !== stableResponses(responsesSchema.parse(attempt.responses))) throw new ApiError("This answer version already contains different responses.", 409);
       if (input.submit) throw new ApiError("Final submission must use a new answer version.", 409);
-      return { ...receipt(attempt, paper, currentTime), accepted: true };
+      return { ...(options.slim && attempt.status === "IN_PROGRESS" ? slimReceipt(attempt, currentTime) : receipt(attempt, paper, currentTime)), accepted: true };
     }
     const expired = decision === "EXPIRED";
     const responses = expired ? responsesSchema.parse(attempt.responses) : input.responses;
@@ -355,7 +385,9 @@ export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unkno
     if (changed.count !== 1) throw new ApiError("Your answers or exam timing changed. Reload the saved attempt before continuing.", 409);
     // Autosaves are draft answers; the event marks the final hand-in (or deadline close).
     if (submit) await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: attempt.id, action: "UPDATE", campusId: student.campusId, before: { status: attempt.status, sequence: attempt.sequence }, after: { status: "SUBMITTED", sequence: expired ? attempt.sequence : input.sequence, deadlineExpired: expired } });
-    const saved = await tx.schoolAiExamAttempt.findFirstOrThrow({ where: { id: attempt.id, schoolId: user.schoolId, userId: user.userId } });
+    const where = { id: attempt.id, schoolId: user.schoolId, userId: user.userId };
+    if (options.slim && !submit) return { ...slimReceipt(await tx.schoolAiExamAttempt.findFirstOrThrow({ where, select: { id: true, status: true, startedAt: true, deadlineAt: true, sequence: true, submittedAt: true, pausedAt: true } }), currentTime), accepted: true };
+    const saved = await tx.schoolAiExamAttempt.findFirstOrThrow({ where });
     return { ...receipt(saved, paper, currentTime), accepted: !expired };
   }));
 }

@@ -47,3 +47,12 @@ export function writeDraft(storage: Pick<Storage, "setItem" | "removeItem"> | nu
 
 /** Retry delays for transient save failures; conflicts never retry automatically. */
 export const retryDelay = (attempt: number) => Math.min(30_000, 2_000 * 2 ** Math.max(0, attempt));
+
+/**
+ * SKAI-1883: a slim autosave receipt carries no paper or answers. The saved answers are exactly the ones
+ * this request sent (the server stores them unchanged), and the paper is the one already on screen.
+ * A full receipt (submit, deadline close, or an older server) replaces the attempt as before.
+ */
+export function applySaveReceipt<T extends { paper: unknown; responses: Record<string, string> }>(current: T, receipt: Partial<T>, sent: Record<string, string>): T {
+  return receipt.paper !== undefined && receipt.responses !== undefined ? receipt as T : { ...current, ...receipt, paper: current.paper, responses: sent };
+}
