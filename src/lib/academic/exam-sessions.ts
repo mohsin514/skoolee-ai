@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import { roomCapacity } from "@/lib/academic/room-capacity";
@@ -217,42 +218,52 @@ export async function createExamSession(opts: {
   };
 }
 
-/** Everything the planner needs about one session, in a single query set. */
-export async function getSessionSummary(
-  campusId: string,
-  sessionId: string,
-): Promise<SessionSummary | null> {
-  const session = await prisma.examSession.findFirst({
-    where: { id: sessionId, campusId },
-    include: {
-      exams: {
-        orderBy: [{ class: { name: "asc" } }, { class: { section: "asc" } }],
+// The exams include both the single-session read and the batched list share, so the two cannot drift.
+const SESSION_EXAMS_INCLUDE = {
+  exams: {
+    orderBy: [{ class: { name: "asc" } }, { class: { section: "asc" } }],
+    select: {
+      id: true,
+      classId: true,
+      status: true,
+      totalMarks: true,
+      class: {
         select: {
-          id: true,
-          classId: true,
-          status: true,
-          totalMarks: true,
-          class: {
-            select: {
-              name: true,
-              section: true,
-              _count: { select: { subjects: true, students: true } },
-            },
-          },
-          schedules: {
-            select: {
-              id: true,
-              date: true,
-              _count: { select: { seats: true } },
-            },
-          },
-          _count: { select: { marks: true } },
+          name: true,
+          section: true,
+          _count: { select: { subjects: true, students: true } },
         },
       },
+      schedules: {
+        select: {
+          id: true,
+          date: true,
+          _count: { select: { seats: true } },
+        },
+      },
+      _count: { select: { marks: true } },
     },
-  });
-  if (!session) return null;
+  },
+} satisfies Prisma.ExamSessionInclude;
 
+type SessionWithExams = Prisma.ExamSessionGetPayload<{ include: typeof SESSION_EXAMS_INCLUDE }>;
+type SlotRow = { examSessionId: string; sealedAt: Date | null; paperRecordId: string | null };
+
+/**
+ * SKAI-1868: paper requests for many sessions in two queries (slots, then approved papers), still scoped by
+ * school, campus and cancelledAt:null, instead of two queries per session.
+ */
+async function loadSlotsBySession(schoolId: string, campusId: string, sessionIds: string[]) {
+  const bySession = new Map<string, SlotRow[]>();
+  if (!sessionIds.length) return { bySession, approvedPapers: new Set<string>() };
+  const slots = await prisma.examPaperSlot.findMany({ where: { schoolId, examSessionId: { in: sessionIds }, campusId, cancelledAt: null }, select: { examSessionId: true, sealedAt: true, paperRecordId: true } });
+  for (const slot of slots) bySession.set(slot.examSessionId, [...(bySession.get(slot.examSessionId) ?? []), slot]);
+  const paperIds = [...new Set(slots.map((slot) => slot.paperRecordId).filter((value): value is string => Boolean(value)))];
+  const approvedPapers = paperIds.length ? new Set((await prisma.schoolAiRecord.findMany({ where: { schoolId, id: { in: paperIds }, campusId, kind: "PAPER", status: "APPROVED" }, select: { id: true } })).map((row) => row.id)) : new Set<string>();
+  return { bySession, approvedPapers };
+}
+
+function buildSessionSummary(session: SessionWithExams, slots: SlotRow[], approvedPapers: Set<string>): SessionSummary {
   const classes = session.exams.map((e) => {
     const subjectCount = e.class._count.subjects;
     const studentCount = e.class._count.students;
@@ -272,9 +283,6 @@ export async function getSessionSummary(
     };
   });
 
-  const slots = await prisma.examPaperSlot.findMany({ where: { schoolId: session.schoolId, examSessionId: session.id, campusId, cancelledAt: null }, select: { sealedAt: true, paperRecordId: true } });
-  const paperIds = slots.map((slot) => slot.paperRecordId).filter((value): value is string => Boolean(value));
-  const approvedPapers = paperIds.length ? new Set((await prisma.schoolAiRecord.findMany({ where: { schoolId: session.schoolId, id: { in: paperIds }, campusId, kind: "PAPER", status: "APPROVED" }, select: { id: true } })).map((row) => row.id)) : new Set<string>();
   const papersSealed = slots.filter((slot) => slot.sealedAt || (slot.paperRecordId && approvedPapers.has(slot.paperRecordId))).length;
 
   const allDates = session.exams
@@ -308,16 +316,40 @@ export async function getSessionSummary(
   };
 }
 
+/** Everything the planner needs about one session, in a single query set. */
+export async function getSessionSummary(
+  campusId: string,
+  sessionId: string,
+): Promise<SessionSummary | null> {
+  const session = await prisma.examSession.findFirst({
+    where: { id: sessionId, campusId },
+    include: SESSION_EXAMS_INCLUDE,
+  });
+  if (!session) return null;
+  const { bySession, approvedPapers } = await loadSlotsBySession(session.schoolId, campusId, [session.id]);
+  return buildSessionSummary(session, bySession.get(session.id) ?? [], approvedPapers);
+}
+
+/**
+ * SKAI-1868: a fixed three queries however many sessions the campus has (it was three per session, re-run on
+ * every 45-second poll). Same rows, same order, same figures as calling getSessionSummary for each one.
+ */
 export async function listSessions(campusId: string, academicYear?: number) {
   const sessions = await prisma.examSession.findMany({
     where: { campusId, ...(academicYear ? { academicYear } : {}) },
     orderBy: [{ academicYear: "desc" }, { createdAt: "desc" }],
-    select: { id: true },
+    include: SESSION_EXAMS_INCLUDE,
   });
-  const summaries = await Promise.all(
-    sessions.map((s) => getSessionSummary(campusId, s.id)),
-  );
-  return summaries.filter(Boolean) as SessionSummary[];
+  if (!sessions.length) return [];
+  // A campus belongs to one school, so every session here shares it; group defensively all the same.
+  const bySchool = new Map<string, string[]>();
+  for (const s of sessions) bySchool.set(s.schoolId, [...(bySchool.get(s.schoolId) ?? []), s.id]);
+  const loaded = await Promise.all([...bySchool].map(async ([schoolId, ids]) => [schoolId, await loadSlotsBySession(schoolId, campusId, ids)] as const));
+  const slotsBySchool = new Map(loaded);
+  return sessions.map((s) => {
+    const { bySession, approvedPapers } = slotsBySchool.get(s.schoolId)!;
+    return buildSessionSummary(s, bySession.get(s.id) ?? [], approvedPapers);
+  });
 }
 
 /**

@@ -27,7 +27,7 @@ import { useExamIntegrity } from "./use-exam-integrity";
 import { ExamIntegrityNotice } from "./exam-integrity-policy";
 import { examCameraCopy } from "./exam-camera-copy";
 import { notifyCandidateExamSession } from "@/components/providers/candidate-exam-guard";
-import { answerStatus, readDraft, reconcileDraft, retryDelay, writeDraft, type DraftDecision } from "@/lib/school-ai/exam-draft";
+import { answerStatus, applySaveReceipt, readDraft, reconcileDraft, retryDelay, writeDraft, type DraftDecision } from "@/lib/school-ai/exam-draft";
 import { examRecoveryCopy } from "./exam-recovery-copy";
 import { SecureBrowserGate } from "./secure-browser";
 import { examReleaseCopy } from "./exam-release-copy";
@@ -124,13 +124,13 @@ export function ExamPlayer({ id, locale }: { id: string; locale: AssessmentLocal
     try {
       // Retry an uncertain request with its exact sequence and payload before sending newer edits.
       for (;;) {
-        const current = attemptRef.current!;
+        const current: Attempt = attemptRef.current!;
         const request = pendingRef.current ?? { sequence: current.sequence + 1, responses: { ...answersRef.current }, submit };
         pendingRef.current = request;
-        const response = await fetch(`${api}/attempt`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request), signal: AbortSignal.timeout(15000) });
+        const response = await fetch(`${api}/attempt?receipt=slim`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request), signal: AbortSignal.timeout(15000) });
         const payload = await response.json();
         if (!response.ok) { if (response.status === 409) setConflict(true); throw new Error(typeof payload.error === "string" ? payload.error : t.failure); }
-        const next = payload.attempt as Attempt;
+        const next: Attempt = applySaveReceipt(current, payload.attempt as Partial<Attempt>, request.responses);
         pendingRef.current = null; attemptRef.current = next; setAttempt(next); offset.current = new Date(next.serverNow).getTime() - clockNow();
         const remainsDirty = !same(answersRef.current, request.responses);
         setDirty(remainsDirty); latestDirty.current = remainsDirty; failures.current = 0;
