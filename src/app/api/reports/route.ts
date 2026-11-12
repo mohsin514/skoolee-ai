@@ -108,11 +108,13 @@ export async function GET(req: NextRequest) {
       getExamAnalytics(examId),
     ]);
 
-    const versions = await reviewQueue(reportCards.map(r => r.id));
+    // SKAI-1821: index the versions by card once (the first per card, as the old per-card lookup returned).
+    const versions = new Map<string, Awaited<ReturnType<typeof reviewQueue>>[number]>();
+    for (const v of await reviewQueue(reportCards.map(r => r.id))) if (!versions.has(v.reportCardId)) versions.set(v.reportCardId, v);
     const editable = Boolean((await loadPermissionMap(user.schoolId, user.role)).get("reports")?.canEdit);
     // canReview = approve/review/publish (academic lead only); canDeliver = PDFs and queued sends (office).
     const leads = canManageReports(user.role) && await canLeadAcademics(user, exam.campusId);
-    return Response.json({ success: true, exam, canEdit: editable && (canManageReports(user.role) || user.role === "TEACHER" && teachesExamClass(exam.class, user.userId)), reportCards: reportCards.map(r => ({ ...r, review: versions.find(v => v.reportCardId === r.id) })), analytics, canReview: leads && editable, canDeliver: canManageReports(user.role) && editable });
+    return Response.json({ success: true, exam, canEdit: editable && (canManageReports(user.role) || user.role === "TEACHER" && teachesExamClass(exam.class, user.userId)), reportCards: reportCards.map(r => ({ ...r, review: versions.get(r.id) })), analytics, canReview: leads && editable, canDeliver: canManageReports(user.role) && editable });
   } catch (error) {
     const status = (error as Error & { status?: number }).status || 500;
     return Response.json({ error: error instanceof Error ? error.message : "Failed to load reports" }, { status });
