@@ -69,6 +69,7 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   ["This feature is not part of the school's plan. The account owner can add it.", "هذه الميزة ليست ضمن خطة المدرسة. يمكن لمالك الحساب إضافتها.", "یہ سہولت اسکول کے پلان میں شامل نہیں۔ اکاؤنٹ کا مالک اسے شامل کر سکتا ہے۔"],
   ["Turn on two-step sign-in before you cancel the plan or request a refund.", "فعّل تسجيل الدخول بخطوتين قبل إلغاء الخطة أو طلب استرداد المبلغ.", "پلان منسوخ کرنے یا رقم کی واپسی کی درخواست سے پہلے دو مرحلہ سائن اِن آن کریں۔"],
   ["Turn on two-step sign-in before you change the payment method.", "فعّل تسجيل الدخول بخطوتين قبل تغيير طريقة الدفع.", "ادائیگی کا طریقہ بدلنے سے پہلے دو مرحلہ سائن اِن آن کریں۔"],
+  ["Turn on two-step sign-in before you change your phone number.", "فعّل تسجيل الدخول بخطوتين قبل تغيير رقم هاتفك.", "فون نمبر بدلنے سے پہلے دو مرحلہ سائن اِن آن کریں۔"],
   ["Fee setup, invoices and payments moved. Use /api/fees.", "انتقل إعداد الرسوم والفواتير والمدفوعات. استخدم ‎/api/fees.", "فیس سیٹ اپ، انوائسز اور ادائیگیاں منتقل ہو گئی ہیں۔ ‎/api/fees استعمال کریں۔"],
 
   // Institution authority gates (§7.3)
