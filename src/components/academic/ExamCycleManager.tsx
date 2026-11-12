@@ -125,15 +125,6 @@ function writeJSON(key: string, value: unknown) {
   }
 }
 
-/** Fetch in small batches so a big exam list doesn't fire 40 requests at once. */
-async function mapWithLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>) {
-  const out: R[] = [];
-  for (let i = 0; i < items.length; i += limit) {
-    out.push(...(await Promise.all(items.slice(i, i + limit).map(fn))));
-  }
-  return out;
-}
-
 /** One planned drag or menu move, with the parts that can't go through named. */
 interface MovePlan {
   to: ColumnKey;
@@ -198,6 +189,12 @@ export function ExamCycleManager({
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [stageFilter, setStageFilter] = useState<ColumnKey | "ALL">("ALL");
   const [attentionOnly, setAttentionOnly] = useState(false);
+  // SKAI-1831: the board reads the active cycle's year; earlier years load only when asked for. `yearScope` is the
+  // year the server applied (null = every year, e.g. no active cycle).
+  const [allYears, setAllYears] = useState(false);
+  const [yearScope, setYearScope] = useState<number | null>(null);
+  // Only the newest load may write state, so a slow all-years answer cannot land after the toggle is switched back.
+  const loadSeq = useRef(0);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -251,17 +248,25 @@ export function ExamCycleManager({
   // `silent` refreshes skip the skeleton so background polling doesn't flicker.
   // R4: the first load failing is an inline ErrorState with retry; a quiet refresh failing keeps the board.
   const [loadFailed, setLoadFailed] = useState(false), [scheduleFailed, setScheduleFailed] = useState(false);
+  // SKAI-1815: one refresh at a time — focus, visibilitychange and the poll can all fire together.
+  const inFlight = useRef(false);
   const load = useCallback(
     async (silent = false) => {
+      if (silent && inFlight.current) return;
+      inFlight.current = true;
+      const seq = ++loadSeq.current;
       if (!silent) { setLoading(true); setLoadFailed(false); }
       else setRefreshing(true);
       try {
         const params = new URLSearchParams();
         if (campusId) params.set("campusId", campusId);
         const qs = params.toString();
+        const examParams = new URLSearchParams(params);
+        if (!allYears) examParams.set("academicYear", "active");
 
         const [examsRes, schedRes] = await Promise.all([
-          fetch(`/api/exams?${qs}`).then((r) => r.json()),
+          // SKAI-1815: marking progress comes back with the list, counted on the server.
+          fetch(`/api/exams?${examParams}${examParams.size ? "&" : ""}withProgress=1`).then((r) => r.json()),
           // Teachers have no datesheet stage, so skip that call for them.
           isTeacher
             ? Promise.resolve({ success: true, data: [] })
@@ -269,8 +274,10 @@ export function ExamCycleManager({
             : fetch(`/api/academic/exam-schedule?${qs}`).then(async (r) => { const j = await r.json().catch(() => ({})); return r.ok && j.success && Array.isArray(j.data) ? j : { failed: true }; }).catch(() => ({ failed: true })),
         ]);
 
+        if (seq !== loadSeq.current) return;
         if (!examsRes.success) throw new Error("load failed");
         const all: ExamItem[] = examsRes.exams;
+        setYearScope(typeof examsRes.academicYear === "number" ? examsRes.academicYear : null);
         // Teachers only manage their own quizzes and class tests.
         const list = isTeacher
           ? all.filter((e) => (TEACHER_EXAM_TYPES as readonly string[]).includes(e.examType || ""))
@@ -279,49 +286,28 @@ export function ExamCycleManager({
         if ("failed" in schedRes) setScheduleFailed(true);
         else { setScheduleFailed(false); setScheduleRows((schedRes.data || []) as ScheduleRow[]); }
 
-        const needMeta = list.filter((e) => e.status !== "DRAFT" && e.status !== "ACTIVE");
-        const metas = await mapWithLimit(needMeta, 6, async (e) => {
-          try {
-            const r = await fetch(`/api/marks?examId=${e.id}`);
-            const m = await r.json();
-            // SKAI-1523: a failed or malformed marks response is "progress unavailable", never zero progress.
-            if (!r.ok || !Array.isArray(m.subjects) || !Array.isArray(m.students) || !Array.isArray(m.marks)) throw new Error("marks");
-            const subjects: { id: string }[] = m.subjects;
-            const students: { id: string }[] = m.students;
-            const marks: { studentId: string; subjectId: string }[] = m.marks;
-            const subjectIds = new Set(subjects.map((s) => s.id));
-            const studentIds = new Set(students.map((s) => s.id));
-            const pairs = new Set(
-              marks
-                .filter((mk) => subjectIds.has(mk.subjectId) && studentIds.has(mk.studentId))
-                .map((mk) => `${mk.studentId}:${mk.subjectId}`),
-            );
-            return {
-              id: e.id,
-              meta: {
-                subjectsCount: subjects.length,
-                studentsCount: students.length,
-                markedSubjects: new Set(marks.map((mk) => mk.subjectId)).size,
-                enteredMarks: pairs.size,
-                expectedMarks: students.length * subjects.length,
-              } as ExamMeta,
-            };
-          } catch {
-            return { id: e.id, meta: null };
-          }
-        });
+        // SKAI-1523: an exam without a progress entry, or with null, is "progress unavailable", never zero progress.
+        const progress: Record<string, ExamMeta | null> =
+          examsRes.progress && typeof examsRes.progress === "object" ? examsRes.progress : {};
+        const metas = list
+          .filter((e) => e.status !== "DRAFT" && e.status !== "ACTIVE")
+          .map((e) => ({ id: e.id, meta: progress[e.id] ?? null }));
+        if (seq !== loadSeq.current) return;
         const metaMap: Record<string, ExamMeta> = {};
         metas.forEach((x) => { if (x.meta) metaMap[x.id] = x.meta; });
         setMeta(metaMap);
         setMetaFailed(metas.filter((x) => !x.meta).map((x) => x.id));
       } catch {
-        if (!silent) setLoadFailed(true);
+        if (!silent && seq === loadSeq.current) setLoadFailed(true);
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (seq === loadSeq.current) {
+          inFlight.current = false;
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [campusId, isTeacher],
+    [campusId, isTeacher, allYears],
   );
 
   useEffect(() => {
@@ -339,11 +325,10 @@ export function ExamCycleManager({
       if (document.visibilityState === "visible") load(true);
     };
     const id = window.setInterval(tick, 30_000);
-    window.addEventListener("focus", tick);
+    // visibilitychange covers returning to the tab; a separate focus listener only doubled the refresh.
     document.addEventListener("visibilitychange", tick);
     return () => {
       window.clearInterval(id);
-      window.removeEventListener("focus", tick);
       document.removeEventListener("visibilitychange", tick);
     };
   }, [load]);
@@ -1124,6 +1109,11 @@ export function ExamCycleManager({
             </span>
           ) : null}
         </Button>
+        {yearScope !== null || allYears ? (
+          <Button variant="choice" type="button" aria-pressed={allYears} onClick={() => setAllYears((v) => !v)} className="justify-start px-3 py-2.5">
+            {ui("Include earlier years")}
+          </Button>
+        ) : null}
 
         {filtersActive ? (
           <Button variant="ghost"
