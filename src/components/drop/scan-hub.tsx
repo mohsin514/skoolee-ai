@@ -11,6 +11,9 @@ import { Select } from "@/components/ui/select";
 import { SmartUpload } from "@/components/ui/smart-upload";
 import { TaskLoading } from "@/components/ui/task-patterns";
 import { inspect } from "@/components/marks/mark-scan-panel";
+import { Input } from "@/components/ui/input";
+import { STUDENT_DOCUMENT_KINDS } from "@/lib/students/document-policy";
+import { uploadStudentDocument } from "@/lib/students/document-upload";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
 
 /**
@@ -21,7 +24,8 @@ import { useConsoleAccess } from "@/components/nav/ViewGate";
  */
 type Subject = { id: string; name: string; classId: string; className: string; campusId: string };
 type Outcome = { tone: "ok" | "error"; text: string; href?: string; link?: string };
-type Kind = "paper" | "syllabus" | "other";
+type Kind = "paper" | "syllabus" | "other" | "student";
+type Pupil = { id: string; fullName: string; rollNo?: string | null };
 const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
@@ -36,6 +40,15 @@ export function ScanHub() {
   const [subjects, setSubjects] = useState<Subject[]>([]), [subjectId, setSubjectId] = useState("");
   const [busy, setBusy] = useState(""), [outcomes, setOutcomes] = useState<Outcome[]>([]);
   const [rest, setRest] = useState<File[]>([]), [kind, setKind] = useState<Kind>("paper");
+  // SKAI-1890: filing pages as a student document is offered only to staff who can read the roster.
+  const [canStudents, setCanStudents] = useState(false), [query, setQuery] = useState(""), [pupils, setPupils] = useState<Pupil[]>([]);
+  const [pupilId, setPupilId] = useState(""), [docKind, setDocKind] = useState<string>("OTHER");
+  useEffect(() => { void fetch("/api/students?fields=picker&limit=1", { cache: "no-store" }).then(r => setCanStudents(r.ok)).catch(() => setCanStudents(false)); }, []);
+  useEffect(() => {
+    if (kind !== "student" || query.trim().length < 2) { setPupils([]); return; }
+    const timer = setTimeout(() => void json<Pupil[]>(`/api/students?fields=picker&limit=20&search=${encodeURIComponent(query.trim())}`).then(list => { setPupils(list); setPupilId(list.length === 1 ? list[0].id : ""); }).catch(() => setPupils([])), 300);
+    return () => clearTimeout(timer);
+  }, [kind, query]);
 
   useEffect(() => {
     void json<{ capabilities?: { subjects?: Subject[] } }>("/api/school-ai/workspace").then(data => {
@@ -74,12 +87,18 @@ export function ScanHub() {
       let file = rest[0];
       if (rest.length > 1) {
         if (rest.some(item => !["image/jpeg", "image/png"].includes(item.type))) throw new Error(ui("Choose one PDF, or several JPEG or PNG page photos."));
-        const pages = new FormData(); pages.set("documentKind", kind);
+        const pages = new FormData(); pages.set("documentKind", kind === "student" ? "other" : kind);
         if (subject) { pages.set("subjectId", subject.id); pages.set("classId", subject.classId); pages.set("campusId", subject.campusId); }
         rest.forEach(item => pages.append("pages", item));
         const response = await fetch("/api/school-ai/scan", { method: "POST", body: pages });
         if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? "");
         file = new File([await response.blob()], `scanned-${kind}-${rest.length}-pages.pdf`, { type: "application/pdf" });
+      }
+      if (kind === "student") {
+        const pupil = pupils.find(item => item.id === pupilId);
+        await uploadStudentDocument({ studentId: pupilId, kind: docKind, file });
+        setOutcomes(current => [...current, { tone: "ok", text: ui("Saved to the documents of {0}.", [pupil?.fullName ?? ""]) }]);
+        setRest([]); return;
       }
       const form = new FormData();
       form.set("file", file); form.set("documentKind", kind); form.set("language", language); form.set("origin", "camera");
@@ -91,7 +110,7 @@ export function ScanHub() {
     finally { setBusy(""); }
   };
 
-  const needsSubject = kind !== "other" && subjects.length > 0;
+  const needsSubject = (kind === "paper" || kind === "syllabus") && subjects.length > 0;
   return (
     <div className="space-y-5">
       <PageHeader title="Scan sheets" description="Photograph or upload any school paper. Printed Skoolee marks sheets are matched by their QR; papers, quizzes and syllabi are read and saved for your review." icon={ScanLine} />
@@ -107,17 +126,28 @@ export function ScanHub() {
       {rest.length > 0 && !busy && (
         <section className="space-y-4 rounded-2xl border border-border p-4" aria-labelledby="scan-kind">
           <h2 id="scan-kind" className="text-base font-semibold text-ink">{ui("What are these {0} pages?", [rest.length])}</h2>
-          <div role="radiogroup" className="grid gap-2 sm:grid-cols-3">
+          <div role="radiogroup" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <ChoiceCard shape="radio" selected={kind === "paper"} onSelect={() => setKind("paper")} option={{ value: "paper", label: ui("Exam paper or quiz"), detail: ui("Questions are read so you can build a paper.") }} />
             <ChoiceCard shape="radio" selected={kind === "syllabus"} onSelect={() => setKind("syllabus")} option={{ value: "syllabus", label: ui("Syllabus"), detail: ui("Topics and outcomes for the subject.") }} />
             <ChoiceCard shape="radio" selected={kind === "other"} onSelect={() => setKind("other")} option={{ value: "other", label: ui("Something else"), detail: ui("Kept as a source for later use.") }} />
+            {canStudents && <ChoiceCard shape="radio" selected={kind === "student"} onSelect={() => setKind("student")} option={{ value: "student", label: ui("Student document"), detail: ui("A certificate or form saved to a pupil's record.") }} />}
           </div>
           {needsSubject && <Select aria-label={ui("Subject and class")} value={subjectId} onChange={event => setSubjectId(event.target.value)}>
             <option value="">{ui("Choose a subject and class")}</option>
             {subjects.map(item => <option key={item.id} value={item.id}>{item.name} · {item.className}</option>)}
           </Select>}
           <div className="flex flex-wrap gap-2">
-            <Button type="button" disabled={needsSubject && !subjectId} onClick={() => void createSource()}><CheckCircle2 aria-hidden="true" />{ui("Create in Skoolee")}</Button>
+          {kind === "student" && <div className="grid gap-2 sm:grid-cols-3">
+            <Input aria-label={ui("Search pupils by name or roll number")} placeholder={ui("Search pupils by name or roll number")} value={query} onChange={event => setQuery(event.target.value)} />
+            <Select aria-label={ui("Pupil")} value={pupilId} onChange={event => setPupilId(event.target.value)}>
+              <option value="">{pupils.length ? ui("Choose a pupil") : ui("Type at least two letters")}</option>
+              {pupils.map(item => <option key={item.id} value={item.id}>{item.fullName}{item.rollNo ? ` · ${item.rollNo}` : ""}</option>)}
+            </Select>
+            <Select aria-label={ui("Document type")} value={docKind} onChange={event => setDocKind(event.target.value)}>
+              {STUDENT_DOCUMENT_KINDS.map(item => <option key={item} value={item}>{ui(({ BIRTH_CERTIFICATE: "Birth certificate", TRANSFER_CERTIFICATE: "Transfer certificate", PHOTO: "Photo", OTHER: "Other" } as Record<string, string>)[item] ?? item)}</option>)}
+            </Select>
+          </div>}
+            <Button type="button" disabled={(needsSubject && !subjectId) || (kind === "student" && !pupilId)} onClick={() => void createSource()}><CheckCircle2 aria-hidden="true" />{ui("Create in Skoolee")}</Button>
             <Button type="button" variant="ghost" onClick={() => setRest([])}><RotateCcw aria-hidden="true" />{ui("Start over")}</Button>
           </div>
         </section>
