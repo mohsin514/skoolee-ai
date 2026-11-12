@@ -8,9 +8,6 @@ import { CurrencySelect } from "@/components/locale/CurrencySelect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createLatestRequest } from "@/lib/latest-request";
 import { runBounded } from "@/lib/bounded-pool";
-
-/** Reminders in flight at once for "Send reminders to all" (bounded to spare the server and WhatsApp provider). */
-const REMIND_ALL_CONCURRENCY = 4;
 import {
   BarChart3,
   CreditCard,
@@ -41,6 +38,9 @@ import {
   paymentMethodLabel,
   usePanelCommand,
 } from "./fee-utils";
+
+/** Reminders in flight at once for "Send reminders to all" (bounded to spare the server and WhatsApp provider). */
+const REMIND_ALL_CONCURRENCY = 4;
 
 export type ReportTab = "defaulters" | "collection" | "methods";
 /** Reports & reminders sections (also the accountant's PageHeader tabs). */
