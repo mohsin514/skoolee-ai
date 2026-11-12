@@ -46,6 +46,7 @@
     "test:enrollment-placement-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/enrollment-placement.database.test.ts",
     "test:status-values": "node --import tsx --test tests/db/status-values.test.ts",
     "test:status-values-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/status-values.database.test.ts",
+    "test:supabase-roles-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/supabase-public-roles.database.test.ts",
     "test:business-numbers-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/business-numbers.database.test.ts",
     "test:school-fks": "node --import tsx --test tests/db/school-foreign-keys.test.ts",
     "test:school-fks-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/school-foreign-keys.database.test.ts",
