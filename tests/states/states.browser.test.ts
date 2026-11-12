@@ -47,7 +47,8 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }) {
 const otherSchool = `states308-${randomUUID()}`;
 before(async()=>{
   await mkdir(evidence,{recursive:true});
-  for(const id of [schoolId,otherSchool]) await db.school.create({data:{id,name:"Synthetic States School",slug:id,regId:id,contactEmail:`${id}@example.invalid`,city:"Lahore",status:"ACTIVE",plan:"PRO"}});
+  // ENTERPRISE (Network) includes every feature these screens show, the integrations API among them.
+  for(const id of [schoolId,otherSchool]) await db.school.create({data:{id,name:"Synthetic States School",slug:id,regId:id,contactEmail:`${id}@example.invalid`,city:"Lahore",status:"ACTIVE",plan:"ENTERPRISE"}});
   for(const [id,school,name] of [[campusA,schoolId,"North"],[campusB,otherSchool,"South"]]) await db.campus.create({data:{id,schoolId:school,name,regId:id,city:"Lahore"}});
   await db.campus.create({data:{id:campusC,schoolId,name:"Other campus",regId:campusC,city:"Lahore"}});
   await db.academicCycle.create({data:{schoolId,campusId:campusA,label:"2026",academicYear:2026,status:"ACTIVE"}});

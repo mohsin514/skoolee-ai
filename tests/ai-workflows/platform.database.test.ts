@@ -254,7 +254,7 @@ test("default package pricing previews in chat, saves and audits once, rejects s
     const input = await inTenant(owner, () => bind(ctx, entry.key, { prices: { BASIC: 4567.5 } }));
     const before = await db.superAdminAuditLog.count({ where: { userId: owner.userId } });
     const preview = await inTenant(owner, () => entry.preview!(ctx, input));
-    assert.equal(preview.lines[0].label, "Pro");
+    assert.equal(preview.lines[0].label, "Plus");
     assert.equal(preview.confirmLabel, "Save package prices");
     assert.equal(await db.superAdminAuditLog.count({ where: { userId: owner.userId } }), before);
     const key = KEY();

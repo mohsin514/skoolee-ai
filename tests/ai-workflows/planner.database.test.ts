@@ -337,8 +337,8 @@ test("owner package pricing completes from short replies through in-chat confirm
     assert.equal(run.status, "NEEDS_INPUT");
     let q = await db.aiWorkflowQuestion.findFirstOrThrow({ where: { jobId: job.id, status: "OPEN" } });
     assert.equal(q.pointer, "/selectedPlan");
-    assert.ok(JSON.stringify(q.options).includes('"value":"Pro"'));
-    run = await runCommand(user, job.id, { type: "answer", text: "Pro", jobVersion: run.version, clientCommandId: `answer-${randomUUID()}` }, null, down);
+    assert.ok(JSON.stringify(q.options).includes('"value":"Plus"'));
+    run = await runCommand(user, job.id, { type: "answer", text: "Plus", jobVersion: run.version, clientCommandId: `answer-${randomUUID()}` }, null, down);
     q = await db.aiWorkflowQuestion.findFirstOrThrow({ where: { jobId: job.id, status: "OPEN" } });
     assert.equal(q.pointer, "/prices");
     run = await runCommand(user, job.id, { type: "answer", text: "-500", jobVersion: run.version, clientCommandId: `answer-${randomUUID()}` }, null, down);
