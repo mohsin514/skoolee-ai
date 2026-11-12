@@ -29,6 +29,8 @@ type Today = {
   catchUp?: { id: string; subject: string; lessonDate: string; title: string; instructions: string | null; dueDate: string | null; done: boolean }[];
 };
 const KEY = "skoolee.student.today";
+/** SKAI-1873: how old the last good read must be before returning to the tab rebuilds Today. */
+const TODAY_REFRESH_AFTER_MS = 60_000;
 
 const shift = (day: string, n: number) => new Date(new Date(`${day}T00:00:00Z`).getTime() + n * 86_400_000).toISOString().slice(0, 10);
 
@@ -52,7 +54,7 @@ export function StudentToday({ onNextAction }: { onNextAction?: (action: Student
   const [examUrl, setExamUrl] = useState<string | null>(null);
   const [data, setData] = useState<Today | null>(null), [stale, setStale] = useState(false), [error, setError] = useState(""), [loading, setLoading] = useState(true);
   const cachedToday = useRef<Today | null>(null);
-  const requestVersion = useRef(0);
+  const requestVersion = useRef(0), loadedAt = useRef(0);
   useEffect(() => {
     // Older versions stored a shared-device copy without an identity. Never read it.
     try { window.localStorage.removeItem(KEY); } catch { /* Storage can be unavailable. */ }
@@ -72,6 +74,7 @@ export function StudentToday({ onNextAction }: { onNextAction?: (action: Student
       if (!response.ok || !json.success) throw new Error(json.error || "Today could not be refreshed.");
       setExamUrl(null); setData(json.data); setStale(false);
       if (!requested) cachedToday.current = json.data;
+      loadedAt.current = Date.now();
     } catch (failure) {
       if (version !== requestVersion.current) return;
       if (!mayUseCache) cachedToday.current = null;
@@ -81,7 +84,13 @@ export function StudentToday({ onNextAction }: { onNextAction?: (action: Student
     } finally { if (version === requestVersion.current) setLoading(false); }
   }, [ui]);
   useEffect(() => { void load(day); return () => { requestVersion.current++; }; }, [load, day]);
-  useEffect(() => { const refresh = () => { if (document.visibilityState === "visible") void load(day); }; window.addEventListener("online", refresh); document.addEventListener("visibilitychange", refresh); return () => { window.removeEventListener("online", refresh); document.removeEventListener("visibilitychange", refresh); }; }, [load, day]);
+  // SKAI-1873: coming back online always refreshes; returning to the tab refreshes only when the last good read is a minute old.
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === "visible") void load(day); };
+    const visible = () => { if (Date.now() - loadedAt.current >= TODAY_REFRESH_AFTER_MS) refresh(); };
+    window.addEventListener("online", refresh); document.addEventListener("visibilitychange", visible);
+    return () => { window.removeEventListener("online", refresh); document.removeEventListener("visibilitychange", visible); };
+  }, [load, day]);
 
   useEffect(() => () => onNextAction?.(null), [onNextAction]);
 
