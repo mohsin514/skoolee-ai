@@ -35,6 +35,17 @@ export function todayWorkList(open: TodayWork[], overdue: TodayWork[]) {
 }
 export type TodayAction = { kind: "RESUME_EXAM" | "CONTINUE_DRAFT" | "OVERDUE" | "DUE_TODAY" | "NEXT_DUE"; title: string; href: string; dueAt?: string; reason: string };
 
+/** Lessons: the version in force on that date (a future version applies from its own date), with any approved cover. */
+async function lessonsFor(schoolId: string, timetableId: string | null, day: string, weekday: number, schoolDay: boolean) {
+  const version = timetableId ? (await versionsFor(timetableId, day)).inForce : null;
+  const lessons = schoolDay ? slotsOf(version).filter(slot => slot.dayOfWeek === weekday).sort((a, b) => a.startTime.localeCompare(b.startTime))
+    .map(slot => ({ id: slot.id, startTime: slot.startTime, endTime: slot.endTime, kind: slot.slotType, subject: slot.subjectName, teacher: slot.teacherName, room: slot.roomNumber })) : [];
+  // SKO-442: an approved cover shows who is teaching; catch-up work for missed lessons is listed separately.
+  const cover = schoolDay ? await coverForDay(schoolId, lessons.map(l => l.id), day) : new Map<string, string>();
+  for (const lesson of lessons) if (cover.has(lesson.id)) Object.assign(lesson, { teacher: cover.get(lesson.id) ?? lesson.teacher, cover: true });
+  return { version, lessons };
+}
+
 export async function studentToday(user: AuthUser, requestedDay: string | null, now = new Date()) {
   if (user.role !== "STUDENT") throw new ApiError("Today is for a student's own account.", 403);
   const student = await prisma.student.findFirst({ where: { schoolId: user.schoolId, studentUserId: user.userId, archivedAt: null }, select: { id: true, fullName: true, classId: true, campusId: true, class: { select: { name: true, section: true, academicYear: true } } } });
@@ -52,32 +63,29 @@ export async function studentToday(user: AuthUser, requestedDay: string | null, 
   ]);
   const schoolDay = !weekend && !holiday;
 
-  // Lessons: the version in force on that date (a future version applies from its own date).
-  const version = timetable ? (await versionsFor(timetable.id, day)).inForce : null;
-  const lessons = schoolDay ? slotsOf(version).filter(slot => slot.dayOfWeek === weekday).sort((a, b) => a.startTime.localeCompare(b.startTime))
-    .map(slot => ({ id: slot.id, startTime: slot.startTime, endTime: slot.endTime, kind: slot.slotType, subject: slot.subjectName, teacher: slot.teacherName, room: slot.roomNumber })) : [];
-  // SKO-442: an approved cover shows who is teaching; catch-up work for missed lessons is listed separately.
-  const cover = schoolDay ? await coverForDay(user.schoolId, lessons.map(l => l.id), day) : new Map<string, string>();
-  for (const lesson of lessons) if (cover.has(lesson.id)) Object.assign(lesson, { teacher: cover.get(lesson.id) ?? lesson.teacher, cover: true });
-  const catchUp = student.classId ? await classCatchUp(user.schoolId, student.classId) : [];
+  // SKAI-1873: the lesson chain (version, then cover), catch-up, exams and work do not read each other, so they load
+  // together; each keeps its own school scope and its own error handling.
+  // Exams: the learner's own assigned exams; an attempt in progress is resumed, never restarted.
+  // SKAI-917: a failed exam lookup is not "no exams"; it is reported so Today never suggests other work
+  // when an exam may be running.
+  let examsUnavailable = false;
+  const [{ version, lessons }, catchUp, exams, listed] = await Promise.all([
+    lessonsFor(user.schoolId, timetable?.id ?? null, day, weekday, schoolDay),
+    student.classId ? classCatchUp(user.schoolId, student.classId) : [],
+    listSchoolAiExams(user).catch(() => { examsUnavailable = true; return [] as Awaited<ReturnType<typeof listSchoolAiExams>>; }),
+    // Work: released assignments in their source states, with the learner's effective due date.
+    listAssignments(user, {}, now),
+  ]);
   const clock = day === today ? clockIn(locale.timezone, now) : null;
   const teaching = lessons.filter(lesson => lesson.kind === "CLASS" && lesson.subject);
   const current = clock ? teaching.find(lesson => lesson.startTime <= clock && clock < lesson.endTime) ?? null : null;
   const next = clock ? teaching.find(lesson => lesson.startTime > clock) ?? null : null;
 
-  // Exams: the learner's own assigned exams; an attempt in progress is resumed, never restarted.
-  // SKAI-917: a failed exam lookup is not "no exams"; it is reported so Today never suggests other work
-  // when an exam may be running.
-  let examsUnavailable = false;
-  const exams = await listSchoolAiExams(user).catch(() => { examsUnavailable = true; return [] as Awaited<ReturnType<typeof listSchoolAiExams>>; });
   const examItems = exams.map(exam => ({ id: exam.id, title: exam.title, startsAt: exam.startsAt.toISOString(), endsAt: exam.endsAt.toISOString(), attempt: ("attempts" in exam && Array.isArray(exam.attempts) ? exam.attempts[0] as { id: string; status: string; submittedAt: Date | null } : null) ?? null, href: `/ai/exams/${exam.id}` }));
   const activeExam = examItems.find(exam => exam.attempt?.status === "IN_PROGRESS" && new Date(exam.endsAt) > now) ?? null;
   const dayEnd = new Date(`${addDays(day, 1)}T00:00:00Z`);
   const upcomingExams = examItems.filter(exam => !exam.attempt?.submittedAt && exam.attempt?.status !== "IN_PROGRESS" && new Date(exam.endsAt) > now && new Date(exam.startsAt) < new Date(dayEnd.getTime() + 7 * 86_400_000))
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
-
-  // Work: released assignments in their source states, with the learner's effective due date.
-  const listed = await listAssignments(user, {}, now);
   if (listed.mode === "staff") throw new ApiError("Today is for a student's own account.", 403);
   const assignments = listed.assignments;
   const work: TodayWork[] = assignments.map(item => ({

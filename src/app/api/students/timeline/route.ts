@@ -51,7 +51,11 @@ export async function POST(req: NextRequest) {
 
     if (requestId) {
       // Idempotent retry: the audit row carries the request id of the note it wrote.
-      const prior = await prisma.auditLog.findFirst({ where: { schoolId: user.schoolId, tableName: "student_timeline_events", userId: user.userId, newValue: { path: ["requestId"], equals: requestId } }, select: { recordId: true } });
+      // Only this author's hand-written events on this pupil can be the original, so
+      // narrow to them first (student_id index) and probe audit_logs through its
+      // (school_id, table_name, record_id) index instead of scanning the school's log.
+      const mine = await prisma.studentTimelineEvent.findMany({ where: { schoolId: user.schoolId, studentId: student.id, actorId: user.userId, kind: { in: [...MANUAL_TIMELINE_KINDS] } }, select: { id: true } });
+      const prior = mine.length ? await prisma.auditLog.findFirst({ where: { schoolId: user.schoolId, tableName: "student_timeline_events", recordId: { in: mine.map(e => e.id) }, userId: user.userId, newValue: { path: ["requestId"], equals: requestId } }, select: { recordId: true } }) : null;
       const existing = prior ? await prisma.studentTimelineEvent.findFirst({ where: { id: prior.recordId, studentId: student.id } }) : null;
       if (existing) return Response.json({ success: true, data: existing, replayed: true });
     }

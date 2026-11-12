@@ -15,6 +15,7 @@ import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
 import { studioSyllabusCopy } from "@/lib/school-ai/exam-studio-copy-syllabus";
 import { Isolated } from "./space-state";
 import { DocumentJobsPanel } from "../document-jobs-panel";
+import { ScanPagesUpload } from "../scan-pages-upload";
 import { SourceImagePreview } from "../source-image-preview";
 import { SourceStructureReview, type SourceStructureChange } from "../source-structure-review";
 import { sourceStructureApprovalIssues, type ExtractedPage, type DocumentStructure } from "@/lib/school-ai/intake";
@@ -288,7 +289,7 @@ export function SyllabusDrop({ language, subjectId, classId, campusId, subjectNa
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
           <FormField name="syllabusFile" label={t.uploadLabel} hint={t.uploadHint}>
-            <Input type="file" accept="image/*,application/pdf,text/plain" onChange={event => setFile(event.currentTarget.files?.[0] ?? null)} />
+            <ScanPagesUpload documentKind="syllabus" subjectId={subjectId} classId={classId} label={t.uploadLabel} accept="image/*,application/pdf,text/plain" value={file} onChange={setFile} />
           </FormField>
           <Button type="button" onClick={() => void upload()} disabled={!file} data-drop-action="upload"><FileUp aria-hidden="true" />{t.upload}</Button>
         </div>

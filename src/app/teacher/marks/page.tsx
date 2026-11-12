@@ -55,8 +55,11 @@ export default function MarksPage() {
   const markScan = useConsoleAccess().has("planMarkScan");
   const { data, loading, error, loadData } = useTeacherData();
   const searchParams = useSearchParams();
+  // SKAI-1851: the scan hub's "Review marks" (?scan=1) lands on the scan panel rather than the grid.
+  const scanPanel = useRef<HTMLDivElement>(null), scanRequested = searchParams.get("scan") === "1";
   const [selectedExamId, setSelectedExamId] = useState("");
   const [markSheet, setMarkSheet] = useState<any>(null);
+  useEffect(() => { if (scanRequested && markSheet) scanPanel.current?.scrollIntoView({ block: "start" }); }, [scanRequested, markSheet]);
   const [marksByKey, setMarksByKey] = useState<Record<string, string>>({});
   const [marksLoading, setMarksLoading] = useState(false);
   const [marksSaving, setMarksSaving] = useState(false);
@@ -102,6 +105,9 @@ export default function MarksPage() {
   useEffect(() => {
     if (!data) return;
     if (!selectedExamId) {
+      // SKAI-1851: the scan hub links straight to the exam whose marks sheet it just captured.
+      const requestedExam = searchParams.get("examId");
+      if (requestedExam && (data.exams || []).some((e: any) => e.id === requestedExam)) { setSelectedExamId(requestedExam); return; }
       // A class card links here with its id; open that class's first
       // assessment rather than whichever exam happens to sort first.
       const requestedClass = searchParams.get("classId");
@@ -745,7 +751,7 @@ export default function MarksPage() {
         onConfirm={confirmClearColumn}
       />
       {/* SKO-412: paper marks sheets — capture, review every mark, approve, import. */}
-      {selectedExamId && markSheet?.subjects?.length && markScan ? <div className="mt-4"><MarkScanPanel key={selectedExamId} examId={selectedExamId} subjects={markSheet.subjects.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name }))} onImported={() => void loadMarks(selectedExamId)} /></div> : null}
+      {selectedExamId && markSheet?.subjects?.length && markScan ? <div className="mt-4" ref={scanPanel}><MarkScanPanel key={selectedExamId} examId={selectedExamId} subjects={markSheet.subjects.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name }))} onImported={() => void loadMarks(selectedExamId)} /></div> : null}
     </TeacherPage>
   );
 }

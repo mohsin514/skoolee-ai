@@ -88,6 +88,9 @@ const outcome = (ui: Ui, item: Item) => item.kind === "EXPLAIN_ABSENCE" && item.
  * `onTopAction` reports the first request that needs the family, so Home can make it the screen's one
  * primary action (§4.4); it reports null when there is nothing to do.
  */
+/** SKAI-1873: returning to the tab rebuilds the whole multi-child inbox only when the last good read is this old. */
+const INBOX_REFRESH_AFTER_MS = 60_000;
+
 export function FamilyInbox({ onTopAction }: { onTopAction?: (action: InboxTopAction) => void } = {}) {
   const ui = useUiText();
   const { language } = useLocale();
@@ -96,15 +99,16 @@ export function FamilyInbox({ onTopAction }: { onTopAction?: (action: InboxTopAc
   const { selectChild } = useParentData();
   const [data, setData] = useState<Inbox | null>(null), [error, setError] = useState<RequestFailure | null>(null);
   const [view, setView] = useState<View>("ACTION"), [child, setChild] = useState<string>("all"), [query, setQuery] = useState("");
-  const requestVersion = useRef(0);
-  const load = useCallback(async () => {
+  const requestVersion = useRef(0), loadedAt = useRef(0);
+  // SKAI-1873: a refresh on return to the tab keeps the inbox on screen while it revalidates (no skeleton flash).
+  const load = useCallback(async (refresh = false) => {
     const version = ++requestVersion.current;
-    setError(null); setData(null);
+    setError(null); if (!refresh) setData(null);
     try {
       const json = await checkedJson(await readRequest("/api/parent/inbox"));
       if (version !== requestVersion.current) return;
       if (!Array.isArray(json.data?.items) || !Array.isArray(json.data?.children) || !Array.isArray(json.data?.unavailable)) throw new RequestFailure("server");
-      setData(json.data);
+      setData(json.data); loadedAt.current = Date.now();
     } catch (failure) {
       if (version !== requestVersion.current) return;
       setData(null);
@@ -113,7 +117,7 @@ export function FamilyInbox({ onTopAction }: { onTopAction?: (action: InboxTopAc
   }, []);
   useEffect(() => { void load(); return () => { requestVersion.current++; }; }, [load]);
   useEffect(() => () => onTopAction?.(null), [onTopAction]);
-  useEffect(() => { const refresh = () => { if (document.visibilityState === "visible") void load(); }; document.addEventListener("visibilitychange", refresh); return () => document.removeEventListener("visibilitychange", refresh); }, [load]);
+  useEffect(() => { const refresh = () => { if (document.visibilityState === "visible" && Date.now() - loadedAt.current >= INBOX_REFRESH_AFTER_MS) void load(true); }; document.addEventListener("visibilitychange", refresh); return () => document.removeEventListener("visibilitychange", refresh); }, [load]);
 
   useEffect(() => {
     if (!onTopAction) return;

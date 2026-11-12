@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,6 +13,7 @@ import { FileDown, Printer, ScanLine } from "lucide-react";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { scanQuality } from "@/lib/school-ai/scan";
 import { cn } from "@/lib/utils";
+import { SmartUpload } from "@/components/ui/smart-upload";
 
 // SKO-412: print a marks sheet, photograph its pages, review every mark beside its crop, approve, import.
 // Capture, review and import are separate steps; nothing reaches the gradebook before an explicit import
@@ -33,7 +34,8 @@ const markText = (ui: Ui, m: { marksObtained: number; isAbsent: boolean } | null
 const key = () => `scan-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 /** Read a photo, measure blur/contrast on a downscaled copy and try to read the page QR. */
-async function inspect(file: File) {
+type Inspected = Awaited<ReturnType<typeof inspect>>;
+export async function inspect(file: File) {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, 1000 / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas"); canvas.width = Math.max(3, Math.round(bitmap.width * scale)); canvas.height = Math.max(3, Math.round(bitmap.height * scale));
@@ -51,10 +53,9 @@ export function MarkScanPanel({ examId, subjects, onImported }: { examId: string
   const ui = useUiText();
   const [subjectId, setSubjectId] = useState(subjects[0]?.id ?? "");
   const [sheet, setSheet] = useState<Sheet | null>(null), [view, setView] = useState<View | null>(null), [busy, setBusy] = useState(false);
-  const [qrText, setQrText] = useState(""), [pending, setPending] = useState<Awaited<ReturnType<typeof inspect>> | null>(null);
+  const [qrText, setQrText] = useState(""), [queue, setQueue] = useState<Inspected[]>([]), pending = queue[0] ?? null;
   const [editing, setEditing] = useState<Cell | null>(null), [value, setValue] = useState(""), [absent, setAbsent] = useState(false);
   const [decisions, setDecisions] = useState<Record<string, "overwrite" | "keep">>({}), [importOpen, setImportOpen] = useState(false), [commitKey] = useState(key);
-  const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (!subjectId && subjects[0]) setSubjectId(subjects[0].id); }, [subjects, subjectId]);
   const refresh = useCallback(async (id: string) => setView(await call(`/api/marks-scan/${id}`, "GET")), []);
   const run = async (work: () => Promise<unknown>, done?: string) => { setBusy(true); try { await work(); if (done) toast.success(ui(done)); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
@@ -64,12 +65,28 @@ export function MarkScanPanel({ examId, subjects, onImported }: { examId: string
     // Resume the open scan of the latest sheet version rather than starting over.
     const open = (latest.batches as { id: string; status: string }[]).find(b => ["CAPTURING", "REVIEW", "APPROVED"].includes(b.status));
     await refresh(open ? open.id : (await call("/api/marks-scan", "POST", { action: "start", templateId: latest.id })).id); });
-  const chooseFile = async (file: File | undefined) => { if (!file) return; try { const info = await inspect(file); setPending(info); setQrText(info.qr ?? ""); } catch { toast.error(ui("That photo could not be read. Try another one.")); } };
+  // SKAI-1849: pages may come in bulk (several photos, or a phone through SmartUpload). A readable page whose
+  // printed QR was read is added straight away; any other page waits for the teacher to check its code.
+  const addPage = async (info: Inspected, qr: string) => {
+    const result = await call(`/api/marks-scan/${view!.batch.id}`, "POST", { action: "page", qr: qr.trim(), image: info.image, contentType: info.contentType, sharpness: info.quality.sharpness, contrast: info.quality.contrast });
+    toast[result.status === "RETAKE" ? "error" : "success"](result.status === "RETAKE" ? ui("Page {0} is too blurred or faint. Retake it.", [String(result.page)]) : result.status === "DUPLICATE" ? ui("Page {0} was already captured.", [String(result.page)]) : ui("Page {0} captured.", [String(result.page)]));
+  };
+  const chooseFiles = (files: File[]) => run(async () => {
+    if (!view) return;
+    const held: Inspected[] = [];
+    for (const file of files) {
+      let info: Inspected;
+      try { info = await inspect(file); } catch { toast.error(ui("That photo could not be read. Try another one.")); continue; }
+      if (info.qr && !info.quality.blurRisk && !info.quality.lowContrast) { try { await addPage(info, info.qr); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } }
+      else held.push(info);
+    }
+    setQueue(current => [...current, ...held]); setQrText(current => current || held[0]?.qr || "");
+    await refresh(view.batch.id);
+  });
   const sendPage = () => run(async () => {
     if (!view || !pending) return;
-    const result = await call(`/api/marks-scan/${view.batch.id}`, "POST", { action: "page", qr: qrText.trim(), image: pending.image, contentType: pending.contentType, sharpness: pending.quality.sharpness, contrast: pending.quality.contrast });
-    toast[result.status === "RETAKE" ? "error" : "success"](result.status === "RETAKE" ? ui("Page {0} is too blurred or faint. Retake it.", [String(result.page)]) : result.status === "DUPLICATE" ? ui("Page {0} was already captured.", [String(result.page)]) : ui("Page {0} captured.", [String(result.page)]));
-    setPending(null); setQrText(""); if (fileRef.current) fileRef.current.value = ""; await refresh(view.batch.id);
+    await addPage(pending, qrText);
+    setQueue(current => current.slice(1)); setQrText(queue[1]?.qr ?? ""); await refresh(view.batch.id);
   });
   const openCell = (cell: Cell) => { setEditing(cell); setAbsent(cell.status === "REVIEWED" ? cell.reviewedAbsent : cell.proposedAbsent); setValue(cell.status === "REVIEWED" ? (cell.reviewedValue ?? "").toString() : cell.proposedValue !== null ? String(cell.proposedValue) : ""); };
   const saveCell = (exclude = false) => run(async () => { if (!view || !editing) return; await call(`/api/marks-scan/${view.batch.id}`, "POST", { action: "review", cellId: editing.id, value: Number(value), absent, exclude, knownVersion: view.batch.version }); setEditing(null); await refresh(view.batch.id); });
@@ -94,8 +111,9 @@ export function MarkScanPanel({ examId, subjects, onImported }: { examId: string
       <p className="text-sm font-semibold text-ink-strong" data-scan-summary>{ui("Sheet version {0}", [String(view.template.version)])} · {ui("Pages {0} of {1}", [String(view.template.pageCount - view.missingPages.length), String(view.template.pageCount)])} · {ui("To review: {0}", [String(view.counts.needsReview)])}{view.exam.locked ? <> · <span className="text-status-error-text">{ui("Exam locked")}</span></> : null}</p>
       {["CAPTURING", "REVIEW", "APPROVED"].includes(view.batch.status) ? <div className="space-y-2 rounded-xl border border-dashed p-3" data-scan-capture>
         <p className="text-xs font-semibold text-ink-strong">{ui("Step 1 · Capture")}</p>
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={e => void chooseFile(e.target.files?.[0])} data-scan-file aria-label={ui("Photo of a page")} />
-        {pending ? <div className="flex flex-wrap items-end gap-2">
+        <SmartUpload accept="image/jpeg,image/png,image/webp" multiple maxFiles={Math.max(1, view.template.pageCount)} maxBytes={8 * 1024 * 1024} disabled={busy} label={ui("Photo of a page")}
+          hint={ui("Photograph every page. Pages whose QR is read are added at once.")} onFiles={files => void chooseFiles(files)} />
+        {pending ? <div className="flex flex-wrap items-end gap-2">{queue.length > 1 ? <p className="w-full text-xs text-ink-muted">{ui("{0} pages need their code checked.", [String(queue.length)])}</p> : null}
           <p className={cn("text-xs", pending.quality.blurRisk || pending.quality.lowContrast ? "font-bold text-status-error-text" : "text-ink-muted")}>{pending.quality.blurRisk ? ui("This photo looks blurred.") : pending.quality.lowContrast ? ui("This photo is very faint.") : ui("Photo looks readable.")}</p>
           <FormField name="scan-code" label={ui("Code under the QR")} hint={ui("Filled in when the QR is read; otherwise type the code printed under it.")}><Input value={qrText} onChange={e => setQrText(e.target.value)} dir="ltr" /></FormField>
           <Button disabled={busy || !qrText.trim()} onClick={() => void sendPage()} data-scan-send>{ui("Add this page")}</Button>

@@ -12,6 +12,7 @@ All cron routes live in `src/app/api/cron/<job>/route.ts`. Every route requires
 | integrations | POST | `.github/workflows/scheduled-jobs.yml` | every 15 min | on | Integrations |
 | service-desk | POST | `scheduled-jobs.yml` | hourly :10 | on | Service desk |
 | group-policy | POST | `scheduled-jobs.yml` | hourly :10 | on | Group policy |
+| drop-purge | POST | `scheduled-jobs.yml` | hourly :10 | on | Uploads (SKAI-1847 staged phone files) |
 | subscription-expiry | POST | `scheduled-jobs.yml` | daily 01:20 | sensitive (billing) | Billing |
 | ai-credits-reset | POST | `scheduled-jobs.yml` | 1st of month 00:05 | sensitive (billing) | Billing |
 | meeting-reminders | POST | `scheduled-jobs.yml` | daily 06:00 | sensitive (messaging) | Messaging |
