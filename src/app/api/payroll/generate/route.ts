@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
-import { computePayrollLine, proRateFactor, unpaidLeaveDeductionForMonth } from "@/lib/payroll";
+import { computePayrollLine, proRateFactor, unpaidLeaveDeductionsForMonth } from "@/lib/payroll";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 import { PAYROLL_ROLES, parsePayrollPeriod, parsePayrollRole, type PayrollRole } from "@/lib/payroll-period";
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
         return Response.json({ success: true, data: existing, regenerated: false });
       }
       const staff = await collectStaff(campusId, role);
-      const lines = await buildLines(campusId, month, year, staff);
+      const lines = await buildLines({ schoolId: user.schoolId, campusId }, month, year, staff);
       await prisma.$transaction(async (tx) => {
         await tx.payrollLine.deleteMany({ where: { payrollRunId: existing.id } });
         await tx.payrollLine.createMany({
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     const staff = await collectStaff(campusId, role);
-    const lines = await buildLines(campusId, month, year, staff);
+    const lines = await buildLines({ schoolId: user.schoolId, campusId }, month, year, staff);
 
     const run = await prisma.$transaction(async (tx) => {
       const created = await tx.payrollRun.create({
@@ -101,18 +101,17 @@ async function collectStaff(campusId: string, role?: PayrollRole) {
   return staff.filter((s) => s.staffProfile && s.staffProfile.basicSalary > 0);
 }
 
-async function buildLines(campusId: string, month: number, year: number, staff: any[]) {
+async function buildLines(scope: { schoolId: string; campusId: string }, month: number, year: number, staff: any[]) {
+  const gross = (s: any) => s.staffProfile.basicSalary + sumAllowances(s.staffProfile.allowancesJson);
+  const leave = await unpaidLeaveDeductionsForMonth(
+    scope,
+    staff.map((s) => ({ id: s.id, role: s.role, monthlyGross: gross(s) })),
+    month,
+    year
+  );
   const lines = [];
   for (const s of staff) {
-    const gross = s.staffProfile.basicSalary + sumAllowances(s.staffProfile.allowancesJson);
-    const { deduction } = await unpaidLeaveDeductionForMonth(
-      campusId,
-      s.id,
-      s.role,
-      month,
-      year,
-      gross
-    );
+    const deduction = leave.get(s.id)?.deduction ?? 0;
     const computed = computePayrollLine(
       s.staffProfile.basicSalary,
       s.staffProfile.allowancesJson,

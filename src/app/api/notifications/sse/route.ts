@@ -1,8 +1,8 @@
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import IORedis from "ioredis";
 import { resolveRedisUrl, warnRealtimeDisabledOnce } from "@/lib/queue/redis-config";
 import { realtimeDisabledResponse } from "@/lib/queue/sse-fallback";
+import { sharedSubscriber } from "@/lib/queue/shared-subscriber";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,9 @@ export async function GET(req: Request) {
       unreadCount === null ? [] : [`event: init\ndata: ${JSON.stringify({ unreadCount })}\n\n`]
     );
   }
-  let subscriber: IORedis | null = null;
+  // SKAI-1878: this stream's slot on the instance-wide subscriber, not a Redis connection of its own.
+  let release: (() => void) | null = null;
+  let closed = false;
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   const stream = new ReadableStream({
@@ -45,11 +47,9 @@ export async function GET(req: Request) {
           clearInterval(heartbeatTimer);
           heartbeatTimer = null;
         }
-        if (subscriber) {
-          subscriber.unsubscribe().catch(() => {});
-          subscriber.quit().catch(() => {});
-          subscriber = null;
-        }
+        closed = true;
+        release?.();
+        release = null;
         try {
           controller.close();
         } catch {}
@@ -64,32 +64,23 @@ export async function GET(req: Request) {
         })
         .catch(() => {});
 
-      subscriber = new IORedis(redisUrl, {
-        maxRetriesPerRequest: null,
-        enableReadyCheck: false,
-        lazyConnect: true,
-      });
-
-      subscriber
-        .connect()
-        .then(() => subscriber!.subscribe(`notif:${userId}`))
+      sharedSubscriber(redisUrl)
+        .subscribe(`notif:${userId}`, (message: string) => {
+          try {
+            const parsed = JSON.parse(message);
+            send(`id: ${parsed.id}\nevent: notification\ndata: ${message}\n\n`);
+          } catch {
+            send(`event: notification\ndata: ${message}\n\n`);
+          }
+        })
+        .then((stop) => {
+          if (closed) stop();
+          else release = stop;
+        })
         .catch((err) => {
           console.error("[SSE] Redis subscribe error:", err);
           cleanup();
         });
-
-      subscriber.on("message", (_channel: string, message: string) => {
-        try {
-          const parsed = JSON.parse(message);
-          send(`id: ${parsed.id}\nevent: notification\ndata: ${message}\n\n`);
-        } catch {
-          send(`event: notification\ndata: ${message}\n\n`);
-        }
-      });
-
-      subscriber.on("error", (err) => {
-        console.error("[SSE] Redis error:", err);
-      });
 
       heartbeatTimer = setInterval(() => {
         send(": keepalive\n\n");

@@ -26,6 +26,7 @@
  */
 
 import { z } from "zod";
+import { STATUS_VALUES } from "@/lib/db/status-values";
 import {
   choice,
   id,
@@ -251,7 +252,8 @@ export const visitorCheckoutSchema = z.object({
   outTime: z.iso.datetime({ error: "Check-out time is required" }),
 });
 
-export const COMPLAINT_STATUSES = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"] as const;
+// SKAI-1808: the same list the database watch uses.
+export const COMPLAINT_STATUSES = STATUS_VALUES.complaints;
 
 export const complaintSchema = z.object({
   complainantName: personName("Complainant name"),

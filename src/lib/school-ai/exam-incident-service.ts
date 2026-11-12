@@ -4,7 +4,8 @@ import type { AuthUser } from "@/lib/auth";
 import { ApiError } from "@/lib/api/scope";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { examKeyCorrectionSchema, examReviewSchema, correctedExamPaper, responsesSchema, scoreObjectiveResponses } from "./exam";
-import { scopedAssignment, staffExamAccess } from "./exam-service";
+import { candidateAssignment, scopedAssignment, staffExamAccess } from "./exam-service";
+import { paperDataSchema } from "./assessment";
 import { regradeExamAttempt } from "./exam-results";
 import { assertStudioAction } from "./studio-access";
 import { schoolAiTransaction } from "./transaction";
@@ -34,17 +35,23 @@ function latest<T extends { id: string; revisesId: string | null }>(rows: T[]) {
 
 export async function listClarifications(user: AuthUser, assignmentId: string) {
   return schoolAiTransaction(user, async tx => {
-    const { assignment, paper, student } = await scopedAssignment(user, assignmentId, tx, "SUPERVISION");
-    const rows = await tx.schoolAiExamClarification.findMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId }, orderBy: { version: "asc" } });
-    const number = (questionId: string | null) => questionId ? paper.questions.findIndex(question => question.id === questionId) + 1 || null : null;
-    if (student) {
+    if (user.role === "STUDENT") {
+      // SKAI-1882: the candidate polls this, so it loads the frozen paper only when a notice names a question.
+      const { assignment, student } = await candidateAssignment(user, assignmentId, tx);
+      const rows = await tx.schoolAiExamClarification.findMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId }, orderBy: { version: "asc" } });
       const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, studentId: student.id, userId: user.userId }, select: { id: true, pausedAt: true, deadlineAt: true } });
       if (!attempt) return { notices: [], pausedAt: null, deadlineAt: null };
       const mine = latest(rows.filter(row => inAudience(row.audience, attempt.id)));
       const acks = new Set((await tx.schoolAiExamClarificationAck.findMany({ where: { schoolId: user.schoolId, attemptId: attempt.id, clarificationId: { in: mine.map(row => row.id) } }, select: { clarificationId: true } })).map(row => row.clarificationId));
+      const snapshot = mine.some(row => row.questionId) ? await tx.schoolAiExamAssignment.findFirst({ where: { id: assignment.id, schoolId: user.schoolId, campusId: assignment.campusId }, select: { paperSnapshot: true } }) : null;
+      const order = snapshot ? paperDataSchema.parse(snapshot.paperSnapshot).questions.map(question => question.id) : [];
+      const number = (questionId: string | null) => questionId ? order.indexOf(questionId) + 1 || null : null;
       // SKO-502: the deadline travels with the notice poll, so an extension reaches an idle candidate's clock.
       return { pausedAt: attempt.pausedAt, deadlineAt: attempt.deadlineAt, notices: mine.map(row => ({ id: row.id, version: row.version, revised: !!row.revisesId, text: row.text, question: number(row.questionId), createdAt: row.createdAt, acknowledged: acks.has(row.id) })) };
     }
+    const { assignment, paper } = await scopedAssignment(user, assignmentId, tx, "SUPERVISION");
+    const rows = await tx.schoolAiExamClarification.findMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId }, orderBy: { version: "asc" } });
+    const number = (questionId: string | null) => questionId ? paper.questions.findIndex(question => question.id === questionId) + 1 || null : null;
     await staffExamAccess(user, assignment, "view", tx, "SUPERVISION");
     const attempts = await tx.schoolAiExamAttempt.findMany({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId }, select: { id: true, status: true, studentId: true, pausedAt: true, deadlineAt: true } });
     const acks = await tx.schoolAiExamClarificationAck.findMany({ where: { schoolId: user.schoolId, clarificationId: { in: rows.map(row => row.id) } }, select: { clarificationId: true } });

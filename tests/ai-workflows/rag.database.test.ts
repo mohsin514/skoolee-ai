@@ -88,3 +88,28 @@ test("knowledge follow-ups use only the actor's completed knowledge job and hist
   await withdrawKnowledge(user, draft.id, published.version);
   assert.doesNotMatch(JSON.stringify((await getJob(user, parent.id)).steps[0].receipt), /17 days/);
 });
+
+test("search loads embeddings only for a hybrid query, keeps school scope, and ranks per school", async () => {
+  const user = await fixture(), other = await fixture(), studentId = randomUUID();
+  await db.user.create({ data: { id: studentId, schoolId: user.schoolId, campusId: user.campusId, role: "STUDENT", isActive: true, email: `${studentId}@example.invalid`, fullName: "QA Learner" } });
+  const student: AuthUser = { ...user, userId: studentId, role: "STUDENT", email: `${studentId}@example.invalid`, fullName: "QA Learner" };
+  const near = Array.from({ length: 512 }, (_, i) => (i === 0 ? 1 : 0)), far = Array.from({ length: 512 }, (_, i) => (i === 1 ? 1 : 0));
+  for (const actor of [user, other]) {
+    const d = await saveKnowledge(actor, input()); await publishKnowledge(actor, d.id, d.version, async texts => texts.map(() => near));
+  }
+  const calls: { where?: { schoolId?: string }; select?: Record<string, boolean> }[] = [];
+  const delegate = prisma.ragChunk, findMany = delegate.findMany;
+  (delegate as { findMany: unknown }).findMany = (args: (typeof calls)[number]) => { calls.push(args); return findMany.call(delegate, args as never); };
+  try {
+    const keyword = await searchKnowledge(user, "refund", lexical);
+    assert.equal(keyword.mode, "KEYWORD"); assert.equal(keyword.sources.length, 1);
+    assert.equal(calls.length, 1); assert.equal(calls[0].where?.schoolId, user.schoolId); assert.ok(!calls[0].select?.embedding);
+    calls.length = 0;
+    const hybrid = await searchKnowledge(user, "time away from classes", async () => [near]);
+    assert.equal(hybrid.mode, "HYBRID"); assert.equal(hybrid.sources.length, 1); assert.match(hybrid.sources[0].text, /17 days/);
+    assert.equal(calls.length, 2); assert.ok(calls.every(call => call.where?.schoolId === user.schoolId)); assert.ok(calls[1].select?.embedding);
+    assert.equal((await searchKnowledge(other, "time away from classes", async () => [far])).sources.length, 0);
+    // A same-school role outside the document audience gets nothing (refused or empty), whatever the vector says.
+    assert.equal(await searchKnowledge(student, "refund", async () => [near]).then(result => result.sources.length, () => 0), 0);
+  } finally { (delegate as { findMany: unknown }).findMany = findMany; }
+});
