@@ -43,6 +43,15 @@ export const rosterSummarySelect = {
   group: { select: { id: true, name: true } },
 } satisfies Prisma.StudentSelect;
 
+/** SKAI-1828: a student picker (fee discount and carry-forward) needs only who the pupil is and their class. */
+export const studentPickerSelect = {
+  id: true,
+  fullName: true,
+  rollNo: true,
+  classId: true,
+  class: { select: { id: true, name: true, section: true } },
+} satisfies Prisma.StudentSelect;
+
 /** Fields that only the single-record read (`/api/students/<id>`) may return. */
 export const PROFILE_ONLY_STUDENT_FIELDS = [
   "dateOfBirth",

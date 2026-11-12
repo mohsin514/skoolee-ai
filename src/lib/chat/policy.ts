@@ -148,12 +148,14 @@ export async function teacherClassIds(userId: string, db: TxClient = prisma): Pr
   return [...ids];
 }
 
+/** Decides whether a teacher and a family account share a child. Swapped out by the batch path. */
+type TeacherSharesStudent = (teacherId: string, family: ChatPeer) => Promise<boolean>;
+
 /**
  * True when a teacher and a family account meet over at least one child.
  * One query, not one per class: the join is done in the database.
  */
-async function teacherSharesStudent(teacherId: string, family: ChatPeer, db: TxClient): Promise<boolean> {
-  const classIds = await teacherClassIds(teacherId, db);
+async function teacherSharesStudentIn(classIds: string[], family: ChatPeer, db: TxClient): Promise<boolean> {
   if (classIds.length === 0) return false;
 
   const link = await db.student.findFirst({
@@ -168,6 +170,51 @@ async function teacherSharesStudent(teacherId: string, family: ChatPeer, db: TxC
   });
 
   return link !== null;
+}
+
+async function teacherSharesStudent(teacherId: string, family: ChatPeer, db: TxClient): Promise<boolean> {
+  return teacherSharesStudentIn(await teacherClassIds(teacherId, db), family, db);
+}
+
+/**
+ * The batch form of teacherSharesStudent for one teacher and many family
+ * accounts: two queries in all (guardians, pupils) instead of one per peer.
+ * Same conditions as the single check, plus an explicit school scope.
+ */
+async function teacherReachableFamilies(
+  schoolId: string,
+  classIds: string[],
+  families: ChatPeer[],
+  db: TxClient,
+): Promise<Set<string>> {
+  const reachable = new Set<string>();
+  if (classIds.length === 0 || families.length === 0) return reachable;
+
+  const parentIds = families.filter((f) => f.role === "PARENT").map((f) => f.id);
+  const pupilIds = families.filter((f) => f.role !== "PARENT").map((f) => f.id);
+  const inClasses = { schoolId, classId: { in: classIds }, status: "active" };
+  const liveFor = { ...liveGuardianRelationshipWhere(null, "communication"), guardianUserId: { in: parentIds } };
+
+  const [guardianRows, pupilRows] = await Promise.all([
+    parentIds.length === 0
+      ? []
+      : db.student.findMany({
+          where: { ...inClasses, guardianRelationships: { some: liveFor } },
+          select: { guardianRelationships: { where: liveFor, select: { guardianUserId: true } } },
+        }),
+    pupilIds.length === 0
+      ? []
+      : db.student.findMany({
+          where: { ...inClasses, studentUserId: { in: pupilIds } },
+          select: { studentUserId: true },
+        }),
+  ]);
+
+  for (const row of guardianRows) {
+    for (const relation of row.guardianRelationships) if (relation.guardianUserId) reachable.add(relation.guardianUserId);
+  }
+  for (const row of pupilRows) if (row.studentUserId) reachable.add(row.studentUserId);
+  return reachable;
 }
 
 /** A guardian and a pupil who belong to the same student record. */
@@ -293,6 +340,59 @@ export async function canDirectMessage(
   settings: ChatSettings,
   db: TxClient = prisma,
   relations: ChatRelations = { teacherSharesStudent: (teacherId, family) => teacherSharesStudent(teacherId, family, db), sharesStudentRecord: (a, b) => sharesStudentRecord(a, b, db) },
+): Promise<PolicyDecision> {
+  return decide(actor, target, settings, db, relations);
+}
+
+/**
+ * canDirectMessage for many targets at once, as a group or class channel
+ * needs. Decisions (and deny reasons) are exactly those of canDirectMessage,
+ * returned in the order of `targets`; only the lookups are shared. A teaching
+ * actor's classes and reachable families are resolved once, and any other
+ * teacher's classes are memoised, so the query count no longer grows with
+ * the number of members.
+ */
+export async function canDirectMessageMany(
+  actor: AuthUser,
+  targets: ChatPeer[],
+  settings: ChatSettings,
+  db: TxClient = prisma,
+): Promise<PolicyDecision[]> {
+  const classIdsByTeacher = new Map<string, Promise<string[]>>();
+  const classIdsFor = (teacherId: string) => {
+    let ids = classIdsByTeacher.get(teacherId);
+    if (!ids) {
+      ids = teacherClassIds(teacherId, db);
+      classIdsByTeacher.set(teacherId, ids);
+    }
+    return ids;
+  };
+
+  let actorReachable: Set<string> | null = null;
+  if (actor.role === "TEACHER") {
+    const families = targets.filter((t) => t.isActive && t.id !== actor.userId && t.role !== "APP_OWNER" && !isStaff(t.role));
+    if (families.length > 0) {
+      actorReachable = await teacherReachableFamilies(actor.schoolId, await classIdsFor(actor.userId), families, db);
+    }
+  }
+
+  const shares: TeacherSharesStudent = async (teacherId, family) =>
+    actorReachable && teacherId === actor.userId
+      ? actorReachable.has(family.id)
+      : teacherSharesStudentIn(await classIdsFor(teacherId), family, db);
+
+  const decisions: PolicyDecision[] = [];
+  const relations: ChatRelations = { teacherSharesStudent: shares, sharesStudentRecord: (a, b) => sharesStudentRecord(a, b, db) };
+  for (const target of targets) decisions.push(await decide(actor, target, settings, db, relations));
+  return decisions;
+}
+
+async function decide(
+  actor: AuthUser,
+  target: ChatPeer,
+  settings: ChatSettings,
+  db: TxClient,
+  relations: ChatRelations,
 ): Promise<PolicyDecision> {
   if (actor.userId === target.id) {
     return deny("You cannot start a conversation with yourself");
