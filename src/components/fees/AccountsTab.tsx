@@ -1001,25 +1001,44 @@ function ProfitPanel({ campusId, command, hideCreate = false }: SectionProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Only the latest request may update the panel, and the report the server already answered for
+  // (e.g. the school currency it echoed on first load) is not fetched a second time.
+  const latestRequest = useRef<AbortController | null>(null);
+  const loadedKey = useRef("");
+  const reportKey = (code: string) => [campusId ?? "", from, to, code].join("|");
+
   const run = useCallback(async () => {
     if (!from || !to) { setError(tr("Select a date range")); return; }
+    latestRequest.current?.abort();
+    const controller = new AbortController();
+    latestRequest.current = controller;
     setLoading(true);
     setError("");
     try {
       const params = new URLSearchParams({ from, to, ...(currency ? { currency } : {}) });
       if (campusId) params.set("campusId", campusId);
-      const res = await fetch(`${API}/accounts/profit?${params}`, { cache: "no-store" });
+      const res = await fetch(`${API}/accounts/profit?${params}`, { cache: "no-store", signal: controller.signal });
       const json = await res.json().catch(() => ({}));
-      if (res.ok && json.success) { setReport(json.data); if (!currency) setCurrency(json.data.currency); }
-      else setError(tr(json.error || "Failed to load report"));
+      if (controller.signal.aborted) return;
+      if (res.ok && json.success) {
+        loadedKey.current = [campusId ?? "", from, to, json.data.currency].join("|");
+        setReport(json.data);
+        if (!currency) setCurrency(json.data.currency);
+      } else setError(tr(json.error || "Failed to load report"));
     } catch {
-      setError(tr("Failed to load report"));
+      if (!controller.signal.aborted) setError(tr("Failed to load report"));
     } finally {
-      setLoading(false);
+      if (latestRequest.current === controller) setLoading(false);
     }
   }, [from, to, campusId, currency, tr]);
 
-  useEffect(() => { const timer = setTimeout(() => void run(), 0); return () => clearTimeout(timer); }, [run]);
+  useEffect(() => {
+    // Back on the params already shown: cancel any newer request still in flight so it cannot replace them.
+    if (currency && loadedKey.current === reportKey(currency)) { latestRequest.current?.abort(); return; }
+    const timer = setTimeout(() => void run(), 0);
+    return () => clearTimeout(timer);
+  }, [run]);
+  useEffect(() => () => latestRequest.current?.abort(), []);
 
   const exportParams = new URLSearchParams({ from, to, ...(currency ? { currency } : {}), ...(campusId ? { campusId } : {}), format: "csv" });
   // "Export ledger" in the accountant's PageHeader downloads the rows behind this report (same filter).

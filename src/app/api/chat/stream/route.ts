@@ -1,8 +1,8 @@
-import IORedis from "ioredis";
 import { getAuthUser } from "@/lib/auth";
 import { chatChannel, clearPresence, markPresent } from "@/lib/chat/realtime";
 import { resolveRedisUrl, warnRealtimeDisabledOnce } from "@/lib/queue/redis-config";
 import { realtimeDisabledResponse } from "@/lib/queue/sse-fallback";
+import { sharedSubscriber } from "@/lib/queue/shared-subscriber";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,8 +10,8 @@ export const dynamic = "force-dynamic";
 /**
  * The live message stream.
  *
- * Deliberately the same shape as /api/notifications/sse — a dedicated Redis
- * subscriber per connection, a keepalive comment every 30s so proxies do not
+ * Deliberately the same shape as /api/notifications/sse — a channel on the
+ * instance-wide Redis subscriber (SKAI-1878), a keepalive comment every 30s so proxies do not
  * reap an idle stream, and cleanup bound to the request's abort signal.
  * Server-sent events rather than a WebSocket because the traffic is one-way
  * (sends go over ordinary POSTs) and SSE reconnects on its own.
@@ -37,7 +37,9 @@ export async function GET(req: Request) {
     return realtimeDisabledResponse([`event: ready\ndata: ${JSON.stringify({ userId, realtime: false })}\n\n`]);
   }
 
-  let subscriber: IORedis | null = null;
+  // SKAI-1878: this stream's slot on the instance-wide subscriber, not a Redis connection of its own.
+  let release: (() => void) | null = null;
+  let closed = false;
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   const stream = new ReadableStream({
@@ -57,11 +59,9 @@ export async function GET(req: Request) {
           clearInterval(heartbeatTimer);
           heartbeatTimer = null;
         }
-        if (subscriber) {
-          subscriber.unsubscribe().catch(() => {});
-          subscriber.quit().catch(() => {});
-          subscriber = null;
-        }
+        closed = true;
+        release?.();
+        release = null;
         clearPresence(userId).catch(() => {});
         try {
           controller.close();
@@ -73,27 +73,18 @@ export async function GET(req: Request) {
 
       markPresent(userId).catch(() => {});
 
-      subscriber = new IORedis(redisUrl, {
-        maxRetriesPerRequest: null,
-        enableReadyCheck: false,
-        lazyConnect: true,
-      });
-
-      subscriber
-        .connect()
-        .then(() => subscriber!.subscribe(chatChannel(userId)))
+      sharedSubscriber(redisUrl)
+        .subscribe(chatChannel(userId), (message: string) => {
+          send(`event: chat\ndata: ${message}\n\n`);
+        })
+        .then((stop) => {
+          if (closed) stop();
+          else release = stop;
+        })
         .catch((err) => {
           console.error("[chat/sse] subscribe failed:", err);
           cleanup();
         });
-
-      subscriber.on("message", (_channel: string, message: string) => {
-        send(`event: chat\ndata: ${message}\n\n`);
-      });
-
-      subscriber.on("error", (err) => {
-        console.error("[chat/sse] redis error:", err);
-      });
 
       // Doubles as the presence refresh: while the stream is alive the user is
       // online, and the key expires shortly after it is not.
