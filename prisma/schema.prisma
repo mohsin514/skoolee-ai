@@ -619,6 +619,9 @@ model RolePermission {
 
 // ─── 2. CAMPUSES ──────────────────────────────────────────
 model Campus {
+  enrollmentPlacements StudentEnrollment[]
+  attendanceRegisterPlacements AttendanceRegister[]
+  paymentAllocationPlacements PaymentAllocation[]
   curriculumPackActivations CurriculumPackActivation[]
   /// SKO-500: the exam coordinator (controller of examinations) seat; schedules and requests papers, never approves.
   examCoordinatorUserId String? @map("exam_coordinator_user_id")
@@ -744,6 +747,7 @@ model Campus {
   conversations         Conversation[]
 
   @@index([schoolId])
+  @@unique([schoolId, id])
   @@map("campuses")
 }
 
@@ -1396,6 +1400,8 @@ model PayrollLine {
 
 // ─── 4. CLASSES ───────────────────────────────────────────
 model Class {
+  enrollmentPlacements StudentEnrollment[]
+  attendanceRegisterPlacements AttendanceRegister[]
   id             String  @id @default(uuid())
   archivedAt     DateTime? @map("archived_at")
   archiveReason  String?   @map("archive_reason")
@@ -1436,6 +1442,7 @@ model Class {
   @@index([schoolId, updatedAt])
   @@index([campusId])
   @@index([classTeacherId])
+  @@unique([schoolId, id])
   @@map("classes")
 }
 
@@ -2434,7 +2441,9 @@ model AttendanceRegister {
   schoolId      String    @default("") @map("school_id")
   school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String    @map("campus_id")
+  campus Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   classId       String    @map("class_id")
+  class Class @relation(fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction)
   date          DateTime  @db.Date
   status        String    @default("OPEN") // OPEN | SUBMITTED
   rosterCount   Int       @default(0) @map("roster_count")
@@ -2446,6 +2455,8 @@ model AttendanceRegister {
   @@unique([classId, date])
   @@index([campusId, date])
   @@index([schoolId])
+  @@index([schoolId, campusId])
+  @@index([schoolId, classId])
   @@map("attendance_registers")
 }
 
@@ -6678,7 +6689,9 @@ model StudentEnrollment {
   studentId String @map("student_id")
   student Student @relation(fields: [studentId], references: [id], onDelete: NoAction)
   campusId String @map("campus_id")
+  campus Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   classId String @map("class_id")
+  class Class @relation(fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction)
   campusName String @map("campus_name")
   className String @map("class_name")
   curriculum String
@@ -6693,6 +6706,8 @@ model StudentEnrollment {
   reports ReportCard[]
   @@index([schoolId, studentId, startDate])
   @@index([studentId])
+  @@index([schoolId, campusId])
+  @@index([schoolId, classId])
   @@map("student_enrollments")
 }
 
@@ -6915,6 +6930,7 @@ model PaymentAllocation {
   id        String   @id @default(uuid())
   schoolId  String   @map("school_id")
   campusId  String   @map("campus_id")
+  campus Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   paymentId String   @map("payment_id")
   invoiceId String   @map("invoice_id")
   amount    Int
