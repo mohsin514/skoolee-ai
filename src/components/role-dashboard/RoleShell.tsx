@@ -143,7 +143,8 @@ function useNavigationCounts(enabled: boolean): Record<string, number> {
         if (next && typeof next === "object") setCounts(Object.fromEntries(Object.entries(next).filter(([, value]) => typeof value === "number")) as Record<string, number>);
         else release(); // a failed read does not hold back the next refresh
       })
-      .catch(() => { settled = true; release(); });
+      // An aborted read was already released by the cleanup; releasing again could clear a newer read started in the same ms.
+      .catch(() => { settled = true; if (!controller.signal.aborted) release(); });
     // An aborted fetch (route change mid-flight, or the dev double-mount) never counts as a fresh read.
     return () => { if (!settled) release(); controller.abort(); };
   }, [enabled, pathname, version]);

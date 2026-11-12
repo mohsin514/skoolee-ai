@@ -17,7 +17,7 @@ test("SKAI-1829: the shell gates its counts fetch on the window and frees it whe
   const shell = readFileSync("src/components/role-dashboard/RoleShell.tsx", "utf8");
   const hook = shell.slice(shell.indexOf("function useNavigationCounts("), shell.indexOf("function activeLeafFor("));
   assert.match(hook, /if \(!navigationCountsDue\(lastFetchAt\.current, startedAt\)\) return;\n\s+lastFetchAt\.current = startedAt;/);
-  assert.match(hook, /\.catch\(\(\) => \{ settled = true; release\(\); \}\)/);
+  assert.match(hook, /\.catch\(\(\) => \{ settled = true; if \(!controller\.signal\.aborted\) release\(\); \}\)/);
   assert.match(hook, /return \(\) => \{ if \(!settled\) release\(\); controller\.abort\(\); \};/);
   assert.match(hook, /window\.addEventListener\("focus", refresh\)/, "focus still asks for a refresh");
 });
