@@ -209,7 +209,11 @@ export async function activationFor(db: TxClient | typeof prisma, schoolId: stri
 
 /** Tax for an invoice about to be created, or null when no package applies (legacy behaviour stays). */
 export async function taxFor(db: TxClient, schoolId: string, campusId: string, invoiceDate: Date, currency: string, lines: Line[], discount: number) {
-  const a = await activationFor(db, schoolId, campusId, invoiceDate);
+  return taxForActivation(await activationFor(db, schoolId, campusId, invoiceDate), currency, lines, discount);
+}
+
+/** SKAI-1814: taxFor on an activation already looked up, so a batch reads it once per invoice date. */
+export function taxForActivation(a: Awaited<ReturnType<typeof activationFor>>, currency: string, lines: Line[], discount: number) {
   if (!a) return null;
   if (a.currency !== currency) throw new ApiError(`The ${a.packageCode} package is approved for ${a.currency}; this invoice is in ${currency}.`, 409);
   const found = findVersion(a.packageCode, a.packageVersion)!;
