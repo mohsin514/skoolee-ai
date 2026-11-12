@@ -47,6 +47,7 @@
     "test:business-numbers-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/business-numbers.database.test.ts",
     "test:school-fks": "node --import tsx --test tests/db/school-foreign-keys.test.ts",
     "test:school-fks-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/school-foreign-keys.database.test.ts",
+    "test:campus-pinning-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/campus-school-pinning.database.test.ts",
     "test:composer-send-gate": "node --import ./tests/support/server-only.mjs --import tsx --test tests/chat/composer-send-gate.test.ts",
     "test:inventory-movements": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/inventory/transaction-list-paging.test.ts",
     "test:inventory-names": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/inventory/name-validation.test.ts",

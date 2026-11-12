@@ -38,3 +38,4 @@ jobs:
       - run: pnpm run test:enrollment-placement-db
       - run: pnpm run test:business-numbers-db
       - run: pnpm run test:school-fks-db
+      - run: pnpm run test:campus-pinning-db
