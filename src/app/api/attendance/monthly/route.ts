@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canMarkAttendance, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
-import { ruleRate } from "@/lib/attendance";
+import { countedRuleRate, ruleRate } from "@/lib/attendance";
 import { attendanceRuleFor } from "@/lib/attendance/rule";
 
 export async function GET(req: NextRequest) {
@@ -162,57 +162,77 @@ export async function GET(req: NextRequest) {
     // Campus-wide summary
     if (user.role === "TEACHER") throw new ApiError("Teachers must specify classId", 400);
 
-    const [classes, allRecords] = await Promise.all([
+    // SKAI-1870: Postgres counts rows per class, pupil and status, so the summary never loads the month's rows.
+    const [classes, groups] = await Promise.all([
       prisma.class.findMany({
         where: { campusId, campus: { schoolId: user.schoolId } },
         select: { id: true, name: true, section: true, _count: { select: { students: true } } },
         orderBy: [{ name: "asc" }, { section: "asc" }],
       }),
-      prisma.attendance.findMany({
-        where: { campusId, date: { gte: startDate, lte: endDate } },
-        select: { studentId: true, status: true, classId: true, student: { select: { classId: true } } },
+      prisma.attendance.groupBy({
+        by: ["classId", "studentId", "status"],
+        where: { schoolId: user.schoolId, campusId, date: { gte: startDate, lte: endDate } },
+        _count: true,
       }),
     ]);
 
     // SKAI-1407: group by the class each row was taken in. Rows without a stored class fall back to the current class.
-    const classSummaries = classes.map(cls => {
-      const classRecords = allRecords.filter(r => (r.classId ?? r.student.classId) === cls.id);
-      const present = classRecords.filter(r => r.status === "PRESENT").length;
-      const absent = classRecords.filter(r => r.status === "ABSENT").length;
-      const leave = classRecords.filter(r => r.status === "LEAVE").length;
-      const total = classRecords.length;
-      const percentage = ruleRate(classRecords, rule);
+    const legacyIds = [...new Set(groups.filter(g => !g.classId).map(g => g.studentId))];
+    const currentClass = new Map(legacyIds.length
+      ? (await prisma.student.findMany({ where: { id: { in: legacyIds }, campus: { schoolId: user.schoolId } }, select: { id: true, classId: true } })).map(s => [s.id, s.classId])
+      : []);
+    type Counts = Array<{ status: string; count: number }>;
+    const byClass = new Map<string, Counts>();
+    const byStudent = new Map<string, Counts>();
+    const all: Counts = [];
+    const push = (map: Map<string, Counts>, key: string, entry: Counts[number]) => {
+      const list = map.get(key);
+      if (list) list.push(entry);
+      else map.set(key, [entry]);
+    };
+    for (const g of groups) {
+      const entry = { status: g.status, count: g._count };
+      const cls = g.classId ?? currentClass.get(g.studentId);
+      if (cls) push(byClass, cls, entry);
+      push(byStudent, g.studentId, entry);
+      all.push(entry);
+    }
+    const countOf = (counts: Counts, status: string) => counts.reduce((n, c) => n + (c.status === status ? c.count : 0), 0);
+    const totalOf = (counts: Counts) => counts.reduce((n, c) => n + c.count, 0);
 
+    const classSummaries = classes.map(cls => {
+      const counts = byClass.get(cls.id) ?? [];
       return {
         classId: cls.id,
         className: [cls.name, cls.section].filter(Boolean).join(" "),
         studentCount: cls._count.students,
-        present, absent, leave, total, percentage,
+        present: countOf(counts, "PRESENT"),
+        absent: countOf(counts, "ABSENT"),
+        leave: countOf(counts, "LEAVE"),
+        total: totalOf(counts),
+        percentage: countedRuleRate(counts, rule),
       };
     });
 
-    const totalPresent = allRecords.filter(r => r.status === "PRESENT").length;
-    const totalAbsent = allRecords.filter(r => r.status === "ABSENT").length;
-    const totalLeave = allRecords.filter(r => r.status === "LEAVE").length;
-    const overallPercentage = ruleRate(allRecords, rule);
+    const totalPresent = countOf(all, "PRESENT");
+    const totalAbsent = countOf(all, "ABSENT");
+    const totalLeave = countOf(all, "LEAVE");
+    const overallPercentage = countedRuleRate(all, rule);
 
     // Count at-risk students campus-wide
-    const studentAttendance = new Map<string, { present: number; total: number }>();
-    for (const r of allRecords) {
-      const entry = studentAttendance.get(r.studentId) || { present: 0, total: 0 };
-      if (rule.excluded.includes(r.status)) continue;
-      entry.total++;
-      if (rule.attended.includes(r.status)) entry.present++;
-      studentAttendance.set(r.studentId, entry);
-    }
-    const atRiskCount = Array.from(studentAttendance.values()).filter(s => s.total > 0 && (s.present / s.total) * 100 < 75).length;
+    const atRiskCount = Array.from(byStudent.values()).filter(counts => {
+      const counted = counts.filter(c => !rule.excluded.includes(c.status));
+      const total = totalOf(counted);
+      const present = totalOf(counted.filter(c => rule.attended.includes(c.status)));
+      return total > 0 && (present / total) * 100 < 75;
+    }).length;
 
     return Response.json({
       type: "campus",
       month,
       overallPercentage,
       totalPresent, totalAbsent, totalLeave,
-      totalRecords: allRecords.length,
+      totalRecords: totalOf(all),
       atRiskCount,
       classes: classSummaries,
     });

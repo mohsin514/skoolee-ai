@@ -66,6 +66,14 @@ export function ruleRate(records: AttendanceLike[], rule: AttendanceRule = DEFAU
   return counted.length ? Math.round((attended / counted.length) * 1000) / 10 : 0;
 }
 
+/** SKAI-1870: ruleRate over grouped counts (status → rows), with the same one-decimal result. */
+export function countedRuleRate(groups: Array<{ status: string; count: number }>, rule: AttendanceRule = DEFAULT_ATTENDANCE_RULE): number {
+  const counted = groups.filter((g) => !rule.excluded.includes(String(g.status)));
+  const total = counted.reduce((sum, g) => sum + g.count, 0);
+  const attended = counted.filter((g) => rule.attended.includes(String(g.status))).reduce((sum, g) => sum + g.count, 0);
+  return total ? Math.round((attended / total) * 1000) / 10 : 0;
+}
+
 /** SKAI-1604: the same rule over grouped counts (status → rows), as whole percent; null when nothing counts. */
 export function groupedRuleRate(groups: Array<{ status: string; count: number }>, rule: AttendanceRule = DEFAULT_ATTENDANCE_RULE): number | null {
   const counted = groups.filter((g) => !rule.excluded.includes(String(g.status)));
