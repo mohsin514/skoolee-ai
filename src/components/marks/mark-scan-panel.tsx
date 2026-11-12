@@ -35,7 +35,7 @@ const key = () => `scan-${Date.now()}-${Math.random().toString(36).slice(2, 10)}
 
 /** Read a photo, measure blur/contrast on a downscaled copy and try to read the page QR. */
 type Inspected = Awaited<ReturnType<typeof inspect>>;
-async function inspect(file: File) {
+export async function inspect(file: File) {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, 1000 / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas"); canvas.width = Math.max(3, Math.round(bitmap.width * scale)); canvas.height = Math.max(3, Math.round(bitmap.height * scale));

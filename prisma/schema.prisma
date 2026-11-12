@@ -2466,6 +2466,7 @@ model ReportCard {
   @@index([enrollmentId])
   @@index([campusId])
   @@index([schoolId, campusId])
+  @@index([schoolId, studentId, generatedAt])
   @@map("report_cards")
 }
 
@@ -2825,6 +2826,9 @@ model Invoice {
   @@unique([schoolId, invoiceNumber])
   @@index([enrollmentId])
   @@index([schoolId, campusId])
+  // SKAI-1885: invoice list page order and the overdue-balance aggregates by currency.
+  @@index([campusId, invoiceDate(sort: Desc), id])
+  @@index([campusId, currency, dueDate])
   @@map("invoices")
 }
 
@@ -5768,6 +5772,9 @@ model Notification {
   @@index([sourceType, sourceId])
   @@index([userId, isRead, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
+  // SKAI-1885: inbox order. The migration builds last_reminded_at DESC NULLS LAST to match the query;
+  // Prisma cannot spell NULLS LAST here and does not report it as drift.
+  @@index([userId, lastRemindedAt(sort: Desc), createdAt(sort: Desc)])
   @@index([schoolId])
   @@map("notifications")
 }
@@ -6050,6 +6057,7 @@ model BookIssue {
   @@index([memberId, returnedAt])
   @@index([bookId])
   @@index([schoolId, returnedAt, dueAt])
+  @@index([schoolId, issuedAt])
   @@index([memberId])
   @@map("book_issues")
 }
@@ -8332,6 +8340,8 @@ model TeachingAssignment {
 
   @@index([schoolId, campusId, classId])
   @@index([subjectId])
+  // SKAI-1885: a teacher's current assignments (chat policy, teacher scope).
+  @@index([schoolId, teacherId])
   @@map("teaching_assignments")
 }
 

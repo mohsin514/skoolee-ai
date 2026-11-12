@@ -9,8 +9,8 @@ import { dashboardPathForRole, normalizeUserRole, PLATFORM_OWNER_AI_PAGES, type 
 // that duty). A route the matrix marks "—" for a role is not restored: sign-in lands on the role's home instead.
 // Every staff role: messages, raise a service request (Help › Report a problem), record a concern (Help › Record a
 // concern → /care?tab=report, offered to every staff role except the platform operator, §4.2), jobs, setup tasks,
-// school capture, account.
-const STAFF = ["/messages", "/service-desk", "/care", "/jobs", "/setup", "/school-capture", "/account"];
+// school capture, scan sheets (SKAI-1851), account.
+const STAFF = ["/messages", "/service-desk", "/scan", "/care", "/jobs", "/setup", "/school-capture", "/account"];
 /** Academic-office routes (§6.3): curriculum, resources, access plans, secure exam delivery. */
 const ACADEMIC_OFFICE = ["/accommodations", "/curriculum", "/resources", "/exam-delivery"];
 /** Campus operators (CA, and ADMIN in either kind of school): every framed campus route. */
