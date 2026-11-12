@@ -20,6 +20,7 @@ import {
 import { DeskPill, DeskStats, StatTile } from "@/components/ui/desk";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { calendarMonthParam, parseCalendarMonth } from "@/lib/academic/calendar-month";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -85,6 +86,17 @@ export function todayIso(timeZone?: string, now: Date = new Date()) {
   }
 }
 
+const CALENDAR_MONTH_KEY = "skoolee.academicCalendar.month";
+function readStoredMonth(scope: string) {
+  try { return window.localStorage.getItem(`${CALENDAR_MONTH_KEY}:${scope}`); } catch { return null; }
+}
+function writeStoredMonth(scope: string, value: string | null) {
+  try {
+    if (value) window.localStorage.setItem(`${CALENDAR_MONTH_KEY}:${scope}`, value);
+    else window.localStorage.removeItem(`${CALENDAR_MONTH_KEY}:${scope}`);
+  } catch { /* storage unavailable: the URL still carries the month */ }
+}
+
 interface DayEvents {
   iso: string;
   dayNum: number;
@@ -140,6 +152,23 @@ export function AcademicCalendar({
   const todayYear = Number(campusToday.slice(0, 4)), todayMonth = Number(campusToday.slice(5, 7)) - 1;
   const [viewYear, setViewYear] = useState(todayYear);
   const [viewMonth, setViewMonth] = useState(todayMonth);
+  const monthScope = campusId ?? "default";
+  const [monthRestored, setMonthRestored] = useState(false);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const chosen = parseCalendarMonth(url.searchParams.get("cal")) ?? parseCalendarMonth(readStoredMonth(monthScope));
+    if (chosen) { setViewYear(chosen.year); setViewMonth(chosen.month); }
+    setMonthRestored(true);
+  }, [monthScope]);
+  useEffect(() => {
+    if (!monthRestored) return;
+    const isToday = viewYear === todayYear && viewMonth === todayMonth;
+    const value = isToday ? null : calendarMonthParam(viewYear, viewMonth);
+    const url = new URL(window.location.href);
+    if (value) url.searchParams.set("cal", value); else url.searchParams.delete("cal");
+    if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url.href);
+    writeStoredMonth(monthScope, value);
+  }, [monthRestored, monthScope, viewYear, viewMonth, todayYear, todayMonth]);
   const [feed, setFeed] = useState<UnifiedFeed | null>(null);
   const [loading, setLoading] = useState(true);
   const [layers, setLayers] = useState<LayerState>({

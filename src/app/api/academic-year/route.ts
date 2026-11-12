@@ -214,20 +214,25 @@ export async function POST(req: NextRequest) {
       await prisma.$transaction(async (tx) => {
         for (const promo of promotions) {
           const { studentId, targetClassId, newRollNo } = promo;
-          if (!studentId || !targetClassId) continue;
+          if (!studentId || !targetClassId) throw new ApiError("studentId and targetClassId are required", 400);
 
           const student = await tx.student.findFirst({
             // SKAI-1401: promotions stay inside the caller school and campus.
             where: { id: studentId, schoolId: user.schoolId, campusId },
             select: { id: true, classId: true, rollNo: true, campusId: true, class: { select: { academicYear: true } } },
           });
-          if (!student) continue;
+          if (!student) throw new ApiError("Student not found", 404);
 
           const targetClass = await tx.class.findFirst({
             where: { id: targetClassId, schoolId: user.schoolId, campusId },
-            select: { id: true, academicYear: true, name: true, section: true, campusId: true },
+            select: { id: true, academicYear: true, name: true, section: true, campusId: true, status: true, capacity: true },
           });
-          if (!targetClass) continue;
+          if (!targetClass) throw new ApiError("Class not found", 404);
+          assertPromotionPlacement(targetClass, student.class.academicYear);
+          if (targetClass.capacity != null) {
+            const enrolled = await tx.student.count({ where: { classId: targetClass.id } });
+            if (enrolled >= targetClass.capacity) throw new ApiError("Target class is full", 409);
+          }
 
           await tx.studentClassHistory.upsert({
             where: {
@@ -275,17 +280,22 @@ export async function POST(req: NextRequest) {
       });
       const toClass = await prisma.class.findFirst({
         where: { id: toClassId, schoolId: user.schoolId, campusId },
-        select: { id: true, academicYear: true, name: true, section: true, campusId: true },
+        select: { id: true, academicYear: true, name: true, section: true, campusId: true, status: true, capacity: true },
       });
       if (!fromClass || !toClass) throw new ApiError("Class not found", 404);
+      assertPromotionPlacement(toClass, fromClass.academicYear);
 
       const students = await prisma.student.findMany({
-        where: { classId: fromClassId },
+        where: { classId: fromClassId, schoolId: user.schoolId, campusId },
         select: { id: true, rollNo: true, campusId: true },
         orderBy: { rollNo: "asc" },
       });
 
       if (students.length === 0) throw new ApiError("No students in source class", 400);
+      if (toClass.capacity != null) {
+        const enrolled = await prisma.student.count({ where: { classId: toClassId } });
+        if (enrolled + students.length > toClass.capacity) throw new ApiError("Target class is full", 409);
+      }
 
       let promoted = 0;
       await prisma.$transaction(async (tx) => {
@@ -364,4 +374,10 @@ async function generateRollNo(
   }
   const seqNum = maxNum + 1 + offset;
   return `${prefix}${String(seqNum).padStart(3, "0")}`;
+}
+
+// SKAI-1401: a promotion only lands in an active class of a later academic year.
+function assertPromotionPlacement(target: { status: string; academicYear: number }, sourceYear: number) {
+  if (target.status !== "ACTIVE") throw new ApiError("Target class is not active", 409);
+  if (target.academicYear <= sourceYear) throw new ApiError("Target class must be in a later academic year", 409);
 }
