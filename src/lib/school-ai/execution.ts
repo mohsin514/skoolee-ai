@@ -146,8 +146,8 @@ async function authorize(user: AuthUser, operation: SchoolAiOperation = "curricu
   const planFeature = operation.startsWith("timetable.") ? "timetableEnabled" : operation === "exams.create_session_plan" ? "examPlanningEnabled" : null;
   if (planFeature) await assertPlanFeature(user, planFeature, db);
 }
-export async function assertSchoolAiOperationAccess(user: AuthUser, operation: SchoolAiOperation, db: TxClient) {
-  await authorize(user, operation, await loadWorkspacePermissionSnapshot(user, db), db);
+export async function assertSchoolAiOperationAccess(user: AuthUser, operation: SchoolAiOperation, db: TxClient, permissions?: WorkspacePermissionSnapshot) {
+  await authorize(user, operation, permissions ?? await loadWorkspacePermissionSnapshot(user, db), db);
 }
 function withContext<T>(user: AuthUser, fn: () => Promise<T>) {
   return runWithTenantContext({ schoolId: user.schoolId, campusId: user.campusId, userId: user.userId, role: user.role, unscoped: false }, fn);
