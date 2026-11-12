@@ -15,9 +15,20 @@ export type CaptureIntegrityReporter = (kind: IntegrityEventKind, reason?: "PERM
 export function ExamProctorCapture({ id, attemptId, active, deadlineAt, locale, initialCameraStream, cameraRequired = false, onIntegrityEvent, clockNow = Date.now }: { id: string; attemptId: string; active: boolean; deadlineAt: string; locale: AssessmentLocale; initialCameraStream?: MediaStream | null; cameraRequired?: boolean; onIntegrityEvent?: CaptureIntegrityReporter; clockNow?: () => number }) {
   const t = examProctorCopy(locale), cameraCopy = examCameraCopy(locale), [data, setData] = useState<ProctorView | null>(null), [error, setError] = useState(""), [stopped, setStopped] = useState<string[]>([]);
   const api = `/api/school-ai/exams/${encodeURIComponent(id)}/proctor`;
-  const load = useCallback(async () => { try { const response = await fetch(api, { cache: "no-store", signal: AbortSignal.timeout(15000) }), payload = await response.json(); if (!response.ok) throw new Error(t.unavailable); setData(payload); setError(""); } catch { setError(t.unavailable); } }, [api, t.unavailable]);
+  // SKAI-1882: while the recording details are closed nothing shows clips, so reads ask for the summary (status
+  // and counts, not a clip list that grows all exam). Only the newest response is applied.
+  const detailsOpen = useRef(false), latest = useRef(0);
+  const load = useCallback(async () => { const request = ++latest.current; try { const response = await fetch(detailsOpen.current ? api : `${api}?summary=1`, { cache: "no-store", signal: AbortSignal.timeout(15000) }), payload = await response.json(); if (request !== latest.current) return; if (!response.ok) throw new Error(t.unavailable); setData(payload); setError(""); } catch { if (request === latest.current) setError(t.unavailable); } }, [api, t.unavailable]);
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => { if (!active || !data?.sessions.some(session => session.status === "ACTIVE")) return; const poll = setInterval(() => void load(), 5000); return () => clearInterval(poll); }, [active, data?.sessions, load]);
+  const hasActive = Boolean(data?.sessions.some(session => session.status === "ACTIVE"));
+  useEffect(() => {
+    if (!active || !hasActive) return;
+    let poll: ReturnType<typeof setInterval> | undefined;
+    const arm = () => { clearInterval(poll); poll = document.hidden ? undefined : setInterval(() => void load(), 5000); };
+    const onVisibility = () => { if (!document.hidden) void load(); arm(); };
+    arm(); document.addEventListener("visibilitychange", onVisibility);
+    return () => { clearInterval(poll); document.removeEventListener("visibilitychange", onVisibility); };
+  }, [active, hasActive, load]);
   useEffect(() => { if (!active || !data && error || data && (!data.storageAvailable || !data.policy.enabled || !data.policy.camera)) initialCameraStream?.getTracks().forEach(track => track.stop()); }, [active, data, error, initialCameraStream]);
   const revoked = [...stopped, ...(data?.sessions.filter(session => session.status !== "ACTIVE").map(session => session.id) ?? [])];
   if (!data) return error ? <div role="status" className="sk-panel space-y-3 p-4 text-sm"><p>{cameraRequired ? cameraCopy.recovery : error}</p><Button type="button" variant="outline" onClick={load}>{cameraCopy.retry}</Button></div> : <Skeleton className="h-20 w-full" />;
@@ -30,7 +41,7 @@ export function ExamProctorCapture({ id, attemptId, active, deadlineAt, locale, 
       {data.policy.screen && <CaptureStream kind="SCREEN" clockNow={clockNow} onIntegrityEvent={onIntegrityEvent} api={api} attemptId={attemptId} active={active} deadlineAt={deadlineAt} locale={locale} onChanged={load} revoked={revoked} />}
     </div>}
     {!data.storageAvailable && <p role="status">{cameraRequired ? cameraCopy.recovery : t.unavailable}</p>}
-    <details className="rounded-xl border border-border p-3"><summary className="cursor-pointer text-sm font-semibold">{cameraCopy.details}</summary><div className="mt-3 space-y-3"><p className="text-sm text-ink-subtle">{cameraRequired ? cameraCopy.activeDescription : t.description}</p><p className="text-xs text-ink-subtle">{t.limits}</p><p className="text-sm font-semibold">{t.retention}: {data.policy.retentionDays} {t.days}</p><ProctorSessionList api={api} sessions={data.sessions} locale={locale} staff={false} onChanged={load} onBeforeChange={sessionId => setStopped(previous => [...previous, sessionId])} /></div></details>
+    <details className="rounded-xl border border-border p-3" onToggle={event => { detailsOpen.current = event.currentTarget.open; if (detailsOpen.current) void load(); }}><summary className="cursor-pointer text-sm font-semibold">{cameraCopy.details}</summary><div className="mt-3 space-y-3"><p className="text-sm text-ink-subtle">{cameraRequired ? cameraCopy.activeDescription : t.description}</p><p className="text-xs text-ink-subtle">{t.limits}</p><p className="text-sm font-semibold">{t.retention}: {data.policy.retentionDays} {t.days}</p><ProctorSessionList api={api} sessions={data.sessions} locale={locale} staff={false} onChanged={load} onBeforeChange={sessionId => setStopped(previous => [...previous, sessionId])} /></div></details>
   </section>;
 }
 

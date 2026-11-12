@@ -18,7 +18,7 @@ import type { AuthUser } from "@/lib/auth";
 import { ApiError, requireAuthUser } from "@/lib/api/scope";
 import { roleLabel, type UserRole } from "@/lib/roles";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
-import { conversationListInclude, accessibleConversationList, requireMembership, currentClassMembers, type ConversationRow } from "./membership";
+import { conversationListInclude, accessibleConversationList, requireMembership, type ConversationRow } from "./membership";
 import {
   canCreateAnnouncement,
   canCreateGroup,
@@ -30,7 +30,7 @@ import {
   type ChatPeer,
   type ChatSettings,
 } from "./policy";
-import { publishToUsers, whoIsOnline, isOffline } from "./realtime";
+import { publishToUsers, whoIsOnline } from "./realtime";
 import { headPrivateObject } from "@/lib/storage/s3";
 import { CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TYPES } from "./attachment-rules";
 import type {
@@ -741,14 +741,16 @@ export async function sendMessage(
 
   const view = await serialiseMessage(created);
 
-  const currentRow = await currentClassMembers(row);
-  await publishToUsers(recipientIds(currentRow), {
+  // SKAI-1878: `row` came from requireMembership, which already dropped CLASS parents whose guardian link has
+  // lapsed (currentClassMembers). Re-running that guardian query for the live push and again for the
+  // notification fallback cost two more queries over every parent member on each send.
+  await publishToUsers(recipientIds(row), {
     type: "message",
     conversationId,
     payload: view,
   });
 
-  await notifyAbsentMembers(user, currentRow, view, settings);
+  await notifyAbsentMembers(user, row, view, settings);
 
   return view;
 }
@@ -772,7 +774,7 @@ async function notifyAbsentMembers(
   settings: ChatSettings
 ): Promise<void> {
   try {
-    row = await currentClassMembers(row);
+    // `row` is already the current membership (requireMembership applied currentClassMembers).
     const candidates = row.members.filter((m) => m.userId !== user.userId && !m.isMuted);
     if (candidates.length === 0) return;
 
@@ -786,12 +788,10 @@ async function notifyAbsentMembers(
     const quiet = !message.isUrgent && isWithinQuietHours(settings, new Date(), school?.timezone ?? "Asia/Karachi");
     if (quiet) return;
 
-    const offline: string[] = [];
-    await Promise.all(
-      candidates.map(async (m) => {
-        if (await isOffline(m.userId)) offline.push(m.userId);
-      })
-    );
+    // One MGET for the whole room. When Redis is unavailable whoIsOnline answers "nobody", so everyone falls back
+    // to a notification, exactly as the per-member lookup did.
+    const online = await whoIsOnline(candidates.map((m) => m.userId));
+    const offline = candidates.filter((m) => !online.has(m.userId)).map((m) => m.userId);
     if (offline.length === 0) return;
 
     const title =
@@ -840,9 +840,12 @@ async function notifyAbsentMembers(
       },
     });
 
-    const { redis } = await import("@/lib/queue/connection");
-    for (const notif of rows) {
-      redis.publish(`notif:${notif.userId}`, JSON.stringify(notif)).catch(() => {});
+    // One pipelined round trip for every bell update, still fire-and-forget.
+    if (rows.length) {
+      const { redis } = await import("@/lib/queue/connection");
+      const pipeline = redis.pipeline();
+      for (const notif of rows) pipeline.publish(`notif:${notif.userId}`, JSON.stringify(notif));
+      pipeline.exec().catch(() => {});
     }
   } catch (error) {
     // The message is already committed and delivered live; a failed courtesy
