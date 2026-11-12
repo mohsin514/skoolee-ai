@@ -17,7 +17,8 @@ import { deleteFile, uploadPrivateObject } from "@/lib/storage/s3";
 // - Files wait in private staging (drop/{school}/{session}/…). Only the creator can fetch them, and they reach a
 //   record only when the creator's page passes them to that surface's own upload, which re-checks permissions.
 
-export const DROP_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/plain", "text/csv"] as const;
+export { DROPPABLE as DROP_TYPES } from "./client";
+import { DROPPABLE as DROP_TYPES } from "./client";
 export const MAX_DROP_BYTES = 10 * 1024 * 1024;
 export const MAX_DROP_FILES = 20;
 export const DROP_LIFETIME_MS = 15 * 60_000;
@@ -117,7 +118,10 @@ export async function addPhoneItem(session: Awaited<ReturnType<typeof loadPhoneS
   const fileName = safeName(input.fileName, contentType);
   const storageKey = `drop/${session.schoolId}/${session.id}/${sha256.slice(0, 32)}`;
   await uploadPrivateObject(storageKey, input.bytes, contentType).catch(error => {
-    if (!String((error as { name?: string })?.name ?? "").includes("PreconditionFailed")) throw new ApiError("The file could not be stored. Try again.", 503);
+    const name = String((error as { name?: string })?.name ?? "");
+    if (name.includes("PreconditionFailed")) return;
+    console.error("[drop] staging upload failed", name, (error as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode);
+    throw new ApiError("The file could not be stored. Try again.", 503);
   });
   // Parallel uploads from the phone serialise on the session row, so the file limit and closing both hold.
   const outcome = await prisma.$transaction(async tx => {

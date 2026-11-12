@@ -27,6 +27,7 @@ import {
 const PUBLIC_PATHS = [
   "/showcase", // Generic presentation with a session-aware continuation; no setup mutations.
   "/school-capture", // Empty phone handoff shell; all capture data requires current authenticated API access.
+  "/drop", // SKAI-1848: empty phone scanner shell; it acts only through /api/drop/phone with the link in its fragment.
   "/api/drop/phone", // SKAI-1847: a signed, expiring link to one open drop session; add-only, never reads files.
   "/", "/login", "/sign-in", "/register", "/register-split", "/sign-up", "/pricing",
   "/verify-success", // Informational destination of token verification; it creates no session.
