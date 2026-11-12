@@ -1050,20 +1050,24 @@ function IssuesTab() {
   const [members, setMembers] = useState<any[]>([]);
   const { date } = useLocaleFormat();
   const [show, setShow] = useState<"all" | "open" | "overdue" | "returned">("all");
+  // SKAI-1825: loans are read one page at a time; the full lending history grows all year.
+  const [total, setTotal] = useState(0);
+  const paged = useListPagination(total, "loans");
 
   const load = useCallback(async () => {
     const version = ++loadSequence.current;
     setLoading(true); setLoadFailed(null);
     try {
-      const [ir, br, mr] = await Promise.all([readRequest("/api/library/issues"), loadListPages("/api/library/books"), readRequest("/api/library/members")]);
+      const q = `?${new URLSearchParams({ page: String(paged.requestedPage), limit: String(paged.controls.perPage) })}`;
+      const [ir, br, mr] = await Promise.all([readRequest(`/api/library/issues${q}`), loadListPages("/api/library/books"), readRequest("/api/library/members")]);
       const [ij, mj] = await Promise.all([checkedListJson(ir), checkedListJson(mr)]);
       const bj = { success: true, data: br };
       if (version !== loadSequence.current) return;
-      if (ij.success) setRows(ij.data || []);
+      if (ij.success) { setRows(ij.data || []); setTotal(ij.pagination?.total ?? (ij.data || []).length); }
       if (bj.success) setBooks(bj.data || []);
       if (mj.success) setMembers(mj.data || []);
-    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
-  }, []);
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setTotal(0); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
+  }, [paged.requestedPage, paged.controls.perPage]);
   useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // The route reads `dueAt`; this form sent `dueDate`, so the librarian's
@@ -1145,6 +1149,7 @@ function IssuesTab() {
           </tbody>
         </table>
       </div>
+      <Pagination {...paged.controls} />
     </>
   );
 }
