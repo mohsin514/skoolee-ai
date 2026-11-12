@@ -32,3 +32,17 @@ test("the calendar seeds its year, month, Today button and highlights from the c
   assert.doesNotMatch(ui, /todayIso\(\)/);
   assert.doesNotMatch(ui, /const now = new Date\(\);\n\s*const \[viewYear/);
 });
+
+test("a chosen month round-trips through the ?cal= parameter and bad values are ignored", async () => {
+  const { parseCalendarMonth, calendarMonthParam } = await import("../../src/lib/academic/calendar-month");
+  assert.equal(calendarMonthParam(2027, 0), "2027-01");
+  assert.deepEqual(parseCalendarMonth(calendarMonthParam(2028, 11)), { year: 2028, month: 11 });
+  for (const bad of [null, "", "2027-13", "2027-00", "27-01", "2027-1", "x"]) assert.equal(parseCalendarMonth(bad), null);
+});
+
+test("the calendar restores the URL or stored month and writes it back with replaceState", () => {
+  const ui = readFileSync("src/components/academic/AcademicCalendar.tsx", "utf8");
+  assert.match(ui, /searchParams\.get\("cal"\)/);
+  assert.match(ui, /history\.replaceState/);
+  assert.match(ui, /writeStoredMonth\(monthScope, value\)/);
+});
