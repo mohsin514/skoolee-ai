@@ -521,6 +521,55 @@ export async function getPublishedVersion(
   };
 }
 
+/** The fields familyVersion() reads: never the cached PDF bytes. */
+const familyVersionSelect = {
+  id: true,
+  reportCardId: true,
+  number: true,
+  language: true,
+  documentIdentity: true,
+  snapshot: true,
+  correctionReason: true,
+  predecessorId: true,
+} as const;
+
+/**
+ * SKAI-1835: getPublishedVersion() for many cards in two school-scoped queries, in input order.
+ * Same release rules (published exam, approved + published current version); throws like the
+ * per-card read when any card has no released version.
+ */
+export async function publishedVersionsFor(
+  reportCardIds: string[],
+  schoolId: string,
+  db: TxClient = prisma,
+) {
+  if (!reportCardIds.length) return [];
+  const cards = await db.reportCard.findMany({
+    where: { id: { in: reportCardIds }, schoolId, publishedVersionId: { not: null }, exam: { status: "PUBLISHED" } },
+    select: { id: true, publishedVersionId: true },
+  });
+  const versionIdByCard = new Map(cards.map((c) => [c.id, c.publishedVersionId as string]));
+  if (reportCardIds.some((id) => !versionIdByCard.has(id)))
+    throw new ReportConflict("This report has no published version.");
+  const versions = await db.reportVersion.findMany({
+    where: {
+      id: { in: [...versionIdByCard.values()] },
+      reportCardId: { in: reportCardIds },
+      schoolId,
+      approvedAt: { not: null },
+      publishedAt: { not: null },
+    },
+    select: familyVersionSelect,
+  });
+  const byId = new Map(versions.map((v) => [v.id, v]));
+  return reportCardIds.map((cardId) => {
+    const v = byId.get(versionIdByCard.get(cardId) as string);
+    if (!v || v.reportCardId !== cardId)
+      throw new ReportConflict("This report has no approved published version.");
+    return v;
+  });
+}
+
 export async function getArtifactVersion(
   reportCardId: string,
   versionId?: string,
@@ -535,7 +584,10 @@ export async function getArtifactVersion(
 }
 
 export function familyVersion(
-  v: Awaited<ReturnType<typeof getPublishedVersion>>,
+  v: Pick<
+    Awaited<ReturnType<typeof getPublishedVersion>>,
+    keyof typeof familyVersionSelect
+  >,
 ) {
   const p = v.snapshot as unknown as ReportSnapshot;
   return {

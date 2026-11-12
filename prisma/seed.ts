@@ -1083,7 +1083,7 @@ async function seedFees(campusId: string, campusIdx: number, recordedById: strin
   // Bulk-insert invoices, then map the created ids back into payments.
   const existingInvoiceNumbers = new Set(
     (await prisma.invoice.findMany({
-      where: { invoiceNumber: { in: invoiceRows.map((r) => r.invoiceNumber) } },
+      where: { schoolId: DEMO_SCHOOL_ID ?? undefined, invoiceNumber: { in: invoiceRows.map((r) => r.invoiceNumber) } },
       select: { invoiceNumber: true },
     })).map((r) => r.invoiceNumber)
   );
@@ -1091,7 +1091,7 @@ async function seedFees(campusId: string, campusIdx: number, recordedById: strin
     await prisma.invoice.createMany({ data: batch, skipDuplicates: true });
   }
   const invoices = await prisma.invoice.findMany({
-    where: { invoiceNumber: { in: invoiceRows.map((r) => r.invoiceNumber) } },
+    where: { schoolId: DEMO_SCHOOL_ID ?? undefined, invoiceNumber: { in: invoiceRows.map((r) => r.invoiceNumber) } },
     select: { id: true, invoiceNumber: true },
   });
   const invoiceIdByNumber = new Map(invoices.map((i) => [i.invoiceNumber, i.id]));

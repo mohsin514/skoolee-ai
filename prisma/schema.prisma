@@ -1599,11 +1599,12 @@ model GuardianConsent {
   choices        Json     // { [purpose]: boolean } for every purpose in the notice version
   noticeVersion  String   @map("notice_version")
   language       String   // en | ar | ur: the language the notice was shown in
-  receiptCode    String   @unique @map("receipt_code")
+  receiptCode    String   @map("receipt_code")
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, campusId, studentId, createdAt])
   @@index([schoolId, guardianUserId, studentId, createdAt])
+  @@unique([schoolId, receiptCode])
   @@map("guardian_consents")
 }
 
@@ -2234,6 +2235,7 @@ model ReportVersion {
   reportCard ReportCard @relation(fields: [reportCardId, schoolId], references: [id, schoolId], onDelete: Cascade)
   number Int
   contentHash String @map("content_hash")
+  // SKAI-1844: stays globally unique. A random UUID identity printed on the report for verification.
   documentIdentity String @unique @map("document_identity")
   documentBytes Bytes? @map("document_bytes")
   language String @default("en")
@@ -2610,7 +2612,7 @@ model Invoice {
   campus          Campus        @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   studentId       String        @map("student_id")
   student         Student       @relation(fields: [studentId], references: [id], onDelete: NoAction)
-  invoiceNumber   String?       @unique @map("invoice_number")
+  invoiceNumber   String?       @map("invoice_number")
   invoiceDate     DateTime      @map("invoice_date")
   dueDate         DateTime      @map("due_date")
   monthlyFee      Int           @map("monthly_fee")
@@ -2637,6 +2639,7 @@ model Invoice {
   @@index([status])
   @@index([campusId])
   @@index([schoolId])
+  @@unique([schoolId, invoiceNumber])
   @@index([schoolId, campusId])
   @@map("invoices")
 }
@@ -2820,6 +2823,7 @@ model OnlinePaymentOrder {
   invoice     Invoice   @relation(fields: [invoiceId], references: [id], onDelete: NoAction)
   studentId   String    @map("student_id")
   amount      Int // paisa
+  // SKAI-1844: stays globally unique. The payment provider callback looks an order up by this ref alone, before any school is known; 80 random bits.
   orderRef    String    @unique @map("order_ref")
   gateway     String    @default("SAFEPAY")
   status      String    @default("PENDING") // PENDING | COMPLETED | FAILED
@@ -3578,6 +3582,7 @@ model MarkSheetTemplate {
   examId       String   @map("exam_id")
   subjectId    String   @map("subject_id")
   version      Int
+  // SKAI-1844: stays globally unique. Random 96-bit QR token; lookups also filter by school.
   reference    String   @unique
   rowsPerPage  Int      @map("rows_per_page")
   pageCount    Int      @map("page_count")
@@ -5225,6 +5230,7 @@ model SupportIncident {
   id               String   @id @default(uuid())
   schoolId         String   @map("school_id")
   school           School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  // SKAI-1844: stays globally unique. Platform support incidents are searched by reference across schools.
   reference        String   @unique
   purpose          String   @db.Text
   impact           String   @db.Text
