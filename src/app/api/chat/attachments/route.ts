@@ -3,7 +3,7 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { ApiError, errorResponse } from "@/lib/api/scope";
 import { requireChatUser } from "@/lib/chat/service";
-import { requireMembership } from "@/lib/chat/membership";
+import { requireConversationAccess } from "@/lib/chat/membership";
 import { getChatSettings } from "@/lib/chat/policy";
 import { chatAttachmentKey } from "@/lib/storage/s3";
 import { createPrivateUploadUrl } from "@/lib/storage/private-upload";
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     if (sizeBytes > MAX_BYTES) throw new ApiError("Files are limited to 10 MB", 400);
 
     // Retained membership must still satisfy current exact-class or direct policy.
-    await requireMembership(user, conversationId);
+    await requireConversationAccess(user, conversationId);
 
     const key = chatAttachmentKey(user.schoolId, conversationId, `${randomUUID()}-${fileName}`);
     const uploadUrl = await createPrivateUploadUrl(user, { kind: "chat", targetId: conversationId, storageKey: key, contentType, sizeBytes, fileName });

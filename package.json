@@ -179,7 +179,7 @@
     "test:admissions-waitlist-rank": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/admissions/waitlist-rank-lock.test.ts",
     "test:chat-group-reachability": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/chat/group-reachability-batch.test.ts",
     "test:chat-message-time": "node --import tsx --test tests/chat/message-time.test.ts",
-    "test:chat-list-access": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/chat/conversation-list-access-batch.test.ts tests/chat/conversation-list-pagination.test.ts",
+    "test:chat-list-access": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/chat/conversation-list-access-batch.test.ts tests/chat/conversation-list-pagination.test.ts tests/chat/thread-access-light.test.ts",
     "test:chat-send-fanout": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/chat/send-fanout-batch.test.ts",
     "test:chat-stream-stable": "node --import tsx --test tests/chat/stream-stable-connection.test.ts",
     "test:profile-namesake-link": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/profile/student-namesake-link.test.ts",
