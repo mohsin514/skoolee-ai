@@ -47,13 +47,17 @@ export interface SearchChunk { id: string; documentId: string; text: string; tit
 /** BM25 + reciprocal rank fusion, with evidence thresholds and source diversity. */
 export function hybridRank(query: string, chunks: SearchChunk[], vector: number[] | null, model: string) {
   const q = [...new Set(terms(query))].filter(term => !/^\d+$/.test(term));
-  const docs = chunks.map(chunk => ({ chunk, tokens: terms(`${chunk.title} ${chunk.title} ${chunk.text}`) }));
-  const average = docs.reduce((n, d) => n + d.tokens.length, 0) / Math.max(1, docs.length);
-  const df = new Map(q.map(term => [term, docs.filter(d => d.tokens.includes(term)).length]));
-  const lexical = docs.map(({ chunk, tokens }) => ({ chunk, coverage: q.length ? q.filter(term => tokens.includes(term) && (docs.length < 4 || (df.get(term) ?? 0) / docs.length < 0.7)).length / q.length : 0, score: q.reduce((sum, term) => {
-    const f = tokens.filter(token => token === term).length;
+  const docs = chunks.map(chunk => {
+    const tokens = terms(`${chunk.title} ${chunk.title} ${chunk.text}`), counts = new Map<string, number>();
+    for (const token of tokens) counts.set(token, (counts.get(token) ?? 0) + 1);
+    return { chunk, length: tokens.length, counts };
+  });
+  const average = docs.reduce((n, d) => n + d.length, 0) / Math.max(1, docs.length);
+  const df = new Map(q.map(term => [term, docs.filter(d => d.counts.has(term)).length]));
+  const lexical = docs.map(({ chunk, length, counts }) => ({ chunk, coverage: q.length ? q.filter(term => counts.has(term) && (docs.length < 4 || (df.get(term) ?? 0) / docs.length < 0.7)).length / q.length : 0, score: q.reduce((sum, term) => {
+    const f = counts.get(term) ?? 0;
     const idf = Math.log(1 + (docs.length - (df.get(term) ?? 0) + 0.5) / ((df.get(term) ?? 0) + 0.5));
-    return sum + (f ? idf * f * 2.2 / (f + 1.2 * (0.25 + 0.75 * tokens.length / Math.max(1, average))) : 0);
+    return sum + (f ? idf * f * 2.2 / (f + 1.2 * (0.25 + 0.75 * length / Math.max(1, average))) : 0);
   }, 0) })).filter(hit => hit.score > 0 && hit.coverage >= 0.3).sort((a, b) => b.score - a.score);
   const semantic = vector ? chunks.filter(chunk => chunk.model === model).map(chunk => ({ chunk, score: cosine(vector, chunk.embedding) })).filter(hit => hit.score >= 0.35).sort((a, b) => b.score - a.score) : [];
   const scores = new Map<string, { chunk: SearchChunk; score: number }>();
