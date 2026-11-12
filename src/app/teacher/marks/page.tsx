@@ -200,8 +200,8 @@ export default function MarksPage() {
       draft.markSaved();
       toast.success(ui("Marks saved for this test."));
       // The teacher may have opened another test while this save was in flight; reload only the sheet still shown.
-      if (latestExam.current === selectedExamId) await loadMarks(selectedExamId);
-      await loadData();
+      // SKAI-1857: the sheet and the console summary are independent reads, so they refresh side by side.
+      await Promise.all([latestExam.current === selectedExamId ? loadMarks(selectedExamId) : undefined, loadData()]);
     } catch (error: unknown) { toast.error(error); }
     finally { setMarksSaving(false); }
   }, [selectedExamId, markSheet, marksByKey, baselineMarks, loadMarks, loadData, draft, ui]);

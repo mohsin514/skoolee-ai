@@ -231,6 +231,29 @@ function latestReportCardTotals(schoolId: string) {
     GROUP BY 1, 2`;
 }
 
+type TeacherCardRow = {
+  studentId: string; id: string; percentage: number; grade: string | null; status: string; deliveryStatus: string;
+  generatedAt: Date; examTitle: string; examTerm: string; examStatus: string;
+};
+
+/**
+ * SKAI-1857: each roster pupil's latest report card (newest generatedAt, then id) in one DISTINCT ON read. The
+ * nested `reportCards: { take: 1 }` it replaces fetched every card of every pupil (no relationJoins) and sliced in
+ * memory. The pupil filter mirrors the roster read; $queryRaw bypasses the tenant guard, so school_id is in the SQL.
+ */
+function teacherLatestReportCards(schoolId: string, campusId: string, classIds: string[]) {
+  return prisma.$queryRaw<TeacherCardRow[]>`
+    SELECT DISTINCT ON (rc.student_id) rc.student_id AS "studentId", rc.id, rc.percentage, rc.grade, rc.status,
+      rc.delivery_status AS "deliveryStatus", rc.generated_at AS "generatedAt",
+      e.title AS "examTitle", e.term AS "examTerm", e.status AS "examStatus"
+    FROM report_cards rc
+    JOIN students s ON s.id = rc.student_id AND s.school_id = ${schoolId} AND s.campus_id = ${campusId}
+      AND s.class_id = ANY(${classIds}::text[])
+    JOIN exams e ON e.id = rc.exam_id
+    WHERE rc.school_id = ${schoolId}
+    ORDER BY rc.student_id, rc.generated_at DESC, rc.id DESC`;
+}
+
 function campusAverageScore(rows: LatestCardRow[]): number | null {
   const scored = rows.reduce((sum, row) => sum + Number(row.scored), 0);
   return scored ? Math.round(rows.reduce((sum, row) => sum + Number(row.scoreSum), 0) / scored) : null;
@@ -886,58 +909,30 @@ async function loadTeacherDashboardData() {
   const classIds = [...new Set([...subjects.map((subject) => subject.classId), ...ledClasses.map((cls) => cls.id)])];
   const subjectIds = subjects.map((subject) => subject.id);
 
-  const [students, exams, attendanceToday, recentReportCards] = classIds.length
+  const [rosterStudents, latestCards, exams, attendanceToday, recentReportCards] = classIds.length
     ? await Promise.all([
         L.required("students", () => prisma.student.findMany({
           where: { campusId, classId: { in: classIds }, campus: { schoolId: session.schoolId } },
+          // SKAI-1857: only what the teacher console renders (directory, palette, profile modal). Date of birth,
+          // address, medical and other guardian fields were sent for every pupil and never shown.
           select: {
             id: true,
             fullName: true,
-            nameUr: true,
             rollNo: true,
-            dateOfBirth: true,
-            gender: true,
-            bloodType: true,
-            nationality: true,
-            phone: true,
             profileImageUrl: true,
             guardianName: true,
-            guardianNameUr: true,
             guardianPhone: true,
             guardianWhatsapp: true,
             guardianEmail: true,
-            guardianRelationship: true,
-            guardianOccupation: true,
-            city: true,
-            province: true,
-            postalCode: true,
-            address: true,
-            medicalNotes: true,
-            specialNeeds: true,
-            allergies: true,
-            medications: true,
-            previousSchool: true,
             enrollmentDate: true,
             status: true,
-            studentUser: { select: { email: true, isActive: true } },
             classId: true,
             class: { select: { id: true, name: true, section: true, academicYear: true } },
-            reportCards: {
-              select: {
-                id: true,
-                percentage: true,
-                grade: true,
-                status: true,
-                deliveryStatus: true,
-                generatedAt: true,
-                exam: { select: { title: true, term: true, status: true } },
-              },
-              orderBy: { generatedAt: "desc" },
-              take: 1,
-            },
           },
           orderBy: { rollNo: "asc" },
         })),
+        // Required like the roster it used to be nested in: a pupil's latest card is part of the student row.
+        L.required("studentReportCards", () => teacherLatestReportCards(session.schoolId, campusId, classIds)),
         L.widget("exams", () => prisma.exam.findMany({
           where: {
             campusId,
@@ -968,8 +963,10 @@ async function loadTeacherDashboardData() {
           take: 24,
         }), []),
         L.widget("attendanceToday", () => prisma.attendance.findMany({
-          where: { campusId, date: today, student: { classId: { in: classIds } } },
-          select: { id: true, studentId: true, status: true, student: { select: { classId: true } } },
+          // SKAI-1857: the register stamps classId on every row, so the indexed (classId, date) path replaces the
+          // join through students.
+          where: { schoolId: session.schoolId, campusId, date: today, classId: { in: classIds } },
+          select: { id: true, studentId: true, status: true },
         }), []),
         L.widget("recentReportCards", () => prisma.reportCard.findMany({
           where: { campusId, student: { classId: { in: classIds } }, campus: { schoolId: session.schoolId } },
@@ -981,7 +978,27 @@ async function loadTeacherDashboardData() {
           take: 18,
         }), []),
       ])
-    : [[], [], [], []];
+    : [[], [], [], [], []];
+
+  const cardByStudent = new Map(latestCards.map((card) => [card.studentId, card]));
+  const students = rosterStudents.map((student) => {
+    const card = cardByStudent.get(student.id);
+    return {
+      ...student,
+      reportCards: card
+        ? [{
+            id: card.id, percentage: card.percentage, grade: card.grade, status: card.status,
+            deliveryStatus: card.deliveryStatus, generatedAt: card.generatedAt,
+            exam: { title: card.examTitle, term: card.examTerm, status: card.examStatus },
+          }]
+        : [],
+    };
+  });
+  const studentsByClass = students.reduce<Record<string, number>>((acc, student) => {
+    const key = student.class?.id || "";
+    if (key) acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
 
   const ledClassIds = new Set(ledClasses.map((cls) => cls.id));
   const assignedSubjectIds = new Set(subjectIds);
@@ -993,7 +1010,7 @@ async function loadTeacherDashboardData() {
         ...subject.class,
         role: ledClassIds.has(subject.class.id) ? "Class teacher" : "Subject teacher",
         subjects: [],
-        _count: { students: students.filter((student) => student.class?.id === subject.class.id).length, subjects: 0 },
+        _count: { students: studentsByClass[subject.class.id] || 0, subjects: 0 },
       };
       existing.subjects.push(subject);
       existing._count.subjects = existing.subjects.length;
@@ -1024,12 +1041,6 @@ async function loadTeacherDashboardData() {
         String(a.name || "").localeCompare(String(b.name || "")) ||
         String(a.section || "").localeCompare(String(b.section || ""))
     );
-
-  const studentsByClass = students.reduce<Record<string, number>>((acc, student) => {
-    const key = student.class?.id || "";
-    if (key) acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {});
 
   const examSummaries = exams.map((exam) => {
     // If exam is for a single subject, restrict to that subject only
