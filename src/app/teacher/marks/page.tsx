@@ -188,8 +188,8 @@ export default function MarksPage() {
       if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not save the marks. Please try again.")));
       draft.markSaved();
       toast.success(ui("Marks saved for this test."));
-      await loadMarks(selectedExamId);
-      await loadData();
+      // SKAI-1857: the sheet and the console summary are independent reads, so they refresh side by side.
+      await Promise.all([loadMarks(selectedExamId), loadData()]);
     } catch (error: unknown) { toast.error(error); }
     finally { setMarksSaving(false); }
   }, [selectedExamId, markSheet, marksByKey, baselineMarks, loadMarks, loadData, draft, ui]);
