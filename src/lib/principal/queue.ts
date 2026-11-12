@@ -92,9 +92,16 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
   const weekday = new Date(`${today}T12:00:00Z`).getUTCDay();
   const items: SeatedItem[] = [], failed: QueueType[] = [];
   const scope = { schoolId: user.schoolId, campusId };
-  const run = async (name: QueueType, fn: () => Promise<void>) => { try { await fn(); } catch (error) { console.error(`[queue] ${name} source failed`, error); failed.push(name); } };
+  // SKAI-1829: the source readers are independent, so they run concurrently (latency is the slowest source, not the
+  // sum of ~20 round trips). Each one fills its own list; the lists are merged in declaration order afterwards, so
+  // items and failed sources come out in the same order as when the readers ran one after another.
+  const sources: Promise<{ name: QueueType; own: SeatedItem[]; ok: boolean }>[] = [];
+  const run = (name: QueueType, fn: (items: SeatedItem[]) => Promise<void>) => {
+    const own: SeatedItem[] = [];
+    sources.push(fn(own).then(() => ({ name, own, ok: true }), (error: unknown) => { console.error(`[queue] ${name} source failed`, error); return { name, own, ok: false }; }));
+  };
 
-  await run("ATTENDANCE_MISSING", async () => {
+  run("ATTENDANCE_MISSING", async items => {
     if (policy.weekend.includes(weekday)) return;
     const classes = await db.class.findMany({ where: { ...scope, archivedAt: null, students: { some: { archivedAt: null } } }, select: { id: true, name: true, section: true, classTeacher: { select: { id: true, fullName: true } } } });
     if (!classes.length) return;
@@ -105,7 +112,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
       items.push({ family: "academic", key: `ATTENDANCE_MISSING:${cls.id}:${today}`, type: "ATTENDANCE_MISSING", sourceId: cls.id, title: `Attendance not submitted for ${name}`, titleMessage: { key: "Attendance not submitted for {0}", values: [name] }, triggerMessage: { key: "No attendance is recorded for {0} on {1}.", values: [name, today] }, trigger: `No attendance is recorded for ${name} on ${today}.`, nextAction: "Ask the class teacher to submit today's attendance", sourceOwner: cls.classTeacher ? { id: cls.classTeacher.id, name: cls.classTeacher.fullName } : null, dueAt: endOfDay(today).toISOString(), link: link("attendance") });
     }
   });
-  await run("LEAVE_PENDING", async () => {
+  run("LEAVE_PENDING", async items => {
     // SKAI-1744: source collectors read every unresolved row — a per-source cap undercounted Open/Overdue and let rows
     // past the cap fall out of the active set, where the settle step below marked them resolved.
     const pending = await db.leaveRequest.findMany({ where: { ...scope, status: "PENDING" }, select: { id: true, fromDate: true, toDate: true, user: { select: { fullName: true, role: true } }, leaveType: { select: { name: true } } }, orderBy: { fromDate: "asc" } });
@@ -116,7 +123,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
       items.push({ family, key: `LEAVE_PENDING:${leave.id}`, type: "LEAVE_PENDING", sourceId: leave.id, title: `Leave to decide: ${leave.user.fullName}`, titleMessage: { key: "Leave to decide: {0}", values: [leave.user.fullName] }, triggerMessage: { key: "{0} leave from {1} to {2} is waiting for a decision.", values: [leave.leaveType.name, from, leave.toDate.toISOString().slice(0, 10)] }, trigger: `${leave.leaveType.name} leave from ${from} to ${leave.toDate.toISOString().slice(0, 10)} is waiting for a decision.`, nextAction: "Approve or reject the leave request", sourceOwner: null, dueAt: new Date(new Date(`${from}T00:00:00.000Z`).getTime() - 1).toISOString(), link: link("leave") });
     }
   });
-  await run("REPORT_APPROVAL", async () => {
+  run("REPORT_APPROVAL", async items => {
     const awaiting = await db.reportVersion.findMany({ where: { schoolId: user.schoolId, approvedAt: null, reportCard: { campusId, currentVersionId: { not: null } } }, select: { id: true, reportCardId: true, reportCard: { select: { currentVersionId: true, examId: true, exam: { select: { title: true } } } } } });
     const byExam = new Map<string, { title: string; count: number }>();
     for (const version of awaiting) {
@@ -126,12 +133,12 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
     }
     for (const [examId, entry] of byExam) items.push({ family: "academic", key: `REPORT_APPROVAL:${examId}`, type: "REPORT_APPROVAL", sourceId: examId, count: entry.count, title: `${entry.count} report version(s) still need approval`, titleMessage: { key: "{0} report version(s) still need approval", values: [entry.count] }, triggerMessage: { key: "{0} current report version(s) for {1} are not approved.", values: [entry.count, entry.title] }, trigger: `${entry.count} current report version(s) for ${entry.title} are not approved.`, nextAction: "Open report review", sourceOwner: null, dueAt: null, link: link("report-cards") });
   });
-  await run("DELIVERY_FAILED", async () => {
+  run("DELIVERY_FAILED", async items => {
     const since = new Date(Date.now() - 14 * 86_400_000);
     const failures = await db.parentCommunication.findMany({ where: { ...scope, status: "FAILED", createdAt: { gte: since } }, select: { id: true, channel: true, recipientName: true, templateKey: true, createdAt: true }, orderBy: { createdAt: "desc" } });
     for (const message of failures) items.push({ family: "operations", key: `DELIVERY_FAILED:${message.id}`, type: "DELIVERY_FAILED", sourceId: message.id, title: `Message to ${message.recipientName ?? "a family"} was not delivered`, titleMessage: { key: "Message to {0} was not delivered", values: [message.recipientName ?? "—"] }, triggerMessage: { key: "The {0} message ({1}) sent on {2} failed.", values: [message.channel.toLowerCase(), message.templateKey, message.createdAt.toISOString().slice(0, 10)] }, trigger: `The ${message.channel.toLowerCase()} message (${message.templateKey}) sent on ${message.createdAt.toISOString().slice(0, 10)} failed.`, nextAction: "Check the contact details and resend", sourceOwner: null, dueAt: new Date(message.createdAt.getTime() + 2 * 86_400_000).toISOString(), link: link("communications") });
   });
-  await run("COMPLAINT", async () => {
+  run("COMPLAINT", async items => {
     const complaints = await db.complaint.findMany({ where: { ...scope, status: { not: "RESOLVED" }, OR: [{ ownerId: null }, { dueDate: { lt: new Date(`${today}T00:00:00.000Z`) } }] }, select: { id: true, referenceCode: true, type: true, confidential: true, ownerId: true, dueDate: true, date: true, owner: { select: { id: true, fullName: true } } } });
     for (const complaint of complaints) {
       const late = complaint.dueDate && complaint.dueDate < new Date(`${today}T00:00:00.000Z`);
@@ -140,13 +147,13 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
       items.push({ family: "operations", key: `COMPLAINT:${complaint.id}`, type: "COMPLAINT", sourceId: complaint.id, title: complaint.ownerId ? `${label} is past its response date` : `${label} has no owner`, titleMessage: { key: complaint.confidential ? (complaint.ownerId ? "Confidential concern {0} is past its response date" : "Confidential concern {0} has no owner") : (complaint.ownerId ? "Complaint {0} is past its response date" : "Complaint {0} has no owner"), values: [complaint.referenceCode ?? "—"] }, triggerMessage: { key: complaint.ownerId ? "The response was due {0}." : "Received {0} and not yet assigned.", values: [(complaint.ownerId ? complaint.dueDate : complaint.date)?.toISOString().slice(0, 10) ?? "—"] }, trigger: complaint.ownerId ? `The response was due ${complaint.dueDate?.toISOString().slice(0, 10)}.` : `Received ${complaint.date.toISOString().slice(0, 10)} and not yet assigned.`, nextAction: complaint.ownerId ? "Follow up with the owner or resolve the complaint" : "Assign an owner in Complaints", sourceOwner: complaint.owner ? { id: complaint.owner.id, name: complaint.owner.fullName } : null, dueAt: late ? complaint.dueDate!.toISOString() : endOfDay(complaint.date.toISOString().slice(0, 10)).toISOString(), link: link("front-desk", { tab: "complaints" }) });
     }
   });
-  await run("ADJUSTMENT_APPROVAL", async () => {
+  run("ADJUSTMENT_APPROVAL", async items => {
     const requested = await db.financialAdjustment.findMany({ where: { ...scope, status: "REQUESTED" }, select: { id: true, kind: true, createdAt: true, invoiceId: true } });
     for (const adjustment of requested) items.push({ family: "operations", key: `ADJUSTMENT_APPROVAL:${adjustment.id}`, type: "ADJUSTMENT_APPROVAL", sourceId: adjustment.id, title: `${adjustment.kind === "REFUND" ? "Refund" : adjustment.kind === "WAIVER" ? "Waiver" : "Credit note"} awaiting a decision`, titleMessage: { key: adjustment.kind === "REFUND" ? "Refund awaiting a decision" : adjustment.kind === "WAIVER" ? "Waiver awaiting a decision" : "Credit note awaiting a decision", values: [] }, triggerMessage: { key: "Requested on {0}; a different approver must decide.", values: [adjustment.createdAt.toISOString().slice(0, 10)] }, trigger: `Requested on ${adjustment.createdAt.toISOString().slice(0, 10)}; a different approver must decide.`, nextAction: "Review the adjustment in Fees", sourceOwner: null, dueAt: new Date(adjustment.createdAt.getTime() + 3 * 86_400_000).toISOString(), link: link("fees", { tab: "invoices", invoice: adjustment.invoiceId }) });
   });
   // R-B2: record corrections wait on their checker seat — payment corrections on the campus admin, mark
   // corrections on the academic lead. The queue links to the corrections workspace filtered by kind.
-  await run("CORRECTION_APPROVAL", async () => {
+  run("CORRECTION_APPROVAL", async items => {
     const pending = await db.correction.findMany({ where: { ...scope, status: "PENDING", kind: { in: ["PAYMENT", "MARK"] } }, select: { id: true, kind: true, requesterName: true, requestedAt: true }, orderBy: { requestedAt: "asc" } });
     for (const correction of pending) {
       const label = correction.kind === "PAYMENT" ? "Payment correction" : "Mark correction";
@@ -154,7 +161,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
     }
   });
   // SKO-425: a missed learning-action check-in stays here until it is recorded or rescheduled.
-  await run("SUPPORT_CHECKIN", async () => {
+  run("SUPPORT_CHECKIN", async items => {
     const overdue = await db.interventionPlan.findMany({ where: { ...scope, status: "ACTIVE", nextCheckInDate: { lt: new Date(`${today}T00:00:00.000Z`) } }, select: { id: true, title: true, nextCheckInDate: true, ownerId: true } });
     const owners = new Map((await db.user.findMany({ where: { id: { in: overdue.map(o => o.ownerId).filter((x): x is string => Boolean(x)) } }, select: { id: true, fullName: true } })).map(u => [u.id, u.fullName]));
     for (const plan of overdue) {
@@ -165,7 +172,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
   // SKO-500: the exam chain. A syllabus sent for approval; a requested paper due within three days (or late) that is
   // not yet ready for review; a paper sent for review that nobody has moderated; results reviewed but not released.
   // PAPER_SEAL has no source until the seal lands (slice 2).
-  await run("SYLLABUS_APPROVAL", async () => {
+  run("SYLLABUS_APPROVAL", async items => {
     const waiting = await db.schoolAiRecord.findMany({ where: { ...scope, kind: "CURRICULUM", status: "IN_REVIEW" }, select: { id: true, title: true, updatedAt: true, createdById: true }, orderBy: { updatedAt: "asc" } });
     const authors = new Map((await db.user.findMany({ where: { schoolId: user.schoolId, id: { in: waiting.map(row => row.createdById) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
     for (const row of waiting) {
@@ -173,7 +180,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
       items.push({ family: "academic", key: `SYLLABUS_APPROVAL:${row.id}`, type: "SYLLABUS_APPROVAL", sourceId: row.id, title: `Syllabus to approve: ${row.title}`, titleMessage: { key: "Syllabus to approve: {0}", values: [row.title] }, triggerMessage: { key: "{0} sent it for approval on {1}.", values: [authors.get(row.createdById) ?? "", sent] }, trigger: `${authors.get(row.createdById) ?? ""} sent it for approval on ${sent}.`, nextAction: "Approve the syllabus or ask its head of department", sourceOwner: { id: row.createdById, name: authors.get(row.createdById) ?? "" }, dueAt: new Date(row.updatedAt.getTime() + 2 * 86_400_000).toISOString(), link: link("exam-cycles") });
     }
   });
-  await run("PAPER_DUE", async () => {
+  run("PAPER_DUE", async items => {
     const soon = new Date(new Date(`${today}T00:00:00.000Z`).getTime() + 3 * 86_400_000);
     const slots = await db.examPaperSlot.findMany({ where: { ...scope, cancelledAt: null, sealedAt: null, dueOn: { lte: soon } }, select: { id: true, dueOn: true, subjectName: true, gradeName: true, authorUserId: true, paperRecordId: true, schedules: { take: 1, select: { subject: { select: { name: true } }, exam: { select: { class: { select: { name: true } } } } } } } });
     const papers = new Map((await db.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, id: { in: slots.map(slot => slot.paperRecordId).filter((x): x is string => Boolean(x)) } }, select: { id: true, status: true } })).map(row => [row.id, row.status]));
@@ -186,7 +193,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
       items.push({ family: "academic", key: `PAPER_DUE:${slot.id}`, type: "PAPER_DUE", sourceId: slot.id, title: `Paper due: ${name}`, titleMessage: { key: "Paper due: {0}", values: [name] }, triggerMessage: { key: "Due on {0} and not yet sent for review.", values: [due] }, trigger: `Due on ${due} and not yet sent for review.`, nextAction: "Remind the author from the Papers step", sourceOwner: slot.authorUserId ? { id: slot.authorUserId, name: authors.get(slot.authorUserId) ?? "" } : null, dueAt: endOfDay(due).toISOString(), link: link("exam-cycles") });
     }
   });
-  await run("PAPER_MODERATION", async () => {
+  run("PAPER_MODERATION", async items => {
     const slots = await db.examPaperSlot.findMany({ where: { ...scope, cancelledAt: null, sealedAt: null, paperRecordId: { not: null } }, select: { id: true, subjectName: true, gradeName: true, moderatorUserId: true, paperRecordId: true, schedules: { take: 1, select: { subject: { select: { name: true } }, exam: { select: { class: { select: { name: true } } } } } } } });
     const inReview = new Map((await db.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, status: "IN_REVIEW", id: { in: slots.map(slot => slot.paperRecordId!) } }, select: { id: true, updatedAt: true } })).map(row => [row.id, row.updatedAt]));
     const moderators = new Map((await db.user.findMany({ where: { schoolId: user.schoolId, id: { in: slots.map(slot => slot.moderatorUserId).filter((x): x is string => Boolean(x)) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
@@ -198,13 +205,17 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
       items.push({ family: "academic", key: `PAPER_MODERATION:${slot.id}`, type: "PAPER_MODERATION", sourceId: slot.id, title: `Paper waiting for moderation: ${name}`, titleMessage: { key: "Paper waiting for moderation: {0}", values: [name] }, triggerMessage: { key: "Sent for review on {0}.", values: [sent] }, trigger: `Sent for review on ${sent}.`, nextAction: "Ask the moderator to review the paper", sourceOwner: slot.moderatorUserId ? { id: slot.moderatorUserId, name: moderators.get(slot.moderatorUserId) ?? "" } : null, dueAt: new Date(sentAt.getTime() + 2 * 86_400_000).toISOString(), link: link("exam-cycles") });
     }
   });
-  await run("RESULT_RELEASE", async () => {
+  run("RESULT_RELEASE", async items => {
     const exams = await db.exam.findMany({ where: { ...scope, status: "PRINCIPAL_REVIEWED" }, select: { id: true, title: true, reviewedAt: true, class: { select: { name: true, section: true } } } });
     for (const exam of exams) {
       const name = `${exam.title} · ${exam.class.name}${exam.class.section ? ` ${exam.class.section}` : ""}`;
       items.push({ family: "academic", key: `RESULT_RELEASE:${exam.id}`, type: "RESULT_RELEASE", sourceId: exam.id, title: `Results ready to publish: ${name}`, titleMessage: { key: "Results ready to publish: {0}", values: [name] }, triggerMessage: { key: "Review is recorded and families cannot see the results yet.", values: [] }, trigger: "Review is recorded and families cannot see the results yet.", nextAction: "Publish the results", sourceOwner: null, dueAt: exam.reviewedAt ? new Date(exam.reviewedAt.getTime() + 2 * 86_400_000).toISOString() : null, link: link("exam-cycles") });
     }
   });
+  for (const source of await Promise.all(sources)) {
+    items.push(...source.own);
+    if (!source.ok) failed.push(source.name);
+  }
   return { items, failed, checkedAt: new Date().toISOString(), today };
 }
 
