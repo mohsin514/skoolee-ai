@@ -47,6 +47,7 @@
     "test:academic-year-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/academic-year-spine.database.test.ts",
     "test:enrollment-placement-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/enrollment-placement.database.test.ts",
     "test:status-values": "node --import tsx --test tests/db/status-values.test.ts",
+    "test:dashboard-aggregates-db": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/insights/aggregate-charts.database.test.ts",
     "test:status-values-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/status-values.database.test.ts",
     "test:supabase-roles-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/supabase-public-roles.database.test.ts",
     "test:business-numbers-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/business-numbers.database.test.ts",
