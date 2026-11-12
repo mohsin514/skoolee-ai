@@ -2,6 +2,7 @@ import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ledgerTotals, ledgerWhere } from "@/lib/fees/ledger-service";
+import type { Prisma } from "@prisma/client";
 import {
   ApiError,
   assertModuleRead,
@@ -16,6 +17,15 @@ import {
 // Income, expense and net come from the same filter the ledger list and export use (SKO-468), so the
 // report always reconciles to its rows. One currency per report; both endpoints inclusive (UTC dates).
 
+// Source buckets, in display order. Each condition matches the classification the ledger list uses:
+// a reversal is a CORRECTION whatever it points at, then payment, then payroll line, else manual.
+const SOURCE_FILTERS: [string, Prisma.LedgerEntryWhereInput][] = [
+  ["FEE", { reversalOfId: null, paymentId: { not: null } }],
+  ["PAYROLL", { reversalOfId: null, paymentId: null, payrollLineId: { not: null } }],
+  ["MANUAL", { reversalOfId: null, paymentId: null, payrollLineId: null }],
+  ["CORRECTION", { reversalOfId: { not: null } }],
+];
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
@@ -27,10 +37,11 @@ export async function GET(req: NextRequest) {
     if (!from || !to) throw new ApiError("from and to are required", 400);
     const where = ledgerWhere(scopedCampusWhere(user, campusId ?? undefined) as never, { currency, from, to, accountId: searchParams.get("accountId"), source: searchParams.get("source") });
 
-    const [totals, byAccount, bySourceRows, otherCurrencies] = await Promise.all([
+    // Per-source totals are aggregated in the database (one groupBy per source) instead of loading every entry.
+    const [totals, byAccount, bySourceGroups, otherCurrencies] = await Promise.all([
       ledgerTotals(prisma, where),
       prisma.ledgerEntry.groupBy({ by: ["kind", "accountId"], where, _sum: { amount: true }, _count: { _all: true } }),
-      prisma.ledgerEntry.findMany({ where, select: { kind: true, amount: true, paymentId: true, payrollLineId: true, reversalOfId: true } }),
+      Promise.all(SOURCE_FILTERS.map(([, filter]) => prisma.ledgerEntry.groupBy({ by: ["kind"], where: { AND: [where, filter] }, _sum: { amount: true }, _count: { _all: true } }))),
       prisma.ledgerEntry.groupBy({ by: ["currency"], where: { ...ledgerWhere(scopedCampusWhere(user, campusId ?? undefined) as never, { currency, from, to }), currency: { not: currency } }, _count: { _all: true } }),
     ]);
 
@@ -44,12 +55,14 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => a.type.localeCompare(b.type) || b.amount - a.amount);
 
     const bySource: Record<string, { income: number; expense: number; count: number }> = {};
-    for (const row of bySourceRows) {
-      const source = row.reversalOfId ? "CORRECTION" : row.paymentId ? "FEE" : row.payrollLineId ? "PAYROLL" : "MANUAL";
-      const bucket = bySource[source] ??= { income: 0, expense: 0, count: 0 };
-      if (row.kind === "INCOME") bucket.income += row.amount; else bucket.expense += row.amount;
-      bucket.count += 1;
-    }
+    SOURCE_FILTERS.forEach(([source], index) => {
+      for (const group of bySourceGroups[index]) {
+        if (!group._count._all) continue;
+        const bucket = bySource[source] ??= { income: 0, expense: 0, count: 0 };
+        if (group.kind === "INCOME") bucket.income += group._sum.amount ?? 0; else bucket.expense += group._sum.amount ?? 0;
+        bucket.count += group._count._all;
+      }
+    });
 
     return Response.json({
       success: true,
