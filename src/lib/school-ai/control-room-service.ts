@@ -63,11 +63,16 @@ export async function extendAttempts(user: AuthUser, assignmentId: string, raw: 
     await staffExamAccess(user, assignment, "add", tx, "SUPERVISION");
     const now = new Date();
     const outcomes: Array<{ attemptId: string; outcome: "EXTENDED" | "ALREADY_APPLIED" | "NOT_IN_PROGRESS"; deadlineAt?: string }> = [];
-    for (const attemptId of [...new Set(input.attemptIds)]) {
-      const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { id: attemptId, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId } });
+    const attemptIds = [...new Set(input.attemptIds)];
+    // SKAI-1819: one read for the attempts and one for keys already applied, not two queries per candidate.
+    const found = await tx.schoolAiExamAttempt.findMany({ where: { id: { in: attemptIds }, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId } });
+    const byId = new Map(found.map(row => [row.id, row]));
+    const appliedRows = found.length ? await tx.auditLog.findMany({ where: { schoolId: user.schoolId, tableName: "school_ai_exam_attempts", recordId: { in: found.map(row => row.id) }, newValue: { path: ["extensionKey"], equals: input.idempotencyKey } }, select: { recordId: true } }) : [];
+    const applied = new Set(appliedRows.map(row => row.recordId));
+    for (const attemptId of attemptIds) {
+      const attempt = byId.get(attemptId);
       if (!attempt || attempt.status !== "IN_PROGRESS" || (!attempt.pausedAt && attempt.deadlineAt <= now)) { outcomes.push({ attemptId, outcome: "NOT_IN_PROGRESS" }); continue; }
-      const applied = await tx.auditLog.count({ where: { schoolId: user.schoolId, tableName: "school_ai_exam_attempts", recordId: attempt.id, newValue: { path: ["extensionKey"], equals: input.idempotencyKey } } });
-      if (applied) { outcomes.push({ attemptId, outcome: "ALREADY_APPLIED", deadlineAt: attempt.deadlineAt.toISOString() }); continue; }
+      if (applied.has(attempt.id)) { outcomes.push({ attemptId, outcome: "ALREADY_APPLIED", deadlineAt: attempt.deadlineAt.toISOString() }); continue; }
       const deadlineAt = new Date(attempt.deadlineAt.getTime() + input.minutes * 60_000);
       const moved = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", deadlineAt: attempt.deadlineAt }, data: { deadlineAt } });
       if (moved.count !== 1) { outcomes.push({ attemptId, outcome: "NOT_IN_PROGRESS" }); continue; }
@@ -88,8 +93,11 @@ export async function closeAttempts(user: AuthUser, assignmentId: string, raw: u
     await staffExamAccess(user, assignment, "add", tx, "SUPERVISION");
     const now = new Date();
     const outcomes: Array<{ attemptId: string; outcome: "CLOSED" | "NOT_IN_PROGRESS" }> = [];
-    for (const attemptId of [...new Set(input.attemptIds)]) {
-      const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { id: attemptId, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, status: "IN_PROGRESS" } });
+    const attemptIds = [...new Set(input.attemptIds)];
+    const open = await tx.schoolAiExamAttempt.findMany({ where: { id: { in: attemptIds }, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, status: "IN_PROGRESS" } });
+    const byId = new Map(open.map(row => [row.id, row]));
+    for (const attemptId of attemptIds) {
+      const attempt = byId.get(attemptId);
       if (!attempt) { outcomes.push({ attemptId, outcome: "NOT_IN_PROGRESS" }); continue; }
       await tx.schoolAiExamAttempt.update({ where: { id: attempt.id }, data: { deadlineAt: now, pausedAt: null } });
       await tx.schoolAiExamPause.updateMany({ where: { schoolId: user.schoolId, attemptId: attempt.id, endedAt: null }, data: { endedAt: now, endedById: user.userId, restoredMs: 0 } });
