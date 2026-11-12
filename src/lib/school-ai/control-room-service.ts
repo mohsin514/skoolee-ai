@@ -37,10 +37,11 @@ export async function controlBoard(user: AuthUser, assignmentId: string, now = n
     if (student) throw new ApiError("Exam unavailable.", 404);
     await staffExamAccess(user, assignment, "view", tx, "SUPERVISION");
     const roster = Array.isArray(assignment.studentIds) ? assignment.studentIds as string[] : [];
+    // SKAI-1884: integrity events are counted with the full (school, campus, assignment) index prefix.
     const [pupils, attempts, observations] = await Promise.all([
       tx.student.findMany({ where: { schoolId: user.schoolId, id: { in: roster } }, select: { id: true, fullName: true, rollNo: true } }),
       tx.schoolAiExamAttempt.findMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId }, select: { id: true, studentId: true, status: true, pausedAt: true, deadlineAt: true, updatedAt: true, sequence: true } }),
-      tx.schoolAiExamIntegrityEvent.groupBy({ by: ["attemptId"], where: { schoolId: user.schoolId, assignmentId }, _count: { _all: true } }),
+      tx.schoolAiExamIntegrityEvent.groupBy({ by: ["attemptId"], where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId }, _count: { _all: true } }),
     ]);
     const byStudent = new Map(attempts.map(row => [row.studentId, row]));
     const seen = new Map(observations.map(row => [row.attemptId, row._count._all]));
