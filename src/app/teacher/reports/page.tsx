@@ -52,6 +52,7 @@ export default function ReportsPage() {
   const searchParams = useSearchParams();
   const [selectedReportExamId, setSelectedReportExamId] = useState("");
   const [remarkBusy, setRemarkBusy] = useState(false);
+  const [remarkProgress, setRemarkProgress] = useState<string | null>(null);
   const [selectedReportCard, setSelectedReportCard] = useState<any>(null);
   const [sendingReport, setSendingReport] = useState<string | null>(null);
   const [remarkGeneratingFor, setRemarkGeneratingFor] = useState<string | null>(null);
@@ -193,22 +194,40 @@ export default function ReportsPage() {
   const handleGenerateRemarks = useCallback(async () => {
     if (!selectedReportExamId) return;
     setRemarkBusy(true);
+    // SKAI-1842: the route drafts one chunk of pupils per request and answers with nextCursor until the class is done.
+    let cursor: number | null = 0;
+    let succeeded = 0;
+    let failed = 0;
+    let total = 0;
     try {
-      const res = await fetch("/api/ai/generate-remarks", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ batch: true, examId: selectedReportExamId }),
-      });
-      const text = await res.text();
-      const result = JSON.parse(text);
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not draft remarks. Please try again.")));
-      // The batch answers 200 with per-pupil failures; only a full success is announced as one.
-      const failed = Array.isArray(result.failed) ? result.failed.length : 0;
-      if (failed && !result.succeeded) throw new Error(ui("The AI service is unavailable. Continue these drafts manually."));
-      if (failed) toast.error(ui("Remarks drafted for {0} pupils; {1} could not be drafted. Continue those manually.", [String(result.succeeded), String(failed)]));
+      while (cursor !== null) {
+        const res = await fetch("/api/ai/generate-remarks", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ batch: true, examId: selectedReportExamId, cursor }),
+        });
+        const text = await res.text();
+        const result = JSON.parse(text);
+        if (!res.ok) {
+          // Drafts from earlier chunks are already saved; say so instead of reporting the whole class as failed.
+          if (succeeded) toast.error(ui("Remarks drafted for {0} pupils; {1} could not be drafted. Continue those manually.", [String(succeeded), String(total - succeeded)]));
+          throw new Error(apiErrorMessage(result.error, ui("Could not draft remarks. Please try again.")));
+        }
+        // The batch answers 200 with per-pupil failures; only a full success is announced as one.
+        total = Number(result.total) || 0;
+        succeeded += Number(result.succeeded) || 0;
+        failed += Array.isArray(result.failed) ? result.failed.length : 0;
+        cursor = typeof result.nextCursor === "number" ? result.nextCursor : null;
+        if (cursor !== null) setRemarkProgress(ui("Drafted {0} of {1} pupils", [String(cursor), String(total)]));
+      }
+      if (failed && !succeeded) throw new Error(ui("The AI service is unavailable. Continue these drafts manually."));
+      if (failed) toast.error(ui("Remarks drafted for {0} pupils; {1} could not be drafted. Continue those manually.", [String(succeeded), String(failed)]));
       else toast.success(ui("Remarks drafted for every pupil. Review each one before you save it."));
-      await loadData();
     } catch (error: any) { toast.error(friendlyErrorMessage(error, ui("Could not draft remarks. Please try again."))); }
-    finally { setRemarkBusy(false); }
+    finally {
+      setRemarkBusy(false);
+      setRemarkProgress(null);
+      if (succeeded) await loadData();
+    }
   }, [selectedReportExamId, loadData, ui]);
 
   const handleGenerateStudentRemarks = useCallback(async (studentId: string, examId: string) => {
@@ -284,7 +303,7 @@ export default function ReportsPage() {
       description="Draft and save remarks for your locked tests. Your academic lead approves report cards before families see them."
       secondaryActions={aiRemarks ? [{
         id: "draft-with-ai",
-        label: "Draft with AI",
+        label: remarkProgress ?? "Draft with AI",
         icon: BrainCircuit,
         onClick: handleGenerateRemarks,
         loading: remarkBusy,
