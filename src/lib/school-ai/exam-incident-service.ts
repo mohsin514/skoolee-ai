@@ -8,6 +8,7 @@ import { scopedAssignment, staffExamAccess } from "./exam-service";
 import { regradeExamAttempt } from "./exam-results";
 import { assertStudioAction } from "./studio-access";
 import { schoolAiTransaction } from "./transaction";
+import { markCandidateExamActive } from "./exam-active-marker";
 
 // SKO-408 R17: live incidents. During a sitting the frozen paper never changes; an authorized,
 // versioned notice reaches exactly its audience and each display is acknowledged per attempt.
@@ -247,6 +248,7 @@ export async function superviseAttempts(user: AuthUser, assignmentId: string, ra
         if (!attempt.pausedAt) { outcomes.push({ attemptId, outcome: "NOT_PAUSED" }); continue; }
         const restoredMs = Math.max(0, now.getTime() - attempt.pausedAt.getTime());
         const deadlineAt = new Date(attempt.deadlineAt.getTime() + restoredMs);
+        await markCandidateExamActive(attempt.userId, deadlineAt); // SKAI-1840: before the resumed deadline commits.
         const moved = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", pausedAt: attempt.pausedAt }, data: { pausedAt: null, deadlineAt } });
         if (moved.count !== 1) { outcomes.push({ attemptId, outcome: "NOT_PAUSED" }); continue; }
         await tx.schoolAiExamPause.updateMany({ where: { schoolId: user.schoolId, attemptId: attempt.id, endedAt: null }, data: { endedAt: now, endedById: user.userId, restoredMs } });
