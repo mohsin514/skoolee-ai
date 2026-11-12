@@ -348,7 +348,17 @@ export async function getSchoolAiAttempt(user: AuthUser, id: string, now = new D
   return receipt(attempt, paper, now);
 }
 
-export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unknown, now?: Date) {
+/** SKAI-1883: an in-progress autosave receipt without the paper or the answers the candidate just sent. */
+function slimReceipt(attempt: { id: string; status: string; startedAt: Date; deadlineAt: Date; sequence: number; submittedAt: Date | null; pausedAt?: Date | null }, now: Date) {
+  return { id: attempt.id, status: attempt.status, pausedAt: attempt.pausedAt ?? null, startedAt: attempt.startedAt, deadlineAt: attempt.deadlineAt, sequence: attempt.sequence, submittedAt: attempt.submittedAt, serverNow: now.toISOString() };
+}
+
+/** With `slim`, a save that leaves the attempt IN_PROGRESS omits `paper` and `responses`; a closed attempt always gets the full receipt. */
+type SaveReceipt = ReturnType<typeof receipt> & { accepted: boolean };
+type SlimSaveReceipt = ReturnType<typeof slimReceipt> & { accepted: boolean };
+export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unknown, now?: Date): Promise<SaveReceipt>;
+export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unknown, now: Date | undefined, options: { slim?: boolean }): Promise<SaveReceipt | SlimSaveReceipt>;
+export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unknown, now?: Date, options: { slim?: boolean } = {}): Promise<SaveReceipt | SlimSaveReceipt> {
   const input = saveExamSchema.parse(raw);
   return retryDatabaseTransaction(() => prisma.$transaction(async (tx) => {
     const { assignment, paper, student } = await scopedAssignment(user, id, tx);
@@ -364,7 +374,7 @@ export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unkno
     if (decision === "REPLAY") {
       if (stableResponses(input.responses) !== stableResponses(responsesSchema.parse(attempt.responses))) throw new ApiError("This answer version already contains different responses.", 409);
       if (input.submit) throw new ApiError("Final submission must use a new answer version.", 409);
-      return { ...receipt(attempt, paper, currentTime), accepted: true };
+      return { ...(options.slim && attempt.status === "IN_PROGRESS" ? slimReceipt(attempt, currentTime) : receipt(attempt, paper, currentTime)), accepted: true };
     }
     const expired = decision === "EXPIRED";
     const responses = expired ? responsesSchema.parse(attempt.responses) : input.responses;
@@ -375,7 +385,9 @@ export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unkno
     if (changed.count !== 1) throw new ApiError("Your answers or exam timing changed. Reload the saved attempt before continuing.", 409);
     // Autosaves are draft answers; the event marks the final hand-in (or deadline close).
     if (submit) await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: attempt.id, action: "UPDATE", campusId: student.campusId, before: { status: attempt.status, sequence: attempt.sequence }, after: { status: "SUBMITTED", sequence: expired ? attempt.sequence : input.sequence, deadlineExpired: expired } });
-    const saved = await tx.schoolAiExamAttempt.findFirstOrThrow({ where: { id: attempt.id, schoolId: user.schoolId, userId: user.userId } });
+    const where = { id: attempt.id, schoolId: user.schoolId, userId: user.userId };
+    if (options.slim && !submit) return { ...slimReceipt(await tx.schoolAiExamAttempt.findFirstOrThrow({ where, select: { id: true, status: true, startedAt: true, deadlineAt: true, sequence: true, submittedAt: true, pausedAt: true } }), currentTime), accepted: true };
+    const saved = await tx.schoolAiExamAttempt.findFirstOrThrow({ where });
     return { ...receipt(saved, paper, currentTime), accepted: !expired };
   }));
 }
