@@ -274,7 +274,7 @@ export async function loadWeightedGradeContext(
 }
 
 /** One mark query for the whole roster, grouped by learner. */
-async function loadMarksByStudent(ctx: WeightedGradeContext, campusId: string, studentIds: string[], db: TxClient) {
+export async function loadMarksByStudent(ctx: WeightedGradeContext, campusId: string, studentIds: string[], db: TxClient) {
   const byStudent = new Map<string, WeightedGradeMark[]>();
   if (!studentIds.length || !ctx.exams.length || !ctx.subjects.length) return byStudent;
   const marks = await db.mark.findMany({
