@@ -12,7 +12,7 @@ import { isRealDate } from "@/lib/validators/fields";
 // becomes one payment keyed to its bank transaction, so a replay posts nothing twice; rows whose
 // invoice is no longer payable become visible exceptions; unmatched money stays unallocated.
 
-type Row = { rowNumber: number; date: string; amountMinor: number; description: string; rowKey?: string; matchedInvoiceId?: string | null; studentName?: string | null };
+type Row = { rowNumber: number; date: string; amountMinor: number; description: string; rowKey?: string; matchedInvoiceId?: string | null; studentName?: string | null; currency?: string; manualMatch?: unknown };
 /** SKAI-1282: rows staged by the job importer before this fix carry `amount` (minor units) and no row number. */
 type StoredRow = Partial<Row> & { amount?: number };
 
@@ -34,24 +34,43 @@ function report(rec: { status: string; reconciliationDetailsJson: Prisma.JsonVal
   return conservationReport({ received, allocated: matched.map(row => row.amountMinor), credited: [], unallocated: unmatched.map(row => row.amountMinor) });
 }
 
+/** SKAI-1865: the list view shows only this many unallocated rows per statement; `?id=` returns the rest. */
+const UNMATCHED_PREVIEW = 20;
+
+/** The list view needs counts, the currency and a preview of unallocated rows, not every statement line. */
+function summary(matched: Row[], unmatched: Row[]) {
+  return {
+    matchedCount: matched.length, manualMatchCount: matched.filter(row => row.manualMatch).length,
+    currency: matched[0]?.currency || unmatched[0]?.currency || null,
+    unmatched: unmatched.slice(0, UNMATCHED_PREVIEW), unmatchedCount: unmatched.length,
+  };
+}
+
+// GET ?campusId=                → the latest 30 statements with every matched and unmatched row
+// GET ?campusId=&summary=1      → the same statements with counts and the first unmatched rows only
+// GET ?campusId=&id=            → one statement in full (same campus scope)
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     assertStaffRole(user);
     await assertPermission(user, "fees", "view");
     const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
-    const rows = await prisma.bankReconciliation.findMany({ where: { schoolId: user.schoolId, campusId }, orderBy: { createdAt: "desc" }, take: 30 });
+    const id = req.nextUrl.searchParams.get("id"), brief = req.nextUrl.searchParams.get("summary") === "1";
+    const rows = await prisma.bankReconciliation.findMany({ where: { schoolId: user.schoolId, campusId, ...(id ? { id } : {}) }, orderBy: { createdAt: "desc" }, take: 30 });
     const audits = await prisma.auditLog.findMany({ where: { schoolId: user.schoolId, tableName: "bank_reconciliation_posting", recordId: { in: rows.map(r => r.id) } }, select: { recordId: true, newValue: true } });
     const postings = new Map(audits.map(a => [a.recordId, a.newValue as { posted?: Posted[]; exceptions?: Exception[] }]));
     // Statements now store the bank account id; show its name to readers.
     const accountIds = [...new Set(rows.map(r => r.bankAccount).filter((id): id is string => Boolean(id)))];
     const accounts = accountIds.length ? await prisma.bankAccount.findMany({ where: { schoolId: user.schoolId, id: { in: accountIds } }, select: { id: true, name: true } }) : [];
     const accountNames = new Map(accounts.map(a => [a.id, a.name]));
-    return Response.json({ success: true, data: rows.map(rec => ({
-      id: rec.id, status: rec.status, bankAccount: rec.bankAccount ? accountNames.get(rec.bankAccount) ?? null : null, from: rec.statementPeriodFrom?.toISOString().slice(0, 10) ?? null, to: rec.statementPeriodTo?.toISOString().slice(0, 10) ?? null,
-      matched: storedRows(rec.reconciliationDetailsJson), unmatched: storedRows(rec.unmatchedJson),
-      posting: postings.get(rec.id) ?? null, report: report(rec, postings.get(rec.id) ?? null),
-    })) }, { headers: { "Cache-Control": "private, no-store" } });
+    return Response.json({ success: true, data: rows.map(rec => {
+      const matched = storedRows(rec.reconciliationDetailsJson), unmatched = storedRows(rec.unmatchedJson);
+      return {
+        id: rec.id, status: rec.status, bankAccount: rec.bankAccount ? accountNames.get(rec.bankAccount) ?? null : null, from: rec.statementPeriodFrom?.toISOString().slice(0, 10) ?? null, to: rec.statementPeriodTo?.toISOString().slice(0, 10) ?? null,
+        ...(brief ? summary(matched, unmatched) : { matched, unmatched }),
+        posting: postings.get(rec.id) ?? null, report: report(rec, postings.get(rec.id) ?? null),
+      };
+    }) }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error, "[fees/reconciliations] GET failed"); }
 }
 
