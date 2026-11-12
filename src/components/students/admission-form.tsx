@@ -802,7 +802,7 @@ function SiblingPicker({
       try {
         const res = await fetch(`/api/students/siblings?search=${encodeURIComponent(term)}`, { signal: controller.signal });
         const json = await res.json();
-        if (json.success) setResults(json.data || []);
+        if (!controller.signal.aborted && json.success) setResults(json.data || []);
       } catch {
         // Aborted by the next keystroke, or the lookup failed; the link stays optional.
       } finally {
