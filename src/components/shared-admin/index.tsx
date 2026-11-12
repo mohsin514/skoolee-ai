@@ -2,6 +2,7 @@
 import { loadListPages } from "@/lib/lists/load-pages";
 import { useListPage } from "@/hooks/use-list-page";
 import { useListField } from "@/hooks/use-list-field";
+import { matchesEnquirySearch } from "@/lib/admissions/enquiry-search";
 import { fillNodes } from "@/lib/auth/fill-nodes";
 import { AiWorkflowsHome } from "@/components/ai-workflows/AiWorkflowsHome";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -4824,7 +4825,8 @@ export function AdmissionQueriesPanel({
   const [loadFailed, setLoadFailed] = useState(false);
   const [statusFilter, setStatusFilter] = useListField<string>("enquiries.status", "ALL", "enquiries.page");
   const [sourceFilter, setSourceFilter] = useListField<string>("enquiries.source", "ALL", "enquiries.page");
-  const [searchQuery, setSearchQuery] = useListField<string>("enquiries.search", "", "enquiries.page");
+  // Typing replaces the URL entry instead of pushing one per keystroke, so Back still leaves the page.
+  const [searchQuery, setSearchQuery] = useListField<string>("enquiries.search", "", "enquiries.page", { history: "replace" });
   const [showOverdue, setShowOverdue] = useListField<boolean>("enquiries.overdue", false, "enquiries.page");
   const [showNewModal, setShowNewModal] = useState(false);
   const [selected, setSelected] = useState<any>(null);
@@ -4841,33 +4843,41 @@ export function AdmissionQueriesPanel({
   }, []);
 
   /*
-   * Status, source and overdue are applied client-side (see `filtered`), so
-   * sending them to the API as well made every count on this screen wrong the
-   * moment a chip was pressed. Only `search` still goes to the server, because
-   * the complete bounded-page reader retrieves every matching row, so counts and exports
-   * remain complete beyond the old 200-row cap.
+   * Status, source, overdue and search are all applied client-side (see
+   * `filtered`), so the complete bounded-page reader runs once per `version`
+   * bump, not once per keystroke (SKAI-1822). Sending filters to the API as well
+   * made every count on this screen wrong the moment a chip was pressed. Only the
+   * newest load may write, so a slow earlier reply cannot overwrite a fresher one.
    */
+  const loadSeq = useRef(0);
   const loadQueries = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (searchQuery.trim()) params.set("search", searchQuery.trim());
-      setQueries(await loadListPages("/api/admission-queries", params));
+      const rows = await loadListPages("/api/admission-queries", new URLSearchParams());
+      if (seq !== loadSeq.current) return;
+      setQueries(rows);
       setLoadFailed(false);
     } catch {
-      setLoadFailed(true);
+      if (seq === loadSeq.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
-  }, [searchQuery]);
+  }, []);
 
   useEffect(() => {
     loadQueries();
   }, [loadQueries, version]);
 
+  /*
+   * Search used to narrow the rows the API returned, so the stat cards, chip counts and
+   * conversion rate all reflected the search. Keep that now the search runs here (SKAI-1822).
+   */
+  const searched = useMemo(() => queries.filter((q) => matchesEnquirySearch(q, searchQuery)), [queries, searchQuery]);
+
   const counts = useMemo(() => {
     const c: Record<string, number> = { ACTIVE: 0, FOLLOW_UP: 0, CONVERTED: 0, LOST: 0, OVERDUE: 0, UNASSIGNED: 0, NO_DATE: 0 };
-    for (const q of queries) {
+    for (const q of searched) {
       if (c[q.status] !== undefined) c[q.status] += 1;
       const open = OPEN_ENQUIRY.includes(q.status);
       if (isOverdueEnquiry(q, now)) c.OVERDUE += 1;
@@ -4877,7 +4887,7 @@ export function AdmissionQueriesPanel({
       if (open && !q.nextFollowUp) c.NO_DATE += 1;
     }
     return c;
-  }, [queries, now]);
+  }, [searched, now]);
 
   /**
    * Of the enquiries that have been decided either way, how many enrolled.
@@ -4891,13 +4901,9 @@ export function AdmissionQueriesPanel({
   }, [counts]);
 
   const filtered = useMemo(() => {
-    const rows = queries.filter((q) => {
+    const rows = searched.filter((q) => {
       if (statusFilter !== "ALL" && q.status !== statusFilter) return false;
       if (sourceFilter !== "ALL" && q.source !== sourceFilter) return false;
-      if (searchQuery.trim()) {
-        const s = searchQuery.toLowerCase();
-        if (!q.name.toLowerCase().includes(s) && !q.phone.includes(s) && !(q.email || "").toLowerCase().includes(s)) return false;
-      }
       if (showOverdue && !isOverdueEnquiry(q, now)) return false;
       return true;
     });
@@ -4921,7 +4927,7 @@ export function AdmissionQueriesPanel({
           return a.name.localeCompare(b.name);
       }
     });
-  }, [queries, statusFilter, sourceFilter, searchQuery, showOverdue, now, querySort]);
+  }, [searched, statusFilter, sourceFilter, showOverdue, now, querySort]);
   const enquiryPage = useListPage(filtered, "enquiries");
 
   const exportQueries = () => {
@@ -5013,7 +5019,7 @@ export function AdmissionQueriesPanel({
             icon: PhoneCall,
             label: "Open enquiries",
             value: counts.ACTIVE + counts.FOLLOW_UP,
-            hint: ui("{0} in total", [queries.length]),
+            hint: ui("{0} in total", [searched.length]),
             tone: "violet",
           },
           {
@@ -5073,7 +5079,7 @@ export function AdmissionQueriesPanel({
 
       <div role="group" aria-label={ui("Filter by status")} className="flex flex-wrap gap-2">
         {[
-          { key: "ALL", label: ui("All ({0})", [queries.length]) },
+          { key: "ALL", label: ui("All ({0})", [searched.length]) },
           { key: "ACTIVE", label: ui("Active ({0})", [counts.ACTIVE]) },
           { key: "FOLLOW_UP", label: ui("Follow-up ({0})", [counts.FOLLOW_UP]) },
           { key: "CONVERTED", label: ui("Converted ({0})", [counts.CONVERTED]) },
