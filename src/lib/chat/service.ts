@@ -23,6 +23,7 @@ import {
   canCreateAnnouncement,
   canCreateGroup,
   canDirectMessage,
+  canDirectMessageMany,
   canModerate,
   getChatSettings,
   isWithinQuietHours,
@@ -569,16 +570,19 @@ async function assertReachable(user: AuthUser, ids: string[], settings: ChatSett
     throw new ApiError("One or more people are not part of your school", 404);
   }
 
-  for (const peer of peers) {
-    const decision = await canDirectMessage(
-      user,
-      { id: peer.id, role: peer.role as UserRole, campusId: peer.campusId, isActive: peer.isActive },
-      settings
-    );
+  // One batched policy pass (SKAI-1836): the lookups are shared, so a
+  // 500-member class channel no longer costs a handful of queries per member.
+  const decisions = await canDirectMessageMany(
+    user,
+    peers.map((peer) => ({ id: peer.id, role: peer.role as UserRole, campusId: peer.campusId, isActive: peer.isActive })),
+    settings
+  );
+  peers.forEach((peer, index) => {
+    const decision = decisions[index];
     if (!decision.allowed) {
       throw new ApiError(`${peer.fullName}: ${decision.reason}`, 403);
     }
-  }
+  });
 }
 
 // ─── Sending ─────────────────────────────────────────────────────
