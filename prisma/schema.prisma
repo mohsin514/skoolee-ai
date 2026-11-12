@@ -413,6 +413,7 @@ model RagChunk {
   model       String?
   @@unique([documentId, version, ordinal])
   @@index([schoolId, documentId])
+  @@index([documentId, schoolId])
   @@map("rag_chunks")
 }
 
@@ -463,6 +464,7 @@ model WorkflowJob {
   @@unique([id, schoolId])
   @@index([state, leaseUntil])
   @@index([supportGrantId, state])
+  @@index([schoolId])
   @@map("workflow_jobs")
 }
 
@@ -478,6 +480,8 @@ model WorkflowEffect {
   createdAt DateTime @default(now()) @map("created_at")
   completedAt DateTime? @map("completed_at")
   @@unique([jobId, identity])
+  @@index([schoolId])
+  @@index([jobId, schoolId])
   @@map("workflow_effects")
 }
 
@@ -542,6 +546,7 @@ model OnboardingCheckoutIntent {
   @@unique([schoolId, userId, idempotencyKey])
   @@index([schoolId, status, createdAt])
   @@index([provider, providerReference])
+  @@index([userId])
   @@map("onboarding_checkout_intents")
 }
 
@@ -563,6 +568,7 @@ model SubscriptionRequest {
   updatedAt      DateTime @updatedAt @map("updated_at")
   @@unique([schoolId, requestedById, idempotencyKey])
   @@index([schoolId, state, createdAt])
+  @@index([requestedById])
   @@map("subscription_requests")
 }
 
@@ -863,6 +869,7 @@ model User {
   @@unique([schoolId, email])
   @@unique([schoolId, username])
   @@index([schoolId])
+  @@index([campusId])
   @@map("users")
   ownedComplaints Complaint[] @relation("ComplaintOwner")
   ownedCallbacks  PhoneCallback[] @relation("PhoneCallbackOwner")
@@ -931,6 +938,7 @@ model StaffProfile {
   @@index([schoolId, emiratesId])
   @@index([reportsToId])
   @@index([primaryDepartmentId])
+  @@index([designationId])
   @@map("staff_profiles")
 }
 
@@ -1098,6 +1106,7 @@ model StaffDesignation {
 
   @@unique([schoolId, name])
   @@index([schoolId, level])
+  @@index([promotesToId])
   @@map("staff_designations")
 }
 
@@ -1137,6 +1146,8 @@ model Department {
   @@unique([campusId, name])
   @@index([schoolId])
   @@index([campusId, parentId])
+  @@index([parentId])
+  @@index([headId])
   @@map("departments")
 }
 
@@ -1220,6 +1231,10 @@ model StaffAppointment {
   @@index([userId, effectiveFrom])
   @@index([userId, effectiveTo])
   @@index([schoolId])
+  @@index([designationId])
+  @@index([departmentId])
+  @@index([reportsToId])
+  @@index([approvedById])
   @@map("staff_appointments")
 }
 
@@ -1287,6 +1302,9 @@ model LeaveAllocation {
   user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([schoolId])
+  @@index([campusId])
+  @@index([leaveTypeId])
+  @@index([userId])
   @@map("leave_allocations")
 }
 
@@ -1315,6 +1333,9 @@ model LeaveRequest {
 
   @@index([campusId, status])
   @@index([schoolId])
+  @@index([userId])
+  @@index([leaveTypeId])
+  @@index([reviewedById])
   @@map("leave_requests")
 }
 
@@ -1340,6 +1361,7 @@ model PayrollRun {
 
   @@unique([campusId, month, year])
   @@index([schoolId])
+  @@index([generatedById])
   @@map("payroll_runs")
 }
 
@@ -1368,6 +1390,8 @@ model PayrollLine {
 
   @@unique([payrollRunId, userId])
   @@index([schoolId])
+  @@index([userId])
+  @@index([paymentMethodId])
   @@map("payroll_lines")
 }
 
@@ -1412,6 +1436,7 @@ model Class {
   @@index([schoolId])
   @@index([schoolId, updatedAt])
   @@index([campusId])
+  @@index([classTeacherId])
   @@index([schoolId, campusId])
   @@map("classes")
 }
@@ -1506,6 +1531,13 @@ model Student {
   @@index([campusId, rollNo])
   @@index([schoolId])
   @@index([schoolId, emiratesId])
+  @@index([consolidatedIntoId])
+  @@index([classId])
+  @@index([parentUserId])
+  @@index([categoryId])
+  @@index([groupId])
+  @@index([transportRouteId])
+  @@index([dormRoomId])
   @@index([schoolId, campusId])
   @@map("students")
 }
@@ -1542,6 +1574,10 @@ model GuardianRelationship {
   @@unique([id, schoolId])
   @@index([schoolId, campusId, studentId, status], map: "guardian_relationships_school_id_campus_id_student_id_status_id")
   @@index([schoolId, guardianUserId, status])
+  @@index([campusId])
+  @@index([studentId])
+  @@index([guardianUserId])
+  @@index([createdByUserId])
   @@map("guardian_relationships")
 }
 
@@ -1561,6 +1597,7 @@ model GuardianAccessVersion {
   createdAt       DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, relationshipId, effectiveFrom, effectiveUntil], map: "guardian_access_versions_school_id_relationship_id_effective_fr")
+  @@index([relationshipId, schoolId])
   @@map("guardian_access_versions")
 }
 
@@ -1580,6 +1617,8 @@ model GuardianAccessEvent {
   createdAt       DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, relationshipId, createdAt])
+  @@index([relationshipId, schoolId])
+  @@index([actorUserId])
   @@map("guardian_access_events")
 }
 
@@ -1606,6 +1645,8 @@ model GuardianConsent {
   @@index([schoolId, campusId, studentId, createdAt])
   @@index([schoolId, guardianUserId, studentId, createdAt])
   @@unique([schoolId, receiptCode])
+  @@index([studentId])
+  @@index([guardianUserId])
   @@map("guardian_consents")
 }
 
@@ -1632,6 +1673,8 @@ model GuardianReviewQueue {
 
   @@unique([studentId, reason])
   @@index([schoolId, campusId, status, createdAt])
+  @@index([campusId])
+  @@index([reviewedByUserId])
   @@map("guardian_review_queue")
 }
 
@@ -1703,6 +1746,8 @@ model AdmissionQuery {
 
   @@index([campusId, status])
   @@index([schoolId])
+  @@index([classInterestedId])
+  @@index([assignedToId])
   @@map("admission_queries")
 }
 
@@ -1794,6 +1839,9 @@ model AdmissionApplication {
   @@unique([schoolId, reference])
   @@index([campusId, status])
   @@index([schoolId])
+  @@index([formVersionId])
+  @@index([enquiryId])
+  @@index([ownerId])
   @@map("admission_applications")
 }
 
@@ -1813,6 +1861,7 @@ model AdmissionSubmission {
 
   @@index([applicationId, submittedAt])
   @@index([schoolId])
+  @@index([formVersionId])
   @@map("admission_submissions")
 }
 
@@ -1860,6 +1909,7 @@ model AdmissionAssessment {
 
   @@index([applicationId, scheduledAt])
   @@index([schoolId, scheduledAt])
+  @@index([staffId])
   @@map("admission_assessments")
 }
 
@@ -1899,6 +1949,7 @@ model AdmissionQueryFollowUp {
 
   @@index([queryId])
   @@index([schoolId])
+  @@index([actorId])
   @@map("admission_query_follow_ups")
 }
 
@@ -1964,6 +2015,9 @@ model Subject {
   syllabusTopics SyllabusTopic[]
 
   @@index([schoolId])
+  @@index([campusId])
+  @@index([classId])
+  @@index([teacherId])
   @@index([schoolId, campusId])
   @@map("subjects")
 }
@@ -2084,6 +2138,12 @@ model Exam {
 
   @@index([schoolId])
   @@index([campusId, academicYear])
+  @@index([campusId])
+  @@index([classId])
+  @@index([sessionId])
+  @@index([subjectId])
+  @@index([academicModelVersionId])
+  @@index([lockedBy])
   @@index([schoolId, campusId])
   @@map("exams")
 }
@@ -2120,6 +2180,9 @@ model ExamSchedule {
   @@index([paperSlotId])
   @@index([campusId, date])
   @@index([schoolId])
+  @@index([subjectId])
+  @@index([periodDefinitionId])
+  @@index([roomId])
   @@map("exam_schedules")
 }
 
@@ -2193,6 +2256,8 @@ model GradeWeightConfig {
 
   @@unique([classId, academicYear])
   @@index([schoolId])
+  @@index([campusId])
+  @@index([academicModelVersionId])
   @@map("grade_weight_configs")
 }
 
@@ -2224,6 +2289,10 @@ model Mark {
 
   @@unique([examId, studentId, subjectId])
   @@index([schoolId])
+  @@index([campusId])
+  @@index([studentId])
+  @@index([subjectId])
+  @@index([enteredBy])
   @@index([schoolId, campusId])
   @@map("marks")
 }
@@ -2253,6 +2322,7 @@ model ReportVersion {
   createdAt DateTime @default(now()) @map("created_at")
   @@unique([reportCardId, number])
   @@index([schoolId])
+  @@index([reportCardId, schoolId])
   @@map("report_versions")
 }
 
@@ -2301,6 +2371,8 @@ model ReportCard {
   @@index([schoolId])
   @@index([examId])
   @@index([campusId, generatedAt])
+  @@index([enrollmentId])
+  @@index([campusId])
   @@index([schoolId, campusId])
   @@map("report_cards")
 }
@@ -2338,6 +2410,8 @@ model Attendance {
   @@index([classId, date])
   @@index([campusId, date])
   @@index([schoolId])
+  @@index([enrollmentId])
+  @@index([markedBy])
   @@index([schoolId, campusId])
   @@map("attendance")
 }
@@ -2463,6 +2537,8 @@ model FeeStructure {
   @@index([campusId, classId])
   @@index([academicYearId])
   @@index([schoolId])
+  @@index([createdBy])
+  @@index([updatedBy])
   @@map("fee_structures")
 }
 
@@ -2522,6 +2598,8 @@ model FeesMasterLine {
 
   @@unique([feeGroupId, feeTypeId])
   @@index([schoolId])
+  @@index([campusId])
+  @@index([feeTypeId])
   @@map("fees_master_lines")
 }
 
@@ -2539,6 +2617,8 @@ model FeeGroupAssignment {
 
   @@unique([feeGroupId, classId, academicYear])
   @@index([schoolId])
+  @@index([campusId])
+  @@index([classId])
   @@map("fee_group_assignments")
 }
 
@@ -2559,6 +2639,7 @@ model FeeDiscount {
 
   @@unique([campusId, code])
   @@index([schoolId])
+  @@index([categoryId])
   @@map("fee_discounts")
 }
 
@@ -2573,6 +2654,7 @@ model FeeDiscountAssignment {
 
   @@unique([discountId, studentId])
   @@index([schoolId])
+  @@index([studentId])
   @@map("fee_discount_assignments")
 }
 
@@ -2592,6 +2674,7 @@ model FeeCarryForward {
 
   @@unique([studentId, toAcademicYear])
   @@index([schoolId])
+  @@index([campusId])
   @@map("fee_carry_forwards")
 }
 
@@ -2644,6 +2727,7 @@ model Invoice {
   @@index([campusId])
   @@index([schoolId])
   @@unique([schoolId, invoiceNumber])
+  @@index([enrollmentId])
   @@index([schoolId, campusId])
   @@map("invoices")
 }
@@ -2692,6 +2776,8 @@ model Payment {
   /// AI Workflows (Slice 5, RT6): the AI-prepared hand-off this row completed; unique so it posts once.
   workflowHandoffId String? @map("workflow_handoff_id")
   @@unique([schoolId, workflowHandoffId])
+  @@index([reversalOfId])
+  @@index([recordedBy])
   @@index([schoolId, campusId])
   @@map("payments")
 }
@@ -2790,6 +2876,7 @@ model LedgerEntry {
   @@index([kind])
   @@index([accountId])
   @@index([schoolId])
+  @@index([bankAccountId])
   @@index([schoolId, campusId])
   @@map("ledger_entries")
 }
@@ -2837,6 +2924,7 @@ model OnlinePaymentOrder {
 
   @@index([invoiceId, status])
   @@index([schoolId])
+  @@index([campusId])
   @@index([schoolId, campusId])
   @@map("online_payment_orders")
 }
@@ -2883,6 +2971,8 @@ model PaymentPlan {
 
   @@index([schoolId])
   @@index([invoiceId])
+  @@index([campusId])
+  @@index([studentId])
   @@index([schoolId, campusId])
   @@map("payment_plans")
 }
@@ -2911,6 +3001,8 @@ model BankReconciliation {
   createdAt                 DateTime  @default(now()) @map("created_at")
 
   @@index([schoolId])
+  @@index([campusId])
+  @@index([reconciledBy])
   @@map("bank_reconciliations")
 }
 
@@ -2972,6 +3064,7 @@ model FinancialAdjustment {
   /// AI Workflows (Slice 5, RT6): the AI-prepared hand-off this row completed; unique so it posts once.
   workflowHandoffId String? @map("workflow_handoff_id")
   @@unique([schoolId, workflowHandoffId])
+  @@index([campusId])
   @@map("financial_adjustments")
 }
 
@@ -2999,6 +3092,7 @@ model ImportBatch {
   @@unique([schoolId, campusId, kind, fingerprint, targetScope])
   @@index([schoolId, campusId, createdAt])
   @@index([schoolId, expiresAt])
+  @@index([campusId])
   @@map("import_batches")
 }
 
@@ -3194,6 +3288,7 @@ model NotificationTemplate {
   updatedAt            DateTime @updatedAt @map("updated_at")
 
   @@index([schoolId, campusId, key, channel])
+  @@index([campusId])
   @@map("notification_templates")
 }
 
@@ -3234,6 +3329,8 @@ model ParentCommunication {
   @@index([parentUserId])
   @@index([status])
   @@index([relatedType, relatedId])
+  @@index([campusId])
+  @@index([createdById])
   @@map("parent_communications")
 }
 
@@ -3360,6 +3457,8 @@ model TimetableSlot {
   @@unique([timetableId, dayOfWeek, periodNumber])
   @@index([teacherId, dayOfWeek, periodNumber])
   @@index([schoolId])
+  @@index([subjectId])
+  @@index([roomId])
   @@map("timetable_slots")
 }
 
@@ -3573,6 +3672,8 @@ model FamilyDigestDelivery {
 
   @@unique([studentId, weekStart, guardianUserId, channel])
   @@index([schoolId, guardianUserId])
+  @@index([digestId])
+  @@index([entryId])
   @@map("family_digest_deliveries")
 }
 
@@ -3738,6 +3839,7 @@ model MeetingBooking {
 
   @@index([schoolId, teacherId, startsAt])
   @@index([schoolId, guardianUserId])
+  @@index([windowId])
   @@map("meeting_bookings")
 }
 
@@ -3795,6 +3897,7 @@ model MeetingAction {
   createdAt     DateTime       @default(now()) @map("created_at")
 
   @@index([schoolId, ownerUserId, status])
+  @@index([bookingId])
   @@map("meeting_actions")
 }
 
@@ -3810,6 +3913,7 @@ model MeetingStaffNote {
   createdAt DateTime       @default(now()) @map("created_at")
 
   @@index([schoolId, bookingId])
+  @@index([bookingId])
   @@map("meeting_staff_notes")
 }
 
@@ -3940,6 +4044,7 @@ model ServiceRequest {
   @@unique([requesterId, idempotencyKey])
   @@index([schoolId, campusId, status])
   @@index([schoolId, ownerId, status])
+  @@index([categoryId])
   @@map("service_requests")
 }
 
@@ -3962,6 +4067,7 @@ model ServiceRequestEvent {
   createdAt     DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, requestId])
+  @@index([requestId])
   @@map("service_request_events")
 }
 
@@ -4151,6 +4257,7 @@ model PickupCheck {
   @@index([schoolId, studentId])
   @@index([schoolId, campusId, status])
   @@index([schoolId, campusId, createdAt])
+  @@index([authorizationId])
   @@map("pickup_checks")
 }
 
@@ -4244,6 +4351,7 @@ model ActivitySession {
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, activityId])
+  @@index([activityId])
   @@map("activity_sessions")
 }
 
@@ -4279,6 +4387,7 @@ model ConfidentialSetting {
   confirmedAt        DateTime? @map("confirmed_at")
 
   @@unique([campusId, domain])
+  @@index([schoolId])
   @@map("confidential_settings")
 }
 
@@ -4408,6 +4517,7 @@ model MedicationDose {
   @@index([schoolId, studentId])
   // NULL keys never conflict, so existing rows and keyless submissions are unaffected.
   @@unique([schoolId, idempotencyKey], map: "medication_doses_school_id_idempotency_key_key")
+  @@index([instructionId])
   @@map("medication_doses")
 }
 
@@ -4453,6 +4563,7 @@ model SafeguardingEntry {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, concernId])
+  @@index([concernId])
   @@map("safeguarding_entries")
 }
 
@@ -4476,6 +4587,7 @@ model SafeguardingDisclosure {
   createdAt       DateTime  @default(now()) @map("created_at")
 
   @@index([schoolId, concernId])
+  @@index([concernId])
   @@map("safeguarding_disclosures")
 }
 
@@ -4510,6 +4622,7 @@ model TransportRiderStop {
   updatedAt DateTime      @updatedAt @map("updated_at")
 
   @@index([schoolId])
+  @@index([stopId])
   @@map("transport_rider_stops")
 }
 
@@ -4549,6 +4662,7 @@ model TransportTrip {
   @@unique([routeId, serviceDate, direction])
   @@index([schoolId, campusId, serviceDate])
   @@index([schoolId, attendantId, serviceDate])
+  @@index([vehicleId])
   @@map("transport_trips")
 }
 
@@ -4615,6 +4729,7 @@ model TripException {
   resolvedAt   DateTime?     @map("resolved_at")
 
   @@index([schoolId, tripId, status])
+  @@index([tripId])
   @@map("trip_exceptions")
 }
 
@@ -4690,6 +4805,8 @@ model PolicyOverride {
   createdAt     DateTime       @default(now()) @map("created_at")
 
   @@index([schoolId, campusId, status])
+  @@index([templateId])
+  @@index([versionId])
   @@map("policy_overrides")
 }
 
@@ -4774,6 +4891,7 @@ model TaxFixtureRun {
   createdAt    DateTime      @default(now()) @map("created_at")
 
   @@index([schoolId, activationId])
+  @@index([activationId])
   @@map("tax_fixture_runs")
 }
 
@@ -4806,6 +4924,7 @@ model TaxDocument {
   @@unique([schoolId, documentNumber])
   @@unique([schoolId, externalId])
   @@index([schoolId, submissionStatus])
+  @@index([activationId])
   @@map("tax_documents")
 }
 
@@ -4874,6 +4993,7 @@ model IntegrationCredential {
   revokedAt    DateTime?             @map("revoked_at")
 
   @@index([schoolId, connectionId])
+  @@index([connectionId])
   @@map("integration_credentials")
 }
 
@@ -4916,6 +5036,7 @@ model IntegrationDelivery {
 
   @@unique([connectionId, eventId])
   @@index([schoolId, status, nextAttemptAt])
+  @@index([eventId])
   @@map("integration_deliveries")
 }
 
@@ -4937,6 +5058,7 @@ model IntegrationDeliveryAttempt {
   createdAt     DateTime            @default(now()) @map("created_at")
 
   @@index([schoolId, deliveryId])
+  @@index([deliveryId])
   @@map("integration_delivery_attempts")
 }
 
@@ -4953,6 +5075,7 @@ model IntegrationCommand {
   createdAt      DateTime              @default(now()) @map("created_at")
 
   @@unique([connectionId, idempotencyKey])
+  @@index([schoolId])
   @@map("integration_commands")
 }
 
@@ -4981,6 +5104,7 @@ model IntegrationExternalRef {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@unique([connectionId, studentId, system])
+  @@index([schoolId])
   @@map("integration_external_refs")
 }
 
@@ -5032,6 +5156,7 @@ model IdentityLink {
 
   @@unique([connectionId, subject])
   @@unique([connectionId, userId])
+  @@index([schoolId])
   @@map("identity_links")
 }
 
@@ -5053,6 +5178,7 @@ model IdentityLinkRequest {
   createdAt        DateTime           @default(now()) @map("created_at")
 
   @@unique([connectionId, subject])
+  @@index([schoolId])
   @@map("identity_link_requests")
 }
 
@@ -5090,6 +5216,7 @@ model RosterBatch {
   createdAt       DateTime           @default(now()) @map("created_at")
 
   @@unique([connectionId, externalBatchId])
+  @@index([schoolId])
   @@map("roster_batches")
 }
 
@@ -5106,6 +5233,7 @@ model RosterExternalId {
 
   @@unique([connectionId, kind, externalId])
   @@unique([connectionId, kind, localId])
+  @@index([schoolId])
   @@map("roster_external_ids")
 }
 
@@ -5170,6 +5298,7 @@ model StaffInvitation {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([schoolId])
+  @@index([campusId])
   @@map("staff_invitations")
 }
 
@@ -5349,6 +5478,7 @@ model PasswordReset {
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([userId])
   @@map("password_resets")
 }
 
@@ -5374,6 +5504,7 @@ model StudentClassHistory {
   @@unique([studentId, classId, academicYear])
   @@index([campusId, academicYear])
   @@index([schoolId])
+  @@index([classId])
   @@map("student_class_history")
 }
 
@@ -5604,6 +5735,7 @@ model RouteVehicle {
 
   @@unique([routeId, vehicleId])
   @@index([schoolId])
+  @@index([vehicleId])
   @@map("route_vehicles")
 }
 
@@ -5649,6 +5781,7 @@ model DormRoom {
 
   @@unique([campusId, number])
   @@index([schoolId])
+  @@index([roomTypeId])
   @@map("dorm_rooms")
 }
 
@@ -5769,6 +5902,8 @@ model Book {
   issues BookIssue[]
 
   @@index([schoolId])
+  @@index([campusId])
+  @@index([categoryId])
   @@map("books")
 }
 
@@ -5789,6 +5924,7 @@ model LibraryMember {
   @@unique([campusId, userId])
   @@unique([campusId, memberNo])
   @@index([schoolId])
+  @@index([userId])
   @@map("library_members")
 }
 
@@ -5816,6 +5952,7 @@ model BookIssue {
   @@index([memberId, returnedAt])
   @@index([bookId])
   @@index([schoolId, returnedAt, dueAt])
+  @@index([memberId])
   @@map("book_issues")
 }
 
@@ -5852,6 +5989,8 @@ model Item {
   transactions ItemTransaction[]
 
   @@index([schoolId])
+  @@index([campusId])
+  @@index([categoryId])
   @@map("items")
 }
 
@@ -5887,6 +6026,7 @@ model Supplier {
   transactions ItemTransaction[]
 
   @@index([schoolId])
+  @@index([campusId])
   @@map("suppliers")
 }
 
@@ -5902,6 +6042,7 @@ model ItemStock {
 
   @@unique([itemId, storeId])
   @@index([schoolId])
+  @@index([storeId])
   @@map("item_stock")
 }
 
@@ -5929,6 +6070,10 @@ model ItemTransaction {
 
   @@unique([schoolId, idempotencyKey])
   @@index([schoolId])
+  @@index([campusId])
+  @@index([itemId])
+  @@index([storeId])
+  @@index([supplierId])
   @@index([schoolId, campusId, date])
   @@map("item_transactions")
 }
@@ -6003,6 +6148,7 @@ model Complaint {
   @@unique([campusId, idempotencyKey])
   @@index([campusId, status])
   @@index([schoolId])
+  @@index([ownerId])
   @@map("complaints")
 }
 
@@ -6061,6 +6207,7 @@ model PostalRecord {
   @@unique([campusId, idempotencyKey])
   @@index([campusId, status])
   @@index([schoolId])
+  @@index([ownerId])
   @@map("postal_records")
 }
 
@@ -6144,6 +6291,8 @@ model PhoneCallback {
   @@index([campusId, status, dueAt])
   @@index([callId])
   @@index([schoolId])
+  @@index([ownerId])
+  @@index([previousId])
   @@map("phone_callbacks")
 }
 
@@ -6189,6 +6338,7 @@ model CertificateTemplate {
   issues           CertificateIssue[]
 
   @@index([schoolId])
+  @@index([campusId])
   @@map("certificate_templates")
 }
 
@@ -6264,6 +6414,9 @@ model CertificateIssue {
   @@index([campusId, status])
   @@index([studentId])
   @@index([schoolId])
+  @@index([templateId])
+  @@index([templateVersionId])
+  @@index([previousId])
   @@map("certificate_issues")
 }
 
@@ -6291,6 +6444,8 @@ model ExamRoom {
 
   @@unique([examScheduleId, roomId])
   @@index([schoolId])
+  @@index([campusId])
+  @@index([roomId])
   @@map("exam_rooms")
 }
 
@@ -6323,6 +6478,8 @@ model ExamSeat {
   @@unique([examScheduleId, studentId])
   @@index([examRoomId])
   @@index([schoolId])
+  @@index([campusId])
+  @@index([studentId])
   @@map("exam_seats")
 }
 
@@ -6398,6 +6555,9 @@ model Conversation {
   @@unique([schoolId, pairKey])
   @@index([schoolId, campusId, lastMessageAt(sort: Desc)])
   @@index([schoolId, classId])
+  @@index([campusId])
+  @@index([classId])
+  @@index([createdById])
   @@map("conversations")
 }
 
@@ -6470,6 +6630,8 @@ model ChatMessage {
   @@unique([conversationId, clientKey])
   @@index([conversationId, createdAt(sort: Desc)])
   @@index([schoolId])
+  @@index([senderId])
+  @@index([replyToId])
   @@map("chat_messages")
 }
 
@@ -6543,6 +6705,7 @@ model StudentEnrollment {
   invoices Invoice[]
   reports ReportCard[]
   @@index([schoolId, studentId, startDate])
+  @@index([studentId])
   @@map("student_enrollments")
 }
 
@@ -6564,6 +6727,7 @@ model EnrollmentProposal {
   createdAt DateTime @default(now()) @map("created_at")
   confirmedAt DateTime? @map("confirmed_at")
   @@index([schoolId, studentId])
+  @@index([studentId])
   @@map("enrollment_proposals")
 }
 // Shared authentication counters: keys are hashed and contain no plaintext identifiers.
@@ -6586,6 +6750,7 @@ model ActivityJob {
   @@unique([schoolId, identity])
   @@unique([id, schoolId])
   @@index([schoolId, campusId, createdAt], map: "activity_jobs_scope")
+  @@index([campusId])
   @@map("activity_jobs")
 }
 
@@ -6608,6 +6773,7 @@ model ActivityItem {
 
   @@unique([jobId, referenceId])
   @@index([jobId, schoolId], map: "activity_items_job")
+  @@index([workflowId, schoolId])
   @@map("activity_items")
 }
 
@@ -6623,6 +6789,7 @@ model DeliveryReceipt {
   receivedAt        DateTime            @default(now()) @map("received_at")
 
   @@unique([communicationId, state, occurredAt])
+  @@index([schoolId])
   @@map("delivery_receipts")
 }
 
@@ -6701,6 +6868,7 @@ model LocalePolicy {
   financeReviewedBy String? @map("finance_reviewed_by")
   @@unique([schoolId, scopeKey, effectiveAt])
   @@index([schoolId, campusId, effectiveAt])
+  @@index([campusId])
   @@map("locale_policies")
 }
 
@@ -6735,6 +6903,8 @@ model Correction {
 
   @@index([schoolId, campusId, studentId])
   @@index([sourceId, requestedAt])
+  @@index([campusId])
+  @@index([studentId])
   @@map("corrections")
 }
 
@@ -6767,6 +6937,7 @@ model PaymentAllocation {
 
   @@unique([paymentId, invoiceId])
   @@index([schoolId, campusId])
+  @@index([invoiceId])
   @@map("payment_allocations")
 }
 
@@ -6819,6 +6990,7 @@ model SchoolAiRecord {
   @@index([schoolId, campusId, kind, updatedAt])
   @@index([schoolId, campusId, createdById, updatedAt])
   @@index([schoolId, campusId, subjectId, status])
+  @@index([campusId])
   @@map("school_ai_records")
 }
 
@@ -6840,6 +7012,8 @@ model SchoolAiRevision {
 
   @@unique([recordId, version])
   @@index([schoolId, campusId, createdAt])
+  @@index([campusId])
+  @@index([recordId, schoolId])
   @@map("school_ai_revisions")
 }
 
@@ -6891,6 +7065,8 @@ model SchoolAiExamAssignment {
   @@index([schoolId, campusId, classId, startsAt])
   @@index([schoolId, campusId, paperSlotId])
   @@index([schoolId, createdById, status])
+  @@index([campusId])
+  @@index([paperId, schoolId])
   @@map("school_ai_exam_assignments")
 }
 
@@ -6929,6 +7105,8 @@ model SchoolAiExamAttempt {
   @@unique([assignmentId, userId])
   @@unique([id, schoolId, campusId])
   @@index([schoolId, campusId, studentId, status])
+  @@index([campusId])
+  @@index([assignmentId, schoolId, campusId])
   @@map("school_ai_exam_attempts")
 }
 
@@ -6958,6 +7136,8 @@ model SchoolAiExamIntegrityEvent {
   @@unique([attemptId, clientEventId])
   @@index([schoolId, campusId, assignmentId, receivedAt], map: "school_ai_integrity_scope_received_idx")
   @@index([schoolId, retentionUntil], map: "school_ai_integrity_retention_idx")
+  @@index([assignmentId, schoolId, campusId])
+  @@index([attemptId, schoolId, campusId])
   @@map("school_ai_exam_integrity_events")
 }
 
@@ -6983,6 +7163,8 @@ model SchoolAiExecution {
   @@unique([schoolId, requestedById, idempotencyKey])
   @@unique([recordId, recordVersion, operation])
   @@index([schoolId, campusId, createdAt])
+  @@index([campusId])
+  @@index([recordId, schoolId])
   @@map("school_ai_executions")
 }
 
@@ -7024,6 +7206,8 @@ model SchoolAiRequest {
   @@unique([conversationId, conversationVersion])
   @@index([schoolId, campusId, actorId, createdAt])
   @@index([status, leaseExpiresAt])
+  @@index([conversationId, schoolId])
+  @@index([campusId])
   @@map("school_ai_requests")
 }
 
@@ -7050,6 +7234,7 @@ model SchoolAiConversation {
   @@unique([id, schoolId])
   @@unique([schoolId, actorId, idempotencyKey])
   @@index([schoolId, campusId, actorId, updatedAt])
+  @@index([campusId])
   @@map("school_ai_conversations")
 }
 
@@ -7082,6 +7267,8 @@ model SchoolAiSetupTask {
   @@unique([schoolId, requestedById, idempotencyKey])
   @@index([schoolId, campusId, assigneeId, status])
   @@index([schoolId, recordId])
+  @@index([campusId])
+  @@index([recordId, schoolId])
   @@map("school_ai_setup_tasks")
 }
 
@@ -7098,6 +7285,7 @@ model SchoolAiSetupTaskRevision {
   createdAt DateTime @default(now()) @map("created_at")
   @@unique([taskId, version])
   @@index([schoolId, taskId])
+  @@index([taskId, schoolId])
   @@map("school_ai_setup_task_revisions")
 }
 
@@ -7114,6 +7302,8 @@ model ExamInvigilation {
   createdById String @map("created_by_id")
   createdAt DateTime @default(now()) @map("created_at")
   @@index([schoolId, campusId, teacherId])
+  @@index([campusId])
+  @@index([teacherId])
   @@map("exam_invigilations")
 }
 
@@ -7137,6 +7327,8 @@ model SchoolAiSubstituteDuty {
   updatedAt DateTime @updatedAt @map("updated_at")
   @@unique([schoolId, timetableSlotId, date])
   @@index([schoolId, campusId, date, teacherId, status])
+  @@index([campusId])
+  @@index([timetableSlotId])
   @@map("school_ai_substitute_duties")
 }
 
@@ -7156,6 +7348,8 @@ model SchoolAiExamResultRevision {
   createdAt DateTime @default(now()) @map("created_at")
   @@unique([attemptId, version])
   @@index([schoolId, campusId, assignmentId, attemptId])
+  @@index([campusId])
+  @@index([attemptId, schoolId, campusId])
   @@map("school_ai_exam_result_revisions")
 }
 
@@ -7184,6 +7378,8 @@ model SchoolAiExamAppeal {
   updatedAt DateTime @updatedAt @map("updated_at")
   @@unique([attemptId, resultVersion])
   @@index([schoolId, campusId, assignmentId, status])
+  @@index([campusId])
+  @@index([attemptId, schoolId, campusId])
   @@map("school_ai_exam_appeals")
 }
 
@@ -7216,6 +7412,7 @@ model SchoolAiRun {
   @@unique([schoolId, actorId, idempotencyKey])
   @@index([status, scheduledAt, id])
   @@index([schoolId, campusId, createdAt])
+  @@index([campusId])
   @@map("school_ai_runs")
 }
 
@@ -7248,6 +7445,8 @@ model SchoolAiDocumentJob {
   @@unique([recordId, recordVersion, kind])
   @@index([status, scheduledAt, id])
   @@index([schoolId, campusId, recordId])
+  @@index([campusId])
+  @@index([recordId, schoolId])
   @@map("school_ai_document_jobs")
 }
 
@@ -7271,6 +7470,8 @@ model GuardianChannelPreference {
   updatedAt DateTime @updatedAt @map("updated_at")
   @@unique([schoolId, campusId, guardianUserId, channel], map: "guardian_channel_preferences_scope_channel_key")
   @@index([schoolId, campusId])
+  @@index([campusId])
+  @@index([guardianUserId])
   @@map("guardian_channel_preferences")
 }
 
@@ -7300,6 +7501,8 @@ model SchoolAiProctorSession {
   @@unique([id, schoolId, campusId])
   @@index([schoolId, campusId, assignmentId], map: "school_ai_proctor_sessions_school_id_campus_id_assignment_id_id")
   @@index([schoolId, status, retentionUntil])
+  @@index([assignmentId, schoolId, campusId])
+  @@index([attemptId, schoolId, campusId])
   @@map("school_ai_proctor_sessions")
 }
 model SchoolAiProctorClip {
@@ -7318,6 +7521,7 @@ model SchoolAiProctorClip {
   deletedAt DateTime? @map("deleted_at")
   @@unique([sessionId, sequence])
   @@index([schoolId, status, createdAt])
+  @@index([sessionId, schoolId, campusId])
   @@map("school_ai_proctor_clips")
 }
 
@@ -7346,6 +7550,7 @@ model SchoolAiExamFormSet {
 
   @@unique([id, schoolId, campusId])
   @@index([schoolId, campusId, status, updatedAt], map: "school_ai_exam_form_sets_scope_status_updated_at_idx")
+  @@index([campusId])
   @@map("school_ai_exam_form_sets")
 }
 
@@ -7373,6 +7578,8 @@ model SchoolAiExamFormRelease {
   @@unique([formSetId, formLabel, language], map: "school_ai_exam_form_releases_form_set_label_language_key")
   @@unique([paperId, paperVersion, language], map: "school_ai_exam_form_releases_paper_version_language_key")
   @@index([schoolId, campusId, contentHash], map: "school_ai_exam_form_releases_scope_content_hash_idx")
+  @@index([campusId])
+  @@index([formSetId, schoolId, campusId])
   @@map("school_ai_exam_form_releases")
 }
 
@@ -7392,6 +7599,7 @@ model SchoolAiExamFormAllocation {
 
   @@unique([formSetId, studentId])
   @@index([schoolId, campusId, assignmentId])
+  @@index([formSetId, schoolId, campusId])
   @@map("school_ai_exam_form_allocations")
 }
 
@@ -7416,6 +7624,7 @@ model SchoolAiExposureEntry {
 
   @@index([schoolId, campusId, itemGroupId, examDate(sort: Desc)], map: "school_ai_exposure_entries_group_idx")
   @@index([schoolId, campusId, paperId, paperVersion], map: "school_ai_exposure_entries_paper_idx")
+  @@index([campusId])
   @@map("school_ai_exposure_entries")
 }
 
@@ -7585,6 +7794,7 @@ model LearningResourceVersion {
   createdAt   DateTime  @default(now()) @map("created_at")
 
   @@unique([resourceId, version])
+  @@index([schoolId])
   @@map("learning_resource_versions")
 }
 
@@ -7666,6 +7876,7 @@ model AssignmentRubricVersion {
   createdAt    DateTime   @default(now()) @map("created_at")
 
   @@unique([assignmentId, version])
+  @@index([schoolId])
   @@map("assignment_rubric_versions")
 }
 
@@ -7695,6 +7906,7 @@ model AssignmentVersion {
   releasedAt       DateTime   @default(now()) @map("released_at")
 
   @@unique([assignmentId, version])
+  @@index([schoolId])
   @@map("assignment_versions")
 }
 
@@ -7714,6 +7926,7 @@ model AssignmentExtension {
   createdAt    DateTime   @default(now()) @map("created_at")
 
   @@index([schoolId, assignmentId, studentId])
+  @@index([assignmentId])
   @@map("assignment_extensions")
 }
 
@@ -7801,6 +8014,7 @@ model AssignmentFeedback {
   createdAt           DateTime                    @default(now()) @map("created_at")
   updatedAt           DateTime                    @updatedAt @map("updated_at")
 
+  @@index([schoolId])
   @@map("assignment_feedback")
 }
 
@@ -7848,6 +8062,7 @@ model AccommodationSupportRecord {
   createdAt   DateTime          @default(now()) @map("created_at")
 
   @@index([schoolId, planId])
+  @@index([planId])
   @@map("accommodation_support_records")
 }
 
@@ -7863,6 +8078,7 @@ model AccommodationRehearsal {
   completedAt DateTime          @default(now()) @map("completed_at")
 
   @@index([schoolId, studentId])
+  @@index([planId])
   @@map("accommodation_rehearsals")
 }
 
@@ -9436,6 +9652,7 @@ model EvidenceItem {
   createdAt     DateTime          @default(now()) @map("created_at")
 
   @@index([schoolId, frameworkId])
+  @@index([frameworkId])
   @@map("evidence_items")
 }
 
@@ -9463,6 +9680,7 @@ model ImprovementAction {
   updatedAt            DateTime          @default(now()) @updatedAt @map("updated_at")
 
   @@index([schoolId, frameworkId])
+  @@index([frameworkId])
   @@map("improvement_actions")
 }
 
@@ -9479,6 +9697,7 @@ model EvidenceReviewerGrant {
   createdAt    DateTime          @default(now()) @map("created_at")
 
   @@index([schoolId, userId])
+  @@index([frameworkId])
   @@map("evidence_reviewer_grants")
 }
 
@@ -9976,6 +10195,7 @@ model ExamPaperModeration {
   createdAt     DateTime      @default(now()) @map("created_at")
 
   @@index([schoolId, campusId, slotId, createdAt])
+  @@index([slotId])
   @@map("exam_paper_moderations")
 }
 
@@ -10125,6 +10345,7 @@ model AiWorkflowJob {
   @@unique([schoolId, actorId, idempotencyKey])
   @@index([status, nextWakeAt])
   @@index([schoolId, actorId, updatedAt])
+  @@index([campusId])
   @@map("ai_workflow_jobs")
 }
 
@@ -10143,6 +10364,7 @@ model AiWorkflowSegment {
 
   @@unique([jobId, ordinal])
   @@index([schoolId, jobId])
+  @@index([jobId, schoolId])
   @@map("ai_workflow_segments")
 }
 
@@ -10186,6 +10408,7 @@ model AiWorkflowStep {
   @@unique([jobId, planVersion, stepKey])
   @@unique([schoolId, idempotencyKey])
   @@index([schoolId, jobId, status])
+  @@index([jobId, schoolId])
   @@map("ai_workflow_steps")
 }
 
@@ -10210,6 +10433,7 @@ model AiWorkflowIntent {
 
   @@unique([schoolId, actorId, idempotencyKey])
   @@index([schoolId, state, createdAt])
+  @@index([jobId, schoolId])
   @@map("ai_workflow_intents")
 }
 
@@ -10231,6 +10455,7 @@ model AiWorkflowQuestion {
   createdAt    DateTime      @default(now()) @map("created_at")
 
   @@index([schoolId, jobId, status])
+  @@index([jobId, schoolId])
   @@map("ai_workflow_questions")
 }
 
@@ -10255,6 +10480,7 @@ model AiWorkflowConfirmation {
 
   @@unique([stepId, previewVersion])
   @@unique([schoolId, confirmedById, clientCommandId])
+  @@index([jobId, schoolId])
   @@map("ai_workflow_confirmations")
 }
 
@@ -10291,6 +10517,7 @@ model AiWorkflowHandoff {
 
   @@unique([schoolId, idempotencyKey])
   @@index([schoolId, campusId, status, kind])
+  @@index([jobId, schoolId])
   @@map("ai_workflow_handoffs")
 }
 
@@ -10308,6 +10535,7 @@ model AiWorkflowEvent {
 
   @@unique([jobId, seq])
   @@index([schoolId, jobId])
+  @@index([jobId, schoolId])
   @@map("ai_workflow_events")
 }
 
@@ -10351,6 +10579,7 @@ model AiSetupResponse {
 
   /// SKAI-1730: one response per campus, so a transferred user starts fresh and old-campus history is kept.
   @@unique([schoolId, userId, questionnaireKey, campusId])
+  @@index([campusId])
   @@map("ai_setup_responses")
 }
 
@@ -10422,6 +10651,8 @@ model CurriculumPackActivation {
   events              CurriculumPackActivationEvent[]
   @@index([schoolId, campusId, status])
   @@index([schoolId, packVersionId])
+  @@index([campusId])
+  @@index([packVersionId])
   @@map("curriculum_pack_activations")
 }
 
@@ -10439,6 +10670,7 @@ model CurriculumPackActivationEvent {
   contentSha256 String   @map("content_sha256")
   at            DateTime @default(now())
   @@index([schoolId, activationId, at])
+  @@index([activationId])
   @@map("curriculum_pack_activation_events")
 }
 
