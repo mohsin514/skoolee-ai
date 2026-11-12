@@ -547,6 +547,7 @@ async function loadCampusDashboardData() {
     aiSetupPending,
     attendanceTrend,
     attendanceByStudent,
+    activeAcademicYear,
   ] = await Promise.all([
     L.required("locale", () => getLocalePackage(session.schoolId, campusId)),
     L.widget("classes", () => prisma.class.findMany({
@@ -716,6 +717,8 @@ async function loadCampusDashboardData() {
     L.widget("aiSetupPending", () => aiSetupPendingFor(session), false),
     L.widget("attendanceTrend", () => attendanceTrendCounts(session.schoolId, campusId), []),
     L.widget("attendanceByStudent", () => attendanceCountsByStudent(session.schoolId, campusId), []),
+    // SKAI-1821: the Report cards view lists this year's exams by default (null: list every year, as before).
+    L.widget("activeAcademicYear", () => getActiveAcademicYear(campusId), null),
   ]);
 
   const currencyCounts = new Map<string, number>();
@@ -772,6 +775,7 @@ async function loadCampusDashboardData() {
     students: withAttendanceMarks(students, attendanceByStudent),
     attendanceTrend,
     recentExams,
+    activeAcademicYear,
     reportCardCounts,
     studentCount,
     aiInsights,
