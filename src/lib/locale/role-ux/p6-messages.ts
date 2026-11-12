@@ -790,6 +790,7 @@ const P6: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Locked or published", "مقفلة أو منشورة", "لاک یا شائع شدہ"],
   ["Open a class to type its marks, one subject at a time.", "افتح فصلًا لإدخال درجاته مادةً مادة.", "نمبر درج کرنے کے لیے جماعت کھولیں، ایک وقت میں ایک مضمون۔"],
   ["Other exams ({0})", "امتحانات أخرى ({0})", "دیگر امتحانات ({0})"],
+  ["Include earlier years", "تضمين السنوات السابقة", "پچھلے سال بھی شامل کریں"],
   ["Papers seated", "أوراق وُزّعت مقاعدها", "پرچے جن کی نشستیں طے ہیں"],
   ["Papers to place", "أوراق للجدولة", "ترتیب دینے کے پرچے"],
   ["Ready to lock", "جاهزة للإقفال", "لاک کے لیے تیار"],
