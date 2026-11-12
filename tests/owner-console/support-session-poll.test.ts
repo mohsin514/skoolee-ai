@@ -89,3 +89,20 @@ test("a slow earlier answer never overwrites a newer one, and cleanup removes ev
   assert.equal(h.timers.size, 0);
   assert.equal([...h.listeners.values()].reduce((n, s) => n + s.size, 0), 0);
 });
+
+test("a transient failure during a live session keeps polling, and an already-expired session schedules no 1s loop", async () => {
+  const h = harness(); let reads = 0; let fail = false; const seen: Array<string | null> = [];
+  const stop = watchSupportSession(async () => { reads++; if (fail) throw new Error("blip"); return { ok: true, session: active("grant-c", 3_600_000) }; }, (c) => seen.push(c.session?.id ?? null), h.host, h.doc as never);
+  await h.flush();
+  fail = true; await h.advance(SUPPORT_SESSION_POLL_MS);
+  assert.equal(reads, 2); assert.equal(seen.at(-1), null);
+  fail = false; await h.advance(SUPPORT_SESSION_POLL_MS);
+  assert.equal(reads, 3); assert.equal(seen.at(-1), "grant-c", "the live session comes back on the next poll");
+  stop();
+  const h2 = harness(); let reads2 = 0;
+  const stop2 = watchSupportSession(async () => { reads2++; return { ok: true, session: active("skewed", -5_000) }; }, () => undefined, h2.host, h2.doc as never);
+  await h2.flush(); await h2.advance(10_000);
+  assert.equal(reads2, 1, "no re-check every second while the server still reports the session");
+  assert.equal([...h2.timers.values()].filter((t) => !t.every).length, 0);
+  stop2();
+});

@@ -28,6 +28,7 @@ export function watchSupportSession<T extends SupportSessionState>(
   let sequence = 0;
   let poll: number | undefined;
   let expiry: number | undefined;
+  let known: T | null = null;
   const stopTimers = () => {
     if (poll !== undefined) host.clearInterval(poll);
     if (expiry !== undefined) host.clearTimeout(expiry);
@@ -37,15 +38,20 @@ export function watchSupportSession<T extends SupportSessionState>(
     stopTimers();
     if (!alive || !session) return;
     poll = host.setInterval(() => { if (!doc.hidden) void refresh(); }, SUPPORT_SESSION_POLL_MS);
+    // One check just after expiry. Skip it when the client clock already says expired (clock skew):
+    // a 0ms timer would re-check every second until the server agrees, and the poll covers it.
     const untilExpiry = Date.parse(session.expiresAt) - Date.now();
-    if (Number.isFinite(untilExpiry)) expiry = host.setTimeout(() => void refresh(), Math.max(0, untilExpiry) + 1_000);
+    if (Number.isFinite(untilExpiry) && untilExpiry > 0) expiry = host.setTimeout(() => void refresh(), Math.min(untilExpiry + 1_000, 2_147_483_647));
   };
   const refresh = async () => {
     const mine = ++sequence;
     let check: SupportSessionCheck<T>;
     try { check = await read(); } catch { check = { ok: false, session: null }; }
     if (!alive || mine !== sequence) return;
-    schedule(check.session);
+    // A failed check while a session was known keeps polling, so a transient error does not hide a
+    // live session until the next tab switch.
+    if (check.ok) known = check.session;
+    schedule(check.ok ? check.session : known);
     onCheck(check);
   };
   const onChange = () => void refresh();
