@@ -35,6 +35,7 @@
     "test:grace-dates": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/billing/grace-date-validation.test.ts",
     "test:marks-scan-reversal": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/marks-scan/reversal-exempt-state.database.test.ts",
     "test:record-cascades": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/db/record-cascades.database.test.ts",
+    "test:campus-pinning-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/campus-school-pinning.database.test.ts",
     "test:composer-send-gate": "node --import ./tests/support/server-only.mjs --import tsx --test tests/chat/composer-send-gate.test.ts",
     "test:inventory-movements": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/inventory/transaction-list-paging.test.ts",
     "test:inventory-names": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/inventory/name-validation.test.ts",
