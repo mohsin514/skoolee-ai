@@ -126,17 +126,22 @@ export function searchKnowledge(user: AuthUser, raw: string, embed: Embed = embe
     // ACL is applied before any content is loaded, ranked, embedded or sent to generation.
     const docs = await prisma.ragDocument.findMany({ where: readableWhere(user), select: { id: true, title: true, version: true, indexMode: true }, take: 101 });
     if (docs.length > 100) throw new SchoolAiError("Knowledge index exceeds its supported capacity.", 503);
-    const chunks = docs.length ? await prisma.ragChunk.findMany({ where: { schoolId: user.schoolId, OR: docs.map(doc => ({ documentId: doc.id, version: doc.version })) }, take: 6001 }) : [];
-    if (chunks.length > 6000) throw new SchoolAiError("Knowledge index exceeds its supported capacity.", 503);
+    // Embedding vectors are the bulk of each row; load them only for the semantic lane, after a query vector exists.
+    const indexed = { schoolId: user.schoolId, OR: docs.map(doc => ({ documentId: doc.id, version: doc.version })) };
+    const rows = docs.length ? await prisma.ragChunk.findMany({ where: indexed, select: { id: true, documentId: true, text: true, startOffset: true, endOffset: true, model: true }, take: 6001 }) : [];
+    if (rows.length > 6000) throw new SchoolAiError("Knowledge index exceeds its supported capacity.", 503);
     let vector: number[] | null = null;
-    if (chunks.some(chunk => chunk.model === EMBEDDING_MODEL)) {
+    if (rows.some(chunk => chunk.model === EMBEDDING_MODEL)) {
       const masked = await maskKnowledge(user, [query]);
       try { vector = (await embed(masked.texts, { schoolId: user.schoolId, campusId: user.campusId, userId: user.userId, role: user.role, feature: "RAG_SEARCH" }))?.[0] ?? null; } catch { /* Search remains lexical when provider is unavailable. */ }
     }
-    const ranked = hybridRank(query, chunks.map(chunk => ({ ...chunk, title: docs.find(doc => doc.id === chunk.documentId)!.title })), vector, EMBEDDING_MODEL);
+    const embeddings = new Map<string, number[]>();
+    if (vector) for (const row of await prisma.ragChunk.findMany({ where: { ...indexed, model: EMBEDDING_MODEL }, select: { id: true, embedding: true }, take: 6001 })) embeddings.set(row.id, row.embedding);
+    const docById = new Map(docs.map(doc => [doc.id, doc])), rowById = new Map(rows.map(row => [row.id, row]));
+    const ranked = hybridRank(query, rows.map(chunk => ({ ...chunk, title: docById.get(chunk.documentId)!.title, embedding: embeddings.get(chunk.id) ?? [] })), vector, EMBEDDING_MODEL);
     const sources = ranked.map(({ chunk }) => {
-      const row = chunks.find(row => row.id === chunk.id)!;
-      const doc = docs.find(doc => doc.id === chunk.documentId)!;
+      const row = rowById.get(chunk.id)!;
+      const doc = docById.get(chunk.documentId)!;
       return { documentId: doc.id, chunkId: chunk.id, title: doc.title, version: doc.version, text: chunk.text, startOffset: row.startOffset, endOffset: row.endOffset,
         href: `/ai/knowledge/${encodeURIComponent(doc.id)}?version=${doc.version}` };
     });
