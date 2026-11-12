@@ -63,6 +63,8 @@ test("a write during the load fails visibly instead of returning shifted rows", 
   await assert.rejects(loadListPages("/synthetic", new URLSearchParams(), grown.request), /list changed/);
   const shrunk = pagedApi(450, (page, body) => { if (page === 5) { body.data = []; } });
   await assert.rejects(loadListPages("/synthetic", new URLSearchParams(), shrunk.request), /list changed/);
+  const emptyFirst = pagedApi(450, (page, body) => { if (page === 1) body.data = []; });
+  await assert.rejects(loadListPages("/synthetic", new URLSearchParams(), emptyFirst.request), /list changed/);
   const repaged = pagedApi(450, (page, body) => { if (page === 2) body.pagination.pages = 6; });
   await assert.rejects(loadListPages("/synthetic", new URLSearchParams(), repaged.request), /list changed/);
   const malformed = pagedApi(450, (_page, body) => { (body.pagination as { pages: unknown }).pages = "5"; });

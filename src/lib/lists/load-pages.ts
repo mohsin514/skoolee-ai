@@ -24,6 +24,7 @@ export async function loadListPages<T>(path: string, params = new URLSearchParam
   };
 
   const first = await readPage(1);
+  if (first.pages > 1 && first.data.length === 0) throw listChanged();
   const results: T[][] = [first.data];
   const remaining = Array.from({ length: Math.max(0, first.pages - 1) }, (_, index) => index + 2);
   let next = 0;
