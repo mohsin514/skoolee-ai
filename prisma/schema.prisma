@@ -7729,6 +7729,22 @@ model SchoolAiExposureEntry {
   @@map("school_ai_exposure_entries")
 }
 
+// ─── SKAI-1808: free-text status watch (platform-level; written only by a database trigger) ───
+// Any write of a status value outside src/lib/db/status-values.ts is recorded here and still allowed, so the
+// lists can become CHECK constraints once this table stays empty for a release.
+model StatusValueViolation {
+  id          String   @id @default(uuid())
+  tableName   String   @map("table_name")
+  columnName  String   @map("column_name")
+  value       String
+  occurrences Int      @default(1)
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+
+  @@unique([tableName, columnName, value])
+  @@map("status_value_violations")
+}
+
 // ─── Data lifecycle (SKO-447) ─────────────────────────────────────
 // Versioned retention per record category: a change adds a version, it never edits history.
 model DataRetentionSchedule {
