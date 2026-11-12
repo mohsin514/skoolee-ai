@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { moduleFlags } from "@/lib/permissions";
-import { requireMembership } from "@/lib/chat/membership";
+import { accessibleConversationIds, requireMembership } from "@/lib/chat/membership";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { notificationHref, type NotificationLinkContext } from "@/lib/notifications/links";
 
@@ -25,6 +25,43 @@ async function canReviewLeave(user: AuthUser, db: TxClient) {
   return moduleFlags(grants, user.role, "leave").canEdit;
 }
 
+type Batch<T> = (id: string) => Promise<T | null>;
+
+/** One query for every id on the page, run the first time any row of that type asks (SKAI-1839). */
+function batched<T extends { id: string }>(ids: string[], load: (ids: string[]) => Promise<T[]>): Batch<T> {
+  let pending: Promise<Map<string, T>> | undefined;
+  return async (id) => (await (pending ??= load(ids).then((rows) => new Map(rows.map((row) => [row.id, row]))))).get(id) ?? null;
+}
+
+/**
+ * SKAI-1839: the source records a set of notification rows point at, read once per source type instead of once per
+ * row. Every read keeps the school scope; campus and role checks stay in sourceView. `batchChat` (the list) checks
+ * chat access for all conversations together; without it (the open route) each conversation goes through
+ * requireMembership as before.
+ */
+export function sourceLookup(user: AuthUser, rows: Pick<SourceRow, "sourceType" | "sourceId">[], db: TxClient = prisma, options: { batchChat?: boolean } = {}) {
+  const ids = (type: string) => [...new Set(rows.flatMap((row) => (row.sourceType === type && row.sourceId ? [row.sourceId] : [])))];
+  const scoped = (list: string[]) => ({ id: { in: list }, schoolId: user.schoolId });
+  let leaveReviewer: Promise<boolean> | undefined;
+  return {
+    canReviewLeave: () => (leaveReviewer ??= canReviewLeave(user, db)),
+    leave: batched(ids("leave"), (list) => db.leaveRequest.findMany({ where: scoped(list), select: { id: true, status: true, campusId: true } })),
+    callback: batched(ids("callback"), (list) => db.phoneCallback.findMany({ where: scoped(list), select: { id: true, status: true, ownerId: true, campusId: true } })),
+    postal: batched(ids("postal"), (list) => db.postalRecord.findMany({ where: scoped(list), select: { id: true, status: true, ownerId: true, campusId: true } })),
+    certificate: batched(ids("certificate"), (list) => db.certificateIssue.findMany({ where: scoped(list), select: { id: true, status: true, campusId: true } })),
+    application: batched(ids("application"), (list) => db.admissionApplication.findMany({ where: scoped(list), select: { id: true, status: true, ownerId: true, campusId: true } })),
+    correction: batched(ids("correction"), (list) => db.correction.findMany({ where: scoped(list), select: { id: true, status: true, campusId: true, kind: true } })),
+    taxActivation: batched(ids("tax-activation"), (list) => db.taxActivation.findMany({ where: scoped(list), select: { id: true, status: true } })),
+    /** Campuses that hold an active campus operator (the vacancy notice is resolved for these). */
+    staffedCampus: batched(ids("campus"), async (list) => (await db.user.groupBy({ by: ["campusId"], where: { schoolId: user.schoolId, campusId: { in: list }, isActive: true, role: { in: ["CAMPUS_ADMIN", "ADMIN"] } } }))
+      .flatMap((row) => (row.campusId ? [{ id: row.campusId }] : []))),
+    chat: options.batchChat
+      ? batched(ids("chat"), async (list) => [...await accessibleConversationIds(user, list, db).catch(() => new Set<string>())].map((id) => ({ id })))
+      : (id: string) => requireMembership(user, id, db).then(() => ({ id }), () => null),
+  };
+}
+export type SourceLookup = ReturnType<typeof sourceLookup>;
+
 type SourceRow = { type?: string | null; campusId?: string | null; sourceType: string | null; sourceId: string | null; link: string | null; category: string; resolvedAt: Date | null; resolution: string | null };
 
 /** The reader's own route for this row (G41b): never the stored link when it was written for another console. */
@@ -41,18 +78,18 @@ function linkFor(user: AuthUser, row: SourceRow, extra: NotificationLinkContext 
 }
 
 /** Current, permission-checked view of one notification's source. */
-export async function sourceView(user: AuthUser, row: SourceRow, db: TxClient = prisma): Promise<SourceView> {
+export async function sourceView(user: AuthUser, row: SourceRow, db: TxClient = prisma, lookup: SourceLookup = sourceLookup(user, [row], db)): Promise<SourceView> {
   if (!row.sourceType || !row.sourceId) return { state: row.resolvedAt ? "resolved" : "open", link: linkFor(user, row), resolution: row.resolution };
   if (row.sourceType === "leave") {
-    const request = await db.leaveRequest.findFirst({ where: { id: row.sourceId, schoolId: user.schoolId }, select: { status: true, campusId: true } });
-    if (!request || !(await canReviewLeave(user, db)) || (user.role !== "SUPER_ADMIN" && request.campusId !== user.campusId)) return { state: "unavailable", link: null };
+    const request = await lookup.leave(row.sourceId);
+    if (!request || !(await lookup.canReviewLeave()) || (user.role !== "SUPER_ADMIN" && request.campusId !== user.campusId)) return { state: "unavailable", link: null };
     const link = linkFor(user, { ...row, type: row.type ?? "LEAVE_APPLIED" });
     if (request.status !== "PENDING") return { state: "resolved", link, resolution: request.status === "CANCELLED" ? "CANCELLED" : "COMPLETED" };
     return { state: "open", link };
   }
   if (row.sourceType === "callback") {
     // SKO-465: the action is the owner's until the callback is completed or handed to someone else.
-    const callback = await db.phoneCallback.findFirst({ where: { id: row.sourceId, schoolId: user.schoolId }, select: { status: true, ownerId: true, campusId: true } });
+    const callback = await lookup.callback(row.sourceId);
     if (!callback || callback.campusId !== user.campusId || !FRONT_DESK.includes(user.role)) return { state: "unavailable", link: null };
     const link = linkFor(user, { ...row, type: row.type ?? "PHONE_CALLBACK_ASSIGNED" });
     if (callback.status !== "OPEN") return { state: "resolved", link, resolution: "COMPLETED" };
@@ -61,7 +98,7 @@ export async function sourceView(user: AuthUser, row: SourceRow, db: TxClient = 
   }
   if (row.sourceType === "postal") {
     // SKO-464: open until the item is handed over or given to another owner.
-    const item = await db.postalRecord.findFirst({ where: { id: row.sourceId, schoolId: user.schoolId }, select: { status: true, ownerId: true, campusId: true } });
+    const item = await lookup.postal(row.sourceId);
     if (!item || item.campusId !== user.campusId || !FRONT_DESK.includes(user.role)) return { state: "unavailable", link: null };
     const link = linkFor(user, { ...row, type: row.type ?? "POSTAL_ASSIGNED" });
     if (["COLLECTED", "DELIVERED"].includes(item.status)) return { state: "resolved", link, resolution: "COMPLETED" };
@@ -70,7 +107,7 @@ export async function sourceView(user: AuthUser, row: SourceRow, db: TxClient = 
   }
   if (row.sourceType === "certificate") {
     // SKO-469: an approval request is open until a campus operator approves or rejects it.
-    const issue = await db.certificateIssue.findFirst({ where: { id: row.sourceId, schoolId: user.schoolId }, select: { status: true, campusId: true } });
+    const issue = await lookup.certificate(row.sourceId);
     // Certificate approval is the campus operator's (§2.5): never the principal or the group admin.
     if (!issue || issue.campusId !== user.campusId || !CAMPUS_OPERATORS.includes(user.role)) return { state: "unavailable", link: null };
     const link = linkFor(user, { ...row, type: row.type ?? "CERTIFICATE_APPROVAL_NEEDED" });
@@ -78,7 +115,7 @@ export async function sourceView(user: AuthUser, row: SourceRow, db: TxClient = 
   }
   if (row.sourceType === "application") {
     // SKO-398: open while the application is active and still owned by this reader.
-    const application = await db.admissionApplication.findFirst({ where: { id: row.sourceId, schoolId: user.schoolId }, select: { status: true, ownerId: true, campusId: true } });
+    const application = await lookup.application(row.sourceId);
     if (!application || application.campusId !== user.campusId || !FRONT_DESK.includes(user.role)) return { state: "unavailable", link: null };
     const link = linkFor(user, { ...row, type: row.type ?? "ADMISSION_APPLICATION_ASSIGNED" });
     if (["ENROLLED", "REJECTED", "DECLINED", "WITHDRAWN"].includes(application.status)) return { state: "resolved", link, resolution: application.status === "ENROLLED" ? "COMPLETED" : "CANCELLED" };
@@ -88,7 +125,7 @@ export async function sourceView(user: AuthUser, row: SourceRow, db: TxClient = 
   if (row.sourceType === "correction") {
     // R-B2: open while the correction waits for its checker. PAYMENT is decided by a campus operator; MARK by the
     // academic lead (the principal, or a campus operator while the campus has none).
-    const correction = await db.correction.findFirst({ where: { id: row.sourceId, schoolId: user.schoolId }, select: { status: true, campusId: true, kind: true } });
+    const correction = await lookup.correction(row.sourceId);
     const checker = correction?.kind === "MARK" ? [...CAMPUS_OPERATORS, "PRINCIPAL"] : CAMPUS_OPERATORS;
     if (!correction || correction.campusId !== user.campusId || !checker.includes(user.role)) return { state: "unavailable", link: null };
     const link = linkFor(user, { ...row, type: row.type ?? "CORRECTION_REQUESTED" }, { kind: correction.kind });
@@ -98,14 +135,14 @@ export async function sourceView(user: AuthUser, row: SourceRow, db: TxClient = 
   if (row.sourceType === "campus") {
     // R-B3: the vacancy notice stays open until someone holds the campus-operator seat again.
     if (!isInstitutionAuthority(user)) return { state: "unavailable", link: null };
-    const operators = await db.user.count({ where: { schoolId: user.schoolId, campusId: row.sourceId, isActive: true, role: { in: ["CAMPUS_ADMIN", "ADMIN"] } } });
+    const staffed = await lookup.staffedCampus(row.sourceId);
     const link = linkFor(user, { ...row, type: row.type ?? "CAMPUS_OPS_VACANT" });
-    return operators > 0 ? { state: "resolved", link, resolution: "COMPLETED" } : { state: row.resolvedAt ? "resolved" : "open", link, resolution: row.resolution };
+    return staffed ? { state: "resolved", link, resolution: "COMPLETED" } : { state: row.resolvedAt ? "resolved" : "open", link, resolution: row.resolution };
   }
   if (row.sourceType === "tax-activation") {
     // §4.4b: a submitted tax package draft is open for the institution authority until it is approved or withdrawn.
     if (!isInstitutionAuthority(user)) return { state: "unavailable", link: null };
-    const activation = await db.taxActivation.findFirst({ where: { id: row.sourceId, schoolId: user.schoolId }, select: { status: true } });
+    const activation = await lookup.taxActivation(row.sourceId);
     if (!activation) return { state: "unavailable", link: null };
     const link = linkFor(user, { ...row, type: row.type ?? "TAX_SIGNOFF_REQUESTED" });
     if (activation.status === "DRAFT") return { state: "open", link };
@@ -117,8 +154,7 @@ export async function sourceView(user: AuthUser, row: SourceRow, db: TxClient = 
     return { state: row.resolvedAt ? "resolved" : "open", link: linkFor(user, row), resolution: row.resolution };
   }
   if (row.sourceType === "chat") {
-    try { await requireMembership(user, row.sourceId, db); }
-    catch { return { state: "unavailable", link: null }; }
+    if (!(await lookup.chat(row.sourceId))) return { state: "unavailable", link: null };
     return { state: row.resolvedAt ? "resolved" : "open", link: `/messages?c=${encodeURIComponent(row.sourceId)}` };
   }
   return { state: row.resolvedAt ? "resolved" : "open", link: linkFor(user, row), resolution: row.resolution };
@@ -148,7 +184,8 @@ export async function listInbox(user: AuthUser, options: { view: InboxView; stat
   const rows = await prisma.notification.findMany({ where, orderBy: [{ lastRemindedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }], take: options.limit + 1, ...(options.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}), select });
   const page = rows.slice(0, options.limit);
   const now = Date.now();
-  const items = await Promise.all(page.map(async row => present(user, row, now)));
+  const lookup = sourceLookup(user, page, prisma, { batchChat: true });
+  const items = await Promise.all(page.map(async row => present(user, row, now, lookup)));
   // Actions whose source was decided elsewhere are resolved here too, so every device converges.
   const settled = items.filter(item => item.category === "ACTION" && item.state === "resolved" && !item.resolvedAt);
   if (settled.length) await prisma.notification.updateMany({ where: { id: { in: settled.map(item => item.id) }, userId: user.userId, resolvedAt: null }, data: { resolvedAt: new Date(), resolution: "COMPLETED" } });
@@ -158,13 +195,13 @@ export async function listInbox(user: AuthUser, options: { view: InboxView; stat
 /** A row as the list or the open route selects it (the open route does not select `campusId`). */
 type PresentRow = Omit<Row, "campusId"> & { campusId?: string | null };
 
-export async function present(user: AuthUser, row: PresentRow, now = Date.now()) {
+export async function present(user: AuthUser, row: PresentRow, now = Date.now(), lookup?: SourceLookup) {
   // The open route selects no campusId; read it here so opening a row resolves the same link as the list (P9-14b:
   // SELF_APPROVED finance/purchase opened `/super?view=campuses` instead of that campus).
   const campusId = row.campusId !== undefined
     ? row.campusId
     : (await prisma.notification.findFirst({ where: { id: row.id, userId: user.userId }, select: { campusId: true } }))?.campusId ?? null;
-  const view = await sourceView(user, { ...row, campusId });
+  const view = await sourceView(user, { ...row, campusId }, prisma, lookup);
   const hidden = view.state === "unavailable";
   return {
     ...row,
@@ -224,8 +261,10 @@ export async function settleTaxSignoffs(user: AuthUser, db: TxClient = prisma): 
 }
 
 export async function inboxCounts(user: AuthUser) {
-  await settleCampusVacancies(user).catch((error) => console.error("[notifications] vacancy settle failed:", error));
-  await settleTaxSignoffs(user).catch((error) => console.error("[notifications] tax sign-off settle failed:", error));
+  await Promise.all([
+    settleCampusVacancies(user).catch((error) => console.error("[notifications] vacancy settle failed:", error)),
+    settleTaxSignoffs(user).catch((error) => console.error("[notifications] tax sign-off settle failed:", error)),
+  ]);
   const now = new Date();
   const [unread, mentionsUnread, openActions, overdueActions] = await Promise.all([
     prisma.notification.count({ where: { userId: user.userId, isRead: false } }),

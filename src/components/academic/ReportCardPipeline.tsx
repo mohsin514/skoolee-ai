@@ -141,14 +141,38 @@ type PipelineProps = {
   deliverRequest?: number;
   generateRequest?: number;
   onDeliveryState?: (state: { examId: string; canGenerate: boolean; canDeliver: boolean }) => void;
+  /**
+   * SKAI-1821: a page listing many exams passes this to the pipelines below the first, so each loads its report
+   * versions only once it nears the viewport (then stays loaded, keeping its selections for "Approve selected").
+   */
+  deferUntilVisible?: boolean;
 };
 export type ReportSelectionState = { examId: string; selected: number; canApprove: boolean; reason: string | null };
 type Pending = "publish" | "send" | null;
-export function ReportCardPipeline(props: PipelineProps) {
+export function ReportCardPipeline({ deferUntilVisible = false, ...props }: PipelineProps) {
+  const [visible, setVisible] = useState(!deferUntilVisible);
+  if (!visible) return <DeferredPipeline onVisible={() => setVisible(true)} />;
   // Reset permissions, selections and private notes before a new scope paints.
   return <ScopedReportCardPipeline key={JSON.stringify([props.exam.id, props.campusId, props.mode ?? "lead"])} {...props} />;
 }
-function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", tourAnchor = true, hideApprove = false, approveRequest, previewRequest, onSelectionChange, hideDelivery = false, deliverRequest, generateRequest, onDeliveryState }: PipelineProps) {
+/** Placeholder until the pipeline nears the viewport; without IntersectionObserver it loads at once. */
+function DeferredPipeline({ onVisible }: { onVisible: () => void }) {
+  const ui = useUiText();
+  const anchor = useRef<HTMLDivElement | null>(null);
+  const onVisibleRef = useRef(onVisible);
+  useEffect(() => { onVisibleRef.current = onVisible; }, [onVisible]);
+  useEffect(() => {
+    const node = anchor.current;
+    if (!node || typeof IntersectionObserver === "undefined") { onVisibleRef.current(); return; }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) { observer.disconnect(); onVisibleRef.current(); }
+    }, { rootMargin: "200px 0px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  return <div ref={anchor}><SkeletonList rows={4} label={ui(copy.loading)} /></div>;
+}
+function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", tourAnchor = true, hideApprove = false, approveRequest, previewRequest, onSelectionChange, hideDelivery = false, deliverRequest, generateRequest, onDeliveryState }: Omit<PipelineProps, "deferUntilVisible">) {
   const alive = useRef(false);
   const request = useRef<AbortController | null>(null);
   const [loadFailed, setLoadFailed] = useState<string | null>(null);
