@@ -6,7 +6,7 @@ import { UiText, useUiText, useLocaleFormat, useLocale } from "@/components/loca
 import { getFinancialLocale } from "@/app/actions/locale";
 import { CurrencySelect } from "@/components/locale/CurrencySelect";
 
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { BookOpen, Check, Forward, Layers, MoreHorizontal, Pencil, Percent, Plus, Tag, Timer, Trash2, Users, Wallet } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { EmptyState as SharedEmptyState } from "@/components/ui/empty-state";
@@ -33,6 +33,7 @@ import { API, classLabel, formatPKR, rupeesToPaisa, paisaToRupees, usePanelComma
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 import { readApiData } from "@/lib/api/envelope-client";
+import { studentPickerUrl, useStudentPicker } from "./use-student-picker";
 
 const inputClass = "w-full";
 const labelClass = "block mb-2 ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
@@ -652,10 +653,14 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<FeeDiscountRow | null>(null);
   const [assigning, setAssigning] = useState<FeeDiscountRow | null>(null);
-  const [students, setStudents] = useState<StudentLite[]>([]);
   const [assigned, setAssigned] = useState<DiscountAssignmentRow[]>([]);
   const [search, setSearch] = useState("");
   const [assignBusy, setAssignBusy] = useState(false);
+  // SKAI-1828: the "Add student" list is a server search (20 matches), not the first page of the roster.
+  const [pickerReload, setPickerReload] = useState(0);
+  const picker = useStudentPicker(campusId, search, Boolean(assigning), pickerReload);
+  const assignedIds = useMemo(() => new Set(assigned.map((a) => a.studentId)), [assigned]);
+  const addable = picker.students.filter((s) => !assignedIds.has(s.id));
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
@@ -735,15 +740,12 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
     setAssigning(row);
     setSearch("");
     setAssignFailed(false);
+    setPickerReload((n) => n + 1);
     try {
-      const [sRes, aRes] = await Promise.all([
-        fetch(`/api/students${qp ? `${qp}&` : "?"}pageSize=1000`),
-        fetch(`${API}/discount-assignments?discountId=${row.id}`),
-      ]);
-      const [sJson, aJson] = await Promise.all([sRes.json(), aRes.json()]);
-      if (sJson.success) setStudents(sJson.data);
+      const aRes = await fetch(`${API}/discount-assignments?discountId=${row.id}`);
+      const aJson = await aRes.json();
       if (aJson.success) setAssigned(aJson.data);
-      if (!sJson.success || !aJson.success) setAssignFailed(true);
+      else setAssignFailed(true);
     } catch {
       setAssignFailed(true);
     }
@@ -861,7 +863,7 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
 
       {assigning && (
         <Modal icon={Users} title={tr("Assign: {0}", [assigning.name])} eyebrow={tr("Fee setup · Discounts")} onClose={() => setAssigning(null)} wide>
-          {assignFailed ? (
+          {assignFailed || picker.failed ? (
             <SharedErrorState title={tr("Students for this discount could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void openAssign(assigning)} />
           ) : (
           <div className="space-y-5">
@@ -892,17 +894,7 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
             <div>
               <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Add student"}</UiText></p>
               <div className="space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar pe-1">
-                {students
-                  .filter((s) => {
-                    const q = search.trim().toLowerCase();
-                    if (!q) return !assigned.some((a) => a.studentId === s.id);
-                    return (
-                      s.fullName.toLowerCase().includes(q) ||
-                      (s.rollNo ?? "").toLowerCase().includes(q)
-                    ) && !assigned.some((a) => a.studentId === s.id);
-                  })
-                  .slice(0, 20)
-                  .map((s) => (
+                {addable.map((s) => (
                     <div key={s.id} className="flex items-center justify-between rounded-xl border border-edge/10 px-3 py-2">
                       <p className="text-xs font-bold text-ink-strong">
                         {s.fullName} <span className="text-ink-subtle font-bold">· {s.rollNo ?? ""}</span>
@@ -915,7 +907,7 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
                       ><UiText>{"Add"}</UiText></Button>
                     </div>
                   ))}
-                {students.filter((s) => !assigned.some((a) => a.studentId === s.id)).length === 0 && (
+                {picker.loaded && !search.trim() && addable.length === 0 && picker.total <= picker.students.length && (
                   <p className="text-2xs font-semibold text-ink-subtle italic"><UiText>{"All students already assigned."}</UiText></p>
                 )}
               </div>
@@ -959,7 +951,7 @@ function CarryPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
     try {
       const [fRes, sRes] = await Promise.all([
         readRequest(`${API}/carry-forwards${qp}`),
-        readRequest(`/api/students${qp ? `${qp}&` : "?"}pageSize=1000`),
+        readRequest(studentPickerUrl(campusId, "")),
       ]);
       const [fJson, sJson] = await Promise.all([checkedJson(fRes), checkedJson(sRes)]);
       if (loadVersion !== loadSequence.current) return;
@@ -971,9 +963,22 @@ function CarryPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
     } finally {
       if (loadVersion === loadSequence.current) setLoading(false);
     }
-  }, [qp]);
+  }, [qp, campusId]);
 
   useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
+
+  // SKAI-1828: the student list is a server search; the chosen pupil stays listed while the search changes.
+  const [studentSearch, setStudentSearch] = useState("");
+  const [chosen, setChosen] = useState<StudentLite | null>(null);
+  const picker = useStudentPicker(campusId, studentSearch, showModal);
+  const pickerOptions = useMemo(() => {
+    const found = picker.loaded ? picker.students : students;
+    return chosen && !found.some((s) => s.id === chosen.id) ? [chosen, ...found] : found;
+  }, [picker.loaded, picker.students, students, chosen]);
+  const chooseStudent = (id: string) => {
+    setStudentId(id);
+    setChosen(pickerOptions.find((s) => s.id === id) ?? null);
+  };
 
   const handleSave = async () => {
     if (!studentId || !fromYear || !toYear || balance === "") {
@@ -1000,6 +1005,8 @@ function CarryPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
         toast.success(tr("Carry-forward created"));
         setShowModal(false);
         setStudentId("");
+        setChosen(null);
+        setStudentSearch("");
         setBalance("");
         setNote("");
         load();
@@ -1062,9 +1069,14 @@ function CarryPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
       {showModal && (
         <Modal icon={Forward} title={tr("New carry-forward")} eyebrow={tr("Fee setup · Carry forward")} onClose={() => setShowModal(false)} footer={<DialogActions busy={saving} busyLabel={tr("Saving…")} actionLabel={tr("Create carry-forward")} onCancel={() => setShowModal(false)} onAction={handleSave} />}>
           <div className="space-y-4">
-            <CurrencySelect value={currency} onChange={setCurrency} /><FormSelect label={tr("Student")} value={studentId} onChange={setStudentId}>
+            <CurrencySelect value={currency} onChange={setCurrency} />
+            <label className="block">
+              <span className={labelClass}><UiText>{"Find student"}</UiText></span>
+              <SystemInput value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} placeholder={tr("Type name or roll no...")} className="w-full" />
+            </label>
+            <FormSelect label={tr("Student")} value={studentId} onChange={chooseStudent}>
               <option value=""><UiText>{"Select student..."}</UiText></option>
-              {students.map((s) => (
+              {pickerOptions.map((s) => (
                 <option key={s.id} value={s.id}>{s.fullName} ({s.rollNo ?? ""})</option>
               ))}
             </FormSelect>

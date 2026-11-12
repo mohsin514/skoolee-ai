@@ -28,3 +28,10 @@ test("all three report loaders are guarded on data, error and loading writes", (
 test("export and reminder commands stay disabled until the latest request settles", () => {
   assert.equal((ui.match(/\}, !loading && !failed\);/g) ?? []).length >= 2, true);
 });
+
+test("Collection and Payment methods share one cached request per campus and currency (SKAI-1826)", () => {
+  assert.equal((ui.match(/fetch\(`\$\{API\}\/reports\/collection\?/g) ?? []).length, 1, "one fetch site for the collection report");
+  assert.equal((ui.match(/const json = await loadCollection\(cache, key, campusId, currency\);/g) ?? []).length, 2);
+  assert.match(ui, /const \[collectionCache\] = useState<CollectionCache>\(\(\) => new Map\(\)\);/, "the cache lives with the reports panel");
+  assert.match(ui, /if \(!json\.success\) cache\.delete\(key\); \}, \(\) => cache\.delete\(key\)\);/, "a failed load is not cached, so retry refetches");
+});
