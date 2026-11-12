@@ -18,7 +18,7 @@ import type { AuthUser } from "@/lib/auth";
 import { ApiError, requireAuthUser } from "@/lib/api/scope";
 import { roleLabel, type UserRole } from "@/lib/roles";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
-import { conversationInclude, requireMembership, assertCurrentConversationAccess, currentClassMembers, type ConversationRow } from "./membership";
+import { conversationListInclude, accessibleConversationList, requireMembership, currentClassMembers, type ConversationRow } from "./membership";
 import {
   canCreateAnnouncement,
   canCreateGroup,
@@ -163,7 +163,8 @@ function serialiseConversation(
   row: ConversationRow,
   viewerId: string,
   viewerRole: UserRole,
-  online: Set<string>
+  online: Set<string>,
+  memberCount = row.members.length
 ): ConversationView {
   const me = memberOf(row, viewerId);
   const others = row.members.filter((m) => m.userId !== viewerId);
@@ -179,7 +180,7 @@ function serialiseConversation(
       ? counterpart
         ? roleLabel(counterpart.user.role)
         : null
-      : `${row.members.length} member${row.members.length === 1 ? "" : "s"}`;
+      : `${memberCount} member${memberCount === 1 ? "" : "s"}`;
 
   const memberRole = me?.memberRole ?? "MEMBER";
 
@@ -197,7 +198,7 @@ function serialiseConversation(
           profileImageUrl: counterpart.user.profileImageUrl,
         }
       : null,
-    memberCount: row.members.length,
+    memberCount,
     unreadCount: me?.unreadCount ?? 0,
     isMuted: me?.isMuted ?? false,
     isPinned: me?.isPinned ?? false,
@@ -279,26 +280,25 @@ export async function listConversationsPage(
   if (page.length === 0) return { conversations: [], nextCursor: null };
 
   const ids = page.map((m) => m.conversationId);
+  // SKAI-1837: tenant-scoped, and only the viewer's (and a DIRECT peer's) membership is loaded; the access
+  // re-check runs batched rather than several queries per row.
   const rows = await prisma.conversation.findMany({
-    where: { id: { in: ids } },
-    include: conversationInclude,
+    where: { id: { in: ids }, schoolId: user.schoolId },
+    include: conversationListInclude(user.userId),
   });
 
   // findMany does not preserve the ordering of an `in` list, so restore the
   // pinned-then-recent order the membership query established.
   const byId = new Map(rows.map((r) => [r.id, r]));
-  const loaded = ids.map((id) => byId.get(id)).filter((r): r is ConversationRow => Boolean(r));
-  const checked = await Promise.all(loaded.map(async row => {
-    try { return (await assertCurrentConversationAccess(user, row)).row; }
-    catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; }
-  }));
-  const ordered = checked.filter((row): row is ConversationRow => row !== null);
+  const loaded = ids.flatMap((id) => { const row = byId.get(id); return row ? [row] : []; });
+  const ordered = await accessibleConversationList(user, loaded);
 
+  // Presence is only shown for a DIRECT counterpart, so only those are looked up.
   const online = await whoIsOnline(
-    ordered.flatMap((r) => r.members.map((m) => m.userId)).filter((id) => id !== user.userId)
+    ordered.flatMap(({ row }) => row.kind === "DIRECT" ? row.members.map((m) => m.userId) : []).filter((id) => id !== user.userId)
   );
 
-  return { conversations: ordered.map((r) => serialiseConversation(r, user.userId, user.role, online)), nextCursor };
+  return { conversations: ordered.map(({ row, memberCount }) => serialiseConversation(row, user.userId, user.role, online, memberCount)), nextCursor };
 }
 
 export async function getConversation(
