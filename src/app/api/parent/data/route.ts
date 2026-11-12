@@ -65,7 +65,9 @@ export async function GET(req: NextRequest) {
     // matrix `/api/navigation/access` applies to the framed family routes. The family capability keys come from
     // `capabilitiesFor()` (§1.4), so the parent console and the framed routes offer the same More leaves.
     // Presentation and payload trimming only: every family API keeps its own per-request check.
-    const matrix = await loadPermissionMap(schoolId, "PARENT");
+    // SKAI-1873: the attendance rule is the school's own and needs nothing else here, so it loads with the matrix.
+    // (`schoolId` is the tenant this scope runs under, so it is the student's school.)
+    const [matrix, attendanceRule] = await Promise.all([loadPermissionMap(schoolId, "PARENT"), attendanceRuleFor(schoolId)]);
     const moduleOn = (module: string) => matrix.get(module)?.canView === true;
     const permissions = {
       ...relation,
@@ -73,9 +75,15 @@ export async function GET(req: NextRequest) {
       attendance: relation.attendance && moduleOn("attendance"),
       finances: relation.finances && moduleOn("fees"),
     };
-    const family = guardian ? await capabilitiesFor(guardian, matrix) : null;
 
-    const student = await prisma.student.findUnique({
+    // Family totals: every open invoice of every child this guardian may see finances for (statement semantics).
+    // Started alongside the student read; it is handled at once so a failure surfaces only where it is awaited.
+    const feeTotalsRead = !moduleOn("fees") ? Promise.resolve([])
+      : guardian ? outstandingByCurrency(schoolId, { AND: [studentScope(guardian, "finances"), { archivedAt: null }] })
+      : permissions.finances ? outstandingByCurrency(schoolId, { id: studentId }) : Promise.resolve([]);
+    feeTotalsRead.catch(() => undefined);
+
+    const [family, student] = await Promise.all([guardian ? capabilitiesFor(guardian, matrix) : null, prisma.student.findUnique({
       where: { id: studentId },
       include: {
         class: { select: { name: true, section: true, academicYear: true } },
@@ -92,7 +100,8 @@ export async function GET(req: NextRequest) {
         ...(permissions.attendance ? { attendance: {
           // The class tells us which academic year a day belongs to; without
           // it a promoted child's old year pools into this year's percentage.
-          include: { class: { select: { academicYear: true } } },
+          // Only the fields the summary and the recent list read.
+          select: { date: true, status: true, class: { select: { academicYear: true } } },
           orderBy: { date: "desc" },
           take: 200,
         } } : {}),
@@ -101,7 +110,7 @@ export async function GET(req: NextRequest) {
           take: RECENT_INVOICES,
         } } : {}),
       },
-    });
+    })]);
 
     if (!student) {
       return Response.json({ error: "Student not found" }, { status: 404 });
@@ -111,7 +120,7 @@ export async function GET(req: NextRequest) {
       student.attendance,
       student.class?.academicYear
     ) : [];
-    const attendanceSummary = summarizeAttendance(currentYearAttendance, await attendanceRuleFor(student.schoolId));
+    const attendanceSummary = summarizeAttendance(currentYearAttendance, attendanceRule);
     const totalAttendance = attendanceSummary.total;
     const presentCount = attendanceSummary.present;
     const attendanceRate = attendanceSummary.rate;
@@ -120,10 +129,7 @@ export async function GET(req: NextRequest) {
       ? (await publishedVersionsFor(student.reportCards.map(r => r.id), schoolId)).map(familyVersion)
       : [];
 
-    // Family totals: every open invoice of every child this guardian may see finances for (statement semantics).
-    const feeTotals = !moduleOn("fees") ? []
-      : guardian ? await outstandingByCurrency(schoolId, { AND: [studentScope(guardian, "finances"), { archivedAt: null }] })
-      : permissions.finances ? await outstandingByCurrency(schoolId, { id: student.id }) : [];
+    const feeTotals = await feeTotalsRead;
 
     return Response.json({
       success: true,
