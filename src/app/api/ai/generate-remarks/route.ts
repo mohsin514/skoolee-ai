@@ -295,7 +295,8 @@ export async function POST(req: NextRequest) {
           student: { select: { id: true, fullName: true } },
           subject: { select: { name: true, totalMarks: true } },
         },
-        orderBy: [{ student: { rollNo: "asc" } }, { subject: { name: "asc" } }],
+        // studentId breaks rollNo ties so every cursor request sees the pupils in the same order.
+        orderBy: [{ student: { rollNo: "asc" } }, { studentId: "asc" }, { subject: { name: "asc" } }],
       });
 
       const byStudent = marks.reduce((acc, mark) => {

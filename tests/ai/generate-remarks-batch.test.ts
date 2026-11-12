@@ -86,6 +86,7 @@ test("a 45-pupil class is drafted in chunks with nextCursor, bounded concurrency
   const query = markQueries[0];
   assert.deepEqual(query.select.student, { select: { id: true, fullName: true } }, "only id and name are read per mark");
   assert.equal(query.include, undefined);
+  assert.deepEqual(query.orderBy[1], { studentId: "asc" }, "rollNo ties break on studentId so cursor pages stay stable");
   assert.equal(query.where.campus.schoolId, "school-a");
   assert.equal(query.where.campusId, "campus-a1");
 });
