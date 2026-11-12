@@ -1,4 +1,5 @@
 "use client";
+import { SmartUpload } from "@/components/ui/smart-upload";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlarmClock, BadgeCheck, CircleDashed, ClipboardList, Copy, FileText, Globe2, Hourglass, Inbox, MessageCircleQuestion, Plus, Sparkles, UserX, Users } from "lucide-react";
 import { toast } from "@/components/ui/toast";
@@ -259,7 +260,7 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
           return <div key={document.key} className="flex flex-wrap items-center gap-2" data-review-document={document.key} data-present={files.length > 0}>
             <DeskPill tone={files.length ? "success" : document.required ? "danger" : "neutral"}>{label(document.label, "en")}{document.required ? "" : ` (${ui("optional")})`}</DeskPill>
             {files.map(file => <a key={file.id} className="text-xs font-bold text-primary underline" href={`/api/admissions?document=${encodeURIComponent(file.id)}`}><bdi>{file.fileName}</bdi></a>)}
-            {["DRAFT", "SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "OFFERED", "WAITLISTED", "ACCEPTED"].includes(detail.status) ? <label className="cursor-pointer text-xs text-primary">{ui("Attach")}<input type="file" className="sr-only" accept="application/pdf,image/jpeg,image/png" onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void uploadFile(document.key, file); }} /></label> : null}
+            {["DRAFT", "SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "OFFERED", "WAITLISTED", "ACCEPTED"].includes(detail.status) ? <SmartUpload compact accept="application/pdf,image/jpeg,image/png" maxBytes={5 * 1024 * 1024} label={ui("Attach")} actionLabel={ui("Attach")} onFiles={files => void uploadFile(document.key, files[0])} /> : null}
           </div>;
         })}
         {detail.missing.length ? <p className="text-xs font-bold text-status-error-text" data-review-missing>{ui("Missing: {0}", [detail.missing.join(", ")])}</p> : null}

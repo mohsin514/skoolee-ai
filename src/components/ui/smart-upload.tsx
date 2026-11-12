@@ -28,10 +28,15 @@ export interface SmartUploadProps {
   phone?: boolean;
   /** data-* hooks for the file input, so existing browser tests keep their selectors. */
   inputData?: Record<`data-${string}`, string | boolean>;
+  /** An inline row of buttons instead of the drop well, for a list row such as one admission document. */
+  compact?: boolean;
+  /** Text of the choose button, e.g. "Attach". */
+  actionLabel?: string;
+  busy?: boolean;
   className?: string;
 }
 
-export function SmartUpload({ accept, onFiles, label, multiple = false, maxFiles = 10, maxBytes = 10 * 1024 * 1024, hint, disabled, phone = true, inputData, className }: SmartUploadProps) {
+export function SmartUpload({ accept, onFiles, label, multiple = false, maxFiles = 10, maxBytes = 10 * 1024 * 1024, hint, disabled, phone = true, inputData, compact = false, actionLabel, busy = false, className }: SmartUploadProps) {
   const ui = useUiText();
   const browse = useRef<HTMLInputElement>(null), camera = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false), [error, setError] = useState(""), [phoneOpen, setPhoneOpen] = useState(false), [touch, setTouch] = useState(false);
@@ -51,27 +56,30 @@ export function SmartUpload({ accept, onFiles, label, multiple = false, maxFiles
   const drop = (event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setOver(false); deliver(event.dataTransfer.files); };
   const paste = (event: ClipboardEvent<HTMLDivElement>) => { const files = Array.from(event.clipboardData.files); if (files.length) { event.preventDefault(); deliver(files); } };
 
+  const size = compact ? "sm" as const : "default" as const;
+  const controls = <>
+    {touch && takesImages && <Button type="button" size={size} disabled={disabled || busy} onClick={() => camera.current?.click()}><Camera aria-hidden="true" />{ui("Take photo")}</Button>}
+    <Button type="button" size={size} variant="outline" loading={busy} disabled={disabled} onClick={() => browse.current?.click()}>{busy ? null : <FileUp aria-hidden="true" />}{actionLabel ?? ui("Choose file")}</Button>
+    {phone && !touch && dropTypesFor(accept).length > 0 && <Button type="button" size={size} variant={compact ? "ghost" : "secondary"} disabled={disabled || busy} onClick={() => setPhoneOpen(true)}><Smartphone aria-hidden="true" />{ui("Use my phone")}</Button>}
+    <input ref={browse} type="file" className="hidden" tabIndex={-1} aria-label={label} {...inputData} accept={accept} multiple={multiple} onChange={event => { deliver(event.target.files); event.target.value = ""; }} />
+    {touch && takesImages && <input ref={camera} type="file" className="hidden" tabIndex={-1} aria-label={ui("Take photo")} accept="image/*" capture="environment" onChange={event => { deliver(event.target.files); event.target.value = ""; }} />}
+  </>;
+  const zone = { role: "group", "aria-label": label, "aria-disabled": disabled || undefined, onDrop: drop, onPaste: paste, onDragLeave: () => setOver(false),
+    onDragOver: (event: DragEvent<HTMLDivElement>) => { event.preventDefault(); if (!disabled) setOver(true); } };
+
   return (
-    <div className={cn("space-y-2", className)}>
-      <div
-        role="group" aria-label={label} aria-disabled={disabled || undefined} tabIndex={disabled ? -1 : 0}
-        onDragOver={event => { event.preventDefault(); if (!disabled) setOver(true); }} onDragLeave={() => setOver(false)} onDrop={drop} onPaste={paste}
-        className={cn("flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-surface-subtle px-4 py-6 text-center transition-colors",
-          over && "border-primary bg-brand-50", disabled && "opacity-60")}
-      >
-        <UploadCloud aria-hidden="true" className="size-8 text-primary" />
-        <div className="space-y-1">
-          <p className="text-sm font-semibold text-ink">{touch ? ui("Take a photo or choose a file") : ui("Drop, paste or choose a file")}</p>
-          <p className="text-xs text-ink-muted">{hint ?? ui("Up to {0} MB each.", [Math.round(maxBytes / 1048576)])}</p>
+    <div className={cn(compact ? "space-y-1" : "space-y-2", className)}>
+      {compact ? <div {...zone} className={cn("flex flex-wrap items-center gap-2 rounded-xl", over && "bg-brand-50")}>{controls}</div> : (
+        <div {...zone} tabIndex={disabled ? -1 : 0} className={cn("flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-surface-subtle px-4 py-6 text-center transition-colors",
+          over && "border-primary bg-brand-50", disabled && "opacity-60")}>
+          <UploadCloud aria-hidden="true" className="size-8 text-primary" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-ink">{touch ? ui("Take a photo or choose a file") : ui("Drop, paste or choose a file")}</p>
+            <p className="text-xs text-ink-muted">{hint ?? ui("Up to {0} MB each.", [Math.round(maxBytes / 1048576)])}</p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">{controls}</div>
         </div>
-        <div className="flex flex-wrap justify-center gap-2">
-          {touch && takesImages && <Button type="button" disabled={disabled} onClick={() => camera.current?.click()}><Camera aria-hidden="true" />{ui("Take photo")}</Button>}
-          <Button type="button" variant="outline" disabled={disabled} onClick={() => browse.current?.click()}><FileUp aria-hidden="true" />{ui("Choose file")}</Button>
-          {phone && !touch && dropTypesFor(accept).length > 0 && <Button type="button" variant="secondary" disabled={disabled} onClick={() => setPhoneOpen(true)}><Smartphone aria-hidden="true" />{ui("Use my phone")}</Button>}
-        </div>
-        <input ref={browse} type="file" className="hidden" tabIndex={-1} aria-label={label} {...inputData} accept={accept} multiple={multiple} onChange={event => { deliver(event.target.files); event.target.value = ""; }} />
-        {touch && takesImages && <input ref={camera} type="file" className="hidden" tabIndex={-1} aria-label={ui("Take photo")} accept="image/*" capture="environment" onChange={event => { deliver(event.target.files); event.target.value = ""; }} />}
-      </div>
+      )}
       {error && <p role="alert" className="text-sm text-status-error-text">{error}</p>}
       {phoneOpen && <PhoneDrop label={label} accept={accept} limit={limit} onClose={() => setPhoneOpen(false)} onFiles={files => { setPhoneOpen(false); deliver(files); }} />}
     </div>

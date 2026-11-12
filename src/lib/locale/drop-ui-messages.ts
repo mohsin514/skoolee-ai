@@ -45,6 +45,7 @@ export const dropUiEntries: readonly (readonly [string, string, string])[] = [
   ["{0} pages need their code checked.", "{0} صفحات تحتاج إلى التحقق من رمزها.", "{0} صفحات کے کوڈ کی جانچ ضروری ہے۔"],
   ["Use files", "استخدام الملفات", "فائلیں استعمال کریں"],
   ["Send one file.", "أرسل ملفًا واحدًا.", "ایک فائل بھیجیں۔"],
+  ["Add photo", "إضافة صورة", "تصویر شامل کریں"],
 ];
 export const arabicDropUi: Record<string, string> = Object.fromEntries(dropUiEntries.map(([en, ar]) => [en, ar]));
 export const urduDropUi: Record<string, string> = Object.fromEntries(dropUiEntries.map(([en, , ur]) => [en, ur]));

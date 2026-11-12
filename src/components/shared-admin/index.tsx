@@ -1,4 +1,5 @@
 "use client";
+import { SmartUpload } from "@/components/ui/smart-upload";
 import { loadListPages } from "@/lib/lists/load-pages";
 import { useListPage } from "@/hooks/use-list-page";
 import { useListField } from "@/hooks/use-list-field";
@@ -2362,7 +2363,6 @@ export function StudentAdmissionsPanel({
   const [documentsError, setDocumentsError] = useState<"denied" | "failed" | null>(null);
   const [uploadProblem, setUploadProblem] = useState<string | null>(null);
   const [uploadKind, setUploadKind] = useState("BIRTH_CERTIFICATE");
-  const fileInput = useRef<HTMLInputElement>(null);
   const [linkSearch, setLinkSearch] = useState("");
   const [linkResults, setLinkResults] = useState<any[]>([]);
   const [linkBusy, setLinkBusy] = useState(false);
@@ -2412,7 +2412,6 @@ export function StudentAdmissionsPanel({
       setUploadProblem(problem === "too_large" ? ui("{0} is larger than 10 MB. Choose a smaller file.", [file.name])
         : problem === "empty" ? ui("{0} is empty. Choose another file.", [file.name])
         : ui("{0} is not a supported file. Use PDF, JPG, PNG, WebP or Word.", [file.name]));
-      if (fileInput.current) fileInput.current.value = "";
       return;
     }
     setUploadProblem(null);
@@ -2461,7 +2460,6 @@ export function StudentAdmissionsPanel({
       toast.error(message);
     } finally {
       setUploading(false);
-      if (fileInput.current) fileInput.current.value = "";
     }
   };
 
@@ -2615,26 +2613,7 @@ export function StudentAdmissionsPanel({
                 ))}
               </FormSelect>
             </div>
-            <input
-              ref={fileInput}
-              type="file"
-              accept={STUDENT_DOCUMENT_ACCEPT}
-              aria-label={ui("Choose a document to upload")}
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) uploadFile(file);
-              }}
-            />
-            <BrandButton
-              variant="dark"
-              className="h-14"
-              icon={uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              onClick={() => fileInput.current?.click()}
-              disabled={uploading}
-            >
-              {uploading ? ui("Uploading…") : ui("Upload (max 10 MB)")}
-            </BrandButton>
+            <SmartUpload compact accept={STUDENT_DOCUMENT_ACCEPT} label={ui("Choose a document to upload")} actionLabel={ui("Upload (max 10 MB)")} busy={uploading} onFiles={(files) => uploadFile(files[0])} />
           </div>
           <p className="mt-2 text-xs text-ink-muted">{ui("PDF, JPG, PNG, WebP or Word, up to 10 MB. Files are private to this school.")}</p>
           {uploadProblem ? <Alert tone="danger" className="mt-3" role="alert">{uploadProblem}</Alert> : null}
@@ -2757,7 +2736,6 @@ export function TeacherDetailModal({
   const [deductions, setDeductions] = useState<{ name: string; amount: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadKind, setUploadKind] = useState("CV");
-  const fileInput = useRef<HTMLInputElement>(null);
 
   // SKAI-1117: prefer the assignments served by /api/staff/profile; fall back to the list row.
   const ledClasses: any[] = staff?.ledClasses ?? teacher.ledClasses ?? [];
@@ -2899,7 +2877,6 @@ export function TeacherDetailModal({
       toast.error(friendlyErrorMessage(error, ui("Could not upload the document. Please try again.")));
     } finally {
       setUploading(false);
-      if (fileInput.current) fileInput.current.value = "";
     }
   };
 
@@ -3430,19 +3407,7 @@ export function TeacherDetailModal({
                     <option value="PHOTO">{ui("Photo")}</option>
                     <option value="OTHER">{ui("Other")}</option>
                   </FormSelect>
-                  <input
-                    ref={fileInput}
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) uploadStaffDoc(file);
-                    }}
-                  />
-                  <SystemButton type="button" variant="secondary" size="sm" loading={uploading} disabled={staffRecordsState !== "loaded"} onClick={() => fileInput.current?.click()}>
-                    {uploading ? null : <Upload aria-hidden="true" />}{uploading ? ui("Uploading\u2026") : ui("Upload document")}
-                  </SystemButton>
+                  <SmartUpload compact accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" label={ui("Upload document")} actionLabel={ui("Upload document")} busy={uploading} disabled={staffRecordsState !== "loaded"} onFiles={(files) => uploadStaffDoc(files[0])} />
                 </div>
               </div>
             </div>

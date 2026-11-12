@@ -1,9 +1,10 @@
 "use client";
 
+import { SmartUpload } from "@/components/ui/smart-upload";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { AlertTriangle, CalendarX2, CheckCircle2, Clock, FileUp, Info, NotebookPen, Loader2, MessageSquare, type LucideIcon } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { AlertTriangle, CalendarX2, CheckCircle2, Clock, Info, NotebookPen, MessageSquare, type LucideIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -217,9 +218,9 @@ export default function ApplyPage() {
               {files.length ? <ul className="space-y-1">{files.map(file => <li key={file.id} className="flex min-w-0 items-center gap-1.5 text-xs text-status-success-text"><CheckCircle2 aria-hidden="true" className="size-3.5 shrink-0" /><bdi className="min-w-0 truncate">{file.fileName}</bdi><span className="shrink-0 tabular-nums text-ink-subtle">· {Math.ceil(file.sizeBytes / 1024)} KB</span></li>)}</ul> : null}
               {problem ? <FieldError>{ui(problem)}</FieldError> : null}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                <label className={cn(buttonVariants({ variant: "outline", size: "sm" }), "sk-choice-card", state === "uploading" && "pointer-events-none opacity-70")}>{state === "uploading" ? <Loader2 className="motion-safe:animate-spin" aria-hidden="true" /> : <FileUp aria-hidden="true" />}{state === "uploading" ? ui("Uploading…") : files.length ? ui("Replace or add a file") : ui("Choose a file")}
-                  <input type="file" className="sr-only" accept="application/pdf,image/jpeg,image/png" disabled={state === "uploading"} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(document.key, file); }} data-apply-upload={document.key} />
-                </label>
+                {/* The family is not signed in here, so the phone handoff is off; on a phone the camera opens directly. */}
+                <SmartUpload compact phone={false} accept="application/pdf,image/jpeg,image/png" maxBytes={5 * 1024 * 1024} label={label(document.label, lang)} busy={state === "uploading"}
+                  actionLabel={files.length ? ui("Replace or add a file") : ui("Choose a file")} inputData={{ [`data-apply-upload`]: document.key }} onFiles={chosen => void upload(document.key, chosen[0])} />
                 <p className="text-xs text-ink-subtle">{ui("PDF, JPG or PNG, up to 5 MB.")}</p>
               </div>
               {state === "failed" ? <p className="text-xs font-medium text-status-error-text">{ui("The upload did not finish. Choose the file again.")}</p> : null}
