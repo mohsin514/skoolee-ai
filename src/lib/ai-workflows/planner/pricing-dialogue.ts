@@ -11,8 +11,10 @@ const KEY = "platform.set_default_plan_pricing";
 type Plan = keyof typeof PLANS;
 /** User-facing names always win; internal BASIC/PRO ids must never silently select another tier. */
 export function readPriceAnswer(text: string, pending?: Plan): { selectedPlan?: Plan; prices: Partial<Record<Plan, number | null>>; invalid: boolean; unassignedPrice?: number } {
+  // The catalogue's own names (Core, Plus, Flagship, Network) plus "free": renaming a plan can never leave a stale word.
   const names = PLAN_ORDER.map(id => ({ id, name: PLANS[id].name.toLowerCase() }));
-  const found = [...text.matchAll(/\b(basic|pro|enterprise|custom|free)\b/gi)];
+  const words = [...names.map(row => row.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "free"];
+  const found = [...text.matchAll(new RegExp(`\\b(${words.join("|")})\\b`, "gi"))];
   const prices: Partial<Record<Plan, number | null>> = {};
   let selectedPlan = pending;
   let invalid = false;
@@ -23,7 +25,7 @@ export function readPriceAnswer(text: string, pending?: Plan): { selectedPlan?: 
   };
   for (let index = 0; index < found.length; index++) {
     const match = found[index];
-    const id = match[1].toLowerCase() === "free" ? "FREE" : names.find(row => row.name === match[1].toLowerCase())!.id;
+    const id = names.find(row => row.name === match[1].toLowerCase())?.id ?? "FREE";
     selectedPlan = id;
     const tail = text.slice(match.index! + match[0].length, found[index + 1]?.index ?? text.length);
     const value = amount(tail.replace(/[:=]/g, " "));
