@@ -52,7 +52,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     // A chat endpoint is the easiest write path in the product to abuse —
     // scripted or accidental — so it is capped per sender rather than relying
     // on the UI to behave.
-    const limit = rateLimit(`chat:send:${user.userId}`, { limit: 40, windowMs: 60_000 });
+    const limit = await rateLimit(`chat:send:${user.userId}`, { limit: 40, windowMs: 60_000 });
     if (!limit.ok) {
       throw new ApiError("You are sending messages too quickly. Wait a moment.", 429);
     }

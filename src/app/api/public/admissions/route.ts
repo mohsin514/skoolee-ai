@@ -11,14 +11,14 @@ import { rateLimit } from "@/lib/rate-limit";
 // POST {action: start, form, answers}        → { reference, resumeKey }
 // POST {action: save|submit|accept|decline, reference, answers?, consent?} + X-Resume-Key
 
-function limit(request: NextRequest, bucket: string, max: number) {
+async function limit(request: NextRequest, bucket: string, max: number) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  if (!rateLimit(`admissions:${bucket}:${ip}`, { limit: max, windowMs: 60_000 }).ok) throw new ApiError("Too many attempts. Wait a minute and try again.", 429);
+  if (!(await rateLimit(`admissions:${bucket}:${ip}`, { limit: max, windowMs: 60_000 })).ok) throw new ApiError("Too many attempts. Wait a minute and try again.", 429);
 }
 
 export async function GET(request: NextRequest) {
   try {
-    limit(request, "read", 60);
+    await limit(request, "read", 60);
     const params = request.nextUrl.searchParams;
     const token = params.get("form");
     if (token) return Response.json({ success: true, data: await publicForm(token) }, { headers: { "Cache-Control": "no-store" } });
@@ -37,10 +37,10 @@ export async function POST(request: NextRequest) {
     const key = request.headers.get("x-resume-key") ?? "";
     const reference = String(body.reference ?? "");
     switch (body.action) {
-      case "start": limit(request, "start", 10); return Response.json({ success: true, data: await startApplication(String(body.form ?? ""), body) }, { status: 201 });
-      case "save": limit(request, "write", 60); return Response.json({ success: true, data: await saveApplication(reference, key, body) });
-      case "submit": limit(request, "write", 60); return Response.json({ success: true, data: await submitFamilyApplication(reference, key, body) });
-      case "accept": case "decline": limit(request, "write", 60); return Response.json({ success: true, data: await familyRespond(reference, key, body.action === "accept") });
+      case "start": await limit(request, "start", 10); return Response.json({ success: true, data: await startApplication(String(body.form ?? ""), body) }, { status: 201 });
+      case "save": await limit(request, "write", 60); return Response.json({ success: true, data: await saveApplication(reference, key, body) });
+      case "submit": await limit(request, "write", 60); return Response.json({ success: true, data: await submitFamilyApplication(reference, key, body) });
+      case "accept": case "decline": await limit(request, "write", 60); return Response.json({ success: true, data: await familyRespond(reference, key, body.action === "accept") });
       default: throw new ApiError("Unknown action", 400);
     }
   } catch (error) {
