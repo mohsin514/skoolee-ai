@@ -15,6 +15,7 @@ import { useListField } from "@/hooks/use-list-field";
  */
 
 import { loadOwnerPages } from "@/lib/owner/load-pages";
+import { SUPPORT_SESSION_STATE_EVENT, watchSupportSession, type SupportSessionCheck } from "@/lib/owner/support-session-poll";
 import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 import { useConsoleView } from "@/components/nav/useConsoleView";
 import { PageHeader, type PageAction } from "@/components/ui/page-header";
@@ -515,20 +516,16 @@ function SupportSessionBanner() {
   const [session, setSession] = useState<{ id: string; purpose: string; scope: string[]; actions: string[]; expiresAt: string } | null>(null);
   const [remaining, setRemaining] = useState(0);
   const [ending, setEnding] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    const refresh = async () => {
-      try {
-        const response = await fetch("/api/owner/support/session", { cache: "no-store" });
-        const json = await response.json();
-        if (alive) setSession(response.ok && json.success ? json.data : null);
-      } catch { if (alive) setSession(null); }
-    };
-    void refresh();
-    const poll = window.setInterval(refresh, 15_000);
-    window.addEventListener("skoolee:support-session-change", refresh);
-    return () => { alive = false; window.clearInterval(poll); window.removeEventListener("skoolee:support-session-change", refresh); };
-  }, []);
+  // SKAI-1867: the one support-session watcher on the console. It polls only while a session is
+  // active and the tab is visible, and shares each result with the support view.
+  useEffect(() => watchSupportSession<NonNullable<typeof session>>(async () => {
+    const response = await fetch("/api/owner/support/session", { cache: "no-store" });
+    const json = await response.json();
+    return { ok: response.ok, session: response.ok && json.success ? json.data : null };
+  }, (check) => {
+    setSession(check.session);
+    window.dispatchEvent(new CustomEvent(SUPPORT_SESSION_STATE_EVENT, { detail: check }));
+  }), []);
   useEffect(() => {
     if (!session) return;
     const tick = () => setRemaining(Math.max(0, Math.ceil((Date.parse(session.expiresAt) - Date.now()) / 1000)));
@@ -618,16 +615,16 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
     window.addEventListener("skoolee:support-session-change", refresh);
     return () => window.removeEventListener("skoolee:support-session-change", refresh);
   }, [load]);
+  // The console banner owns the session poll; this view reacts to what it finds (SKAI-1867).
   useEffect(() => {
     if (!supportSession) return;
-    const poll = window.setInterval(() => {
-      void fetch("/api/owner/support/session", { cache: "no-store" }).then(async (response) => {
-        if (!response.ok) { void load(); return; }
-        const json = await response.json();
-        if (!json.success || json.data?.id !== supportSession.id) { setSupportSession(null); setPreview(null); }
-      }).catch(() => { setSupportSession(null); setPreview(null); });
-    }, 10_000);
-    return () => window.clearInterval(poll);
+    const onState = (event: Event) => {
+      const check = (event as CustomEvent<SupportSessionCheck>).detail;
+      if (!check.ok) { void load(); return; }
+      if (check.session?.id !== supportSession.id) { setSupportSession(null); setPreview(null); }
+    };
+    window.addEventListener(SUPPORT_SESSION_STATE_EVENT, onState);
+    return () => window.removeEventListener(SUPPORT_SESSION_STATE_EVENT, onState);
   }, [supportSession, load]);
 
   const track = async (key: string, failure: string, task: () => Promise<void>) => {
@@ -1304,6 +1301,8 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
 }
 
 type Campus = SchoolRow["campuses"][number];
+/** One row of GET /api/owner/schools?view=options. */
+type SchoolOption = Pick<SchoolRow, "id" | "name" | "plan"> & { campuses: Pick<Campus, "id" | "name">[] };
 
 function CampusCard({ campus }: { campus: Campus }) {
   const t = useUiText();
@@ -1346,14 +1345,14 @@ function UsersView() {
   const [schoolsLoading, setSchoolsLoading] = useState(true);
   const [schoolsFailed, setSchoolsFailed] = useState(false);
 
-  // The Add User modal needs every school with its campuses. Fetched once
-  // on demand rather than with the paginated user list.
+  // The school filter and the Add User modal need every school with its campuses. Fetched once,
+  // apart from the paginated user list, as the light options view (no per-campus counts, SKAI-1867).
   const loadSchoolOptions = useCallback(async () => {
     if (schoolOptions.length) return;
     setSchoolsLoading(true);
     setSchoolsFailed(false);
     try {
-      const schools = await loadOwnerPages<SchoolRow>("/api/owner/schools");
+      const schools = await loadOwnerPages<SchoolOption>("/api/owner/schools", new URLSearchParams({ view: "options" }));
       setSchoolOptions(schools.map((school) => ({
         id: school.id, name: school.name, plan: school.plan,
         campuses: school.campuses.map((campus) => ({ id: campus.id, name: campus.name })),
