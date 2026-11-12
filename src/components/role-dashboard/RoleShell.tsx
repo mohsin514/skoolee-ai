@@ -8,6 +8,7 @@ import { CirclePause } from "lucide-react";
 import { NavigationAccessProvider, NavigationAccessNotice, useNavigationAccess } from "@/components/nav/NavigationAccess";
 import { SidebarNavigationContext } from "@/components/nav/WorkspaceSubnav";
 import type { NavigationAccess } from "@/lib/navigation/modules";
+import { navigationCountsDue } from "@/lib/navigation/counts-refresh";
 import {
   ROLE_NAV, consoleName, eyebrowFor, hrefFor, labelFor, leafForPath, leafForView, leafVisible, mobileLeaves, visibleEntries,
   type ConsoleId, type ConsoleNav, type NavLeaf,
@@ -113,11 +114,13 @@ export function RoleShell(props: RoleShellProps) {
   return <LocaleProvider><NavigationAccessProvider access={props.navigationAccess}><SidebarNavigationContext.Provider value={true}><RoleShellContent {...props} /></SidebarNavigationContext.Provider></NavigationAccessProvider></LocaleProvider>;
 }
 
-/** Counts for registry badges, fetched once per pathname and refreshed on focus (never part of `access`). */
+/** Counts for registry badges, fetched on mount and refreshed on route change or focus at most once per
+ *  30 seconds (SKAI-1829; see navigationCountsDue). Never part of `access`. */
 function useNavigationCounts(enabled: boolean): Record<string, number> {
   const pathname = usePathname();
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [version, setVersion] = useState(0);
+  const lastFetchAt = useRef<number | null>(null);
   useEffect(() => {
     if (!enabled) return;
     const refresh = () => setVersion((v) => v + 1);
@@ -126,15 +129,23 @@ function useNavigationCounts(enabled: boolean): Record<string, number> {
   }, [enabled]);
   useEffect(() => {
     if (!enabled) return;
+    const startedAt = Date.now();
+    if (!navigationCountsDue(lastFetchAt.current, startedAt)) return;
+    lastFetchAt.current = startedAt;
+    let settled = false;
+    const release = () => { if (lastFetchAt.current === startedAt) lastFetchAt.current = null; };
     const controller = new AbortController();
     fetch("/api/navigation/counts", { cache: "no-store", signal: controller.signal })
       .then((response) => (response.ok ? response.json() : null))
       .then((body) => {
+        settled = true;
         const next = body?.counts;
         if (next && typeof next === "object") setCounts(Object.fromEntries(Object.entries(next).filter(([, value]) => typeof value === "number")) as Record<string, number>);
+        else release(); // a failed read does not hold back the next refresh
       })
-      .catch(() => undefined);
-    return () => controller.abort();
+      .catch(() => { settled = true; release(); });
+    // An aborted fetch (route change mid-flight, or the dev double-mount) never counts as a fresh read.
+    return () => { if (!settled) release(); controller.abort(); };
   }, [enabled, pathname, version]);
   return counts;
 }
