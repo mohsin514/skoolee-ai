@@ -5907,6 +5907,7 @@ model ItemTransaction {
 
   @@unique([schoolId, idempotencyKey])
   @@index([schoolId])
+  @@index([schoolId, campusId, date])
   @@map("item_transactions")
 }
 
