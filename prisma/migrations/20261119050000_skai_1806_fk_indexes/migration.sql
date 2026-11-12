@@ -32,7 +32,6 @@ CREATE INDEX IF NOT EXISTS "leave_requests_reviewed_by_id_idx" ON "leave_request
 CREATE INDEX IF NOT EXISTS "payroll_runs_generated_by_id_idx" ON "payroll_runs"("generated_by_id");
 CREATE INDEX IF NOT EXISTS "payroll_lines_user_id_idx" ON "payroll_lines"("user_id");
 CREATE INDEX IF NOT EXISTS "payroll_lines_payment_method_id_idx" ON "payroll_lines"("payment_method_id");
-CREATE INDEX IF NOT EXISTS "classes_campus_id_idx" ON "classes"("campus_id");
 CREATE INDEX IF NOT EXISTS "classes_class_teacher_id_idx" ON "classes"("class_teacher_id");
 CREATE INDEX IF NOT EXISTS "students_consolidated_into_id_idx" ON "students"("consolidated_into_id");
 CREATE INDEX IF NOT EXISTS "students_class_id_idx" ON "students"("class_id");
@@ -81,7 +80,6 @@ CREATE INDEX IF NOT EXISTS "marks_entered_by_idx" ON "marks"("entered_by");
 CREATE INDEX IF NOT EXISTS "report_versions_report_card_id_school_id_idx" ON "report_versions"("report_card_id", "school_id");
 CREATE INDEX IF NOT EXISTS "report_cards_enrollment_id_idx" ON "report_cards"("enrollment_id");
 CREATE INDEX IF NOT EXISTS "report_cards_campus_id_idx" ON "report_cards"("campus_id");
-CREATE INDEX IF NOT EXISTS "report_cards_exam_id_idx" ON "report_cards"("exam_id");
 CREATE INDEX IF NOT EXISTS "attendance_enrollment_id_idx" ON "attendance"("enrollment_id");
 CREATE INDEX IF NOT EXISTS "attendance_marked_by_idx" ON "attendance"("marked_by");
 CREATE INDEX IF NOT EXISTS "fee_structures_created_by_idx" ON "fee_structures"("created_by");
@@ -146,7 +144,6 @@ CREATE INDEX IF NOT EXISTS "dorm_rooms_room_type_id_idx" ON "dorm_rooms"("room_t
 CREATE INDEX IF NOT EXISTS "books_campus_id_idx" ON "books"("campus_id");
 CREATE INDEX IF NOT EXISTS "books_category_id_idx" ON "books"("category_id");
 CREATE INDEX IF NOT EXISTS "library_members_user_id_idx" ON "library_members"("user_id");
-CREATE INDEX IF NOT EXISTS "book_issues_book_id_idx" ON "book_issues"("book_id");
 CREATE INDEX IF NOT EXISTS "book_issues_member_id_idx" ON "book_issues"("member_id");
 CREATE INDEX IF NOT EXISTS "items_campus_id_idx" ON "items"("campus_id");
 CREATE INDEX IF NOT EXISTS "items_category_id_idx" ON "items"("category_id");

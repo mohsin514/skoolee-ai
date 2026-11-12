@@ -2133,6 +2133,7 @@ model Exam {
   schedules   ExamSchedule[]
 
   @@index([schoolId])
+  @@index([campusId, academicYear])
   @@index([campusId])
   @@index([classId])
   @@index([sessionId])
@@ -2362,9 +2363,10 @@ model ReportCard {
   @@unique([id, schoolId])
   @@unique([studentId, examId])
   @@index([schoolId])
+  @@index([examId])
+  @@index([campusId, generatedAt])
   @@index([enrollmentId])
   @@index([campusId])
-  @@index([examId])
   @@map("report_cards")
 }
 
@@ -5304,6 +5306,7 @@ model AuditLog {
   @@index([schoolId])
   @@index([schoolId, campusId, createdAt(sort: Desc)])
   @@index([schoolId, retentionUntil], map: "audit_logs_retention_idx")
+  @@index([schoolId, tableName, recordId])
   @@map("audit_logs")
 }
 
@@ -5933,7 +5936,9 @@ model BookIssue {
 
   @@index([schoolId])
   @@index([copyId, returnedAt])
+  @@index([memberId, returnedAt])
   @@index([bookId])
+  @@index([schoolId, returnedAt, dueAt])
   @@index([memberId])
   @@map("book_issues")
 }
