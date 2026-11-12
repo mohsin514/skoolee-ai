@@ -320,6 +320,8 @@ export const batchRemarkSchema = z.object({
   campusId: z.string().min(1).optional(),
   language: z.enum(["en", "ur", "both"]).default("both"),
   tone: z.enum(["formal", "encouraging", "constructive"]).default("encouraging"),
+  // SKAI-1842: index of the first pupil to draft; the route answers with nextCursor until the class is done.
+  cursor: z.number().int().min(0).default(0),
 });
 
 export const aiFeatureRequestSchema = z.object({
