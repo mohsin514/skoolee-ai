@@ -189,6 +189,12 @@ export function ExamCycleManager({
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [stageFilter, setStageFilter] = useState<ColumnKey | "ALL">("ALL");
   const [attentionOnly, setAttentionOnly] = useState(false);
+  // SKAI-1831: the board reads the active cycle's year; earlier years load only when asked for. `yearScope` is the
+  // year the server applied (null = every year, e.g. no active cycle).
+  const [allYears, setAllYears] = useState(false);
+  const [yearScope, setYearScope] = useState<number | null>(null);
+  // Only the newest load may write state, so a slow all-years answer cannot land after the toggle is switched back.
+  const loadSeq = useRef(0);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -248,16 +254,19 @@ export function ExamCycleManager({
     async (silent = false) => {
       if (silent && inFlight.current) return;
       inFlight.current = true;
+      const seq = ++loadSeq.current;
       if (!silent) { setLoading(true); setLoadFailed(false); }
       else setRefreshing(true);
       try {
         const params = new URLSearchParams();
         if (campusId) params.set("campusId", campusId);
         const qs = params.toString();
+        const examParams = new URLSearchParams(params);
+        if (!allYears) examParams.set("academicYear", "active");
 
         const [examsRes, schedRes] = await Promise.all([
           // SKAI-1815: marking progress comes back with the list, counted on the server.
-          fetch(`/api/exams?${qs}${qs ? "&" : ""}withProgress=1`).then((r) => r.json()),
+          fetch(`/api/exams?${examParams}${examParams.size ? "&" : ""}withProgress=1`).then((r) => r.json()),
           // Teachers have no datesheet stage, so skip that call for them.
           isTeacher
             ? Promise.resolve({ success: true, data: [] })
@@ -265,8 +274,10 @@ export function ExamCycleManager({
             : fetch(`/api/academic/exam-schedule?${qs}`).then(async (r) => { const j = await r.json().catch(() => ({})); return r.ok && j.success && Array.isArray(j.data) ? j : { failed: true }; }).catch(() => ({ failed: true })),
         ]);
 
+        if (seq !== loadSeq.current) return;
         if (!examsRes.success) throw new Error("load failed");
         const all: ExamItem[] = examsRes.exams;
+        setYearScope(typeof examsRes.academicYear === "number" ? examsRes.academicYear : null);
         // Teachers only manage their own quizzes and class tests.
         const list = isTeacher
           ? all.filter((e) => (TEACHER_EXAM_TYPES as readonly string[]).includes(e.examType || ""))
@@ -281,19 +292,22 @@ export function ExamCycleManager({
         const metas = list
           .filter((e) => e.status !== "DRAFT" && e.status !== "ACTIVE")
           .map((e) => ({ id: e.id, meta: progress[e.id] ?? null }));
+        if (seq !== loadSeq.current) return;
         const metaMap: Record<string, ExamMeta> = {};
         metas.forEach((x) => { if (x.meta) metaMap[x.id] = x.meta; });
         setMeta(metaMap);
         setMetaFailed(metas.filter((x) => !x.meta).map((x) => x.id));
       } catch {
-        if (!silent) setLoadFailed(true);
+        if (!silent && seq === loadSeq.current) setLoadFailed(true);
       } finally {
-        inFlight.current = false;
-        setLoading(false);
-        setRefreshing(false);
+        if (seq === loadSeq.current) {
+          inFlight.current = false;
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [campusId, isTeacher],
+    [campusId, isTeacher, allYears],
   );
 
   useEffect(() => {
@@ -1095,6 +1109,11 @@ export function ExamCycleManager({
             </span>
           ) : null}
         </Button>
+        {yearScope !== null || allYears ? (
+          <Button variant="choice" type="button" aria-pressed={allYears} onClick={() => setAllYears((v) => !v)} className="justify-start px-3 py-2.5">
+            {ui("Include earlier years")}
+          </Button>
+        ) : null}
 
         {filtersActive ? (
           <Button variant="ghost"
