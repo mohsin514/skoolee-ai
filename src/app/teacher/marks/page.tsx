@@ -151,26 +151,29 @@ export default function MarksPage() {
     if (!selectedExamId || !markSheet) return;
     setMarksSaving(true);
     try {
-      const payload: any[] = [];
-      const expectedMarks: Record<string, string> = {};
-      let filled = 0;
+      const all: any[] = [];
+      let payload: any[] = [];
+      let expectedMarks: Record<string, string> = {};
       for (const student of markSheet.students || []) {
         for (const subject of markSheet.subjects || []) {
           const key = `${student.id}:${subject.id}`;
           const value = marksByKey[key];
           if (value === "" || value === undefined) continue;
-          filled += 1;
+          // SKAI-1385: ABSENT and EXEMPT cells round-trip as flags, never as a scored zero.
+          const entry = value === ABSENT_TOKEN ? { studentId: student.id, subjectId: subject.id, marksObtained: 0, isAbsent: true }
+            : value === EXEMPT_TOKEN ? { studentId: student.id, subjectId: subject.id, marksObtained: 0, isExempt: true }
+            : { studentId: student.id, subjectId: subject.id, marksObtained: Number(value) };
+          all.push(entry);
           // SKAI-1834: only the cells that differ from the sheet the teacher loaded (or the latest one reviewed after
           // a conflict) are sent, with their own baseline; an untouched cell would be a no-op on the server anyway.
           if (value === (draft.baseline[key] ?? "") && value === (baselineMarks[key] ?? "")) continue;
           expectedMarks[key] = draft.baseline[key] ?? "";
-          // SKAI-1385: ABSENT and EXEMPT cells round-trip as flags, never as a scored zero.
-          if (value === ABSENT_TOKEN) payload.push({ studentId: student.id, subjectId: subject.id, marksObtained: 0, isAbsent: true });
-          else if (value === EXEMPT_TOKEN) payload.push({ studentId: student.id, subjectId: subject.id, marksObtained: 0, isExempt: true });
-          else payload.push({ studentId: student.id, subjectId: subject.id, marksObtained: Number(value) });
+          payload.push(entry);
         }
       }
-      if (filled === 0) { toast.error(ui("Enter at least one mark before saving.")); return; }
+      if (all.length === 0) { toast.error(ui("Enter at least one mark before saving.")); return; }
+      // The API needs at least one entry: when no filled cell changed (only clears), send the sheet as before.
+      if (payload.length === 0) { payload = all; expectedMarks = draft.baseline; }
       const res = await fetch("/api/marks", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ examId: selectedExamId, entries: payload, expectedMarks }),
