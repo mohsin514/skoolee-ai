@@ -82,6 +82,8 @@ jobs:
             process.exit(bad ? 1 : 0);'
       - name: Lint (0 errors)
         run: pnpm run lint
+      - name: Every foreign key has an index (SKAI-1806)
+        run: pnpm run check:fk-indexes
       - name: Type check (0 errors)
         run: pnpm run typecheck
       - name: Unit and integration tests (coverage thresholds live in your test config)
