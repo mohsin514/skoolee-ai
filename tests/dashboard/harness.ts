@@ -24,6 +24,10 @@ export const h = {
   maxInFlight: 0,
   campuses: new Map<string, { id: string }[]>(),
   errors: [] as unknown[][],
+  /** Every read the fake prisma received, in order (SKAI-1818: assert query shape and tenant scope). */
+  calls: [] as { read: string; args: any }[],
+  /** Canned results for chosen `model.method` reads; anything else gets the default answer. */
+  answers: new Map<string, unknown>(),
 };
 
 function poolTimeout(read: string) {
@@ -31,6 +35,7 @@ function poolTimeout(read: string) {
 }
 
 function answer(model: string, method: string, args: any): unknown {
+  if (h.answers.has(`${model}.${method}`)) return h.answers.get(`${model}.${method}`);
   if (method === "count") return 0;
   if (method === "aggregate") return { _sum: { totalAmount: null, totalAmountPaid: null }, _avg: { marksObtained: null }, _count: 0 };
   if (method === "findFirst" || method === "findUnique") return model === "campus" ? { id: args?.where?.id, name: "Main", city: "", regId: "", logoUrl: null, school: { name: "School", logoUrl: null } } : null;
@@ -43,6 +48,7 @@ const fakePrisma = new Proxy({}, {
     get: (_inner, method: string) => async (args: unknown) => {
       h.inFlight += 1;
       h.maxInFlight = Math.max(h.maxInFlight, h.inFlight);
+      h.calls.push({ read: `${model}.${method}`, args });
       try {
         await new Promise((resolve) => setTimeout(resolve, 1));
         if (h.failing.has(`${model}.${method}`)) throw poolTimeout(`${model}.${method}`);
@@ -79,6 +85,7 @@ export const logged = (prefix: string, code?: string) =>
 const originalError = console.error;
 beforeEach(() => {
   h.session = null; h.failing = new Set(); h.inFlight = 0; h.maxInFlight = 0; h.errors.length = 0;
+  h.calls.length = 0; h.answers = new Map();
   h.campuses.set(SCHOOL, [{ id: "campus-1" }]);
   console.error = (...args: unknown[]) => { h.errors.push(args); };
 });

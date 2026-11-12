@@ -144,7 +144,7 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent, v
       cards,
       grades: gradeDistribution(cards),
       trend,
-      pipeline: reportPipeline(data?.recentReportCards ?? []).map((stage) => ({ ...stage, stage: ui(stage.stage) })),
+      pipeline: reportPipeline(data?.reportCardCounts ?? []).map((stage) => ({ ...stage, stage: ui(stage.stage) })),
       comms: commsHealth(data?.communicationSummary).map((item) => ({ ...item, label: ui(item.label) })),
       todayRate: attendanceRate(data?.attendanceSummary),
       buckets,
