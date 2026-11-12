@@ -198,6 +198,10 @@ export function ExamCycleManager({
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [stageFilter, setStageFilter] = useState<ColumnKey | "ALL">("ALL");
   const [attentionOnly, setAttentionOnly] = useState(false);
+  // SKAI-1831: the board reads the active cycle's year; earlier years load only when asked for. `yearScope` is the
+  // year the server applied (null = every year, e.g. no active cycle).
+  const [allYears, setAllYears] = useState(false);
+  const [yearScope, setYearScope] = useState<number | null>(null);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -259,9 +263,11 @@ export function ExamCycleManager({
         const params = new URLSearchParams();
         if (campusId) params.set("campusId", campusId);
         const qs = params.toString();
+        const examParams = new URLSearchParams(params);
+        if (!allYears) examParams.set("academicYear", "active");
 
         const [examsRes, schedRes] = await Promise.all([
-          fetch(`/api/exams?${qs}`).then((r) => r.json()),
+          fetch(`/api/exams?${examParams}`).then((r) => r.json()),
           // Teachers have no datesheet stage, so skip that call for them.
           isTeacher
             ? Promise.resolve({ success: true, data: [] })
@@ -271,6 +277,7 @@ export function ExamCycleManager({
 
         if (!examsRes.success) throw new Error("load failed");
         const all: ExamItem[] = examsRes.exams;
+        setYearScope(typeof examsRes.academicYear === "number" ? examsRes.academicYear : null);
         // Teachers only manage their own quizzes and class tests.
         const list = isTeacher
           ? all.filter((e) => (TEACHER_EXAM_TYPES as readonly string[]).includes(e.examType || ""))
@@ -321,7 +328,7 @@ export function ExamCycleManager({
         setRefreshing(false);
       }
     },
-    [campusId, isTeacher],
+    [campusId, isTeacher, allYears],
   );
 
   useEffect(() => {
@@ -1124,6 +1131,11 @@ export function ExamCycleManager({
             </span>
           ) : null}
         </Button>
+        {yearScope !== null || allYears ? (
+          <Button variant="choice" type="button" aria-pressed={allYears} onClick={() => setAllYears((v) => !v)} className="justify-start px-3 py-2.5">
+            {ui("Include earlier years")}
+          </Button>
+        ) : null}
 
         {filtersActive ? (
           <Button variant="ghost"

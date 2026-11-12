@@ -165,6 +165,10 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
   const [openExam, setOpenExam] = useState<ExamItem | null>(null);
   const [deleting, setDeleting] = useState<Session | null>(null);
   const [showLegacy, setShowLegacy] = useState(false);
+  // SKAI-1831: "Other exams" covers the active year; earlier years load only on request. `legacyYear` is the year
+  // the server actually applied (null = every year, e.g. no active cycle).
+  const [allYears, setAllYears] = useState(false);
+  const [legacyYear, setLegacyYear] = useState<number | null>(null);
   // R4: the first load failing is an inline ErrorState with retry; a silent refresh failing keeps the last figures.
   const [loadFailed, setLoadFailed] = useState(false);
   const ui = useUiText();
@@ -178,9 +182,11 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
       else { setLoading(true); setLoadFailed(false); }
       try {
         const qs = campusId ? `?campusId=${campusId}` : "";
+        // SKAI-1831: only exams outside a session are kept below, so never download the session ones.
+        const examQs = new URLSearchParams({ ...(campusId ? { campusId } : {}), sessionId: "none", ...(allYears ? {} : { academicYear: "active" }) });
         const [sessRes, examRes] = await Promise.all([
           fetch(`/api/academic/exam-sessions${qs}`, { cache: "no-store" }).then((r) => r.json()),
-          fetch(`/api/exams${qs}`, { cache: "no-store" }).then((r) => r.json()),
+          fetch(`/api/exams?${examQs}`, { cache: "no-store" }).then((r) => r.json()),
         ]);
         if (!sessRes.success && !examRes.success) throw new Error("load failed");
 
@@ -193,6 +199,7 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
         // main rail, which is about the term exam the office is running.
         const all: ExamItem[] = examRes.success ? examRes.exams : [];
         setLegacy(all.filter((e) => !(e as ExamItem & { sessionId?: string }).sessionId));
+        if (examRes.success) setLegacyYear(typeof examRes.academicYear === "number" ? examRes.academicYear : null);
       } catch {
         if (!silent) setLoadFailed(true);
       } finally {
@@ -200,7 +207,7 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
         setRefreshing(false);
       }
     },
-    [campusId],
+    [campusId, allYears],
   );
 
   useEffect(() => {
@@ -529,7 +536,7 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
       )}
 
       {/* ── Teachers' own assessments, out of the way ───────────────────── */}
-      {legacy.length > 0 ? (
+      {legacy.length > 0 || legacyYear !== null || allYears ? (
         <div className="sk-panel ">
           <Button variant="ghost"
             type="button"
@@ -576,6 +583,11 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
                   </Button>
                 </li>
               ))}
+              <li className="px-5 py-2">
+                <Button variant="ghost" size="sm" type="button" aria-pressed={allYears} onClick={() => setAllYears((v) => !v)}>
+                  {ui(allYears ? "This year only" : "Include earlier years")}
+                </Button>
+              </li>
             </ul>
           ) : null}
         </div>
