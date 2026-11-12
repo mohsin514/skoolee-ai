@@ -74,6 +74,9 @@ async function scopedRecord(user: AuthUser, id: string, mode: "read" | "write", 
   workspaceIdSchema.parse(id);
   const record = await db.schoolAiRecord.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) } });
   const subjects = user.role === "TEACHER" ? await getAssignedWorkspaceSubjects(user, db) : [];
+  return assertScopedRecord(user, record, mode, db, permissions, subjects);
+}
+async function assertScopedRecord(user: AuthUser, record: StoredRecord | null, mode: "read" | "write", db: TxClient, permissions: WorkspacePermissionSnapshot | undefined, subjects: Awaited<ReturnType<typeof getAssignedWorkspaceSubjects>>): Promise<StoredRecord> {
   if (!record || !canAccessWorkspaceRecord(user, record, mode, subjects)) throw new SchoolAiError("Workspace item not found or no longer accessible.", 404);
   await assertWorkspaceDomainPermission(user, record.kind as WorkspaceKind, dataOf(record), "view", permissions);
   await assertKnowledgeEvidenceRead(user,record.kind,record.campusId,dataOf(record),db,permissions);
@@ -304,6 +307,17 @@ export async function getWorkspaceRecord(user: AuthUser, id: string): Promise<Ai
 export async function getWorkspaceRecordInTransaction(user: AuthUser, id: string, tx: TxClient, permissions: WorkspacePermissionSnapshot): Promise<AiWorkspaceRecord> {
   await assertSchoolAiAccess(user, "view", permissions);
   return publicRecord(await scopedRecord(user, id, "read", tx, permissions));
+}
+
+/** SKAI-1841: loads many records in one school/campus-scoped query. Each id still gets the same checks
+ * and the same error as getWorkspaceRecordInTransaction, settled once and reused for repeat ids. */
+export async function workspaceRecordReader(user: AuthUser, ids: readonly string[], tx: TxClient, permissions: WorkspacePermissionSnapshot): Promise<(id: string) => Promise<AiWorkspaceRecord>> {
+  const valid = [...new Set(ids)].filter(id => workspaceIdSchema.safeParse(id).success);
+  const rows = valid.length ? await tx.schoolAiRecord.findMany({ where: { id: { in: valid }, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) } }) : [];
+  const byId = new Map(rows.map(row => [row.id, row])), subjects = user.role === "TEACHER" ? await getAssignedWorkspaceSubjects(user, tx) : [];
+  const settled = new Map<string, Promise<AiWorkspaceRecord>>();
+  const read = async (id: string) => { await assertSchoolAiAccess(user, "view", permissions); workspaceIdSchema.parse(id); return publicRecord(await assertScopedRecord(user, byId.get(id) ?? null, "read", tx, permissions, subjects)); };
+  return id => { let hit = settled.get(id); if (!hit) settled.set(id, hit = read(id)); return hit; };
 }
 
 /** Intake uses this before expensive extraction; key ownership is always the authenticated actor. */

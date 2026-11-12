@@ -3,9 +3,10 @@ import { Prisma, type PrismaClient, type SchoolAiRun } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
 import { assertSchoolOperational, BillingAccessError } from "@/lib/billing/entitlements";
-import { assertApprovalRole, assertSchoolAiAccess, assertWorkspaceDomainPermission, assertWorkspaceSubject, loadWorkspacePermissionSnapshot, resolveWorkerPrincipal, resolveWorkspaceCampus, SchoolAiError } from "./access";
-import { getWorkspaceRecordInTransaction, workspaceRequestHash } from "./repository";
-import { assertSchoolAiOperationAccess, executionOperationSchema, executeSchoolAiToolInTransaction, previewSchoolAiExecution } from "./execution";
+import { assertApprovalRole, assertSchoolAiAccess, assertWorkspaceDomainPermission, assertWorkspaceSubject, loadWorkspacePermissionSnapshot, resolveWorkerPrincipal, resolveWorkspaceCampus, SchoolAiError, type WorkspacePermissionSnapshot } from "./access";
+import { getWorkspaceRecordInTransaction, workspaceRecordReader, workspaceRequestHash } from "./repository";
+import { assertSchoolAiOperationAccess, executionOperationSchema, executeSchoolAiToolInTransaction, previewSchoolAiExecution, type SchoolAiOperation } from "./execution";
+import type { AiWorkspaceRecord } from "./types";
 import { schoolAiTransaction } from "./transaction";
 import { assertSchoolSetupRecordAccess } from "./school-setup-service";
 import { automationPolicySchema, operationPolicyScope, runCreateSchema, runStepsSchema, runUpdateSchema, validateRunWindow, type SchoolRun, type RunStep } from "./runs";
@@ -22,20 +23,55 @@ async function access(user: AuthUser, db: TxClient) {
   return permissions;
 }
 function output(run: SchoolAiRun): SchoolRun { return { id: run.id, title: run.title, campusId: run.campusId, status: run.status as SchoolRun["status"], version: run.version, steps: runStepsSchema.parse(run.steps), nextStep: run.nextStep, receipts: run.receipts as unknown as SchoolRun["receipts"], errorCode: run.errorCode, scheduledAt: run.scheduledAt.toISOString(), expiresAt: run.expiresAt.toISOString(), createdAt: run.createdAt.toISOString(), completedAt: run.completedAt?.toISOString() ?? null }; }
-async function checkSteps(user: AuthUser, steps: RunStep[], campusId: string, db: TxClient, currentVersion = true) {
+type StepChecks = {
+  permissions: WorkspacePermissionSnapshot;
+  operation(operation: SchoolAiOperation): Promise<void>;
+  record(id: string): Promise<AiWorkspaceRecord>;
+  revision(recordId: string, version: number): Promise<{ data: Prisma.JsonValue } | null>;
+  subject(data: Record<string, unknown>): Promise<unknown>;
+  setup(recordId: string, version: number): Promise<void>;
+};
+async function singleStepChecks(user: AuthUser, campusId: string, db: TxClient): Promise<StepChecks> {
   const permissions = await loadWorkspacePermissionSnapshot(user, db);
+  return {
+    permissions, operation: operation => assertSchoolAiOperationAccess(user, operation, db), record: id => getWorkspaceRecordInTransaction(user, id, db, permissions),
+    revision: (recordId, version) => db.schoolAiRevision.findFirst({ where: { schoolId: user.schoolId, campusId, recordId, version, status: "APPROVED" }, select: { data: true } }),
+    subject: data => assertWorkspaceSubject(user, campusId, data, db), setup: (recordId, version) => assertSchoolSetupRecordAccess(user, recordId, db, version),
+  };
+}
+/** Settles each distinct key once per request; a rejection is reused, so every run sharing it is still filtered on its own. */
+function once<T>(load: (key: string) => Promise<T>) { const settled = new Map<string, Promise<T>>(); return (key: string) => { let hit = settled.get(key); if (!hit) settled.set(key, hit = load(key)); return hit; }; }
+/** SKAI-1841: one permission snapshot, one record query and one revision query for every step of every listed run.
+ * The list reads one serializable snapshot, so a repeated check cannot answer differently from the first. */
+async function batchedStepChecks(user: AuthUser, campusId: string, steps: RunStep[], db: TxClient): Promise<StepChecks> {
+  const permissions = await loadWorkspacePermissionSnapshot(user, db);
+  const record = await workspaceRecordReader(user, steps.map(step => step.recordId), db, permissions);
+  const pairs = [...new Map(steps.map(step => [`${step.recordId}:${step.version}`, { recordId: step.recordId, version: step.version }])).values()];
+  const revisions = pairs.length ? await db.schoolAiRevision.findMany({ where: { schoolId: user.schoolId, campusId, status: "APPROVED", OR: pairs }, select: { recordId: true, version: true, data: true } }) : [];
+  const saved = new Map(revisions.map(revision => [`${revision.recordId}:${revision.version}`, { data: revision.data }]));
+  const operation = once(key => assertSchoolAiOperationAccess(user, key as SchoolAiOperation, db, permissions));
+  const subject = once(key => { const [subjectId, classId] = JSON.parse(key) as [string | null, string | null]; return assertWorkspaceSubject(user, campusId, { subjectId, classId }, db); });
+  const setup = once(key => { const at = key.lastIndexOf(":"); return assertSchoolSetupRecordAccess(user, key.slice(0, at), db, Number(key.slice(at + 1))); });
+  const text = (value: unknown) => typeof value === "string" ? value : null;
+  return {
+    permissions, operation: value => operation(value), record, revision: async (recordId, version) => saved.get(`${recordId}:${version}`) ?? null,
+    subject: data => subject(JSON.stringify([text(data.subjectId), text(data.classId)])), setup: (recordId, version) => setup(`${recordId}:${version}`),
+  };
+}
+async function checkSteps(user: AuthUser, steps: RunStep[], campusId: string, db: TxClient, currentVersion = true, checks?: StepChecks) {
+  const reader = checks ?? await singleStepChecks(user, campusId, db);
   for (const step of steps) {
-    await assertSchoolAiOperationAccess(user, executionOperationSchema.parse(step.operation), db);
-    const record = await getWorkspaceRecordInTransaction(user, step.recordId, db, permissions);
+    await reader.operation(executionOperationSchema.parse(step.operation));
+    const record = await reader.record(step.recordId);
     if (record.campusId !== campusId || currentVersion && (record.version !== step.version || record.status !== "APPROVED")) throw new SchoolAiError("A step changed. Review the current approved version.", 409, "STALE_WORKSPACE_VERSION");
     // Titles and receipt references also reveal the original reviewed scope.
     // Editing the current proposal cannot grant access to a pinned older step.
-    const saved = await db.schoolAiRevision.findFirst({ where: { schoolId: user.schoolId, campusId, recordId: step.recordId, version: step.version, status: "APPROVED" }, select: { data: true } });
+    const saved = await reader.revision(step.recordId, step.version);
     if (!saved) throw new SchoolAiError("The reviewed step is no longer accessible.", 404, "PERMISSION_DENIED");
     const data = saved.data as Record<string, unknown>;
-    await assertWorkspaceDomainPermission(user, record.kind, data, "view", permissions);
-    await assertWorkspaceSubject(user, campusId, data, db);
-    if (step.operation === "setup.apply_changes") await assertSchoolSetupRecordAccess(user, step.recordId, db, step.version);
+    await assertWorkspaceDomainPermission(user, record.kind, data, "view", reader.permissions);
+    await reader.subject(data);
+    if (step.operation === "setup.apply_changes") await reader.setup(step.recordId, step.version);
   }
 }
 async function policy(user: AuthUser, run: Pick<SchoolAiRun, "campusId" | "policyId" | "policyVersion" | "expiresAt">, steps: RunStep[], db: TxClient, budget = false) {
@@ -79,7 +115,9 @@ export async function createSchoolRun(user: AuthUser, raw: unknown) {
   }
 
 }
-export async function listSchoolRuns(user: AuthUser, campusId: string) { return schoolAiTransaction(user, async db => { await access(user, db); await resolveWorkspaceCampus(user, campusId, db); const rows = await db.schoolAiRun.findMany({ where: { ...scope(user), campusId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 100 }); const allowed: SchoolRun[] = []; for (const row of rows) { try { await checkSteps(user, runStepsSchema.parse(row.steps), campusId, db, false); allowed.push({ ...output(row), updatedAt: row.updatedAt.toISOString(), owner: { name: "", mine: row.actorId === user.userId } }); } catch (error) { if (!(error instanceof SchoolAiError) || ![403, 404].includes(error.status)) throw error; } }
+export async function listSchoolRuns(user: AuthUser, campusId: string) { return schoolAiTransaction(user, async db => { await access(user, db); await resolveWorkspaceCampus(user, campusId, db); const rows = await db.schoolAiRun.findMany({ where: { ...scope(user), campusId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 100 }); const allowed: SchoolRun[] = [];
+  const checks = await batchedStepChecks(user, campusId, rows.flatMap(row => runStepsSchema.safeParse(row.steps).data ?? []), db);
+  for (const row of rows) { try { await checkSteps(user, runStepsSchema.parse(row.steps), campusId, db, false, checks); allowed.push({ ...output(row), updatedAt: row.updatedAt.toISOString(), owner: { name: "", mine: row.actorId === user.userId } }); } catch (error) { if (!(error instanceof SchoolAiError) || ![403, 404].includes(error.status)) throw error; } }
   // SKO-470: each run names the approver who owns its recovery, and each committed step carries the
   // time its domain receipt was written, so partial work is reconciled against durable evidence.
   const actors = new Map((await db.user.findMany({ where: { schoolId: user.schoolId, id: { in: [...new Set(rows.filter(row => allowed.some(run => run.id === row.id)).map(row => row.actorId))] } }, select: { id: true, fullName: true } })).map(person => [person.id, person.fullName]));
