@@ -8,6 +8,7 @@ import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { paperDataSchema } from "@/lib/school-ai/assessment";
 import { examAccommodationsSchema } from "@/lib/school-ai/exam";
 import { ASSESSMENT_TYPES, capabilitiesSchema, currentWindowWhere, effectiveSettings, needsReview, planPhase, sensitiveInstructionIssue, type PlanRow } from "./plan";
+import { markCandidateExamActive } from "@/lib/school-ai/exam-active-marker";
 
 // SKO-410 projections:
 //  - designated approvers (campus operations managers): full plans and restricted supporting records
@@ -184,6 +185,7 @@ export async function liveAdjustment(user: AuthUser, assignmentId: string, raw: 
     const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { schoolId: user.schoolId, assignmentId, studentId: input.studentId, status: "IN_PROGRESS", deadlineAt: { gt: now } } });
     if (!attempt) throw new ApiError("A live adjustment needs an attempt in progress. Before start, approve the plan or exam adjustment instead.", 409);
     const newDeadline = new Date(attempt.deadlineAt.getTime() + input.addedMinutes * 60_000);
+    await markCandidateExamActive(attempt.userId, newDeadline); // SKAI-1840: before the later deadline commits.
     const moved = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", deadlineAt: attempt.deadlineAt }, data: { deadlineAt: newDeadline } });
     if (moved.count !== 1) {
       // A concurrent identical request may have committed while this one waited on the attempt row.

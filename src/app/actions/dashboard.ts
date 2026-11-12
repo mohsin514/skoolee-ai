@@ -1,6 +1,6 @@
 'use server'
 import { dominantInvoiceCurrency, pickDominantCurrency } from "@/app/api/fees/reports/invoice-currency";
-import { familyVersion, getPublishedVersion } from "@/lib/academic/report-versions";
+import { familyVersion, publishedVersionsFor } from "@/lib/academic/report-versions";
 import { pendingReportReviewCount } from "@/lib/academic/report-review-count";
 
 import { getLocalePackage } from "@/lib/locale/store";
@@ -1506,7 +1506,7 @@ export const getStudentDashboardData = cache(boundToSession(async function getSt
     orderBy: [{ rollNo: "asc" }, { id: "asc" }],
   });
 
-  const released = await Promise.all((student?.reportCards || []).map(async r => familyVersion(await getPublishedVersion(r.id))));
+  const released = student ? (await publishedVersionsFor(student.reportCards.map(r => r.id), session.schoolId)).map(familyVersion) : [];
 
   // Only the current year's days belong on the student's own dashboard;
   // previous years stay available as history elsewhere.

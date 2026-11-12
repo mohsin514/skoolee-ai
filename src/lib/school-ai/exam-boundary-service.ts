@@ -5,12 +5,15 @@ import { checkRevocationStrict } from "@/lib/auth/session-revocation";
 import { hashSessionToken } from "@/lib/auth/session-cookie";
 import type { AuthUser } from "@/lib/auth";
 import type { CandidateExamBoundary } from "./exam-boundary";
+import { candidateMayBeInExam } from "./exam-active-marker";
 
 type CandidateSessionClaims = Parameters<typeof resolveCurrentPrincipal>[0] & { role: "STUDENT" };
 type CandidateSessionDependencies = {
   isRevoked: (tokenHash: string) => Promise<boolean>;
   resolvePrincipal: typeof resolveCurrentPrincipal;
   lookupBoundary: (actor: AuthUser) => Promise<CandidateExamBoundary | null>;
+  /** SKAI-1840: false only when Redis positively says this account has no exam marker. Omitted = always check. */
+  mayBeInExam?: (userId: string) => Promise<boolean>;
 };
 type CandidateSessionBoundary =
   | { authenticated: false }
@@ -29,8 +32,12 @@ export async function candidateExamBoundaryForSession(
     isRevoked: checkRevocationStrict,
     resolvePrincipal: resolveCurrentPrincipal,
     lookupBoundary: candidateExamBoundary,
+    mayBeInExam: candidateMayBeInExam,
   },
 ): Promise<CandidateSessionBoundary> {
+  // No marker: no attempt can be active (see exam-active-marker.ts), so the proxy stays
+  // optimistic here as it is for every other role; getAuthUser still rejects revoked sessions.
+  if (dependencies.mayBeInExam && !(await dependencies.mayBeInExam(claims.userId))) return { authenticated: true, active: null };
   if (await dependencies.isRevoked(hashSessionToken(token))) return { authenticated: false };
   const actor = await dependencies.resolvePrincipal(claims);
   if (!actor || actor.role !== "STUDENT") return { authenticated: false };

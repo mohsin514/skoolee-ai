@@ -16,7 +16,7 @@ import { SUBSCRIPTION_PAUSED_MESSAGE } from "@/lib/billing/hub";
 import { JWT_SECRET } from "@/lib/auth/secret";
 import { buildCsp } from "@/lib/security/csp-policy";
 import { requiredOnboardingPath } from "@/lib/onboarding/launch-plan";
-import { allowedDuringCandidateExam, candidateExamUrl } from "@/lib/school-ai/exam-boundary";
+import { allowedDuringCandidateExam, candidateExamUrl, isPublicStaticFileRequest } from "@/lib/school-ai/exam-boundary";
 // The cookie helper stays dependency-free. The active candidate boundary below
 // is the explicit, narrow exception that reads authoritative database state.
 import {
@@ -122,7 +122,7 @@ async function proxyImpl(req: NextRequest, nonce: string) {
   // second tab or encoded route cannot reach unrelated Skoolee data. Domain
   // authentication and authorization still run in each allowed handler.
   const examToken = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (examToken && !normalizedPath.startsWith("/_next/static/") && normalizedPath !== "/_next/image" && !(normalizedPath === "/api/auth/logout" && req.method === "POST")) {
+  if (examToken && !normalizedPath.startsWith("/_next/static/") && normalizedPath !== "/_next/image" && !(normalizedPath === "/api/auth/logout" && req.method === "POST") && !isPublicStaticFileRequest(normalizedPath, req.method)) {
     let candidate: { userId: string; schoolId: string; role: "STUDENT"; accessVersion: unknown; mfaVerified: unknown } | null = null;
     try {
       const { payload } = await jwtVerify(examToken, JWT_SECRET);
