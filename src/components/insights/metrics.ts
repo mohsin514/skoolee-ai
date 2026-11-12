@@ -119,13 +119,16 @@ export interface GradeSlice {
   color: string;
 }
 
-/** Counts letter grades off report cards, kept in report order. */
+/** A row the server already counted (`{ ..., count }`, SKAI-1856) stands for that many records; anything else for one. */
+const weight = (row: any): number => (typeof row?.count === "number" && Number.isFinite(row.count) ? row.count : 1);
+
+/** Counts letter grades off report cards (or pre-counted grade rows), kept in report order. */
 export function gradeDistribution(reportCards: any[]): GradeSlice[] {
   const counts = new Map<string, number>();
   for (const card of reportCards ?? []) {
     const grade = (card?.grade ?? "").trim().toUpperCase();
     if (!grade) continue;
-    counts.set(grade, (counts.get(grade) ?? 0) + 1);
+    counts.set(grade, (counts.get(grade) ?? 0) + weight(card));
   }
   return [...counts.entries()]
     .sort((a, b) => {
@@ -230,24 +233,25 @@ export interface EnrolmentMonth {
  * the app language, not the browser (R7, P9-12). Without it the labels are English; `key` ("2026-10") stays numeric.
  */
 export function enrolmentTrend(students: any[], months = 12, locale = "en"): EnrolmentMonth[] {
+  // Students, or pre-counted `{ enrollmentDate, count }` rows from the network console (SKAI-1856).
   const dated = (students ?? [])
-    .map((s: any) => s?.enrollmentDate)
-    .filter(Boolean)
-    .map((d: any) => new Date(d))
-    .filter((d: Date) => !Number.isNaN(d.getTime()))
-    .sort((a: Date, b: Date) => a.getTime() - b.getTime());
+    .filter((s: any) => s?.enrollmentDate)
+    .map((s: any) => ({ d: new Date(s.enrollmentDate), n: weight(s) }))
+    .filter(({ d }: { d: Date }) => !Number.isNaN(d.getTime()));
 
   if (dated.length === 0) return [];
 
   const byMonth = new Map<string, number>();
-  for (const d of dated) {
+  let first = dated[0].d;
+  for (const { d, n } of dated) {
+    if (d < first) first = d;
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    byMonth.set(key, (byMonth.get(key) ?? 0) + 1);
+    byMonth.set(key, (byMonth.get(key) ?? 0) + n);
   }
 
   // Walk every month from the first admission to now so gaps read as zero
   // admissions rather than as a missing month.
-  const start = new Date(dated[0].getFullYear(), dated[0].getMonth(), 1);
+  const start = new Date(first.getFullYear(), first.getMonth(), 1);
   const end = new Date();
   const rows: EnrolmentMonth[] = [];
   let running = 0;
@@ -410,7 +414,8 @@ export function campusRows(campuses: any[]): CampusRow[] {
       Object.entries(invoice).filter(([status]) => status !== "CANCELLED").reduce((sum, [status, value]: [string, any]) => sum + (value?.collected ?? (status === "PAID" ? value?.amount ?? 0 : 0)), 0), campus.currency ?? defaultLocale.currency,
     );
 
-    const percentages = (campus.students ?? [])
+    // SKAI-1856: the network console sends the mean of the latest cards; a bare roster is still averaged here.
+    const percentages = "averageScore" in campus ? [] : (campus.students ?? [])
       .map((s: any) => s?.reportCards?.[0]?.percentage)
       .filter((p: any) => typeof p === "number" && Number.isFinite(p) && p >= 0);
 
@@ -432,7 +437,7 @@ export function campusRows(campuses: any[]): CampusRow[] {
       collected,
       billed,
       collectionRate: billed > 0 ? Math.round((collected / billed) * 100) : 0,
-      average: percentages.length
+      average: "averageScore" in campus ? campus.averageScore : percentages.length
         ? Math.round(percentages.reduce((a: number, b: number) => a + b, 0) / percentages.length)
         : null,
       hasAdmin: active(campus.admin?.status),
@@ -441,9 +446,13 @@ export function campusRows(campuses: any[]): CampusRow[] {
   });
 }
 
-/** Every student across every campus, for network-wide distributions. */
-export function networkStudents(campuses: any[]): any[] {
-  return (campuses ?? []).flatMap((c: any) => c.students ?? []);
+/** Every campus's counted admissions and latest-card grades, for network-wide distributions (SKAI-1856). */
+export function networkEnrolments(campuses: any[]): any[] {
+  return (campuses ?? []).flatMap((c: any) => c.enrolments ?? []);
+}
+
+export function networkGrades(campuses: any[]): any[] {
+  return (campuses ?? []).flatMap((c: any) => c.grades ?? []);
 }
 
 export interface StaffMixRow {

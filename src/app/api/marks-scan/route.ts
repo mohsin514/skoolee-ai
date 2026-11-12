@@ -25,7 +25,7 @@ async function startOrTemplate(request: NextRequest) {
     const user = await requireAuthUser();
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     if (body.action === "template") return Response.json({ success: true, data: await createTemplate(user, body).then(t => ({ id: t.id, version: t.version, pageCount: t.pageCount })) }, { status: 201 });
-    if (body.action === "start") return Response.json({ success: true, data: await startBatch(user, body).then(b => ({ id: b.id, status: b.status })) }, { status: 201 });
+    if (body.action === "start") return Response.json({ success: true, data: await startBatch(user, body).then(b => ({ id: b.id, status: b.status, examId: b.examId })) }, { status: 201 });
     throw new ApiError("Unknown action", 400);
   } catch (error) { return errorResponse(error, "[marks-scan] POST failed"); }
 }
