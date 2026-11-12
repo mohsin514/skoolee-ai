@@ -115,30 +115,67 @@ function campusWhere(model: string, context: TenantContext): Record<string, unkn
   return model === "campus" ? { id: context.campusId } : { campusId: context.campusId };
 }
 
-/** Validate every scalar foreign key before a bulk/nested write executes. */
-async function validateReferences(model: string, data: unknown, context: TenantContext): Promise<void> {
-  if (Array.isArray(data)) { for (const row of data) await validateReferences(model, row, context); return; }
-  if (!isPlainObject(data)) return;
+/** Distinct-value key for a foreign key value, so repeated ids (campusId, actorId) are checked once. */
+const referenceKey = (value: unknown) => `${typeof value}:${String(value)}`;
+/** Keeps each `in` list well under Postgres' bind-parameter limit. */
+const REFERENCE_BATCH = 1000;
+
+/**
+ * Validate every scalar foreign key before a bulk/nested write executes.
+ *
+ * SKAI-1817: for an array of rows, each foreign key is checked once for the
+ * distinct values across all rows (one findMany per FK, chunked), instead of a
+ * findFirst per row per FK. Scope is unchanged: same schoolId + campus filter,
+ * and a single missing or foreign value still denies the whole write.
+ */
+export async function validateReferences(model: string, data: unknown, context: TenantContext): Promise<void> {
+  const rows = (Array.isArray(data) ? data : [data]).filter(isPlainObject);
+  if (!rows.length) return;
   const client = referenceTransaction.getStore() ?? prisma as unknown as ReferenceClient;
   for (const ref of foreignKeys.get(model) ?? []) {
-    const rawValue = data[ref.field];
-    const value = isPlainObject(rawValue) ? rawValue.set : rawValue;
-    if (value === undefined || value === null || !TENANT_MODELS.has(ref.target)) continue;
-    const row = await client[ref.target].findFirst({ where: { AND: [{ [ref.targetField]: value }, { schoolId: context.schoolId, ...campusWhere(ref.target, context) }] }, select: { [ref.targetField]: true } });
-    if (!row) throw new AccessDenied("reference", "write", context);
+    if (!TENANT_MODELS.has(ref.target)) continue;
+    const wanted = new Map<string, unknown>();
+    for (const row of rows) {
+      const rawValue = row[ref.field];
+      const value = isPlainObject(rawValue) ? rawValue.set : rawValue;
+      if (value !== undefined && value !== null) wanted.set(referenceKey(value), value);
+    }
+    if (!wanted.size) continue;
+    const scope = { schoolId: context.schoolId, ...campusWhere(ref.target, context) };
+    const select = { [ref.targetField]: true };
+    if (wanted.size === 1) {
+      const [value] = wanted.values();
+      const row = await client[ref.target].findFirst({ where: { AND: [{ [ref.targetField]: value }, scope] }, select });
+      if (!row) throw new AccessDenied("reference", "write", context);
+      continue;
+    }
+    const values = [...wanted.values()];
+    const found = new Set<string>();
+    for (let start = 0; start < values.length; start += REFERENCE_BATCH) {
+      const chunk = values.slice(start, start + REFERENCE_BATCH);
+      const matches = await client[ref.target].findMany({ where: { AND: [{ [ref.targetField]: { in: chunk } }, scope] }, select });
+      for (const match of matches as Array<Record<string, unknown>>) found.add(referenceKey(match[ref.targetField]));
+    }
+    for (const key of wanted.keys()) if (!found.has(key)) throw new AccessDenied("reference", "write", context);
   }
+  for (const row of rows) await validateNestedReferences(model, row, context, client);
+}
+
+/** Checks nested connect/set/disconnect/delete targets and recurses into nested writes of one row. */
+async function validateNestedReferences(model: string, data: Record<string, unknown>, context: TenantContext, client: ReferenceClient): Promise<void> {
   for (const [key, value] of Object.entries(data)) {
     const target = relationTargets.get(`${model}.${key}`);
     if (!target || !isPlainObject(value)) continue;
     for (const [operation, payload] of Object.entries(value)) {
       const entries = Array.isArray(payload) ? payload : [payload];
+      // A nested create list is validated as one batch, like createMany.
+      if (operation === "create") await validateReferences(target, payload, context);
       for (const entry of entries) {
         if (["connect", "set", "disconnect", "delete"].includes(operation) && TENANT_MODELS.has(target)) {
           if (!isPlainObject(entry)) throw new AccessDenied("reference", "write", context);
           const row = await client[target].findFirst({ where: { AND: [entry, { schoolId: context.schoolId, ...campusWhere(target, context) }] } });
           if (!row) throw new AccessDenied("reference", "write", context);
         }
-        if (operation === "create") await validateReferences(target, entry, context);
         if (isPlainObject(entry)) {
           if (operation === "createMany") await validateReferences(target, entry.data, context);
           if (["update", "updateMany", "upsert", "connectOrCreate"].includes(operation)) {
