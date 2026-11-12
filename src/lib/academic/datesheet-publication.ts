@@ -195,10 +195,16 @@ export async function publishedPapersForClasses(schoolId: string, classIds: stri
   if (!classIds.length) return [];
   const sessionIds = [...new Set((await prisma.exam.findMany({ where: { schoolId, classId: { in: classIds }, sessionId: { not: null } }, select: { sessionId: true } })).map(e => e.sessionId!))];
   if (!sessionIds.length) return [];
-  const versions = await prisma.examDatesheetVersion.findMany({ where: { schoolId, sessionId: { in: sessionIds } }, orderBy: { version: "desc" }, select: { id: true, sessionId: true, version: true, publishedAt: true, snapshot: true } });
-  const latest = new Map<string, (typeof versions)[number]>();
-  for (const v of versions) if (!latest.has(v.sessionId)) latest.set(v.sessionId, v);
-  return [...latest.values()].flatMap(v => (v.snapshot as Snapshot).papers.filter(p => classIds.includes(p.classId)).map(p => ({ ...p, sessionId: v.sessionId, versionId: v.id, version: v.version, publishedAt: v.publishedAt })));
+  // SKAI-1871: pick each session's latest version without its snapshot, then load only those snapshots,
+  // so republishing a date sheet no longer multiplies the JSON read on every family timetable open.
+  const heads = await prisma.examDatesheetVersion.findMany({ where: { schoolId, sessionId: { in: sessionIds } }, orderBy: { version: "desc" }, select: { id: true, sessionId: true } });
+  const latestIds = new Map<string, string>();
+  for (const v of heads) if (!latestIds.has(v.sessionId)) latestIds.set(v.sessionId, v.id);
+  if (!latestIds.size) return [];
+  const versions = await prisma.examDatesheetVersion.findMany({ where: { schoolId, id: { in: [...latestIds.values()] } }, orderBy: { version: "desc" }, select: { id: true, sessionId: true, version: true, publishedAt: true, snapshot: true } });
+  const byId = new Map(versions.map(v => [v.id, v]));
+  const latest = [...latestIds.values()].flatMap(id => byId.get(id) ?? []);
+  return latest.flatMap(v => (v.snapshot as Snapshot).papers.filter(p => classIds.includes(p.classId)).map(p => ({ ...p, sessionId: v.sessionId, versionId: v.id, version: v.version, publishedAt: v.publishedAt })));
 }
 
 /** Label printed on documents so paper and portal identify the same version. */
