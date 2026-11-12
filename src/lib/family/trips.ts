@@ -164,11 +164,14 @@ export async function staffTrips(user: AuthUser, campusId: string) {
 /** Trips a guardian's children are invited on, with the current terms and where each child's answer stands. */
 export async function guardianTrips(guardianUserId: string, schoolId: string, studentIds: string[], now = new Date()) {
   if (!studentIds.length) return [];
-  const invites = await prisma.tripInvitee.findMany({ where: { schoolId, studentId: { in: studentIds }, trip: { status: "OPEN" } }, include: { trip: { include: { versions: { orderBy: { version: "asc" } }, consents: { include: { tripVersion: { select: { version: true } } } } } } } });
+  // SKAI-1872: only these children's consent rows, and one guardian lookup per consent kind (not per invite).
+  const invites = await prisma.tripInvitee.findMany({ where: { schoolId, studentId: { in: studentIds }, trip: { status: "OPEN" } }, include: { trip: { include: { versions: { orderBy: { version: "asc" } }, consents: { where: { schoolId, studentId: { in: studentIds } }, include: { tripVersion: { select: { version: true } } } } } } } });
+  const kinds = [...new Set(invites.map(i => i.trip.versions.at(-1)!.consentKind as Kind))];
+  const byKind = new Map(await Promise.all(kinds.map(async kind => [kind, await eligibleGuardians(prisma, schoolId, [...new Set(invites.filter(i => i.trip.versions.at(-1)!.consentKind === kind).map(i => i.studentId))], kind)] as const)));
   const out = [];
   for (const invite of invites) {
     const trip = invite.trip, current = trip.versions.at(-1)!, baseline = baselineOf(trip.versions);
-    const guardians = await eligibleGuardians(prisma, schoolId, [invite.studentId], current.consentKind as Kind);
+    const guardians = (byKind.get(current.consentKind as Kind) ?? []).filter(g => g.studentId === invite.studentId);
     const signatories = guardians.map(g => g.guardianUserId!);
     const answers = trip.consents.filter(c => c.studentId === invite.studentId).map(c => ({ guardianUserId: c.guardianUserId, choice: c.choice, createdAt: c.createdAt, version: c.tripVersion.version, receiptCode: c.receiptCode }));
     const latest = latestAnswers(answers, baseline);
