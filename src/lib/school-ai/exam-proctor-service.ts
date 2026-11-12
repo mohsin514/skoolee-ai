@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
-import { scopedAssignment, staffExamAccess } from "./exam-service";
+import { candidateAssignment, scopedAssignment, staffExamAccess } from "./exam-service";
 import { schoolAiTransaction } from "./transaction";
 import { readOriginal, removeOriginal, saveReservedOriginal, sourceStorageAvailable } from "./source-storage";
 import { isProctorVideo, PROCTOR_CLIP_BYTES, PROCTOR_STREAM_BYTES, PROCTOR_STREAM_CLIPS, ProctorChangeSchema, ProctorPolicyUpdateSchema, ProctorStartSchema, proctorMimeType, proctorPolicy, type ProctorView } from "./exam-proctor";
@@ -30,20 +30,26 @@ async function activeSession(user: AuthUser, assignmentId: string, id: string, d
   await scopedAssignment(user, assignmentId, db);
   return session;
 }
-export async function getExamProctor(user: AuthUser, assignmentId: string, cursor?: string): Promise<ProctorView> {
-  await actor(user, prisma); const { assignment } = await scopedAssignment(user, assignmentId, prisma, "SUPERVISION");
+/**
+ * `summary` (SKAI-1882) is the candidate's recording-status poll: session status and clip counts, without the
+ * clip list that grows by three rows a minute per stream. It never widens what a full read returns.
+ */
+export async function getExamProctor(user: AuthUser, assignmentId: string, cursor?: string, summary = false): Promise<ProctorView> {
+  await actor(user, prisma);
+  // A candidate needs only membership, policy and version; the frozen paper is never parsed for this poll.
+  const { assignment } = user.role === "STUDENT" ? await candidateAssignment(user, assignmentId, prisma) : await scopedAssignment(user, assignmentId, prisma, "SUPERVISION");
   const anchor = cursor ? await prisma.schoolAiProctorSession.findFirst({ where: { id: cursor, schoolId: user.schoolId, assignmentId, ...(user.role === "STUDENT" ? { userId: user.userId } : {}) }, select: { id: true, consentedAt: true } }) : null;
   if (cursor && !anchor) throw new ApiError("Recording page unavailable.", 404);
-  const page = await prisma.schoolAiProctorSession.findMany({ where: { schoolId: user.schoolId, assignmentId, ...(user.role === "STUDENT" ? { userId: user.userId } : {}), ...(anchor ? { OR: [{ consentedAt: { lt: anchor.consentedAt } }, { consentedAt: anchor.consentedAt, id: { lt: anchor.id } }] } : {}) }, include: { clips: { where: { status: "READY" }, orderBy: { sequence: "asc" }, select: { id: true, sequence: true, createdAt: true, bytes: true } }, attempt: { select: { studentId: true, status: true, deadlineAt: true } } }, orderBy: [{ consentedAt: "desc" }, { id: "desc" }], take: 51 });
+  const page = await prisma.schoolAiProctorSession.findMany({ where: { schoolId: user.schoolId, assignmentId, ...(user.role === "STUDENT" ? { userId: user.userId } : {}), ...(anchor ? { OR: [{ consentedAt: { lt: anchor.consentedAt } }, { consentedAt: anchor.consentedAt, id: { lt: anchor.id } }] } : {}) }, include: { clips: { where: { status: "READY" }, orderBy: { sequence: "asc" }, select: { id: true, sequence: true, createdAt: true, bytes: true }, ...(summary && user.role === "STUDENT" ? { take: 0 } : {}) }, attempt: { select: { studentId: true, status: true, deadlineAt: true } } }, orderBy: [{ consentedAt: "desc" }, { id: "desc" }], take: 51 });
   const sessions = page.slice(0, 50);
   const students = user.role === "STUDENT" ? [] : await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: sessions.map(s => s.attempt.studentId) } }, select: { id: true, fullName: true, rollNo: true } });
   let canReadCapture = user.role === "STUDENT";
-  if (!canReadCapture) {
+  if (!canReadCapture && "paperSnapshot" in assignment) {
     try { await staffExamAccess(user, assignment, "view"); canReadCapture = true; }
     catch (error) { const status = error instanceof Error && "status" in error ? error.status : null; if (status !== 403 && status !== 404) throw error; }
   }
   let canConfigure = false;
-  if (user.role !== "STUDENT" && !await prisma.schoolAiExamAttempt.count({ where: { schoolId: user.schoolId, assignmentId } })) {
+  if (user.role !== "STUDENT" && "paperSnapshot" in assignment && !await prisma.schoolAiExamAttempt.count({ where: { schoolId: user.schoolId, assignmentId } })) {
     try { await staffExamAccess(user, assignment, "edit"); canConfigure = true; }
     catch (error) { const status = error instanceof Error && "status" in error ? error.status : null; if (status !== 403 && status !== 404) throw error; }
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import {
   ArrowLeft,
@@ -127,6 +127,13 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
   useEffect(() => {
     if (!isLoadingThread && detail) bottomRef.current?.scrollIntoView({ block: "end" });
   }, [detail?.id, isLoadingThread, detail]);
+
+  // SKAI-1879: each day label once per message list (not twice per message on every provider tick), and the latest
+  // read time of anyone else, so "seen" is one comparison per message rather than a pass over the whole roster.
+  const dayLabels = useMemo(() => messages.map((m) => dayLabelIn(m.createdAt, { ui, tag, timeZone })), [messages, ui, tag, timeZone]);
+  const othersLastReadAt = useMemo(() => (detail?.members ?? []).reduce<string | null>(
+    (latest, m) => (m.userId !== viewer?.id && m.lastReadAt !== null && (latest === null || m.lastReadAt > latest) ? m.lastReadAt : latest), null,
+  ), [detail?.members, viewer?.id]);
 
   // SKAI-1432: the thread is only set once both loads succeed, so a failed load leaves no detail. Show the error, not a blank view.
   if (!detail) {
@@ -381,8 +388,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
             <ol className="space-y-0.5">
               {messages.map((message, index) => {
                 const previous = messages[index - 1];
-                const showDay =
-                  !previous || dayLabelIn(previous.createdAt, { ui, tag, timeZone }) !== dayLabelIn(message.createdAt, { ui, tag, timeZone });
+                const showDay = !previous || dayLabels[index - 1] !== dayLabels[index];
 
                 // A pending message has no sender echoed back yet, so it is
                 // identified by its optimistic id instead.
@@ -398,7 +404,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
 
                 return (
                   <li key={message.id}>
-                    {showDay && <DaySeparator label={dayLabelIn(message.createdAt, { ui, tag, timeZone })} />}
+                    {showDay && <DaySeparator label={dayLabels[index]} />}
 
                     {message.kind === "SYSTEM" ? (
                       <p className="py-2 text-center text-2xs font-medium tabular-nums text-ink-subtle">
@@ -421,7 +427,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                         tag={tag}
                         timeZone={timeZone}
                         sendState={message.clientKey && message.id.startsWith("pending-") ? sendStates[message.clientKey] : undefined}
-                        seen={isMine && !message.id.startsWith("pending-") && detail.members.some((m) => m.userId !== viewerId && m.lastReadAt !== null && m.lastReadAt >= message.createdAt)}
+                        seen={isMine && !message.id.startsWith("pending-") && othersLastReadAt !== null && othersLastReadAt >= message.createdAt}
                         onRetry={() => message.clientKey && void retryMessage(message.clientKey)}
                         onDiscard={() => message.clientKey && discardMessage(message.clientKey)}
                       />
