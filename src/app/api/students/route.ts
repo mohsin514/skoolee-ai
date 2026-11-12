@@ -159,11 +159,9 @@ export async function GET(req: NextRequest) {
       prisma.student.findMany({
         where,
         // The summary only (SKAI-163): medical, identity and address fields come from /api/students/<id>.
-        select: picker ? studentPickerSelect : {
-          ...rosterSummarySelect,
-          documents: { select: { id: true, kind: true, fileName: true } },
-          _count: { select: { attendance: true, invoices: true, timelineEvents: true } },
-        },
+        // SKAI-1875: no list reads documents or per-pupil attendance/invoice/timeline counts, which cost
+        // a correlated COUNT over years of attendance per row; the profile loads them on open.
+        select: picker ? studentPickerSelect : { ...rosterSummarySelect },
         orderBy: rosterOrderBy(searchParams.get("sortBy"), searchParams.get("sortDir")),
         skip: (page - 1) * limit,
         take: limit,

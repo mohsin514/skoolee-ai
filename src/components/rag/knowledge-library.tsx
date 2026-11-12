@@ -1,7 +1,8 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SmartUpload } from "@/components/ui/smart-upload";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Archive, ArrowLeft, BookOpen, FileCheck2, FilePen, FileUp, Plus, Search, ShieldCheck } from "lucide-react";
+import { Archive, ArrowLeft, BookOpen, FileCheck2, FilePen, Plus, Search, ShieldCheck } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowButton, DeskRowIcon, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
@@ -34,7 +35,6 @@ export function KnowledgeLibrary({ canManage, role, campusId }: { canManage: boo
   const [expiry, setExpiry] = useState(""), [reviewed, setReviewed] = useState(false), [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [query, setQuery] = useState(""), [answer, setAnswer] = useState<Answer | null>(null);
-  const file = useRef<HTMLInputElement>(null);
   const ui = useUiText(), { language } = useLocale();
   const [noticeWarn, setNoticeWarn] = useState(false);
   const [loaded, setLoaded] = useState(false), [filter, setFilter] = useState("");
@@ -89,8 +89,7 @@ export function KnowledgeLibrary({ canManage, role, campusId }: { canManage: boo
           : <Link className={`${deskRow} flex items-center gap-3 text-primary`} data-tone={DOC_TONE[doc.status]} href={`/ai/knowledge/${doc.id}?version=${doc.version}`}><DeskRowIcon icon={docIcon(doc.status)} /><span className="min-w-0 flex-1 break-words font-medium">{doc.title}</span></Link>}</li>)}</ul>
       </section>
       {canManage && editing ? <section className="space-y-4 rounded-2xl border bg-card p-5" aria-label={ui("Document editor")}>
-        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{ui(selected ? "Review document" : "New document")}</h2><Button variant="outline" size="sm" disabled={busy} onClick={() => file.current?.click()}><FileUp aria-hidden="true" />{ui("Import file")}</Button></div>
-        <input ref={file} className="hidden" type="file" accept=".txt,.md,.csv,.pdf,.png,.jpg,.jpeg" aria-label={ui("Import knowledge document")} onChange={event => { const chosen = event.target.files?.[0]; event.target.value = ""; if (!chosen) return; void run(async () => { const form = new FormData(); form.append("file", chosen); const data = await request("/api/ai-knowledge/extract", { method: "POST", body: form }); setTitle(data.title); setContent(data.content); setReviewed(false); setNoticeWarn(data.uncertainties.length > 0); setNotice(data.uncertainties.length ? ui("Review extraction: {0}", [data.uncertainties.join(" ")]) : ui("Imported into the editor. Review the complete text before saving and publishing.")); }); }} />
+        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{ui(selected ? "Review document" : "New document")}</h2><SmartUpload compact accept=".txt,.md,.csv,.pdf,.png,.jpg,.jpeg" maxBytes={8 * 1024 * 1024} label={ui("Import knowledge document")} actionLabel={ui("Import file")} busy={busy} onFiles={([chosen]) => { void run(async () => { const form = new FormData(); form.append("file", chosen); const data = await request("/api/ai-knowledge/extract", { method: "POST", body: form }); setTitle(data.title); setContent(data.content); setReviewed(false); setNoticeWarn(data.uncertainties.length > 0); setNotice(data.uncertainties.length ? ui("Review extraction: {0}", [data.uncertainties.join(" ")]) : ui("Imported into the editor. Review the complete text before saving and publishing.")); }); }} /></div>
         <label className="block space-y-2 text-sm font-medium">{ui("Title")}<Input value={title} maxLength={160} disabled={busy} onChange={event => { setTitle(event.target.value); setReviewed(false); }} /></label>
         <label className="block space-y-2 text-sm font-medium">{ui("Document text")}<Textarea rows={14} value={content} maxLength={80000} disabled={busy} onChange={event => { setContent(event.target.value); setReviewed(false); }} /></label>
         <p className="text-xs text-muted-foreground">{ui("{0} / {1} characters", [content.length.toLocaleString(), (80000).toLocaleString()])} · {ui("Import TXT, Markdown, CSV, PDF or images. PDF/image extraction requires the configured approved media provider. Never include passwords or access tokens.")}</p>

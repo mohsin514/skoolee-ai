@@ -316,6 +316,15 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     toolContent.current?.scrollIntoView({ block: "start" });
   }, [tab, setup, academicRecordId, schoolSetupRecordId, workflowRecordId, policyRecordId]);
 
+  // SKAI-1851: the scan hub links to the source it just created (#source-<id>); open it once it has loaded.
+  useEffect(() => {
+    const id = /^#source-([\w-]{1,64})$/.exec(window.location.hash)?.[1], record = id ? records.find(item => item.id === id) : undefined;
+    if (!record || record.kind !== "SOURCE") return;
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    const subjectId = (record.data as { subjectId?: string }).subjectId;
+    if (subjectId) setSelectedSubject(subjectId);
+    openRecord(record);
+  }, [records]);
   // SKO-470: a shared run link (#run-<id>) reopens the runs tab, where the panel focuses that run.
   const runsVisible = !examOnly && manager && Boolean(capabilities?.tools?.length);
   useEffect(() => { if (!runsVisible || !window.location.hash.startsWith("#run-")) return; const frame = requestAnimationFrame(() => setTab("runs")); return () => cancelAnimationFrame(frame); }, [runsVisible]);

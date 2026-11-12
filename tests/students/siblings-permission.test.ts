@@ -1,5 +1,6 @@
 // SKAI-1757: /api/students/siblings needs Students > View, campus scope and teacher class scope.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { mock, test } from "node:test";
 import { NextRequest } from "next/server";
 
@@ -15,6 +16,7 @@ const rows: Row[] = [
 ];
 
 let current: User;
+let reads: Array<{ take?: number; where: any }> = [];
 const denied = new Set<string>();
 class ApiError extends Error { constructor(m: string, public status = 400) { super(m); } }
 
@@ -56,7 +58,10 @@ mock.module("@/lib/db/prisma", {
     prisma: {
       student: {
         findFirst: async ({ where }: any) => rows.find((r) => matches(r, where)) ?? null,
-        findMany: async ({ where, select }: any) => rows.filter((r) => matches(r, where)).map((r) => project(r, select)),
+        findMany: async ({ where, select, take }: any) => {
+          reads.push({ take, where });
+          return rows.filter((r) => matches(r, where)).map((r) => project(r, select));
+        },
       },
     },
   },
@@ -71,7 +76,7 @@ const ids = (b: { data: { id: string }[] }) => b.data.map((r) => r.id).sort();
 
 test("permitted campus registrar sees only own-campus siblings with guardian contacts", async () => {
   current = { userId: "r-a1", role: "ADMIN", schoolId: "school-a", campusId: "campus-a1" };
-  const list = await call();
+  const list = await call("?search=QA");
   assert.equal(list.status, 200);
   assert.deepEqual(ids(list.body), ["a1-s1", "a1-s2"]);
   assert.equal(list.body.data[0].parent.phone, "000-0001");
@@ -92,21 +97,52 @@ test("role without Students view gets 403 and no data in both modes", async () =
 test("another campus's pupil is not found and its guardians never returned", async () => {
   current = { userId: "r-a1", role: "ADMIN", schoolId: "school-a", campusId: "campus-a1" };
   assert.equal((await call("?studentId=a2-s1")).status, 404);
-  assert.ok(!JSON.stringify((await call()).body).includes("g2@qa.test"));
+  assert.ok(!JSON.stringify((await call("?search=QA")).body).includes("g2@qa.test"));
 });
 
 test("two schools are isolated even for a school-wide admin", async () => {
   current = { userId: "sa-a", role: "SUPER_ADMIN", schoolId: "school-a", campusId: null };
-  assert.deepEqual(ids((await call()).body), ["a1-s1", "a1-s2", "a2-s1"]);
+  assert.deepEqual(ids((await call("?search=QA")).body), ["a1-s1", "a1-s2", "a2-s1"]);
   assert.equal((await call("?studentId=b-s1")).status, 404);
   current = { userId: "sa-b", role: "SUPER_ADMIN", schoolId: "school-b", campusId: null };
-  assert.deepEqual(ids((await call()).body), ["b-s1"]);
+  assert.deepEqual(ids((await call("?search=QA")).body), ["b-s1"]);
 });
 
 test("teacher is limited to taught classes and gets no guardian contacts", async () => {
   current = { userId: "t-a1", role: "TEACHER", schoolId: "school-a", campusId: "campus-a1" };
-  const list = await call();
+  const list = await call("?search=QA");
   assert.deepEqual(ids(list.body), ["a1-s1"]);
   assert.deepEqual(Object.keys(list.body.data[0].parent).sort(), ["fullName", "id"]);
   assert.equal((await call("?studentId=a1-s2")).status, 404);
+});
+
+// SKAI-1875: the admission picker searches as the registrar types instead of preloading 200 grouped pupils.
+test("no search or a one-character search returns an empty list without reading the roster", async () => {
+  current = { userId: "r-a1", role: "ADMIN", schoolId: "school-a", campusId: "campus-a1" };
+  reads = [];
+  for (const qs of ["", "?search=", "?search=%20Q%20"]) {
+    const r = await call(qs);
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.data, []);
+  }
+  assert.equal(reads.length, 0);
+});
+
+test("a search reads at most 10 grouped pupils inside the caller's school and campus", async () => {
+  current = { userId: "r-a1", role: "ADMIN", schoolId: "school-a", campusId: "campus-a1" };
+  reads = [];
+  await call("?search=QA");
+  assert.equal(reads.length, 1);
+  assert.equal(reads[0].take, 10);
+  assert.equal(reads[0].where.schoolId, "school-a");
+  assert.equal(reads[0].where.campusId, "campus-a1");
+  assert.deepEqual(reads[0].where.siblingGroupId, { not: null });
+  assert.equal(reads[0].where.OR.length, 3);
+});
+
+test("the admission form no longer preloads the sibling list on mount", () => {
+  const source = readFileSync("src/components/students/admission-form.tsx", "utf8");
+  assert.doesNotMatch(source, /fetch\("\/api\/students\/siblings"\)/);
+  assert.match(source, /\/api\/students\/siblings\?search=\$\{encodeURIComponent\(term\)\}/);
+  assert.match(source, /controller\.abort\(\)/);
 });

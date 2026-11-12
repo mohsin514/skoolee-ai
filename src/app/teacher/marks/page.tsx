@@ -35,6 +35,7 @@ import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { csvCell } from "@/lib/csv";
 import { StickySaveBar } from "@/components/teacher/sticky-save-bar";
+import { createRequestSequence, enteredBySubject, indexSheetMarks, invalidSheetCells, sheetFields, sheetLabels } from "@/lib/marks/sheet-model";
 import { Input as SystemInput } from "@/components/ui/input";
 
 /** How many assessment cards show before "Show all". */
@@ -54,8 +55,11 @@ export default function MarksPage() {
   const markScan = useConsoleAccess().has("planMarkScan");
   const { data, loading, error, loadData } = useTeacherData();
   const searchParams = useSearchParams();
+  // SKAI-1851: the scan hub's "Review marks" (?scan=1) lands on the scan panel rather than the grid.
+  const scanPanel = useRef<HTMLDivElement>(null), scanRequested = searchParams.get("scan") === "1";
   const [selectedExamId, setSelectedExamId] = useState("");
   const [markSheet, setMarkSheet] = useState<any>(null);
+  useEffect(() => { if (scanRequested && markSheet) scanPanel.current?.scrollIntoView({ block: "start" }); }, [scanRequested, markSheet]);
   const [marksByKey, setMarksByKey] = useState<Record<string, string>>({});
   const [marksLoading, setMarksLoading] = useState(false);
   const [marksSaving, setMarksSaving] = useState(false);
@@ -66,13 +70,21 @@ export default function MarksPage() {
      against this, so "8 unsaved changes" means eight cells this teacher
      typed — not eight cells that merely have a value in them. */
   const [baselineMarks, setBaselineMarks] = useState<Record<string, string>>({});
+  // SKAI-1869: the exam whose sheet was last requested, and a token per request, so a slower response for a test
+  // the teacher has already left (or an older load of the same test) can never replace the sheet on screen.
+  const latestExam = useRef("");
+  const [sheetRequests] = useState(createRequestSequence);
+  const sheetStudents = markSheet?.students, sheetSubjects = markSheet?.subjects;
+  const fields = useMemo(() => sheetFields(sheetStudents || [], sheetSubjects || []), [sheetStudents, sheetSubjects]);
   const draft = useFormDraft({ record: `marks:${selectedExamId}`, schema: 1, values: marksByKey, baseline: baselineMarks,
-    fields: (markSheet?.students || []).flatMap((student: { id: string }) => (markSheet?.subjects || []).map((subject: { id: string }) => `${student.id}:${subject.id}`)), enabled: !!selectedExamId && !!markSheet && !marksLoading,
+    fields, enabled: !!selectedExamId && !!markSheet && !marksLoading,
     apply: (next) => setMarksByKey(next),
     current: async () => {
-      const response = await fetch(`/api/marks?examId=${selectedExamId}`, { cache: "no-store" });
+      const examId = selectedExamId;
+      const response = await fetch(`/api/marks?examId=${examId}`, { cache: "no-store" });
       if (!response.ok) throw new Error([401, 403, 404].includes(response.status) ? "Access revoked" : "Server unavailable");
       const latest = await response.json();
+      if (examId !== latestExam.current) throw new Error("Server unavailable");
       return Object.fromEntries((latest.marks || []).map((mark: { studentId: string; subjectId: string; marksObtained: number }) => [`${mark.studentId}:${mark.subjectId}`, markCellValue(mark)]));
     },
   });
@@ -93,6 +105,9 @@ export default function MarksPage() {
   useEffect(() => {
     if (!data) return;
     if (!selectedExamId) {
+      // SKAI-1851: the scan hub links straight to the exam whose marks sheet it just captured.
+      const requestedExam = searchParams.get("examId");
+      if (requestedExam && (data.exams || []).some((e: any) => e.id === requestedExam)) { setSelectedExamId(requestedExam); return; }
       // A class card links here with its id; open that class's first
       // assessment rather than whichever exam happens to sort first.
       const requestedClass = searchParams.get("classId");
@@ -112,27 +127,23 @@ export default function MarksPage() {
   }, [data, selectedExamId, searchParams]);
 
   const loadMarks = useCallback(async (examId: string) => {
-    if (!examId) { setMarkSheet(null); setMarksByKey({}); setBaselineMarks({}); setMarksFailed(false); return; }
+    const request = sheetRequests.begin();
+    const stale = () => !sheetRequests.isCurrent(request) || examId !== latestExam.current;
+    if (!examId) { setMarkSheet(null); setMarksByKey({}); setBaselineMarks({}); setMarksFailed(false); setMarksLoading(false); return; }
     setMarksLoading(true);
     setMarksFailed(false);
     try {
       const res = await fetch(`/api/marks?examId=${examId}`);
       const text = await res.text();
       const result = JSON.parse(text);
+      if (stale()) return;
       if (result.success) {
         setMarkSheet({
           students: result.students || [],
           subjects: result.subjects || [],
           existingMarks: result.marks || [],
         });
-        const map: Record<string, string> = {};
-        for (const student of result.students || []) {
-          for (const subject of result.subjects || []) {
-            const key = `${student.id}:${subject.id}`;
-            const mark = (result.marks || []).find((m: any) => m.studentId === student.id && m.subjectId === subject.id);
-            if (mark) map[key] = markCellValue(mark);
-          }
-        }
+        const map = indexSheetMarks<{ studentId: string; subjectId: string; marksObtained: number; isAbsent?: boolean; isExempt?: boolean }>(result.students || [], result.subjects || [], result.marks || [], markCellValue);
         setMarksByKey(map);
         setBaselineMarks(map);
       } else {
@@ -141,11 +152,11 @@ export default function MarksPage() {
         setBaselineMarks({});
         setMarksFailed(true);
       }
-    } catch { setMarkSheet(null); setMarksByKey({}); setBaselineMarks({}); setMarksFailed(true); }
-    finally { setMarksLoading(false); }
-  }, []);
+    } catch { if (!stale()) { setMarkSheet(null); setMarksByKey({}); setBaselineMarks({}); setMarksFailed(true); } }
+    finally { if (sheetRequests.isCurrent(request)) setMarksLoading(false); }
+  }, [sheetRequests]);
 
-  useEffect(() => { loadMarks(selectedExamId); }, [selectedExamId, loadMarks]);
+  useEffect(() => { latestExam.current = selectedExamId; loadMarks(selectedExamId); }, [selectedExamId, loadMarks]);
 
   const saveMarks = useCallback(async () => {
     if (!selectedExamId || !markSheet) return;
@@ -188,8 +199,9 @@ export default function MarksPage() {
       if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not save the marks. Please try again.")));
       draft.markSaved();
       toast.success(ui("Marks saved for this test."));
+      // The teacher may have opened another test while this save was in flight; reload only the sheet still shown.
       // SKAI-1857: the sheet and the console summary are independent reads, so they refresh side by side.
-      await Promise.all([loadMarks(selectedExamId), loadData()]);
+      await Promise.all([latestExam.current === selectedExamId ? loadMarks(selectedExamId) : undefined, loadData()]);
     } catch (error: unknown) { toast.error(error); }
     finally { setMarksSaving(false); }
   }, [selectedExamId, markSheet, marksByKey, baselineMarks, loadMarks, loadData, draft, ui]);
@@ -313,28 +325,20 @@ export default function MarksPage() {
     }, 0);
   }, [markSheet, clearTarget, marksByKey]);
 
+  // The server rejects the whole batch if any one mark exceeds its subject's
+  // total, so a single mistyped cell used to discard an entire sheet of work.
+  // The cells are already flagged in red here — hold the save until they're
+  // fixed instead of letting the round-trip throw it all away.
+  const invalidCells = useMemo(() => invalidSheetCells<any, any>(sheetStudents || [], sheetSubjects || [], marksByKey), [sheetStudents, sheetSubjects, marksByKey]);
+  const enteredCounts = useMemo(() => enteredBySubject(sheetStudents || [], sheetSubjects || [], marksByKey), [sheetStudents, sheetSubjects, marksByKey]);
+  const cellLabels = useMemo(() => sheetLabels(sheetStudents || [], sheetSubjects || []), [sheetStudents, sheetSubjects]);
+
   if (loading && !data) return <MarksSkeleton />;
   if (!data) return <TeacherErrorState error={error} onRetry={loadData} />;
 
   const totalCells = markSheet ? markSheet.students.length * markSheet.subjects.length : 0;
   const filledCells = Object.values(marksByKey).filter((v) => v !== "" && v !== undefined).length;
   const completion = totalCells > 0 ? Math.round((filledCells / totalCells) * 100) : 0;
-
-  // The server rejects the whole batch if any one mark exceeds its subject's
-  // total, so a single mistyped cell used to discard an entire sheet of work.
-  // The cells are already flagged in red here — hold the save until they're
-  // fixed instead of letting the round-trip throw it all away.
-  const invalidCells = markSheet
-    ? (markSheet.students || []).flatMap((student: any) =>
-        (markSheet.subjects || []).flatMap((subject: any) => {
-          const value = marksByKey[`${student.id}:${subject.id}`];
-          if (value === "" || value === undefined) return [];
-          const num = Number(value);
-          const max = subject.totalMarks || 100;
-          return Number.isFinite(num) && num >= 0 && num <= max ? [] : [{ student, subject }];
-        })
-      )
-    : [];
 
   return (
     <TeacherPage
@@ -347,7 +351,7 @@ export default function MarksPage() {
         ...(classHubs.length ? [{ id: "final-grades", label: "Final grades preview", icon: BarChart3, onClick: () => grading.openFinalGrades(activeExam?.classId || classHubs[0]?.id) }] : []),
       ]}
     >
-      <DraftRecovery recordLabel={activeExam?.title || ui("Marks entry")} draft={draft} saving={marksSaving} labels={Object.fromEntries((markSheet?.students || []).flatMap((student: any) => (markSheet?.subjects || []).map((subject: any) => [`${student.id}:${subject.id}`, `${student.fullName} — ${subject.name}`])))} />
+      <DraftRecovery recordLabel={activeExam?.title || ui("Marks entry")} draft={draft} saving={marksSaving} labels={cellLabels} />
       <FormErrorSummary errors={Object.fromEntries(invalidCells.map(({ student, subject }: any) => [`mark-${student.id}:${subject.id}`, ui("{0}: {1} must be between 0 and {2}.", [student.fullName, subject.name, subject.totalMarks || 100])]))} onFocusField={(id) => document.getElementById(id)?.focus()} />
       <div className="space-y-3">
 
@@ -534,9 +538,7 @@ export default function MarksPage() {
                         into an anonymous grid. */}
                     <TableHead className="sticky start-0 z-10 bg-brand-50/95 px-5 py-4 backdrop-blur-sm">{ui("Pupil")}</TableHead>
                     {markSheet.subjects.map((subject: any, col: number) => {
-                      const entered = markSheet.students.filter(
-                        (st: any) => (marksByKey[`${st.id}:${subject.id}`] ?? "") !== "",
-                      ).length;
+                      const entered = enteredCounts.get(subject.id) ?? 0;
                       return (
                         <TableHead key={subject.id} className="px-3 py-3 text-center">
                           <span className="block text-2xs font-semibold text-ink-muted">{subject.name}</span>
@@ -749,7 +751,7 @@ export default function MarksPage() {
         onConfirm={confirmClearColumn}
       />
       {/* SKO-412: paper marks sheets — capture, review every mark, approve, import. */}
-      {selectedExamId && markSheet?.subjects?.length && markScan ? <div className="mt-4"><MarkScanPanel key={selectedExamId} examId={selectedExamId} subjects={markSheet.subjects.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name }))} onImported={() => void loadMarks(selectedExamId)} /></div> : null}
+      {selectedExamId && markSheet?.subjects?.length && markScan ? <div className="mt-4" ref={scanPanel}><MarkScanPanel key={selectedExamId} examId={selectedExamId} subjects={markSheet.subjects.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name }))} onImported={() => void loadMarks(selectedExamId)} /></div> : null}
     </TeacherPage>
   );
 }
