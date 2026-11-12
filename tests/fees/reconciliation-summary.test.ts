@@ -112,9 +112,11 @@ test("the panel asks for the summary; the ledger loads its pick lists once per c
   assert.match(panel, /\/api\/fees\/reconciliations\?summary=1/);
   assert.match(panel, /\/api\/fees\/reconciliations\?id=/);
   const tab = readFileSync("src/components/fees/AccountsTab.tsx", "utf8");
-  const load = tab.slice(tab.indexOf("const load = useCallback(async () => {\n    const version = ++requestVersion"), tab.indexOf("}, [buildParams, page, tr]);"));
+  const load = tab.slice(tab.indexOf("const load = useCallback(async () => {\n    const version = ++requestVersion"), tab.indexOf("}, [buildParams, pickedCurrency, page, tr]);"));
   assert.ok(load.length > 0 && !/accounts\/(chart|bank-accounts)/.test(load), "the ledger load fetches only the ledger");
   assert.match(tab, /fetchList\("chart"\), fetchList\("bank-accounts"\)\][\s\S]*?\}, \[campusId\]\);/, "pick lists reload only when the campus changes");
   assert.match(tab, /DATE_FILTER_DEBOUNCE_MS = 300/);
-  assert.match(tab, /\}, \[buildParams, page, tr\]\);/, "the reported currency is not a load dependency, so it never triggers a second load");
+  assert.match(tab, /\}, \[buildParams, pickedCurrency, page, tr\]\);/, "the reported currency is not a load dependency, so it never triggers a second load");
+  assert.match(tab, /buildParams\(pickedCurrency \|\| ledgerCurrency\.current\)/, "a currency the reader picks still filters the ledger");
+  assert.match(tab, /setPickedCurrency\(e\.target\.value\)/, "picking a currency reloads the ledger");
 });

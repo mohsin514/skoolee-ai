@@ -708,7 +708,9 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
   const [reason, setReason] = useState(""), [correctionError, setCorrectionError] = useState(""), [acting, setActing] = useState(false);
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
   // SKAI-1865: the first ledger response reports its currency; later loads keep it without reloading for it.
+  // A currency the reader picks in the filter is state, so picking one reloads the ledger as before.
   const ledgerCurrency = useRef("");
+  const [pickedCurrency, setPickedCurrency] = useState("");
 
   const buildParams = useCallback((ledgerCurrencyCode: string) => {
     const params = new URLSearchParams({ kind });
@@ -730,7 +732,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
     setLoading(true);
     setLoadError("");
     try {
-      const params = buildParams(ledgerCurrency.current);
+      const params = buildParams(pickedCurrency || ledgerCurrency.current);
       params.set("page", String(page));
       params.set("pageSize", String(PAGE_SIZE));
       const eRes = await fetch(`${API}/accounts/ledger?${params}`, { cache: "no-store" });
@@ -747,7 +749,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
     } finally {
       if (version === requestVersion.current) setLoading(false);
     }
-  }, [buildParams, page, tr]);
+  }, [buildParams, pickedCurrency, page, tr]);
 
   // Date inputs change once per typed segment, so a date change waits for typing to settle; other changes load at once.
   const dateRange = `${from}|${to}`;
@@ -860,7 +862,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
 
       <fieldset className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] gap-3 rounded-2xl border border-border p-3" data-ledger-filters>
         <legend className="px-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{tr("Filters")}</legend>
-        <label className="text-xs font-bold">{tr("Currency")}<SystemSelect aria-label={tr("Currency")} value={currency} onChange={(e) => setFilter(() => setCurrency(e.target.value))} className="w-full">{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
+        <label className="text-xs font-bold">{tr("Currency")}<SystemSelect aria-label={tr("Currency")} value={currency} onChange={(e) => setFilter(() => { setPickedCurrency(e.target.value); setCurrency(e.target.value); })} className="w-full">{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
         <label className="text-xs font-bold">{tr("From")}<SystemInput type="date" value={from} onChange={(e) => setFilter(() => setFrom(e.target.value))} className="w-full" /></label>
         <label className="text-xs font-bold">{tr("To")}<SystemInput type="date" value={to} onChange={(e) => setFilter(() => setTo(e.target.value))} className="w-full" /></label>
         <label className="text-xs font-bold">{tr("Account")}<SystemSelect value={filterAccount} onChange={(e) => setFilter(() => setFilterAccount(e.target.value))} className="w-full"><option value="">{tr("All accounts")}</option>{pickList.map((a) => <option key={a.id} value={a.id}>{a.name}{a.isActive === false ? ` (${tr("inactive")})` : ""}</option>)}</SystemSelect></label>
