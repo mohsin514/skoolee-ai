@@ -1,0 +1,37 @@
+name: Record cascades
+# SKAI-1805 (DB-01 Phase 0a): replays every migration on a clean Postgres, then proves that money, grade and
+# payroll records survive a parent delete while a whole-school purge still cascades.
+on:
+  pull_request:
+    branches: [dev, staging, qa, production, demo, main]
+permissions:
+  contents: read
+jobs:
+  record-cascades:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['55439:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:55439/postgres
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:55439/postgres
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate && pnpm exec prisma migrate deploy
+      - run: pnpm exec prisma migrate diff --from-url "$DIRECT_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+      - run: pnpm run test:record-cascades

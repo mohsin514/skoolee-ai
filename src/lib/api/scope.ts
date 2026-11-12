@@ -112,6 +112,14 @@ function publicFallback(fallback: string) {
   return /^\s*\[/.test(fallback) ? GENERIC_FAILURE : fallback;
 }
 
+export const LINKED_RECORDS_CONFLICT =
+  "This record is still linked to other records, so the change was not saved. Archive it instead of deleting it, or refresh and try again.";
+
+/** Prisma P2003: a foreign key refused the write (for example deleting a parent that records still point at). */
+export function isForeignKeyViolation(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code: unknown }).code === "P2003";
+}
+
 export function errorResponse(error: unknown, fallback = "Request failed") {
   const requestId = crypto.randomUUID();
   const respond = (body: unknown, init: ResponseInit) => Response.json(body, {
@@ -154,6 +162,13 @@ export function errorResponse(error: unknown, fallback = "Request failed") {
   if (error instanceof Error && "status" in error && typeof error.status === "number") {
     console.error("[api.failure]", { requestId, status: error.status, name: error.name, where: fallback });
     return respond({ error: publicFallback(fallback) }, { status: error.status });
+  }
+
+  // SKAI-1805: payments, marks, report cards, attendance and payroll lines refuse a parent delete at the database
+  // (foreign key violation, Prisma P2003). That is a conflict the reader can act on, not a server failure.
+  if (isForeignKeyViolation(error)) {
+    console.warn("[api.conflict]", { requestId, status: 409, code: "P2003", where: fallback });
+    return respond({ error: LINKED_RECORDS_CONFLICT, code: "LINKED_RECORDS" }, { status: 409 });
   }
 
   // Correlation without request bodies, record identifiers, database errors or secrets.
