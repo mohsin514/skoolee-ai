@@ -39,6 +39,7 @@
     "test:grace-dates": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/billing/grace-date-validation.test.ts",
     "test:marks-scan-reversal": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/marks-scan/reversal-exempt-state.database.test.ts",
     "test:record-cascades": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/db/record-cascades.database.test.ts",
+    "test:supabase-roles-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/supabase-public-roles.database.test.ts",
     "test:business-numbers-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/business-numbers.database.test.ts",
     "test:school-fks": "node --import tsx --test tests/db/school-foreign-keys.test.ts",
     "test:school-fks-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/school-foreign-keys.database.test.ts",

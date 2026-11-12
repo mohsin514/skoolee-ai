@@ -32,8 +32,11 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # SKAI-1886: Supabase's public roles with their default grants, before migrations, as on a real project.
+      - run: psql "$DIRECT_URL" -v ON_ERROR_STOP=1 -f tests/db/supabase-roles.sql
       - run: pnpm exec prisma generate && pnpm exec prisma migrate deploy
       - run: pnpm exec prisma migrate diff --from-url "$DIRECT_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
       - run: pnpm run test:record-cascades
+      - run: pnpm run test:supabase-roles-db
       - run: pnpm run test:business-numbers-db
       - run: pnpm run test:school-fks-db
