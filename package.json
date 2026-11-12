@@ -64,7 +64,7 @@
     "test:teacher-attendance": "node --import ./tests/support/server-only.mjs --import tsx --experimental-test-module-mocks --test tests/teacher-attendance/read-scope.test.ts tests/teacher-attendance/self-mark.test.ts",
     "test:payment-academic-year": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/payment-academic-year.test.ts",
     "test:rate-limit": "node --import tsx --test tests/rate-limit/*.test.ts",
-    "test:fee-collection-report": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/report-collection-overdue.test.ts tests/fees/fee-reports-latest-request.test.ts",
+    "test:fee-collection-report": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/report-collection-overdue.test.ts tests/fees/fee-reports-latest-request.test.ts tests/fees/remind-all-bounded.test.ts",
     "test:fee-collection-report-db": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/fees/report-collection-sql.database.test.ts",
     "test:fee-due": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/next-due.test.ts",
     "test:profit-report-sources": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/profit-report-sources.test.ts",
