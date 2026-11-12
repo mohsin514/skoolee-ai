@@ -558,6 +558,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     resyncRef.current = resync;
   }, [resync]);
+  // SKAI-1838: the stream reads the latest handler through a ref. applyIncoming changes identity with the list
+  // filter and search, and depending on it reopened /api/chat/stream (and flapped presence) on every keystroke.
+  // A "conversation" event still reloads with the current filter and search, because the ref is always current.
+  const applyIncomingRef = useRef(applyIncoming);
+  useEffect(() => {
+    applyIncomingRef.current = applyIncoming;
+  }, [applyIncoming]);
 
   useEffect(() => {
     const source = new EventSource("/api/chat/stream");
@@ -578,7 +585,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     source.addEventListener("chat", (e) => {
       try {
-        applyIncoming(JSON.parse((e as MessageEvent).data) as ChatStreamEvent);
+        applyIncomingRef.current(JSON.parse((e as MessageEvent).data) as ChatStreamEvent);
       } catch {}
     });
 
@@ -586,7 +593,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       source.close();
       eventSourceRef.current = null;
     };
-  }, [applyIncoming, connectionEpoch]);
+  }, [connectionEpoch]);
 
   // Typing indicators expire by their own timestamp, so a closed tab cannot
   // leave someone permanently mid-sentence.

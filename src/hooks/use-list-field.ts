@@ -12,8 +12,14 @@ function subscribe(listener: () => void) {
 const snapshot = () => window.location.search;
 const serverSnapshot = () => "";
 
+export type ListFieldOptions = {
+  /** "replace" rewrites the current history entry; use it for per-keystroke fields such as search boxes. */
+  history?: "push" | "replace";
+};
+
 /** Namespaced URL state without remounting forms or replacing unrelated dashboard scope. */
-export function useListField<T extends string | number | boolean>(key: string, fallback: T, pageKey: string): [T, Dispatch<SetStateAction<T>>] {
+export function useListField<T extends string | number | boolean>(key: string, fallback: T, pageKey: string, options?: ListFieldOptions): [T, Dispatch<SetStateAction<T>>] {
+  const replace = options?.history === "replace";
   const search = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
   const parse = useCallback((query: string): T => {
     const raw = new URLSearchParams(query).get(key);
@@ -26,8 +32,10 @@ export function useListField<T extends string | number | boolean>(key: string, f
     const encoded = value === fallback ? null : typeof value === "boolean" ? (value ? "1" : "0") : String(value);
     const query = patchListQuery(current, { [key]: encoded }, pageKey);
     if (query.toString() === new URLSearchParams(current).toString()) return;
-    window.history.pushState(null, "", `${window.location.pathname}${query.size ? `?${query}` : ""}${window.location.hash}`);
+    const url = `${window.location.pathname}${query.size ? `?${query}` : ""}${window.location.hash}`;
+    if (replace) window.history.replaceState(null, "", url);
+    else window.history.pushState(null, "", url);
     window.dispatchEvent(new Event(eventName));
-  }, [key, fallback, pageKey, parse]);
+  }, [key, fallback, pageKey, parse, replace]);
   return [parse(search), set];
 }
