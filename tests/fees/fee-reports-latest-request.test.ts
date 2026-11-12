@@ -18,7 +18,8 @@ test("all three report loaders are guarded on data, error and loading writes", (
   assert.equal(loaders.length, 3, "Defaulters, Collection and Payment methods");
   for (const loader of loaders) {
     const body = loader.slice(0, loader.indexOf("}, [campusId, currency]);"));
-    assert.match(body, /const key = `\$\{campusId \?\? ""\}\|\$\{currency\}`, token = request\.current\.begin\(key\);/);
+    // SKAI-1827: the paged defaulters loader also keys on page and page size.
+    assert.match(body, /const key = `\$\{campusId \?\? ""\}\|\$\{currency\}(\|[^`]+)?`, token = request\.current\.begin\(key\);/);
     assert.ok(body.indexOf("if (!request.current.isCurrent(token, key)) return;") < body.indexOf("if (json.success)"));
     assert.match(body, /if \(request\.current\.isCurrent\(token, key\)\) setFailed\(true\);/);
     assert.match(body, /if \(request\.current\.isCurrent\(token, key\)\) setLoading\(false\);/);
