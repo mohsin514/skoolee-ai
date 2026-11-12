@@ -18,11 +18,29 @@ import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// SKAI-1842: one batch request drafts at most BATCH_CHUNK_SIZE pupils, BATCH_CONCURRENCY at a time, and returns
+// nextCursor so the client asks for the rest. A class no longer has to finish inside a single request.
+export const maxDuration = 60;
+const BATCH_CHUNK_SIZE = 20;
+const BATCH_CONCURRENCY = 4;
 
 type RemarkMarks = Array<{ subject: string; obtained: number; total: number; grade: string }>;
 
 function jsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue;
+}
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>) {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
 }
 
 function canGenerateRemarks(role: string) {
@@ -270,8 +288,11 @@ export async function POST(req: NextRequest) {
           campus: { schoolId: user.schoolId },
           ...(user.role === "TEACHER" ? { subject: { teacherId: user.userId } } : {}),
         },
-        include: {
-          student: true,
+        select: {
+          studentId: true,
+          marksObtained: true,
+          grade: true,
+          student: { select: { id: true, fullName: true } },
           subject: { select: { name: true, totalMarks: true } },
         },
         orderBy: [{ student: { rollNo: "asc" } }, { subject: { name: "asc" } }],
@@ -289,16 +310,17 @@ export async function POST(req: NextRequest) {
       }, {} as Record<string, { student: (typeof marks)[0]["student"]; marks: RemarkMarks }>);
 
       const students = Object.values(byStudent);
-      await ensureAICreditsAvailable(user.schoolId, students.length);
+      const cursor = parsed.data.cursor;
+      const chunk = students.slice(cursor, cursor + BATCH_CHUNK_SIZE);
+      // Credits are checked for this chunk only; drafts saved by earlier chunks are kept either way.
+      await ensureAICreditsAvailable(user.schoolId, chunk.length);
+      const className = [exam.class.name, exam.class.section].filter(Boolean).join(" - ");
 
-      let succeeded = 0;
-      const failed: Array<{ studentId: string; error: string }> = [];
-
-      for (const { student, marks: studentMarks } of students) {
+      const outcomes = await mapWithConcurrency(chunk, BATCH_CONCURRENCY, async ({ student, marks: studentMarks }) => {
         try {
           const result = await generateRemark({
             studentName: student.fullName,
-            className: [exam.class.name, exam.class.section].filter(Boolean).join(" - "),
+            className,
             subjects: studentMarks.map((mark) => ({
               name: mark.subject,
               marksObtained: mark.obtained,
@@ -319,17 +341,21 @@ export async function POST(req: NextRequest) {
             result,
             action: "batch_remark",
           });
-
-          succeeded += 1;
-        } catch (error) {
-          failed.push({
+          return null;
+        } catch {
+          return {
             studentId: student.id,
             error: "The AI service is unavailable. Continue this draft manually.",
-          });
+          };
         }
-      }
+      });
 
-      return Response.json({ success: true, total: students.length, succeeded, failed });
+      const failed = outcomes.filter((outcome): outcome is { studentId: string; error: string } => outcome !== null);
+      const succeeded = chunk.length - failed.length;
+      const processed = cursor + chunk.length;
+      const nextCursor = processed < students.length ? processed : null;
+
+      return Response.json({ success: true, total: students.length, processed, succeeded, failed, nextCursor });
     }
 
     const parsed = remarkRequestSchema.safeParse(rest);

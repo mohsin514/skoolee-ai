@@ -384,6 +384,7 @@ const entries: readonly (readonly [string, string, string])[] = [
   ["Recent school days", "الأيام الدراسية الأخيرة", "حالیہ اسکول کے دن"],
   ["Recent scores", "الدرجات الأخيرة", "حالیہ اسکورز"],
   ["Recently generated", "أُنشئت مؤخراً", "حال ہی میں تیار"],
+  ["Drafted {0} of {1} pupils", "صيغت {0} من {1} طالب", "{1} میں سے {0} طلبہ کے مسودے تیار"],
   ["Remarks drafted for every pupil. Review each one before you save it.", "صيغت ملاحظات لكل طالب. راجع كل واحدة قبل حفظها.", "ہر طالب علم کے تبصرے تیار ہو گئے۔ محفوظ کرنے سے پہلے ہر ایک کا جائزہ لیں۔"],
   ["The AI service is unavailable. Continue these drafts manually.", "خدمة الذكاء الاصطناعي غير متاحة. أكمل هذه المسودات يدويًا.", "اے آئی سروس دستیاب نہیں۔ یہ مسودے خود مکمل کریں۔"],
   ["Remarks drafted for {0} pupils; {1} could not be drafted. Continue those manually.", "صيغت ملاحظات لـ {0} طلاب؛ وتعذّرت صياغة {1}. أكملها يدويًا.", "{0} طلبہ کے تبصرے تیار ہو گئے؛ {1} تیار نہ ہو سکے۔ انہیں خود مکمل کریں۔"],
