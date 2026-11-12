@@ -9,6 +9,7 @@ import { Kbd } from "./kbd";
 import { IconButton } from "./icon-button";
 import { LiveAnnouncer } from "./live-announcer";
 import { MaximizeBackdrop, MaximizeButton, useMaximize } from "./maximize";
+import { minuteClockServerSnapshot, minuteClockSnapshot, relativeTimeFormatter, subscribeMinuteClock } from "./minute-clock";
 
 /**
  * The operational desks' shared surfaces (Front desk, Library, Transport, Service desk, Care, Activities,
@@ -65,8 +66,8 @@ export function StatTile({ value, label, icon: Icon, tone = "brand", hint, value
 /** "in 3 hours" / "2 days ago" in the reader's language; the exact date stays in `dateTime` and for screen readers. */
 export function RelativeTime({ iso, full, className }: { iso: string; full?: string; className?: string }) {
   const { language } = useLocale();
-  const [now, setNow] = React.useState<number | null>(null);
-  React.useEffect(() => { setNow(Date.now()); const timer = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(timer); }, []);
+  // One shared minute clock for every timestamp on the page (paused while the tab is hidden), not a timer per row.
+  const now = React.useSyncExternalStore(subscribeMinuteClock, minuteClockSnapshot, minuteClockServerSnapshot);
   const at = new Date(iso).getTime();
   if (!Number.isFinite(at)) return null;
   // Server render and first paint show the exact date, so hydration never disagrees with the clock.
@@ -74,7 +75,7 @@ export function RelativeTime({ iso, full, className }: { iso: string; full?: str
   const seconds = Math.round((at - now) / 1000);
   const steps: [Intl.RelativeTimeFormatUnit, number][] = [["year", 31_536_000], ["month", 2_592_000], ["week", 604_800], ["day", 86_400], ["hour", 3_600], ["minute", 60]];
   const [unit, size] = steps.find(([, span]) => Math.abs(seconds) >= span) ?? ["minute", 60];
-  const text = new Intl.RelativeTimeFormat(language, { numeric: "auto" }).format(Math.round(seconds / size), unit);
+  const text = relativeTimeFormatter(language).format(Math.round(seconds / size), unit);
   return <time dateTime={iso} className={className}><span aria-hidden="true">{text}</span><span className="sr-only">{full ?? text}</span></time>;
 }
 
