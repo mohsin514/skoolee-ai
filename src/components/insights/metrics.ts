@@ -335,14 +335,19 @@ export interface PipelineStage {
  * Where this term's report cards have got to. The stages are cumulative — a
  * sent card is also a generated one — so the shape reads as a funnel rather
  * than as disjoint buckets.
+ *
+ * Accepts card rows or grouped status rows (SKAI-1818): a row with a numeric
+ * `count` stands for that many cards with the same status fields.
  */
 export function reportPipeline(reportCards: any[]): PipelineStage[] {
   const cards = reportCards ?? [];
-  if (cards.length === 0) return [];
-  const generated = cards.length;
-  const reviewed = cards.filter((c: any) => ["REVIEWED", "PUBLISHED", "SENT"].includes(String(c.status).toUpperCase())).length;
-  const approved = cards.filter((c: any) => c.remarksApproved === true || ["PUBLISHED", "SENT"].includes(String(c.status).toUpperCase())).length;
-  const sent = cards.filter((c: any) => c.isSent === true || String(c.deliveryStatus).toUpperCase() === "SENT").length;
+  const weight = (c: any) => (typeof c?.count === "number" ? c.count : 1);
+  const total = (match: (c: any) => boolean) => cards.reduce((sum: number, c: any) => (match(c) ? sum + weight(c) : sum), 0);
+  const generated = total(() => true);
+  if (generated === 0) return [];
+  const reviewed = total((c: any) => ["REVIEWED", "PUBLISHED", "SENT"].includes(String(c.status).toUpperCase()));
+  const approved = total((c: any) => c.remarksApproved === true || ["PUBLISHED", "SENT"].includes(String(c.status).toUpperCase()));
+  const sent = total((c: any) => c.isSent === true || String(c.deliveryStatus).toUpperCase() === "SENT");
 
   return [
     { stage: "Generated", count: generated, color: RAMP_BRAND[0] },
