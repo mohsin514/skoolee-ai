@@ -27,6 +27,7 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  dropSessions DropSession[]
   stripeWebhookReceipts StripeWebhookReceipt[]
   correctionNotes CorrectionNote[]
   paymentAllocations PaymentAllocation[]
@@ -11038,4 +11039,42 @@ model StorageCleanup {
   @@index([schoolId, status])
   @@index([receiptId])
   @@map("storage_cleanups")
+}
+
+/// SKAI-1847: a short-lived phone-to-computer upload handoff. The signed-in creator opens it; a phone holding its
+/// signed link may only add files to it until it expires or is closed. Files stay in private staging (drop/…)
+/// and never reach a record by themselves: the creator's own destination upload applies its usual checks.
+model DropSession {
+  id          String     @id @default(uuid())
+  schoolId    String     @map("school_id")
+  school      School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdById String     @map("created_by_id")
+  label       String
+  accept      String[]
+  maxFiles    Int        @map("max_files")
+  status      String     @default("OPEN") // OPEN | CLOSED
+  expiresAt   DateTime   @map("expires_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  items       DropItem[]
+
+  @@index([schoolId, createdById])
+  @@index([expiresAt])
+  @@map("drop_sessions")
+}
+
+model DropItem {
+  id          String      @id @default(uuid())
+  schoolId    String      @map("school_id")
+  sessionId   String      @map("session_id")
+  session     DropSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  storageKey  String      @unique @map("storage_key")
+  fileName    String      @map("file_name")
+  contentType String      @map("content_type")
+  sizeBytes   Int         @map("size_bytes")
+  sha256      String
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  @@unique([sessionId, sha256])
+  @@index([schoolId])
+  @@map("drop_items")
 }

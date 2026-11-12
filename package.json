@@ -25,6 +25,7 @@
     "test:report-version-batch": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/report-versions/published-batch.test.ts",
     "test:principal-queue": "node --import ./tests/support/server-only.mjs --import tsx --test tests/principal/queue-seats.test.ts tests/principal/queue-sources-uncapped.test.ts tests/principal/queue-sources-parallel.test.ts",
     "test:exam-active-marker": "node --import ./tests/support/server-only.mjs --import tsx --test tests/school-ai/exam-active-marker.test.ts",
+    "test:drop": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/drop/*.test.ts",
     "test:fee-structures": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/structure-year.test.ts",
     "test:invoice-generation-inputs": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/invoice-generation-inputs.test.ts",
     "test:campus-seed": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/campus-setup/campus-calendar-seed.test.ts",
