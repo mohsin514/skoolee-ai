@@ -1,4 +1,4 @@
-import { familyVersion, getPublishedVersion } from "@/lib/academic/report-versions";
+import { familyVersion, publishedVersionsFor } from "@/lib/academic/report-versions";
 import { publishedReportsWhere } from "@/lib/auth/policy";
 import { errorResponse } from "@/lib/api/scope";
 import { getAuthUser } from "@/lib/auth";
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
     const attendanceRate = attendanceSummary.rate;
 
     const released = permissions.learningRecords
-      ? await Promise.all(student.reportCards.map(async r => familyVersion(await getPublishedVersion(r.id))))
+      ? (await publishedVersionsFor(student.reportCards.map(r => r.id), schoolId)).map(familyVersion)
       : [];
 
     // Family totals: every open invoice of every child this guardian may see finances for (statement semantics).
