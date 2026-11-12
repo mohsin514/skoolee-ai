@@ -11,6 +11,8 @@ import {
 } from "@/lib/api/scope";
 import { Prisma } from "@prisma/client";
 
+type ByClassRow = { className: string; totalDue: bigint; totalPaid: bigint };
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
@@ -47,11 +49,19 @@ export async function GET(req: NextRequest) {
         where: { currency, campusId: { in: campusIds }, status: { not: "CANCELLED" }, balanceDue: { gt: 0 }, dueDate: { lt: new Date() } },
         _sum: { balanceDue: true },
       }),
-      prisma.invoice.groupBy({
-        by: ["studentId"],
-        where: { currency, campusId: { in: campusIds }, status: { not: "CANCELLED" } },
-        _sum: { totalAmount: true, totalAmountPaid: true },
-      }),
+      // SKAI-1864: group by the student's current class in SQL instead of loading one row per billed
+      // student and then every student. $queryRaw bypasses the tenant guard, so the school and campus
+      // scope are written into the SQL (and the student join is pinned to the same school).
+      prisma.$queryRaw<ByClassRow[]>`
+        SELECT COALESCE(c.name, 'Unknown') AS "className",
+          COALESCE(SUM(i.total_amount), 0)::bigint AS "totalDue",
+          COALESCE(SUM(i.total_amount_paid), 0)::bigint AS "totalPaid"
+        FROM invoices i
+        LEFT JOIN students s ON s.id = i.student_id AND s.school_id = i.school_id
+        LEFT JOIN classes c ON c.id = s.class_id
+        WHERE i.school_id = ${user.schoolId} AND i.campus_id = ANY(${campusIds}::text[]) AND i.currency = ${currency}
+          AND i.status::text <> 'CANCELLED'
+        GROUP BY 1`,
       prisma.invoice.findMany({
         where: { currency, campusId: { in: campusIds }, status: { not: "CANCELLED" }, balanceDue: { gt: 0 }, dueDate: { lt: new Date() } },
         include: { student: { select: { id: true, fullName: true, class: { select: { name: true } } } } },
@@ -79,29 +89,16 @@ export async function GET(req: NextRequest) {
     const collectionRate =
       totalReceivable > 0 ? Math.min(100, Math.round((totalCollected / totalReceivable) * 100)) : 0;
 
-    const studentIds = byClassRaw.map((r) => r.studentId);
-    const students = studentIds.length > 0 ? await prisma.student.findMany({
-      where: { id: { in: studentIds } },
-      select: { id: true, class: { select: { id: true, name: true } } },
-    }) : [];
-    const studentClassMap = new Map(students.map((s) => [s.id, s.class.name]));
-
-    const classMap = new Map<string, { totalDue: number; totalPaid: number }>();
-    for (const row of byClassRaw) {
-      const className = studentClassMap.get(row.studentId) ?? "Unknown";
-      const prev = classMap.get(className) ?? { totalDue: 0, totalPaid: 0 };
-      prev.totalDue += row._sum.totalAmount ?? 0;
-      prev.totalPaid += row._sum.totalAmountPaid ?? 0;
-      classMap.set(className, prev);
-    }
-
-    const byClass = Array.from(classMap.entries()).map(([className, vals]) => ({
-      className,
-      totalDue: vals.totalDue,
-      totalPaid: vals.totalPaid,
-      collectionRate:
-        vals.totalDue > 0 ? Math.min(100, Math.round((vals.totalPaid / vals.totalDue) * 100)) : 0,
-    }));
+    const byClass = byClassRaw.map((row) => {
+      const totalDue = Number(row.totalDue);
+      const totalPaid = Number(row.totalPaid);
+      return {
+        className: row.className,
+        totalDue,
+        totalPaid,
+        collectionRate: totalDue > 0 ? Math.min(100, Math.round((totalPaid / totalDue) * 100)) : 0,
+      };
+    });
 
     const atRiskStudents = overdueInvoices
       .map((inv) => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { SmartUpload } from "@/components/ui/smart-upload";
 import { useCallback, useEffect, useState } from "react";
 import { Ban, BookCheck, BookMarked, CircleCheckBig, FilePen, Library, Plus, type LucideIcon } from "lucide-react";
 import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskStats, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
@@ -172,7 +173,8 @@ function EvidenceRow({ t, source, evidence, editable, uploads, busy, onSave }: {
     {editable && <form className="grid gap-3 md:grid-cols-2" onSubmit={event => { event.preventDefault(); const form = new FormData(); form.set("sourceId", source.id); form.set("rightsScope", rightsScope); form.set("permissionEvidence", permissionEvidence); if (file) form.set("file", file); void onSave(form); }}>
       <FormField name={`rights-${source.id}`} label={t.rightsScope}><Textarea required maxLength={500} value={rightsScope} onChange={event => setRights(event.target.value)} /></FormField>
       <FormField name={`permission-${source.id}`} label={t.permissionEvidence}><Textarea required maxLength={500} value={permissionEvidence} onChange={event => setPermission(event.target.value)} /></FormField>
-      {uploads && <FormField name={`document-${source.id}`} label={t.document}><Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={event => setFile(event.target.files?.[0] ?? null)} /></FormField>}
+      {uploads && <FormField name={`document-${source.id}`} label={t.document}><SmartUpload accept="application/pdf,image/png,image/jpeg" maxBytes={8 * 1024 * 1024} label={t.document} onFiles={files => setFile(files[0])} /></FormField>}
+      {uploads && file && <p className="text-sm text-ink-muted"><bdi>{file.name}</bdi></p>}
       <div className="flex items-end gap-2"><Button type="submit" variant="outline" disabled={busy} data-pack-evidence-save>{t.saveEvidence}</Button>{evidence?.hasDocument && <Badge variant="info" size="sm">{t.documentAttached}</Badge>}</div>
     </form>}
   </div>;

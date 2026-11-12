@@ -26,10 +26,12 @@ export interface SmartUploadProps {
   disabled?: boolean;
   /** Hide "Use my phone" (for example on the public admission form, which has no signed-in user). */
   phone?: boolean;
+  /** data-* hooks for the file input, so existing browser tests keep their selectors. */
+  inputData?: Record<`data-${string}`, string | boolean>;
   className?: string;
 }
 
-export function SmartUpload({ accept, onFiles, label, multiple = false, maxFiles = 10, maxBytes = 10 * 1024 * 1024, hint, disabled, phone = true, className }: SmartUploadProps) {
+export function SmartUpload({ accept, onFiles, label, multiple = false, maxFiles = 10, maxBytes = 10 * 1024 * 1024, hint, disabled, phone = true, inputData, className }: SmartUploadProps) {
   const ui = useUiText();
   const browse = useRef<HTMLInputElement>(null), camera = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false), [error, setError] = useState(""), [phoneOpen, setPhoneOpen] = useState(false), [touch, setTouch] = useState(false);
@@ -67,8 +69,8 @@ export function SmartUpload({ accept, onFiles, label, multiple = false, maxFiles
           <Button type="button" variant="outline" disabled={disabled} onClick={() => browse.current?.click()}><FileUp aria-hidden="true" />{ui("Choose file")}</Button>
           {phone && !touch && dropTypesFor(accept).length > 0 && <Button type="button" variant="secondary" disabled={disabled} onClick={() => setPhoneOpen(true)}><Smartphone aria-hidden="true" />{ui("Use my phone")}</Button>}
         </div>
-        <input ref={browse} type="file" className="hidden" tabIndex={-1} accept={accept} multiple={multiple} onChange={event => { deliver(event.target.files); event.target.value = ""; }} />
-        <input ref={camera} type="file" className="hidden" tabIndex={-1} accept="image/*" capture="environment" onChange={event => { deliver(event.target.files); event.target.value = ""; }} />
+        <input ref={browse} type="file" className="hidden" tabIndex={-1} aria-label={label} {...inputData} accept={accept} multiple={multiple} onChange={event => { deliver(event.target.files); event.target.value = ""; }} />
+        {touch && takesImages && <input ref={camera} type="file" className="hidden" tabIndex={-1} aria-label={ui("Take photo")} accept="image/*" capture="environment" onChange={event => { deliver(event.target.files); event.target.value = ""; }} />}
       </div>
       {error && <p role="alert" className="text-sm text-status-error-text">{error}</p>}
       {phoneOpen && <PhoneDrop label={label} accept={accept} limit={limit} onClose={() => setPhoneOpen(false)} onFiles={files => { setPhoneOpen(false); deliver(files); }} />}
@@ -131,12 +133,12 @@ function PhoneDrop({ label, accept, limit, onClose, onFiles }: { label: string; 
   useEffect(() => { if (limit === 1 && ready.length === 1) onFiles([ready[0].file!]); }, [limit, ready.length]);  
   return (
     <Modal title={ui("Use my phone")} subtitle={label} icon={Smartphone} onClose={onClose}
-      footer={<div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" onClick={onClose}>{ui("Cancel")}</Button><Button type="button" disabled={!ready.length} onClick={() => onFiles(ready.map(item => item.file!))}><CheckCircle2 aria-hidden="true" />{ui("Use {0} files", [ready.length])}</Button></div>}>
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" onClick={onClose}>{ui("Cancel")}</Button><Button type="button" disabled={!ready.length} onClick={() => onFiles(ready.map(item => item.file!))}><CheckCircle2 aria-hidden="true" />{ready.length ? ui("Use {0} files", [ready.length]) : ui("Use files")}</Button></div>}>
       <div className="grid gap-5 sm:grid-cols-[auto_1fr] sm:items-start">
         <div className="mx-auto w-56 space-y-2 text-center">
           {/* The QR is generated on the server from a link that only adds files to this one handoff. */}
           {session && !expired ? <img src={session.qr} width={224} height={224} alt={ui("Phone upload code")} className="rounded-xl border border-border bg-white" /> : <div className="grid size-56 place-items-center rounded-xl border border-dashed border-border text-sm text-ink-muted">{expired ? ui("This code has expired.") : ui("Preparing…")}</div>}
-          {session && !expired && <p className="text-xs text-ink-muted">{ui("Valid until {0}", [new Date(session.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })])}</p>}
+          {session && !expired && <p className="text-xs text-ink-muted">{ui("Valid until {0}", [new Date(session.expiresAt).toLocaleTimeString([], { timeStyle: "short" })])}</p>}
         </div>
         <div className="space-y-3">
           <ol className="list-decimal space-y-1 ps-5 text-sm text-ink">

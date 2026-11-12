@@ -37,6 +37,14 @@ export const dropUiEntries: readonly (readonly [string, string, string])[] = [
   ["{0} is larger than {1} MB.", "{0} أكبر من {1} ميغابايت.", "{0} کا سائز {1} MB سے زیادہ ہے۔"],
   ["{0} is not a file type this upload accepts.", "{0} ليس من أنواع الملفات المقبولة هنا.", "{0} اس اپ لوڈ کے لیے قابل قبول فائل کی قسم نہیں ہے۔"],
   ["{0} more files can be sent.", "يمكن إرسال {0} ملفات أخرى.", "مزید {0} فائلیں بھیجی جا سکتی ہیں۔"],
+  ["Choose one PDF, or several JPEG or PNG page photos.", "اختر ملف PDF واحدًا، أو عدة صور صفحات بصيغة JPEG أو PNG.", "ایک PDF منتخب کریں، یا کئی JPEG یا PNG صفحات کی تصاویر۔"],
+  ["The pages could not be joined. Try again.", "تعذّر دمج الصفحات. حاول مرة أخرى.", "صفحات یکجا نہیں ہو سکے۔ دوبارہ کوشش کریں۔"],
+  ["Joining pages into one PDF…", "جارٍ دمج الصفحات في ملف PDF واحد…", "صفحات کو ایک PDF میں یکجا کیا جا رہا ہے…"],
+  ["One PDF, or up to {0} page photos joined into one PDF.", "ملف PDF واحد، أو حتى {0} صور صفحات تُدمج في ملف PDF واحد.", "ایک PDF، یا زیادہ سے زیادہ {0} صفحات کی تصاویر جو ایک PDF میں یکجا ہوں گی۔"],
+  ["Photograph every page. Pages whose QR is read are added at once.", "صوّر كل صفحة. تُضاف الصفحات التي يُقرأ رمزها فورًا.", "ہر صفحے کی تصویر لیں۔ جن صفحات کا QR پڑھ لیا جائے وہ فوراً شامل ہو جاتے ہیں۔"],
+  ["{0} pages need their code checked.", "{0} صفحات تحتاج إلى التحقق من رمزها.", "{0} صفحات کے کوڈ کی جانچ ضروری ہے۔"],
+  ["Use files", "استخدام الملفات", "فائلیں استعمال کریں"],
+  ["Send one file.", "أرسل ملفًا واحدًا.", "ایک فائل بھیجیں۔"],
 ];
 export const arabicDropUi: Record<string, string> = Object.fromEntries(dropUiEntries.map(([en, ar]) => [en, ar]));
 export const urduDropUi: Record<string, string> = Object.fromEntries(dropUiEntries.map(([en, , ur]) => [en, ur]));
