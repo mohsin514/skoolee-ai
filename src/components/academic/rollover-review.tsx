@@ -14,6 +14,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { PLAN_HISTORY_PAGE, planHistoryPage } from "@/lib/academic/plan-history";
 
 // SKO-404: reviewed year-end rollover. Every learner has one explicit decision;
 // missing results stay "Needs review"; approval names an exact plan version;
@@ -82,6 +83,7 @@ export function RolloverReview({ campusId, mode = "operate", hideApprove = false
   const [year, setYear] = useState<number | null>(null), [view, setView] = useState<View | null>(null), [error, setError] = useState("");
   const [effectiveDate, setEffectiveDate] = useState(todayText()), [busy, setBusy] = useState(""), [filter, setFilter] = useState("attention");
   const [selected, setSelected] = useState<Set<string>>(new Set()), [bulkDecision, setBulkDecision] = useState("RETAIN"), [bulkReason, setBulkReason] = useState("");
+  const [historyShown, setHistoryShown] = useState(PLAN_HISTORY_PAGE), historyFocus = useRef<string | null>(null);
   const [batchSize, setBatchSize] = useState("50"), [correcting, setCorrecting] = useState<string | null>(null), [correction, setCorrection] = useState({ reason: "", date: todayText() });
   const request = useRef(0), dateTouched = useRef(false);
 
@@ -297,7 +299,10 @@ export function RolloverReview({ campusId, mode = "operate", hideApprove = false
       </div> : null}
 
       {view.events?.length ? <details className="sk-panel p-5"><summary className="flex cursor-pointer items-center gap-2 text-sm font-bold"><History className="size-4" aria-hidden />{ui("Plan history")}</summary>
-        <ol className="mt-2 space-y-1 text-xs" data-events>{view.events.map(e => <li key={e.id}>{dateTime(e.at)} · {ui("Version {0}", [e.version])} · {ui(EVENT_LABEL[e.kind] ?? e.kind)}{e.detail && "approvalWithdrawn" in e.detail ? ` — ${ui("approval withdrawn")}` : ""}</li>)}</ol></details> : null}
+        {(() => { const h = planHistoryPage(view.events, historyShown); return <>
+        <p className="mt-2 text-xs text-muted-foreground" aria-live="polite" data-events-total={h.total} data-events-remaining={h.remaining}>{h.remaining ? ui("Showing {0} of {1} plan events, newest first", [h.visible.length, h.total]) : ui("All {0} plan events are shown.", [h.total])}</p>
+        <ol className="mt-2 space-y-1 text-xs" data-events>{h.visible.map(e => <li key={e.id} tabIndex={-1} ref={el => { if (el && historyFocus.current === e.id) { historyFocus.current = null; el.focus(); } }}>{dateTime(e.at)} · {ui("Version {0}", [e.version])} · {ui(EVENT_LABEL[e.kind] ?? e.kind)}{e.detail && "approvalWithdrawn" in e.detail ? ` — ${ui("approval withdrawn")}` : ""}</li>)}</ol>
+        {h.remaining ? <Button type="button" variant="outline" size="sm" className="mt-3" data-events-older onClick={() => { historyFocus.current = view.events?.[h.visible.length]?.id ?? null; setHistoryShown(h.visible.length + PLAN_HISTORY_PAGE); }}>{ui("Load older events ({0} more)", [h.remaining])}</Button> : null}</>; })()}</details> : null}
     </> : null}
     {plan ? <ConfirmAction
       open={confirmApprove}
