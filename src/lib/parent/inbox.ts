@@ -32,9 +32,28 @@ async function itemsFor(guardianUserId: string, schoolId: string, child: Child, 
   const items: InboxItem[] = [];
   const today = calendarDateIn(locale.timezone, now);
 
+  // SKAI-1873: every source below is scoped by schoolId and this child and none reads another's result, so they are
+  // read together; items are still added in the order below, so the inbox's tie order is unchanged.
+  const since = new Date(new Date(`${today}T00:00:00Z`).getTime() - 30 * DAY);
+  const [rows, leave, trips, meetings, invoices, learning, briefs] = await Promise.all([
+    permissions.attendance ? prisma.attendance.findMany({ where: { schoolId, studentId: child.id, status: { in: ["ABSENT", "LATE", "EXCUSED"] }, date: { gte: since } }, select: { id: true, date: true, status: true, explanations: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true, status: true, submittedById: true, reviewNote: true, reviewedAt: true, createdAt: true } } }, orderBy: { date: "desc" } }) : [],
+    permissions.attendance ? prisma.learnerLeaveRequest.findMany({ where: { schoolId, studentId: child.id, status: { not: "CANCELLED" }, toDate: { gte: new Date(now.getTime() - 30 * DAY) } }, select: { id: true, fromDate: true, toDate: true, status: true, reviewNote: true, requestedById: true, createdAt: true, reviewedAt: true }, orderBy: { fromDate: "asc" } }) : [],
+    guardianTrips(guardianUserId, schoolId, [child.id], now),
+    permissions.communication && guardianUserId ? Promise.all([
+      prisma.meetingBooking.findMany({ where: { schoolId, studentId: child.id, guardianUserId, status: "RESCHEDULE_NEEDED" }, select: { id: true, startsAt: true, updatedAt: true } }),
+      prisma.meetingAction.findMany({ where: { schoolId, studentId: child.id, ownerRole: "FAMILY", ownerUserId: guardianUserId, booking: { followUp: { sharedAt: { not: null } } }, OR: [{ status: "OPEN" }, { completedAt: { gte: new Date(now.getTime() - 30 * DAY) } }] }, select: { id: true, text: true, dueDate: true, status: true, completedAt: true, createdAt: true }, orderBy: { dueDate: "asc" }, take: 10 }),
+    ]) : null,
+    permissions.finances ? prisma.invoice.findMany({ where: { schoolId, studentId: child.id, status: { not: "CANCELLED" }, OR: [{ balanceDue: { gt: 0 } }, { status: "PAID", generatedAt: { gte: new Date(now.getTime() - 60 * DAY) } }] }, select: { id: true, invoiceNumber: true, dueDate: true, balanceDue: true, currency: true, status: true, generatedAt: true }, orderBy: { dueDate: "asc" }, take: 20 }) : [],
+    permissions.learningRecords ? Promise.all([
+      prisma.reportCard.findMany({ where: { schoolId, studentId: child.id, ...publishedReportsWhere, generatedAt: { gte: new Date(now.getTime() - 45 * DAY) } }, select: { id: true, generatedAt: true, exam: { select: { title: true } } }, orderBy: { generatedAt: "desc" }, take: 5 }),
+      prisma.assignmentFeedback.findMany({ where: { schoolId, status: "RETURNED", returnedAt: { gte: new Date(now.getTime() - 30 * DAY) }, submissionVersion: { studentId: child.id } }, select: { id: true, returnedAt: true, submissionVersion: { select: { assignmentId: true, submission: { select: { assignment: { select: { title: true } } } } } } }, orderBy: { returnedAt: "desc" }, take: 5 }),
+      // SKO-504: a sent family note (one sentence, already in this guardian's language).
+      prisma.familyResultNote.findMany({ where: { schoolId, studentId: child.id, status: "SENT", sentAt: { gte: new Date(now.getTime() - 45 * DAY) } }, select: { id: true, sentence: true, sentAt: true }, orderBy: { sentAt: "desc" }, take: 5 }),
+    ]) : null,
+    permissions.learningRecords ? familyExamBrief(schoolId, child, guardianUserId, now) : [],
+  ]);
+
   if (permissions.attendance) {
-    const since = new Date(new Date(`${today}T00:00:00Z`).getTime() - 30 * DAY);
-    const rows = await prisma.attendance.findMany({ where: { schoolId, studentId: child.id, status: { in: ["ABSENT", "LATE", "EXCUSED"] }, date: { gte: since } }, select: { id: true, date: true, status: true, explanations: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true, status: true, submittedById: true, reviewNote: true, reviewedAt: true, createdAt: true } } }, orderBy: { date: "desc" } });
     for (const row of rows) {
       const day = row.date.toISOString().slice(0, 10), explanation = row.explanations[0];
       const closes = new Date(new Date(`${day}T00:00:00Z`).getTime() + (EXPLAIN_WINDOW_DAYS + 1) * DAY);
@@ -55,29 +74,24 @@ async function itemsFor(guardianUserId: string, schoolId: string, child: Child, 
 
   // SKO-421: the family's own leave requests, in the school's decision state.
   if (permissions.attendance) {
-    const leave = await prisma.learnerLeaveRequest.findMany({ where: { schoolId, studentId: child.id, status: { not: "CANCELLED" }, toDate: { gte: new Date(now.getTime() - 30 * DAY) } }, select: { id: true, fromDate: true, toDate: true, status: true, reviewNote: true, requestedById: true, createdAt: true, reviewedAt: true }, orderBy: { fromDate: "asc" } });
     for (const row of leave) items.push({ ...base, id: `leave:${row.id}`, kind: "LEAVE_REQUEST", state: row.status === "CLARIFICATION" ? "ACTION" : row.status === "PENDING" ? "WAITING" : "COMPLETED", title: row.status, detail: `${row.fromDate.toISOString().slice(0, 10)}–${row.toDate.toISOString().slice(0, 10)}`, dueAt: null, overdue: false, at: (row.reviewedAt ?? row.createdAt).toISOString(), href: `/parent/attendance${linkQuery}`, completedByOther: Boolean(guardianUserId) && row.requestedById !== guardianUserId, receipt: null });
   }
 
   // SKO-421: trip permission, answered for one exact version under the trip's signatory rule.
-  for (const trip of await guardianTrips(guardianUserId, schoolId, [child.id], now)) {
+  for (const trip of trips) {
     const mine = trip.myAnswer;
     const state: InboxState = !trip.canSign ? "UPDATE" : mine ? (trip.status === "PARTIAL" ? "WAITING" : "COMPLETED") : trip.deadlinePassed ? "EXPIRED" : "ACTION";
     items.push({ ...base, id: `trip:${trip.tripId}:${child.id}`, kind: "TRIP_CONSENT", state, title: trip.version.title, detail: `v${trip.version.version}${trip.earlierAnswer ? " · changed" : ""}`, dueAt: trip.version.respondBy.toISOString(), overdue: false, at: trip.version.publishedAt.toISOString(), href: `/parent/activities${linkQuery}`, completedByOther: !mine && trip.answeredByOther, receipt: mine?.receiptCode ?? null });
   }
 
   // SKO-420: meetings that need a new time, and shared follow-up actions this family owns.
-  if (permissions.communication && guardianUserId) {
-    const [moves, actions] = await Promise.all([
-      prisma.meetingBooking.findMany({ where: { schoolId, studentId: child.id, guardianUserId, status: "RESCHEDULE_NEEDED" }, select: { id: true, startsAt: true, updatedAt: true } }),
-      prisma.meetingAction.findMany({ where: { schoolId, studentId: child.id, ownerRole: "FAMILY", ownerUserId: guardianUserId, booking: { followUp: { sharedAt: { not: null } } }, OR: [{ status: "OPEN" }, { completedAt: { gte: new Date(now.getTime() - 30 * DAY) } }] }, select: { id: true, text: true, dueDate: true, status: true, completedAt: true, createdAt: true }, orderBy: { dueDate: "asc" }, take: 10 }),
-    ]);
+  if (meetings) {
+    const [moves, actions] = meetings;
     for (const row of moves) items.push({ ...base, id: `meeting:${row.id}`, kind: "MEETING_RESCHEDULE", state: "ACTION", title: "MEETING", detail: null, dueAt: row.startsAt.toISOString(), overdue: false, at: row.updatedAt.toISOString(), href: `/parent/meetings${linkQuery}`, completedByOther: false, receipt: null });
     for (const row of actions) items.push({ ...base, id: `meeting-action:${row.id}`, kind: "MEETING_ACTION", state: row.status === "DONE" ? "COMPLETED" : "ACTION", title: row.text, detail: row.dueDate, dueAt: `${row.dueDate}T23:59:59Z`, overdue: row.status !== "DONE" && row.dueDate < today, at: (row.completedAt ?? row.createdAt).toISOString(), href: `/parent/meetings${linkQuery}`, completedByOther: false, receipt: null });
   }
 
   if (permissions.finances) {
-    const invoices = await prisma.invoice.findMany({ where: { schoolId, studentId: child.id, status: { not: "CANCELLED" }, OR: [{ balanceDue: { gt: 0 } }, { status: "PAID", generatedAt: { gte: new Date(now.getTime() - 60 * DAY) } }] }, select: { id: true, invoiceNumber: true, dueDate: true, balanceDue: true, currency: true, status: true, generatedAt: true }, orderBy: { dueDate: "asc" }, take: 20 });
     for (const invoice of invoices) {
       const paid = invoice.balanceDue <= 0 || invoice.status === "PAID";
       const dueDay = calendarDateIn(locale.timezone, invoice.dueDate);
@@ -85,16 +99,11 @@ async function itemsFor(guardianUserId: string, schoolId: string, child: Child, 
     }
   }
 
-  if (permissions.learningRecords) {
-    const [reports, feedback, notes] = await Promise.all([
-      prisma.reportCard.findMany({ where: { schoolId, studentId: child.id, ...publishedReportsWhere, generatedAt: { gte: new Date(now.getTime() - 45 * DAY) } }, select: { id: true, generatedAt: true, exam: { select: { title: true } } }, orderBy: { generatedAt: "desc" }, take: 5 }),
-      prisma.assignmentFeedback.findMany({ where: { schoolId, status: "RETURNED", returnedAt: { gte: new Date(now.getTime() - 30 * DAY) }, submissionVersion: { studentId: child.id } }, select: { id: true, returnedAt: true, submissionVersion: { select: { assignmentId: true, submission: { select: { assignment: { select: { title: true } } } } } } }, orderBy: { returnedAt: "desc" }, take: 5 }),
-      // SKO-504: a sent family note (one sentence, already in this guardian's language).
-      prisma.familyResultNote.findMany({ where: { schoolId, studentId: child.id, status: "SENT", sentAt: { gte: new Date(now.getTime() - 45 * DAY) } }, select: { id: true, sentence: true, sentAt: true }, orderBy: { sentAt: "desc" }, take: 5 }),
-    ]);
+  if (learning) {
+    const [reports, feedback, notes] = learning;
     // SKO-505 Family Exam Brief: a republished date sheet that changed this child's papers, to acknowledge once.
     // `title` is the first changed subject; `detail` is "<kind>|<date>|<further changes>" for the reader's language.
-    for (const brief of await familyExamBrief(schoolId, child, guardianUserId, now)) {
+    for (const brief of briefs) {
       const first = brief.items[0];
       items.push({ ...base, id: `exam-change:${brief.versionId}:${child.id}`, kind: "EXAM_CHANGED", state: brief.acknowledgedAt ? "COMPLETED" : "ACTION", title: first.subject, detail: `${first.kind}|${first.date ?? first.previousDate ?? ""}|${brief.items.length - 1}`, dueAt: null, overdue: false, at: brief.publishedAt.toISOString(), href: `/parent/timetable${linkQuery}`, completedByOther: false, receipt: brief.versionId });
     }

@@ -9,6 +9,7 @@ import { arabicSubjectSetupUi, urduSubjectSetupUi } from "./subject-setup-ui-mes
 import { arabicGradingModelUi, urduGradingModelUi } from "./grading-model-ui-messages";
 import { arabicCampusSetupUi, urduCampusSetupUi } from "./campus-setup-ui-messages";
 import { arabicSchoolBrandingUi, urduSchoolBrandingUi } from "./school-branding-ui-messages";
+import { arabicDropUi, urduDropUi } from "./drop-ui-messages";
 import { arabicPortfolioLoadUi, urduPortfolioLoadUi } from "./portfolio-load-ui-messages";
 import { arabicAdmissionsLifecycleUi, urduAdmissionsLifecycleUi } from "./admissions-lifecycle-ui-messages";
 import { arabicClassSetupUi, urduClassSetupUi } from "./class-setup-ui-messages";
@@ -423,7 +424,7 @@ export const arabicReviewedUi: Record<string, string> = {
 };
 
 /** Every Arabic UI key. The role re-architecture catalogs (§10.10) only fill gaps: reviewed entries win. */
-export const arabicUi: Record<string, string> = { ...arabicRoleUxUi, ...arabicCampusSetupUi, ...arabicReviewedUi, ...arabicSchoolBrandingUi, ...arabicAdmissionsLifecycleUi, ...arabicPortfolioLoadUi };
+export const arabicUi: Record<string, string> = { ...arabicRoleUxUi, ...arabicCampusSetupUi, ...arabicReviewedUi, ...arabicSchoolBrandingUi, ...arabicAdmissionsLifecycleUi, ...arabicPortfolioLoadUi, ...arabicDropUi };
 
 /** The reviewed Urdu catalog; same precedence rule as `arabicReviewedUi`. */
 export const urduReviewedUi: Record<string, string> = {
@@ -832,7 +833,7 @@ export const urduReviewedUi: Record<string, string> = {
 };
 
 /** Every Urdu UI key. The role re-architecture catalogs (§10.10) only fill gaps: reviewed entries win. */
-export const urduUi: Record<string, string> = { ...urduRoleUxUi, ...urduCampusSetupUi, ...urduReviewedUi, ...urduSchoolBrandingUi, ...urduAdmissionsLifecycleUi, ...urduPortfolioLoadUi };
+export const urduUi: Record<string, string> = { ...urduRoleUxUi, ...urduCampusSetupUi, ...urduReviewedUi, ...urduSchoolBrandingUi, ...urduAdmissionsLifecycleUi, ...urduPortfolioLoadUi, ...urduDropUi };
 
 const academicModelUi: Record<"ar" | "ur", Record<string, string>> = {
   ar: {

@@ -73,6 +73,11 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Permissions-Policy", value: "camera=(self), microphone=(self), display-capture=(), geolocation=()" }],
       },
       {
+        // SKAI-1848: the phone scanner page uses the rear camera after an explicit tap.
+        source: "/drop",
+        headers: [{ key: "Permissions-Policy", value: "camera=(self), microphone=(), display-capture=(), geolocation=()" }],
+      },
+      {
         source: "/ai/exams/:id",
         headers: [{ key: "Permissions-Policy", value: "camera=(self), microphone=(), display-capture=(self), geolocation=()" }],
       },
