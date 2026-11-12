@@ -79,7 +79,7 @@ export function CampusOverview({ data, onNavigate, showFinance = true }: CampusO
       averageClassSize: strengths.length ? Math.round(strengths.reduce((a, c) => a + c.students, 0) / strengths.length) : 0,
       unplaced: onRoll.filter((s: any) => !s.class).length,
       collection: collectionRate(buckets),
-      trend: attendanceTrend(students, 21),
+      trend: attendanceTrend(data?.attendanceTrend ?? [], 21),
       split: attendanceSplit(data?.attendanceSummary),
       todayRate: attendanceRate(data?.attendanceSummary),
       reportsWaiting: Math.max(0, generated - sent),

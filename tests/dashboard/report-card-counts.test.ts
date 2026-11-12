@@ -35,7 +35,7 @@ for (const [label, loader, session, withRemarksApproval] of consoles) {
   test(`SKAI-1818: ${label} console reads report-card counts scoped to its own school and campus`, async () => {
     const dashboard = await loadDashboard();
     h.session = session;
-    h.answers.set("reportCard.groupBy", groups);
+    h.answers.set("reportCard.groupBy", () => groups);
     const data: any = await dashboard[loader]();
 
     assert.deepEqual(data.degraded, []);
