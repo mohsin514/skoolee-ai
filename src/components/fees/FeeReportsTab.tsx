@@ -19,6 +19,8 @@ import { EmptyState } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ErrorState } from "@/components/ui/error-state";
 import { SectionPicker } from "@/components/operations/console-page";
+import { Pagination } from "@/components/shared-admin/workspace";
+import { useListPagination } from "@/hooks/use-list-page";
 import type {
   CollectionReport,
   DefaulterRecord,
@@ -95,21 +97,36 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
   const [remindingId, setRemindingId] = useState<string | null>(null);
   const [confirmAll, setConfirmAll] = useState(false);
   const [sendingAll, setSendingAll] = useState(false);
-  useEffect(() => { onCountChange?.(loading || failed ? null : defaulters.length); }, [loading, failed, defaulters.length, onCountChange]);
+  const [exporting, setExporting] = useState(false);
+  // SKAI-1827: the table shows one page; `total` counts every defaulting student.
+  const [total, setTotal] = useState(0);
+  const paged = useListPagination(total, "defaulters");
+  useEffect(() => { onCountChange?.(loading || failed ? null : total); }, [loading, failed, total, onCountChange]);
+
+  const query = useCallback((page?: { page: number; limit: number }) => {
+    const params = new URLSearchParams(currency ? { currency } : {});
+    if (campusId) params.set("campusId", campusId);
+    if (page) { params.set("page", String(page.page)); params.set("limit", String(page.limit)); }
+    return `${API}/reports/defaulters?${params}`;
+  }, [campusId, currency]);
+  // Export and send-all cover every defaulter, so they fetch the full list when used.
+  const fetchAll = async (): Promise<DefaulterRecord[]> => {
+    const json = await (await fetch(query())).json();
+    if (!json.success) throw new Error(json.error || "Defaulters could not be loaded");
+    return json.data;
+  };
 
   // SKAI-1766: only the newest campus/currency request may write rows, loading or error state.
   const request = useRef(createLatestRequest<string>());
   const load = useCallback(async () => {
-    const key = `${campusId ?? ""}|${currency}`, token = request.current.begin(key);
+    const key = `${campusId ?? ""}|${currency}|${paged.requestedPage}|${paged.controls.perPage}`, token = request.current.begin(key);
     setLoading(true);
     setFailed(false);
     try {
-      const params = new URLSearchParams(currency ? { currency } : {});
-      if (campusId) params.set("campusId", campusId);
-      const res = await fetch(`${API}/reports/defaulters?${params}`);
+      const res = await fetch(query({ page: paged.requestedPage, limit: paged.controls.perPage }));
       const json = await res.json();
       if (!request.current.isCurrent(token, key)) return;
-      if (json.success) setDefaulters(json.data);
+      if (json.success) { setDefaulters(json.data); setTotal(json.total); }
       else setFailed(true);
     } catch {
       // Shown in place with a retry (role-ux R4).
@@ -117,7 +134,7 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
     } finally {
       if (request.current.isCurrent(token, key)) setLoading(false);
     }
-  }, [campusId, currency]);
+  }, [query, paged.requestedPage, paged.controls.perPage]);
 
   useEffect(() => {
     load();
@@ -148,7 +165,13 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
   const remindAll = async () => {
     setSendingAll(true);
     let sent = 0, failedCount = 0;
-    for (const d of defaulters) {
+    let everyone: DefaulterRecord[];
+    try { everyone = await fetchAll(); } catch {
+      setSendingAll(false);
+      toast.error(tr("Defaulters could not be loaded"));
+      return;
+    }
+    for (const d of everyone) {
       try {
         const res = await fetch(`${API}/remind`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId: d.studentId }) });
         const json = await res.json().catch(() => ({}));
@@ -161,9 +184,15 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
     else toast.success(tr("{0} reminders sent.", [sent]));
   };
 
-  const handleExport = () => {
-    if (defaulters.length === 0) { toast.info(tr("Nothing to export yet.")); return; }
-    const rows = defaulters.map((d) => ({
+  const handleExport = async () => {
+    if (total === 0) { toast.info(tr("Nothing to export yet.")); return; }
+    setExporting(true);
+    let everyone: DefaulterRecord[];
+    try { everyone = await fetchAll(); } catch {
+      toast.error(tr("Defaulters could not be loaded"));
+      return;
+    } finally { setExporting(false); }
+    const rows = everyone.map((d) => ({
       Student: d.studentName,
       "Roll No": d.rollNo ?? "",
       Class: classLabel(d.className, d.section),
@@ -180,7 +209,7 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
   };
 
   usePanelCommand(command, {
-    "send-reminders": () => { if (!readOnly && defaulters.length) setConfirmAll(true); else if (!defaulters.length) toast.info(tr("No families are behind on payments.")); },
+    "send-reminders": () => { if (!readOnly && total) setConfirmAll(true); else if (!total) toast.info(tr("No families are behind on payments.")); },
     export: handleExport,
   }, !loading && !failed);
 
@@ -189,7 +218,7 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
       open={confirmAll}
       busy={sendingAll}
       tone="primary"
-      title={tr("Send fee reminders to {0} families?", [defaulters.length])}
+      title={tr("Send fee reminders to {0} families?", [total])}
       description={tr("Each family with an overdue balance gets one reminder through their usual channel. Families are not told about other families.")}
       confirmLabel={tr("Send reminders")}
       cancelLabel={tr("Keep editing")}
@@ -219,7 +248,7 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
     return <ErrorState title={tr("Defaulters could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
   }
 
-  if (defaulters.length === 0) {
+  if (total === 0) {
     return (
       <EmptyState
         icon={Users}
@@ -234,11 +263,11 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
       {confirmDialog}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-semibold text-ink-muted tabular-nums">
-          {tr("Defaulters")}: <bdi>{defaulters.length}</bdi>
+          {tr("Defaulters")}: <bdi>{total}</bdi>
         </p>
         {showToolbar ? (
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={handleExport}><Download className="size-4" aria-hidden="true" /><UiText>{"Export"}</UiText></Button>
+            <Button variant="outline" onClick={() => void handleExport()} loading={exporting}><Download className="size-4" aria-hidden="true" /><UiText>{"Export"}</UiText></Button>
             {readOnly ? null : <Button onClick={() => setConfirmAll(true)}><UiText>{"Send reminders"}</UiText></Button>}
           </div>
         ) : null}
@@ -298,6 +327,7 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
         </div>
         </div>
       </div>
+      <Pagination {...paged.controls} />
     </div>
   );
 }
