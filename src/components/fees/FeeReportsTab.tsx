@@ -68,6 +68,8 @@ export function FeeReportsTab({ campusId, readOnly = false, command, hideHeader 
     export: () => forward(subTab),
   });
   const commandFor = (report: ReportTab) => (forwarded?.report === report ? forwarded.command : null);
+  // SKAI-1826: Collection and Payment methods share one response per campus and currency.
+  const [collectionCache] = useState<CollectionCache>(() => new Map());
 
   return (
     <div className="space-y-5">
@@ -80,8 +82,8 @@ export function FeeReportsTab({ campusId, readOnly = false, command, hideHeader 
       {sectionNav === "picker" ? <SectionPicker label="Report" items={REPORT_TABS} value={subTab} onChange={select} /> : null}
 
       {subTab === "defaulters" && <DefaultersReport onCountChange={onDefaulterCountChange} campusId={campusId} currency={currency} readOnly={readOnly} command={commandFor("defaulters")} showToolbar={!hideHeader} />}
-      {subTab === "collection" && <CollectionSummary campusId={campusId} currency={currency} command={commandFor("collection")} showToolbar={!hideHeader} />}
-      {subTab === "methods" && <MethodBreakdown campusId={campusId} currency={currency} />}
+      {subTab === "collection" && <CollectionSummary cache={collectionCache} campusId={campusId} currency={currency} command={commandFor("collection")} showToolbar={!hideHeader} />}
+      {subTab === "methods" && <MethodBreakdown cache={collectionCache} campusId={campusId} currency={currency} />}
     </div>
   );
 }
@@ -330,7 +332,22 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
   );
 }
 
-function CollectionSummary({ campusId, currency, command, showToolbar = true }: { campusId?: string; currency: string; command?: PanelCommand | null; showToolbar?: boolean }) {
+type CollectionResponse = { success: true; data: { byClass: CollectionReport[]; byMethod: PaymentMethodBreakdown[] } } | { success?: false; data?: undefined };
+type CollectionCache = Map<string, Promise<CollectionResponse>>;
+
+/** One request per campus and currency for both sub-reports; a failed one is dropped so a retry refetches. */
+function loadCollection(cache: CollectionCache, key: string, campusId: string | undefined, currency: string) {
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const params = new URLSearchParams(currency ? { currency } : {});
+  if (campusId) params.set("campusId", campusId);
+  const pending: Promise<CollectionResponse> = fetch(`${API}/reports/collection?${params}`).then((res) => res.json());
+  cache.set(key, pending);
+  pending.then((json) => { if (!json.success) cache.delete(key); }, () => cache.delete(key));
+  return pending;
+}
+
+function CollectionSummary({ cache, campusId, currency, command, showToolbar = true }: { cache: CollectionCache; campusId?: string; currency: string; command?: PanelCommand | null; showToolbar?: boolean }) {
  const { money: formatPKR } = useLocaleFormat();
   const tr = useUiText();
   const [data, setData] = useState<CollectionReport[]>([]);
@@ -344,10 +361,7 @@ function CollectionSummary({ campusId, currency, command, showToolbar = true }: 
     setLoading(true);
     setFailed(false);
     try {
-      const params = new URLSearchParams(currency ? { currency } : {});
-      if (campusId) params.set("campusId", campusId);
-      const res = await fetch(`${API}/reports/collection?${params}`);
-      const json = await res.json();
+      const json = await loadCollection(cache, key, campusId, currency);
       if (!request.current.isCurrent(token, key)) return;
       if (json.success) setData(json.data.byClass);
       else setFailed(true);
@@ -497,7 +511,7 @@ function CollectionSummary({ campusId, currency, command, showToolbar = true }: 
   );
 }
 
-function MethodBreakdown({ campusId, currency }: { campusId?: string; currency: string }) {
+function MethodBreakdown({ cache, campusId, currency }: { cache: CollectionCache; campusId?: string; currency: string }) {
  const { money: formatPKR } = useLocaleFormat();
   const tr = useUiText();
   const [data, setData] = useState<PaymentMethodBreakdown[]>([]);
@@ -511,10 +525,7 @@ function MethodBreakdown({ campusId, currency }: { campusId?: string; currency: 
     setLoading(true);
     setFailed(false);
     try {
-      const params = new URLSearchParams(currency ? { currency } : {});
-      if (campusId) params.set("campusId", campusId);
-      const res = await fetch(`${API}/reports/collection?${params}`);
-      const json = await res.json();
+      const json = await loadCollection(cache, key, campusId, currency);
       if (!request.current.isCurrent(token, key)) return;
       if (json.success) setData(json.data.byMethod);
       else setFailed(true);
