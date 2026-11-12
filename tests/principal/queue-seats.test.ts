@@ -27,6 +27,8 @@ const db = {
   states: [] as State[],
   events: [] as Array<{ itemKey: string; kind: string }>,
   resolvedQueries: [] as Args[],
+  stateQueries: [] as Args[],
+  reportScopes: [] as Array<{ schoolId: string; campusId: string }>,
 };
 
 const SOURCES: Record<string, () => unknown> = {
@@ -34,7 +36,6 @@ const SOURCES: Record<string, () => unknown> = {
     { id: "leave-teacher", fromDate: day(3), toDate: day(4), user: { fullName: "Synthetic Teacher", role: "TEACHER" }, leaveType: { name: "Casual" } },
     { id: "leave-office", fromDate: day(5), toDate: day(6), user: { fullName: "Synthetic Receptionist", role: "RECEPTIONIST" }, leaveType: { name: "Casual" } },
   ],
-  reportVersion: () => [{ id: "version-1", reportCardId: "card-1", reportCard: { currentVersionId: "version-1", examId: "exam-1", exam: { title: "Synthetic Midterm" } } }],
   parentCommunication: () => [{ id: "message-1", channel: "SMS", recipientName: "Synthetic Guardian", templateKey: "fee_reminder", createdAt: day(-3) }],
   complaint: () => [{ id: "complaint-1", referenceCode: "CMP-1", type: "Safeguarding", confidential: true, ownerId: null, dueDate: null, date: day(-5), owner: null }],
   financialAdjustment: () => [{ id: "adjustment-1", kind: "REFUND", createdAt: day(-1), invoiceId: "invoice-1" }],
@@ -56,7 +57,12 @@ function model(name: string) {
         if (name === "user" && operation === "groupBy") return [...db.seats].map((role) => ({ role, _count: { _all: 1 } }));
         if (name === "queueItemState" && operation === "findMany") {
           const where = args?.where ?? {};
-          if (!where.resolvedAt) return db.states.filter((state) => state.campusId === where.campusId);
+          if (!where.resolvedAt) {
+            db.stateQueries.push(args);
+            // SKAI-1866: open rows, plus resolved rows whose key is active again.
+            const active: string[] = where.OR?.find((clause: { itemKey?: { in: string[] } }) => clause.itemKey)?.itemKey.in ?? [];
+            return db.states.filter((state) => state.schoolId === where.schoolId && state.campusId === where.campusId && (!state.resolvedAt || active.includes(state.itemKey)));
+          }
           db.resolvedQueries.push(args);
           const prefixes: string[] = (where.OR ?? []).map((clause: { itemKey: { startsWith: string } }) => clause.itemKey.startsWith);
           return db.states.filter((state) => state.resolvedAt && prefixes.some((prefix) => state.itemKey.startsWith(prefix)))
@@ -90,6 +96,11 @@ const fakePrisma: Record<string, unknown> = new Proxy({}, {
   get(_target, property) {
     if (typeof property !== "string" || property === "then") return undefined;
     if (property === "$transaction") return async (work: unknown) => Array.isArray(work) ? Promise.all(work) : (work as (tx: unknown) => unknown)(fakePrisma);
+    if (property === "$queryRaw") return async (_sql: TemplateStringsArray, schoolId: string, campusId: string) => {
+      db.reportScopes.push({ schoolId, campusId });
+      if (db.failing.has("$queryRaw")) throw new Error("synthetic report outage");
+      return [{ examId: "exam-1", title: "Synthetic Midterm", count: 1 }];
+    };
     if (property.startsWith("$")) return async () => undefined;
     return model(property);
   },
@@ -110,6 +121,8 @@ beforeEach(() => {
   db.states = [];
   db.events = [];
   db.resolvedQueries = [];
+  db.stateQueries = [];
+  db.reportScopes = [];
 });
 
 const actor = (role: AuthUser["role"]): AuthUser => ({ userId: `user-${role.toLowerCase()}`, schoolId: SCHOOL, campusId: CAMPUS, role, email: `${role.toLowerCase()}@example.invalid`, institutionKind: "GROUP" });
@@ -224,4 +237,35 @@ test("queue titles and triggers carry translated templates while names remain da
   }
   const leave = result.items.find((item) => item.key === "LEAVE_PENDING:leave-teacher")!;
   assert.ok(leave.titleMessage?.values.includes("Synthetic Teacher"));
+});
+
+test("SKAI-1866: a load reads open rows and reopenable rows only, never the whole resolved history", async () => {
+  db.states = [
+    state("COMPLAINT:complaint-1"),
+    state("COMPLAINT:long-gone", { resolvedAt: day(-40) }),
+    state("LEAVE_PENDING:leave-office", { resolvedAt: day(-2) }),
+    { ...state("COMPLAINT:complaint-1"), id: "other-school", schoolId: "school-other" },
+  ];
+  const campus = await queue.loadQueue(actor("CAMPUS_ADMIN"), CAMPUS);
+  const where = db.stateQueries[0]?.where ?? {};
+  assert.equal(where.schoolId, SCHOOL);
+  assert.equal(where.campusId, CAMPUS);
+  assert.deepEqual(where.OR?.[0], { resolvedAt: null });
+  assert.ok(!where.OR[1].itemKey.in.includes("COMPLAINT:long-gone"), "a key whose condition stays gone is not reread");
+  // A resolved key that is active again is still reopened.
+  assert.equal(db.states.find((row) => row.itemKey === "LEAVE_PENDING:leave-office")?.resolvedAt, null);
+  assert.ok(db.states.find((row) => row.itemKey === "COMPLAINT:long-gone")?.resolvedAt, "old history stays resolved");
+  assert.equal(campus.items.find((item) => item.key === "COMPLAINT:complaint-1")?.assignee?.id, "user-someone");
+  assert.deepEqual(db.events, [], "nothing is settled or reported twice");
+});
+
+test("SKAI-1866: report approvals are counted in one query scoped to the caller's school and campus", async () => {
+  const principal = await queue.loadQueue(actor("PRINCIPAL"), CAMPUS);
+  const report = principal.items.find((item) => item.key === "REPORT_APPROVAL:exam-1");
+  assert.equal(report?.count, 1);
+  assert.equal(report?.trigger, "1 current report version(s) for Synthetic Midterm are not approved.");
+  assert.deepEqual(db.reportScopes, [{ schoolId: SCHOOL, campusId: CAMPUS }]);
+  db.failing = new Set(["$queryRaw"]);
+  const failed = await queue.loadQueue(actor("PRINCIPAL"), CAMPUS);
+  assert.deepEqual(failed.failedSources, ["REPORT_APPROVAL"]);
 });
