@@ -152,21 +152,28 @@ export default function MarksPage() {
     setMarksSaving(true);
     try {
       const payload: any[] = [];
+      const expectedMarks: Record<string, string> = {};
+      let filled = 0;
       for (const student of markSheet.students || []) {
         for (const subject of markSheet.subjects || []) {
           const key = `${student.id}:${subject.id}`;
           const value = marksByKey[key];
           if (value === "" || value === undefined) continue;
+          filled += 1;
+          // SKAI-1834: only the cells that differ from the sheet the teacher loaded (or the latest one reviewed after
+          // a conflict) are sent, with their own baseline; an untouched cell would be a no-op on the server anyway.
+          if (value === (draft.baseline[key] ?? "") && value === (baselineMarks[key] ?? "")) continue;
+          expectedMarks[key] = draft.baseline[key] ?? "";
           // SKAI-1385: ABSENT and EXEMPT cells round-trip as flags, never as a scored zero.
           if (value === ABSENT_TOKEN) payload.push({ studentId: student.id, subjectId: subject.id, marksObtained: 0, isAbsent: true });
           else if (value === EXEMPT_TOKEN) payload.push({ studentId: student.id, subjectId: subject.id, marksObtained: 0, isExempt: true });
           else payload.push({ studentId: student.id, subjectId: subject.id, marksObtained: Number(value) });
         }
       }
-      if (payload.length === 0) { toast.error(ui("Enter at least one mark before saving.")); return; }
+      if (filled === 0) { toast.error(ui("Enter at least one mark before saving.")); return; }
       const res = await fetch("/api/marks", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ examId: selectedExamId, entries: payload, expectedMarks: draft.baseline }),
+        body: JSON.stringify({ examId: selectedExamId, entries: payload, expectedMarks }),
       });
       const text = await res.text();
       const result = JSON.parse(text);
@@ -182,7 +189,7 @@ export default function MarksPage() {
       await loadData();
     } catch (error: unknown) { toast.error(error); }
     finally { setMarksSaving(false); }
-  }, [selectedExamId, markSheet, marksByKey, loadMarks, loadData, draft, ui]);
+  }, [selectedExamId, markSheet, marksByKey, baselineMarks, loadMarks, loadData, draft, ui]);
 
   const exportMarksCSV = useCallback(() => {
     if (!markSheet) return;

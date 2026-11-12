@@ -132,3 +132,20 @@ test("two schools: school A cannot save marks against school B's exam", async ()
   await assert.rejects(save(teacherA1, [{ studentId: studentB.id, subjectId: subjectB.id, marksObtained: 10 }], undefined, examB1), (error: { status?: number }) => error.status === 404);
   assert.equal((await raw.mark.findFirstOrThrow({ where: { examId: examB1 } })).marksObtained, 50);
 });
+
+test("SKAI-1834: new marks go in together through the tenant guard, each with one audit row, and an unchanged row is not rewritten", async () => {
+  const pupils = [randomUUID(), randomUUID()];
+  for (const [i, id] of pupils.entries()) await raw.student.create({ data: { id, schoolId: schoolA, campusId: campusA1, classId: classA1, fullName: `Pupil new ${i}`, rollNo: `N${i}`, gender: "MALE" } });
+  await setMark(student3, { marksObtained: 40 });
+  await raw.mark.updateMany({ where: { examId: examA1, studentId: student3, subjectId: subjectA1 }, data: { enteredBy: teacherA1.userId, grade: (await markOf(student3))?.grade } });
+  const auditsBefore = await raw.auditLog.count({ where: { schoolId: schoolA, tableName: "marks" } });
+  const result = await save(teacherA1, [...pupils.map((studentId) => ({ studentId, subjectId: subjectA1, marksObtained: 30 })), { studentId: student3, subjectId: subjectA1, marksObtained: 40 }]);
+  const created = await raw.mark.findMany({ where: { examId: examA1, studentId: { in: pupils } } });
+  assert.equal(created.length, 2);
+  assert.ok(created.every((mark) => mark.schoolId === schoolA && mark.campusId === campusA1 && mark.enteredBy === teacherA1.userId));
+  const audits = await raw.auditLog.findMany({ where: { schoolId: schoolA, tableName: "marks", createdAt: { gte: new Date(Date.now() - 60_000) } }, orderBy: { createdAt: "desc" } });
+  for (const mark of created) assert.equal(audits.filter((row) => row.recordId === mark.id).length, 1, "one audit row per new mark");
+  assert.equal(audits.filter((row) => row.recordId === "*").length, 0, "no bulk audit row");
+  assert.equal(result.changed, 2);
+  assert.equal(await raw.auditLog.count({ where: { schoolId: schoolA, tableName: "marks" } }), auditsBefore + 2, "the unchanged row adds no audit");
+});
