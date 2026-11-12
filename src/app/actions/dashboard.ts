@@ -7,7 +7,7 @@ import { getLocalePackage } from "@/lib/locale/store";
 import { studentScope, publishedReportsWhere } from "@/lib/auth/policy";
 
 import { cache } from "react";
-import { Prisma } from "@prisma/client";
+import { AttendanceStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { runAsUser } from "@/lib/db/tenant-context";
 import { createWidgetLoader, describeError, loadWidget } from "@/lib/dashboard/widget";
@@ -66,6 +66,35 @@ function aiInsightSelect() {
     approvalStatus: true,
     createdAt: true,
   } as const;
+}
+
+/** One report-card status combination and how many cards are in it; `reportPipeline` weights each row by `count`. */
+type ReportCardStatusCount = {
+  status: string;
+  isSent: boolean;
+  deliveryStatus: string;
+  remarksApproved?: boolean;
+  count: number;
+};
+
+/**
+ * SKAI-1818: the console pipeline only counts report cards by status, so read counts (a handful of rows) instead
+ * of every card the campus ever generated. `withRemarksApproval` keeps each console's pipeline numbers unchanged:
+ * the principal console counted `remarksApproved`, the campus console never read it.
+ */
+async function reportCardStatusCounts(schoolId: string, campusId: string, withRemarksApproval: boolean): Promise<ReportCardStatusCount[]> {
+  const groups = await prisma.reportCard.groupBy({
+    by: ["status", "isSent", "deliveryStatus", "remarksApproved"],
+    where: { campusId, schoolId, campus: { schoolId } },
+    _count: { _all: true },
+  });
+  return groups.map((group) => ({
+    status: group.status,
+    isSent: group.isSent,
+    deliveryStatus: group.deliveryStatus,
+    ...(withRemarksApproval ? { remarksApproved: group.remarksApproved } : {}),
+    count: group._count._all,
+  }));
 }
 
 function aiReviewSelect() {
@@ -449,6 +478,46 @@ export const getCampusDashboardData = cache(boundToSession(async function getCam
   return logConsoleFailure("admin-dashboard", loadCampusDashboardData);
 }));
 
+/**
+ * SKAI-1813: the leadership overviews read attendance as counts, never as every mark ever recorded. These are the
+ * rows the nested `student.attendance` relation used to ship (this school, this campus, pupils on this campus's roll),
+ * aggregated in the database instead of walked in the browser.
+ */
+function campusAttendanceWhere(schoolId: string, campusId: string) {
+  return { schoolId, campusId, student: { campusId, campus: { schoolId } } };
+}
+
+/** Marks per day and status for the most recent marked days the trend draws (each day has at most one row per status). */
+const ATTENDANCE_TREND_DAYS = 21;
+function attendanceTrendCounts(schoolId: string, campusId: string) {
+  return prisma.attendance.groupBy({
+    by: ["date", "status"],
+    where: campusAttendanceWhere(schoolId, campusId),
+    _count: { _all: true },
+    orderBy: { date: "desc" },
+    take: ATTENDANCE_TREND_DAYS * Object.keys(AttendanceStatus).length,
+  }).then((rows) => rows.map((row) => ({ date: row.date, status: row.status, count: row._count._all })));
+}
+
+function attendanceCountsByStudent(schoolId: string, campusId: string) {
+  return prisma.attendance.groupBy({ by: ["studentId", "status"], where: campusAttendanceWhere(schoolId, campusId), _count: { _all: true } });
+}
+
+/** Folds the per-student counts onto each pupil as `attendanceMarks` ({ present, total }), what the rate reads. */
+function withAttendanceMarks<T extends { id: string }>(
+  students: T[],
+  counts: { studentId: string; status: string; _count: { _all: number } }[],
+): (T & { attendanceMarks: { present: number; total: number } })[] {
+  const marks = new Map<string, { present: number; total: number }>();
+  for (const row of counts) {
+    const tally = marks.get(row.studentId) ?? { present: 0, total: 0 };
+    tally.total += row._count._all;
+    if (row.status === "PRESENT") tally.present += row._count._all;
+    marks.set(row.studentId, tally);
+  }
+  return students.map((student) => ({ ...student, attendanceMarks: marks.get(student.id) ?? { present: 0, total: 0 } }));
+}
+
 async function loadCampusDashboardData() {
   const session = await getAuthUser();
   if (!session || !isCampusAdminRole(session.role)) throw new Error("Permission Denied");
@@ -469,13 +538,15 @@ async function loadCampusDashboardData() {
     campus,
     students,
     recentExams,
-    recentReportCards,
+    reportCardCounts,
     studentCount,
     aiInsights,
     pendingAIReviewItems,
     attendanceRecords,
     invoiceGroupsByCurrency,
     aiSetupPending,
+    attendanceTrend,
+    attendanceByStudent,
   ] = await Promise.all([
     L.required("locale", () => getLocalePackage(session.schoolId, campusId)),
     L.widget("classes", () => prisma.class.findMany({
@@ -583,10 +654,6 @@ async function loadCampusDashboardData() {
       // The directory summary (SKAI-163); the profile reads the sensitive fields from /api/students/<id>.
       select: {
         ...rosterSummarySelect,
-        attendance: {
-          select: { id: true, status: true, date: true },
-          orderBy: { date: "desc" },
-        },
         reportCards: {
           select: {
             id: true,
@@ -619,27 +686,7 @@ async function loadCampusDashboardData() {
       },
       orderBy: [{ academicYear: "desc" }, { title: "asc" }],
     }), []),
-    L.widget("recentReportCards", () => prisma.reportCard.findMany({
-      where: { campusId, campus: { schoolId: session.schoolId } },
-      select: {
-        id: true,
-        percentage: true,
-        grade: true,
-        status: true,
-        deliveryStatus: true,
-        isSent: true,
-        generatedAt: true,
-        student: {
-          select: {
-            fullName: true,
-            rollNo: true,
-            class: { select: { name: true, section: true } },
-          },
-        },
-        exam: { select: { title: true, term: true, status: true } },
-      },
-      orderBy: { generatedAt: "desc" },
-    }), []),
+    L.widget("reportCardCounts", () => reportCardStatusCounts(session.schoolId, campusId, false), [] as ReportCardStatusCount[]),
     L.widget("studentCount", () => prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId }, ...ON_ROLL } }), 0),
     L.widget("aiInsights", () => prisma.aIInsight.findMany({
       where: { schoolId: session.schoolId, campusId },
@@ -667,6 +714,8 @@ async function loadCampusDashboardData() {
       _sum: { totalAmount: true, totalAmountPaid: true },
     }), []),
     L.widget("aiSetupPending", () => aiSetupPendingFor(session), false),
+    L.widget("attendanceTrend", () => attendanceTrendCounts(session.schoolId, campusId), []),
+    L.widget("attendanceByStudent", () => attendanceCountsByStudent(session.schoolId, campusId), []),
   ]);
 
   const currencyCounts = new Map<string, number>();
@@ -720,9 +769,10 @@ async function loadCampusDashboardData() {
     pendingOperationsInvitations: pendingInvitations.filter((invite) => ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"].includes(invite.role)),
     pendingInvitations: pendingInvitations.map(formatPendingInvite),
     pendingInviteCount: pendingInvitations.length,
-    students,
+    students: withAttendanceMarks(students, attendanceByStudent),
+    attendanceTrend,
     recentExams,
-    recentReportCards,
+    reportCardCounts,
     studentCount,
     aiInsights,
     pendingAIReviewItems,
@@ -1050,7 +1100,7 @@ async function loadPrincipalDashboardData() {
     teachers,
     campusAdmins,
     reviewExams,
-    recentReportCards,
+    reportCardCounts,
     communicationSummary,
     recentCommunications,
     aiInsights,
@@ -1060,6 +1110,8 @@ async function loadPrincipalDashboardData() {
     invoiceGroups,
     pendingInvitations,
     operationsStaff,
+    attendanceTrend,
+    attendanceByStudent,
   ] = await Promise.all([
     L.widget("campus", () => prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, include: { school: true } }), null),
     L.widget("totalStudents", () => prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId }, ...ON_ROLL } }), 0),
@@ -1117,6 +1169,8 @@ async function loadPrincipalDashboardData() {
                 exam: { select: { id: true, title: true, term: true, status: true } },
               },
               orderBy: { generatedAt: "desc" },
+              // SKAI-1813: every view reads the latest card only (`reportCards[0]`).
+              take: 1,
             },
           },
           orderBy: [{ rollNo: "asc" }, { fullName: "asc" }],
@@ -1154,10 +1208,6 @@ async function loadPrincipalDashboardData() {
         class: { select: { id: true, name: true, section: true, academicYear: true } },
         category: { select: { id: true, name: true } },
         group: { select: { id: true, name: true } },
-        attendance: {
-          select: { id: true, status: true, date: true },
-          orderBy: { date: "desc" },
-        },
         reportCards: {
           select: {
             id: true,
@@ -1171,6 +1221,7 @@ async function loadPrincipalDashboardData() {
             exam: { select: { title: true, term: true, status: true } },
           },
           orderBy: { generatedAt: "desc" },
+          take: 1,
         },
       },
       orderBy: [{ rollNo: "asc" }, { fullName: "asc" }],
@@ -1251,24 +1302,7 @@ async function loadPrincipalDashboardData() {
       },
       orderBy: [{ academicYear: "desc" }, { title: "asc" }],
     }), []),
-    L.widget("recentReportCards", () => prisma.reportCard.findMany({
-      where: { campusId, campus: { schoolId: session.schoolId } },
-      include: {
-        student: {
-          select: {
-            fullName: true,
-            rollNo: true,
-            guardianWhatsapp: true,
-            guardianEmail: true,
-            guardianName: true,
-            profileImageUrl: true,
-            class: { select: { name: true, section: true } },
-          },
-        },
-        exam: { select: { id: true, title: true, term: true, status: true } },
-      },
-      orderBy: { generatedAt: "desc" },
-    }), []),
+    L.widget("reportCardCounts", () => reportCardStatusCounts(session.schoolId, campusId, true), [] as ReportCardStatusCount[]),
     L.widget("communicationSummary", () => prisma.parentCommunication.groupBy({
       by: ["status"],
       where: communicationScope,
@@ -1334,6 +1368,8 @@ async function loadPrincipalDashboardData() {
       select: { id: true, fullName: true, email: true, role: true, profileImageUrl: true, isActive: true, onboardingComplete: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     }), []),
+    L.widget("attendanceTrend", () => attendanceTrendCounts(session.schoolId, campusId), []),
+    L.widget("attendanceByStudent", () => attendanceCountsByStudent(session.schoolId, campusId), []),
   ]);
 
   return {
@@ -1357,12 +1393,13 @@ async function loadPrincipalDashboardData() {
     pendingAIReviews,
     pendingAIReviewItems,
     classes,
-    students,
+    students: withAttendanceMarks(students, attendanceByStudent),
+    attendanceTrend,
     teachers,
     campusAdmins,
     reviewExams,
     recentExams: reviewExams,
-    recentReportCards,
+    reportCardCounts,
     averageMarks: Math.round(markAverage._avg.marksObtained || 0),
     communicationSummary: communicationSummary.reduce<Record<string, number>>((acc, item) => {
       acc[item.status] = item._count._all;

@@ -70,7 +70,7 @@ export function CampusOverview({ data, onNavigate, showFinance = true }: CampusO
     const onRoll = students.filter(isOnRoll);
     const strengths = classStrength(classes);
     const buckets = feeBuckets(data?.invoiceSummary?.byStatus ?? [], data?.invoiceSummary?.currency);
-    const pipeline = reportPipeline(data?.recentReportCards ?? []);
+    const pipeline = reportPipeline(data?.reportCardCounts ?? []);
     const generated = pipeline[0]?.count ?? 0;
     const sent = pipeline[3]?.count ?? 0;
     return {
@@ -79,7 +79,7 @@ export function CampusOverview({ data, onNavigate, showFinance = true }: CampusO
       averageClassSize: strengths.length ? Math.round(strengths.reduce((a, c) => a + c.students, 0) / strengths.length) : 0,
       unplaced: onRoll.filter((s: any) => !s.class).length,
       collection: collectionRate(buckets),
-      trend: attendanceTrend(students, 21),
+      trend: attendanceTrend(data?.attendanceTrend ?? [], 21),
       split: attendanceSplit(data?.attendanceSummary),
       todayRate: attendanceRate(data?.attendanceSummary),
       reportsWaiting: Math.max(0, generated - sent),

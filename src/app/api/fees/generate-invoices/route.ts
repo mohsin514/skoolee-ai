@@ -3,7 +3,8 @@ import { NextRequest } from "next/server";
 import { existingMonthlyStudentInvoices, invoiceGenerationTransaction } from "@/lib/fees/invoice-generation";
 import { invoiceEnrollmentContext } from "@/lib/fees/invoice-context";
 import { minorUnits } from "@/lib/locale/package";
-import { issueDocument, taxFor } from "@/lib/tax/service";
+import { activationFor, issueDocument, taxForActivation } from "@/lib/tax/service";
+import { classYearKey, loadInvoiceGenerationInputs, memoByKey } from "@/lib/fees/invoice-generation-inputs";
 import { calculateInvoiceAmounts, invoiceMonthDates, MAX_INVOICE_MINOR } from "@/lib/school-ai/fee-invoices";
 import { generateInvoicesSchema } from "@/lib/validators/schemas";
 import {
@@ -97,21 +98,18 @@ export async function POST(req: NextRequest) {
       : 1;
 
     const results: Array<{ studentId: string; status: string; error?: string }> = [];
+    // SKAI-1814: read every per-student input once for the batch instead of once per student.
+    const inputs = await loadInvoiceGenerationInputs(tx, { schoolId: user.schoolId, campusId }, students, Boolean(parsed.data.includeLateFees));
+    const enrollmentsByStudent = new Map<string, typeof enrollments>();
+    for (const period of enrollments) { const list = enrollmentsByStudent.get(period.studentId); if (list) list.push(period); else enrollmentsByStudent.set(period.studentId, [period]); }
+    const activationOn = memoByKey(day => activationFor(tx, user.schoolId, campusId, new Date(`${day}T00:00:00.000Z`)));
+    let localeSnapshot: Awaited<ReturnType<typeof getLocalePackage>> | undefined;
 
     for (const student of students) {
-      const invoiceContext = invoiceEnrollmentContext(enrollments.filter(period => period.studentId === student.id && period.classId === student.classId && period.academicYear === student.class.academicYear), invoiceDate, dueDate);
+      const invoiceContext = invoiceEnrollmentContext((enrollmentsByStudent.get(student.id) ?? []).filter(period => period.classId === student.classId && period.academicYear === student.class.academicYear), invoiceDate, dueDate);
       if (!invoiceContext) { results.push({ studentId: student.id, status: "error", error: "Review enrollment for this billing period before generating an invoice." }); continue; }
       // 1. New-model resolution (FeeGroupAssignment + lines + discounts + carry-forward)
-      const assignment = await tx.feeGroupAssignment.findFirst({
-        where: { schoolId: user.schoolId, campusId, classId: student.classId, academicYear: student.class.academicYear },
-        include: {
-          feeGroup: {
-            include: {
-              lines: { include: { feeType: { select: { id: true, name: true, code: true } } } },
-            },
-          },
-        },
-      });
+      const assignment = inputs.assignmentByClassYear.get(classYearKey(student.classId, student.class.academicYear));
 
       let currency = "PKR";
       let monthlyFee = 0;
@@ -137,15 +135,9 @@ export async function POST(req: NextRequest) {
         }));
 
         const categoryDiscounts = student.categoryId
-          ? await tx.feeDiscount.findMany({
-              where: { campusId, categoryId: student.categoryId },
-              select: { id: true, name: true, code: true, type: true, value: true, currency: true },
-            })
+          ? (inputs.categoryDiscountsByCategory.get(student.categoryId) ?? []).map(({ categoryId: _categoryId, ...discount }) => discount)
           : [];
-        const explicitAssignments = await tx.feeDiscountAssignment.findMany({
-          where: { studentId: student.id },
-          include: { discount: { select: { id: true, name: true, code: true, type: true, value: true, currency: true } } },
-        });
+        const explicitAssignments = inputs.explicitDiscountsByStudent.get(student.id) ?? [];
         const seen = new Set(categoryDiscounts.map((d) => d.id));
         const discounts = [
           ...categoryDiscounts.map((d) => ({ ...d, type: d.type as "PERCENT" | "FLAT", source: "CATEGORY" as const })),
@@ -154,9 +146,7 @@ export async function POST(req: NextRequest) {
             .map((a) => ({ ...a.discount, type: a.discount.type as "PERCENT" | "FLAT", source: "EXPLICIT" as const })),
         ];
 
-        const carryForward = await tx.feeCarryForward.findUnique({
-          where: { studentId_toAcademicYear: { studentId: student.id, toAcademicYear: student.class.academicYear } },
-        });
+        const carryForward = inputs.carryForwardByStudentYear.get(classYearKey(student.id, student.class.academicYear));
 
         if (discounts.some((d) => d.type === "FLAT" && d.currency !== currency) || (carryForward && carryForward.balance !== 0 && carryForward.currency !== currency)) {
           results.push({ studentId: student.id, status: "error", error: "Currencies cannot be combined. Review the discount or carry-forward." }); continue;
@@ -198,10 +188,7 @@ export async function POST(req: NextRequest) {
           : 0;
 
         if (parsed.data.includeLateFees) {
-          const prevInvoice = await tx.invoice.findFirst({
-            where: { studentId: student.id, status: { in: ["PENDING", "OVERDUE"] } },
-            orderBy: { dueDate: "desc" },
-          });
+          const prevInvoice = inputs.latestOpenInvoiceByStudent.get(student.id);
           if (prevInvoice && prevInvoice.currency !== currency) { results.push({ studentId: student.id, status: "error", error: "Cannot combine late fees across currencies" }); continue; }
           if (prevInvoice) {
             const daysOverdue = Math.floor((invoiceDate.getTime() - prevInvoice.dueDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -220,15 +207,15 @@ export async function POST(req: NextRequest) {
 
       // SKO-444: when an approved country package covers this campus on the invoice date, its rules decide the
       // tax (the legacy per-structure percentage applies only where no package does). Late fees stay untaxed.
-      let packageTax: Awaited<ReturnType<typeof taxFor>> = null;
-      try { packageTax = await taxFor(tx, user.schoolId, campusId, new Date(`${invoiceContext.invoiceDate}T00:00:00.000Z`), currency, taxLines, discountAmount); }
+      let packageTax: ReturnType<typeof taxForActivation> = null;
+      try { packageTax = taxForActivation(await activationOn(invoiceContext.invoiceDate), currency, taxLines, discountAmount); }
       catch (error) { results.push({ studentId: student.id, status: "error", error: error instanceof Error ? error.message : "Review the invoice package." }); continue; }
       if (packageTax) taxAmount = packageTax.calc.tax;
       const totalAmount = subtotal - discountAmount + lateFeeAmount + taxAmount;
       try { minorUnits(currency); } catch { results.push({ studentId: student.id, status: "error", error: "Review the configured fee currency." }); continue; }
       if ([monthlyFee, oneTimeTotal, subtotal, discountAmount, lateFeeAmount, taxAmount, totalAmount].some(value => !Number.isSafeInteger(value) || value < 0 || value > MAX_INVOICE_MINOR) || discountAmount > subtotal) { results.push({ studentId: student.id, status: "error", error: "Review fee, discount and tax amounts." }); continue; }
 
-      const localeSnapshot = await getLocalePackage(user.schoolId, campusId, invoiceDate, undefined, tx);
+      localeSnapshot ??= await getLocalePackage(user.schoolId, campusId, invoiceDate, undefined, tx);
       const created = await tx.invoice.create({
         data: {
           campusId,

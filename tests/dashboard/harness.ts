@@ -24,6 +24,9 @@ export const h = {
   maxInFlight: 0,
   campuses: new Map<string, { id: string }[]>(),
   errors: [] as unknown[][],
+  /** Every read as `{ read: "model.method", args }`, and canned answers keyed by `model.method` (SKAI-1813). */
+  calls: [] as { read: string; args: any }[],
+  answers: new Map<string, (args: any) => unknown>(),
 };
 
 function poolTimeout(read: string) {
@@ -45,8 +48,10 @@ const fakePrisma = new Proxy({}, {
       h.maxInFlight = Math.max(h.maxInFlight, h.inFlight);
       try {
         await new Promise((resolve) => setTimeout(resolve, 1));
+        h.calls.push({ read: `${model}.${method}`, args });
         if (h.failing.has(`${model}.${method}`)) throw poolTimeout(`${model}.${method}`);
-        return answer(model, method, args);
+        const canned = h.answers.get(`${model}.${method}`);
+        return canned ? canned(args) : answer(model, method, args);
       } finally {
         h.inFlight -= 1;
       }
@@ -78,7 +83,7 @@ export const logged = (prefix: string, code?: string) =>
 
 const originalError = console.error;
 beforeEach(() => {
-  h.session = null; h.failing = new Set(); h.inFlight = 0; h.maxInFlight = 0; h.errors.length = 0;
+  h.session = null; h.failing = new Set(); h.inFlight = 0; h.maxInFlight = 0; h.errors.length = 0; h.calls = []; h.answers = new Map();
   h.campuses.set(SCHOOL, [{ id: "campus-1" }]);
   console.error = (...args: unknown[]) => { h.errors.push(args); };
 });
