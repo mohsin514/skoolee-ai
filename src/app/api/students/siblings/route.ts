@@ -8,7 +8,10 @@ import { campusScope } from "@/lib/auth/policy";
 // GET /api/students/siblings?studentId= — returns every student sharing the
 //   same siblingGroupId (itself first), or an empty list when ungrouped.
 // GET /api/students/siblings?search=    — search students whose siblingGroupId
-//   is non-null (for the "pick an existing sibling" picker in admission).
+//   is non-null (for the "pick an existing sibling" picker in admission). At
+//   least two characters; a shorter or missing search returns an empty list.
+
+const SIBLING_SEARCH_MIN = 2;
 
 export async function GET(req: NextRequest) {
   try {
@@ -61,18 +64,19 @@ export async function GET(req: NextRequest) {
       return Response.json({ success: true, data: siblings });
     }
 
-    const where: Prisma.StudentWhereInput = search
-      ? {
-          ...scope,
-          consolidatedIntoId: null,
-          siblingGroupId: { not: null },
-          OR: [
-            { fullName: { contains: search, mode: "insensitive" as const } },
-            { rollNo: { contains: search, mode: "insensitive" as const } },
-            { admissionNo: { contains: search, mode: "insensitive" as const } },
-          ],
-        }
-      : { ...scope, consolidatedIntoId: null, siblingGroupId: { not: null } };
+    // SKAI-1875: the admission picker searches as the registrar types. The old no-search branch preloaded
+    // the first 200 grouped pupils with guardian contacts and silently dropped everyone past them.
+    if (!search || search.length < SIBLING_SEARCH_MIN) return Response.json({ success: true, data: [] });
+    const where: Prisma.StudentWhereInput = {
+      ...scope,
+      consolidatedIntoId: null,
+      siblingGroupId: { not: null },
+      OR: [
+        { fullName: { contains: search, mode: "insensitive" as const } },
+        { rollNo: { contains: search, mode: "insensitive" as const } },
+        { admissionNo: { contains: search, mode: "insensitive" as const } },
+      ],
+    };
 
     const students = await prisma.student.findMany({
       where,
@@ -88,7 +92,7 @@ export async function GET(req: NextRequest) {
         class: { select: { name: true, section: true } },
       },
       orderBy: [{ fullName: "asc" }],
-      take: search ? 10 : 200,
+      take: 10,
     });
     return Response.json({ success: true, data: students });
   } catch (error) {
