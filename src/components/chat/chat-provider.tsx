@@ -243,31 +243,39 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // SKAI-1696: the cursor for the next inbox page; a reload bumps the request id so a late page is dropped.
   const [listCursor, setListCursor] = useState<string | null>(null);
   const listRequestRef = useRef(0);
+  // SKAI-1879: a newer reload cancels the one in flight, and a late answer for an older filter or search is dropped.
+  const listAbortRef = useRef<AbortController | null>(null);
   const loadConversations = useCallback(async () => {
     const query = `${filter}|${search.trim()}`;
-    listRequestRef.current += 1;
+    const requestId = ++listRequestRef.current;
+    listAbortRef.current?.abort();
+    const controller = new AbortController();
+    listAbortRef.current = controller;
+    const current = () => listRequestRef.current === requestId;
     const sameQuery = listQueryRef.current === query;
     if (!sameQuery) setIsLoadingList(true);
     try {
       const params = new URLSearchParams({ filter });
       if (search.trim()) params.set("q", search.trim());
 
-      const res = await fetch(`/api/chat/conversations?${params}`);
+      const res = await fetch(`/api/chat/conversations?${params}`, { signal: controller.signal });
       if (!res.ok) throw new Error(`conversations ${res.status}`);
 
       const json = await res.json();
+      if (!current()) return;
       if (!json.success || !Array.isArray(json.conversations)) throw new Error("conversations payload");
       setConversations(json.conversations);
       listQueryRef.current = query;
       setListCursor(typeof json.nextCursor === "string" ? json.nextCursor : null);
       setListFailed(false);
     } catch {
+      if (!current()) return;
       // Offline or failed: keep the same query's list on screen and say so, never pretend the inbox is empty.
       if (!sameQuery) setListCursor(null);
       if (!sameQuery) { setConversations([]); listQueryRef.current = null; }
       setListFailed(true);
     } finally {
-      setIsLoadingList(false);
+      if (current()) setIsLoadingList(false);
     }
   }, [filter, search]);
 
@@ -408,6 +416,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Clearing the badge is a side effect of having the thread open, so it also
   // fires when a message arrives while the reader is already looking at it.
   const markReadRef = useRef(markRead);
+  const markedIdRef = useRef<string | null>(null);
   useEffect(() => {
     markReadRef.current = markRead;
   }, [markRead]);
@@ -416,19 +425,41 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Through a ref: markRead's identity changes whenever the conversation
     // list does, and depending on it directly would re-run this on every
     // incoming message rather than only when the thread or its length changes.
-    if (activeId && messages.length > 0) markReadRef.current(activeId);
+    // SKAI-1879: opening a thread marks it read at once; later arrivals send one read a second after the last of a
+    // burst, and a hidden tab waits until it is shown, so a busy channel no longer costs a request per message.
+    if (!activeId || messages.length === 0) return;
+    const id = activeId;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => {
+      if (document.visibilityState !== "visible") return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        document.removeEventListener("visibilitychange", schedule);
+        markedIdRef.current = id;
+        void markReadRef.current(id);
+      }, markedIdRef.current === id ? 1000 : 0);
+    };
+    document.addEventListener("visibilitychange", schedule);
+    schedule();
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", schedule);
+    };
   }, [activeId, messages.length]);
 
   const loadOlder = useCallback(async () => {
     if (!activeId || !olderCursor) return;
+    const id = activeId;
 
     // SKAI-1586: a failed page rejects so the thread can show it and offer a retry; the cursor is kept.
     const res = await fetch(
-      `/api/chat/conversations/${activeId}/messages?limit=40&cursor=${olderCursor}`
+      `/api/chat/conversations/${id}/messages?limit=40&cursor=${olderCursor}`
     );
     if (!res.ok) throw new Error("Earlier messages could not be loaded.");
 
     const json = await res.json();
+    // SKAI-1879: the reader switched threads while this page loaded; it belongs to the old one.
+    if (activeIdRef.current !== id) return;
     setMessages((prev) => [...(json.messages ?? []), ...prev]);
     setOlderCursor(json.nextCursor ?? null);
   }, [activeId, olderCursor]);
