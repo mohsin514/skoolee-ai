@@ -8,8 +8,9 @@ const source = readFileSync("src/components/academic/ExamCycleManager.tsx", "utf
 const message = "Marking progress could not be loaded for {0} exams. Their progress is not shown.";
 
 test("SKAI-1523: failed, non-OK or malformed marks responses never become zero counts", () => {
-  assert.match(source, /if \(!r\.ok \|\| !Array\.isArray\(m\.subjects\) \|\| !Array\.isArray\(m\.students\) \|\| !Array\.isArray\(m\.marks\)\) throw/);
-  assert.match(source, /\} catch \{\s*return \{ id: e\.id, meta: null \};/);
+  // SKAI-1815: progress now arrives with GET /api/exams; a missing map or entry is unavailable, not zero.
+  assert.match(source, /examsRes\.progress && typeof examsRes\.progress === "object" \? examsRes\.progress : \{\}/);
+  assert.match(source, /\.map\(\(e\) => \(\{ id: e\.id, meta: progress\[e\.id\] \?\? null \}\)\)/);
   assert.doesNotMatch(source, /subjectsCount: 0,\s*studentsCount: 0,/);
 });
 
