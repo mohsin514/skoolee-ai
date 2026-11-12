@@ -6,14 +6,16 @@ import { test } from "node:test";
 const require = createRequire(import.meta.url);
 const { transformSync } = createRequire(require.resolve("tsx"))("esbuild");
 const code = transformSync(readFileSync("src/app/api/attendance/school-summary/route.ts", "utf8"), { loader: "ts", format: "cjs" }).code;
-function fixture() {
+type Rec = { date: Date; classId: string | null; studentId: string; status: string };
+const oneClass: Array<{ id: string; name: string; section: string | null; _count: { students: number } }> = [{ id: "class-a", name: "Year 1", section: "A", _count: { students: 1 } }];
+function fixture(given?: Rec[], classes = oneClass) {
   const now = new Date(); now.setHours(12, 0, 0, 0);
   const previous = new Date(now); previous.setDate(now.getDate() - 2);
-  const records = [now, previous].map((date) => ({ date, classId: "class-a", studentId: "pupil-a", status: "PRESENT" }));
+  const records = given ?? [now, previous].map((date) => ({ date, classId: "class-a", studentId: "pupil-a", status: "PRESENT" }));
   const db = {
     student: { count: async () => 1 },
     attendance: { findMany: async ({ where }: any) => records.filter((record) => record.date >= where.date.gte && record.date <= where.date.lte) },
-    class: { findMany: async () => [{ id: "class-a", name: "Year 1", section: "A", _count: { students: 1 } }] },
+    class: { findMany: async () => classes },
   };
   const mod = { exports: {} as any };
   new Function("module", "exports", "require", code)(mod, mod.exports, (id: string) => {
@@ -47,4 +49,17 @@ test("class counts follow Today versus Week and use the attendance's historical 
 
 test("invalid attendance periods are rejected", async () => {
   assert.equal((await fixture()("unknown")).status, 400);
+});
+
+test("each class gets only its own rows; rows without a class count campus-wide only (SKAI-1870)", async () => {
+  const now = new Date(); now.setHours(12, 0, 0, 0);
+  const rec = (classId: string | null, studentId: string, status: string) => ({ date: now, classId, studentId, status });
+  const records = [rec("class-a", "a1", "PRESENT"), rec("class-b", "b1", "ABSENT"), rec("class-b", "b2", "PRESENT"), rec(null, "x", "LEAVE")];
+  const classes = ["class-a", "class-b", "class-c"].map((id) => ({ id, name: id, section: null, _count: { students: 2 } }));
+  const body = await (await fixture(records, classes)("today")).json();
+  assert.deepEqual(body.classBreakdown.map((c: any) => [c.classId, c.present, c.absent, c.leave, c.marked]), [
+    ["class-a", 1, 0, 0, 1], ["class-b", 1, 1, 0, 2], ["class-c", 0, 0, 0, 0],
+  ]);
+  assert.equal(body.totalRecords, 4);
+  assert.equal(body.leave, 1);
 });
