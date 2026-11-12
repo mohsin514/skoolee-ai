@@ -139,5 +139,5 @@ test("both polling exam boards ask for the active year, and the workspace skips 
   assert.match(workspace, /fetch\(`\/api\/exams\?\$\{examQs\}`/);
   const board = readFileSync("src/components/academic/ExamCycleManager.tsx", "utf8");
   assert.match(board, /if \(!allYears\) examParams\.set\("academicYear", "active"\);/);
-  assert.match(board, /fetch\(`\/api\/exams\?\$\{examParams\}`\)/);
+  assert.match(board, /fetch\(`\/api\/exams\?\$\{examParams\}[^`]*withProgress=1`\)/);
 });
