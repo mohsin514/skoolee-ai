@@ -37,8 +37,8 @@ export function AuthLocaleProvider({ initialLanguage, children }: { initialLangu
   const setLanguage = useCallback((lang: Language) => {
     writeLanguageCookieClient(lang);
     try { window.sessionStorage.setItem(EXPLICIT_LANGUAGE_KEY, "1"); } catch { /* storage blocked: the cookie still carries it */ }
-    // SKAI-1004: load the AR/UR catalog first so the switch never suspends the page.
-    void loadUiCatalog(lang).then(() => setState(lang), () => setState(lang));
+    // SKAI-1004: load the AR/UR auth catalog first so the switch never suspends the page.
+    void loadUiCatalog(lang, "auth").then(() => setState(lang), () => setState(lang));
   }, []);
 
   const signInLanguage = useCallback((): SignInLanguage => {
@@ -57,7 +57,7 @@ export function AuthLocaleProvider({ initialLanguage, children }: { initialLangu
   return (
     <AuthLanguageContext.Provider value={value}>
       <div lang={language} dir={directionFor(language)} className="contents">
-        <StaticLocaleProvider value={locale}>{children}</StaticLocaleProvider>
+        <StaticLocaleProvider value={locale} catalogScope="auth">{children}</StaticLocaleProvider>
       </div>
     </AuthLanguageContext.Provider>
   );
