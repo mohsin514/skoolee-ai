@@ -114,7 +114,7 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent, v
       .sort((a, b) => (b.average ?? -1) - (a.average ?? -1));
     const graded = perClass.filter((c) => c.average !== null);
     const cards = latestReportCards(students);
-    const trend = attendanceTrend(students, 21);
+    const trend = attendanceTrend(data?.attendanceTrend ?? [], 21);
     const buckets = feeBuckets(data?.invoiceSummary?.byStatus ?? [], data?.invoiceSummary?.currency);
 
     // Attendance and marks in one place, per class — the two levers a principal
@@ -144,7 +144,7 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent, v
       cards,
       grades: gradeDistribution(cards),
       trend,
-      pipeline: reportPipeline(data?.recentReportCards ?? []).map((stage) => ({ ...stage, stage: ui(stage.stage) })),
+      pipeline: reportPipeline(data?.reportCardCounts ?? []).map((stage) => ({ ...stage, stage: ui(stage.stage) })),
       comms: commsHealth(data?.communicationSummary).map((item) => ({ ...item, label: ui(item.label) })),
       todayRate: attendanceRate(data?.attendanceSummary),
       buckets,

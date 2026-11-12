@@ -10,6 +10,8 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 
+type ClassRow = { classKey: string; className: string; totalStudents: bigint; totalDue: bigint; totalPaid: bigint; totalOverdue: bigint };
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
@@ -36,83 +38,67 @@ export async function GET(req: NextRequest) {
     });
     const campusIds = campuses.map((c) => c.id);
 
-    const [invoices, payments] = await Promise.all([
-      prisma.invoice.findMany({
-        where: { currency, campusId: { in: campusIds } },
-        select: {
-          enrollment: true, studentId: true, totalAmount: true, totalAmountPaid: true, balanceDue: true, status: true, dueDate: true,
-          student: { select: { class: { select: { id: true, name: true, section: true } } } },
-        },
-      }),
-      prisma.payment.findMany({
-        where: { invoice: { currency }, campusId: { in: campusIds } },
-        select: { paymentMethod: true, amount: true },
+    // SKAI-1826: totals are aggregated in the database; only one row per class and per method leaves it.
+    // $queryRaw bypasses the Prisma tenant guard, so the school and campus scope are written into the SQL.
+    const now = new Date();
+    const [classRows, methodRows] = await Promise.all([
+      prisma.$queryRaw<ClassRow[]>`
+        SELECT COALESCE(NULLIF(e.class_id, ''), s.class_id) AS "classKey",
+          MIN(COALESCE(NULLIF(e.class_name, ''), c.name || COALESCE(' ' || NULLIF(c.section, ''), ''))) AS "className",
+          COUNT(DISTINCT i.student_id)::bigint AS "totalStudents",
+          COALESCE(SUM(i.total_amount), 0)::bigint AS "totalDue",
+          COALESCE(SUM(i.total_amount_paid), 0)::bigint AS "totalPaid",
+          COALESCE(SUM(i.balance_due) FILTER (
+            WHERE i.status::text IN ('PENDING', 'PARTIAL', 'OVERDUE') AND i.balance_due > 0
+              AND i.due_date < (${now}::timestamptz AT TIME ZONE 'UTC')
+          ), 0)::bigint AS "totalOverdue"
+        FROM invoices i
+        JOIN students s ON s.id = i.student_id
+        JOIN classes c ON c.id = s.class_id
+        LEFT JOIN student_enrollments e ON e.id = i.enrollment_id
+        WHERE i.school_id = ${user.schoolId} AND i.campus_id = ANY(${campusIds}::text[]) AND i.currency = ${currency}
+          AND i.status::text <> 'CANCELLED'
+        GROUP BY 1`,
+      prisma.payment.groupBy({
+        by: ["paymentMethod"],
+        where: { schoolId: user.schoolId, campusId: { in: campusIds }, invoice: { currency } },
+        _sum: { amount: true },
+        _count: { _all: true },
       }),
     ]);
 
-    const classMap = new Map<string, {
-      className: string;
-      studentIds: Set<string>;
-      totalDue: number;
-      totalPaid: number;
-      totalOverdue: number;
-    }>();
-
-    const now = new Date();
-    for (const inv of invoices) {
-      // SKAI-1328: a cancelled invoice is not a charge; partly paid invoices are still outstanding.
-      if (inv.status === "CANCELLED") continue;
-      const key = inv.enrollment?.classId || inv.student.class.id;
-      const cls = classMap.get(key) ?? {
-        className: inv.enrollment?.className || `${inv.student.class.name}${inv.student.class.section ? ` ${inv.student.class.section}` : ""}`,
-        studentIds: new Set<string>(),
-        totalDue: 0,
-        totalPaid: 0,
-        totalOverdue: 0,
-      };
-      cls.studentIds.add(inv.studentId);
-      cls.totalDue += inv.totalAmount;
-      cls.totalPaid += inv.totalAmountPaid;
-      // SKAI-391: overdue means past its due date, the same rule as the defaulters report; an unpaid
-      // invoice that is not due yet is outstanding, not overdue.
-      if ((inv.status === "PENDING" || inv.status === "PARTIAL" || inv.status === "OVERDUE") && inv.balanceDue > 0 && inv.dueDate < now) {
-        cls.totalOverdue += inv.balanceDue;
-      }
-      classMap.set(key, cls);
-    }
-
-    const byClass = Array.from(classMap.values())
-      .map((c) => ({
-        currency,
-        className: c.className,
-        totalStudents: c.studentIds.size,
-        totalDue: c.totalDue,
-        totalPaid: c.totalPaid,
-        totalOverdue: c.totalOverdue,
-        // Capped for the same reason as the campus summary: overpaid invoices
-        // written before the carry-forward split can push this past 100.
-        collectionRate: c.totalDue > 0 ? Math.min(100, Math.round((c.totalPaid / c.totalDue) * 100)) : 0,
-      }))
+    // SKAI-1328: a cancelled invoice is not a charge; partly paid invoices are still outstanding.
+    // SKAI-391: overdue means past its due date, the same rule as the defaulters report; an unpaid
+    // invoice that is not due yet is outstanding, not overdue.
+    const byClass = classRows
+      .map((row) => {
+        const totalDue = Number(row.totalDue), totalPaid = Number(row.totalPaid);
+        return {
+          currency,
+          className: row.className,
+          totalStudents: Number(row.totalStudents),
+          totalDue,
+          totalPaid,
+          totalOverdue: Number(row.totalOverdue),
+          // Capped for the same reason as the campus summary: overpaid invoices
+          // written before the carry-forward split can push this past 100.
+          collectionRate: totalDue > 0 ? Math.min(100, Math.round((totalPaid / totalDue) * 100)) : 0,
+        };
+      })
       .sort((a, b) => a.collectionRate - b.collectionRate);
 
-    const methodMap = new Map<string, { count: number; total: number }>();
-    let grandTotal = 0;
-    for (const p of payments) {
-      const m = methodMap.get(p.paymentMethod) ?? { count: 0, total: 0 };
-      m.count += 1;
-      m.total += p.amount;
-      grandTotal += p.amount;
-      methodMap.set(p.paymentMethod, m);
-    }
-
-    const byMethod = Array.from(methodMap.entries())
-      .map(([method, vals]) => ({
-        currency,
-        method,
-        count: vals.count,
-        total: vals.total,
-        percentage: grandTotal > 0 ? Math.round((vals.total / grandTotal) * 100) : 0,
-      }))
+    const grandTotal = methodRows.reduce((sum, row) => sum + (row._sum.amount ?? 0), 0);
+    const byMethod = methodRows
+      .map((row) => {
+        const total = row._sum.amount ?? 0;
+        return {
+          currency,
+          method: row.paymentMethod,
+          count: row._count._all,
+          total,
+          percentage: grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0,
+        };
+      })
       .sort((a, b) => b.total - a.total);
 
     return Response.json({

@@ -8,12 +8,12 @@ for (const [label, principal] of [["standalone", user("PRINCIPAL")], ["group", g
   test(`SKAI-1032: ${label} principal console loads when a widget's read fails, and names it`, async () => {
     const dashboard = await loadDashboard();
     h.session = principal;
-    h.failing = new Set(["reportCard.findMany", "class.findMany"]);
+    h.failing = new Set(["reportCard.groupBy", "class.findMany"]);
     const data = await dashboard.getPrincipalDashboardData();
-    assert.deepEqual([...data.degraded].sort(), ["classes", "recentReportCards"]);
+    assert.deepEqual([...data.degraded].sort(), ["classes", "reportCardCounts"]);
     assert.deepEqual(data.classes, []);
     assert.equal(data.campusId, principal.campusId);
-    assert.ok(logged('widget "recentReportCards" failed', "P2024"), "cause is logged server-side");
+    assert.ok(logged('widget "reportCardCounts" failed', "P2024"), "cause is logged server-side");
   });
 }
 
