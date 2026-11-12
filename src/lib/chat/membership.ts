@@ -52,3 +52,43 @@ export async function requireMembership(user: AuthUser, conversationId: string, 
   if (!row) throw new ApiError("Conversation not found", 404);
   return assertCurrentConversationAccess(user, row, db);
 }
+
+/**
+ * SKAI-1839: requireMembership's decision for many conversations at once (the notification list), without loading
+ * every member of every channel. Same rules: campus scope, an active membership (a CLASS parent only while a live
+ * guardian link to that class holds) and, for a DIRECT thread, the current messaging policy with the other member.
+ */
+export async function accessibleConversationIds(user: AuthUser, ids: string[], db: TxClient = prisma): Promise<Set<string>> {
+  const allowed = new Set<string>();
+  if (!ids.length || user.role === "APP_OWNER") return allowed;
+  const rows = await db.conversation.findMany({
+    where: { id: { in: ids }, ...campusScope(user) },
+    select: {
+      id: true, kind: true, schoolId: true, campusId: true, classId: true,
+      // Only this reader's own membership, plus the other member of a DIRECT thread (never a class roster).
+      members: { where: { leftAt: null, user: { isActive: true }, OR: [{ userId: user.userId }, { conversation: { kind: "DIRECT" } }] }, select: { userId: true, user: { select: { role: true } } } },
+    },
+  });
+  const mine = (row: typeof rows[number]) => row.members.find((member) => member.userId === user.userId);
+  const reachable = rows.filter((row) => row.schoolId === user.schoolId && (["SUPER_ADMIN", "PARENT", "STUDENT"].includes(user.role) || row.campusId === user.campusId) && mine(row));
+  // currentClassMembers: a parent stays in a CLASS channel only while a live guardian link to that class holds.
+  const parentClasses = new Set(reachable.filter((row) => row.kind === "CLASS" && mine(row)?.user.role === "PARENT").map((row) => row.id));
+  const classIds = [...new Set(reachable.flatMap((row) => (parentClasses.has(row.id) && row.classId ? [row.classId] : [])))];
+  const links = classIds.length ? await db.guardianRelationship.findMany({
+    where: { AND: [liveGuardianRelationshipWhere(null, "communication", new Date(), user.schoolId), { guardianUserId: user.userId, student: { classId: { in: classIds } } }] },
+    select: { student: { select: { classId: true } } },
+  }) : [];
+  const linkedClasses = new Set(links.flatMap((link) => (link.student?.classId ? [link.student.classId] : [])));
+  const other = (row: typeof rows[number]) => row.members.find((member) => member.userId !== user.userId)?.userId;
+  const peerIds = [...new Set(reachable.flatMap((row) => { const id = row.kind === "DIRECT" ? other(row) : undefined; return id ? [id] : []; }))];
+  const peers = peerIds.length ? await db.user.findMany({ where: { id: { in: peerIds }, schoolId: user.schoolId, isActive: true }, select: { id: true, role: true, campusId: true, isActive: true } }) : [];
+  const settings = peers.length ? await getChatSettings(user.schoolId, db) : null;
+  const permittedPeers = new Set<string>();
+  if (settings) for (const peer of peers) if ((await canDirectMessage(user, peer, settings, db)).allowed) permittedPeers.add(peer.id);
+  for (const row of reachable) {
+    if (parentClasses.has(row.id) && !(row.classId && linkedClasses.has(row.classId))) continue;
+    if (row.kind === "DIRECT" && !permittedPeers.has(other(row) ?? "")) continue;
+    allowed.add(row.id);
+  }
+  return allowed;
+}
