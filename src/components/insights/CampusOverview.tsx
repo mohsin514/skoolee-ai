@@ -70,7 +70,7 @@ export function CampusOverview({ data, onNavigate, showFinance = true }: CampusO
     const onRoll = students.filter(isOnRoll);
     const strengths = classStrength(classes);
     const buckets = feeBuckets(data?.invoiceSummary?.byStatus ?? [], data?.invoiceSummary?.currency);
-    const pipeline = reportPipeline(data?.recentReportCards ?? []);
+    const pipeline = reportPipeline(data?.reportCardCounts ?? []);
     const generated = pipeline[0]?.count ?? 0;
     const sent = pipeline[3]?.count ?? 0;
     return {

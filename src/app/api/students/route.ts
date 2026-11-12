@@ -1,6 +1,6 @@
 import { assertListBudget } from "@/lib/lists/access";
 import { createStudentRecords } from "@/lib/students/create";
-import { rosterSummarySelect } from "@/lib/students/roster-summary";
+import { rosterSummarySelect, studentPickerSelect } from "@/lib/students/roster-summary";
 import { NextRequest } from "next/server";
 import { randomUUID } from "crypto";
 import { Prisma, type Student } from "@prisma/client";
@@ -108,8 +108,11 @@ export async function GET(req: NextRequest) {
       if (!Number.isSafeInteger(value) || value < 1) throw new ApiError(`${name} must be a positive integer`, 400);
       return Math.min(value, max);
     };
+    // SKAI-1828: `fields=picker` is the fee pickers' type-ahead: same scope and filters, id/name/roll/class only
+    // (no documents, no per-student counts), at most 20 rows.
+    const picker = searchParams.get("fields") === "picker";
     const page = parsePageParam("page", 1, 100_000);
-    const limit = parsePageParam("limit", 50, 200);
+    const limit = picker ? parsePageParam("limit", 20, 20) : parsePageParam("limit", 50, 200);
     const campusId = user.role === "SUPER_ADMIN" && !requestedCampusId
       ? null
       : await resolveCampusId(user, requestedCampusId);
@@ -156,7 +159,7 @@ export async function GET(req: NextRequest) {
       prisma.student.findMany({
         where,
         // The summary only (SKAI-163): medical, identity and address fields come from /api/students/<id>.
-        select: {
+        select: picker ? studentPickerSelect : {
           ...rosterSummarySelect,
           documents: { select: { id: true, kind: true, fileName: true } },
           _count: { select: { attendance: true, invoices: true, timelineEvents: true } },

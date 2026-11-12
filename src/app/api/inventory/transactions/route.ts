@@ -1,4 +1,6 @@
 import { parseUnitPrice } from "@/lib/inventory/unit-price";
+import { listPagination, pageWindow } from "@/lib/lists/query";
+import { assertListBudget } from "@/lib/lists/access";
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
@@ -23,27 +25,35 @@ export async function GET(req: NextRequest) {
     await assertModuleRead(user, "inventory");
     const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
 
-    const kind = req.nextUrl.searchParams.get("kind");
-    const storeId = req.nextUrl.searchParams.get("storeId");
+    await assertListBudget(user, "inventory/transactions");
+    const params = req.nextUrl.searchParams;
+    const kind = params.get("kind");
+    const storeId = params.get("storeId");
 
-    const where: any = { campusId };
+    // SKAI-1820: the ledger is append-only, so a read returns one page of movements, never the whole history.
+    const where: Prisma.ItemTransactionWhereInput = { schoolId: user.schoolId, campusId };
     if (kind) {
       if (!VALID_KINDS.includes(kind)) throw new ApiError("Invalid kind", 400);
       where.kind = kind;
     }
     if (storeId) where.storeId = storeId;
 
+    const { page: requestedPage, limit } = listPagination(params, 24, 100);
+    const total = await prisma.itemTransaction.count({ where });
+    const { page, skip, pages } = pageWindow(total, requestedPage, limit);
     const transactions = await prisma.itemTransaction.findMany({
       where,
       include: {
-        item: true,
-        store: true,
-        supplier: true,
+        item: { select: { id: true, name: true } },
+        store: { select: { id: true, name: true } },
+        supplier: { select: { id: true, name: true } },
       },
-      orderBy: { date: "desc" },
+      orderBy: [{ date: "desc" }, { id: "desc" }],
+      skip,
+      take: limit,
     });
 
-    return Response.json({ success: true, data: transactions });
+    return Response.json({ success: true, data: transactions, pagination: { page, limit, total, pages } }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return errorResponse(error, "[inventory/transactions] GET failed");
   }

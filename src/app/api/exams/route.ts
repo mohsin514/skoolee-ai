@@ -101,10 +101,23 @@ export async function GET(req: NextRequest) {
     // one year got every year's exams back, mixing a closed year's papers
     // into the active one.
     const rawYear = searchParams.get("academicYear");
-    const academicYear = rawYear !== null && /^\d{4}$/.test(rawYear) ? Number(rawYear) : null;
+    let academicYear = rawYear !== null && /^\d{4}$/.test(rawYear) ? Number(rawYear) : null;
+    // SKAI-1831: `sessionId=none` lists only exams outside any exam session.
+    const sessionFilter = sessionId === "none" ? { sessionId: null } : sessionId ? { sessionId } : {};
 
     if (!campusId && user.role !== "SUPER_ADMIN") {
       return Response.json({ error: "campusId required" }, { status: 400 });
+    }
+
+    // SKAI-1831: `academicYear=active` is the campus's active cycle year, so polling boards stop re-reading every
+    // past year. No active cycle (or no campus) keeps the old all-years answer; without the param nothing changes.
+    if (rawYear === "active" && campusId) {
+      const cycle = await prisma.academicCycle.findFirst({
+        where: { schoolId: user.schoolId, campusId, status: "ACTIVE" },
+        orderBy: { createdAt: "desc" },
+        select: { academicYear: true },
+      });
+      academicYear = cycle?.academicYear ?? null;
     }
 
     // Families only ever see their own class, and never a draft the office is
@@ -162,7 +175,7 @@ export async function GET(req: NextRequest) {
         campus: { schoolId: user.schoolId, ...(campusId ? { id: campusId } : {}) },
         ...(classId ? { classId } : {}),
         ...(status ? { status } : {}),
-        ...(sessionId ? { sessionId } : {}),
+        ...sessionFilter,
         ...(academicYear !== null ? { academicYear } : {}),
         ...audienceScope,
       },
@@ -176,6 +189,7 @@ export async function GET(req: NextRequest) {
       orderBy: [{ academicYear: "desc" }, { title: "asc" }],
     });
 
+    // `academicYear` echoes the year filter actually applied (null = every year).
     // SKAI-1815: the board asks for marking progress here instead of one GET /api/marks per exam.
     // Staff only, behind the same guard /api/marks uses; a refusal leaves every exam's progress unavailable.
     if (searchParams.get("withProgress") === "1") {
@@ -184,10 +198,10 @@ export async function GET(req: NextRequest) {
       const progress = allowed
         ? await examProgressFor(prisma as unknown as ProgressDb, user, closed)
         : Object.fromEntries(closed.map((e) => [e.id, null]));
-      return Response.json({ success: true, exams, progress });
+      return Response.json({ success: true, exams, academicYear, progress });
     }
 
-    return Response.json({ success: true, exams });
+    return Response.json({ success: true, exams, academicYear });
   } catch (error) {
     console.error("[exams] GET failed", error);
     return Response.json({ error: "Operation failed" }, { status: 500 });

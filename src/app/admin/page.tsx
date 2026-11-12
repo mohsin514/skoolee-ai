@@ -123,6 +123,7 @@ import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { YearEndPanel } from "@/components/academic/YearEndPanel";
 import { RolloverReview } from "@/components/academic/rollover-review";
 import { ReportCardPipeline, type ReportSelectionState } from "@/components/academic/ReportCardPipeline";
+import { reportCardExamsInView } from "@/lib/academic/report-card-exams";
 import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
 import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
 import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
@@ -1259,6 +1260,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
   // Report cards (§4.4b): the lead approves the versions ticked across every exam from the PageHeader; the office
   // queues delivery from it when one exam is in question (the linked `?exam=` or the only one).
   const [reportSelections, setReportSelections] = useState<Record<string, ReportSelectionState>>({});
+  const [showEarlierReportYears, setShowEarlierReportYears] = useState(false);
   const onReportSelection = useCallback((state: ReportSelectionState) => {
     setReportSelections((previous) => {
       const known = previous[state.examId];
@@ -1829,9 +1831,13 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
       const lead = has("academicLead");
       // Notification and job links name one exam (`?exam=<id>`): it is shown first and outlined.
       const focusExam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("exam") : null;
-      const exams = (data.recentExams || [])
-        .filter((exam: any) => exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(exam.status))
-        .sort((a: any, b: any) => (a.id === focusExam ? -1 : b.id === focusExam ? 1 : 0));
+      // SKAI-1821: each listed exam loads its own report versions, so earlier academic years wait behind a toggle.
+      const { exams, earlierCount } = reportCardExamsInView<any>(data.recentExams, { activeYear: data.activeAcademicYear, focusExam, showEarlier: showEarlierReportYears });
+      const earlierToggle = earlierCount > 0 ? (
+        <Button type="button" variant="outline" onClick={() => setShowEarlierReportYears((shown) => !shown)}>
+          {showEarlierReportYears ? ui("Hide earlier years") : ui("Show earlier years ({0})", [earlierCount])}
+        </Button>
+      ) : null;
       // Lead: "Approve selected" approves what is ticked in every exam below; "Preview release" opens the first one.
       const picked = exams.filter((exam: any) => (reportSelections[exam.id]?.selected ?? 0) > 0);
       const selectedCount = picked.reduce((sum: number, exam: any) => sum + (reportSelections[exam.id]?.selected ?? 0), 0);
@@ -1878,7 +1884,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
                 icon={ClipboardList}
                 title={ui("No report cards yet")}
                 description={ui("An exam appears here once its marks are locked.")}
-                action={lead ? <Button type="button" variant="outline" onClick={() => setView("exam-cycles")}>{ui("Open Exams & results")}</Button> : undefined}
+                action={earlierToggle ?? (lead ? <Button type="button" variant="outline" onClick={() => setView("exam-cycles")}>{ui("Open Exams & results")}</Button> : undefined)}
               />
             </div>
           ) : (
@@ -1891,6 +1897,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
                     campusId={data.campusId}
                     mode={lead ? "lead" : "delivery"}
                     tourAnchor={index === 0}
+                    deferUntilVisible={index > 0}
                     onChanged={() => void ctx.reload()}
                     {...(lead
                       ? { hideApprove: true, approveRequest: requests["approve-reports"], previewRequest: exam.id === previewExamId ? requests["preview-reports"] : undefined, onSelectionChange: onReportSelection }
@@ -1900,6 +1907,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
                   />
                 </div>
               ))}
+              {earlierToggle ? <div className="flex justify-center">{earlierToggle}</div> : null}
             </div>
           )}
         </ViewFrame>

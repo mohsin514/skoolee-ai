@@ -33,6 +33,7 @@ import { ComplaintsDesk } from "./complaints-desk";
 import { PhoneCallLog } from "./phone-call-log";
 import { PostalRegister } from "./postal-register";
 import { CertificatesDesk } from "./certificates-desk";
+import { RecordSearchSelect } from "./record-search-select";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { BrandButton } from "@/components/role-dashboard";
 import { forwardCommand, usePanelCommand } from "@/components/fees/fee-utils";
@@ -217,7 +218,7 @@ async function exportList(
 ) {
   try {
     let rows: any[];
-    if (["/api/inventory/items", "/api/library/books"].includes(url)) rows = await loadListPages(url);
+    if (["/api/inventory/items", "/api/library/books", "/api/inventory/transactions"].includes(url)) rows = await loadListPages(url);
     else {
       const response = await fetch(url, { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
@@ -1046,24 +1047,30 @@ function IssuesTab() {
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [books, setBooks] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const { date } = useLocaleFormat();
   const [show, setShow] = useState<"all" | "open" | "overdue" | "returned">("all");
+  // SKAI-1825: loans are read one page at a time; the full lending history grows all year.
+  const [total, setTotal] = useState(0);
+  const paged = useListPagination(total, "loans");
+  // Turning a page reads only loans; members reload on first load, retry and after an issue or return.
+  const refsLoaded = useRef(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (refreshRefs?: unknown) => {
     const version = ++loadSequence.current;
+    const withRefs = refreshRefs === true || !refsLoaded.current;
     setLoading(true); setLoadFailed(null);
     try {
-      const [ir, br, mr] = await Promise.all([readRequest("/api/library/issues"), loadListPages("/api/library/books"), readRequest("/api/library/members")]);
-      const [ij, mj] = await Promise.all([checkedListJson(ir), checkedListJson(mr)]);
-      const bj = { success: true, data: br };
+      const q = `?${new URLSearchParams({ page: String(paged.requestedPage), limit: String(paged.controls.perPage) })}`;
+      // Books are picked through server-side search (SKAI-1820), so only loans and members are read here.
+      const [ir, mr] = await Promise.all([readRequest(`/api/library/issues${q}`), withRefs ? readRequest("/api/library/members") : null]);
+      const [ij, mj] = await Promise.all([checkedListJson(ir), mr ? checkedListJson(mr) : null]);
       if (version !== loadSequence.current) return;
-      if (ij.success) setRows(ij.data || []);
-      if (bj.success) setBooks(bj.data || []);
-      if (mj.success) setMembers(mj.data || []);
-    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
-  }, []);
+      if (ij.success) { setRows(ij.data || []); setTotal(ij.pagination?.total ?? (ij.data || []).length); }
+      if (mj?.success) setMembers(mj.data || []);
+      if (withRefs) refsLoaded.current = true;
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setTotal(0); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
+  }, [paged.requestedPage, paged.controls.perPage]);
   useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // The route reads `dueAt`; this form sent `dueDate`, so the librarian's
@@ -1077,7 +1084,7 @@ function IssuesTab() {
       toast.success(ui("Book issued."));
       setShowAdd(false);
       form.reset();
-      load();
+      load(true);
     },
   });
 
@@ -1085,7 +1092,7 @@ function IssuesTab() {
     try {
       const r = await fetch("/api/library/issues", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action: "return" }) });
       const j = await r.json(); if (!j.success) throw new Error(j.error);
-      toast.success(ui("Book returned.")); load();
+      toast.success(ui("Book returned.")); load(true);
     } catch (e: any) { toast.error(e); }
   };
 
@@ -1108,10 +1115,7 @@ function IssuesTab() {
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Book" error={form.errors.bookId}>
-            <SystemSelect className={`${inputCls} w-48`} {...form.field("bookId")}>
-              <option value="">{ui("Select…")}</option>
-              {books.filter((b: any) => b.copiesAvailable > 0).map((b: any) => <option key={b.id} value={b.id}>{b.title} ({ui("{0} available", [b.copiesAvailable])})</option>)}
-            </SystemSelect>
+            <RecordSearchSelect<any> path="/api/library/books" extra={{ available: "1" }} placeholder="Search books…" className={`${inputCls} w-48`} field={form.field("bookId")} optionLabel={(b) => `${b.title} (${ui("{0} available", [b.copiesAvailable])})`} />
           </OpField>
           <OpField label="Member" error={form.errors.memberId}>
             {/* Previously filtered on `m.isActive`, which LibraryMember does not
@@ -1132,7 +1136,7 @@ function IssuesTab() {
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Book", "Member", "Issued", "Due", "Status", "Action"].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : shown.length === 0 ? <EmptyRow cols={6} filtered /> : shown.map((i: any) => (
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={() => load(true)} /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : shown.length === 0 ? <EmptyRow cols={6} filtered /> : shown.map((i: any) => (
               <tr key={i.id} className={`border-b border-edge/10 hover:bg-surface-sunken/50 ${issueState(i) === "overdue" ? "bg-status-error-surface/50" : ""}`} data-issue-state={issueState(i)}>
                 <td className={tdCls}><bdi className="font-semibold">{i.book?.title || i.bookId}</bdi></td>
                 <td className={tdCls}><bdi>{i.member?.user?.fullName || i.memberId}</bdi></td>
@@ -1145,6 +1149,7 @@ function IssuesTab() {
           </tbody>
         </table>
       </div>
+      <Pagination {...paged.controls} />
     </>
   );
 }
@@ -1469,7 +1474,8 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [items, setItems] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const paged = useListPagination(total, "inventory.movements");
   const [stores, setStores] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
 
@@ -1477,16 +1483,15 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
     const version = ++loadSequence.current;
     setLoading(true); setLoadFailed(null);
     try {
-      const [tr, ir, sr, spr] = await Promise.all([readRequest("/api/inventory/transactions"), loadListPages("/api/inventory/items"), readRequest("/api/inventory/stores"), readRequest("/api/inventory/suppliers")]);
+      const q = new URLSearchParams({ page: String(paged.requestedPage), limit: String(paged.controls.perPage) });
+      const [tr, sr, spr] = await Promise.all([readRequest(`/api/inventory/transactions?${q}`), readRequest("/api/inventory/stores"), readRequest("/api/inventory/suppliers")]);
       const [tj, sj, spj] = await Promise.all([checkedListJson(tr), checkedListJson(sr), checkedListJson(spr)]);
-      const ij = { success: true, data: ir };
       if (version !== loadSequence.current) return;
-      if (tj.success) setRows(tj.data || []);
-      if (ij.success) setItems(ij.data || []);
+      if (tj.success) { setRows(tj.data || []); setTotal(tj.pagination?.total ?? 0); }
       if (sj.success) setStores(sj.data || []);
       if (spj.success) setSuppliers(spj.data || []);
-    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
-  }, []);
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setTotal(0); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
+  }, [paged.requestedPage, paged.controls.perPage]);
   useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   const form = useValidatedForm({
@@ -1515,7 +1520,7 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
             </SystemSelect>
           </OpField>
           <OpField label="Item" error={form.errors.itemId}>
-            <SystemSelect className={`${inputCls} w-40`} {...form.field("itemId")}><option value="">{ui("Select…")}</option>{items.map((i: any) => <option key={i.id} value={i.id}>{i.name}</option>)}</SystemSelect>
+            <RecordSearchSelect<any> path="/api/inventory/items" placeholder="Search items…" className={`${inputCls} w-40`} field={form.field("itemId")} optionLabel={(i) => i.name} />
           </OpField>
           <OpField label="Store" error={form.errors.storeId}>
             <SystemSelect className={`${inputCls} w-36`} {...form.field("storeId")}><option value="">{ui("Select…")}</option>{stores.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</SystemSelect>
@@ -1535,6 +1540,7 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
           <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
+      <Pagination {...paged.controls} />
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Date", "Kind", "Item", "Store", "Qty", "Unit Price", "Supplier", "Note"].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
