@@ -7,7 +7,7 @@
  *   pnpm run qa:seed:large-class               (120 students per school)
  *   pnpm run qa:seed:large-class -- --size 250
  *
- * Idempotent: replaces only the QAL- roll numbers inside "QA Large Class"; touches no accounts
+ * Idempotent: adds only missing QAL- roll numbers inside "QA Large Class"; touches no accounts
  * and never writes qa-credentials.json.
  */
 import { PrismaClient } from "@prisma/client";
@@ -31,10 +31,11 @@ async function main() {
     const scope = { schoolId: school.id, campusId: campus.id };
     const existing = await prisma.class.findFirst({ where: { ...scope, name: LARGE_CLASS_NAME, section: LARGE_CLASS_SECTION, academicYear }, select: { id: true } });
     const klass = existing ?? await prisma.class.create({ data: { ...scope, name: LARGE_CLASS_NAME, section: LARGE_CLASS_SECTION, academicYear }, select: { id: true } });
-    await prisma.$transaction([
-      prisma.student.deleteMany({ where: { ...scope, classId: klass.id, rollNo: { startsWith: LARGE_CLASS_ROLL_PREFIX } } }),
-      prisma.student.createMany({ data: largeClassRoster(def.slug, size).map((s) => ({ ...scope, classId: klass.id, ...s })) }),
-    ]);
+    // Create only missing roll numbers: re-runs must not delete students that now carry
+    // enrollments, attendance or marks (student_enrollments_student_id_fkey blocked deletes).
+    const have = new Set((await prisma.student.findMany({ where: { ...scope, classId: klass.id, rollNo: { startsWith: LARGE_CLASS_ROLL_PREFIX } }, select: { rollNo: true } })).map((s) => s.rollNo));
+    const missing = largeClassRoster(def.slug, size).filter((s) => !have.has(s.rollNo));
+    if (missing.length) await prisma.student.createMany({ data: missing.map((s) => ({ ...scope, classId: klass.id, ...s })) });
     console.log(`[qa-large-class] ${def.slug}: ${size} students in ${LARGE_CLASS_NAME} ${LARGE_CLASS_SECTION}`);
   }
 }
