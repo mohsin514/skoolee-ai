@@ -24,6 +24,7 @@ import { itemStateFor } from "./item-review";
 import { paperSittingCompletion } from "./paper-sitting";
 import { assertWorkspacePermission, loadWorkspacePermissionSnapshot } from "./access";
 import { MARKS_DUE_WORKING_DAYS, defaultPaperDue, deriveSlotStatus, slotKey, slotOverdue, slotReadiness, workingDaysAfter, type PaperSlotStatus, type SlotFacts } from "./paper-slot-status";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const id = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/);
@@ -58,6 +59,8 @@ const minutesOf = (hhmm: string) => { const [h, m] = hhmm.split(":").map(Number)
 
 /** The exam office: exam scheduling access (add), or the campus's named exam coordinator. Never approval or release. */
 export async function assertExamOffice(user: AuthUser, campusId: string, tx: TxClient) {
+  // Paper slots, sealing, moderation, sittings and the gradebook hand-off are Exam Studio (Flagship).
+  await assertPlanFeature(user, "examStudioEnabled", tx);
   const campus = await tx.campus.findFirst({ where: { id: campusId, schoolId: user.schoolId }, select: { examCoordinatorUserId: true } });
   if (campus?.examCoordinatorUserId && campus.examCoordinatorUserId === user.userId && (user.role === "SUPER_ADMIN" || user.campusId === campusId)) {
     await assertWorkspacePermission(user, "exams", "add", await loadWorkspacePermissionSnapshot(user, tx));

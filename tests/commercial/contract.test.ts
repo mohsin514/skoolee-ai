@@ -5,6 +5,7 @@ import { PLANS, PLAN_ORDER, annualMonthlyPrice } from "@/config/plans";
 import { currencyForCountry, defaultPricingCurrency } from "@/lib/locale/country";
 import { stripePriceMismatch } from "@/lib/stripe/server";
 import { creditResetMonthKey, resetCreditUsage } from "@/lib/billing/credit-policy";
+import { planPeriodAmount } from "@/lib/billing/plan-pricing";
 
 test("versioned commercial catalogue has no entitlement or credit reset drift", () => {
   assert.match(COMMERCIAL_CONTRACT.version, /^\d{4}-\d{2}-\d{2}\.\d+$/);
@@ -22,15 +23,55 @@ test("marketing limits are the same values enforced for every plan", () => {
   }
 });
 
-test("an existing school retains its approved limits and features after catalogue changes", () => {
-  const saved = createPlanContract("BASIC", { effectiveAt: new Date("2026-09-01T00:00:00Z") });
-  const schoolTerms = getSchoolPlanContract("BASIC", saved);
-  assert.equal(schoolTerms.contractVersion, COMMERCIAL_CONTRACT.version);
-  assert.equal(schoolTerms.maxStudents, 500);
-  assert.equal(schoolTerms.maxTeachers, 10);
-  assert.equal(schoolTerms.aiCredits, 1000);
-  assert.equal(schoolTerms.whatsappEnabled, true);
-  assert.equal(schoolTerms.priceCurrency, "PKR");
+/** Terms a paid school saved under catalogue 2026-10-08.1 (flat monthly price, no `pricing`). */
+const LEGACY_BASIC = {
+  catalogVersion: "2026-10-08.1", effectiveAt: "2026-09-01T00:00:00.000Z", plan: "BASIC", name: "Pro", price: 4000,
+  priceCurrency: "PKR", priceLabel: "PKR 4,000/mo", features: ["Up to 500 students", "1,000 AI credits/month"],
+  aiCredits: 1000, maxStudents: 500, maxTeachers: 10, maxCampuses: 1,
+  whatsappEnabled: true, pdfExportEnabled: true, pdfBulkExport: true, analyticsEnabled: false,
+  aiCreditPolicy: { allowance: "plan-monthly", unused: "expire-at-calendar-month-reset", reset: "zero-used-on-calendar-month-boundary" },
+};
+
+test("a paid school keeps its approved pre-2026-11-12 terms: flat price, limits, credits and every newly gated feature", () => {
+  const terms = getSchoolPlanContract("BASIC", LEGACY_BASIC);
+  assert.equal(terms.contractVersion, "2026-10-08.1");
+  assert.equal(terms.pricing, "per_school");
+  assert.equal(terms.price, 4000);
+  assert.equal(terms.minBilledStudents, 0);
+  assert.equal(terms.maxStudents, 500);
+  assert.equal(terms.maxTeachers, 10);
+  assert.equal(terms.aiCredits, 1000);
+  assert.equal(terms.aiCreditsPerStudent, 0);
+  assert.equal(terms.analyticsEnabled, false, "a recorded term is kept as recorded");
+  for (const flag of ["timetableEnabled", "examPlanningEnabled", "aiWorkflowsEnabled", "examStudioEnabled", "markSheetScanEnabled", "aiRemarksEnabled", "groupConsoleEnabled", "apiAccessEnabled"] as const) {
+    assert.equal(terms[flag], true, `${flag}: nothing was gated when these terms were approved`);
+  }
+  assert.equal(planPeriodAmount(terms, 900, "monthly"), 4000, "a flat price does not scale with students");
+  assert.equal(planPeriodAmount(terms, 900, "annual"), 38400);
+});
+
+test("an old free snapshot reads as today's Core: no caps, PDF export, no flagship", () => {
+  const terms = getSchoolPlanContract("FREE", { ...LEGACY_BASIC, plan: "FREE", name: "Basic", price: 0, aiCredits: 100, maxStudents: 50, maxTeachers: 2, pdfExportEnabled: false, whatsappEnabled: false, pdfBulkExport: false });
+  assert.equal(terms.name, "Core");
+  assert.equal(terms.maxStudents, -1);
+  assert.equal(terms.maxTeachers, -1);
+  assert.equal(terms.maxCampuses, -1);
+  assert.equal(terms.pdfExportEnabled, true);
+  assert.equal(terms.aiCredits, 0);
+  assert.equal(terms.timetableEnabled, false);
+  assert.equal(terms.aiWorkflowsEnabled, false);
+});
+
+test("terms saved from this catalogue keep their own flags and per-student pricing", () => {
+  const terms = getSchoolPlanContract("BASIC", createPlanContract("BASIC", { billedStudents: 250 }));
+  assert.equal(terms.pricing, "per_student");
+  assert.equal(terms.billedStudents, 250);
+  assert.equal(terms.timetableEnabled, true);
+  assert.equal(terms.examPlanningEnabled, true);
+  assert.equal(terms.aiWorkflowsEnabled, false);
+  assert.equal(terms.examStudioEnabled, false);
+  const broken = { ...createPlanContract("PRO"), aiWorkflowsEnabled: "yes" };
+  assert.equal(getSchoolPlanContract("PRO", broken).contractVersion, COMMERCIAL_CONTRACT.version, "a malformed new snapshot falls back to the catalogue");
 });
 
 test("an open checkout keeps its quoted price, limits, and feature flags", () => {
@@ -46,6 +87,8 @@ test("an open checkout keeps its quoted price, limits, and feature flags", () =>
   const metadata = encodePlanContractMetadata(quote);
   const restored = decodePlanContractMetadata(metadata, "BASIC");
   assert.deepEqual(restored, quote);
+  const perStudent = createPlanContract("PRO", { billedStudents: 340, effectiveAt: new Date("2026-11-12T00:00:00.000Z") });
+  assert.deepEqual(decodePlanContractMetadata(encodePlanContractMetadata(perStudent), "PRO"), perStudent);
   assert.equal(decodePlanContractMetadata(metadata, "PRO"), null);
   assert.equal(decodePlanContractMetadata("not-json", "BASIC"), null);
 });

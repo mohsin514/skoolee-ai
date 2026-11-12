@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { academicModelConfigurationSchema, changedConfigurationSections, previewRegrade, simulateAcademicResult, validateAcademicModel, type AcademicModelConfiguration, type SimulatedComponent } from "@/lib/academic/model-config";
@@ -53,6 +54,8 @@ export async function POST(request: NextRequest, context: Context) {
     }
 
     if (action === "approve-template") {
+      // Approving a template shared across campuses is the group console (Network).
+      await assertPlanFeature(user, "groupConsoleEnabled");
       if (!model.isSharedTemplate || model.status !== "DRAFT") throw new ApiError("Only a shared template draft can be approved", 409);
       const parsed = academicModelConfigurationSchema.safeParse(model.configuration);
       if (!parsed.success) throw new ApiError("Repair the template fields before approval", 400);

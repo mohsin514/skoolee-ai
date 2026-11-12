@@ -88,7 +88,7 @@ import { PlatformOverview } from "@/components/insights";
 import { AddUserModal, ProvisionSchoolModal, type SchoolProvisionPrefill } from "@/components/owner/provisioning-modals";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import { DeskPill, DeskRowIcon, DeskSection, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
-import { formatPlanLimit, getPlanLimits } from "@/config/plans";
+import { PLANS, formatPlanLimit, getPlanLimits } from "@/config/plans";
 import {
   EmptyState,
   RoleShell,
@@ -2132,6 +2132,7 @@ function PlanPriceField({ scope, plan, value, placeholder, disabled, onChange }:
   disabled?: boolean;
   onChange: (value: string) => void;
 }) {
+  const t = useUiText();
   return (
     <FormField name={`${scope}-${plan}`} label={planLabel(plan)} className="min-w-0">
       <InputGroup surfaceClassName="bg-card" className="w-full">
@@ -2147,12 +2148,14 @@ function PlanPriceField({ scope, plan, value, placeholder, disabled, onChange }:
           onChange={(e) => onChange(e.target.value)}
           className={"w-full tabular-nums"}
         />
+        {getPlanLimits(plan).pricing === "per_student" ? <span data-field-affix="end" className="text-xs font-semibold text-ink-subtle">{t("per student a month")}</span> : null}
       </InputGroup>
     </FormField>
   );
 }
 
-const DEFAULT_PRICE_FIELDS = { FREE: { price: "0" }, BASIC: { price: "4000" }, PRO: { price: "7000" }, ENTERPRISE: { price: "" } };
+/** The catalogue prices: per student a month for per-student plans. */
+const DEFAULT_PRICE_FIELDS = Object.fromEntries((["FREE", "BASIC", "PRO", "ENTERPRISE"] as const).map((plan) => [plan, { price: PLANS[plan].price == null ? "" : String(PLANS[plan].price) }])) as Record<"FREE" | "BASIC" | "PRO" | "ENTERPRISE", { price: string }>;
 const EMPTY_PRICE_FIELDS = { FREE: { price: "" }, BASIC: { price: "" }, PRO: { price: "" }, ENTERPRISE: { price: "" } };
 type SavedPrices = Record<string, { price?: number | null }>;
 const priceFields = (prices: SavedPrices | null | undefined) => Object.fromEntries(

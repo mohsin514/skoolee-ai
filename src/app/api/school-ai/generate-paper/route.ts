@@ -4,6 +4,7 @@ import { authRateLimit } from "@/lib/auth/rate-limit";
 import { requireSchoolAiUser } from "@/lib/school-ai/access";
 import { readBoundedJson, schoolAiError } from "@/lib/school-ai/http";
 import { generatePaperWithReceipt, recoverPaperGeneration } from "@/lib/school-ai/paper-generation-service";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -13,6 +14,7 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const user = await requireSchoolAiUser("add");
+    await assertPlanFeature(user, "examStudioEnabled");
     if (!(await authRateLimit(`school-ai:paper:${user.schoolId}:${user.userId}`, { limit: 8, windowMs: 300000 })).ok) throw new ApiError("Please wait before generating another paper.", 429);
     const result = await generatePaperWithReceipt(user, await readBoundedJson(request));
     return Response.json(result.body, { status: result.status, headers: noStore });
@@ -27,6 +29,7 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     const user = await requireSchoolAiUser("add");
+    await assertPlanFeature(user, "examStudioEnabled");
     const result = await recoverPaperGeneration(user, new URL(request.url).searchParams.get("key") ?? "");
     return Response.json(result.body, { status: result.status, headers: noStore });
   } catch (error) {

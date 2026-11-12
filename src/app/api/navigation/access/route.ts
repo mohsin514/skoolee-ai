@@ -1,6 +1,7 @@
 import { errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { loadPermissionMap } from "@/lib/permissions";
 import { capabilitiesFor } from "@/lib/navigation/capabilities";
+import { schoolPlanFeatures } from "@/lib/billing/entitlements";
 
 /**
  * Read only the current caller's effective module visibility and capability keys (§1.4, G4). Every value is a
@@ -11,7 +12,9 @@ export async function GET() {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
     const permissionsPromise = loadPermissionMap(user.schoolId, user.role);
-    const capabilitiesPromise = capabilitiesFor(user, permissionsPromise);
+    // Menus follow the school's plan; the platform operator has none.
+    const plan = user.role === "APP_OWNER" ? null : await schoolPlanFeatures(user.schoolId).catch(() => null);
+    const capabilitiesPromise = capabilitiesFor(user, permissionsPromise, plan);
     const [permissions, capabilities] = await Promise.all([permissionsPromise, capabilitiesPromise]);
     // `scope` names whose access this is (addendum 2026-10-22 §3): the shell keys its per-tab cache on userId + schoolId +
     // role + accessVersion and drops the cache when any of them changes. It drives presentation only — every API and

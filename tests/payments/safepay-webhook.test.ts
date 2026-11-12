@@ -42,7 +42,7 @@ mock.module(src("lib/db/tenant-context.ts"), { namedExports: { runUnscoped: (_r:
 mock.module(src("lib/fees/payment.ts"), { namedExports: { recordPayment: async (_tx: unknown, input: unknown) => { h.payments.push(input); return { payment: { id: `pay-${h.payments.length}` } }; } } });
 mock.module(src("lib/billing/entitlements.ts"), { namedExports: {
   activatePlan: async (...args: unknown[]) => { h.activations.push(args); },
-  getBillingSnapshot: async () => ({ plans: { BASIC: { price: 5000 } } }),
+  getBillingSnapshot: async () => ({ plans: { BASIC: { price: 5000 } }, usage: { activeStudents: 0 } }),
 } });
 mock.module(src("lib/billing/checkout-intents.ts"), { namedExports: { settleVerifiedCheckoutIntent: async () => { throw new Error("not expected"); } } });
 

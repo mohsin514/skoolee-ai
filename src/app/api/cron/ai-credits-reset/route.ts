@@ -2,6 +2,10 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { creditResetMonthKey, resetCreditUsage } from "@/lib/billing/credit-policy";
+import { getSchoolPlanContract } from "@/config/commercial-contract";
+import { normalizePlan } from "@/config/plans";
+import { activeStudentWhere } from "@/lib/billing/entitlements";
+import { monthlyAiCreditAllowance } from "@/lib/billing/plan-pricing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,12 +41,26 @@ export async function POST(req: NextRequest) {
       data: { aiCreditsUsed: resetCreditUsage(0) },
     });
 
+    // Terms that scale credits by student get this month's allowance from today's active students:
+    // max(fixed credits, per-student credits × active students). Other schools keep their saved credits.
+    const schools = await prisma.school.findMany({ where: { status: { not: "DELETED" } }, select: { id: true, plan: true, commercialContract: true } });
+    const perStudent = schools
+      .map((school) => ({ id: school.id, terms: getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract) }))
+      .filter(({ terms }) => terms.aiCreditsPerStudent > 0);
+    const counts = perStudent.length
+      ? await prisma.student.groupBy({ by: ["schoolId"], where: activeStudentWhere({ in: perStudent.map(({ id }) => id) }), _count: { _all: true } })
+      : [];
+    const active = new Map(counts.map((row) => [row.schoolId, row._count._all]));
+    for (const { id, terms } of perStudent) {
+      await prisma.school.update({ where: { id }, data: { aiCreditsLimit: monthlyAiCreditAllowance(terms, active.get(id) ?? 0) } });
+    }
+
     await prisma.platformConfig.upsert({
       where: { key: "ai_credits_reset_month" },
       create: { key: "ai_credits_reset_month", value: resetKey },
       update: { value: resetKey },
     });
 
-    return Response.json({ success: true, skipped: false, month: resetKey, schoolsReset: result.count });
+    return Response.json({ success: true, skipped: false, month: resetKey, schoolsReset: result.count, perStudentAllowances: perStudent.length });
   });
 }

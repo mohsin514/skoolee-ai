@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import * as integrations from "@/lib/integrations/service";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,8 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+    // API access is a Network feature. Revoking a key or pausing a connection stays open so a school can wind down.
+    if (!["revoke-key", "status"].includes(String(body.action))) await assertPlanFeature(user, "apiAccessEnabled");
     switch (body.action) {
       case "create": return ok(await integrations.createConnection(user, body), 201);
       case "rotate-key": return ok(await integrations.rotateKey(user, body));

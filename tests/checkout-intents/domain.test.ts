@@ -39,12 +39,17 @@ test("package comparisons derive every limit and price from the approved catalog
   }
 });
 
-test("checkout amounts use only the catalogue annual discount and no custom quote price", () => {
-  assert.equal(checkoutAmount(packageContract("FREE"), "monthly"), 0);
-  assert.equal(checkoutAmount(packageContract("BASIC"), "monthly"), 4000);
-  assert.equal(checkoutAmount(packageContract("BASIC"), "annual"), 38400);
-  assert.equal(checkoutAmount(packageContract("PRO"), "annual"), 67200);
-  assert.equal(checkoutAmount(packageContract("ENTERPRISE"), "annual"), null);
+test("checkout amounts are price × billed students (raised to the minimum), with the catalogue annual discount", () => {
+  assert.equal(checkoutAmount(packageContract("FREE", PLANS.FREE, 900), "monthly"), 0);
+  assert.equal(packageContract("FREE", PLANS.FREE, 900).billedStudents, null);
+  // 40 expected students bill the 100-student minimum.
+  assert.equal(packageContract("BASIC", PLANS.BASIC, 40).billedStudents, 100);
+  assert.equal(checkoutAmount(packageContract("BASIC", PLANS.BASIC, 40), "monthly"), 1500);
+  assert.equal(checkoutAmount(packageContract("BASIC", PLANS.BASIC, 40), "annual"), 14400);
+  assert.equal(checkoutAmount(packageContract("BASIC", PLANS.BASIC, 300), "monthly"), 4500);
+  assert.equal(checkoutAmount(packageContract("PRO", PLANS.PRO, 300), "annual"), 115200);
+  assert.equal(checkoutAmount(packageContract("ENTERPRISE", PLANS.ENTERPRISE, 1500), "monthly"), 90000);
+  assert.equal(checkoutAmount(packageContract("ENTERPRISE", PLANS.ENTERPRISE, 10), "monthly"), 36000, "Network bills at least 600");
 });
 
 test("only a verified owner can enter package choice during incomplete onboarding", () => {
@@ -104,11 +109,11 @@ test("SKAI-156: setup never downgrades to Free or below the school's active camp
   // A paid school cannot drop to Free through a direct API call.
   assert.throws(() => assertPackageFitsSchool("FREE", PLANS.FREE, { currentPlan: "PRO", activeCampuses: 1 }), { status: 409 });
   assert.doesNotThrow(() => assertPackageFitsSchool("FREE", PLANS.FREE, { currentPlan: "FREE", activeCampuses: 1 }));
-  // Three active campuses do not fit a one-campus package; they fit Pro (5) and Custom (unlimited).
-  assert.throws(() => assertPackageFitsSchool("BASIC", PLANS.BASIC, { currentPlan: "PRO", activeCampuses: 3 }), { status: 409 });
-  assert.doesNotThrow(() => assertPackageFitsSchool("PRO", PLANS.PRO, { currentPlan: "PRO", activeCampuses: 3 }));
-  assert.doesNotThrow(() => assertPackageFitsSchool("ENTERPRISE", PLANS.ENTERPRISE, { currentPlan: "PRO", activeCampuses: 40 }));
-  // Upgrades and same-size choices pass; the boundary is inclusive.
-  assert.doesNotThrow(() => assertPackageFitsSchool("BASIC", PLANS.BASIC, { currentPlan: "FREE", activeCampuses: 1 }));
-  assert.throws(() => assertPackageFitsSchool("PRO", PLANS.PRO, { currentPlan: "PRO", activeCampuses: 6 }), { status: 409 });
+  // Catalogue plans have no campus limit; terms that carry one (older or negotiated) still refuse a school above it.
+  for (const plan of ["FREE", "BASIC", "PRO", "ENTERPRISE"] as const) {
+    assert.doesNotThrow(() => assertPackageFitsSchool(plan, PLANS[plan], { currentPlan: "FREE", activeCampuses: 40 }));
+  }
+  const capped = { price: 4000, maxCampuses: 1 };
+  assert.throws(() => assertPackageFitsSchool("BASIC", capped, { currentPlan: "PRO", activeCampuses: 3 }), { status: 409 });
+  assert.doesNotThrow(() => assertPackageFitsSchool("BASIC", capped, { currentPlan: "FREE", activeCampuses: 1 }), "the boundary is inclusive");
 });

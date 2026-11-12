@@ -9,6 +9,7 @@ import SkooleeLogo from "@/components/SkooleeLogo";
 import { Building2, Coins, Crown, GraduationCap, Rocket, Sparkles, Sprout, Users, type LucideIcon } from "lucide-react";
 import { COMMERCIAL_CONTRACT } from "@/config/commercial-contract";
 import { ANNUAL_DISCOUNT, PLAN_ORDER, PLANS, annualMonthlyPrice, type BillingPeriod } from "@/config/plans";
+import { isPerStudent, periodUnitPrice } from "@/lib/billing/plan-pricing";
 import { COUNTRIES, currencyForCountry, type Country } from "@/lib/locale/country";
 import type { PlanType } from "@/types";
 import { SALES_EMAIL as salesEmail } from "@/lib/config/contact";
@@ -20,14 +21,15 @@ type PricingCopy = {
   title: string; description: string; country: string; language: string; currency: string; priceCurrency: string; featureList: string;
   monthly: string; annual: string; save: string; billedMonthly: string; billedAnnual: string; free: string;
   custom: string; perMonth: string; perYear: string; students: string; teachers: string; campuses: string; credits: string; rollover: string;
+  perStudentMonth: string; perStudentYear: string; minimum: string; creditsPerStudent: string;
   regional: string; trial: string; sales: string; version: string; example: string; unlimited: string;
   countryNames: Record<Country, string>; planNames: Record<PlanType, string>;
 };
 
 const copy = {
   en: {
-    title: "Plans with clear limits",
-    description: "Compare the published plan allowances and billing terms before you create an account.",
+    title: "Free for every school. Pay only for the flagship.",
+    description: "Everyday school operations are free with no student, staff or campus limit. Paid plans are priced per active student, per month.",
     country: "Institution country",
     language: "Language",
     currency: "Default regional currency",
@@ -35,10 +37,11 @@ const copy = {
     monthly: "Monthly",
     annual: "Annual",
     save: "Save",
-    billedMonthly: "per month, billed monthly",
-    billedAnnual: "per month, billed annually",
+    billedMonthly: "Billed monthly",
+    billedAnnual: "Billed annually",
     free: "Free",
     custom: "Contact for a quote", perMonth: "/mo", perYear: "/yr",
+    perStudentMonth: "per student / month", perStudentYear: "per student / year", minimum: "Students billed at least", creditsPerStudent: "{0} per student",
     featureList: "Plan capabilities are limited to the features available for this plan.",
     students: "Students",
     teachers: "Teacher accounts",
@@ -51,12 +54,12 @@ const copy = {
     version: "Commercial catalogue",
     example: "Illustrative limits and synthetic examples only. No customer quotations or measured savings are claimed here.",
     countryNames: { PK: "Pakistan", SA: "Saudi Arabia", AE: "United Arab Emirates", KW: "Kuwait", OTHER: "Other" },
-    planNames: { FREE: "Basic", BASIC: "Pro", PRO: "Enterprise", ENTERPRISE: "Custom" },
+    planNames: { FREE: "Core", BASIC: "Plus", PRO: "Flagship", ENTERPRISE: "Network" },
     unlimited: "Unlimited",
   },
   ar: {
-    title: "خطط بحدود واضحة",
-    description: "قارن السعات المنشورة وشروط الفوترة قبل إنشاء حساب.",
+    title: "مجاني لكل مدرسة. ادفع فقط مقابل الميزات الرائدة.",
+    description: "العمليات المدرسية اليومية مجانية دون حد للطلاب أو الموظفين أو الفروع. تُسعّر الخطط المدفوعة لكل طالب نشط شهرياً.",
     country: "بلد المؤسسة",
     language: "اللغة",
     currency: "العملة الإقليمية الافتراضية",
@@ -64,10 +67,11 @@ const copy = {
     monthly: "شهريًا",
     annual: "سنويًا",
     save: "وفّر",
-    billedMonthly: "شهريًا، مع فوترة شهرية",
-    billedAnnual: "شهريًا، مع فوترة سنوية",
+    billedMonthly: "فوترة شهرية",
+    billedAnnual: "فوترة سنوية",
     free: "مجاني",
     custom: "اطلب عرض سعر", perMonth: "/شهر", perYear: "/سنة",
+    perStudentMonth: "لكل طالب / شهر", perStudentYear: "لكل طالب / سنة", minimum: "الحد الأدنى من الطلاب في الفاتورة", creditsPerStudent: "{0} لكل طالب",
     featureList: "تقتصر إمكانات الخطة على الميزات المتاحة لهذه الخطة.",
     students: "الطلاب",
     teachers: "حسابات المعلمين",
@@ -80,12 +84,12 @@ const copy = {
     version: "كتالوج الأسعار",
     example: "الحدود المعروضة معلومات توضيحية. لا توجد هنا اقتباسات عملاء أو وفورات مقاسة.",
     countryNames: { PK: "باكستان", SA: "السعودية", AE: "الإمارات العربية المتحدة", KW: "الكويت", OTHER: "أخرى" },
-    planNames: { FREE: "أساسي", BASIC: "احترافي", PRO: "مؤسسي", ENTERPRISE: "مخصص" },
+    planNames: { FREE: "أساسية", BASIC: "بلس", PRO: "رائدة", ENTERPRISE: "شبكة" },
     unlimited: "غير محدود",
   },
   ur: {
-    title: "واضح حدود والے پلان",
-    description: "اکاؤنٹ بنانے سے پہلے پلان کی گنجائش اور بلنگ کی شرائط دیکھیں۔",
+    title: "ہر اسکول کے لیے مفت۔ صرف فلیگ شپ سہولتوں کی ادائیگی۔",
+    description: "اسکول کے روزمرہ کام مفت ہیں، طلبہ، عملے یا کیمپس کی کوئی حد نہیں۔ ادا شدہ پلان کی قیمت فی فعال طالب علم ماہانہ ہے۔",
     country: "ادارے کا ملک",
     language: "زبان",
     currency: "علاقے کی طے شدہ کرنسی",
@@ -97,6 +101,7 @@ const copy = {
     billedAnnual: "سالانہ ادائیگی، ماہانہ اوسط",
     free: "مفت",
     custom: "قیمت کے لیے رابطہ کریں", perMonth: "/ماہ", perYear: "/سال",
+    perStudentMonth: "فی طالب علم / ماہ", perStudentYear: "فی طالب علم / سال", minimum: "کم از کم طلبہ جن کا بل بنے گا", creditsPerStudent: "فی طالب علم {0}",
     featureList: "پلان کی سہولتیں اسی پلان میں دستیاب خصوصیات تک محدود ہیں۔",
     students: "طلبہ",
     teachers: "اساتذہ کے اکاؤنٹس",
@@ -109,7 +114,7 @@ const copy = {
     version: "قیمتوں کا کیٹلاگ",
     example: "حدود صرف وضاحتی مثالیں ہیں۔ یہاں کوئی گاہک کا اقتباس یا ناپی گئی بچت بیان نہیں کی گئی۔",
     countryNames: { PK: "پاکستان", SA: "سعودی عرب", AE: "متحدہ عرب امارات", KW: "کویت", OTHER: "دیگر" },
-    planNames: { FREE: "بنیادی", BASIC: "پرو", PRO: "انٹرپرائز", ENTERPRISE: "حسب ضرورت" },
+    planNames: { FREE: "کور", BASIC: "پلس", PRO: "فلیگ شپ", ENTERPRISE: "نیٹ ورک" },
     unlimited: "لامحدود",
   },
 } satisfies Record<Language, PricingCopy>;
@@ -170,7 +175,8 @@ export function PricingPage({ initialLanguage = "en" }: { initialLanguage?: Lang
           {PLAN_ORDER.map((key) => {
             const plan = PLANS[key];
             const monthly = plan.price === null ? null : period === "annual" ? annualMonthlyPrice(plan.price) : plan.price;
-            const annualTotal = plan.price === null ? null : Math.round(plan.price * (1 - ANNUAL_DISCOUNT) * 12);
+            const annualTotal = periodUnitPrice(plan.price, "annual");
+            const perStudent = isPerStudent(plan);
             const PlanIcon = PLAN_ICONS[key];
             return (
               <article key={key} className="sk-panel sk-hover-lift flex min-w-0 flex-col p-5">
@@ -179,13 +185,14 @@ export function PricingPage({ initialLanguage = "en" }: { initialLanguage?: Lang
                   <h2 className="min-w-0 text-lg font-bold text-primary [overflow-wrap:anywhere]">{t.planNames[key]}</h2>
                 </div>
                 <div className="mt-4 min-h-16">
-                  {plan.isCustom ? <p className="text-xl font-bold tracking-tight text-ink-strong">{t.custom}</p> : plan.price === 0 ? <p className="text-3xl font-extrabold tabular-nums tracking-tight text-ink-strong">{t.free}</p> : <><p className="text-3xl font-extrabold tabular-nums tracking-tight text-ink-strong"><bdi>{money(monthly!)}</bdi><span className="ms-1 text-sm font-semibold text-ink-muted">{t.perMonth}</span></p><p className="mt-1 text-xs text-ink-muted">{period === "annual" ? `${t.billedAnnual}: ${money(annualTotal!)}${t.perYear}` : t.billedMonthly}</p></>}
+                  {plan.price === null ? <p className="text-xl font-bold tracking-tight text-ink-strong">{t.custom}</p> : plan.price === 0 ? <p className="text-3xl font-extrabold tabular-nums tracking-tight text-ink-strong">{t.free}</p> : <><p className="text-3xl font-extrabold tabular-nums tracking-tight text-ink-strong"><bdi>{money(monthly!)}</bdi><span className="ms-1 text-sm font-semibold text-ink-muted">{perStudent ? ` ${t.perStudentMonth}` : t.perMonth}</span></p><p className="mt-1 text-xs text-ink-muted">{period === "annual" ? `${t.billedAnnual}: ${money(annualTotal!)}${perStudent ? ` ${t.perStudentYear}` : t.perYear}` : t.billedMonthly}</p></>}
                 </div>
                 <dl className="mt-4 space-y-3 border-y border-border-subtle py-4 text-sm">
                   <div className="flex justify-between gap-3"><dt className="flex min-w-0 items-start gap-2"><GraduationCap aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />{t.students}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxStudents)}</dd></div>
                   <div className="flex justify-between gap-3"><dt className="flex min-w-0 items-start gap-2"><Users aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />{t.teachers}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxTeachers)}</dd></div>
                   <div className="flex justify-between gap-3"><dt className="flex min-w-0 items-start gap-2"><Building2 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />{t.campuses}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.maxCampuses)}</dd></div>
-                  <div className="flex justify-between gap-3"><dt className="flex min-w-0 items-start gap-2"><Sparkles aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />{t.credits}</dt><dd className="font-semibold tabular-nums text-ink-strong">{formatLimit(plan.aiCredits)}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="flex min-w-0 items-start gap-2"><Sparkles aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />{t.credits}</dt><dd className="font-semibold tabular-nums text-ink-strong">{plan.aiCreditsPerStudent > 0 ? t.creditsPerStudent.replace("{0}", number(plan.aiCreditsPerStudent)) : formatLimit(plan.aiCredits)}</dd></div>
+                  {plan.minBilledStudents > 0 ? <div className="flex justify-between gap-3"><dt className="flex min-w-0 items-start gap-2"><Coins aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />{t.minimum}</dt><dd className="font-semibold tabular-nums text-ink-strong">{number(plan.minBilledStudents)}</dd></div> : null}
                 </dl>
                 <p className="mt-4 text-xs leading-5 text-ink-muted">{t.featureList}</p>
                 <div className="mt-auto pt-5">

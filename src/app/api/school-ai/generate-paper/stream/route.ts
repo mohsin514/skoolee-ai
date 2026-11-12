@@ -7,6 +7,7 @@ import { preflightPaperGeneration } from "@/lib/school-ai/paper-generation-servi
 import { assertSchoolAiTextProvider } from "@/lib/school-ai/providers";
 import { GENERATION_STREAM_HEADERS, encodeFrames } from "@/lib/school-ai/generation-stream";
 import { paperGenerationFrames } from "@/lib/school-ai/paper-generation-stream-service";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const user = await requireSchoolAiUser("add");
+    await assertPlanFeature(user, "examStudioEnabled");
     if (!(await authRateLimit(`school-ai:paper:${user.schoolId}:${user.userId}`, { limit: 8, windowMs: 300000 })).ok) throw new ApiError("Please wait before generating another paper.", 429);
     assertSchoolAiTextProvider();
     const body = await readBoundedJson(request);

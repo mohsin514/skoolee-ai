@@ -840,6 +840,8 @@ function StandardsView({ tab, onTab }: { tab: (typeof STANDARD_TABS)[number]; on
 
 function SettingsView({ tab, onTab, userId, onSaved }: { tab: string | null; onTab: (tab: string | null) => void; userId: string | null; onSaved: () => Promise<void> }) {
   const t = useUiText();
+  // API keys and webhooks come with the plan's API access (Network).
+  const apiAccess = useConsoleAccess().has("planApiAccess");
   // The setup checklist is offered until the school's readiness is approved (§3.1).
   const [setupOpen, setSetupOpen] = useState(true);
   useEffect(() => {
@@ -849,18 +851,18 @@ function SettingsView({ tab, onTab, userId, onSaved }: { tab: string | null; onT
     }).catch(() => undefined);
     return () => { alive = false; };
   }, []);
-  const active = pickTab(SETTINGS_TABS, tab, (id) => id !== "setup" || setupOpen);
+  const active = pickTab(SETTINGS_TABS, tab, (id) => (id !== "setup" || setupOpen) && (id !== "integrations" || apiAccess));
   const items = useMemo(() => [
     { id: "profile", label: "School profile" },
     { id: "locale", label: "Language and region" },
     { id: "identity", label: "Sign-in and roster" },
-    { id: "integrations", label: "Integrations" },
+    ...(apiAccess ? [{ id: "integrations", label: "Integrations" }] : []),
     // SKAI-746: WhatsApp connection and managed sending are owner-only on the API, so the owner's console carries them.
     { id: "whatsapp", label: "WhatsApp" },
     { id: "data", label: "Data and privacy" },
     { id: "activity", label: "Activity log" },
     { id: "setup", label: "Setup checklist", hidden: !setupOpen },
-  ], [setupOpen]);
+  ], [setupOpen, apiAccess]);
 
   // §4.4b: Settings › Activity log exports from the PageHeader; the panel exports when this counter changes.
   const [exportRequest, setExportRequest] = useState(0);

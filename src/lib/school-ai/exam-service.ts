@@ -20,6 +20,7 @@ import { examIntegrityDisclosure } from "./exam-integrity";
 import { assertStudioAction } from "./studio-access";
 import type { ExamReviewCapabilities } from "./exam";
 import { finalizeExpiredAttempt } from "./exam-finalization";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 const selection = { id: true, title: true, startsAt: true, endsAt: true, paperVersion: true, mode: true, status: true, classId: true, campusId: true, contentHash: true } as const;
@@ -128,6 +129,8 @@ export async function examRoster(user: AuthUser, paperId: string) {
 
 export async function createSchoolAiExam(user: AuthUser, raw: unknown, now?: Date) {
   await assertSchoolAiAccess(user, "add"); await assertWorkspacePermission(user, "exams", "add");
+  // New online exams are Exam Studio (Flagship). Attempts already under way are never stranded by a plan change.
+  await assertPlanFeature(user, "examStudioEnabled");
   if (!isSchoolAiManager(user) && user.role !== "TEACHER") throw new ApiError("Only authorized teaching staff can assign papers.", 403);
   const input = examAssignmentSchema.parse(raw);
   try { assertSupportedExamMode(input.mode); } catch (error) { throw new ApiError((error as Error).message, 409); }

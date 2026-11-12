@@ -43,6 +43,7 @@ export const ERROR_WORDS: Partial<Record<WorkflowErrorCode | "PRACTICE_MODE", T>
   NOT_CONNECTED: { en: "AI can't do this yet. Your request was not sent anywhere.", ar: "لا يمكن للذكاء الاصطناعي فعل هذا بعد. لم يُرسل طلبك.", ur: "اے آئی یہ ابھی نہیں کر سکتا۔ آپ کی درخواست کہیں نہیں بھیجی گئی۔" },
   UNCERTAIN: { en: "We can't tell whether this was saved. Check the screen before trying again.", ar: "لا نعرف إن حُفظ. تحقق من الشاشة قبل المحاولة.", ur: "معلوم نہیں محفوظ ہوا یا نہیں۔ دوبارہ کوشش سے پہلے اسکرین دیکھیں۔" },
   PRACTICE_MODE: { en: "Practice mode: nothing is saved to your school until AI is approved for it.", ar: "وضع التدريب: لا يُحفظ شيء حتى اعتماد الذكاء الاصطناعي.", ur: "مشق موڈ: منظوری تک اسکول میں کچھ محفوظ نہیں ہوتا۔" },
+  PLAN_FEATURE: { en: "This feature is not part of the school's plan. The account owner can add it.", ar: "هذه الميزة ليست ضمن خطة المدرسة. يمكن لمالك الحساب إضافتها.", ur: "یہ سہولت اسکول کے پلان میں شامل نہیں۔ اکاؤنٹ کے مالک اسے شامل کر سکتے ہیں۔" },
   SUSPENDED: { en: "Your school's subscription is paused.", ar: "اشتراك مدرستك متوقف.", ur: "اسکول کی رکنیت رکی ہوئی ہے۔" },
   INTERNAL: { en: "Something went wrong. Nothing new was saved.", ar: "حدث خطأ. لم يُحفظ شيء جديد.", ur: "کچھ غلط ہو گیا۔ کچھ نیا محفوظ نہیں ہوا۔" },
   NOT_FOUND: { en: "This request is no longer available.", ar: "هذا الطلب لم يعد متاحًا.", ur: "یہ درخواست اب دستیاب نہیں۔" },

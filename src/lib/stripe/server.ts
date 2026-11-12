@@ -89,6 +89,7 @@ export function stripePriceMismatch(
   cataloguePrice: number | null | undefined
 ) {
   if (cataloguePrice == null) return "This plan has no configured catalogue price";
+  // The unit amount: per student for a per-student plan (the session's quantity is the billed students).
   const expectedAmount = billingPeriod === "annual"
     ? Math.round(cataloguePrice * (1 - ANNUAL_DISCOUNT) * 12)
     : cataloguePrice;
@@ -147,7 +148,8 @@ export async function createConnectOnboardingLink(
 }
 
 /**
- * Create a checkout session that transfers funds to the owner's connected account.
+ * Create a checkout session that transfers funds to the owner's connected account. A per-student plan's
+ * Stripe price is per student, so `quantity` is the billed students; a flat price is one unit.
  */
 export async function createCheckoutSessionWithTransfer(
   customerId: string,
@@ -157,12 +159,14 @@ export async function createCheckoutSessionWithTransfer(
   connectedAccountId: string | null,
   contractMetadata: string,
   changeRequestId: string,
-  idempotencyKey: string
+  idempotencyKey: string,
+  quantity = 1
 ): Promise<string> {
+  if (!Number.isSafeInteger(quantity) || quantity < 1) throw new Error("Checkout quantity must be a positive whole number");
   const sessionParams: Stripe.Checkout.SessionCreateParams = {
     customer: customerId,
     mode: "subscription",
-    line_items: [{ price: priceId, quantity: 1 }],
+    line_items: [{ price: priceId, quantity }],
     // §6.2: /billing resolves the payer's own Billing & plan view and keeps these parameters. The session id
     // placeholder must stay literal (Stripe substitutes it), so this query is not built with URLSearchParams.
     success_url: `${appUrl()}/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,

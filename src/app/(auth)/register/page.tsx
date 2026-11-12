@@ -118,8 +118,8 @@ const en = {
     single_campus: {
       headline: "Set up your school",
       accent: "with a clear plan.",
-      body: "Start with up to 50 students, 2 teacher accounts, one campus and 100 AI credits per month. Compare the current plan limits before you register.",
-      caption: "Unused AI credits expire at the calendar month reset.",
+      body: "Core is free with no student, staff or campus limit. Timetables, exam planning and the AI flagship come with the paid plans, priced per student a month.",
+      caption: "Compare the plans before you register.",
     },
   } as Record<RegistrationType, PanelCopy>,
   /** Before a choice: neutral, so neither structure reads as the default (SPEC §8.2). */
@@ -245,8 +245,8 @@ const copy: Record<Language, RegisterCopy> = {
       single_campus: {
         headline: "أعدّ مدرستك",
         accent: "بخطة واضحة.",
-        body: "ابدأ بما يصل إلى 50 طالباً وحسابين للمعلمين وفرع واحد و100 رصيد ذكاء اصطناعي شهرياً. قارن حدود الخطة الحالية قبل التسجيل.",
-        caption: "تنتهي أرصدة الذكاء الاصطناعي غير المستخدمة عند بداية الشهر التقويمي.",
+        body: "الخطة الأساسية مجانية دون حد للطلاب أو الموظفين أو الفروع. الجداول وتخطيط الامتحانات والميزات الذكية الرائدة متاحة في الخطط المدفوعة بسعر لكل طالب شهرياً.",
+        caption: "قارن الخطط قبل التسجيل.",
       },
     },
     panelChoose: {
@@ -367,8 +367,8 @@ const copy: Record<Language, RegisterCopy> = {
       single_campus: {
         headline: "اپنا اسکول سیٹ اپ کریں",
         accent: "ایک واضح پلان کے ساتھ۔",
-        body: "50 طلبہ، 2 اساتذہ اکاؤنٹس، ایک کیمپس اور ہر ماہ 100 اے آئی کریڈٹس سے آغاز کریں۔ رجسٹر کرنے سے پہلے موجودہ پلان کی حدود کا موازنہ کریں۔",
-        caption: "غیر استعمال شدہ اے آئی کریڈٹس کیلنڈر مہینے کے آغاز پر ختم ہو جاتے ہیں۔",
+        body: "کور پلان مفت ہے، طلبہ، عملے یا کیمپس کی کوئی حد نہیں۔ ٹائم ٹیبل، امتحانی منصوبہ بندی اور AI فلیگ شپ سہولتیں ادا شدہ پلانز میں ہیں، جن کی قیمت فی طالب علم ماہانہ ہے۔",
+        caption: "رجسٹر کرنے سے پہلے پلانز کا موازنہ کریں۔",
       },
     },
     panelChoose: {

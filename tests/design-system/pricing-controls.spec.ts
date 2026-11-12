@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
 
 const locales = {
-  en: { title: 'Plans with clear limits', country: 'Institution country', language: 'Language', monthly: 'Monthly', annual: 'Annual', pro: 'Pro', trial: 'Create free account' },
-  ar: { title: 'خطط بحدود واضحة', country: 'بلد المؤسسة', language: 'اللغة', monthly: 'شهريًا', annual: 'سنويًا', pro: 'احترافي', trial: 'إنشاء حساب مجاني' },
-  ur: { title: 'واضح حدود والے پلان', country: 'ادارے کا ملک', language: 'زبان', monthly: 'ماہانہ', annual: 'سالانہ', pro: 'پرو', trial: 'مفت اکاؤنٹ بنائیں' },
+  en: { title: 'Free for every school. Pay only for the flagship.', country: 'Institution country', language: 'Language', monthly: 'Monthly', annual: 'Annual', pro: 'Plus', trial: 'Create free account' },
+  ar: { title: 'مجاني لكل مدرسة. ادفع فقط مقابل الميزات الرائدة.', country: 'بلد المؤسسة', language: 'اللغة', monthly: 'شهريًا', annual: 'سنويًا', pro: 'بلس', trial: 'إنشاء حساب مجاني' },
+  ur: { title: 'ہر اسکول کے لیے مفت۔ صرف فلیگ شپ سہولتوں کی ادائیگی۔', country: 'ادارے کا ملک', language: 'زبان', monthly: 'ماہانہ', annual: 'سالانہ', pro: 'پلس', trial: 'مفت اکاؤنٹ بنائیں' },
 };
 
 for (const language of ['en', 'ar', 'ur'] as const) {
@@ -28,13 +28,14 @@ for (const language of ['en', 'ar', 'ur'] as const) {
     await country.selectOption('SA');
     await expect(page.getByText(/SAR/)).toBeVisible();
     const pro = page.getByRole('article').filter({ has: page.getByRole('heading', { name: t.pro, exact: true }) });
-    await expect(pro).toContainText('PKR 4,000');
+    await expect(pro).toContainText('PKR 15');
     const annual = page.getByRole('button', { name: new RegExp(t.annual) });
     await annual.focus();
     await page.keyboard.press('Enter');
     await expect(annual).toHaveAttribute('aria-pressed', 'true');
-    await expect(pro).toContainText('PKR 3,200');
-    await expect(pro).toContainText('PKR 38,400');
+    // Per student: PKR 12 a month when paid yearly, PKR 144 a year.
+    await expect(pro).toContainText('PKR 12');
+    await expect(pro).toContainText('PKR 144');
     await expect(page.getByRole('button', { name: t.monthly, exact: true })).toHaveAttribute('aria-pressed', 'false');
     await expect(page.getByRole('link', { name: t.trial, exact: true })).toHaveAttribute('href', '/register');
     await expect(pro.getByRole('link')).toHaveAttribute('href', /^mailto:.*subject=Pricing%20enquiry/);
@@ -47,6 +48,6 @@ for (const language of ['en', 'ar', 'ur'] as const) {
       if (width === 390 || width === 1440) await page.screenshot({ path: `test-results/design-system/evidence/pricing/${language}-${width}.png`, fullPage: true });
     }
     await page.getByRole('button', { name: t.monthly, exact: true }).click();
-    await expect(pro).toContainText('PKR 4,000');
+    await expect(pro).toContainText('PKR 15');
   });
 }

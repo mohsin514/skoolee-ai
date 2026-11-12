@@ -66,7 +66,10 @@ function relativeTime(ui: ReturnType<typeof useUiText>, value?: string | Date | 
 
 export default function AIPage() {
   const ui = useUiText();
-  const canExamStudio = useConsoleAccess().leafVisible("teacher", "exam-studio");
+  const consoleAccess = useConsoleAccess();
+  const canExamStudio = consoleAccess.leafVisible("teacher", "exam-studio");
+  // Rewriting and translating remarks are AI remarks (Flagship).
+  const aiRemarks = consoleAccess.has("planAiRemarks");
   const { data, loading, error, loadData } = useTeacherData();
   const [showNetwork, setShowNetwork] = useState(false);
   const [query, setQuery] = useState("");
@@ -95,8 +98,10 @@ export default function AIPage() {
     { feature: "weak_topics", label: ui("Weak topics"), placeholder: ui("Subject or exam context") },
     { feature: "homework_suggestions", label: ui("Homework"), placeholder: ui("Pupil group or weak area") },
     { feature: "lesson_plan", label: ui("Lesson plan"), field: "topic" as const, placeholder: ui("Topic, class, duration") },
-    { feature: "rewrite_remark", label: ui("Rewrite remark"), placeholder: ui("Paste remark draft") },
-    { feature: "translate_remark", label: ui("Translate"), placeholder: ui("Paste remark text") },
+    ...(aiRemarks ? [
+      { feature: "rewrite_remark", label: ui("Rewrite remark"), placeholder: ui("Paste remark draft") },
+      { feature: "translate_remark", label: ui("Translate"), placeholder: ui("Paste remark text") },
+    ] : []),
   ];
 
   if (loading && !data) return <AISkeleton />;

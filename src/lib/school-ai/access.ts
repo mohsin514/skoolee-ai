@@ -6,6 +6,7 @@ import type { TxClient } from "@/lib/db/prisma";
 import type { PermissionAction, PermissionModule, PermissionFlags } from "@/lib/permissions";
 import type { WorkspaceCapabilities, WorkspaceKind, WorkspaceStatus } from "./types";
 import type { SCHOOL_AI_OPERATION_NAMES } from "./operations";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 
 export class SchoolAiError extends Error {
   constructor(message: string, public status = 400, public code?: string) { super(message); this.name = "SchoolAiError"; }
@@ -246,6 +247,8 @@ export async function assertWorkspaceDomainPermission(user: AuthUser, kind: Work
   if (!allowedWorkspaceKinds(user).includes(kind)) throw new SchoolAiError("This workspace type is outside your role.", 403);
   if (kind === "ONBOARDING" && action !== "view" && !canConfigureCampus(user.role)) throw new SchoolAiError("Campus setup must be completed by a campus administrator.", 403);
   if (EXAM_DOMAIN_WORKSPACE_KINDS.includes(kind)) await assertPermission(user, "exams", action);
+  // Writing papers, briefs, practice sets and delivery policies is Exam Studio (Flagship); existing ones stay readable.
+  if (kind !== "CURRICULUM" && EXAM_DOMAIN_WORKSPACE_KINDS.includes(kind) && action !== "view") await assertPlanFeature(user, "examStudioEnabled");
   if (kind === "SOURCE") {
     const sourceModules: Record<string, PermissionModule> = { fee_sheet: "fees", register: "students", staff_list: "staff", timetable: "timetable", paper: "exams", answer_script: "exams", syllabus: "exams" };
     const permissionModule = sourceModules[String(data.documentKind)];

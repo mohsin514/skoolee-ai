@@ -9,8 +9,8 @@ import {
   createCheckoutIntent,
   onboardingCheckoutSchema,
   packageContract,
-  periodPrice,
 } from "@/lib/billing/checkout-intents";
+import { billedUnits } from "@/lib/billing/plan-pricing";
 import { getBillingSnapshot } from "@/lib/billing/entitlements";
 import { assertSetupPurchaser, setupTenantContext } from "@/lib/onboarding/setup-service";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
@@ -78,13 +78,16 @@ export async function GET() {
       Object.entries(billing.plans).map(([key, plan]) => [key, {
         type: plan.type,
         name: plan.name,
+        pricing: plan.pricing,
         price: plan.price,
         priceLabel: plan.priceLabel,
+        minBilledStudents: plan.minBilledStudents,
         features: plan.features,
         maxStudents: plan.maxStudents,
         maxTeachers: plan.maxTeachers,
         maxCampuses: plan.maxCampuses,
         aiCredits: plan.aiCredits,
+        aiCreditsPerStudent: plan.aiCreditsPerStudent,
         isCustom: plan.isCustom ?? false,
       }])
     );
@@ -105,6 +108,8 @@ export async function GET() {
 
     return Response.json({
       plans: details,
+      /** Enrolled students today; a per-student quote bills the larger of this and the expected enrollment. */
+      activeStudents: billing.usage.activeStudents,
       currentPlan: billing.school.plan,
       country: billing.country,
       salesAssisted: !testCheckout && !automatedCheckoutAvailable(billing.country),
@@ -142,7 +147,7 @@ export async function POST(req: NextRequest) {
     const billing = await getBillingSnapshot(user.schoolId);
     const plan = parsed.data.plan;
     const planDetails = billing.plans[plan];
-    const contract = packageContract(plan, planDetails);
+    const contract = packageContract(plan, planDetails, Math.max(parsed.data.expectedEnrollment, billing.usage.activeStudents));
     const activeCampuses = await prisma.campus.count({ where: { schoolId: user.schoolId, archivedAt: null } });
     assertPackageFitsSchool(plan, planDetails, { currentPlan: billing.school.plan, activeCampuses });
     let intent = await createCheckoutIntent(user, parsed.data, contract);
@@ -284,7 +289,8 @@ export async function POST(req: NextRequest) {
         session = await stripe!.checkout.sessions.create({
         customer: customerId,
         mode: "subscription",
-        line_items: [{ price: stripePriceId, quantity: 1 }],
+        // A per-student price is a per-unit Stripe price; the quantity is the quoted billed students.
+        line_items: [{ price: stripePriceId, quantity: billedUnits(selectedContract, selectedContract.billedStudents ?? 0) }],
         client_reference_id: school.id,
         success_url: `${statusUrl}&return=success`,
         cancel_url: `${statusUrl}&return=cancelled`,
@@ -345,7 +351,7 @@ export async function POST(req: NextRequest) {
 
       // SafePay receives the same paisa amount as before; the adapter divides minor units by 100.
       const result = await resolvePaymentProvider("PKR")!.createCheckout({
-          amountMinor: Math.round((periodPrice(selectedContract.price, parsed.data.billingPeriod as BillingPeriod) ?? 0) * 100 * 100),
+          amountMinor: Math.round((checkoutAmount(selectedContract, parsed.data.billingPeriod as BillingPeriod) ?? 0) * 100 * 100),
           currency: "PKR",
           orderRef,
           description: `Subscription for ${selectedContract.name} (${parsed.data.billingPeriod})`,

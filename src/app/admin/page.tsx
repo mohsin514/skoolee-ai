@@ -2194,7 +2194,8 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
         { id: "profile", label: "School profile" },
         { id: "locale", label: "Language & region" },
         { id: "identity", label: "Sign-in" },
-        { id: "integrations", label: "Integrations" },
+        // API keys and webhooks come with the plan's API access (Network).
+        { id: "integrations", label: "Integrations", hidden: !has("planApiAccess") },
         { id: "whatsapp", label: "WhatsApp" },
         { id: "data", label: "Data & privacy" },
         { id: "activity", label: "Activity log" },
@@ -2233,7 +2234,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
         { id: "academic-rules", label: "Curriculum & grading", hidden: !has("academicLead") },
         { id: "policies", label: "Policies" },
         { id: "packages", label: "Packages" },
-        { id: "group-standards", label: "Group policy", hidden: !has("groupCampus") },
+        { id: "group-standards", label: "Group policy", hidden: !has("groupCampus") || !has("planGroupConsole") },
       ];
       const active = pickTab(items, tab);
       // §4.4b: each tab saves its own form; the Policies tab's first job is writing one, so "New policy" leads there.

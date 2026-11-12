@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, canManageOperations } from "@/lib/api/scope";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 import { createWorkspaceRecord } from "@/lib/school-ai/repository";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
@@ -112,6 +113,8 @@ export type Candidate = { id: string; name: string; eligible: boolean; reasons: 
 /** Lessons on `date` whose teacher is on approved leave and has no assigned cover, with candidates. */
 export async function coverBoard(user: AuthUser, campusId: string, dateText: string | null) {
   assertWorkloadAccess(user);
+  // Arranging cover runs on the timetable (Plus); proposeCover reads this board first, so it is gated too.
+  await assertPlanFeature(user, "timetableEnabled");
   const date = parseDay(dateText, "Date");
   const day = timetableDay(date);
   const weekStart = new Date(date.getTime() - ((date.getUTCDay() + 6) % 7) * 86_400_000);

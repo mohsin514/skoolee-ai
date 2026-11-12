@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { PLANS, PLAN_ORDER, getPlanLimits, normalizePlan, type PlanFeature } from "@/config/plans";
-import { COMMERCIAL_CONTRACT, createPlanContract, getSchoolPlanContract, type PlanContract } from "@/config/commercial-contract";
+import { COMMERCIAL_CONTRACT, PLAN_FEATURE_FLAGS, createPlanContract, getSchoolPlanContract, type PlanContract } from "@/config/commercial-contract";
 import type { PlanDetails } from "@/types";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { PlanType } from "@/types";
@@ -10,6 +10,7 @@ import { LANGUAGE_COOKIE, parseLanguage } from "@/lib/locale/language-cookie";
 import { getLocalePackage } from "@/lib/locale/store";
 import { arabicP1Ui, urduP1Ui } from "@/lib/locale/role-ux/p1-messages";
 import { SUBSCRIPTION_PAUSED_MESSAGE } from "@/lib/billing/hub";
+import { monthlyAiCreditAllowance, planPriceLabel } from "@/lib/billing/plan-pricing";
 
 type DbClient = typeof prisma | TxClient;
 export type LimitMetric = "students" | "teachers" | "campuses";
@@ -118,6 +119,39 @@ async function currentUsage(client: DbClient, schoolId: string, metric: LimitMet
   return client.campus.count({ where: { schoolId, archivedAt: null } });
 }
 
+/**
+ * Students a per-student plan bills for and scales AI credits by: enrolled ("active"), not archived, not merged
+ * into another record, on a campus that is not archived. Plan caps keep counting every student row.
+ */
+export function activeStudentWhere(schoolId: string | { in: string[] }) {
+  return {
+    schoolId,
+    archivedAt: null,
+    consolidatedIntoId: null,
+    status: { equals: "active", mode: "insensitive" as const },
+    campus: { archivedAt: null },
+  } satisfies Prisma.StudentWhereInput;
+}
+
+export function countActiveStudents(schoolId: string, client: DbClient = prisma) {
+  return client.student.count({ where: activeStudentWhere(schoolId) });
+}
+
+/**
+ * The monthly AI credit allowance to store on the school for terms that scale credits by student: the larger of
+ * the fixed credits and per-student credits × active students (or the students a quote was paid for, if more).
+ * Terms without per-student credits keep their fixed credits, as before.
+ */
+export async function aiCreditAllowanceFor(
+  schoolId: string,
+  terms: { aiCredits: number; aiCreditsPerStudent?: number; billedStudents?: number | null },
+  client: DbClient = prisma,
+) {
+  if (!((terms.aiCreditsPerStudent ?? 0) > 0)) return terms.aiCredits;
+  const active = await countActiveStudents(schoolId, client);
+  return monthlyAiCreditAllowance(terms, Math.max(active, terms.billedStudents ?? 0));
+}
+
 export function isSchoolOperational(status: string | null | undefined) {
   return ACTIVE_SCHOOL_STATUSES.has(String(status || "").toUpperCase());
 }
@@ -219,6 +253,22 @@ export async function assertFeatureEnabled(schoolId: string, feature: PlanFeatur
   return { plan, feature };
 }
 
+/**
+ * The plan gate at a feature's server entry point: 403 PLAN_FEATURE with the neutral copy above (G51, no
+ * "Upgrade" link). The platform operator holds no school plan and is never gated.
+ */
+export async function assertPlanFeature(user: { role: string; schoolId: string }, feature: PlanFeature, client: DbClient = prisma) {
+  if (user.role === "APP_OWNER") return;
+  await assertFeatureEnabled(user.schoolId, feature, client);
+}
+
+/** The plan features a school's saved terms enable (for navigation; servers gate with assertPlanFeature). */
+export async function schoolPlanFeatures(schoolId: string, client: DbClient = prisma): Promise<Record<PlanFeature, boolean>> {
+  const school = await client.school.findUnique({ where: { id: schoolId }, select: { plan: true, commercialContract: true } });
+  const terms = getSchoolPlanContract(normalizePlan(school?.plan), school?.commercialContract);
+  return Object.fromEntries(PLAN_FEATURE_FLAGS.map((flag) => [flag, terms[flag] === true])) as Record<PlanFeature, boolean>;
+}
+
 export async function getBillingSnapshot(schoolId: string, client: DbClient = prisma) {
   const school = await client.school.findUnique({
     where: { id: schoolId },
@@ -246,8 +296,9 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
 
   const plan = normalizePlan(school.plan);
   const limits = getSchoolPlanContract(plan, school.commercialContract);
-  const [students, teachers, campuses, platformConfig, localePolicy] = await Promise.all([
+  const [students, activeStudents, teachers, campuses, platformConfig, localePolicy] = await Promise.all([
     currentUsage(client, schoolId, "students"),
+    countActiveStudents(schoolId, client),
     currentUsage(client, schoolId, "teachers"),
     currentUsage(client, schoolId, "campuses"),
     client.platformConfig.findUnique({ where: { key: "default_plan_pricing" } }),
@@ -284,7 +335,7 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
       merged[key] = {
         ...base,
         price,
-        priceLabel: key === plan ? base.priceLabel : custom?.priceLabel ?? (price != null ? `${COMMERCIAL_CONTRACT.currency} ${price}/mo` : base.priceLabel),
+        priceLabel: key === plan ? base.priceLabel : custom?.priceLabel ?? (price != null ? planPriceLabel({ price, pricing: base.pricing }, COMMERCIAL_CONTRACT.currency) : base.priceLabel),
       };
     }
     return merged as typeof PLANS;
@@ -311,6 +362,8 @@ export async function getBillingSnapshot(schoolId: string, client: DbClient = pr
     priceCurrency: limits.priceCurrency,
     usage: {
       students,
+      /** The count a per-student plan bills (before its minimum) and scales AI credits by. */
+      activeStudents,
       teachers,
       campuses,
       aiCredits: school.aiCreditsUsed,
@@ -342,6 +395,7 @@ export function planFromStripePriceId(priceId: string | null | undefined): PlanT
 
 export async function applySchoolPlan(schoolId: string, plan: PlanType, status: string, stripeSubscriptionId?: string | null, contract?: PlanContract | null) {
   const limits = getPlanLimits(plan);
+  const aiCreditsLimit = await aiCreditAllowanceFor(schoolId, contract ?? limits);
 
   return prisma.school.update({
     where: { id: schoolId },
@@ -350,7 +404,7 @@ export async function applySchoolPlan(schoolId: string, plan: PlanType, status: 
       status,
       subscriptionLifecycleState: status === "TRIAL" ? "TRIAL" : status === "ACTIVE" ? "ACTIVE" : status === "SUSPENDED" ? "PAST_DUE" : status,
       ...(status === "ACTIVE" || status === "TRIAL" ? { graceEndsAt: null } : {}),
-      aiCreditsLimit: contract?.aiCredits ?? limits.aiCredits,
+      aiCreditsLimit,
       commercialContract: contract ?? createPlanContract(plan),
       ...(stripeSubscriptionId !== undefined ? { stripeSubscriptionId } : {}),
     },
@@ -375,9 +429,10 @@ export async function activatePlan(schoolId: string, plan: PlanType, client: DbC
   const now = new Date();
   const base = school.planEndsAt && school.planEndsAt > now ? school.planEndsAt : now;
   const planEndsAt = new Date(base.getTime() + periodDays * 86_400_000);
-  const limits = getPlanLimits(plan);
   const pricing = school.planPricing && typeof school.planPricing === "object" ? school.planPricing as Record<string, { price?: number | null }> : null;
   const negotiatedPrice = pricing?.[plan]?.price;
+  const terms = contract ?? createPlanContract(plan, { price: negotiatedPrice });
+  const aiCreditsLimit = await aiCreditAllowanceFor(schoolId, terms, client);
 
   return client.school.update({
     where: { id: schoolId },
@@ -390,8 +445,8 @@ export async function activatePlan(schoolId: string, plan: PlanType, client: DbC
       planStartedAt: school.planStartedAt ?? now,
       planEndsAt,
       lastPaymentAt: now,
-      aiCreditsLimit: contract?.aiCredits ?? limits.aiCredits,
-      commercialContract: contract ?? createPlanContract(plan, { price: negotiatedPrice }),
+      aiCreditsLimit,
+      commercialContract: terms,
     },
   });
 }

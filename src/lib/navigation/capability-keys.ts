@@ -8,5 +8,7 @@ export const CAPABILITY_KEYS = [
   "careMember", "serviceAgent", "tripToday", "activityStaff", "improvementLead",
   "accessPlans", "pkgCanteen", "pickupGuardian", "multiChild", "recordSearch",
   "schoolAi", "schoolAiExams", "corrections",
+  // The school's plan (src/config/plans.ts) — presentation only; each feature's server entry point enforces it.
+  "planTimetable", "planExamPlanning", "planGroupConsole", "planApiAccess", "planMarkScan", "planAiRemarks", "planExamStudio",
 ] as const;
 export type CapabilityKey = (typeof CAPABILITY_KEYS)[number];

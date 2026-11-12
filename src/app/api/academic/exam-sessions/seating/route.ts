@@ -13,6 +13,7 @@ import { autoSeatSession, campusSeatingCapacity } from "@/lib/academic/exam-sess
 import { findAvailableRooms } from "@/lib/academic/exam-rooms";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 
 // GET  /api/academic/exam-sessions/seating?campusId=[&date=&periodDefinitionId=]
 //      → campus seat supply, and (with a slot) which rooms are free in it
@@ -52,6 +53,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Exam sessions, date sheets, seating and invigilation are exam planning (Plus).
+    await assertPlanFeature(user, "examPlanningEnabled");
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "exams", "edit");
 

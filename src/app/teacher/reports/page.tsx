@@ -1,4 +1,5 @@
 "use client";
+import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -43,6 +44,8 @@ function statusLabel(status: string) {
 
 export default function ReportsPage() {
   const ui = useUiText();
+  // AI-drafted remarks are a Flagship feature; teachers can always write remarks by hand.
+  const aiRemarks = useConsoleAccess().has("planAiRemarks");
   const { data, loading, error, loadData } = useTeacherData();
   const academicYear = useAcademicYear();
   const router = useRouter();
@@ -279,7 +282,7 @@ export default function ReportsPage() {
       icon={FileText}
       title="Report cards"
       description="Draft and save remarks for your locked tests. Your academic lead approves report cards before families see them."
-      secondaryActions={[{
+      secondaryActions={aiRemarks ? [{
         id: "draft-with-ai",
         label: "Draft with AI",
         icon: BrainCircuit,
@@ -287,7 +290,7 @@ export default function ReportsPage() {
         loading: remarkBusy,
         disabled: !selectedReportExamId,
         disabledReason: "Pick a locked test first.",
-      }]}
+      }] : []}
     >
       <div className="space-y-3">
         {deepLinkFailed ? (
@@ -474,7 +477,7 @@ export default function ReportsPage() {
           onClose={() => setSelectedReportCard(null)}
           onSend={() => sendReportCard(selectedReportCard.id)}
           onSaveRemarks={saveRemarks}
-          onGenerateRemarks={(studentId, examId) => handleGenerateStudentRemarks(studentId, examId)}
+          onGenerateRemarks={aiRemarks ? (studentId, examId) => handleGenerateStudentRemarks(studentId, examId) : undefined}
         />
       ) : null}
     </TeacherPage>

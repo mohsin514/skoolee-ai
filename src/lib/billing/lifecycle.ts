@@ -1,4 +1,5 @@
-import { ANNUAL_DISCOUNT, getPlanLimits, normalizePlan, type BillingPeriod } from "@/config/plans";
+import { getPlanLimits, normalizePlan, type BillingPeriod } from "@/config/plans";
+import { billedStudentCount, isPerStudent, periodUnitPrice, planPeriodAmount } from "@/lib/billing/plan-pricing";
 import type { PlanType } from "@/types";
 import { getBillingSnapshot } from "@/lib/billing/entitlements";
 import { prisma } from "@/lib/db/prisma";
@@ -35,17 +36,25 @@ export async function previewPlanChange(schoolId: string, targetPlan: PlanType, 
   const downgrade = targetPlan !== snapshot.school.plan &&
     ["FREE", "BASIC", "PRO", "ENTERPRISE"].indexOf(targetPlan) < ["FREE", "BASIC", "PRO", "ENTERPRISE"].indexOf(snapshot.school.plan);
 
-  const monthlyAmount = snapshot.plans[targetPlan].price;
-  const amount = monthlyAmount == null ? null : billingPeriod === "annual"
-    ? Math.round(monthlyAmount * (1 - ANNUAL_DISCOUNT) * 12)
-    : monthlyAmount;
+  // Per-student plans charge the school's active students, raised to the plan's billing minimum.
+  const proposed = snapshot.plans[targetPlan];
+  const students = snapshot.usage.activeStudents;
+  const amount = planPeriodAmount(proposed, students, billingPeriod);
+  const billedStudents = isPerStudent(proposed) && proposed.price ? billedStudentCount(proposed, students) : null;
+  const unit = periodUnitPrice(proposed.price, billingPeriod);
+  const basis = billedStudents != null && unit != null
+    ? ` (${billedStudents.toLocaleString("en-US")} students × ${snapshot.priceCurrency || "configured currency"} ${unit.toLocaleString("en-US")} a ${billingPeriod === "annual" ? "year" : "month"}${billedStudents > students ? `, the plan's ${proposed.minBilledStudents.toLocaleString("en-US")}-student minimum` : ""})`
+    : "";
 
   return {
     currentPlan: snapshot.school.plan,
     proposedPlan: targetPlan,
     billingPeriod,
-    currentMonthlyAmount: snapshot.limits.price,
+    currentMonthlyAmount: planPeriodAmount(snapshot.limits, students, "monthly"),
     proposedAmount: amount,
+    /** Students the proposed plan bills (null for a free, flat or quoted plan). */
+    billedStudents,
+    activeStudents: students,
     priceCurrency: snapshot.priceCurrency,
     currentUsage: snapshot.usage,
     proposedCapacity: {
@@ -59,7 +68,7 @@ export async function previewPlanChange(schoolId: string, targetPlan: PlanType, 
       ? "No records are deleted. New campuses, users or enrollments above the proposed limit may be blocked until usage is within capacity or the plan is changed."
       : "Existing institution records remain available under the proposed plan.",
     effectiveAt: downgrade ? (snapshot.school.planEndsAt || new Date()) : new Date(),
-    chargePreview: `${billingPeriod === "annual" ? "Catalogue annual amount" : "Catalogue monthly amount"}: ${snapshot.priceCurrency || "configured currency"} ${amount ?? "custom quote"}. Any proration or renewal charge is confirmed by the payment provider or billing review before payment.`,
+    chargePreview: `${billingPeriod === "annual" ? "Catalogue annual amount" : "Catalogue monthly amount"}: ${snapshot.priceCurrency || "configured currency"} ${amount ?? "custom quote"}${basis}. Any proration or renewal charge is confirmed by the payment provider or billing review before payment.`,
   };
 }
 

@@ -1,4 +1,5 @@
 "use client";
+import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
@@ -49,6 +50,8 @@ function markCellValue(mark: { marksObtained: number; isAbsent?: boolean; isExem
 
 export default function MarksPage() {
   const ui = useUiText();
+  // Mark-sheet photo scan is a Flagship feature.
+  const markScan = useConsoleAccess().has("planMarkScan");
   const { data, loading, error, loadData } = useTeacherData();
   const searchParams = useSearchParams();
   const [selectedExamId, setSelectedExamId] = useState("");
@@ -736,7 +739,7 @@ export default function MarksPage() {
         onConfirm={confirmClearColumn}
       />
       {/* SKO-412: paper marks sheets — capture, review every mark, approve, import. */}
-      {selectedExamId && markSheet?.subjects?.length ? <div className="mt-4"><MarkScanPanel key={selectedExamId} examId={selectedExamId} subjects={markSheet.subjects.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name }))} onImported={() => void loadMarks(selectedExamId)} /></div> : null}
+      {selectedExamId && markSheet?.subjects?.length && markScan ? <div className="mt-4"><MarkScanPanel key={selectedExamId} examId={selectedExamId} subjects={markSheet.subjects.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name }))} onImported={() => void loadMarks(selectedExamId)} /></div> : null}
     </TeacherPage>
   );
 }

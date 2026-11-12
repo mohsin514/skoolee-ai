@@ -328,16 +328,26 @@ export interface DashboardStats {
 
 // ─── Stripe / Billing ──────────────────────────────────
 
+/** How a plan's `price` is charged: per billable student per month, or one flat monthly price for the school. */
+export type PlanPricing = "per_student" | "per_school";
+
 export interface PlanDetails {
   type: PlanType;
   name: string;
+  pricing: PlanPricing;
+  /** PKR a month: per billable student for "per_student", for the whole school for "per_school"; null = quoted. */
   price: number | null;
   priceLabel: string;
+  /** A per-student plan bills at least this many students a month (0 = no minimum). */
+  minBilledStudents: number;
   stripePriceEnv?: string;
   stripeAnnualPriceEnv?: string;
   isCustom?: boolean;
   features: string[];
+  /** Fixed monthly AI credit floor for the school. */
   aiCredits: number;
+  /** Monthly AI credits per active student; the allowance is the larger of this total and `aiCredits`. */
+  aiCreditsPerStudent: number;
   maxStudents: number;
   maxTeachers: number;
   maxCampuses: number;
@@ -345,4 +355,16 @@ export interface PlanDetails {
   pdfExportEnabled: boolean;
   pdfBulkExport: boolean;
   analyticsEnabled: boolean;
+  /** Timetable editing, clash fixes and cover. */
+  timetableEnabled: boolean;
+  /** Exam sessions, date sheets, seating and invigilation. */
+  examPlanningEnabled: boolean;
+  aiWorkflowsEnabled: boolean;
+  /** Exam Studio paper authoring and online exam delivery. */
+  examStudioEnabled: boolean;
+  markSheetScanEnabled: boolean;
+  /** AI-drafted report-card remarks. */
+  aiRemarksEnabled: boolean;
+  groupConsoleEnabled: boolean;
+  apiAccessEnabled: boolean;
 }

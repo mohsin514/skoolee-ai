@@ -4,6 +4,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { getTenantContext, resolveTenantFromRequest, runWithTenantContext } from "@/lib/db/tenant-context";
 import { getPlanLimits, normalizePlan } from "@/config/plans";
 import { getSchoolPlanContract } from "@/config/commercial-contract";
+import { aiCreditLimit } from "@/lib/billing/plan-pricing";
 import { isSchoolOperational, SUBSCRIPTION_PAUSED_MESSAGE } from "@/lib/billing/entitlements";
 import type { AIRemarkRequest, AIRemarkResponse } from "@/types";
 import { AI_PROMPT_VERSION, buildRemarkPrompt } from "./prompts";
@@ -505,7 +506,7 @@ export async function getAICreditSnapshot(schoolId: string) {
   }
 
   const used = school?.aiCreditsUsed || 0;
-  const limit = school ? getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).aiCredits : getPlanLimits("FREE").aiCredits;
+  const limit = school ? schoolAiCreditLimit(school) : getPlanLimits("FREE").aiCredits;
 
   return {
     used,
@@ -528,7 +529,12 @@ export async function lockAndReconcileAICredits(schoolId: string, tx: TxClient, 
     await tx.schoolAiRequest.updateMany({ where: expiredWhere, data: { status: "UNKNOWN", reservedCredits: 0, claimToken: null, leaseExpiresAt: null, reply: JSON.stringify(unknownPaperGeneration), completedAt: now } });
     await tx.school.update({ where: { id: schoolId }, data: { aiCreditsReserved: { decrement: released } } });
   }
-  return tx.school.findUnique({ where: { id: schoolId }, select: { aiCreditsUsed: true, aiCreditsReserved: true, plan: true, status: true, commercialContract: true, subscriptionLifecycleState: true, graceEndsAt: true } });
+  return tx.school.findUnique({ where: { id: schoolId }, select: { aiCreditsUsed: true, aiCreditsReserved: true, aiCreditsLimit: true, plan: true, status: true, commercialContract: true, subscriptionLifecycleState: true, graceEndsAt: true } });
+}
+
+/** The allowance a charge is checked against: the saved terms' credits, or a per-student plan's monthly allowance. */
+function schoolAiCreditLimit(school: { plan: string; commercialContract: Prisma.JsonValue; aiCreditsLimit: number }) {
+  return aiCreditLimit(getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract), school.aiCreditsLimit);
 }
 
 /** The caller saves the request's matching reservedCredits in this same transaction. */
@@ -536,7 +542,7 @@ export async function reserveAICredits(schoolId: string, credits: number, tx: Tx
   if (!Number.isSafeInteger(credits) || credits < 1) throw Object.assign(new AICreditError("Invalid AI reservation cost."), { status: 400 });
   const school = await lockAndReconcileAICredits(schoolId, tx);
   if (!school || !isSchoolOperational(school.status) || school.subscriptionLifecycleState === "PAST_DUE_GRACE" && Boolean(school.graceEndsAt && school.graceEndsAt <= new Date())) throw subscriptionPausedError();
-  if (school.aiCreditsUsed + school.aiCreditsReserved + credits > getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).aiCredits) throw new AICreditError("AI credit limit reached");
+  if (school.aiCreditsUsed + school.aiCreditsReserved + credits > schoolAiCreditLimit(school)) throw new AICreditError("AI credit limit reached");
   await tx.school.update({ where: { id: schoolId }, data: { aiCreditsReserved: { increment: credits } } });
 }
 
@@ -572,7 +578,7 @@ export async function consumeAICreditAndLog<T = null>(
       throw subscriptionPausedError();
     }
 
-    if (school.aiCreditsUsed + school.aiCreditsReserved + credits > getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).aiCredits) {
+    if (school.aiCreditsUsed + school.aiCreditsReserved + credits > schoolAiCreditLimit(school)) {
       throw new AICreditError("AI credit limit reached");
     }
 

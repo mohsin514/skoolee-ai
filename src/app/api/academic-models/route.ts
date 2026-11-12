@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertModuleRead, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { assertAcademicModelDraftAccess, createAcademicModelDraft } from "@/lib/academic/model-draft-command";
@@ -12,6 +13,8 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     const sharedTemplatesOnly = params.get("templates") === "1";
     if (sharedTemplatesOnly && user.role !== "SUPER_ADMIN") throw new ApiError("Only a school-group administrator can manage shared templates", 403);
+    // Templates shared across campuses are the group console (Network).
+    if (sharedTemplatesOnly) await assertPlanFeature(user, "groupConsoleEnabled");
 
     if (sharedTemplatesOnly) {
       const templates = await prisma.academicModelVersion.findMany({

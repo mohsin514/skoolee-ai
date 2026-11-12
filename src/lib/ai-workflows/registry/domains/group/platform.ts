@@ -343,7 +343,7 @@ const SET_DEFAULT_PRICING = defineCapability<PricingInput>({
     const current = await defaultPlanPricing(ctx.user, REASON);
     return {
       title: t(ctx, { en: "Review monthly package prices", ar: "مراجعة أسعار الباقات الشهرية", ur: "ماہانہ پیکیج قیمتوں کا جائزہ" }),
-      lines: Object.entries(input.prices).map(([plan, price]) => ({ label: PLANS[plan as keyof typeof PLANS].name, value: `PKR ${current[plan]?.price ?? "Custom"} → ${price === null ? "Custom" : `PKR ${price}`} / month` })),
+      lines: Object.entries(input.prices).map(([plan, price]) => ({ label: PLANS[plan as keyof typeof PLANS].name, value: `PKR ${current[plan]?.price ?? "Custom"} → ${price === null ? "Custom" : `PKR ${price}`} ${PLANS[plan as keyof typeof PLANS].pricing === "per_student" ? "per student / month" : "/ month"}` })),
       counts: {}, basis: current,
       confirmLabel: t(ctx, { en: "Save package prices", ar: "حفظ أسعار الباقات", ur: "پیکیج قیمتیں محفوظ کریں" }),
     };

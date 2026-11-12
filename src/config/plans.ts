@@ -2,18 +2,42 @@
 // SkooleeAI - Subscription Plan Configuration
 // ===========================================
 //
-// Tier names and prices mirror the marketing site (skoolee-ai-marketing):
-//   Basic ("FREE" tier id)  -> PKR 0/mo
-//   Pro    ("BASIC" tier id) -> PKR 4,000/mo
-//   Enterprise ("PRO" tier id) -> PKR 7,000/mo
-//   Custom ("ENTERPRISE" tier id) -> quoted, contact sales
+// "Free core, paid flagship" (catalogue 2026-11-12.1). The marketing site
+// (skoolee-ai-marketing) renders its pricing from this file through
+// `npm run catalogue:sync`, so names, prices, minimums, credits and flags here
+// are what the site advertises. Rationale: skoolee-ai-marketing
+// docs/pricing/2026-11-pricing-proposal.md.
 //
-// Tier IDs are stable so existing accounts keep their recorded plan; only the
-// display name and price changed.
+// Model
+//   Core     ("FREE" tier id)       -> PKR 0. Every everyday operation, no student/staff/campus limit.
+//   Plus     ("BASIC" tier id)      -> per student / month. Timetable, date sheets, WhatsApp, branded PDFs.
+//   Flagship ("PRO" tier id)        -> per student / month. Plus + AI Workflows, Exam Studio, scan, AI remarks, analytics.
+//   Network  ("ENTERPRISE" tier id) -> per student / month. Flagship + group console, API, dedicated onboarding.
+//
+// Tier IDs are stable so existing accounts keep their recorded plan; a school's
+// saved terms (src/config/commercial-contract.ts) decide what it pays and gets.
+//
+// Where the app honours this file
+//   - Billing maths (price x max(active students, minBilledStudents), annual
+//     discount, AI credit allowance): src/lib/billing/plan-pricing.ts.
+//   - Feature flags: assertFeatureEnabled (src/lib/billing/entitlements.ts) at
+//     each server entry point, and the navigation filter for missing flags.
 
 import { PlanDetails, PlanType } from "@/types";
 
-export type PlanFeature = "whatsappEnabled" | "pdfExportEnabled" | "pdfBulkExport" | "analyticsEnabled";
+export type PlanFeature =
+  | "whatsappEnabled"
+  | "pdfExportEnabled"
+  | "pdfBulkExport"
+  | "analyticsEnabled"
+  | "timetableEnabled"
+  | "examPlanningEnabled"
+  | "aiWorkflowsEnabled"
+  | "examStudioEnabled"
+  | "markSheetScanEnabled"
+  | "aiRemarksEnabled"
+  | "groupConsoleEnabled"
+  | "apiAccessEnabled";
 
 /** Discount applied when billing annually (matches marketing pricing). */
 export const ANNUAL_DISCOUNT = 0.2;
@@ -34,105 +58,98 @@ export const AI_CREDIT_POLICY = {
 } as const;
 
 /** Version for the commercial contract represented by this catalogue. */
-export const COMMERCIAL_CATALOG_VERSION = "2026-10-08.1";
+export const COMMERCIAL_CATALOG_VERSION = "2026-11-12.1";
 
 export const PLAN_ORDER: PlanType[] = ["FREE", "BASIC", "PRO", "ENTERPRISE"];
 
 export const PLANS: Record<PlanType, PlanDetails> = {
   FREE: {
     type: "FREE",
-    name: "Basic",
+    name: "Core",
+    pricing: "per_student",
     price: 0,
-    priceLabel: "PKR 0/mo",
+    priceLabel: "Free",
+    minBilledStudents: 0,
     features: [
-      "Up to 50 students",
-      "2 teacher accounts",
-      "1 campus",
-      "100 AI credits/month",
-      "Standard report cards",
-      "Email support",
+      "Unlimited students, staff and campuses",
+      "Admissions, records, attendance and marks",
+      "Standard report cards with PDF export",
+      "Fees, receipts and bank-statement import",
+      "Parent and student apps, messages",
+      "Library, transport, hostel, canteen, front desk",
     ],
-    aiCredits: 100,
-    maxStudents: 50,
-    maxTeachers: 2,
-    maxCampuses: 1,
+    aiCredits: 0,
+    aiCreditsPerStudent: 0,
+    maxStudents: -1,
+    maxTeachers: -1,
+    maxCampuses: -1,
     whatsappEnabled: false,
-    pdfExportEnabled: false,
+    pdfExportEnabled: true,
     pdfBulkExport: false,
     analyticsEnabled: false,
+    timetableEnabled: false,
+    examPlanningEnabled: false,
+    aiWorkflowsEnabled: false,
+    examStudioEnabled: false,
+    markSheetScanEnabled: false,
+    aiRemarksEnabled: false,
+    groupConsoleEnabled: false,
+    apiAccessEnabled: false,
   },
   BASIC: {
     type: "BASIC",
-    name: "Pro",
-    price: 4000,
-    priceLabel: "PKR 4,000/mo",
+    name: "Plus",
+    pricing: "per_student",
+    price: 15,
+    priceLabel: "PKR 15 per student/mo",
+    minBilledStudents: 100,
     stripePriceEnv: "STRIPE_BASIC_PRICE_ID",
     stripeAnnualPriceEnv: "STRIPE_BASIC_ANNUAL_PRICE_ID",
     features: [
-      "Up to 500 students",
-      "10 teacher accounts",
-      "1 campus",
-      "1,000 AI credits/month",
-      "Branded report cards",
-      "WhatsApp notifications",
-      "Bulk PDF export",
+      "Everything in Core",
+      "Timetable with clash fixes and cover",
+      "Date sheets, seating and invigilation",
+      "WhatsApp report cards and family messages",
+      "Branded report cards and bulk PDF export",
       "Priority support",
     ],
-    aiCredits: 1000,
-    maxStudents: 500,
-    maxTeachers: 10,
-    maxCampuses: 1,
+    aiCredits: 0,
+    aiCreditsPerStudent: 0,
+    maxStudents: -1,
+    maxTeachers: -1,
+    maxCampuses: -1,
     whatsappEnabled: true,
     pdfExportEnabled: true,
     pdfBulkExport: true,
     analyticsEnabled: false,
+    timetableEnabled: true,
+    examPlanningEnabled: true,
+    aiWorkflowsEnabled: false,
+    examStudioEnabled: false,
+    markSheetScanEnabled: false,
+    aiRemarksEnabled: false,
+    groupConsoleEnabled: false,
+    apiAccessEnabled: false,
   },
   PRO: {
     type: "PRO",
-    name: "Enterprise",
-    price: 7000,
-    priceLabel: "PKR 7,000/mo",
+    name: "Flagship",
+    pricing: "per_student",
+    price: 40,
+    priceLabel: "PKR 40 per student/mo",
+    minBilledStudents: 100,
     stripePriceEnv: "STRIPE_PRO_PRICE_ID",
     stripeAnnualPriceEnv: "STRIPE_PRO_ANNUAL_PRICE_ID",
     features: [
-      "Up to 2,500 students",
-      "50 teacher accounts",
-      "5 campuses",
-      "5,000 AI credits/month",
-      "Custom branded report cards",
-      "WhatsApp + Email notifications",
-      "Bulk PDF export",
-      "Analytics dashboard",
-      "API access",
-      "Dedicated support",
+      "Everything in Plus",
+      "AI Workflows across every desk",
+      "AI Exam Studio with sealed papers",
+      "Mark-sheet photo scan",
+      "AI report-card remarks in English and Urdu",
+      "Analytics and at-risk insights",
     ],
-    aiCredits: 5000,
-    maxStudents: 2500,
-    maxTeachers: 50,
-    maxCampuses: 5,
-    whatsappEnabled: true,
-    pdfExportEnabled: true,
-    pdfBulkExport: true,
-    analyticsEnabled: true,
-  },
-  ENTERPRISE: {
-    type: "ENTERPRISE",
-    name: "Custom",
-    price: null,
-    priceLabel: "Custom",
-    isCustom: true,
-    features: [
-      "Unlimited students",
-      "Unlimited teacher accounts",
-      "Unlimited campuses",
-      "50,000 AI credits/month",
-      "Advanced WhatsApp workflows",
-      "Bulk PDF export",
-      "Network analytics",
-      "Custom security review",
-      "Dedicated onboarding",
-    ],
-    aiCredits: 50000,
+    aiCredits: 1000,
+    aiCreditsPerStudent: 10,
     maxStudents: -1,
     maxTeachers: -1,
     maxCampuses: -1,
@@ -140,6 +157,47 @@ export const PLANS: Record<PlanType, PlanDetails> = {
     pdfExportEnabled: true,
     pdfBulkExport: true,
     analyticsEnabled: true,
+    timetableEnabled: true,
+    examPlanningEnabled: true,
+    aiWorkflowsEnabled: true,
+    examStudioEnabled: true,
+    markSheetScanEnabled: true,
+    aiRemarksEnabled: true,
+    groupConsoleEnabled: false,
+    apiAccessEnabled: false,
+  },
+  ENTERPRISE: {
+    type: "ENTERPRISE",
+    name: "Network",
+    pricing: "per_student",
+    price: 60,
+    priceLabel: "PKR 60 per student/mo",
+    minBilledStudents: 600,
+    features: [
+      "Everything in Flagship",
+      "Group console across campuses",
+      "Group standards and approvals",
+      "Curriculum packs shared across campuses",
+      "API access",
+      "Dedicated onboarding and custom security review",
+    ],
+    aiCredits: 9000,
+    aiCreditsPerStudent: 15,
+    maxStudents: -1,
+    maxTeachers: -1,
+    maxCampuses: -1,
+    whatsappEnabled: true,
+    pdfExportEnabled: true,
+    pdfBulkExport: true,
+    analyticsEnabled: true,
+    timetableEnabled: true,
+    examPlanningEnabled: true,
+    aiWorkflowsEnabled: true,
+    examStudioEnabled: true,
+    markSheetScanEnabled: true,
+    aiRemarksEnabled: true,
+    groupConsoleEnabled: true,
+    apiAccessEnabled: true,
   },
 };
 
@@ -147,6 +205,12 @@ export const PLANS: Record<PlanType, PlanDetails> = {
 export function annualMonthlyPrice(price: number | null | undefined) {
   if (price == null) return null;
   return Math.round(Math.round(price * (1 - ANNUAL_DISCOUNT) * 12) / 12);
+}
+
+/** Students a per-student plan bills for: the active count, raised to the plan's minimum. */
+export function billableStudents(plan: PlanType | string | null | undefined, activeStudents: number) {
+  const details = getPlanLimits(plan);
+  return details.price ? Math.max(activeStudents, details.minBilledStudents) : 0;
 }
 
 export function normalizePlan(plan: unknown): PlanType {

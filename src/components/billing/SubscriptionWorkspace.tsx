@@ -21,6 +21,7 @@ import { Progress } from "@/components/ui/progress";
 import { SkeletonCards } from "@/components/ui/skeleton";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { ANNUAL_DISCOUNT, annualMonthlyPrice, type BillingPeriod } from "@/config/plans";
+import { billedStudentCount, isPerStudent, planPeriodAmount } from "@/lib/billing/plan-pricing";
 import { COMMERCIAL_CONTRACT } from "@/config/commercial-contract";
 import { countLabel } from "@/lib/locale/count-label";
 import { localeTag } from "@/lib/locale/package";
@@ -44,13 +45,17 @@ import { SALES_EMAIL } from "@/lib/config/contact";
  */
 
 type PlanType = "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
-interface PlanDetails { type: PlanType; name: string; price: number | null; priceLabel: string; features: string[]; aiCredits: number; maxStudents: number; maxTeachers: number; maxCampuses: number; isCustom?: boolean }
+interface PlanDetails {
+  type: PlanType; name: string; price: number | null; priceLabel: string; features: string[]; aiCredits: number; maxStudents: number; maxTeachers: number; maxCampuses: number; isCustom?: boolean;
+  /** "per_student": `price` is per billed student a month, never below `minBilledStudents`; AI credits scale by `aiCreditsPerStudent`. */
+  pricing?: "per_student" | "per_school"; minBilledStudents?: number; aiCreditsPerStudent?: number;
+}
 interface BillingSnapshot {
   canPurchaseSubscription?: boolean;
   school: { plan: PlanType; status: string; aiCreditsUsed: number; aiCreditsLimit: number; stripeCustomerId?: string | null; stripeSubscriptionId?: string | null };
   limits: PlanDetails;
   planEndsAt?: string | null;
-  usage: { students: number; teachers: number; campuses: number; aiCredits: number };
+  usage: { students: number; activeStudents?: number; teachers: number; campuses: number; aiCredits: number };
   plans: Record<PlanType, PlanDetails>;
   isOperational: boolean;
   defaultPlanPricing: Record<string, { price?: number | null }> | null;
@@ -60,7 +65,7 @@ interface BillingSnapshot {
   commercialContractVersion?: string;
 }
 type Preview = {
-  currentPlan: string; proposedPlan: string; billingPeriod: BillingPeriod; proposedAmount: number | null; priceCurrency: string;
+  currentPlan: string; proposedPlan: string; billingPeriod: BillingPeriod; proposedAmount: number | null; priceCurrency: string; billedStudents?: number | null;
   currentUsage: { campuses: number; students: number; teachers: number }; proposedCapacity: { campuses: number; students: number; teachers: number };
   overages: { campuses: number; students: number; teachers: number }; recordsRetained: boolean; operationPolicy: string; effectiveAt: string | null; chargePreview: string;
 };
@@ -303,6 +308,7 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
   const contactSubject = encodeURIComponent(t("Custom plan enquiry"));
   // AI credits read the school's own allowance (the same source as the overview), not the catalogue tier.
   const aiLimit = snapshot.school.aiCreditsLimit ?? snapshot.limits.aiCredits;
+  const activeStudents = snapshot.usage.activeStudents ?? snapshot.usage.students;
   const aiUsed = snapshot.school.aiCreditsUsed ?? snapshot.usage.aiCredits;
   const USAGE_ICONS: Record<string, LucideIcon> = { Students: GraduationCap, Teachers: Users, Campuses: School, "AI credits": Sparkles };
   const usage: Array<[string, number, number]> = [
@@ -353,7 +359,7 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
         ) : null}
         {snapshot.defaultPlanPricing?.[snapshot.school.plan]?.price != null ? (
           <Alert tone="info" live="off" compact icon={RefreshCw} title={t("Platform pricing updated")}>
-            {t("The catalogue price for {0} is now {1} a month. Your approved plan terms do not change until a change you request is approved.", [snapshot.limits.name, money(Number(snapshot.defaultPlanPricing[snapshot.school.plan].price), currency)])}
+            {t(isPerStudent(snapshot.limits) ? "The catalogue price for {0} is now {1} per student a month. Your approved plan terms do not change until a change you request is approved." : "The catalogue price for {0} is now {1} a month. Your approved plan terms do not change until a change you request is approved.", [snapshot.limits.name, money(Number(snapshot.defaultPlanPricing[snapshot.school.plan].price), currency)])}
           </Alert>
         ) : null}
       </section>
@@ -380,6 +386,11 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
             const needsGroup = standaloneOwner && (plan.maxCampuses < 0 || plan.maxCampuses > 1);
             const approved = approvedFor(plan.type);
             const price = plan.price != null ? (period === "annual" ? annualMonthlyPrice(plan.price) : plan.price) : null;
+            // Per-student plans: the rate per student, and this school's bill (active students, raised to the minimum).
+            const perStudent = isPerStudent(plan) && Boolean(plan.price);
+            const billed = perStudent ? billedStudentCount(plan, activeStudents) : 0;
+            const bill = perStudent ? planPeriodAmount(plan, activeStudents, period) : null;
+            const quoted = plan.price == null || plan.type === "ENTERPRISE";
             return (
               <li key={plan.type} className={cn("sk-panel flex flex-col p-5", isCurrent && "border-primary/30 bg-surface-selected")} data-plan={plan.type}>
                 <div className="flex items-start justify-between gap-2">
@@ -387,14 +398,20 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
                   {isCurrent ? <Badge size="sm">{t("Current")}</Badge> : null}
                 </div>
                 <div className="mt-3 min-h-14">
-                  {plan.isCustom ? (
+                  {plan.price == null ? (
                     <><p className="text-2xl font-bold text-ink-strong">{t("Custom")}</p><p className="mt-1 text-xs font-medium text-ink-muted">{t("Quoted for your group")}</p></>
                   ) : plan.price === 0 ? (
                     <><p className="text-2xl font-bold text-ink-strong">{t("Free")}</p><p className="mt-1 text-xs font-medium text-ink-muted">{t("Forever at this tier")}</p></>
                   ) : (
                     <>
-                      <p className="text-2xl font-bold text-ink-strong"><bdi>{price != null ? money(price, currency) : "—"}</bdi> <span className="text-xs font-semibold text-ink-muted">{t("a month")}</span></p>
-                      <p className="mt-1 text-xs font-medium text-ink-muted">{period === "annual" ? t("Billed yearly · save {0}%", [discount]) : t("Billed monthly · {0} a month when yearly", [money(annualMonthlyPrice(plan.price) ?? 0, currency)])}</p>
+                      <p className="text-2xl font-bold text-ink-strong"><bdi>{price != null ? money(price, currency) : "—"}</bdi> <span className="text-xs font-semibold text-ink-muted">{t(perStudent ? "per student a month" : "a month")}</span></p>
+                      <p className="mt-1 text-xs font-medium text-ink-muted">{period === "annual" ? t("Billed yearly · save {0}%", [discount]) : t(perStudent ? "Billed monthly · {0} per student a month when yearly" : "Billed monthly · {0} a month when yearly", [money(annualMonthlyPrice(plan.price) ?? 0, currency)])}</p>
+                      {perStudent && bill != null ? (
+                        <p className="mt-1 text-xs font-semibold text-ink" data-plan-bill>
+                          {t(period === "annual" ? "{0} a year for {1}" : "{0} a month for {1}", [money(bill, currency), countLabel(locale.language, billed, "student")])}
+                          {billed > activeStudents ? <> · {t("billed for at least {0}", [countLabel(locale.language, plan.minBilledStudents ?? 0, "student")])}</> : null}
+                        </p>
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -402,14 +419,14 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
                   <li>{plan.maxStudents < 0 ? t("Unlimited students") : countLabel(locale.language, plan.maxStudents, "student")}</li>
                   <li>{t("{0} teachers", [limitText(plan.maxTeachers)])}</li>
                   <li>{plan.maxCampuses < 0 ? t("Unlimited campuses") : countLabel(locale.language, plan.maxCampuses, "campus")}</li>
-                  <li>{t("{0} AI credits", [limitText(plan.aiCredits)])}</li>
+                  <li>{(plan.aiCreditsPerStudent ?? 0) > 0 ? t("{0} AI credits per student a month", [number.format(plan.aiCreditsPerStudent ?? 0)]) : t("{0} AI credits", [limitText(plan.aiCredits)])}</li>
                 </ul>
                 <div className="mt-auto pt-4">
                   {isCurrent ? (
                     <p className="text-center text-xs font-semibold text-ink-muted">{t("Your current plan")}</p>
                   ) : needsGroup ? (
                     <p className="text-xs leading-relaxed text-ink-muted" data-needs-group>{t("Needs a school group — contact SkooleeAI support")}</p>
-                  ) : plan.isCustom ? (
+                  ) : quoted ? (
                     <a href={`mailto:${SALES_EMAIL}?subject=${contactSubject}`} className={buttonVariants({ variant: "outline", className: "w-full" })}><Mail aria-hidden="true" />{t("Contact us")}</a>
                   ) : approved && !snapshot.school.stripeSubscriptionId ? (
                     <Button className="w-full" type="button" loading={busy === `checkout:${plan.type}`} disabled={Boolean(busy)} onClick={() => void startCheckout(plan.type, period)}>{t("Continue to checkout")}</Button>
@@ -496,7 +513,7 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
           }
         >
           <div className="space-y-4 text-sm" data-plan-preview>
-            <p>{t(preview.billingPeriod === "annual" ? "Proposed annual catalogue amount" : "Proposed monthly catalogue amount")}: <strong><bdi>{preview.proposedAmount == null ? t("Custom quote") : money(preview.proposedAmount, preview.priceCurrency)}</bdi></strong></p>
+            <p>{t(preview.billingPeriod === "annual" ? "Proposed annual catalogue amount" : "Proposed monthly catalogue amount")}: <strong><bdi>{preview.proposedAmount == null ? t("Custom quote") : money(preview.proposedAmount, preview.priceCurrency)}</bdi></strong>{preview.billedStudents ? <> · {t("for {0}", [countLabel(locale.language, preview.billedStudents, "student")])}</> : null}</p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[320px] text-sm" data-capacity-compare>
                 <caption className="sr-only">{t("Usage compared with the proposed plan")}</caption>

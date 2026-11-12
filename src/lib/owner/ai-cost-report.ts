@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { getSchoolPlanContract } from "@/config/commercial-contract";
+import { aiCreditLimit, planPeriodAmount } from "@/lib/billing/plan-pricing";
 import { normalizePlan } from "@/lib/owner/provisioning";
 import { csvCell } from "@/lib/csv";
 import { ApiError } from "@/lib/api/scope";
@@ -55,11 +56,12 @@ export async function buildCostReport(months: number) {
              SUM(CASE WHEN (metadata->>'creditsCharged') ~ '^[0-9]{1,9}$' THEN (metadata->>'creditsCharged')::int ELSE 1 END)::bigint AS credits,
              COUNT(*)::bigint AS calls
       FROM ai_usage_logs WHERE created_at >= ${since} GROUP BY 1, 2, 3`),
-    runUnscoped("ai cost report: school names and plan contracts", () => prisma.school.findMany({ select: { id: true, name: true, plan: true, commercialContract: true } })),
+    runUnscoped("ai cost report: school names and plan contracts", () => prisma.school.findMany({ select: { id: true, name: true, plan: true, commercialContract: true, aiCreditsLimit: true } })),
   ]);
   const plans = new Map(schools.map(s => {
     const contract = getSchoolPlanContract(normalizePlan(s.plan), s.commercialContract);
-    return [s.id, { name: s.name, plan: normalizePlan(s.plan), planPricePkr: contract.price, planCredits: contract.aiCredits }];
+    // A per-student plan's month: its price × the students its terms were quoted for; credits: its monthly allowance.
+    return [s.id, { name: s.name, plan: normalizePlan(s.plan), planPricePkr: planPeriodAmount(contract, contract.billedStudents ?? 0, "monthly"), planCredits: aiCreditLimit(contract, s.aiCreditsLimit) }];
   }));
   const aggregates: UsageAggregate[] = usage.map(r => ({ schoolId: r.school_id, month: r.month, model: r.model, tokens: Number(r.tokens), credits: Number(r.credits), calls: Number(r.calls) }));
   const latest = await runUnscoped("ai cost report: newest usage time across schools", () => prisma.aIUsageLog.findFirst({ where: { createdAt: { gte: since } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }));
