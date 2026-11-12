@@ -272,6 +272,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
       group("assess", "Assessments", ClipboardList, "primary", [
         leaf("tests", "Tests & quizzes", ClipboardList, h("/teacher/tests"), { tier: "D", visible: { module: "exams" } }),
         leaf("marks", "Marks", PenLine, h("/teacher/marks"), { tier: "D", mobile: 3, visible: { module: "exams" } }),
+        leaf("scan", "Scan sheets", ScanLine, h("/scan"), { visible: { module: "exams" } }), // SKAI-1851
         leaf("report-cards", "Report cards", FileText, h("/teacher/reports"), { tier: "T", visible: { module: "reports" } }),
       ]),
       // Homework (`/api/assignments`) sets work for the teacher's own classes: the timetable module, as moduleForHref.

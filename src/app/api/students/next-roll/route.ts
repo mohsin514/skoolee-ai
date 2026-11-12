@@ -34,15 +34,15 @@ export async function GET(req: NextRequest) {
     const secChar = (cls.section || "A").charAt(0).toUpperCase();
     const prefix = `${abbrev}-${secChar}-`;
 
-    const campusClasses = await prisma.class.findMany({
-      where: { campusId },
-      select: { id: true },
-    });
-    const campusClassIds = campusClasses.map((c) => c.id);
-
+    // One query on the (campus_id, roll_no) index instead of first listing every
+    // class the campus has ever had. The class join keeps the same rows: pupils
+    // placed in a class on this campus. No `take` with a lexical sort: suffixes
+    // pass 999, so the max stays numeric below.
     const existing = await prisma.student.findMany({
       where: {
-        classId: { in: campusClassIds },
+        schoolId: user.schoolId,
+        campusId,
+        class: { campusId },
         rollNo: { startsWith: prefix },
       },
       select: { rollNo: true },
