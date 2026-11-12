@@ -28,12 +28,22 @@ const text = (value: unknown, max: number) => { const s = String(value ?? "").tr
 async function timezoneFor(schoolId: string, campusId: string | null) { return (await getLocalePackage(schoolId, campusId)).timezone; }
 
 type Busy = { lessons: { weekday: number; start: number; end: number }[]; leave: { from: string; to: string }[] };
-async function teacherBusy(db: TxClient, schoolId: string, teacherId: string): Promise<Busy> {
+// SKAI-1872: one query pair for many teachers; `leaveFrom` (YYYY-MM-DD) skips leave that ended before the
+// earliest date being checked, which can never match a conflict on or after that date.
+async function teacherBusyMap(db: TxClient, schoolId: string, teacherIds: string[], leaveFrom?: string): Promise<Map<string, Busy>> {
+  const ids = [...new Set(teacherIds)];
+  const out = new Map<string, Busy>(ids.map(id => [id, { lessons: [], leave: [] }]));
+  if (!ids.length) return out;
   const [lessons, leave] = await Promise.all([
-    db.timetableSlot.findMany({ where: { schoolId, teacherId, slotType: "CLASS", timetable: { status: "PUBLISHED" } }, select: { dayOfWeek: true, startTime: true, endTime: true } }),
-    db.leaveRequest.findMany({ where: { schoolId, userId: teacherId, status: "APPROVED" }, select: { fromDate: true, toDate: true } }),
+    db.timetableSlot.findMany({ where: { schoolId, teacherId: { in: ids }, slotType: "CLASS", timetable: { status: "PUBLISHED" } }, select: { teacherId: true, dayOfWeek: true, startTime: true, endTime: true } }),
+    db.leaveRequest.findMany({ where: { schoolId, userId: { in: ids }, status: "APPROVED", ...(leaveFrom ? { toDate: { gte: new Date(`${leaveFrom}T00:00:00.000Z`) } } : {}) }, select: { userId: true, fromDate: true, toDate: true } }),
   ]);
-  return { lessons: lessons.filter(l => TIME.test(l.startTime) && TIME.test(l.endTime)).map(l => ({ weekday: l.dayOfWeek, start: minutes(l.startTime), end: minutes(l.endTime) })), leave: leave.map(l => ({ from: l.fromDate.toISOString().slice(0, 10), to: l.toDate.toISOString().slice(0, 10) })) };
+  for (const l of lessons) if (l.teacherId && TIME.test(l.startTime) && TIME.test(l.endTime)) out.get(l.teacherId)?.lessons.push({ weekday: l.dayOfWeek, start: minutes(l.startTime), end: minutes(l.endTime) });
+  for (const l of leave) out.get(l.userId)?.leave.push({ from: l.fromDate.toISOString().slice(0, 10), to: l.toDate.toISOString().slice(0, 10) });
+  return out;
+}
+async function teacherBusy(db: TxClient, schoolId: string, teacherId: string): Promise<Busy> {
+  return (await teacherBusyMap(db, schoolId, [teacherId])).get(teacherId)!;
 }
 /** Why a teacher cannot meet at this school-local time, or null. */
 function conflict(busy: Busy, date: string, start: number, end: number, weekday: number) {
@@ -294,8 +304,7 @@ export async function familyMeetings(user: AuthUser, studentId: string) {
   const teachers = await childTeachers(user.schoolId, student);
   const windows = teachers.length ? await prisma.meetingWindow.findMany({ where: { schoolId: user.schoolId, teacherId: { in: teachers.map(t => t.id) }, status: "OPEN", localDate: { gte: today, lte: last } }, orderBy: [{ localDate: "asc" }, { startTime: "asc" }] }) : [];
   const live = await liveByWindow(prisma, windows.map(w => w.id));
-  const busy = new Map<string, Busy>();
-  for (const t of new Set(windows.map(w => w.teacherId))) busy.set(t, await teacherBusy(prisma, user.schoolId, t));
+  const busy = await teacherBusyMap(prisma, user.schoolId, windows.map(w => w.teacherId), today);
   const names = new Map(teachers.map(t => [t.id, t.name]));
   const history = await familyBookingPage(user, student.id, names);
   return {

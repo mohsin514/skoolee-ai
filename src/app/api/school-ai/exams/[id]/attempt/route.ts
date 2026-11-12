@@ -34,6 +34,8 @@ async function saveAttempt(request: Request, context: Context) {
   try {
     assertSameOrigin(request);
     const user = await requireAuthUser(), id = (await context.params).id, body = await readBoundedJson(request, 2200000);
-    return Response.json({ attempt: await withSebEvidence(request, () => saveSchoolAiAttempt(user, id, body)) }, { headers: { "Cache-Control": "private, no-store" } });
+    // SKAI-1883: `?receipt=slim` (the exam player) skips echoing the paper and answers on in-progress autosaves.
+    const slim = new URL(request.url).searchParams.get("receipt") === "slim";
+    return Response.json({ attempt: await withSebEvidence(request, () => saveSchoolAiAttempt(user, id, body, undefined, { slim })) }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return schoolAiError(error); }
 }

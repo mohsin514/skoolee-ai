@@ -1499,6 +1499,7 @@ model Class {
   classTeacherId String? @map("class_teacher_id")
   classTeacher   User?   @relation("ClassTeacher", fields: [classTeacherId], references: [id])
   academicYear   Int     @map("academic_year")
+  cycle AcademicCycle @relation(fields: [campusId, academicYear], references: [campusId, academicYear], onDelete: NoAction, onUpdate: NoAction)
   status         String  @default("ACTIVE") // ACTIVE, COMPLETED
   // How teaching is organised for this section:
   // SINGLE  = the class teacher takes every subject
@@ -1528,6 +1529,7 @@ model Class {
   @@index([classTeacherId])
   @@unique([schoolId, id])
   @@index([schoolId, campusId])
+  @@index([campusId, academicYear])
   @@map("classes")
 }
 
@@ -5666,6 +5668,8 @@ enum InvoiceStatus {
 
 // ─── ACADEMIC CYCLE ──────────────────────────────────────
 model AcademicCycle {
+  classes Class[]
+  enrollments StudentEnrollment[]
   id           String    @id @default(uuid())
   schoolId     String    @default("") @map("school_id")
   school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -6792,6 +6796,7 @@ model StudentEnrollment {
   className String @map("class_name")
   curriculum String
   academicYear Int @map("academic_year")
+  cycle AcademicCycle @relation(fields: [campusId, academicYear], references: [campusId, academicYear], onDelete: NoAction, onUpdate: NoAction)
   rollNo String @map("roll_no")
   status String @default("ACTIVE")
   startDate DateTime @db.Date @map("start_date")
@@ -6804,6 +6809,7 @@ model StudentEnrollment {
   @@index([studentId])
   @@index([schoolId, campusId])
   @@index([schoolId, classId])
+  @@index([campusId, academicYear])
   @@map("student_enrollments")
 }
 
