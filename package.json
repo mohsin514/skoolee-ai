@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "size:check": "node scripts/size-check.mjs",
+    "gen:auth-ui-catalog": "tsx scripts/gen-auth-ui-catalog.ts",
     "test:size-check": "node --test tests/size/size-check.test.mjs",
     "typecheck": "tsc --noEmit",
     "test:trust-pack": "node --import tsx --test tests/legal/trust-pack.test.ts",

@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { getEffectiveDisplayLocale } from "@/app/actions/locale";
 import { defaultLocale, formatMoney, formatDateOnly, formatInstant, localeTag, type LocalePackage } from "@/lib/locale/package-core";
-import { loadUiCatalog, translateUi } from "@/lib/locale/ui-translate";
+import { loadUiCatalog, translateUi, type UiCatalogScope } from "@/lib/locale/ui-translate";
 import { UiCatalogGate } from "./UiCatalogGate";
 const LocaleContext = createContext<LocalePackage | null>(null);
 /** `initialLocale` is server-resolved by the shell layout so first paint is already in the right language/direction. */
@@ -11,8 +11,8 @@ export function LocaleProvider({ children, initialLocale }: { children: ReactNod
  return inherited ? <>{children}</> : <LocaleRoot initialLocale={initialLocale}>{children}</LocaleRoot>;
 }
 /** A fixed locale with no fetch and no `<html>` effect (pre-login pages own those). Nested `LocaleProvider`s become passthroughs. */
-export function StaticLocaleProvider({ value, children }: { value: LocalePackage; children: ReactNode }) {
- return <LocaleContext.Provider value={value}><UiCatalogGate language={value.language}>{children}</UiCatalogGate></LocaleContext.Provider>;
+export function StaticLocaleProvider({ value, catalogScope, children }: { value: LocalePackage; catalogScope?: UiCatalogScope; children: ReactNode }) {
+ return <LocaleContext.Provider value={value}><UiCatalogGate language={value.language} scope={catalogScope}>{children}</UiCatalogGate></LocaleContext.Provider>;
 }
 function LocaleRoot({ children, initialLocale }: { children: ReactNode; initialLocale?: LocalePackage }) {
  const [locale, setLocale] = useState(initialLocale ?? defaultLocale);
