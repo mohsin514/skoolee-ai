@@ -149,13 +149,19 @@ export async function setClassCapacity(user: AuthUser, campusId: string, classId
   await assertRegistrar(user);
   // SKAI-202: rollover edits capacity under the same rule as class setup (1–200 or blank, never below enrolled).
   const capacity = parseClassCapacity(rawCapacity);
+  // SKAI-1448: lock the class row and run serializable so an enrollment committed between the count
+  // and the update cannot leave enrolled > capacity; a lost race surfaces as a 409, not a bad write.
   return prisma.$transaction(async tx => {
     const cls = await tx.class.findFirst({ where: { id: classId, campusId, schoolId: user.schoolId } });
     if (!cls) throw new ApiError("Class not found", 404);
+    await tx.$queryRaw`SELECT id FROM classes WHERE id = ${classId} AND school_id = ${user.schoolId} FOR UPDATE`;
     assertCapacityFitsEnrolled(capacity, await tx.student.count({ where: { schoolId: user.schoolId, classId, archivedAt: null, status: "active" } }));
     await tx.class.update({ where: { id: classId }, data: { capacity } });
     await tx.auditLog.create({ data: { tableName: "classes", recordId: classId, userId: user.userId, oldValue: { capacity: cls.capacity }, newValue: { capacity } } });
     return { capacity };
+  }, { isolationLevel: "Serializable" }).catch((err: unknown) => {
+    if ((err as { code?: string })?.code === "P2034") throw new ApiError("Enrollment changed while saving capacity. Reload and try again.", 409);
+    throw err;
   });
 }
 
