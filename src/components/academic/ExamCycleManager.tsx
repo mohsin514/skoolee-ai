@@ -202,6 +202,8 @@ export function ExamCycleManager({
   // year the server applied (null = every year, e.g. no active cycle).
   const [allYears, setAllYears] = useState(false);
   const [yearScope, setYearScope] = useState<number | null>(null);
+  // Only the newest load may write state, so a slow all-years answer cannot land after the toggle is switched back.
+  const loadSeq = useRef(0);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -257,6 +259,7 @@ export function ExamCycleManager({
   const [loadFailed, setLoadFailed] = useState(false), [scheduleFailed, setScheduleFailed] = useState(false);
   const load = useCallback(
     async (silent = false) => {
+      const seq = ++loadSeq.current;
       if (!silent) { setLoading(true); setLoadFailed(false); }
       else setRefreshing(true);
       try {
@@ -275,6 +278,7 @@ export function ExamCycleManager({
             : fetch(`/api/academic/exam-schedule?${qs}`).then(async (r) => { const j = await r.json().catch(() => ({})); return r.ok && j.success && Array.isArray(j.data) ? j : { failed: true }; }).catch(() => ({ failed: true })),
         ]);
 
+        if (seq !== loadSeq.current) return;
         if (!examsRes.success) throw new Error("load failed");
         const all: ExamItem[] = examsRes.exams;
         setYearScope(typeof examsRes.academicYear === "number" ? examsRes.academicYear : null);
@@ -317,15 +321,15 @@ export function ExamCycleManager({
             return { id: e.id, meta: null };
           }
         });
+        if (seq !== loadSeq.current) return;
         const metaMap: Record<string, ExamMeta> = {};
         metas.forEach((x) => { if (x.meta) metaMap[x.id] = x.meta; });
         setMeta(metaMap);
         setMetaFailed(metas.filter((x) => !x.meta).map((x) => x.id));
       } catch {
-        if (!silent) setLoadFailed(true);
+        if (!silent && seq === loadSeq.current) setLoadFailed(true);
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (seq === loadSeq.current) { setLoading(false); setRefreshing(false); }
       }
     },
     [campusId, isTeacher, allYears],

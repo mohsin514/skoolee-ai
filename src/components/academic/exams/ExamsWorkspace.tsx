@@ -169,6 +169,8 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
   // the server actually applied (null = every year, e.g. no active cycle).
   const [allYears, setAllYears] = useState(false);
   const [legacyYear, setLegacyYear] = useState<number | null>(null);
+  // Only the newest load may write state, so a slow all-years answer cannot land after the switch is flipped back.
+  const loadSeq = useRef(0);
   // R4: the first load failing is an inline ErrorState with retry; a silent refresh failing keeps the last figures.
   const [loadFailed, setLoadFailed] = useState(false);
   const ui = useUiText();
@@ -178,6 +180,7 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
 
   const load = useCallback(
     async (silent = false) => {
+      const seq = ++loadSeq.current;
       if (silent) setRefreshing(true);
       else { setLoading(true); setLoadFailed(false); }
       try {
@@ -188,6 +191,7 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
           fetch(`/api/academic/exam-sessions${qs}`, { cache: "no-store" }).then((r) => r.json()),
           fetch(`/api/exams?${examQs}`, { cache: "no-store" }).then((r) => r.json()),
         ]);
+        if (seq !== loadSeq.current) return;
         if (!sessRes.success && !examRes.success) throw new Error("load failed");
 
         const list: Session[] = sessRes.success ? sessRes.data : [];
@@ -201,10 +205,9 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
         setLegacy(all.filter((e) => !(e as ExamItem & { sessionId?: string }).sessionId));
         if (examRes.success) setLegacyYear(typeof examRes.academicYear === "number" ? examRes.academicYear : null);
       } catch {
-        if (!silent) setLoadFailed(true);
+        if (!silent && seq === loadSeq.current) setLoadFailed(true);
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (seq === loadSeq.current) { setLoading(false); setRefreshing(false); }
       }
     },
     [campusId, allYears],
