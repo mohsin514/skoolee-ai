@@ -2377,6 +2377,8 @@ export function StudentAdmissionsPanel({
       setLinkResults([]);
       return;
     }
+    // A changed query drops the older in-flight search so its answer cannot show during the pause.
+    linkRequest.cancel();
     const timer = setTimeout(() => {
       const request = linkRequest.start();
       fetch(`/api/students?search=${encodeURIComponent(q)}&limit=6`, { signal: request.signal })
