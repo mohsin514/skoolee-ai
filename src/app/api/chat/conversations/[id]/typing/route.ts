@@ -24,7 +24,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const { id } = await ctx.params;
 
     // Client-side throttling is a suggestion, not a guarantee.
-    const limit = rateLimit(`chat:typing:${user.userId}`, { limit: 30, windowMs: 60_000 });
+    const limit = await rateLimit(`chat:typing:${user.userId}`, { limit: 30, windowMs: 60_000 });
     if (!limit.ok) return Response.json({ success: true });
 
     const membership = await prisma.conversationMember.findFirst({

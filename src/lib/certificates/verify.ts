@@ -19,7 +19,7 @@ export function clientAddress(headers: Headers) {
 }
 
 export async function verifyCertificate(token: string, client: string, lookup: (token: string) => Promise<VerifyRow | null>): Promise<VerifyOutcome> {
-  if (!rateLimit(`certificate-verify:${client}`, { limit: VERIFY_LIMIT, windowMs: 60_000 }).ok) return { kind: "limited" };
+  if (!(await rateLimit(`certificate-verify:${client}`, { limit: VERIFY_LIMIT, windowMs: 60_000 })).ok) return { kind: "limited" };
   if (!VERIFY_TOKEN.test(token)) return { kind: "unknown" };
   const issue = await lookup(token);
   // Requested, rejected and pending documents were never handed out, so they read as unknown.
