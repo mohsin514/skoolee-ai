@@ -95,7 +95,8 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 /** The computer side of a phone handoff: shows the QR, then each page the phone sends, live. */
-function PhoneDrop({ label, accept, limit, onClose, onFiles }: { label: string; accept: string; limit: number; onClose(): void; onFiles(files: File[]): void }) {
+/** The "Use my phone" dialog on its own, for compact surfaces (e.g. the chat composer) with their own buttons. */
+export function PhoneDrop({ label, accept, limit, onClose, onFiles }: { label: string; accept: string; limit: number; onClose(): void; onFiles(files: File[]): void }) {
   const ui = useUiText();
   const [session, setSession] = useState<{ id: string; qr: string; expiresAt: string } | null>(null);
   const [items, setItems] = useState<Item[]>([]), [error, setError] = useState(""), [expired, setExpired] = useState(false);
@@ -141,7 +142,7 @@ function PhoneDrop({ label, accept, limit, onClose, onFiles }: { label: string; 
   useEffect(() => { if (limit === 1 && ready.length === 1) onFiles([ready[0].file!]); }, [limit, ready.length]);  
   return (
     <Modal title={ui("Use my phone")} subtitle={label} icon={Smartphone} onClose={onClose}
-      footer={<div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" onClick={onClose}>{ui("Cancel")}</Button><Button type="button" disabled={!ready.length} onClick={() => onFiles(ready.map(item => item.file!))}><CheckCircle2 aria-hidden="true" />{ready.length ? ui("Use {0} files", [ready.length]) : ui("Use files")}</Button></div>}>
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" onClick={onClose}>{ui("Cancel")}</Button><Button type="button" disabled={!ready.length} onClick={() => onFiles(ready.map(item => item.file!))}><CheckCircle2 aria-hidden="true" />{ready.length === 1 ? ui("Use 1 file") : ready.length ? ui("Use {0} files", [ready.length]) : ui("Use files")}</Button></div>}>
       <div className="grid gap-5 sm:grid-cols-[auto_1fr] sm:items-start">
         <div className="mx-auto w-56 space-y-2 text-center">
           {/* The QR is generated on the server from a link that only adds files to this one handoff. */}

@@ -70,6 +70,7 @@ export const dropUiEntries: readonly (readonly [string, string, string])[] = [
   ["Up to 20 pages. Photos of one paper are joined into one PDF.", "حتى 20 صفحة. تُدمج صور الورقة الواحدة في ملف PDF واحد.", "زیادہ سے زیادہ 20 صفحات۔ ایک پرچے کی تصاویر ایک PDF میں یکجا ہوتی ہیں۔"],
   ["What are these {0} pages?", "ما هذه الصفحات الـ {0}؟", "یہ {0} صفحات کیا ہیں؟"],
   ["Marks sheet page {0} added to its scan. Reviewing scanned marks is not part of your school's plan.", "أُضيفت صفحة كشف الدرجات {0} إلى مسحها. مراجعة الدرجات الممسوحة ليست ضمن خطة مدرستك.", "مارکس شیٹ کا صفحہ {0} اس کے اسکین میں شامل ہو گیا۔ اسکین شدہ نمبروں کا جائزہ آپ کے اسکول کے پلان میں شامل نہیں۔"],
+  ["Use 1 file", "استخدام ملف واحد", "1 فائل استعمال کریں"],
 ];
 export const arabicDropUi: Record<string, string> = Object.fromEntries(dropUiEntries.map(([en, ar]) => [en, ar]));
 export const urduDropUi: Record<string, string> = Object.fromEntries(dropUiEntries.map(([en, , ur]) => [en, ur]));
