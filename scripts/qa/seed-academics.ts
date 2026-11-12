@@ -27,10 +27,16 @@ async function main() {
   if (!slug.startsWith("qa-")) throw new Error(`[qa-academics] refusing: "${slug}" is not a synthetic QA school`);
   console.log(`🧪 QA academics seed for ${slug} (${decision.name} @ ${decision.host})`);
 
-  const school = await prisma.school.findUnique({ where: { slug }, include: { campuses: { orderBy: { regId: "asc" } } } });
+  const school = await prisma.school.findUnique({ where: { slug }, include: { campuses: { orderBy: [{ createdAt: "asc" }, { regId: "asc" }] } } });
   if (!school || school.campuses.length === 0) throw new Error(`[qa-academics] ${slug} is missing; run pnpm run qa:seed first`);
   const schoolId = school.id;
-  const campusId = school.campuses[0].id;
+  // Default to the school's original (main) campus: ordering by regId picked QA-created
+  // campuses such as "BR-…" ahead of "QA-A-C1", so the data landed where admins never look.
+  const campusArg = process.argv.find((a) => a.startsWith("--campus="))?.split("=")[1];
+  const campus = campusArg ? school.campuses.find((c) => c.regId === campusArg) : school.campuses[0];
+  if (!campus) throw new Error(`[qa-academics] campus "${campusArg}" not found in ${slug}`);
+  const campusId = campus.id;
+  console.log(`   campus: ${campus.name} (${campus.regId})`);
   const userByKey = async (key: string) =>
     prisma.user.findUnique({ where: { schoolId_email: { schoolId, email: `${key}@${slug}.qa.local` } } });
   const teacher = await userByKey("teacher");
@@ -74,9 +80,14 @@ async function main() {
       // studentUserId is unique, so only link it when no other student row already holds it.
       const linked = ci === 0 && si === 0 && !!studentUser
         && !(await prisma.student.findFirst({ where: { schoolId, studentUserId: studentUser.id } }));
-      const existing = await prisma.student.findFirst({ where: { schoolId, admissionNo: st.admissionNo } });
+      // An earlier run may have used another campus; enrollment placement cannot be moved by a
+      // seed (DB trigger), so this campus gets its own campus-suffixed admission numbers.
+      const prior = await prisma.student.findFirst({ where: { schoolId, admissionNo: st.admissionNo } });
+      const admissionNo = prior && prior.campusId !== campusId ? `${st.admissionNo}-${campus.regId}` : st.admissionNo;
+      const existing = admissionNo === st.admissionNo ? prior
+        : await prisma.student.findFirst({ where: { schoolId, admissionNo } });
       students.push(existing ?? await prisma.student.create({ data: {
-        schoolId, campusId, classId: cls.id, ...st, guardianName: "QA Guardian",
+        schoolId, campusId, classId: cls.id, ...st, admissionNo, guardianName: "QA Guardian",
         parentUserId: si < 2 && ci === 0 ? guardian?.id : undefined,
         studentUserId: linked ? studentUser?.id : undefined,
       } }));

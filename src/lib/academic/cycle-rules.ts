@@ -62,3 +62,10 @@ export function isSameDraft(
     && (saved.effectiveTo?.getTime() ?? null) === (next.effectiveTo?.getTime() ?? null)
     && canonical(saved.configuration) === canonical(next.configuration);
 }
+
+/** Serialization failures and write conflicts from a concurrent activation of the same version. */
+export function isActivationRace(error: unknown): boolean {
+  if ((error as { status?: unknown } | null)?.status === 409) return true;
+  const code = (error as { code?: unknown } | null)?.code;
+  return code === "P2034" || code === "P2025" || code === "P2002" || code === "40001";
+}

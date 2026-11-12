@@ -213,7 +213,7 @@ export function validateAcademicModel(
     const mappedIds = new Set(mapped);
     const missing = [...expectedIds].filter((id) => !mappedIds.has(id));
     const outside = [...mappedIds].filter((id) => !expectedIds.has(id));
-    if (missing.length || outside.length) fail("subject_mapping_incomplete", `Map every selected class subject exactly once; ${missing.length} still need a curriculum match${outside.length === 1 ? "" : "es"}.`, "#academic-model-subject-mapping");
+    if (missing.length || outside.length) fail("subject_mapping_incomplete", subjectMappingMessage(missing.length, outside.length), "#academic-model-subject-mapping");
   }
   return problems;
 }
@@ -284,4 +284,12 @@ export function previewRegrade(marks: RecordedMark[], before: GradingRules | nul
   }
   const topMoves = [...moves.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([change, count]) => ({ change, count }));
   return { evaluated: marks.length, gradeChanges, passFlips, publishedChanges, topMoves };
+}
+
+/** SKAI-208: name both kinds of mapping gap with correct plurals. */
+export function subjectMappingMessage(missing: number, outside: number): string {
+  const parts: string[] = [];
+  if (missing) parts.push(`${missing} class ${missing === 1 ? "subject still needs" : "subjects still need"} a curriculum match`);
+  if (outside) parts.push(`${outside} ${outside === 1 ? "mapping points" : "mappings point"} to a subject the selected classes no longer teach`);
+  return `Map every selected class subject exactly once: ${parts.join("; ")}.`;
 }
