@@ -7,7 +7,6 @@ import { SchoolAIWorkspace } from "@/components/school-ai/school-ai-workspace";
 import { RoleFrame } from "@/components/role-dashboard/RoleFrame";
 import { prisma } from "@/lib/db/prisma";
 import { AskWorkspace } from "@/components/ai-workflows/ask-workspace";
-import { aiWorkflowsV2Enabled } from "@/lib/ai-workflows/flag";
 import { practiceModeApplies } from "@/lib/ai-workflows/practice";
 import { definitionForRole } from "@/lib/ai-workflows/questionnaire/service";
 import { isDemoSchool } from "@/lib/ai-workflows/demo";
@@ -20,6 +19,7 @@ import { capabilityContext, inTenant } from "@/lib/ai-workflows/jobs/actor";
 import { capability, entriesForRole } from "@/lib/ai-workflows/registry";
 import { getDisplayLocale } from "@/lib/locale/display";
 import type { UserRole } from "@/lib/roles";
+import { aiWorkflowsAvailable } from "@/lib/ai-workflows/flag";
 
 const HERO_ID = "ai-ask-hero-title";
 
@@ -55,7 +55,8 @@ export default async function SchoolAiPage({ searchParams }: { searchParams: Pro
   // Campus logo, else school logo: what the console's own sidebar shows (dashboard.ts). Read on the server so
   // the first paint has it (the session's `logoUrl` arrives only after the client's read); a failed read only costs the image.
   const brand = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { slug: true, logoUrl: true, aiWorkflowsLiveAt: true, campuses: { where: { id: user.campusId ?? "" }, select: { logoUrl: true } } } }).catch(() => null);
-  const workflowsV2 = aiWorkflowsV2Enabled(brand?.slug) ? { practiceMode: practiceModeApplies(brand?.slug, process.env, undefined, brand?.aiWorkflowsLiveAt) } : null;
+  // "Ask" (AI Workflows) needs the rollout flag and a plan that includes it; the rest of the workspace stays.
+  const workflowsV2 = (await aiWorkflowsAvailable(user, brand?.slug)).ok ? { practiceMode: practiceModeApplies(brand?.slug, process.env, undefined, brand?.aiWorkflowsLiveAt) } : null;
   // First-login setup: with AI Workflows on, the typed per-role questionnaire replaces the old guided setup.
   const query = await searchParams;
   if (workflowsV2 && query.setup === "1" && definitionForRole(user.role)) redirect("/ai/setup");

@@ -11,7 +11,7 @@ import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { schoolAiTransaction as transaction } from "./transaction";
-import { assertSchoolOperational } from "@/lib/billing/entitlements";
+import { assertPlanFeature, assertSchoolOperational } from "@/lib/billing/entitlements";
 import { allowedSchoolAiOperations, assertApprovalRole, assertSchoolAiAccess, assertWorkspaceDomainPermission, assertWorkspaceSubject, loadWorkspacePermissionSnapshot, SchoolAiError, type WorkspacePermissionSnapshot } from "./access";
 import { curriculumDataSchema, validateCurriculumApproval, type CurriculumData } from "./assessment";
 import { workspaceRequestHash } from "./repository";
@@ -142,6 +142,9 @@ async function authorize(user: AuthUser, operation: SchoolAiOperation = "curricu
   if (!allowed.has(operation)) throw new SchoolAiError(toolRefusal(user.role, operation), 403, "PERMISSION_DENIED");
   if (!hasToolPermission(permissions, operation, allowed)) throw new SchoolAiError("Your current permissions do not allow this operation.", 403, "PERMISSION_DENIED");
   await assertSchoolOperational(user.schoolId, db);
+  // Timetable tools need the timetable (Plus); an exam session plan builds a date sheet, seating and invigilation.
+  const planFeature = operation.startsWith("timetable.") ? "timetableEnabled" : operation === "exams.create_session_plan" ? "examPlanningEnabled" : null;
+  if (planFeature) await assertPlanFeature(user, planFeature, db);
 }
 export async function assertSchoolAiOperationAccess(user: AuthUser, operation: SchoolAiOperation, db: TxClient) {
   await authorize(user, operation, await loadWorkspacePermissionSnapshot(user, db), db);

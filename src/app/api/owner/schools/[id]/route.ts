@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { logSuperAdminAction } from "@/lib/audit";
 import { createPlanContract } from "@/config/commercial-contract";
+import { aiCreditAllowanceFor } from "@/lib/billing/entitlements";
 import { parseDataRegion } from "@/lib/school/data-region";
 import { parseAttendanceRegulator } from "@/lib/attendance/regulator";
 import { parseBody } from "@/lib/api/validate";
@@ -74,7 +75,7 @@ export async function PATCH(
       const commercialContract = createPlanContract(plan);
       updateData.plan = plan;
       updateData.commercialContract = commercialContract;
-      updateData.aiCreditsLimit = commercialContract.aiCredits;
+      updateData.aiCreditsLimit = await aiCreditAllowanceFor(id, commercialContract);
     }
 
     if (status) {

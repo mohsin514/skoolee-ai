@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { ANNUAL_DISCOUNT, annualMonthlyPrice, type BillingPeriod } from "@/config/plans";
+import { billedStudentCount, isPerStudent, periodUnitPrice, planPeriodAmount } from "@/lib/billing/plan-pricing";
 import { explainRecommendation, shortfalls, usage } from "@/lib/billing/recommend-plan";
 import { fill, isRtlLanguage } from "@/app/onboarding/copy";
 import { getPackageCopy } from "@/app/onboarding/package/copy";
@@ -46,10 +47,14 @@ import { getPackageCopy } from "@/app/onboarding/package/copy";
 type PlanType = "FREE" | "BASIC" | "PRO" | "ENTERPRISE";
 type Plan = {
   type: PlanType; name: string; price: number | null; features: string[];
+  /** "per_student": `price` is per billed student a month, with `minBilledStudents` as the floor. */
+  pricing?: "per_student" | "per_school"; minBilledStudents?: number; aiCreditsPerStudent?: number;
   maxStudents: number; maxTeachers: number; maxCampuses: number; aiCredits: number;
 };
 type Catalogue = {
   plans: Record<PlanType, Plan>;
+  /** Students enrolled today; a per-student quote bills the larger of this and the expected students. */
+  activeStudents?: number;
   currentPlan: PlanType;
   checkoutMode?: "online" | "test" | "none";
   paymentMethods?: string[];
@@ -182,25 +187,41 @@ export function PackageChooser({
   const campusesText = c.campusCount(campuses);
   const studentsText = students == null ? "" : c.studentCount(students);
 
+  // A per-student plan bills the larger of the expected and enrolled students, raised to its minimum.
+  const quoteStudents = Math.max(students ?? 0, catalogue?.activeStudents ?? 0);
+  /** "PKR 4,500/mo for 300 students" (and the minimum when it applies): what this school's bill would be. */
+  const billNote = (plan: Plan, billing: BillingPeriod) => {
+    if (!isPerStudent(plan) || !plan.price) return null;
+    const billed = billedStudentCount(plan, quoteStudents);
+    const amount = planPeriodAmount(plan, quoteStudents, billing) ?? 0;
+    const bill = fill(c.billFor, `${pkr(amount)}${billing === "annual" ? c.unitYear : c.unitMonth}`, c.studentCount(billed));
+    return billed > quoteStudents ? `${bill} · ${fill(c.minimumNote, c.studentCount(plan.minBilledStudents ?? 0))}` : bill;
+  };
   const priceParts = (plan: Plan): PackageCardProps["price"] => {
     if (plan.price == null) return { amount: c.customPrice, note: c.customNote, periodKey: period, short: { amount: c.customPrice } };
     if (plan.price === 0) return { amount: copy.free, note: c.noCard, periodKey: period, short: { amount: copy.free } };
+    const unit = isPerStudent(plan) ? c.unitStudentMonth : c.unitMonth;
+    const bill = billNote(plan, period);
     if (period === "monthly") {
-      return { amount: number(plan.price), currency: "PKR", unit: c.unitMonth, note: c.billedMonthly, periodKey: period, short: { amount: pkr(plan.price), unit: c.unitMonth, ltr: true } };
+      return { amount: number(plan.price), currency: "PKR", unit, note: bill ?? c.billedMonthly, periodKey: period, short: { amount: pkr(plan.price), unit, ltr: true } };
     }
-    const total = Math.round(plan.price * (1 - ANNUAL_DISCOUNT) * 12);
+    // Yearly: the per-unit year price (whole rupees), shown as its monthly equivalent.
+    const unitYear = periodUnitPrice(plan.price, "annual") ?? 0;
+    const units = isPerStudent(plan) ? billedStudentCount(plan, quoteStudents) : 1;
     const monthly = annualMonthlyPrice(plan.price) ?? plan.price;
     return {
-      amount: number(monthly), currency: "PKR", unit: c.unitMonth, was: number(plan.price), wasSr: fill(c.wasSr, pkr(plan.price)),
-      note: <><span>{fill(c.billedYearly, pkr(total))}</span><span className="sk-save-chip">{fill(c.saveYearly, pkr(plan.price * 12 - total))}</span></>,
-      periodKey: period, short: { amount: pkr(monthly), unit: c.unitMonth, ltr: true },
+      amount: number(monthly), currency: "PKR", unit, was: number(plan.price), wasSr: fill(c.wasSr, pkr(plan.price)),
+      note: <><span>{bill ?? fill(c.billedYearly, pkr(unitYear))}</span><span className="sk-save-chip">{fill(c.saveYearly, pkr((plan.price * 12 - unitYear) * units))}</span></>,
+      periodKey: period, short: { amount: pkr(monthly), unit, ltr: true },
     };
   };
   const priceLine = (plan: Plan, billing: BillingPeriod = period) => {
     if (plan.price == null) return fill(c.verdict.price, c.customPrice, c.customNote);
     if (plan.price === 0) return fill(c.verdict.price, copy.free, c.noCard);
-    if (billing === "monthly") return fill(c.verdict.price, `${pkr(plan.price)}${c.unitMonth}`, c.billedMonthly);
-    return fill(c.verdict.price, `${pkr(annualMonthlyPrice(plan.price) ?? plan.price)}${c.unitMonth}`, fill(c.billedYearly, pkr(Math.round(plan.price * (1 - ANNUAL_DISCOUNT) * 12))));
+    const unit = isPerStudent(plan) ? c.unitStudentMonth : c.unitMonth;
+    const bill = billNote(plan, billing);
+    if (billing === "monthly") return fill(c.verdict.price, `${pkr(plan.price)}${unit}`, bill ?? c.billedMonthly);
+    return fill(c.verdict.price, `${pkr(annualMonthlyPrice(plan.price) ?? plan.price)}${unit}`, bill ?? fill(c.billedYearly, pkr(periodUnitPrice(plan.price, "annual") ?? 0)));
   };
 
   const sentence = (() => {
@@ -405,7 +426,8 @@ export function PackageChooser({
         ? { tone: "warning", label: fill(c.studentsOver, c.studentCount((students ?? 0) - plan.maxStudents)), short: c.tooSmall }
         : students == null ? { tone: "neutral", label: c.fitsCampuses, short: c.fitShort } : { tone: "success", label: c.fitsYou, short: c.fitShort };
     const lower = index > 0 ? plans[index - 1] : null;
-    const own = plan.features.filter((feature) => !LIMIT_FEATURE.test(feature));
+    // "Everything in Core" restates the "Everything in {0}, plus" heading.
+    const own = plan.features.filter((feature) => !LIMIT_FEATURE.test(feature) && !/^Everything in /.test(feature));
     const items = (lower ? own.filter((feature) => !lower.features.includes(feature)) : own).map((feature) => (
       <span key={feature} lang={copy.featureNames[feature] ? language : "en"} dir="auto">{copy.featureNames[feature] ?? feature}</span>
     ));
@@ -429,7 +451,7 @@ export function PackageChooser({
         fit={fit}
         limits={[
           { label: copy.teachers, value: plan.maxTeachers < 0 ? copy.unlimited : number(plan.maxTeachers) },
-          { label: copy.aiCredits, value: plan.aiCredits < 0 ? copy.unlimited : number(plan.aiCredits) },
+          { label: copy.aiCredits, value: plan.aiCredits < 0 ? copy.unlimited : (plan.aiCreditsPerStudent ?? 0) > 0 ? fill(c.creditsPerStudent, number(plan.aiCreditsPerStudent ?? 0)) : number(plan.aiCredits) },
         ]}
         features={{ heading: lower ? fill(c.plusHeading, nameOf(lower.type)) : c.includes, items }}
         action={actionFor(plan, "card")}

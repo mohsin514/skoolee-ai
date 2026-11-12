@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, canManageOperations } from "@/lib/api/scope";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 import { gradeForMark, isLockedStatus, thresholdsForClass } from "@/lib/academic/report-cards";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { uploadPrivateObject } from "@/lib/storage/s3";
@@ -26,6 +27,8 @@ const QR_PREFIX = "SKMS1";
 const HEADER = 0.14, FOOTER = 0.04; // template layout: fractions of the page height
 
 async function examSubject(user: AuthUser, examId: string, subjectId: string, db: TxClient = prisma) {
+  // Every scan path (template, scan, review, commit, reverse, AI Workflows) starts here: mark-sheet scan is Flagship.
+  await assertPlanFeature(user, "markSheetScanEnabled", db);
   const exam = await db.exam.findFirst({ where: { id: examId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true, title: true, status: true, isLocked: true, campusId: true, classId: true, academicYear: true, academicModelVersionId: true, subjectId: true, class: { select: { name: true, section: true, classTeacherId: true } } } });
   const subject = exam ? await db.subject.findFirst({ where: { id: subjectId, schoolId: user.schoolId, classId: exam.classId }, select: { id: true, name: true, totalMarks: true, teacherId: true } }) : null;
   if (!exam || !subject || (exam.subjectId && exam.subjectId !== subject.id)) throw new ApiError("Exam not found", 404);

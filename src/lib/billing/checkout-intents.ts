@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { COMMERCIAL_CONTRACT, createPlanContract, type PlanContract } from "@/config/commercial-contract";
-import { ANNUAL_DISCOUNT, PLANS, type BillingPeriod } from "@/config/plans";
-import type { PlanType } from "@/types";
+import { COMMERCIAL_CONTRACT, PLAN_FEATURE_FLAGS, createPlanContract, type PlanContract } from "@/config/commercial-contract";
+import { PLANS, type BillingPeriod } from "@/config/plans";
+import type { PlanDetails, PlanType } from "@/types";
+import { billedStudentCount, planPeriodAmount } from "@/lib/billing/plan-pricing";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import type { AuthUser } from "@/lib/auth";
@@ -59,34 +60,33 @@ export function assertPackageFitsSchool(
   }
 }
 
-export function packageContract(plan: PlanType, details = PLANS[plan]): PlanContract {
+/**
+ * The terms a checkout quotes: the plan as this school sees it (catalogue or negotiated price), priced for
+ * `students` — the larger of the active and expected enrollment — so a per-student quote records the students
+ * it charges for (`billedStudents`, raised to the plan's minimum).
+ */
+export function packageContract(plan: PlanType, details: PlanDetails = PLANS[plan], students = 0): PlanContract {
   return createPlanContract(plan, {
     name: details.name,
+    pricing: details.pricing,
     price: details.price,
     priceCurrency: "PKR",
     priceLabel: details.priceLabel,
+    minBilledStudents: details.minBilledStudents,
+    billedStudents: details.pricing === "per_student" && details.price ? billedStudentCount(details, students) : null,
     features: details.features,
     aiCredits: details.aiCredits,
+    aiCreditsPerStudent: details.aiCreditsPerStudent,
     maxStudents: details.maxStudents,
     maxTeachers: details.maxTeachers,
     maxCampuses: details.maxCampuses,
-    whatsappEnabled: details.whatsappEnabled,
-    pdfExportEnabled: details.pdfExportEnabled,
-    pdfBulkExport: details.pdfBulkExport,
-    analyticsEnabled: details.analyticsEnabled,
+    ...Object.fromEntries(PLAN_FEATURE_FLAGS.map((flag) => [flag, details[flag]])),
   });
 }
 
+/** What the quoted terms charge for the period: the per-student price × the quoted students, or the flat price. */
 export function checkoutAmount(contract: PlanContract, billingPeriod: BillingPeriod) {
-  if (contract.price == null) return null;
-  return billingPeriod === "annual"
-    ? Math.round(contract.price * (1 - ANNUAL_DISCOUNT) * 12)
-    : contract.price;
-}
-
-export function periodPrice(price: number | null, billingPeriod: BillingPeriod) {
-  if (price == null) return null;
-  return billingPeriod === "annual" ? Math.round(price * (1 - ANNUAL_DISCOUNT) * 12) : price;
+  return planPeriodAmount(contract, contract.billedStudents ?? 0, billingPeriod);
 }
 
 export async function createCheckoutIntent(

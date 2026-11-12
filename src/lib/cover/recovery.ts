@@ -1,6 +1,7 @@
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, canManageOperations } from "@/lib/api/scope";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 import { calendarDateIn } from "@/lib/datetime";
 import { getLocalePackage } from "@/lib/locale/store";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
@@ -104,6 +105,7 @@ async function openRecovery(tx: TxClient, user: AuthUser, input: { campusId: str
 
 /** A lesson that had no cover: the coordinator opens its recovery decision (once). */
 export async function recordUncovered(user: AuthUser, body: Record<string, unknown>) {
+  await assertPlanFeature(user, "timetableEnabled");
   const date = String(body.date ?? "");
   if (!DAY.test(date)) throw new ApiError("Choose the lesson date.", 400);
   return schoolAiTransaction(user, async tx => {

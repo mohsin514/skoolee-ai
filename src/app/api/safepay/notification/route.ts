@@ -4,7 +4,8 @@ import { z } from "zod";
 import { resolvePaymentProvider } from "@/lib/payments/provider";
 import { fieldErrorsOf } from "@/lib/api/validate";
 import { activatePlan, getBillingSnapshot } from "@/lib/billing/entitlements";
-import { ANNUAL_DISCOUNT, normalizePlan } from "@/config/plans";
+import { normalizePlan } from "@/config/plans";
+import { planPeriodAmount } from "@/lib/billing/plan-pricing";
 import { recordPayment } from "@/lib/fees/payment";
 import { runUnscoped, runWithTenantContext } from "@/lib/db/tenant-context";
 import { decodePlanContractMetadata } from "@/config/commercial-contract";
@@ -198,10 +199,12 @@ async function handleNotification(req: NextRequest) {
           // the selected plan can activate it.
           const planType = normalizePlan(plan);
           const isAnnual = billingPeriod === "annual";
+          // The quote states the students it billed; without one, the school's price × its active students today.
           const snapshot = quotedContract ? null : await getBillingSnapshot(schoolId);
-          const planPrice = quotedContract?.price ?? (snapshot?.plans[planType] as { price?: number | null } | undefined)?.price;
-          if (planPrice == null) throw new NeedsReview(`No price is defined for plan ${planType}; the plan was not activated.`, schoolId);
-          const expected = planPrice * (isAnnual ? (1 - ANNUAL_DISCOUNT) * 12 : 1);
+          const expected = quotedContract
+            ? planPeriodAmount(quotedContract, quotedContract.billedStudents ?? 0, isAnnual ? "annual" : "monthly")
+            : snapshot ? planPeriodAmount(snapshot.plans[planType], snapshot.usage.activeStudents, isAnnual ? "annual" : "monthly") : null;
+          if (expected == null) throw new NeedsReview(`No price is defined for plan ${planType}; the plan was not activated.`, schoolId);
           const paid = parsePaidAmount(data.amount ?? data.order?.amount);
           if (paid == null) throw new NeedsReview("SafePay reported no paid amount; the plan was not activated.", schoolId);
           // Normalize paisa → PKR when the reported amount is clearly paisa.

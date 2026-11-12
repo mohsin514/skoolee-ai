@@ -2,10 +2,12 @@ import { NextRequest } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
-import { getPlanLimits, normalizePlan } from "@/config/plans";
-import { createPlanContract, decodePlanContractMetadata } from "@/config/commercial-contract";
+import { normalizePlan } from "@/config/plans";
+import { createPlanContract, decodePlanContractMetadata, type PlanContract } from "@/config/commercial-contract";
+import { billedUnits } from "@/lib/billing/plan-pricing";
 import { stripe } from "@/lib/stripe/server";
 import {
+  aiCreditAllowanceFor,
   planFromStripePriceId,
   stripeStatusToSchoolStatus,
   GRACE_PERIOD_DAYS,
@@ -101,11 +103,12 @@ async function syncSubscription(subscription: Stripe.Subscription, eventCreated:
   // The paid-through date follows the provider's current period, so the
   // expiry sweep never suspends a school whose renewal Stripe already took.
   const periodEnd = subscription.items.data[0]?.current_period_end;
-  const limits = getPlanLimits(plan);
   const termsChanged = !current || normalizePlan(current.plan) !== plan || !current.commercialContract;
   const encodedContract = subscription.metadata?.commercialContract;
   const quotedContract = decodePlanContractMetadata(encodedContract, plan);
   if (termsChanged && encodedContract && !quotedContract) throw new Error("Invalid commercial contract in Stripe subscription metadata");
+  const terms = quotedContract ?? createPlanContract(plan);
+  const aiCreditsLimit = termsChanged ? await aiCreditAllowanceFor(schoolId, terms) : null;
 
   const applied = await prisma.school.updateMany({
     where: { id: schoolId, OR: [
@@ -123,7 +126,7 @@ async function syncSubscription(subscription: Stripe.Subscription, eventCreated:
       graceEndsAt,
       ...(periodEnd ? { planEndsAt: new Date(periodEnd * 1000) } : {}),
       lastStripeEventCreated: eventCreated,
-      ...(termsChanged ? { aiCreditsLimit: quotedContract?.aiCredits ?? limits.aiCredits, commercialContract: quotedContract ?? createPlanContract(plan) } : {}),
+      ...(termsChanged && aiCreditsLimit != null ? { aiCreditsLimit, commercialContract: terms } : {}),
       stripeSubscriptionId: subscription.id,
       ...(customerId ? { stripeCustomerId: customerId } : {}),
     },
@@ -273,7 +276,7 @@ async function handleWebhook(req: NextRequest) {
         const subscriptionId = stringId(session.subscription);
         if (!subscriptionId || !stripe) throw new Error("Stripe subscription reference is missing");
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-        const savedContract = intent.contractSnapshot as { price?: number | null; plan?: string };
+        const savedContract = intent.contractSnapshot as Partial<PlanContract> & { price?: number | null; plan?: string };
         const priceId = subscriptionPriceId(subscription);
         const expectedPriceId = getPriceId(plan as PlanType, billingPeriod as "monthly" | "annual");
         if (
@@ -283,7 +286,9 @@ async function handleWebhook(req: NextRequest) {
           subscription.metadata?.plan !== plan ||
           subscription.metadata?.billingPeriod !== billingPeriod ||
           !priceId || priceId !== expectedPriceId ||
-          savedContract.plan !== plan || savedContract.price == null
+          savedContract.plan !== plan || savedContract.price == null ||
+          // A per-student quote is charged as its billed students × the per-student price.
+          (subscription.items.data[0]?.quantity ?? 1) !== billedUnits({ ...savedContract, price: savedContract.price ?? null }, savedContract.billedStudents ?? 0)
         ) {
           await prisma.onboardingCheckoutIntent.updateMany({
             where: { id: intent.id, schoolId, status: "CHECKOUT_PENDING" },

@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, canManageOperations } from "@/lib/api/scope";
-import { assertSchoolOperational } from "@/lib/billing/entitlements";
+import { assertPlanFeature, assertSchoolOperational } from "@/lib/billing/entitlements";
 import { moduleFlags, type PermissionAction } from "@/lib/permissions";
 import { getLocalePackage } from "@/lib/locale/store";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
@@ -48,6 +48,8 @@ export async function assertTimetableWriteAccess(user: AuthUser, campusId: strin
   const flags = moduleFlags(grants, user.role, "timetable");
   if (!flags[{ view: "canView", add: "canAdd", edit: "canEdit", delete: "canDelete" }[action] as keyof typeof flags]) throw new ApiError(`Insufficient permissions: timetable.${action}`, 403);
   await assertSchoolOperational(user.schoolId, tx);
+  // Building and changing timetables (incl. clash fixes, publishing and the solvers) is a Plus feature.
+  await assertPlanFeature(user, "timetableEnabled", tx);
 }
 async function write<T>(user: AuthUser, campusId: string, action: PermissionAction, work: (tx: TxClient) => Promise<T>, allowArchivedCleanup = false) {
   if (!canManageOperations(user) || user.role !== "SUPER_ADMIN" && user.campusId !== campusId) throw new ApiError("Forbidden", 403);

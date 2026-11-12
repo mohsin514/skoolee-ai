@@ -9,7 +9,7 @@ import { sha256 } from "../executor/canonical";
 import { normalizeText } from "../planner/normalize";
 import { capability } from "../registry";
 import type { CapabilityContext, Locale } from "../registry/types";
-import { aiWorkflowsV2Enabled } from "../flag";
+import { aiWorkflowsAvailable } from "../flag";
 import { authorizeActor, capabilityContext, inTenant } from "../jobs/actor";
 import { appendEvent } from "../jobs/events";
 import { DEFAULT_BUDGET, advanceJob, getJob, savePlan } from "../jobs/job-service";
@@ -253,7 +253,8 @@ export function buildSetup(user: AuthUser, key: string, raw: unknown) {
   return inTenant(user, async () => {
     await authorizeActor(user);
     const school = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { slug: true } });
-    if (!aiWorkflowsV2Enabled(school?.slug)) throw new WorkflowError("NOT_CONNECTED");
+    const available = await aiWorkflowsAvailable(user, school?.slug);
+    if (!available.ok) throw new WorkflowError(available.code);
     const definition = definitionFor(user, key);
     const input = buildSchema.parse(raw);
     const ctx = await setupContext(user, input.language);
@@ -305,7 +306,7 @@ export function setupStatus(user: AuthUser) {
     if (!definition) return null;
     // With AI Workflows off for this school there is no sheet to offer (the earlier setup paths remain).
     const school = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { slug: true } });
-    if (!aiWorkflowsV2Enabled(school?.slug)) return { key: definition.key, status: "OFF", show: false };
+    if (!(await aiWorkflowsAvailable(user, school?.slug)).ok) return { key: definition.key, status: "OFF", show: false };
     const response = await prisma.aiSetupResponse.findFirst({ where: { schoolId: user.schoolId, userId: user.userId, questionnaireKey: definition.key, campusId: await setupCampus(user) }, select: { status: true, deferrals: true, definitionVersion: true } });
     const status = response?.status ?? "NEW";
     const show = status === "NEW" || status === "DRAFT" || status === "PARTIAL" || status === "APPLYING" || (status === "DEFERRED" && (response?.deferrals ?? 0) < 3) || (status === "READY" && response!.definitionVersion < definition.version);

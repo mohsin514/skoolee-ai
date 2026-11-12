@@ -1,11 +1,13 @@
 import { requireAuthUser, errorResponse } from "@/lib/api/scope";
 import { createDraftTimetableSlot, DraftTimetableSlotError } from "@/lib/timetable/draft-slot";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAuthUser();
+    await assertPlanFeature(user, "timetableEnabled");
     const { id } = await params;
     if (Number(request.headers.get("content-length") || 0) > 8192) throw new DraftTimetableSlotError("The period request is too large.", 413, "TIMETABLE_SLOT_INVALID");
     const text = await request.text();

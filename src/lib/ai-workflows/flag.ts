@@ -11,3 +11,15 @@ export function aiWorkflowsV2Enabled(schoolSlug: string | null | undefined, env:
   if (["off", "false", "0"].includes(value.toLowerCase())) return false;
   return Boolean(schoolSlug) && value.split(",").map(slug => slug.trim()).includes(schoolSlug!);
 }
+
+/**
+ * AI Workflows run only when the rollout flag is on for the school AND its plan includes them (Flagship and
+ * up). Off either way, nothing new starts; jobs already running drain as before. The platform operator has
+ * no school plan.
+ */
+export async function aiWorkflowsAvailable(user: { role: string; schoolId: string }, schoolSlug: string | null | undefined) {
+  if (!aiWorkflowsV2Enabled(schoolSlug)) return { ok: false as const, code: "NOT_CONNECTED" as const };
+  if (user.role === "APP_OWNER") return { ok: true as const };
+  const { schoolPlanFeatures } = await import("@/lib/billing/entitlements");
+  return (await schoolPlanFeatures(user.schoolId)).aiWorkflowsEnabled ? { ok: true as const } : { ok: false as const, code: "PLAN_FEATURE" as const };
+}

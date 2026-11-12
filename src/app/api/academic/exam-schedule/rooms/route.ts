@@ -10,6 +10,7 @@ import {
 import { allocateExamRooms, getSeatingPlan } from "@/lib/academic/exam-rooms";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 
 // Multi-room exam seating (§58).
 //
@@ -39,6 +40,8 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Exam sessions, date sheets, seating and invigilation are exam planning (Plus).
+    await assertPlanFeature(user, "examPlanningEnabled");
     if (!canManageOperations(user)) {
       return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     }

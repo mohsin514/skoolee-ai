@@ -10,6 +10,8 @@ export const WORKFLOW_ERROR_CODES = {
   SEAT_HELD: 403,
   SCOPE_DENIED: 403,
   SUSPENDED: 403,
+  /** The school's plan does not include AI Workflows (or the feature a step needs). */
+  PLAN_FEATURE: 403,
   NOT_FOUND: 404,
   STALE_VERSION: 409,
   LEASED: 409,
@@ -60,6 +62,7 @@ export class InputRequired extends Error {
 /** Maps any thrown value to a code. Domain messages are kept server-side (logged by kind only). */
 export function toWorkflowError(error: unknown): WorkflowError {
   if (error instanceof WorkflowError) return error;
+  if ((error as { code?: unknown })?.code === "PLAN_FEATURE") return new WorkflowError("PLAN_FEATURE");
   const status = typeof (error as { status?: unknown })?.status === "number" ? (error as { status: number }).status : 500;
   if (status === 402) return new WorkflowError("CREDITS_EXHAUSTED");
   if (status === 403) return new WorkflowError("SCOPE_DENIED");

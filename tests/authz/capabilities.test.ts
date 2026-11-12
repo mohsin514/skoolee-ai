@@ -497,3 +497,17 @@ test("flagships: role-scoped AI Workflows and academic-seat Exam Studio", async 
   // A student keeps secure exam delivery ("My online exams").
   assert.equal((await caps(FIXTURES[9][1])).schoolAiExams, true);
 });
+
+test("plan keys follow the school's plan; without plan data nothing is hidden; the platform operator has none", async () => {
+  const groupAdmin = FIXTURES.find(([label]) => label === "SA")![1];
+  const core = await capabilitiesFor(groupAdmin, permissionMap(groupAdmin.role), {
+    timetableEnabled: false, examPlanningEnabled: false, groupConsoleEnabled: false, apiAccessEnabled: false,
+    markSheetScanEnabled: false, aiRemarksEnabled: false, examStudioEnabled: false,
+  });
+  for (const key of ["planTimetable", "planExamPlanning", "planGroupConsole", "planApiAccess", "planMarkScan", "planAiRemarks", "planExamStudio"] as const) {
+    assert.equal(core[key], false, `${key} off on Core`);
+  }
+  assert.equal(core.groupConsole, true, "the group admin's own console (and billing) never depends on the plan");
+  assert.equal((await caps(groupAdmin)).planTimetable, true, "no plan data hides nothing");
+  assert.equal((await caps(FIXTURES.find(([label]) => label === "AO")![1])).planTimetable, false);
+});

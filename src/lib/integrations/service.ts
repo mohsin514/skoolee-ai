@@ -9,6 +9,7 @@ import { protectSecret, revealSecret } from "@/lib/auth/mfa-crypto";
 import { CONTRACTS, V1 } from "./contract";
 import { checkDestination, pinnedDestinationLookup, validateShape } from "./destination";
 import { Agent, fetch } from "undici";
+import { PLAN_FEATURE_MESSAGE, schoolPlanFeatures } from "@/lib/billing/entitlements";
 
 // SKO-445: scoped service connections, the public v1 contract and signed outbound webhooks.
 // - A connection names its campuses and scopes; its key never carries the creator's own privileges. Keys are
@@ -286,6 +287,8 @@ export async function authenticate(request: Request, scope: string, version: str
   if (c.status === "PAUSED") throw new PublicError(403, "CONNECTION_PAUSED", "This connection is paused by the school.");
   if (!c.scopes.includes(scope)) throw new PublicError(403, "FORBIDDEN_SCOPE", `This key does not have the ${scope} scope.`);
   return runWithTenantContext({ schoolId: c.schoolId }, async () => {
+    // API access is a Network feature; a key keeps working only while the school's plan includes it.
+    if (!(await schoolPlanFeatures(c.schoolId)).apiAccessEnabled) throw new PublicError(403, "PLAN_FEATURE", PLAN_FEATURE_MESSAGE);
     const minute = new Date(Date.now() - 60_000), day = new Date(Date.now() - 86_400_000);
     const [perMinute, perDay, school] = await Promise.all([
       prisma.integrationRequestLog.count({ where: { connectionId: c.id, createdAt: { gte: minute } } }),

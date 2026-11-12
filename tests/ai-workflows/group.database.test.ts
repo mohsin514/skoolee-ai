@@ -103,6 +103,12 @@ test("campus.create: the campus and its calendar are created once; a replay reco
 
 test("campus.create over plan capacity is refused with a plan-change suggestion, and writes nothing", async () => {
   const { user, schoolId } = await fixture({ plan: "BASIC" });
+  // Catalogue plans have no campus limit since 2026-11-12; terms approved before then keep theirs (two campuses here).
+  await db.school.update({ where: { id: schoolId }, data: { commercialContract: {
+    catalogVersion: "2026-10-08.1", effectiveAt: "2026-09-01T00:00:00.000Z", plan: "BASIC", name: "Pro", price: 4000, priceCurrency: "PKR",
+    priceLabel: "PKR 4,000/mo", features: [], aiCredits: 1000, maxStudents: 500, maxTeachers: 10, maxCampuses: 2,
+    whatsappEnabled: true, pdfExportEnabled: true, pdfBulkExport: true, analyticsEnabled: false,
+  } } });
   await within(user, async () => {
     const ctx = await ctxFor(user);
     const refused = await bind(ctx, "campus.create", { name: "Johar Town", city: "Lahore" }).catch(error => error);
@@ -114,7 +120,7 @@ test("campus.create over plan capacity is refused with a plan-change suggestion,
     assert.equal(await db.campus.count({ where: { schoolId } }), 2);
     const comparison = await exec("subscription.preview").execute(ctx, { extraCampuses: 1 }, { idempotencyKey: KEY() });
     assert.equal(comparison.kind, "read");
-    assert.equal(comparison.detail?.proposedPlan, "PRO", "the smallest plan that fits three campuses");
+    assert.equal(comparison.detail?.proposedPlan, "BASIC", "the smallest published plan that fits three campuses (today's catalogue has no campus limit)");
     assert.equal(comparison.detail?.fits, true);
   });
 });

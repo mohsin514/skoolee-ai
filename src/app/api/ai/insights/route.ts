@@ -5,7 +5,7 @@ import { InvoiceStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
-import { billingAccessResponse } from "@/lib/billing/response";
+import { billingAccessResponse, planFeatureResponse } from "@/lib/billing/response";
 import { assertSharedModuleRead } from "@/lib/api/scope";
 import { isCampusAdminRole } from "@/lib/roles";
 import { aiFeatureRequestSchema } from "@/lib/validators/schemas";
@@ -418,6 +418,11 @@ export async function POST(req: NextRequest) {
 
     if (!canUseAIFeature(user.role, feature)) {
       return Response.json({ error: "AI feature is not available for your role" }, { status: 403 });
+    }
+    // Drafting, rewriting and translating report-card remarks are AI remarks (Flagship).
+    if (feature === "generate_remarks" || feature === "rewrite_remark" || feature === "translate_remark") {
+      const planBlocked = await planFeatureResponse(user, "aiRemarksEnabled");
+      if (planBlocked) return planBlocked;
     }
 
     const campusId = await resolveScopedCampusId(user, data.campusId);

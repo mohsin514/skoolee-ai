@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { applySuggestion, buildSuggestions, type SuggestionAction } from "@/lib/timetable/suggest";
 import { prisma } from "@/lib/db/prisma";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 import { resolveTimetableCampus } from "@/lib/timetable/manual";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -21,6 +22,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) return Response.json({ error: "Forbidden" }, { status: 403 });
+    // Clash detection and fixes are part of the timetable (Plus).
+    await assertPlanFeature(user, "timetableEnabled");
 
     const { id } = await params;
     const campusId = await resolveTimetableCampus(user, id);
@@ -45,6 +48,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) return Response.json({ error: "Forbidden" }, { status: 403 });
+    // Clash detection and fixes are part of the timetable (Plus).
+    await assertPlanFeature(user, "timetableEnabled");
 
     const { id } = await params;
     const campusId = await resolveTimetableCampus(user, id);

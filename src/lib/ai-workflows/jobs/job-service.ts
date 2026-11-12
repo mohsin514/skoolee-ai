@@ -17,7 +17,7 @@ import { entryFor, runExecStep, runHandoffStep } from "../executor/step-runner";
 import { capability } from "../registry";
 import { checkCapabilityAccess } from "../registry/gates";
 import { appendEvent } from "./events";
-import { aiWorkflowsV2Enabled } from "../flag";
+import { aiWorkflowsAvailable } from "../flag";
 import { mentionsCare } from "../pii/care-detector";
 import { authorizeActor, capabilityContext, inTenant } from "./actor";
 import { withLease } from "./lease";
@@ -43,7 +43,8 @@ export function startJob(user: AuthUser, raw: unknown): Promise<AiWorkflowJob> {
     await authorizeActor(user);
     // Drain mode (control P16): with the flag off nothing new starts; existing jobs still finish.
     const school = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { slug: true } });
-    if (!aiWorkflowsV2Enabled(school?.slug)) throw new WorkflowError("NOT_CONNECTED");
+    const available = await aiWorkflowsAvailable(user, school?.slug);
+    if (!available.ok) throw new WorkflowError(available.code);
     const input = startJobSchema.parse(raw);
     // Checked before anything is written: the words are never stored, planned or logged as a gap.
     if (mentionsCare(input.message)) throw new WorkflowError("CARE_REFERRAL");

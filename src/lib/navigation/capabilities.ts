@@ -1,4 +1,5 @@
 import "server-only";
+import type { PlanFeature } from "@/config/plans";
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { canOwnSubscription, isCampusOperator, isGroupConsole, isInstitutionAuthority, isStandaloneOwner, kindFor } from "@/lib/auth/institution";
@@ -119,9 +120,21 @@ async function guardianChildren(user: AuthUser, permission: "pickup" | "any") {
   return prisma.student.count({ where: { AND: [studentScope(user, permission), { archivedAt: null }] } });
 }
 
+/** Plan feature → navigation key. Without plan data (tests, callers that do not pass it) nothing is hidden. */
+const PLAN_KEYS = {
+  planTimetable: "timetableEnabled",
+  planExamPlanning: "examPlanningEnabled",
+  planGroupConsole: "groupConsoleEnabled",
+  planApiAccess: "apiAccessEnabled",
+  planMarkScan: "markSheetScanEnabled",
+  planAiRemarks: "aiRemarksEnabled",
+  planExamStudio: "examStudioEnabled",
+} as const satisfies Partial<Record<CapabilityKey, PlanFeature>>;
+
 export async function capabilitiesFor(
   user: AuthUser,
   permissionsInput: Map<string, PermissionFlags> | Promise<Map<string, PermissionFlags>>,
+  plan?: Partial<Record<PlanFeature, boolean>> | null,
 ): Promise<Record<CapabilityKey, boolean>> {
   const caps = Object.fromEntries(CAPABILITY_KEYS.map((key) => [key, false])) as Record<CapabilityKey, boolean>;
   const role = user.role;
@@ -169,6 +182,10 @@ export async function capabilitiesFor(
   // Flagship 2 — Exam Studio (`/ai/studio`) for the academic roles, set below once the academic-lead seat is known;
   // a student's `schoolAiExams` is secure exam delivery ("My online exams", `/ai/exams`).
   caps.schoolAiExams = role === "STUDENT";
+  // The plan's features (the platform operator holds no school plan).
+  for (const [key, feature] of Object.entries(PLAN_KEYS) as [keyof typeof PLAN_KEYS, PlanFeature][]) {
+    caps[key] = role !== "APP_OWNER" && (plan?.[feature] ?? true);
+  }
   // SKO-482: offer Record corrections only to roles with a correction domain they can use (mirrors corrections/service permit).
   caps.corrections = CORRECTION_ROLES.includes(role) || isCampusAdminRole(role);
 
@@ -190,7 +207,8 @@ export async function capabilitiesFor(
   // Exam Studio (addendum 2026-10-22): the principal and teachers, and a campus operator only while it is the academic
   // lead (no principal on the campus). Same gate as the page: School AI view and exams view.
   const examStudioSeat = role === "PRINCIPAL" || role === "TEACHER" || (operator && caps.academicLead);
-  if (examStudioSeat) caps.schoolAiExams = caps.schoolAi && permissions.get("exams")?.canView === true;
+  // Exam Studio also needs the plan; a student's own online exams stay reachable so attempts are never stranded.
+  if (examStudioSeat) caps.schoolAiExams = caps.schoolAi && permissions.get("exams")?.canView === true && (plan?.examStudioEnabled ?? true);
 
   // Duties — operators run them on their campus; named staff only while the duty exists.
   const [care, agent, trip, activity, plans, canteen, pickup, children] = await dutiesPromise;

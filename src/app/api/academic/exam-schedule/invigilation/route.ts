@@ -2,6 +2,7 @@ import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { SchoolAiError } from "@/lib/school-ai/access";
 import { NextRequest } from "next/server";
 import { requireAuthUser, ApiError } from "@/lib/api/scope";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 import { invigilationUpdateSchema, listExamInvigilation, updateExamInvigilation } from "@/lib/academic/exam-invigilation";
 import { readBoundedJson, schoolAiError } from "@/lib/school-ai/http";
 export async function GET(request: NextRequest) {
@@ -12,6 +13,6 @@ export async function GET(request: NextRequest) {
   } catch (error) { return error instanceof SchoolAiError ? Response.json({ error: error.message, code: error.code }, { status: error.status }) : schoolAiError(error); }
 }
 export async function PATCH(request: NextRequest) {
-  try { assertSameOrigin(request); return Response.json(await updateExamInvigilation(await requireAuthUser(), invigilationUpdateSchema.parse(await readBoundedJson(request, 2000))), { headers: { "Cache-Control": "private, no-store" } }); }
+  try { assertSameOrigin(request); const user = await requireAuthUser(); await assertPlanFeature(user, "examPlanningEnabled"); return Response.json(await updateExamInvigilation(user, invigilationUpdateSchema.parse(await readBoundedJson(request, 2000))), { headers: { "Cache-Control": "private, no-store" } }); }
   catch (error) { return error instanceof SchoolAiError ? Response.json({ error: error.message, code: error.code }, { status: error.status }) : schoolAiError(error); }
 }

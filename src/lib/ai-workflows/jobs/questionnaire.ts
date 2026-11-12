@@ -10,7 +10,7 @@ import { onboardingDataSchema } from "@/lib/school-ai/schemas";
 import { WorkflowError } from "../errors";
 import { sha256 } from "../executor/canonical";
 import { normalizeText } from "../planner/normalize";
-import { aiWorkflowsV2Enabled } from "../flag";
+import { aiWorkflowsAvailable } from "../flag";
 import { appendEvent } from "./events";
 import { authorizeActor, inTenant } from "./actor";
 
@@ -31,7 +31,8 @@ export function startQuestionnaireJob(user: AuthUser, raw: unknown): Promise<AiW
   return inTenant(user, async () => {
     await authorizeActor(user);
     const school = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { slug: true } });
-    if (!aiWorkflowsV2Enabled(school?.slug)) throw new WorkflowError("NOT_CONNECTED");
+    const available = await aiWorkflowsAvailable(user, school?.slug);
+    if (!available.ok) throw new WorkflowError(available.code);
     const input = questionnaireStartSchema.parse(raw);
     if (!["ADMIN", "CAMPUS_ADMIN"].includes(user.role)) throw new WorkflowError("ROLE_NOT_ALLOWED");
     const campusId = await resolveWorkspaceCampus(user, user.campusId);

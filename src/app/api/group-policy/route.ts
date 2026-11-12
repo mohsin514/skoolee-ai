@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { ApiError, requireAuthUser } from "@/lib/api/scope";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 import { failFrom, ok as envelopeOk } from "@/lib/api/envelope";
 import * as policy from "@/lib/group-policy/service";
 
@@ -15,7 +16,10 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     const p = request.nextUrl.searchParams;
-    switch (p.get("view") ?? "campus") {
+    const view = p.get("view") ?? "campus";
+    // The group console (standards library, previews, history) is Network; campuses always read what applies to them.
+    if (view === "library" || view === "preview" || view === "history") await assertPlanFeature(user, "groupConsoleEnabled");
+    switch (view) {
       case "campus": return ok(await policy.campusPolicy(user, p.get("campusId"), p.get("domain"), p.get("at")));
       case "library": return ok(await policy.library(user));
       case "preview": return ok(await policy.preview(user, p.get("versionId") ?? "", p.get("effectiveFrom")));
@@ -30,6 +34,8 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+    // Setting group standards and approving overrides is Network; revoking an override stays open to wind down.
+    if (body.action !== "revoke-override") await assertPlanFeature(user, "groupConsoleEnabled");
     switch (body.action) {
       case "template": return ok(await policy.createTemplate(user, body), 201);
       case "template-update": return ok(await policy.updateTemplate(user, body));

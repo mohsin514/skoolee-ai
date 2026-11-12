@@ -30,6 +30,8 @@ export type ChooserCopy = {
   fewerCampuses: string; moreCampuses: string; fewerStudents: string; moreStudents: string; packagesLabel: string; save: string;
   recommended: string; ribbonBeyond: string; reason: string; reasonCampuses: string; tagline: FourPlans;
   customPrice: string; unitMonth: string; billedMonthly: string; billedYearly: string; noCard: string; customNote: string; wasSr: string; saveYearly: string;
+  /** Per-student plans: the unit, "{amount} for {students}", the billing minimum and per-student AI credits. */
+  unitStudentMonth: string; unitYear: string; billFor: string; minimumNote: string; creditsPerStudent: string;
   meterOf: string; upTo: string; fitsYou: string; fitsCampuses: string; fitShort: string; tooSmall: string; studentsOver: string; campusDrafts: Plural;
   includes: string; plusHeading: string; tagReserved: string; tagRequested: string; tagCheckout: string; tagRoom: string;
   choose: string; keep: string; viewReservation: string; viewRequest: string; campusCount: Plural; studentCount: Plural;
@@ -74,7 +76,7 @@ const en: PackageCopy = {
   accountTitle: "Account title", accountNumber: "Account number", iban: "IBAN", continueCheckout: "Continue checkout",
   retryCheckout: "Retry checkout", refreshStatus: "Refresh payment status", resumeSetup: "Resume saved setup",
   paymentFailure: "Payment status could not be loaded.", chooseAnother: "Choose another package",
-  planNames: { FREE: "Basic", BASIC: "Pro", PRO: "Enterprise", ENTERPRISE: "Custom" },
+  planNames: { FREE: "Core", BASIC: "Plus", PRO: "Flagship", ENTERPRISE: "Network" },
   stateNames: { FREE_SELECTED: "Free package selected", CUSTOM_QUOTE: "Custom quote requested", CHECKOUT_PENDING: "Checkout started", PENDING: "Payment is pending", PENDING_SETTLEMENT: "Payment is being confirmed", SETTLED: "Payment confirmed", FAILED: "Payment failed", CANCELLED: "Checkout cancelled" },
   featureNames: {},
   chooser: {
@@ -82,8 +84,9 @@ const en: PackageCopy = {
     sizeLabel: "Your expected size", studentsLabel: "Expected students", studentsPlaceholder: "e.g. 350", perStudentHint: "Students across all campuses",
     fewerCampuses: "Fewer campuses", moreCampuses: "More campuses", fewerStudents: "Fewer students", moreStudents: "More students", packagesLabel: "Packages", save: "Save {0}%",
     recommended: "Recommended for you", ribbonBeyond: "Best for your size", reason: "Fits your {0} and {1}", reasonCampuses: "Fits your {0}",
-    tagline: { FREE: "For a single campus getting started", BASIC: "For a growing single campus", PRO: "For schools with several campuses", ENTERPRISE: "For school networks and groups" },
+    tagline: { FREE: "Everything your school runs on, free", BASIC: "Timetables, exam weeks and WhatsApp", PRO: "AI Workflows, Exam Studio and scan", ENTERPRISE: "Every campus in one console" },
     customPrice: "Tailored", unitMonth: "/mo", billedMonthly: "Billed monthly", billedYearly: "{0} billed yearly", noCard: "No card needed", customNote: "Terms set with our team",
+    unitStudentMonth: "/student/mo", unitYear: "/yr", billFor: "{0} for {1}", minimumNote: "billed for at least {0}", creditsPerStudent: "{0} per student",
     wasSr: "Was {0} per month", saveYearly: "Save {0} a year",
     meterOf: "{0} of {1}", upTo: "Up to {0}", fitsYou: "Fits your size", fitsCampuses: "Fits your campuses", fitShort: "Fits", tooSmall: "Too small",
     studentsOver: "{0} over the limit", campusDrafts: (n) => `${countLabel("en", n, "campus")} ${n === 1 ? "stays a draft" : "stay drafts"}`,
@@ -167,7 +170,7 @@ const ar: PackageCopy = {
   accountTitle: "اسم صاحب الحساب", accountNumber: "رقم الحساب", iban: "رقم الحساب المصرفي الدولي",
   continueCheckout: "متابعة الدفع", retryCheckout: "إعادة محاولة الدفع", refreshStatus: "تحديث حالة الدفع",
   resumeSetup: "متابعة الإعداد المحفوظ", paymentFailure: "تعذر تحميل حالة الدفع.", chooseAnother: "اختر باقة أخرى",
-  planNames: { FREE: "أساسية", BASIC: "احترافية", PRO: "مؤسسية", ENTERPRISE: "مخصصة" },
+  planNames: { FREE: "أساسية", BASIC: "بلس", PRO: "رائدة", ENTERPRISE: "شبكة" },
   stateNames: { FREE_SELECTED: "تم اختيار الباقة المجانية", CUSTOM_QUOTE: "تم طلب عرض سعر مخصص", CHECKOUT_PENDING: "بدأ الدفع", PENDING: "الدفع قيد الانتظار", PENDING_SETTLEMENT: "جارٍ تأكيد الدفع", SETTLED: "تم تأكيد الدفع", FAILED: "تعذر إتمام الدفع", CANCELLED: "تم إلغاء الدفع" },
   featureNames: {
     "Up to 50 students": "حتى ٥٠ طالباً", "2 teacher accounts": "حسابان للمعلمين", "1 campus": "فرع واحد",
@@ -180,14 +183,26 @@ const ar: PackageCopy = {
     "Unlimited students": "طلاب غير محدودين", "Unlimited teacher accounts": "حسابات معلمين غير محدودة", "Unlimited campuses": "فروع غير محدودة",
     "50,000 AI credits/month": "٥٠٬٠٠٠ رصيد ذكاء اصطناعي شهرياً", "Advanced WhatsApp workflows": "سير عمل متقدم عبر واتساب",
     "Network analytics": "تحليلات الشبكة", "Custom security review": "مراجعة أمنية مخصصة", "Dedicated onboarding": "تهيئة مخصصة",
+    "Unlimited students, staff and campuses": "طلاب وموظفون وفروع بلا حدود", "Admissions, records, attendance and marks": "القبول والسجلات والحضور والدرجات",
+    "Standard report cards with PDF export": "تقارير دراسية قياسية مع تصدير PDF", "Fees, receipts and bank-statement import": "الرسوم والإيصالات واستيراد كشوف الحساب البنكية",
+    "Parent and student apps, messages": "تطبيقا أولياء الأمور والطلاب، والرسائل", "Library, transport, hostel, canteen, front desk": "المكتبة والنقل والسكن والمقصف ومكتب الاستقبال",
+    "Everything in Core": "كل ما في أساسية", "Timetable with clash fixes and cover": "جدول الحصص مع حل التعارضات والتغطية",
+    "Date sheets, seating and invigilation": "جداول الامتحانات وتوزيع المقاعد والمراقبة", "WhatsApp report cards and family messages": "تقارير دراسية ورسائل للأسر عبر واتساب",
+    "Branded report cards and bulk PDF export": "تقارير بهوية المؤسسة وتصدير PDF دفعة واحدة", "Everything in Plus": "كل ما في بلس",
+    "AI Workflows across every desk": "سير عمل بالذكاء الاصطناعي في كل مكتب", "AI Exam Studio with sealed papers": "استوديو الامتحانات بالذكاء الاصطناعي مع أوراق مختومة",
+    "Mark-sheet photo scan": "مسح كشوف الدرجات بالتصوير", "AI report-card remarks in English and Urdu": "ملاحظات التقارير بالذكاء الاصطناعي بالإنجليزية والأردية",
+    "Analytics and at-risk insights": "تحليلات ورصد الطلاب المعرضين للخطر", "Everything in Flagship": "كل ما في رائدة",
+    "Group console across campuses": "لوحة المجموعة لكل الفروع", "Group standards and approvals": "معايير المجموعة والموافقات",
+    "Curriculum packs shared across campuses": "حزم مناهج مشتركة بين الفروع", "Dedicated onboarding and custom security review": "تهيئة مخصصة ومراجعة أمنية مخصصة",
   },
   chooser: {
     eyebrow: "الإعداد · الباقة", title: "اختر الباقة المناسبة", subtitle: "الأسعار بالروبية الباكستانية. يبقى إعدادك محفوظاً أثناء اختيارك.",
     sizeLabel: "الحجم المتوقع", studentsLabel: "عدد الطلاب المتوقع", studentsPlaceholder: "مثال: 350", perStudentHint: "الطلاب في جميع الفروع",
     fewerCampuses: "فروع أقل", moreCampuses: "فروع أكثر", fewerStudents: "طلاب أقل", moreStudents: "طلاب أكثر", packagesLabel: "الباقات", save: "وفّر {0}%",
     recommended: "موصى بها لك", ribbonBeyond: "الأنسب لحجمك", reason: "تناسب {0} و{1}", reasonCampuses: "تناسب {0}",
-    tagline: { FREE: "لفرع واحد في بدايته", BASIC: "لفرع واحد في نمو", PRO: "للمدارس متعددة الفروع", ENTERPRISE: "لشبكات ومجموعات المدارس" },
+    tagline: { FREE: "كل ما تحتاجه مدرستك يومياً، مجاناً", BASIC: "الجداول وأسابيع الامتحانات وواتساب", PRO: "سير العمل الذكي واستوديو الامتحانات والمسح", ENTERPRISE: "كل الفروع في لوحة واحدة" },
     customPrice: "مخصص", unitMonth: "/شهرياً", billedMonthly: "تُدفع شهرياً", billedYearly: "{0} تُدفع سنوياً", noCard: "دون بطاقة", customNote: "تُحدد الشروط مع فريقنا",
+    unitStudentMonth: "/للطالب شهرياً", unitYear: "/سنوياً", billFor: "{0} مقابل {1}", minimumNote: "تُحتسب على {0} على الأقل", creditsPerStudent: "{0} لكل طالب",
     wasSr: "كان {0} شهرياً", saveYearly: "وفّر {0} سنوياً",
     meterOf: "{0} من {1}", upTo: "حتى {0}", fitsYou: "تناسب حجمك", fitsCampuses: "تناسب فروعك", fitShort: "مناسبة", tooSmall: "صغيرة",
     studentsOver: "{0} فوق الحد", campusDrafts: (n) => `${countLabel("ar", n, "campus")} ${n === 1 ? "يبقى مسودة" : n === 2 ? "يبقيان مسودتين" : "تبقى مسودات"}`,
@@ -271,7 +286,7 @@ const ur: PackageCopy = {
   accountTitle: "اکاؤنٹ کا عنوان", accountNumber: "اکاؤنٹ نمبر", iban: "آئی بین", continueCheckout: "ادائیگی جاری رکھیں",
   retryCheckout: "ادائیگی دوبارہ کریں", refreshStatus: "ادائیگی کی حالت تازہ کریں", resumeSetup: "محفوظ سیٹ اپ جاری رکھیں",
   paymentFailure: "ادائیگی کی حالت لوڈ نہیں ہو سکی۔", chooseAnother: "دوسرا پیکیج منتخب کریں",
-  planNames: { FREE: "بنیادی", BASIC: "پرو", PRO: "انٹرپرائز", ENTERPRISE: "حسب ضرورت" },
+  planNames: { FREE: "کور", BASIC: "پلس", PRO: "فلیگ شپ", ENTERPRISE: "نیٹ ورک" },
   stateNames: { FREE_SELECTED: "مفت پیکیج منتخب کیا گیا", CUSTOM_QUOTE: "حسب ضرورت قیمت کی درخواست بھیج دی گئی", CHECKOUT_PENDING: "ادائیگی شروع ہو گئی", PENDING: "ادائیگی زیرِ انتظار ہے", PENDING_SETTLEMENT: "ادائیگی کی تصدیق ہو رہی ہے", SETTLED: "ادائیگی کی تصدیق ہو گئی", FAILED: "ادائیگی مکمل نہیں ہو سکی", CANCELLED: "ادائیگی منسوخ کر دی گئی" },
   featureNames: {
     "Up to 50 students": "۵۰ طلبہ تک", "2 teacher accounts": "اساتذہ کے ۲ اکاؤنٹس", "1 campus": "۱ کیمپس",
@@ -284,14 +299,26 @@ const ur: PackageCopy = {
     "Unlimited students": "لامحدود طلبہ", "Unlimited teacher accounts": "اساتذہ کے لامحدود اکاؤنٹس", "Unlimited campuses": "لامحدود کیمپس",
     "50,000 AI credits/month": "ماہانہ ۵۰٬۰۰۰ AI کریڈٹس", "Advanced WhatsApp workflows": "واٹس ایپ کے جدید ورک فلو",
     "Network analytics": "نیٹ ورک تجزیات", "Custom security review": "حسب ضرورت سکیورٹی جائزہ", "Dedicated onboarding": "مخصوص ابتدائی سیٹ اپ",
+    "Unlimited students, staff and campuses": "لامحدود طلبہ، عملہ اور کیمپس", "Admissions, records, attendance and marks": "داخلے، ریکارڈ، حاضری اور نمبر",
+    "Standard report cards with PDF export": "PDF برآمد کے ساتھ معیاری رپورٹ کارڈ", "Fees, receipts and bank-statement import": "فیس، رسیدیں اور بینک اسٹیٹمنٹ درآمد",
+    "Parent and student apps, messages": "والدین اور طلبہ کی ایپس، پیغامات", "Library, transport, hostel, canteen, front desk": "لائبریری، ٹرانسپورٹ، ہاسٹل، کینٹین، فرنٹ ڈیسک",
+    "Everything in Core": "کور کی ہر سہولت", "Timetable with clash fixes and cover": "ٹکراؤ کے حل اور متبادل استاد کے ساتھ ٹائم ٹیبل",
+    "Date sheets, seating and invigilation": "ڈیٹ شیٹ، نشستیں اور نگرانی", "WhatsApp report cards and family messages": "واٹس ایپ پر رپورٹ کارڈ اور خاندانوں کو پیغامات",
+    "Branded report cards and bulk PDF export": "برانڈ والے رپورٹ کارڈ اور متعدد PDF برآمد", "Everything in Plus": "پلس کی ہر سہولت",
+    "AI Workflows across every desk": "ہر ڈیسک پر AI ورک فلو", "AI Exam Studio with sealed papers": "مہر بند پرچوں کے ساتھ AI ایگزام اسٹوڈیو",
+    "Mark-sheet photo scan": "مارک شیٹ کی تصویر سے اسکین", "AI report-card remarks in English and Urdu": "انگریزی اور اردو میں AI رپورٹ کارڈ تبصرے",
+    "Analytics and at-risk insights": "تجزیات اور خطرے میں طلبہ کی نشاندہی", "Everything in Flagship": "فلیگ شپ کی ہر سہولت",
+    "Group console across campuses": "تمام کیمپسز کے لیے گروپ کنسول", "Group standards and approvals": "گروپ کے معیارات اور منظوریاں",
+    "Curriculum packs shared across campuses": "کیمپسز میں مشترکہ نصابی پیک", "Dedicated onboarding and custom security review": "مخصوص ابتدائی سیٹ اپ اور حسب ضرورت سکیورٹی جائزہ",
   },
   chooser: {
     eyebrow: "سیٹ اپ · پیکیج", title: "موزوں پیکیج منتخب کریں", subtitle: "قیمتیں پاکستانی روپے میں۔ فیصلہ کرتے وقت آپ کا سیٹ اپ محفوظ رہتا ہے۔",
     sizeLabel: "متوقع حجم", studentsLabel: "متوقع طلبہ", studentsPlaceholder: "مثلاً 350", perStudentHint: "تمام کیمپسز کے طلبہ",
     fewerCampuses: "کم کیمپس", moreCampuses: "زیادہ کیمپس", fewerStudents: "کم طلبہ", moreStudents: "زیادہ طلبہ", packagesLabel: "پیکیجز", save: "{0}% بچت",
     recommended: "آپ کے لیے تجویز کردہ", ribbonBeyond: "آپ کے حجم کے لیے بہترین", reason: "آپ کے {0} اور {1} کے لیے موزوں", reasonCampuses: "آپ کے {0} کے لیے موزوں",
-    tagline: { FREE: "شروعات کرنے والے ایک کیمپس کے لیے", BASIC: "بڑھتے ہوئے ایک کیمپس کے لیے", PRO: "کئی کیمپسز والے اسکولوں کے لیے", ENTERPRISE: "اسکول نیٹ ورکس اور گروپس کے لیے" },
+    tagline: { FREE: "اسکول کے روزمرہ کے سارے کام، مفت", BASIC: "ٹائم ٹیبل، امتحانی ہفتے اور واٹس ایپ", PRO: "AI ورک فلو، ایگزام اسٹوڈیو اور اسکین", ENTERPRISE: "تمام کیمپس ایک کنسول میں" },
     customPrice: "حسبِ ضرورت", unitMonth: "/ماہانہ", billedMonthly: "ماہانہ ادائیگی", billedYearly: "{0} سالانہ ادائیگی", noCard: "کارڈ کی ضرورت نہیں", customNote: "شرائط ہماری ٹیم کے ساتھ",
+    unitStudentMonth: "/فی طالب علم ماہانہ", unitYear: "/سالانہ", billFor: "{1} کے لیے {0}", minimumNote: "کم از کم {0} کا بل", creditsPerStudent: "فی طالب علم {0}",
     wasSr: "پہلے {0} ماہانہ", saveYearly: "سالانہ {0} بچت",
     meterOf: "{1} میں سے {0}", upTo: "{0} تک", fitsYou: "آپ کے حجم کے مطابق", fitsCampuses: "آپ کے کیمپسز کے مطابق", fitShort: "موزوں", tooSmall: "چھوٹا",
     studentsOver: "حد سے {0} زیادہ", campusDrafts: (n) => `${countLabel("ur", n, "campus")} ڈرافٹ ${n === 1 ? "رہے گا" : "رہیں گے"}`,

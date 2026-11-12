@@ -5,10 +5,11 @@ import { ApiError, canManageSubscription, errorResponse, requireAuthUser } from 
 import { createStripeCustomer, getPriceId, createCheckoutSessionWithTransfer, verifyStripePrice } from "@/lib/stripe/server";
 import { resolvePaymentProvider } from "@/lib/payments/provider";
 import { ANNUAL_DISCOUNT, getPlanLimits, type BillingPeriod } from "@/config/plans";
-import type { PlanDetails } from "@/types";
 import { getBillingSnapshot } from "@/lib/billing/entitlements";
 import { getPaymentConfig } from "@/lib/payments/gateway";
-import { COMMERCIAL_CONTRACT, createPlanContract, encodePlanContractMetadata } from "@/config/commercial-contract";
+import { COMMERCIAL_CONTRACT, encodePlanContractMetadata, type PlanContract } from "@/config/commercial-contract";
+import { checkoutAmount, packageContract } from "@/lib/billing/checkout-intents";
+import { billedUnits } from "@/lib/billing/plan-pricing";
 import { findApprovedPlanChange, markPlanChangeCheckoutStarted, restorePlanChangeApproval } from "@/lib/billing/lifecycle";
 import { readJsonBody } from "@/lib/api/validate";
 
@@ -20,17 +21,14 @@ const checkoutSchema = z.object({
   billingPeriod: z.enum(["monthly", "annual"]).optional().default("monthly"),
 });
 
-function periodPrice(price: number | null | undefined, billingPeriod: BillingPeriod) {
-  if (price == null) return null;
-  return billingPeriod === "annual" ? Math.round(price * (1 - ANNUAL_DISCOUNT) * 12) : price;
-}
-
-function periodLabel(price: number | null | undefined, billingPeriod: BillingPeriod) {
-  const amount = periodPrice(price, billingPeriod);
+/** "PKR 54,000/yr (−20% annual) for 300 students": the period amount, and the students a per-student quote bills. */
+function periodLabel(quoted: PlanContract, billingPeriod: BillingPeriod) {
+  const amount = checkoutAmount(quoted, billingPeriod);
   if (amount == null) return "Custom";
-  return billingPeriod === "annual"
+  const total = billingPeriod === "annual"
     ? `${COMMERCIAL_CONTRACT.currency} ${amount.toLocaleString()}/yr (−${Math.round(ANNUAL_DISCOUNT * 100)}% annual)`
     : `${COMMERCIAL_CONTRACT.currency} ${amount.toLocaleString()}/mo`;
+  return quoted.pricing === "per_student" && quoted.billedStudents ? `${total} for ${quoted.billedStudents.toLocaleString()} students` : total;
 }
 
 export async function POST(req: NextRequest) {
@@ -54,6 +52,9 @@ export async function POST(req: NextRequest) {
     if (!approvedChange) throw new ApiError("Review and approve this plan change in Billing & plan before starting checkout.", 409);
 
     const paymentConfig = await getPaymentConfig();
+    // The quote: this school's price for the plan, × its active students (raised to the plan's minimum) when per student.
+    const billing = await getBillingSnapshot(user.schoolId);
+    const quoted = packageContract(parsed.data.plan, billing.plans[parsed.data.plan], billing.usage.activeStudents);
 
     if (paymentConfig.availableMethods.includes("stripe")) {
       const priceId = getPriceId(parsed.data.plan, parsed.data.billingPeriod);
@@ -61,7 +62,6 @@ export async function POST(req: NextRequest) {
         throw new ApiError(`${getPlanLimits(parsed.data.plan).name} checkout is not configured`, 503);
       }
 
-      const billing = await getBillingSnapshot(user.schoolId);
       const selectedPrice = billing.plans[parsed.data.plan].price;
       if (selectedPrice !== getPlanLimits(parsed.data.plan).price) {
         throw new ApiError("This school's approved price differs from the configured Stripe catalogue. Contact the billing owner before checkout.", 503);
@@ -98,9 +98,10 @@ export async function POST(req: NextRequest) {
           school.id,
           parsed.data.plan,
           paymentConfig.stripe?.connectedAccountId || null,
-          encodePlanContractMetadata(createPlanContract(parsed.data.plan)),
+          encodePlanContractMetadata(quoted),
           approvedChange.id,
-          `subscription-change-${approvedChange.id}`
+          `subscription-change-${approvedChange.id}`,
+          billedUnits(quoted, quoted.billedStudents ?? 0)
         );
       } catch (error) {
         await restorePlanChangeApproval(user.schoolId, approvedChange.id, user.userId);
@@ -121,19 +122,8 @@ export async function POST(req: NextRequest) {
       });
       if (!school) throw new ApiError("School not found", 404);
 
-      const snapshot = await getBillingSnapshot(school.id);
-      const planKey = parsed.data.plan as keyof typeof snapshot.plans;
-      const planDetail = snapshot.plans[planKey] as PlanDetails;
-      const quotedContract = createPlanContract(parsed.data.plan, {
-        name: planDetail.name, price: planDetail.price, priceCurrency: COMMERCIAL_CONTRACT.currency,
-        priceLabel: planDetail.priceLabel, features: planDetail.features, aiCredits: planDetail.aiCredits,
-        maxStudents: planDetail.maxStudents, maxTeachers: planDetail.maxTeachers, maxCampuses: planDetail.maxCampuses,
-        whatsappEnabled: planDetail.whatsappEnabled, pdfExportEnabled: planDetail.pdfExportEnabled,
-        pdfBulkExport: planDetail.pdfBulkExport, analyticsEnabled: planDetail.analyticsEnabled,
-      });
-      const encodedContract = encodePlanContractMetadata(quotedContract);
-      const price = periodPrice(planDetail.price, parsed.data.billingPeriod);
-      const priceLabel = periodLabel(planDetail.price, parsed.data.billingPeriod);
+      const encodedContract = encodePlanContractMetadata(quoted);
+      const price = checkoutAmount(quoted, parsed.data.billingPeriod);
 
       const orderRef = `SKL-${approvedChange.id}`.toUpperCase();
       const appBase = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -152,7 +142,7 @@ export async function POST(req: NextRequest) {
           amountMinor: Math.round(amountInPaisa * 100),
           currency: "PKR",
           orderRef,
-          description: `SkooleeAI ${planDetail.name} plan (${parsed.data.billingPeriod})`,
+          description: `SkooleeAI ${quoted.name} plan (${parsed.data.billingPeriod})${quoted.pricing === "per_student" && quoted.billedStudents ? `, ${quoted.billedStudents} students` : ""}`,
           returnUrl: `${appBase}/billing?${new URLSearchParams({ safepay_status: "completed", ref: orderRef })}`,
           customer: { email: user.email, name: user.fullName },
           metadata: { schoolId: school.id, plan: parsed.data.plan, billingPeriod: parsed.data.billingPeriod, commercialContract: encodedContract },
@@ -168,24 +158,6 @@ export async function POST(req: NextRequest) {
       throw new ApiError("SafePay checkout is not configured. No simulated payment can activate a subscription.", 503);
     }
 
-    const schoolForPrice = await prisma.school.findUnique({
-      where: { id: user.schoolId },
-      select: { id: true },
-    });
-    let btPrice = periodPrice(getPlanLimits(parsed.data.plan).price, parsed.data.billingPeriod);
-    let btLabel = periodLabel(getPlanLimits(parsed.data.plan).price, parsed.data.billingPeriod);
-    if (schoolForPrice) {
-      try {
-        const fbSnapshot = await getBillingSnapshot(schoolForPrice.id);
-        const fbDetail = fbSnapshot.plans[parsed.data.plan] as PlanDetails | undefined;
-        if (fbDetail) {
-          btPrice = periodPrice(fbDetail.price, parsed.data.billingPeriod);
-          btLabel = periodLabel(fbDetail.price, parsed.data.billingPeriod);
-        }
-      } catch {
-      }
-    }
-
     if (paymentConfig.bank) {
       return Response.json({
         success: true,
@@ -193,8 +165,9 @@ export async function POST(req: NextRequest) {
         plan: parsed.data.plan,
         billingPeriod: parsed.data.billingPeriod,
         bank: paymentConfig.bank,
-        amount: btPrice,
-        amountLabel: btLabel,
+        amount: checkoutAmount(quoted, parsed.data.billingPeriod),
+        amountLabel: periodLabel(quoted, parsed.data.billingPeriod),
+        billedStudents: quoted.billedStudents,
       });
     }
 

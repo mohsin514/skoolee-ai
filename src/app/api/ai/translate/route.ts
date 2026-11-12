@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { getAuthUser } from "@/lib/auth";
-import { billingAccessResponse } from "@/lib/billing/response";
+import { billingAccessResponse, planFeatureResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import {
   AICreditError,
@@ -33,6 +33,9 @@ export async function POST(req: NextRequest) {
   if (!canTranslate(user.role)) {
     return Response.json({ error: "Translation is not available for your role" }, { status: 403 });
   }
+  // AI report-card remarks (drafting and Urdu translation) are a Flagship feature.
+  const planBlocked = await planFeatureResponse(user, "aiRemarksEnabled");
+  if (planBlocked) return planBlocked;
 
   let text = "";
   try {

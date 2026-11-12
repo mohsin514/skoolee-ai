@@ -118,7 +118,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
       leaf("campuses", "Campuses", Building2, v("campuses"), { tier: "W", mobile: 2, summary: "Open a campus to see its numbers and the people who run it." }),
       leaf("approvals", "Approvals", ShieldCheck, v("approvals"), { tier: "D", mobile: 3, badge: "approvals", visible: { all: ["institutionAuthority"] }, summary: "Support access, tax sign-off and policy reviews waiting for you." }),
       leaf("access", "People & access", UsersRound, v("access"), { tier: "T", visible: { all: ["institutionAuthority"] }, summary: "Campus leaders, who may manage members, and role permissions." }),
-      leaf("standards", "Group standards", Layers, v("standards"), { tier: "T", visible: { all: ["groupConsole"] }, summary: "Curriculum templates and group policy every campus follows." }),
+      leaf("standards", "Group standards", Layers, v("standards"), { tier: "T", visible: { all: ["groupConsole", "planGroupConsole"] }, summary: "Curriculum templates and group policy every campus follows." }),
       leaf("curriculum-packs", "Curriculum packs", BookCheck, h("/curriculum-packs"), { tier: "T", visible: { all: ["institutionAuthority"] }, summary: "Board curriculum packs: request, evidence, educator approval and activation per campus." }), // SKAI-1008
       leaf("billing", "Billing & plan", CreditCard, v("billing"), { tier: "T", visible: { all: ["billing"] }, deniedReason: "The subscription is managed by the account owner.", summary: "Your SkooleeAI plan, AI credits and payment method." }),
       messages(4),
@@ -158,7 +158,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
       group("academics", "Academics", BookOpen, "primary", [
         leaf("academic-overview", "Academic overview", Compass, v("academic-hub"), { activePaths: ["/curriculum", "/resources"], visible: { module: "timetable" } }),
         leaf("classes", "Classes & subjects", School, v("classes"), { visible: { module: "timetable" } }),
-        leaf("timetable", "Timetable", CalendarRange, v("timetable"), { visible: { module: "timetable", all: ["academicLead"] }, deniedReason: "Your principal publishes the timetable." }),
+        leaf("timetable", "Timetable", CalendarRange, v("timetable"), { visible: { module: "timetable", all: ["academicLead", "planTimetable"] }, deniedReason: "Your principal publishes the timetable." }),
         leaf("exams", "Exams & results", FileCheck2, v("exam-cycles"), { tier: "T", visible: { module: "exams", all: ["academicLead"] }, deniedReason: "Your principal runs exams and results." }),
         leaf("report-cards", "Report cards", ClipboardList, v("report-cards"), { tier: "T", visible: { module: "reports" } }),
         leaf("academic-year", "Academic year", CalendarDays, v("year-cycle"), { tier: "T", visible: { module: "students" } }),
@@ -219,7 +219,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
         leaf("mark-corrections", "Mark corrections", History, h("/corrections"), { visible: { all: ["corrections"] } }),
       ]),
       group("teaching", "Teaching", CalendarRange, "primary", [
-        leaf("timetable", "Timetable & cover", CalendarRange, v("timetable"), { tier: "D", mobile: 3, visible: { module: "timetable" } }),
+        leaf("timetable", "Timetable & cover", CalendarRange, v("timetable"), { tier: "D", mobile: 3, visible: { module: "timetable", all: ["planTimetable"] } }),
         leaf("classes", "Classes & subjects", School, v("classes"), { tier: "T", visible: { module: "timetable" } }),
         leaf("curriculum", "Curriculum & grading", Scale, v("academic-rules"), { tier: "R", visible: { module: "exams" } }),
         leaf("calendar", "School calendar", CalendarDays, v("school-calendar"), { visible: { module: "timetable" } }),

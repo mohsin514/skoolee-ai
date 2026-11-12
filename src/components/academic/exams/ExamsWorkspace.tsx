@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ErrorState } from "@/components/ui/error-state";
 import { ExamInvigilationPanel } from "@/components/school-ai/exam-session-plan-panel";
@@ -146,7 +147,16 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
   const [sessions, setSessions] = useState<Session[]>([]);
   const [legacy, setLegacy] = useState<ExamItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [step, setStep] = useState<StepKey>("datesheet");
+  const [chosenStep, setStep] = useState<StepKey>("datesheet");
+  // The plan decides which steps exist: date sheet and seating are exam planning (Plus), papers are Exam Studio
+  // (Flagship). Scheduling, marks and results are free; a step the plan lacks falls through to the next one.
+  const access = useConsoleAccess();
+  // Until the access map loads, every step shows (no jump to another step on first paint).
+  const planHas = (key: string) => !access.ready || access.has(key);
+  const steps = STEPS.filter((s) => ((s.key !== "datesheet" && s.key !== "seating") || planHas("planExamPlanning")) && (s.key !== "papers" || planHas("planExamStudio")));
+  const step: StepKey = steps.some((s) => s.key === chosenStep)
+    ? chosenStep
+    : steps.find((s) => s.index > (STEPS.find((x) => x.key === chosenStep)?.index ?? 0))?.key ?? "marks";
   // SKO-506: the control tower re-reads the ledger when the exceptions desk changes it.
   const [towerTick, setTowerTick] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -400,7 +410,7 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
             aria-label={ui("Exam steps")}
             className="sk-panel grid gap-2 p-2.5 sm:grid-cols-3 2xl:grid-cols-6"
           >
-            {STEPS.map((s) => {
+            {steps.map((s) => {
               const value = progress[s.key];
               const on = step === s.key;
               const done = value >= 100;

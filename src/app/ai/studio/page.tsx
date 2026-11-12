@@ -7,6 +7,7 @@ import { ExamStudioShell } from "@/components/school-ai/exam-studio/exam-studio-
 import { RoleFrame } from "@/components/role-dashboard/RoleFrame";
 import { prisma } from "@/lib/db/prisma";
 import { canLeadAcademics } from "@/lib/api/scope";
+import { schoolPlanFeatures } from "@/lib/billing/entitlements";
 
 export const metadata = { title: "Exam Studio · Skoolee" };
 
@@ -33,6 +34,8 @@ export default async function ExamStudioPage() {
     if (error instanceof AccessDenied || error instanceof SchoolAiError && error.status === 403) allowed = false;
     else throw error;
   }
+  // Exam Studio is a Flagship feature; without it the console's own "Exam Studio" row is hidden too.
+  if (allowed && !(await schoolPlanFeatures(user.schoolId)).examStudioEnabled) allowed = false;
   if (!allowed) redirect(dashboardPathForRole(user.role));
   // Campus logo, else school logo: what the console's own sidebar shows (dashboard.ts). Read on the server so
   // the first paint has it (the session's `logoUrl` arrives only after the client's read); a failed read only costs the image.

@@ -305,6 +305,8 @@ export async function POST(req: NextRequest) {
             maxTeachers: planDef.maxTeachers,
             maxCampuses: planDef.maxCampuses,
             aiCredits: aiCreditsLimit,
+            // A per-student plan's monthly allowance grows to this × active students at each monthly reset.
+            aiCreditsPerStudent: planDef.aiCreditsPerStudent,
           },
           // Shown once. Not recoverable.
           tempPassword,

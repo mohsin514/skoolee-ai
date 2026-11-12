@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 import { prisma } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, assertPermission, canManageAcademics, resolveCampusId } from "@/lib/api/scope";
@@ -36,6 +37,7 @@ export async function createAcademicModelDraft(user: AuthUser, body: Record<stri
   await assertAcademicModelDraftAccess(user);
   const isTemplate = body.action === "create-template";
   if (isTemplate && user.role !== "SUPER_ADMIN") throw new ApiError("Only a school-group administrator can create a shared template", 403);
+  if (isTemplate) await assertPlanFeature(user, "groupConsoleEnabled");
 
   const parsed = academicModelConfigurationSchema.safeParse(body.configuration);
   if (!parsed.success) return { ok: false, fieldErrors: parsed.error.flatten().fieldErrors };

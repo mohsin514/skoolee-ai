@@ -9,6 +9,7 @@ import { syncPrimaryExamRoom } from "@/lib/academic/exam-rooms";
 import { roomCapacity } from "@/lib/academic/room-capacity";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { assertPlanFeature } from "@/lib/billing/entitlements";
 
 // GET  /api/academic/exam-schedule?examId=&campusId=
 // POST /api/academic/exam-schedule { examId, subjectId, date, periodDefinitionId?, roomId? }
@@ -142,6 +143,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Exam sessions, date sheets, seating and invigilation are exam planning (Plus).
+    await assertPlanFeature(user, "examPlanningEnabled");
     if (!canManageOperations(user)) {
       return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     }
@@ -190,6 +193,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertPlanFeature(user, "examPlanningEnabled");
     if (!canManageOperations(user)) {
       return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     }
@@ -292,6 +296,7 @@ async function createOrUpdate(
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertPlanFeature(user, "examPlanningEnabled");
     if (!canManageOperations(user)) {
       return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     }
