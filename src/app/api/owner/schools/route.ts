@@ -19,6 +19,7 @@ import {
 } from "@/lib/owner/provisioning";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { sendSetupEmailFor } from "@/lib/owner/setup-email";
 
 export const dynamic = "force-dynamic";
 
@@ -279,6 +280,9 @@ export async function POST(req: NextRequest) {
       newValues: { plan, status, kind, ownerEmail, campusName, campusId: result.campus.id, ownerId: result.owner.id },
     }).catch(() => {});
 
+    // SKAI-1801: email the first owner a single-use set-password link; credentials stay as the fallback.
+    const setupEmail = await sendSetupEmailFor({ id: result.owner.id, email: result.owner.email, schoolId: result.school.id });
+
     return Response.json(
       {
         success: true,
@@ -302,6 +306,7 @@ export async function POST(req: NextRequest) {
           },
           // Shown once. Not recoverable.
           tempPassword,
+          setupEmail,
         },
       },
       { status: 201 }

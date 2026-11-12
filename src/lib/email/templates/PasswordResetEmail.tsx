@@ -7,10 +7,12 @@ interface Props {
   actionUrl: string;
   logoUrl?: string;
   language?: AuthEmailLanguage;
+  /** SKAI-1801: "setup" is the first-password email for owner-created accounts; same single-use link. */
+  kind?: "reset" | "setup";
 }
 
-export function PasswordResetEmail({ actionUrl, logoUrl, language = "en" }: Props) {
-  const copy = authEmailCopy[language].reset;
+export function PasswordResetEmail({ actionUrl, logoUrl, language = "en", kind = "reset" }: Props) {
+  const copy = authEmailCopy[language][kind];
   return (
     <SkooleeEmail language={language} preview={copy.subject} eyebrow={copy.eyebrow}
       title={copy.title} action={{ label: copy.action, href: actionUrl }} logoUrl={logoUrl}>

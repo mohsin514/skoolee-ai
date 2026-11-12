@@ -9,6 +9,9 @@
  * subscription = الاشتراك / سبسکرپشن, two-step sign-in = التحقق بخطوتين / دو مرحلہ سائن اِن.
  */
 const ROWS: ReadonlyArray<readonly [string, string, string]> = [
+  // SKAI-1801: account-setup email status on the provisioning hand-off.
+  ["A setup email with a single-use set-password link was sent to {0}.", "أُرسلت رسالة إعداد تتضمن رابطًا لتعيين كلمة المرور يُستخدم مرة واحدة إلى {0}.", "{0} کو ایک بار استعمال ہونے والے پاس ورڈ لنک کے ساتھ سیٹ اپ ای میل بھیج دی گئی۔"],
+  ["The setup email could not be sent. Share the temporary password below instead.", "تعذّر إرسال رسالة الإعداد. شارك كلمة المرور المؤقتة أدناه بدلًا من ذلك.", "سیٹ اپ ای میل نہیں بھیجی جا سکی۔ اس کے بجائے نیچے دیا گیا عارضی پاس ورڈ شیئر کریں۔"],
   // SKAI-1153: regulator attendance codes on the school dialog and the class register.
   ["Attendance regulator", "جهة تنظيم الحضور", "حاضری ریگولیٹر"],
   ["Attendance codes and calendar", "رموز الحضور والتقويم", "حاضری کوڈز اور کیلنڈر"],

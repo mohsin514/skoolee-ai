@@ -286,3 +286,20 @@ ${copy.note}`,
     throw err;
   }
 }
+
+/** SKAI-1801: account-setup email for users the platform owner creates. Carries a single-use set-password link, never a password. */
+export async function sendAccountSetupEmail(email: string, token: string, preferredLanguage?: string | null) {
+  const language = authEmailLanguage(preferredLanguage);
+  const copy = authEmailCopy[language].setup;
+  const actionUrl = `${getBaseUrl()}/forgot-password?token=${token}`;
+  const html = await renderTemplate(PasswordResetEmail({ actionUrl, logoUrl: getLogoUrl(), language, kind: "setup" }));
+  const result = await deliverEmail({
+    to: email,
+    subject: copy.subject,
+    html,
+    text: `${copy.body}\n\n${copy.action}: ${actionUrl}\n\n${copy.note}`,
+    fromName: "SkooleeAI Support",
+  });
+  if (!result.success) throw new Error(result.error);
+  return result;
+}

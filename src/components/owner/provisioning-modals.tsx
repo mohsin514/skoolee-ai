@@ -124,6 +124,8 @@ interface Handoff {
   email: string;
   password: string;
   lines: { label: string; value: string }[];
+  /** SKAI-1801: whether the account-setup email went out; undefined for older responses. */
+  emailSent?: boolean;
 }
 
 function CredentialHandoff({ data, onDone }: { data: Handoff; onDone: () => void }) {
@@ -153,6 +155,14 @@ ${t("You will be asked to set your own password on first sign-in.")}`;
       <Alert tone="success" live="polite" icon={Check} title={data.heading} className="mb-5">
         {t("The account is active and ready to use.")}
       </Alert>
+
+      {data.emailSent === undefined ? null : (
+        <Alert tone={data.emailSent ? "info" : "warning"} live="polite" compact className="mb-5">
+          {data.emailSent
+            ? t("A setup email with a single-use set-password link was sent to {0}.", [data.email])
+            : t("The setup email could not be sent. Share the temporary password below instead.")}
+        </Alert>
+      )}
 
       <dl className="mb-5 space-y-2 rounded-2xl bg-surface-subtle p-4">
         {data.lines.map((l) => (
@@ -280,6 +290,7 @@ export function ProvisionSchoolModal({ onClose, onCreated, prefill, workflowHand
         heading: t("{0} is live", [d.schoolName]),
         email: d.ownerEmail,
         password: d.tempPassword,
+        emailSent: d.setupEmail ? d.setupEmail.sent === true : undefined,
         lines: [
           { label: t("School"), value: d.schoolName },
           { label: t("Kind"), value: t(d.kind === "GROUP" ? "School group" : "Single school") },
@@ -536,6 +547,7 @@ export function AddUserModal({
         heading: t("{0} can now sign in", [d.fullName]),
         email: d.email,
         password: d.tempPassword,
+        emailSent: d.setupEmail ? d.setupEmail.sent === true : undefined,
         lines: [
           { label: t("Name"), value: d.fullName },
           { label: t("Role"), value: roleLabelFor({ role: d.role, institutionKind: d.role === "ADMIN" ? "STANDALONE" : "GROUP" }, language) },

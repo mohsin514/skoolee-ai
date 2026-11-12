@@ -14,6 +14,7 @@ import {
   OWNER_CREATABLE_ROLES,
 } from "@/lib/owner/provisioning";
 import { parseBody } from "@/lib/api/validate";
+import { sendSetupEmailFor } from "@/lib/owner/setup-email";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
@@ -191,6 +192,9 @@ export async function POST(req: NextRequest) {
       newValues: { role, schoolId, campusId, schoolName: school.name },
     }).catch(() => {});
 
+    // SKAI-1801: email the new user a single-use set-password link; credentials stay as the fallback.
+    const setupEmail = await sendSetupEmailFor({ id: created.id, email: created.email, schoolId });
+
     return Response.json(
       {
         success: true,
@@ -198,6 +202,7 @@ export async function POST(req: NextRequest) {
           ...created,
           // Shown once. Not recoverable.
           tempPassword,
+          setupEmail,
         },
       },
       { status: 201 }
