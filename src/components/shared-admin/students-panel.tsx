@@ -6,6 +6,7 @@ import { Button as SystemButton } from "@/components/ui/button";
 import { DeskPill, DeskRowIcon, deskRow } from "@/components/ui/desk";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { bulkTagExpectedValues } from "@/lib/students/profile-update";
+import { BULK_REQUEST_CONCURRENCY, mapWithLimit } from "@/lib/http/request-pool";
 import {
   Archive,
   ArrowRight,
@@ -401,12 +402,13 @@ export function StudentsPanel({
   const reviewBulkArchive = useCallback(async () => {
     setBusy(true);
     try {
-      const previews = await Promise.all([...selected].map(async (id) => {
+      // SKAI-1855: a few previews at a time, not one request per selected student all at once.
+      const previews = await mapWithLimit([...selected], BULK_REQUEST_CONCURRENCY, async (id) => {
         const response = await fetch(`/api/students?id=${encodeURIComponent(id)}&preview=true`, { method: "DELETE" });
         const preview = await response.json();
         if (!response.ok) throw new Error(preview.error || ui("Could not calculate student impact"));
         return (preview.dependencies || {}) as Record<string, number>;
-      }));
+      });
       const totals = previews.reduce<Record<string, number>>((all, item) => {
         for (const [key, count] of Object.entries(item)) all[key] = (all[key] || 0) + Number(count || 0);
         return all;
@@ -421,17 +423,16 @@ export function StudentsPanel({
   }, [selected, ui, setArchiveSummary]);
 
   /**
-   * Tags and class moves go one student at a time — the API deliberately keeps
-   * its bulk arm to status only. Failures are counted rather than thrown so one
-   * bad row does not strand the other forty.
+   * Tags go through the single-student PATCH — the API deliberately keeps its bulk
+   * arm to status only — a few students at a time (SKAI-1855). Failures are counted
+   * rather than thrown so one bad row does not strand the other forty, and they are
+   * reported in selection order.
    */
   const runBulkPatch = useCallback(
     async (patch: Record<string, unknown>, describe: (n: number) => string) => {
       setBusy(true);
       const ids = Array.from(selected);
-      let done = 0;
-      const failures: string[] = [];
-      for (const id of ids) {
+      const outcomes = await mapWithLimit(ids, BULK_REQUEST_CONCURRENCY, async (id) => {
         try {
           const res = await fetch("/api/students", {
             method: "PATCH",
@@ -441,12 +442,14 @@ export function StudentsPanel({
           });
           const json = await res.json();
           if (!res.ok) throw new Error(json.error || "failed");
-          done += 1;
+          return null;
         } catch (e) {
           const name = students.find((s) => s.id === id)?.fullName || id;
-          failures.push(`${name}: ${(e as Error)?.message || "failed"}`);
+          return `${name}: ${(e as Error)?.message || "failed"}`;
         }
-      }
+      });
+      const failures = outcomes.filter((outcome): outcome is string => outcome !== null);
+      const done = outcomes.length - failures.length;
       setBusy(false);
       if (done > 0) toast.success(describe(done));
       if (failures.length > 0) {
