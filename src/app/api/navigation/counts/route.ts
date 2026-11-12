@@ -10,13 +10,17 @@ import { collectSources } from "@/lib/principal/queue";
  *   campus policy override requests; for the platform operator, subscription requests waiting for review; else 0.
  * - queue: open action-queue items on the caller's campus for the campus admin and the principal; else 0.
  * Allowed while suspended (shell read, G43). A failing source counts as 0 rather than failing the shell.
+ * - approvalBreakdown (SKAI-1866, institution authority only): the same three counts split out, plus whether any
+ *   source failed, so the group Today view reads them here instead of downloading the support grants and the whole
+ *   policy library. `counts` stays numbers only — the sidebar reads it as badge values.
  */
 const QUEUE_ROLES = new Set(["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL"]);
 
-async function safeCount(name: string, count: () => Promise<number>) {
+async function safeCount(name: string, count: () => Promise<number>, onFail?: () => void) {
   try {
     return await count();
   } catch (error) {
+    onFail?.();
     console.warn("[navigation/counts] source unavailable", { source: name, error: error instanceof Error ? error.message : String(error) });
     return 0;
   }
@@ -37,19 +41,23 @@ async function platformApprovals() {
   return safeCount("subscription-requests", () => prisma.subscriptionRequest.count({ where: { state: "PENDING_REVIEW" } }));
 }
 
-async function approvalsFor(user: AuthUser) {
-  if (user.role === "APP_OWNER") return platformApprovals();
-  if (!isInstitutionAuthority(user)) return 0;
+type ApprovalBreakdown = { support: number; tax: number; overrides: number; failed: boolean };
+
+async function approvalsFor(user: AuthUser): Promise<{ approvals: number; breakdown?: ApprovalBreakdown }> {
+  if (user.role === "APP_OWNER") return { approvals: await platformApprovals() };
+  if (!isInstitutionAuthority(user)) return { approvals: 0 };
+  let failed = false;
+  const onFail = () => { failed = true; };
   const [support, tax, overrides] = await Promise.all([
     safeCount("support-grants", () => prisma.supportGrant.count({
       where: { schoolId: user.schoolId, OR: [{ status: "pending" }, { status: "active", emergencyReason: { not: null }, reviewedAt: null }] },
-    })),
-    safeCount("tax-activations", () => prisma.taxActivation.count({ where: { schoolId: user.schoolId, status: "DRAFT" } })),
+    }), onFail),
+    safeCount("tax-activations", () => prisma.taxActivation.count({ where: { schoolId: user.schoolId, status: "DRAFT" } }), onFail),
     kindFor(user) === "GROUP"
-      ? safeCount("policy-overrides", () => prisma.policyOverride.count({ where: { schoolId: user.schoolId, status: "PENDING" } }))
+      ? safeCount("policy-overrides", () => prisma.policyOverride.count({ where: { schoolId: user.schoolId, status: "PENDING" } }), onFail)
       : Promise.resolve(0),
   ]);
-  return support + tax + overrides;
+  return { approvals: support + tax + overrides, breakdown: { support, tax, overrides, failed } };
 }
 
 async function queueFor(user: AuthUser) {
@@ -68,8 +76,8 @@ async function queueFor(user: AuthUser) {
 export async function GET() {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    const [approvals, queue] = await Promise.all([approvalsFor(user), queueFor(user)]);
-    return Response.json({ counts: { approvals, queue } }, { headers: { "Cache-Control": "private, no-store" } });
+    const [{ approvals, breakdown }, queue] = await Promise.all([approvalsFor(user), queueFor(user)]);
+    return Response.json({ counts: { approvals, queue }, ...(breakdown ? { approvalBreakdown: breakdown } : {}) }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return errorResponse(error, "Could not load workspace counts.");
   }
