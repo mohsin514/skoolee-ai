@@ -15,6 +15,19 @@ export function canonicalExamPath(pathname: string): string | null {
   } catch { return null; }
 }
 
+/**
+ * SKAI-1840: files served from public/ (kept in step by tests/school-ai/exam-boundary.test.ts).
+ * They hold no school data, so the proxy skips the database-backed exam boundary for them.
+ */
+export const PUBLIC_STATIC_FILES: ReadonlySet<string> = new Set([
+  "/apple-icon.png", "/favicon.svg", "/icon-1024.png", "/login.svg", "/og-image.png",
+  "/fonts/NotoNaskhArabic-Bold.ttf", "/fonts/NotoNaskhArabic-Regular.ttf",
+]);
+
+export function isPublicStaticFileRequest(path: string, method: string) {
+  return (method === "GET" || method === "HEAD") && PUBLIC_STATIC_FILES.has(path);
+}
+
 export function candidateExamUrl(assignmentId: string) { return `/ai/exams/${encodeURIComponent(assignmentId)}`; }
 
 /** Exact routes/methods, not an exam-prefix allowlist that also exposes staff APIs. */
