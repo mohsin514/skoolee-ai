@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
@@ -15,17 +16,19 @@ export async function examTimelineFor(schoolId: string, student: { id: string; c
   const papers = (await publishedPapersForClasses(schoolId, [student.classId])).filter(paper => paper.classId === student.classId);
   const [seats, sittings, timeZone] = await Promise.all([
     papers.length ? prisma.examSeat.findMany({ where: { schoolId, studentId: student.id, examScheduleId: { in: papers.map(paper => paper.scheduleId) } }, select: { examScheduleId: true, seatNumber: true, rowNo: true, benchNo: true, examRoom: { select: { room: { select: { roomNumber: true } }, invigilation: { select: { teacher: { select: { fullName: true } } } } } } } }) : [],
-    prisma.schoolAiExamAssignment.findMany({ where: { schoolId, campusId: student.campusId, classId: student.classId, status: "ACTIVE", mode: { in: DELIVERED_EXAM_MODES }, studentIds: { array_contains: [student.id] } }, select: { id: true, title: true, startsAt: true, endsAt: true, mode: true, resultsReleasedAt: true, paperSnapshot: true }, orderBy: { startsAt: "asc" }, take: 200 }),
+    prisma.schoolAiExamAssignment.findMany({ where: { schoolId, campusId: student.campusId, classId: student.classId, status: "ACTIVE", mode: { in: DELIVERED_EXAM_MODES }, studentIds: { array_contains: [student.id] } }, select: { id: true, title: true, startsAt: true, endsAt: true, mode: true, resultsReleasedAt: true }, orderBy: { startsAt: "asc" }, take: 200 }),
     getSchoolTimeZone(schoolId, student.campusId),
   ]);
   const attempts = sittings.length ? await prisma.schoolAiExamAttempt.findMany({ where: { schoolId, studentId: student.id, assignmentId: { in: sittings.map(row => row.id) } }, select: { assignmentId: true, status: true, deadlineAt: true, pausedAt: true } }) : [];
-  const subjectIds = [...new Set(sittings.map(row => (row.paperSnapshot as { subjectId?: string } | null)?.subjectId).filter((value): value is string => Boolean(value)))];
+  // SKAI-1871: read only the subject id out of each paper snapshot instead of loading the whole paper.
+  const subjectOf = new Map((sittings.length ? await prisma.$queryRaw<{ id: string; subject_id: string | null }[]>`SELECT id, paper_snapshot->>'subjectId' AS subject_id FROM school_ai_exam_assignments WHERE school_id = ${schoolId} AND campus_id = ${student.campusId} AND id IN (${Prisma.join(sittings.map(row => row.id))})` : []).map(row => [row.id, row.subject_id]));
+  const subjectIds = [...new Set(sittings.map(row => subjectOf.get(row.id)).filter((value): value is string => Boolean(value)))];
   const subjects = new Map((subjectIds.length ? await prisma.subject.findMany({ where: { schoolId, id: { in: subjectIds } }, select: { id: true, name: true } }) : []).map(row => [row.id, row.name]));
   return buildExamTimeline({
     now, timeZone,
     papers,
     seats: seats.map(row => ({ scheduleId: row.examScheduleId, room: row.examRoom.room.roomNumber, seat: row.rowNo ? `${row.rowNo}-${row.benchNo}` : String(row.seatNumber), invigilator: row.examRoom.invigilation?.teacher.fullName ?? null })),
-    online: sittings.map(row => ({ id: row.id, title: row.title, subject: subjects.get((row.paperSnapshot as { subjectId?: string } | null)?.subjectId ?? "") ?? null, startsAt: row.startsAt, endsAt: row.endsAt, mode: row.mode, resultsReleasedAt: row.resultsReleasedAt, attempt: attempts.find(attempt => attempt.assignmentId === row.id) ?? null })),
+    online: sittings.map(row => ({ id: row.id, title: row.title, subject: subjects.get(subjectOf.get(row.id) ?? "") ?? null, startsAt: row.startsAt, endsAt: row.endsAt, mode: row.mode, resultsReleasedAt: row.resultsReleasedAt, attempt: attempts.find(attempt => attempt.assignmentId === row.id) ?? null })),
   });
 }
 
