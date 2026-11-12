@@ -54,8 +54,16 @@ export async function GET(req: NextRequest) {
     const keyed = records.map(r => ({ ...r, day: dayKey(r.date) }));
     // SKAI-1537: unmarked counts pupil-days over the expected school days, in the same unit as marked.
     const days = expectedDays(startDate, endDate, keyed.map(r => r.day));
+    // SKAI-1870: bucket the rows by class once instead of scanning every row for every class.
+    const byClass = new Map<string, typeof keyed>();
+    for (const r of keyed) {
+      if (!r.classId) continue;
+      const bucket = byClass.get(r.classId);
+      if (bucket) bucket.push(r);
+      else byClass.set(r.classId, [r]);
+    }
     const classBreakdown = classCounts.map(cls => {
-      const classRecords = records.filter(r => r.classId === cls.id);
+      const classRecords = byClass.get(cls.id) ?? [];
       return {
         classId: cls.id,
         className: [cls.name, cls.section].filter(Boolean).join(" "),
@@ -64,7 +72,7 @@ export async function GET(req: NextRequest) {
         absent: classRecords.filter(r => r.status === "ABSENT").length,
         leave: classRecords.filter(r => r.status === "LEAVE").length,
         marked: classRecords.length,
-        unmarked: unmarkedPupilDays(cls._count.students, days, keyed.filter(r => r.classId === cls.id).map(r => ({ studentId: r.studentId, date: r.day }))),
+        unmarked: unmarkedPupilDays(cls._count.students, days, classRecords.map(r => ({ studentId: r.studentId, date: r.day }))),
         percentage: ruleRate(classRecords, rule),
       };
     });
