@@ -19,8 +19,12 @@ type W = { campusId?: string; examId?: { in: string[] } };
 mock.module("@/lib/db/prisma", { namedExports: { prisma: {
   exam: { findMany: async ({ where }: { where: W }) => exams.filter((e) => e.campusId === where.campusId) },
   reportCard: { findMany: async ({ where }: { where: W }) => cards.filter((c) => where.examId!.in.includes(c.examId)) },
-  mark: { findMany: async () => [] },
-  student: { count: async () => 1 },
+  mark: { groupBy: async () => [] },
+  subject: { findMany: async () => [] },
+  student: {
+    count: async () => 1,
+    findMany: async ({ where }: { where: { id: { in: string[] } } }) => where.id.in.map((id) => ({ id, fullName: `Pupil ${id}`, rollNo: id })),
+  },
   attendance: { groupBy: async () => [] },
   class: { findMany: async () => [] },
   gradeWeightConfig: { findMany: async () => [] },

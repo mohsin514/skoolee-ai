@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { ApiError } from "@/lib/api/scope";
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { withoutAutoAudit } from "@/lib/db/audit-trail";
 import { gradeForMark, isLockedStatus, thresholdsForClass } from "@/lib/academic/report-cards";
 import { notify } from "@/lib/notifications/in-app";
 
@@ -116,7 +118,16 @@ export async function enterBulkMarks(user: AuthUser, input: EnterBulkMarksInput)
   const expectedMarks = input.expectedMarks && typeof input.expectedMarks === "object" ? input.expectedMarks as Record<string, unknown> : null;
 
   const { savedCount, changed } = await prisma.$transaction(async (tx) => {
-    const existingMarks = await tx.mark.findMany({ where: { examId } });
+    // SKAI-1834: only the rows this save can touch. The sheet sends just the edited cells, so this read (and the
+    // SERIALIZABLE predicate it takes) no longer grows with the whole sheet.
+    const existingMarks = await tx.mark.findMany({
+      where: {
+        examId,
+        schoolId: user.schoolId,
+        studentId: { in: [...new Set(entries.map((entry) => entry.studentId))] },
+        subjectId: { in: [...new Set(entries.map((entry) => entry.subjectId))] },
+      },
+    });
     const existingByKey = new Map(existingMarks.map((mark) => [`${mark.studentId}:${mark.subjectId}`, mark]));
 
     if (expectedMarks) {
@@ -131,6 +142,10 @@ export async function enterBulkMarks(user: AuthUser, input: EnterBulkMarksInput)
     }
     let changed = 0;
     let savedCount = 0;
+    const created: Prisma.MarkCreateManyInput[] = [];
+    const audits: Prisma.AuditLogCreateManyInput[] = [];
+    const audit = (recordId: string, oldValue: Prisma.InputJsonValue | typeof Prisma.JsonNull, newValue: Prisma.InputJsonValue) =>
+      audits.push({ tableName: "marks", recordId, oldValue, newValue, userId: user.userId, ipAddress: input.ipAddress });
 
     for (const entry of entries) {
       const subject = subjectsById.get(entry.subjectId)!;
@@ -142,50 +157,37 @@ export async function enterBulkMarks(user: AuthUser, input: EnterBulkMarksInput)
       const grade = absent || exempt ? null : gradeForMark(obtained, subject.totalMarks, thresholds);
       const key = `${entry.studentId}:${entry.subjectId}`;
       const oldMark = existingByKey.get(key);
+      savedCount += 1;
 
-      const mark = oldMark
-        ? await tx.mark.update({
-            where: { id: oldMark.id },
-            data: { marksObtained: obtained, isAbsent: absent, isExempt: exempt, grade, enteredBy: user.userId },
-          })
-        : await tx.mark.create({
-            data: {
-              campusId: exam.campusId,
-              examId,
-              studentId: entry.studentId,
-              subjectId: entry.subjectId,
-              marksObtained: obtained,
-              isAbsent: absent,
-              isExempt: exempt,
-              grade,
-              enteredBy: user.userId,
-            },
-          });
+      if (!oldMark) {
+        // New rows are inserted together below; the id is fixed here so the audit row can name it.
+        const row = { id: randomUUID(), campusId: exam.campusId, examId, studentId: entry.studentId, subjectId: entry.subjectId, marksObtained: obtained, isAbsent: absent, isExempt: exempt, grade, enteredBy: user.userId };
+        created.push(row);
+        audit(row.id, Prisma.JsonNull, markSnapshot(row));
+        changed += 1;
+        continue;
+      }
 
       const didChange =
-        !oldMark ||
         oldMark.marksObtained !== obtained ||
         oldMark.isAbsent !== absent ||
         oldMark.isExempt !== exempt ||
         oldMark.grade !== grade ||
         oldMark.enteredBy !== user.userId;
+      // SKAI-1834: an identical row is left alone (it wrote no audit row before either).
+      if (!didChange) continue;
 
-      if (didChange) {
-        changed += 1;
-        await tx.auditLog.create({
-          data: {
-            tableName: "marks",
-            recordId: mark.id,
-            oldValue: oldMark ? markSnapshot(oldMark) : Prisma.JsonNull,
-            newValue: markSnapshot(mark),
-            userId: user.userId,
-            ipAddress: input.ipAddress,
-          },
-        });
-      }
-
-      savedCount += 1;
+      const mark = await tx.mark.update({
+        where: { id: oldMark.id },
+        data: { marksObtained: obtained, isAbsent: absent, isExempt: exempt, grade, enteredBy: user.userId },
+      });
+      changed += 1;
+      audit(mark.id, markSnapshot(oldMark), markSnapshot(mark));
     }
+
+    // One insert for every new row, audited by the per-mark rows below rather than one bulk "*" row.
+    if (created.length) await withoutAutoAudit(() => tx.mark.createMany({ data: created }));
+    if (audits.length) await tx.auditLog.createMany({ data: audits });
 
     if (exam.status === "ACTIVE") {
       await tx.exam.update({

@@ -15,6 +15,7 @@ import { writeAuditEvent } from "@/lib/audit-events";
 import { isSchoolAiManager } from "./access";
 import { scopedAssignment, staffExamAccess } from "./exam-service";
 import { schoolAiTransaction } from "./transaction";
+import { markCandidateExamActive } from "./exam-active-marker";
 
 export const BOARD_UNSAVED_SECONDS = 120;
 export const TEACHER_EXTEND_LIMIT_MINUTES = 15;
@@ -74,6 +75,7 @@ export async function extendAttempts(user: AuthUser, assignmentId: string, raw: 
       if (!attempt || attempt.status !== "IN_PROGRESS" || (!attempt.pausedAt && attempt.deadlineAt <= now)) { outcomes.push({ attemptId, outcome: "NOT_IN_PROGRESS" }); continue; }
       if (applied.has(attempt.id)) { outcomes.push({ attemptId, outcome: "ALREADY_APPLIED", deadlineAt: attempt.deadlineAt.toISOString() }); continue; }
       const deadlineAt = new Date(attempt.deadlineAt.getTime() + input.minutes * 60_000);
+      await markCandidateExamActive(attempt.userId, deadlineAt); // SKAI-1840: before the extension commits.
       const moved = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", deadlineAt: attempt.deadlineAt }, data: { deadlineAt } });
       if (moved.count !== 1) { outcomes.push({ attemptId, outcome: "NOT_IN_PROGRESS" }); continue; }
       await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: attempt.id, action: "UPDATE", campusId: assignment.campusId, before: { deadlineAt: attempt.deadlineAt.toISOString() }, after: { deadlineAt: deadlineAt.toISOString(), extendedMinutes: input.minutes, extensionKey: input.idempotencyKey, reason: input.reason } });

@@ -15,6 +15,8 @@ const pupilA: Viewer = { userId: "s-a", schoolId: "school-a", campusId: "campus-
 
 mock.module("@/lib/api/scope", { namedExports: { ApiError } });
 mock.module("@/lib/school-ai/access", { namedExports: { isSchoolAiManager: (user: Viewer) => user.role !== "TEACHER" } });
+// The SKAI-1840 Redis exam marker is out of scope here; stub it so the test never opens a Redis connection.
+mock.module("@/lib/school-ai/exam-active-marker", { namedExports: { markCandidateExamActive: async () => undefined } });
 mock.module("@/lib/school-ai/exam-service", {
   namedExports: {
     // The assignment lives on the caller's own campus; a pupil gets their own row back and must be refused.
