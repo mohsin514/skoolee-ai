@@ -19,6 +19,7 @@ import type { PanelCommand } from "@/components/fees/fee-types";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { deskPulse } from "@/lib/library/desk-pulse";
+import { RecordSearchSelect } from "@/components/operations/record-search-select";
 
 // SKO-436: the lending desk. Scan a member card, then copies; scan a copy to return it. Focus goes
 // back to the scan field after every scan. Fines are previewed and explained, never the first step.
@@ -28,7 +29,7 @@ type Member = { kind: "MEMBER"; member: { id: string; memberNo: string; name: st
 type Copy = { kind: "COPY"; copy: { id: string; barcode: string; status: string; condition: string; heldForReservation: boolean }; book: { id: string; title: string; author: string | null; isbn: string | null } | null; waitingReservations: number };
 type Fine = { overdueDays: number; graceDays: number; closureDays: string[]; chargeableDays: number; perDay: number; uncapped: number; cap: number; amount: number; currency: string };
 type Overview = { rules: { version: number; loanDays: number; maxLoans: number; maxRenewals: number; graceDays: number; finePerDay: number; fineCap: number; lostCharge: number; holdDays: number; currency: string; closures: string[] }; canWaive: boolean;
-  books: { id: string; title: string; copiesTotal: number; copiesAvailable: number }[]; reservations: { id: string; bookId: string; status: string; readyUntil: string | null }[]; charges: { id: string; kind: string; amount: number; currency: string }[]; handed?: { id: string; kind: string; amount: number; currency: string; decidedAt: string | null; status?: string; invoiceId?: string | null }[] };
+  stock: { copiesTotal: number; copiesAvailable: number }; reservations: { id: string; bookId: string; status: string; readyUntil: string | null }[]; charges: { id: string; kind: string; amount: number; currency: string }[]; handed?: { id: string; kind: string; amount: number; currency: string; decidedAt: string | null; status?: string; invoiceId?: string | null }[] };
 
 const STATUS_LABEL: Record<string, string> = { AVAILABLE: "On the shelf", ON_LOAN: "On loan", RESERVED_HOLD: "Held for a reservation", DAMAGED: "Damaged", LOST: "Lost", WAITING: "Waiting", READY: "Ready to collect" };
 const STATUS_TONE: Record<string, DeskTone> = { AVAILABLE: "success", ON_LOAN: "brand", RESERVED_HOLD: "info", DAMAGED: "warning", LOST: "danger", WAITING: "neutral", READY: "success" };
@@ -160,7 +161,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
       {overviewLoading && !overview ? <p role="status" className="text-sm text-ink-muted">{ui("Loading library data…")}</p> : null}
       {overviewError ? <Alert tone="warning" compact actions={<Button size="sm" variant="outline" disabled={overviewLoading} onClick={() => void load()}>{ui("Try again")}</Button>}>{overviewError}</Alert> : null}
       {overview ? (() => {
-        const { shelf, onLoan, ready } = deskPulse(overview.books, overview.reservations);
+        const { shelf, onLoan, ready } = deskPulse([overview.stock], overview.reservations);
         return <DeskStats data-lending-pulse>
           <StatTile index={0} icon={BookCheck} tone="success" value={number(shelf)} label={ui("On the shelf")} />
           <StatTile index={1} icon={BookOpen} tone="brand" value={number(onLoan)} label={ui("On loan")} />
@@ -257,7 +258,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
             <h3 className="font-semibold text-ink-strong">{ui("Add barcoded copies")}</h3>
             <form className="sk-desk-section" onSubmit={async (e) => { e.preventDefault(); const r = await post("copies", { bookId: copyForm.bookId, barcodes: copyForm.barcodes.split(/[\s,]+/).filter(Boolean) }); if (r) { setMessage(ui("{0} copies registered.", [r.length])); copyRegistrationDraft.markSaved(); setCopyForm({ bookId: copyForm.bookId, barcodes: "" }); void load(); } }}>
               <DraftRecovery recordLabel={ui("Copy registration")} draft={copyRegistrationDraft} excluded={ui("Only the selected title and barcode list are stored in this signed-in browser draft.")} />
-              <FormField name="cp-book" label={ui("Title")}><Select value={copyForm.bookId} onChange={(e) => setCopyForm((f) => ({ ...f, bookId: e.target.value }))}><option value="">{ui("Choose a title")}</option>{overview.books.map((b) => <option key={b.id} value={b.id}>{b.title} ({b.copiesAvailable}/{b.copiesTotal})</option>)}</Select></FormField>
+              <FormField name="cp-book" label={ui("Title")}><RecordSearchSelect<{ id: string; title: string; copiesTotal: number; copiesAvailable: number }> path="/api/library/books" placeholder="Search books…" field={{ name: "cp-book", value: copyForm.bookId, onChange: (e) => setCopyForm((f) => ({ ...f, bookId: e.target.value })) }} optionLabel={(b) => `${b.title} (${b.copiesAvailable}/${b.copiesTotal})`} /></FormField>
               <FormField name="cp-codes" label={ui("Barcodes")} hint={ui("One per copy, separated by spaces or commas.")}><Input dir="ltr" value={copyForm.barcodes} onChange={(e) => setCopyForm((f) => ({ ...f, barcodes: e.target.value }))} /></FormField>
               <Button type="submit" size="sm" variant="secondary" disabled={!copyForm.bookId || !copyForm.barcodes.trim()}>{ui("Register copies")}</Button>
             </form>

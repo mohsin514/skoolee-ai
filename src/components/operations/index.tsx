@@ -807,14 +807,20 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
     setLoading(true); setLoadFailed(null);
     try {
       const q = `?${new URLSearchParams({ search, categoryId: category, sort, page: String(paged.requestedPage), limit: String(paged.controls.perPage) })}`;
-      const [br, cr] = await Promise.all([readRequest(`/api/library/books${q}`), readRequest("/api/library/categories")]);
-      const [bj, cj] = await Promise.all([checkedListJson(br), checkedListJson(cr)]);
+      const bj = await checkedListJson(await readRequest(`/api/library/books${q}`));
       if (version !== requestVersion.current) return;
       if (bj.success) { setRows(bj.data || []); setTotal(bj.pagination.total); }
-      if (cj.success) setCats(cj.data || []);
-    } catch (error) { if (version === requestVersion.current) { setRows([]); setCats([]); setTotal(0); setLoadFailed(requestFailure(error)); } } finally { if (version === requestVersion.current) setLoading(false); }
+    } catch (error) { if (version === requestVersion.current) { setRows([]); setTotal(0); setLoadFailed(requestFailure(error)); } } finally { if (version === requestVersion.current) setLoading(false); }
   }, [search, category, sort, paged.requestedPage, paged.controls.perPage]);
   useEffect(() => { const timer = setTimeout(() => void load(), 250); return () => { clearTimeout(timer); requestVersion.current++; }; }, [load]);
+  // SKAI-1858: categories do not change while browsing, so searching, sorting or paging reads only books.
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try { const cj = await checkedListJson(await readRequest("/api/library/categories")); if (live && cj.success) setCats(cj.data || []); } catch { if (live) setCats([]); }
+    })();
+    return () => { live = false; };
+  }, []);
 
   // The column is `copiesTotal`. This form sent `totalCopies`, so the route
   // read `undefined`, failed its own `Number.isFinite` check, and rejected
@@ -982,13 +988,22 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
   const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   usePanelCommand(command, { "add-member": () => setShowAdd(true) });
+  // SKAI-1858: members are read one page at a time with a server-side name or card search.
+  const [search, setSearch] = useListField<string>("library-members.search", "", "library-members.page", { history: "replace" });
+  const [total, setTotal] = useState(0);
+  const paged = useListPagination(total, "library-members");
 
   const load = useCallback(async () => {
     const version = ++loadSequence.current;
     setLoading(true); setLoadFailed(null);
-    try { const r = await readRequest("/api/library/members"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
-  }, []);
-  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
+    try {
+      const q = `?${new URLSearchParams({ search, page: String(paged.requestedPage), limit: String(paged.controls.perPage) })}`;
+      const j = await checkedListJson(await readRequest(`/api/library/members${q}`));
+      if (version !== loadSequence.current) return;
+      if (j.success) { setRows(j.data || []); setTotal(j.pagination?.total ?? (j.data || []).length); }
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setTotal(0); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
+  }, [search, paged.requestedPage, paged.controls.perPage]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 250); return () => { clearTimeout(timer); loadSequence.current++; }; }, [load]);
 
   // LibraryMember is (userId, memberNo). The old form posted `membershipType`,
   // which is not a column, and never posted `memberNo`, which the route
@@ -1009,7 +1024,13 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
 
   return (
     <>
-      {hideAdd ? null : <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add member")}</BrandButton></div>}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <InputGroup className="relative w-full sm:w-72">
+          <Search data-field-affix="start" className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+          <SystemInput className={`${inputCls} w-full ps-9`} placeholder={ui("Search members…")} aria-label={ui("Search members")} value={search} onChange={(e) => setSearch(e.target.value)} />
+        </InputGroup>
+        {hideAdd ? null : <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add member")}</BrandButton>}
+      </div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Reader" error={form.errors.userId} width="w-full sm:w-72">
@@ -1025,7 +1046,7 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Member", "Member No", "Active Issues", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={4} state="loading" /> : loadFailed ? <EmptyRow cols={4} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={4} text="No members yet" /> : rows.map((m: any) => (
+            {loading ? <EmptyRow cols={4} state="loading" /> : loadFailed ? <EmptyRow cols={4} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={4} filtered={Boolean(search)} text="No members yet" /> : rows.map((m: any) => (
               <tr key={m.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{m.user?.fullName || m.userId}</td>
                 <td className={tdCls}>{m.memberNo || "—"}</td>
@@ -1036,6 +1057,7 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
           </tbody>
         </table>
       </div>
+      <Pagination {...paged.controls} />
     </>
   );
 }
@@ -1047,28 +1069,21 @@ function IssuesTab() {
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [members, setMembers] = useState<any[]>([]);
   const { date } = useLocaleFormat();
   const [show, setShow] = useState<"all" | "open" | "overdue" | "returned">("all");
   // SKAI-1825: loans are read one page at a time; the full lending history grows all year.
   const [total, setTotal] = useState(0);
   const paged = useListPagination(total, "loans");
-  // Turning a page reads only loans; members reload on first load, retry and after an issue or return.
-  const refsLoaded = useRef(false);
 
-  const load = useCallback(async (refreshRefs?: unknown) => {
+  const load = useCallback(async () => {
     const version = ++loadSequence.current;
-    const withRefs = refreshRefs === true || !refsLoaded.current;
     setLoading(true); setLoadFailed(null);
     try {
       const q = `?${new URLSearchParams({ page: String(paged.requestedPage), limit: String(paged.controls.perPage) })}`;
-      // Books are picked through server-side search (SKAI-1820), so only loans and members are read here.
-      const [ir, mr] = await Promise.all([readRequest(`/api/library/issues${q}`), withRefs ? readRequest("/api/library/members") : null]);
-      const [ij, mj] = await Promise.all([checkedListJson(ir), mr ? checkedListJson(mr) : null]);
+      // Books (SKAI-1820) and members (SKAI-1858) are picked through server-side search, so only loans are read here.
+      const ij = await checkedListJson(await readRequest(`/api/library/issues${q}`));
       if (version !== loadSequence.current) return;
       if (ij.success) { setRows(ij.data || []); setTotal(ij.pagination?.total ?? (ij.data || []).length); }
-      if (mj?.success) setMembers(mj.data || []);
-      if (withRefs) refsLoaded.current = true;
     } catch (error) { if (version === loadSequence.current) { setRows([]); setTotal(0); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, [paged.requestedPage, paged.controls.perPage]);
   useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
@@ -1084,7 +1099,7 @@ function IssuesTab() {
       toast.success(ui("Book issued."));
       setShowAdd(false);
       form.reset();
-      load(true);
+      load();
     },
   });
 
@@ -1092,7 +1107,7 @@ function IssuesTab() {
     try {
       const r = await fetch("/api/library/issues", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action: "return" }) });
       const j = await r.json(); if (!j.success) throw new Error(j.error);
-      toast.success(ui("Book returned.")); load(true);
+      toast.success(ui("Book returned.")); load();
     } catch (e: any) { toast.error(e); }
   };
 
@@ -1118,13 +1133,7 @@ function IssuesTab() {
             <RecordSearchSelect<any> path="/api/library/books" extra={{ available: "1" }} placeholder="Search books…" className={`${inputCls} w-48`} field={form.field("bookId")} optionLabel={(b) => `${b.title} (${ui("{0} available", [b.copiesAvailable])})`} />
           </OpField>
           <OpField label="Member" error={form.errors.memberId}>
-            {/* Previously filtered on `m.isActive`, which LibraryMember does not
-                have — the list was therefore always empty and no member could
-                be picked. */}
-            <SystemSelect className={`${inputCls} w-48`} {...form.field("memberId")}>
-              <option value="">{ui("Select…")}</option>
-              {members.map((m: any) => <option key={m.id} value={m.id}>{m.user?.fullName || m.memberNo || m.userId}</option>)}
-            </SystemSelect>
+            <RecordSearchSelect<any> path="/api/library/members" placeholder="Search members…" className={`${inputCls} w-48`} field={form.field("memberId")} optionLabel={(m) => m.user?.fullName || m.memberNo || m.userId} />
           </OpField>
           <OpField label="Due Date" error={form.errors.dueAt}>
             <SystemInput className={`${inputCls} w-36`} type="date" {...form.field("dueAt")} />
@@ -1136,7 +1145,7 @@ function IssuesTab() {
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Book", "Member", "Issued", "Due", "Status", "Action"].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={() => load(true)} /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : shown.length === 0 ? <EmptyRow cols={6} filtered /> : shown.map((i: any) => (
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : shown.length === 0 ? <EmptyRow cols={6} filtered /> : shown.map((i: any) => (
               <tr key={i.id} className={`border-b border-edge/10 hover:bg-surface-sunken/50 ${issueState(i) === "overdue" ? "bg-status-error-surface/50" : ""}`} data-issue-state={issueState(i)}>
                 <td className={tdCls}><bdi className="font-semibold">{i.book?.title || i.bookId}</bdi></td>
                 <td className={tdCls}><bdi>{i.member?.user?.fullName || i.memberId}</bdi></td>

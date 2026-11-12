@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
+import { subscribeMinuteBoundary } from "./minute-boundary";
 
 
 export interface TimetableSlot {
@@ -67,10 +68,8 @@ function TodayScheduleBody({
   const locale = useLocale();
   const [now, setNow] = useState(() => new Date());
 
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
+  // The clock shows hours and minutes, so it re-renders on each minute boundary (paused while the tab is hidden).
+  useEffect(() => subscribeMinuteBoundary(() => setNow(new Date())), []);
 
   const minuteNow = now.getHours() * 60 + now.getMinutes();
 
