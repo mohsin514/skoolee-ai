@@ -41,8 +41,13 @@ export function studentScope(user: AuthUser, permission: "learningRecords" | "at
   };
 }
 
+/** SKAI-1497: a TEACHER reaches only reports for classes they lead or teach a subject in. */
+export const teacherReportClassWhere = (userId: string): Prisma.ReportCardWhereInput => ({
+  exam: { class: { OR: [{ classTeacherId: userId }, { subjects: { some: { teacherId: userId } } }] } },
+});
+
 export function reportScope(user: AuthUser): Prisma.ReportCardWhereInput {
   return { ...campusScope(user), ...(isFamily(user) ? {
     student: studentScope(user, "learningRecords"), ...publishedReportsWhere,
-  } : {}) };
+  } : {}), ...(user.role === "TEACHER" ? teacherReportClassWhere(user.userId) : {}) };
 }

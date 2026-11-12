@@ -94,6 +94,15 @@ test("cross-campus siblings remain available only through each child's explicit 
   const reportRelation = (reports.student as ReturnType<typeof studentScope>).guardianRelationships as { some: { accessVersions: { some: { permissions: unknown } } } };
   assert.deepEqual(reportRelation.some.accessVersions.some.permissions, { path: ["learningRecords"], equals: true });
 });
+test("SKAI-1497 teacher report scope requires a class or subject assignment in the same campus", () => {
+  for (const [id, school, campus] of [["teacher-a", "school-a", "campus-a"], ["teacher-b", "school-b", "campus-b"]]) {
+    const scope = reportScope({ ...user, userId: id, schoolId: school, campusId: campus, role: "TEACHER" });
+    assert.equal(scope.schoolId, school); assert.equal(scope.campusId, campus);
+    assert.deepEqual(scope.exam, { class: { OR: [{ classTeacherId: id }, { subjects: { some: { teacherId: id } } }] } });
+  }
+  assert.equal(reportScope({ ...user, role: "CAMPUS_ADMIN" }).exam, undefined);
+  assert.equal(reportScope({ ...user, role: "ACADEMIC_COORDINATOR" as AuthUser["role"] }).exam, undefined);
+});
 test("an unbound guardian predicate preserves a caller's selected recipients", () => {
   const recipientIds = { in: ["guardian-a", "guardian-b"] };
   const where = { guardianUserId: recipientIds, ...guardianRelationshipAuthorityWhere(null) };
