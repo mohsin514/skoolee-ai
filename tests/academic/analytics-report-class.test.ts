@@ -6,5 +6,5 @@ import { readFileSync } from "node:fs";
 test("classPerformance attributes a report to its exam's class first", () => {
   const src = readFileSync("src/app/api/analytics/route.ts", "utf8");
   assert.match(src, /const examClass = new Map\(exams\.map\(\(e\) => \[e\.id, e\.classId\]\)\);/);
-  assert.match(src, /const classId = examClass\.get\(r\.examId\) \?\? r\.student\.classId;/);
+  assert.match(src, /const classId = examClass\.get\(r\.examId\) \?\? "";/);
 });

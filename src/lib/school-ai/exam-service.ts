@@ -21,6 +21,7 @@ import { assertStudioAction } from "./studio-access";
 import type { ExamReviewCapabilities } from "./exam";
 import { finalizeExpiredAttempt } from "./exam-finalization";
 import { assertPlanFeature } from "@/lib/billing/entitlements";
+import { markCandidateExamActive } from "./exam-active-marker";
 
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 const selection = { id: true, title: true, startsAt: true, endsAt: true, paperVersion: true, mode: true, status: true, classId: true, campusId: true, contentHash: true } as const;
@@ -209,7 +210,11 @@ export async function startSchoolAiExam(user: AuthUser, id: string, now?: Date, 
       const locked = await tx.schoolAiExamAssignment.updateMany({ where: { id, schoolId: user.schoolId, campusId: student.campusId, version: assignment.version, status: "ACTIVE", mode: { in: DELIVERED_EXAM_MODES } }, data: { version: { increment: 0 } } });
       if (locked.count !== 1) throw new ApiError("The exam changed. Check readiness again before starting.", 409);
       const existing = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId: id, userId: user.userId, schoolId: user.schoolId, campusId: student.campusId } });
-      if (existing) return existing;
+      if (existing) {
+        // SKAI-1840: resuming re-arms the proxy's exam marker before this commits.
+        if (existing.status === "IN_PROGRESS") await markCandidateExamActive(user.userId, existing.deadlineAt);
+        return existing;
+      }
       if (expectedVersion !== undefined && expectedVersion !== assignment.version) throw new ApiError("The exam changed. Check readiness again before starting.", 409);
       const currentStudent = await tx.student.findFirst({ where: { id: student.id, studentUserId: user.userId, schoolId: user.schoolId, campusId: student.campusId, classId: assignment.classId, archivedAt: null, status: "active" }, select: { id: true } });
       if (!currentStudent) throw new ApiError("Exam unavailable.", 404);
@@ -229,7 +234,10 @@ export async function startSchoolAiExam(user: AuthUser, id: string, now?: Date, 
         if (readiness?.cameraReady !== true || readiness.consentVersion !== PROCTOR_CONSENT_VERSION) throw new ApiError("Complete the camera check and recording notice before starting, or ask staff for an approved exception.", 422);
       }
       // The effective settings are bound to the attempt: later plan expiry or revocation never changes a started attempt.
-      const started = await tx.schoolAiExamAttempt.create({ data: { schoolId: user.schoolId, campusId: student.campusId, assignmentId: id, studentId: student.id, userId: user.userId, startedAt: currentTime, deadlineAt: attemptDeadline(currentTime, assignment.endsAt, effective.totalMinutes), accommodationSnapshot: json({ ...effective, instructions: undefined }), sequence: 0, responses: {}, status: "IN_PROGRESS" } });
+      const deadlineAt = attemptDeadline(currentTime, assignment.endsAt, effective.totalMinutes);
+      // SKAI-1840: the marker precedes the commit, so a started attempt is never invisible to the proxy.
+      await markCandidateExamActive(user.userId, deadlineAt);
+      const started = await tx.schoolAiExamAttempt.create({ data: { schoolId: user.schoolId, campusId: student.campusId, assignmentId: id, studentId: student.id, userId: user.userId, startedAt: currentTime, deadlineAt, accommodationSnapshot: json({ ...effective, instructions: undefined }), sequence: 0, responses: {}, status: "IN_PROGRESS" } });
       await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: started.id, action: "CREATE", campusId: started.campusId, after: { assignmentId: id, studentId: student.id, status: started.status, assignmentVersion: assignment.version, deadlineAt: started.deadlineAt.toISOString() } });
       return started;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
