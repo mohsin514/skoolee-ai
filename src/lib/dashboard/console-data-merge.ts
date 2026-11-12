@@ -94,13 +94,15 @@ export function mergeTeacherEdit<D extends Row>(data: D | null, teacherId: strin
 
 /** A rename reorders the class's subjects and an archive or teacher change moves counts, so only these merge. */
 const SUBJECT_LOCAL_KEYS = ["totalMarks", "code", "isElective"] as const;
+/** The edit form always sends the name with the marks; an unchanged name still merges (the rename check is below). */
+const SUBJECT_REQUEST_KEYS: readonly string[] = [...SUBJECT_LOCAL_KEYS, "name"];
 
 export function mergeSubjectEdit<D extends Row>(data: D | null, classId: string, subjectId: string, requested: Row, saved: Row | null | undefined): D | null {
   const classes: Row[] | undefined = data?.classes;
   const cls = classes?.find((item) => item.id === classId);
   const row = cls?.subjects?.find((subject: Row) => subject.id === subjectId);
   if (!data || !classes || !row || !saved || saved.id !== subjectId) return null;
-  if (!Object.keys(requested).every((key) => (SUBJECT_LOCAL_KEYS as readonly string[]).includes(key))) return null;
+  if (!Object.keys(requested).every((key) => SUBJECT_REQUEST_KEYS.includes(key))) return null;
   if (changed(row, saved, "name") || (saved.classId !== undefined && saved.classId !== classId) || Boolean(saved.archivedAt) !== Boolean(row.archivedAt)) return null;
   if ((saved.teacherId ?? saved.teacher?.id ?? null) !== (row.teacher?.id ?? null)) return null;
   const teachers: Row[] = data.teachers ?? [];

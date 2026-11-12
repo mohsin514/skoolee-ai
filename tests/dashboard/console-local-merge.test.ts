@@ -115,6 +115,10 @@ test("a subject marks edit merges into the class and the teacher's list; renames
   assert.equal(merged.classes[0].subjects[0].totalMarks, 50);
   assert.equal(merged.teachers[0].taughtSubjects[0].totalMarks, 50);
   assert.equal(data.classes[0].subjects[0].totalMarks, 100);
+  // The class editor always sends { name, totalMarks }; an unchanged name must not force a reload.
+  const viaForm = mergeSubjectEdit(data, "campus-a1-c1", "campus-a1-sub1", { name: "Maths", totalMarks: 50 }, saved);
+  assert.ok(viaForm, "the real edit form payload merges locally");
+  assert.equal(viaForm.classes[0].subjects[0].totalMarks, 50);
   assert.equal(mergeSubjectEdit(data, "campus-a1-c1", "campus-a1-sub1", { name: "Mathematics" }, { ...saved, name: "Mathematics" }), null);
   assert.equal(mergeSubjectEdit(data, "campus-a1-c1", "campus-a1-sub1", { archived: true }, { ...saved, archivedAt: "2026-11-12" }), null);
   assert.equal(mergeSubjectEdit(data, "campus-a1-c1", "campus-a1-sub1", { totalMarks: 50 }, { ...saved, teacherId: null }), null);
