@@ -124,13 +124,18 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
     }
   });
   run("REPORT_APPROVAL", async items => {
-    const awaiting = await db.reportVersion.findMany({ where: { schoolId: user.schoolId, approvedAt: null, reportCard: { campusId, currentVersionId: { not: null } } }, select: { id: true, reportCardId: true, reportCard: { select: { currentVersionId: true, examId: true, exam: { select: { title: true } } } } } });
-    const byExam = new Map<string, { title: string; count: number }>();
-    for (const version of awaiting) {
-      if (version.reportCard.currentVersionId !== version.id) continue; // only the current version needs a decision
-      const entry = byExam.get(version.reportCard.examId) ?? { title: version.reportCard.exam.title, count: 0 };
-      entry.count += 1; byExam.set(version.reportCard.examId, entry);
-    }
+    // SKAI-1866: count only each card's current version in the database. Reading every unapproved version and dropping
+    // the superseded ones in JS grew with every revision. Same rows: a current version of a card on this campus that is
+    // not approved, grouped by exam. The join keeps the version on its own card and school.
+    const rows = await db.$queryRaw<{ examId: string; title: string; count: number }[]>`
+      SELECT rc.exam_id AS "examId", e.title AS title, COUNT(*)::int AS count
+      FROM report_cards rc
+      JOIN report_versions rv ON rv.id = rc.current_version_id AND rv.report_card_id = rc.id AND rv.school_id = rc.school_id
+      JOIN exams e ON e.id = rc.exam_id
+      WHERE rc.school_id = ${user.schoolId} AND rc.campus_id = ${campusId} AND rv.approved_at IS NULL
+      GROUP BY rc.exam_id, e.title
+      ORDER BY rc.exam_id`;
+    const byExam = new Map(rows.map(row => [row.examId, { title: row.title, count: Number(row.count) }]));
     for (const [examId, entry] of byExam) items.push({ family: "academic", key: `REPORT_APPROVAL:${examId}`, type: "REPORT_APPROVAL", sourceId: examId, count: entry.count, title: `${entry.count} report version(s) still need approval`, titleMessage: { key: "{0} report version(s) still need approval", values: [entry.count] }, triggerMessage: { key: "{0} current report version(s) for {1} are not approved.", values: [entry.count, entry.title] }, trigger: `${entry.count} current report version(s) for ${entry.title} are not approved.`, nextAction: "Open report review", sourceOwner: null, dueAt: null, link: link("report-cards") });
   });
   run("DELIVERY_FAILED", async items => {
@@ -245,11 +250,13 @@ export async function loadQueue(user: AuthUser, campusId: string) {
   assertQueueAccess(user);
   const [seat, campus] = await Promise.all([queueSeats(user, campusId), collectCampusSources(user, campusId)]);
   const { items, failed, checkedAt } = forSeats(campus, seat);
-  const states = await prisma.queueItemState.findMany({ where: { schoolId: user.schoolId, campusId } });
+  const campusActive = new Set(campus.items.map(item => item.key));
+  // SKAI-1866: read only the rows this load can use — open ones (to settle or decorate) and resolved ones whose key is
+  // active again (to reopen). Resolved history whose condition stays gone is not reread on every load and poll.
+  const states = await prisma.queueItemState.findMany({ where: { schoolId: user.schoolId, campusId, OR: [{ resolvedAt: null }, { itemKey: { in: [...campusActive] } }] } });
   // Settle against the whole campus, not the viewer's slice: a principal's load must not close the campus admin's
   // complaints, nor the campus admin's load close the principal's report approvals (G39). Every seat sees the same
   // answer, so the resolved history never flip-flops between viewers.
-  const campusActive = new Set(campus.items.map(item => item.key));
   const settled = states.filter(state => !state.resolvedAt && !campusActive.has(state.itemKey));
   // Failed source feeds must not be read as "resolved": only settle keys whose own source loaded.
   const settleable = settled.filter(state => !(campus.failed as string[]).includes(state.itemKey.split(":")[0]));

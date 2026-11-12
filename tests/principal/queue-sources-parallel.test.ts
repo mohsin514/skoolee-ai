@@ -20,11 +20,10 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const db = { failing: new Set<string>(), inFlight: 0, maxInFlight: 0, reads: [] as Array<{ model: string; where: Record<string, any> }> };
 
 // Sources declared early answer slowest, so a concurrent run finishes them last.
-const DELAY: Record<string, number> = { class: 60, leaveRequest: 55, reportVersion: 50, parentCommunication: 45, complaint: 40, financialAdjustment: 35, correction: 30, interventionPlan: 25, schoolAiRecord: 20, examPaperSlot: 15, exam: 5 };
+const DELAY: Record<string, number> = { class: 60, leaveRequest: 55, $queryRaw: 50, parentCommunication: 45, complaint: 40, financialAdjustment: 35, correction: 30, interventionPlan: 25, schoolAiRecord: 20, examPaperSlot: 15, exam: 5 };
 
 const SOURCES: Record<string, (where: Record<string, any>) => unknown> = {
   leaveRequest: (where) => [{ id: `leave-${where.campusId}`, fromDate: day(3), toDate: day(4), user: { fullName: "Synthetic Teacher", role: "TEACHER" }, leaveType: { name: "Casual" } }],
-  reportVersion: () => [{ id: "version-1", reportCardId: "card-1", reportCard: { currentVersionId: "version-1", examId: "exam-1", exam: { title: "Synthetic Midterm" } } }],
   parentCommunication: () => [{ id: "message-1", channel: "SMS", recipientName: "Synthetic Guardian", templateKey: "fee_reminder", createdAt: day(-3) }],
   complaint: () => [{ id: "complaint-1", referenceCode: "CMP-1", type: "Safeguarding", confidential: false, ownerId: null, dueDate: null, date: day(-5), owner: null }],
   financialAdjustment: () => [{ id: "adjustment-1", kind: "REFUND", createdAt: day(-1), invoiceId: "invoice-1" }],
@@ -62,6 +61,18 @@ const fakePrisma: Record<string, unknown> = new Proxy({}, {
   get(_target, property) {
     if (typeof property !== "string" || property === "then") return undefined;
     if (property === "$transaction") return async (work: unknown) => Array.isArray(work) ? Promise.all(work) : (work as (tx: unknown) => unknown)(fakePrisma);
+    // SKAI-1866: REPORT_APPROVAL counts current versions in one raw query; its two values are the school and campus.
+    if (property === "$queryRaw") return async (_sql: TemplateStringsArray, schoolId: string, campusId: string) => {
+      db.reads.push({ model: "$queryRaw", where: { schoolId, campusId } });
+      db.inFlight += 1; db.maxInFlight = Math.max(db.maxInFlight, db.inFlight);
+      try {
+        await sleep(DELAY.$queryRaw);
+        if (db.failing.has("$queryRaw")) throw new Error("synthetic report outage");
+        return [{ examId: "exam-1", title: "Synthetic Midterm", count: 1 }];
+      } finally {
+        db.inFlight -= 1;
+      }
+    };
     if (property.startsWith("$")) return async () => undefined;
     return model(property);
   },

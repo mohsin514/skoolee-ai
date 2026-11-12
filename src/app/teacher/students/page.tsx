@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { LearningActions } from "@/components/learning/learning-actions";
 import { csvCell } from "@/lib/csv";
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import {
@@ -33,6 +33,7 @@ import { useTeacherData } from "../teacher-data-context";
 import {
   classLabel, StudentDetailModal, StudentsSkeleton, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
+import { ROSTER_PAGE, matchesRosterSearch, sortRoster } from "@/components/teacher/roster-order";
 
 export default function TeacherStudentsPage() {
   const ui = useUiText();
@@ -77,36 +78,23 @@ export default function TeacherStudentsPage() {
     };
   }, [allStudents, classFilter]);
 
+  // Typing stays instant; the filter, sort and card grid catch up on the deferred value.
+  const deferredSearch = useDeferredValue(search);
   const filtered = useMemo(() => {
     let list = allStudents;
     if (classFilter) list = list.filter((s) => s.class?.id === classFilter);
     if (todayFilter) {
       list = list.filter((s) => todayBucket(s.todayAttendance) === todayFilter);
     }
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (s) =>
-          s.fullName?.toLowerCase().includes(q) ||
-          s.rollNo?.toLowerCase().includes(q) ||
-          s.guardianName?.toLowerCase().includes(q) ||
-          s.guardianPhone?.includes(q)
-      );
-    }
+    if (deferredSearch) list = list.filter((s) => matchesRosterSearch(s, deferredSearch));
+    return sortRoster(list, prefs.sortKey, prefs.sortDir, (s: any) => classLabel(s.class));
+  }, [allStudents, classFilter, todayFilter, deferredSearch, prefs.sortKey, prefs.sortDir]);
 
-    // Roll number is stored as text, so a plain string sort orders 10 before 2.
-    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
-    const dir = prefs.sortDir === "desc" ? -1 : 1;
-    const pct = (st: any) => st.reportCards?.[0]?.percentage ?? -1;
-    const sorted = [...list].sort((a, b) => {
-      if (prefs.sortKey === "name") return dir * collator.compare(a.fullName || "", b.fullName || "");
-      if (prefs.sortKey === "grade") return dir * (pct(a) - pct(b));
-      if (prefs.sortKey === "class")
-        return dir * collator.compare(classLabel(a.class) || "", classLabel(b.class) || "");
-      return dir * collator.compare(String(a.rollNo || ""), String(b.rollNo || ""));
-    });
-    return sorted;
-  }, [allStudents, classFilter, todayFilter, search, prefs.sortKey, prefs.sortDir]);
+  // The cards grid draws one page; "Show all" is remembered only for the filters it was pressed under.
+  const rosterKey = `${classFilter}|${todayFilter}|${deferredSearch}|${prefs.sortKey}|${prefs.sortDir}`;
+  const [showAllFor, setShowAllFor] = useState<string | null>(null);
+  const showAllCards = showAllFor === rosterKey;
+  const cardStudents = showAllCards ? filtered : filtered.slice(0, ROSTER_PAGE);
 
   if (loading && !data) return <StudentsSkeleton />;
   if (!data) return <TeacherErrorState error={error} onRetry={refetch} />;
@@ -297,8 +285,9 @@ export default function TeacherStudentsPage() {
             ]}
           />
         ) : filtered.length > 0 ? (
+          <div className="flex flex-col gap-4">
           <div className="sk-stagger grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filtered.map((student: any) => {
+            {cardStudents.map((student: any) => {
               const report = student.reportCards?.[0];
               const avatar = student.profileImageUrl;
               return (
@@ -381,6 +370,13 @@ export default function TeacherStudentsPage() {
                 </div>
               );
             })}
+          </div>
+          {filtered.length > ROSTER_PAGE && (
+            <Button variant="outline" size="sm" type="button" className="self-center"
+              onClick={() => setShowAllFor(showAllCards ? null : rosterKey)} aria-expanded={showAllCards}>
+              {showAllCards ? ui("Show fewer") : ui("Show all {0}", [filtered.length])}
+            </Button>
+          )}
           </div>
         ) : (
           <div className="sk-panel">
