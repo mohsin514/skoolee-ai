@@ -1,0 +1,102 @@
+-- SKAI-1807 (DB-01 Phase 1a): every tenant table has a foreign key to schools.
+-- These 81 tables carried school_id with no foreign key, so a row with a missing ('' default) or wrong
+-- school was accepted silently. ON DELETE CASCADE matches the other school relations, so purging a school
+-- still removes its rows. Adds a leading school_id index on the 12 tables that had none.
+--
+-- Fails loudly if a table already holds a school_id that matches no school. Dev was checked on
+-- 2026-11-13 and had none; run the orphan check in the PR before deploying elsewhere.
+-- Rollback: DROP CONSTRAINT <table>_school_id_fkey and DROP INDEX <table>_school_id_idx.
+
+CREATE INDEX "stripe_webhook_receipts_school_id_idx" ON "stripe_webhook_receipts"("school_id");
+CREATE INDEX "practice_responses_school_id_idx" ON "practice_responses"("school_id");
+CREATE INDEX "book_copies_school_id_idx" ON "book_copies"("school_id");
+CREATE INDEX "library_loan_policies_school_id_idx" ON "library_loan_policies"("school_id");
+CREATE INDEX "book_reservations_school_id_idx" ON "book_reservations"("school_id");
+CREATE INDEX "library_charges_school_id_idx" ON "library_charges"("school_id");
+CREATE INDEX "purchase_budgets_school_id_idx" ON "purchase_budgets"("school_id");
+CREATE INDEX "purchase_requests_school_id_idx" ON "purchase_requests"("school_id");
+CREATE INDEX "goods_receipts_school_id_idx" ON "goods_receipts"("school_id");
+CREATE INDEX "school_assets_school_id_idx" ON "school_assets"("school_id");
+CREATE INDEX "asset_services_school_id_idx" ON "asset_services"("school_id");
+CREATE INDEX "pathway_actions_school_id_idx" ON "pathway_actions"("school_id");
+ALTER TABLE "stripe_webhook_receipts" ADD CONSTRAINT "stripe_webhook_receipts_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "correction_notes" ADD CONSTRAINT "correction_notes_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "payment_allocations" ADD CONSTRAINT "payment_allocations_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "payment_receipts" ADD CONSTRAINT "payment_receipts_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "rollover_plans" ADD CONSTRAINT "rollover_plans_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "rollover_decisions" ADD CONSTRAINT "rollover_decisions_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "rollover_events" ADD CONSTRAINT "rollover_events_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "exam_datesheet_versions" ADD CONSTRAINT "exam_datesheet_versions_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "teacher_support_notes" ADD CONSTRAINT "teacher_support_notes_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "lesson_plan_states" ADD CONSTRAINT "lesson_plan_states_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "lesson_plan_events" ADD CONSTRAINT "lesson_plan_events_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "intervention_check_ins" ADD CONSTRAINT "intervention_check_ins_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "intervention_events" ADD CONSTRAINT "intervention_events_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "item_evidence_decisions" ADD CONSTRAINT "item_evidence_decisions_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "school_ai_result_corrections" ADD CONSTRAINT "school_ai_result_corrections_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "school_ai_moderation_samples" ADD CONSTRAINT "school_ai_moderation_samples_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "practice_sessions" ADD CONSTRAINT "practice_sessions_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "practice_responses" ADD CONSTRAINT "practice_responses_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "practice_revisits" ADD CONSTRAINT "practice_revisits_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "school_policies" ADD CONSTRAINT "school_policies_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "policy_questions" ADD CONSTRAINT "policy_questions_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "policy_eval_cases" ADD CONSTRAINT "policy_eval_cases_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "book_copies" ADD CONSTRAINT "book_copies_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "library_loan_policies" ADD CONSTRAINT "library_loan_policies_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "book_reservations" ADD CONSTRAINT "book_reservations_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "library_charges" ADD CONSTRAINT "library_charges_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "purchase_budgets" ADD CONSTRAINT "purchase_budgets_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "purchase_requests" ADD CONSTRAINT "purchase_requests_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "goods_receipts" ADD CONSTRAINT "goods_receipts_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "supplier_invoices" ADD CONSTRAINT "supplier_invoices_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "school_assets" ADD CONSTRAINT "school_assets_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "asset_services" ADD CONSTRAINT "asset_services_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "payroll_policies" ADD CONSTRAINT "payroll_policies_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "payroll_providers" ADD CONSTRAINT "payroll_providers_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "payroll_employees" ADD CONSTRAINT "payroll_employees_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "payroll_adjustments" ADD CONSTRAINT "payroll_adjustments_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "payroll_calculations" ADD CONSTRAINT "payroll_calculations_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "payroll_submissions" ADD CONSTRAINT "payroll_submissions_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "planning_baselines" ADD CONSTRAINT "planning_baselines_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "planning_scenarios" ADD CONSTRAINT "planning_scenarios_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "planning_handoffs" ADD CONSTRAINT "planning_handoffs_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "pathway_counsellors" ADD CONSTRAINT "pathway_counsellors_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "pathway_goals" ADD CONSTRAINT "pathway_goals_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "pathway_actions" ADD CONSTRAINT "pathway_actions_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "pathway_opportunities" ADD CONSTRAINT "pathway_opportunities_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "counselling_appointments" ADD CONSTRAINT "counselling_appointments_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "counselling_notes" ADD CONSTRAINT "counselling_notes_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "alumni_profiles" ADD CONSTRAINT "alumni_profiles_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "mentoring_requests" ADD CONSTRAINT "mentoring_requests_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "evidence_criteria" ADD CONSTRAINT "evidence_criteria_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "evidence_items" ADD CONSTRAINT "evidence_items_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "improvement_actions" ADD CONSTRAINT "improvement_actions_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "evidence_reviewer_grants" ADD CONSTRAINT "evidence_reviewer_grants_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "evidence_packs" ADD CONSTRAINT "evidence_packs_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "campus_packages" ADD CONSTRAINT "campus_packages_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "canteen_items" ADD CONSTRAINT "canteen_items_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "canteen_orders" ADD CONSTRAINT "canteen_orders_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "canteen_ledger_entries" ADD CONSTRAINT "canteen_ledger_entries_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "canteen_spend_limits" ADD CONSTRAINT "canteen_spend_limits_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "dietary_records" ADD CONSTRAINT "dietary_records_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "boarding_leaves" ADD CONSTRAINT "boarding_leaves_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "boarding_roll_calls" ADD CONSTRAINT "boarding_roll_calls_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "school_ai_assessment_repairs" ADD CONSTRAINT "school_ai_assessment_repairs_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "learning_transfer_cases" ADD CONSTRAINT "learning_transfer_cases_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "learning_transfer_mappings" ADD CONSTRAINT "learning_transfer_mappings_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "teaching_progress" ADD CONSTRAINT "teaching_progress_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "exam_paper_slots" ADD CONSTRAINT "exam_paper_slots_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "exam_paper_scripts" ADD CONSTRAINT "exam_paper_scripts_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "exam_attendance" ADD CONSTRAINT "exam_attendance_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "exam_print_runs" ADD CONSTRAINT "exam_print_runs_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "exam_paper_moderations" ADD CONSTRAINT "exam_paper_moderations_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "family_result_notes" ADD CONSTRAINT "family_result_notes_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "exam_brief_receipts" ADD CONSTRAINT "exam_brief_receipts_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "exam_exceptions" ADD CONSTRAINT "exam_exceptions_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "pilot_ledger_settings" ADD CONSTRAINT "pilot_ledger_settings_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "pilot_ledger_snapshots" ADD CONSTRAINT "pilot_ledger_snapshots_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "curriculum_pack_activation_events" ADD CONSTRAINT "curriculum_pack_activation_events_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "pilot_proposals" ADD CONSTRAINT "pilot_proposals_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "pilot_commercial_events" ADD CONSTRAINT "pilot_commercial_events_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "pilot_readiness_records" ADD CONSTRAINT "pilot_readiness_records_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "storage_cleanups" ADD CONSTRAINT "storage_cleanups_school_id_fkey" FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
