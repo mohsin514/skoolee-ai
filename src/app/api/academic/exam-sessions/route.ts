@@ -159,7 +159,7 @@ export async function DELETE(req: NextRequest) {
       select: {
         id: true,
         title: true,
-        exams: { select: { id: true, status: true, _count: { select: { marks: true } } } },
+        exams: { select: { id: true, status: true, _count: { select: { marks: true, reportCards: true } } } },
       },
     });
     if (!session) throw new ApiError("Exam session not found", 404);
@@ -172,6 +172,8 @@ export async function DELETE(req: NextRequest) {
         .filter(
           (e) =>
             e._count.marks > 0 ||
+            // SKAI-1805: report cards hold a foreign key to the exam that refuses the delete.
+            e._count.reportCards > 0 ||
             e.status === "PUBLISHED" ||
             e.status === "PRINCIPAL_REVIEWED" ||
             e.status === "LOCKED",
