@@ -169,5 +169,6 @@ test("the profit panel drops stale responses and does not refetch the currency t
   assert.match(panel, /signal: controller\.signal/);
   assert.match(panel, /if \(controller\.signal\.aborted\) return;/);
   assert.match(panel, /if \(latestRequest\.current === controller\) setLoading\(false\);/);
-  assert.match(panel, /if \(currency && loadedKey\.current === reportKey\(currency\)\) return;/);
+  // Skipping the refetch also cancels a newer request in flight, so returning to the shown params cannot be overwritten.
+  assert.match(panel, /if \(currency && loadedKey\.current === reportKey\(currency\)\) \{ latestRequest\.current\?\.abort\(\); return; \}/);
 });

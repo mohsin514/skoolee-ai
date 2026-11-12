@@ -1033,7 +1033,8 @@ function ProfitPanel({ campusId, command, hideCreate = false }: SectionProps) {
   }, [from, to, campusId, currency, tr]);
 
   useEffect(() => {
-    if (currency && loadedKey.current === reportKey(currency)) return;
+    // Back on the params already shown: cancel any newer request still in flight so it cannot replace them.
+    if (currency && loadedKey.current === reportKey(currency)) { latestRequest.current?.abort(); return; }
     const timer = setTimeout(() => void run(), 0);
     return () => clearTimeout(timer);
   }, [run]);
