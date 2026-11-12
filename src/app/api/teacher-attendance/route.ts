@@ -15,19 +15,32 @@ function parseLocalDate(date: string): Date {
   return new Date(y, m - 1, d);
 }
 
+// SKAI-1502: campus-wide teacher attendance (names, emails, counts) is campus-operations data.
+const CAMPUS_READ_ROLES = ["ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "SUPER_ADMIN"];
+const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const sp = req.nextUrl.searchParams;
-    const campusId = await resolveCampusId(user, sp.get("campusId"));
-    const date = sp.get("date");
-    const month = sp.get("month");
-    const rawUserId = sp.get("userId");
-    const userId = rawUserId === "self" ? user.userId : rawUserId;
-
-    if (user.role === "TEACHER" && userId && userId !== user.userId) {
+    const isTeacher = user.role === "TEACHER";
+    if (!isTeacher && !CAMPUS_READ_ROLES.includes(user.role)) {
       throw new ApiError("Forbidden", 403);
     }
+    const sp = req.nextUrl.searchParams;
+    const date = sp.get("date");
+    const month = sp.get("month");
+    if (date && !DATE_RE.test(date)) throw new ApiError("Invalid date", 400);
+    if (month && !MONTH_RE.test(month)) throw new ApiError("Invalid month", 400);
+    const rawUserId = sp.get("userId");
+    const requested = rawUserId === "self" ? user.userId : rawUserId;
+
+    // A teacher may only ever read their own record, whatever the query shape.
+    if (isTeacher && requested && requested !== user.userId) {
+      throw new ApiError("Forbidden", 403);
+    }
+    const userId = isTeacher ? user.userId : requested;
+    const campusId = await resolveCampusId(user, sp.get("campusId"));
 
     if (userId) {
       const where: any = { userId, campusId };

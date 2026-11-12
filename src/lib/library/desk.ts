@@ -243,11 +243,16 @@ export async function reserveTitle(user: AuthUser, raw: unknown) {
   const input = parse(z.object({ memberId: text(1, 120), bookId: text(1, 120) }).strict(), raw), campusId = campusOf(user);
   const book = await prisma.book.findFirst({ where: { id: input.bookId, schoolId: user.schoolId, campusId } });
   if (!book) throw new ApiError("Book not found", 404);
-  if (await prisma.bookCopy.count({ where: { bookId: book.id, status: "AVAILABLE" } })) throw new ApiError("A copy is on the shelf now; issue it instead of reserving.", 409);
-  if (await prisma.bookReservation.findFirst({ where: { bookId: book.id, memberId: input.memberId, status: { in: ["WAITING", "READY"] } }, select: { id: true } })) throw new ApiError("This reader is already in the queue for this title.", 409);
-  const created = await prisma.bookReservation.create({ data: { schoolId: user.schoolId, campusId, bookId: book.id, memberId: input.memberId } });
-  const position = await prisma.bookReservation.count({ where: { bookId: book.id, status: "WAITING", createdAt: { lte: created.createdAt } } });
-  return { id: created.id, position };
+  // SKAI-1447: the reader must be a library member of this school and campus, checked in the same transaction as the queue write.
+  return prisma.$transaction(async (tx) => {
+    const member = await tx.libraryMember.findFirst({ where: { id: input.memberId, schoolId: user.schoolId, campusId }, select: { id: true } });
+    if (!member) throw new ApiError("Member not found", 404);
+    if (await tx.bookCopy.count({ where: { bookId: book.id, status: "AVAILABLE" } })) throw new ApiError("A copy is on the shelf now; issue it instead of reserving.", 409);
+    if (await tx.bookReservation.findFirst({ where: { bookId: book.id, memberId: member.id, status: { in: ["WAITING", "READY"] } }, select: { id: true } })) throw new ApiError("This reader is already in the queue for this title.", 409);
+    const created = await tx.bookReservation.create({ data: { schoolId: user.schoolId, campusId, bookId: book.id, memberId: member.id } });
+    const position = await tx.bookReservation.count({ where: { bookId: book.id, status: "WAITING", createdAt: { lte: created.createdAt } } });
+    return { id: created.id, position };
+  });
 }
 
 /** Holds not collected in time pass to the next reader, or back to the shelf. */

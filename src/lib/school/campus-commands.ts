@@ -96,6 +96,11 @@ export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid
   const clash = await prisma.campus.findUnique({ where: { regId: finalRegId }, select: { id: true } });
   if (clash) throw new Error(`Campus ID ${finalRegId} is already in use. Choose another.`);
 
+  // SKAI-1508: resolve the default board before taking the lock. schoolCountry() reads through the global
+  // client, so calling it inside the FOR UPDATE transaction needed a second pool connection while holding
+  // the lock, and enough concurrent creates exhausted the pool and deadlocked every request.
+  const board = valid.board || defaultBoardFor(await schoolCountry(schoolId));
+
   let newCampus;
   try {
     // Lock the school row so two concurrent creates cannot both read the same campus usage and pass the plan limit.
@@ -115,7 +120,7 @@ export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid
         email: valid.email,
         website: valid.website,
         principalName: valid.principalName,
-        board: valid.board || defaultBoardFor(await schoolCountry(schoolId)),
+        board,
       }
       });
       // A campus created after onboarding needs the same academic grounding the wizard gives the first one,
