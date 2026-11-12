@@ -27,6 +27,87 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  stripeWebhookReceipts StripeWebhookReceipt[]
+  correctionNotes CorrectionNote[]
+  paymentAllocations PaymentAllocation[]
+  paymentReceipts PaymentReceipt[]
+  rolloverPlans RolloverPlan[]
+  rolloverDecisions RolloverDecision[]
+  rolloverEvents RolloverEvent[]
+  examDatesheetVersions ExamDatesheetVersion[]
+  teacherSupportNotes TeacherSupportNote[]
+  lessonPlanStates LessonPlanState[]
+  lessonPlanEvents LessonPlanEvent[]
+  interventionCheckIns InterventionCheckIn[]
+  interventionEvents InterventionEvent[]
+  itemEvidenceDecisions ItemEvidenceDecision[]
+  schoolAiResultCorrections SchoolAiResultCorrection[]
+  schoolAiModerationSamples SchoolAiModerationSample[]
+  practiceSessions PracticeSession[]
+  practiceResponses PracticeResponse[]
+  practiceRevisits PracticeRevisit[]
+  schoolPolicies SchoolPolicy[]
+  policyQuestions PolicyQuestion[]
+  policyEvalCases PolicyEvalCase[]
+  bookCopies BookCopy[]
+  libraryLoanPolicies LibraryLoanPolicy[]
+  bookReservations BookReservation[]
+  libraryCharges LibraryCharge[]
+  purchaseBudgets PurchaseBudget[]
+  purchaseRequests PurchaseRequest[]
+  goodsReceipts GoodsReceipt[]
+  supplierInvoices SupplierInvoice[]
+  schoolAssets SchoolAsset[]
+  assetServices AssetService[]
+  payrollPolicies PayrollPolicy[]
+  payrollProviders PayrollProvider[]
+  payrollEmployees PayrollEmployee[]
+  payrollAdjustments PayrollAdjustment[]
+  payrollCalculations PayrollCalculation[]
+  payrollSubmissions PayrollSubmission[]
+  planningBaselines PlanningBaseline[]
+  planningScenarios PlanningScenario[]
+  planningHandoffs PlanningHandoff[]
+  pathwayCounsellors PathwayCounsellor[]
+  pathwayGoals PathwayGoal[]
+  pathwayActions PathwayAction[]
+  pathwayOpportunities PathwayOpportunity[]
+  counsellingAppointments CounsellingAppointment[]
+  counsellingNotes CounsellingNote[]
+  alumniProfiles AlumniProfile[]
+  mentoringRequests MentoringRequest[]
+  evidenceCriterions EvidenceCriterion[]
+  evidenceItems EvidenceItem[]
+  improvementActions ImprovementAction[]
+  evidenceReviewerGrants EvidenceReviewerGrant[]
+  evidencePacks EvidencePack[]
+  campusPackages CampusPackage[]
+  canteenItems CanteenItem[]
+  canteenOrders CanteenOrder[]
+  canteenLedgerEntries CanteenLedgerEntry[]
+  canteenSpendLimits CanteenSpendLimit[]
+  dietaryRecords DietaryRecord[]
+  boardingLeaves BoardingLeave[]
+  boardingRollCalls BoardingRollCall[]
+  schoolAiAssessmentRepairs SchoolAiAssessmentRepair[]
+  learningTransferCases LearningTransferCase[]
+  learningTransferMappings LearningTransferMapping[]
+  teachingProgresses TeachingProgress[]
+  examPaperSlots ExamPaperSlot[]
+  examPaperScripts ExamPaperScript[]
+  examAttendances ExamAttendance[]
+  examPrintRuns ExamPrintRun[]
+  examPaperModerations ExamPaperModeration[]
+  familyResultNotes FamilyResultNote[]
+  examBriefReceipts ExamBriefReceipt[]
+  examExceptions ExamException[]
+  pilotLedgerSettings PilotLedgerSetting[]
+  pilotLedgerSnapshots PilotLedgerSnapshot[]
+  curriculumPackActivationEvents CurriculumPackActivationEvent[]
+  pilotProposals PilotProposal[]
+  pilotCommercialEvents PilotCommercialEvent[]
+  pilotReadinessRecords PilotReadinessRecord[]
+  storageCleanups StorageCleanup[]
   curriculumPackActivations CurriculumPackActivation[]
   ragDocuments RagDocument[]
   aiWorkflowJobs AiWorkflowJob[]
@@ -588,10 +669,12 @@ model StripeWebhookReceipt {
   // missing amount); a platform operator resolves it with a recorded note.
   provider      String   @default("STRIPE")
   schoolId      String?  @map("school_id")
+  school School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   reviewNote    String?  @map("review_note") @db.Text
   reviewedById  String?  @map("reviewed_by_id")
   reviewedAt    DateTime? @map("reviewed_at")
   @@index([state, receivedAt])
+  @@index([schoolId])
   @@map("stripe_webhook_receipts")
 }
 
@@ -619,6 +702,9 @@ model RolePermission {
 
 // ─── 2. CAMPUSES ──────────────────────────────────────────
 model Campus {
+  enrollmentPlacements StudentEnrollment[]
+  attendanceRegisterPlacements AttendanceRegister[]
+  paymentAllocationPlacements PaymentAllocation[]
   curriculumPackActivations CurriculumPackActivation[]
   /// SKO-500: the exam coordinator (controller of examinations) seat; schedules and requests papers, never approves.
   examCoordinatorUserId String? @map("exam_coordinator_user_id")
@@ -1397,6 +1483,8 @@ model PayrollLine {
 
 // ─── 4. CLASSES ───────────────────────────────────────────
 model Class {
+  enrollmentPlacements StudentEnrollment[]
+  attendanceRegisterPlacements AttendanceRegister[]
   id             String  @id @default(uuid())
   archivedAt     DateTime? @map("archived_at")
   archiveReason  String?   @map("archive_reason")
@@ -1437,6 +1525,7 @@ model Class {
   @@index([schoolId, updatedAt])
   @@index([campusId])
   @@index([classTeacherId])
+  @@unique([schoolId, id])
   @@index([schoolId, campusId])
   @@map("classes")
 }
@@ -2442,7 +2531,9 @@ model AttendanceRegister {
   schoolId      String    @default("") @map("school_id")
   school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String    @map("campus_id")
+  campus Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   classId       String    @map("class_id")
+  class Class @relation(fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction)
   date          DateTime  @db.Date
   status        String    @default("OPEN") // OPEN | SUBMITTED
   rosterCount   Int       @default(0) @map("roster_count")
@@ -2454,6 +2545,8 @@ model AttendanceRegister {
   @@unique([classId, date])
   @@index([campusId, date])
   @@index([schoolId])
+  @@index([schoolId, campusId])
+  @@index([schoolId, classId])
   @@map("attendance_registers")
 }
 
@@ -6691,7 +6784,9 @@ model StudentEnrollment {
   studentId String @map("student_id")
   student Student @relation(fields: [studentId], references: [id], onDelete: NoAction)
   campusId String @map("campus_id")
+  campus Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   classId String @map("class_id")
+  class Class @relation(fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction)
   campusName String @map("campus_name")
   className String @map("class_name")
   curriculum String
@@ -6706,6 +6801,8 @@ model StudentEnrollment {
   reports ReportCard[]
   @@index([schoolId, studentId, startDate])
   @@index([studentId])
+  @@index([schoolId, campusId])
+  @@index([schoolId, classId])
   @@map("student_enrollments")
 }
 
@@ -6913,6 +7010,7 @@ model CorrectionNote {
 
   id           String @id @default(uuid())
   schoolId     String @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId     String @map("campus_id")
   correctionId String @unique @map("correction_id")
   text         String
@@ -6927,7 +7025,9 @@ model PaymentAllocation {
 
   id        String   @id @default(uuid())
   schoolId  String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId  String   @map("campus_id")
+  campus Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   paymentId String   @map("payment_id")
   invoiceId String   @map("invoice_id")
   amount    Int
@@ -6946,6 +7046,7 @@ model PaymentReceipt {
 
   id            String   @id @default(uuid())
   schoolId      String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String   @map("campus_id")
   paymentId     String   @unique @map("payment_id")
   snapshot      Json
@@ -8327,6 +8428,7 @@ model SchoolAiLanguageProposal {
 model RolloverPlan {
   id                 String    @id @default(uuid())
   schoolId           String    @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId           String    @map("campus_id")
   sourceYear         Int       @map("source_year")
   destinationYear    Int       @map("destination_year")
@@ -8352,6 +8454,7 @@ model RolloverPlan {
 model RolloverDecision {
   id                 String    @id @default(uuid())
   schoolId           String    @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   planId             String    @map("plan_id")
   studentId          String    @map("student_id")
   sourceClassId      String    @map("source_class_id")
@@ -8380,6 +8483,7 @@ model RolloverDecision {
 model RolloverEvent {
   id        String   @id @default(uuid())
   schoolId  String   @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   planId    String   @map("plan_id")
   version   Int
   kind      String
@@ -8400,6 +8504,7 @@ model RolloverEvent {
 model ExamDatesheetVersion {
   id            String   @id @default(uuid())
   schoolId      String   @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String   @map("campus_id")
   sessionId     String   @map("session_id")
   version       Int
@@ -8423,6 +8528,7 @@ model ExamDatesheetVersion {
 model TeacherSupportNote {
   id           String   @id @default(uuid())
   schoolId     String   @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId     String   @map("campus_id")
   teacherId    String   @map("teacher_id")
   authorId     String   @map("author_id")
@@ -8444,6 +8550,7 @@ model TeacherSupportNote {
 model LessonPlanState {
   id                  String   @id @default(uuid())
   schoolId            String   @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId            String   @map("campus_id")
   curriculumId        String   @map("curriculum_id")
   planId              String   @map("plan_id")
@@ -8462,6 +8569,7 @@ model LessonPlanState {
 model LessonPlanEvent {
   id        String   @id @default(uuid())
   schoolId  String   @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   stateId   String   @map("state_id")
   version   Int
   kind      String
@@ -8478,6 +8586,7 @@ model LessonPlanEvent {
 model InterventionCheckIn {
   id            String   @id @default(uuid())
   schoolId      String   @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   planId        String   @map("plan_id")
   planVersion   Int      @map("plan_version")
   dueOn         DateTime @map("due_on") @db.Date
@@ -8497,6 +8606,7 @@ model InterventionCheckIn {
 model InterventionEvent {
   id        String   @id @default(uuid())
   schoolId  String   @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   planId    String   @map("plan_id")
   version   Int
   kind      String
@@ -8634,6 +8744,7 @@ model PilotClaim {
 model ItemEvidenceDecision {
   id                String    @id @default(uuid())
   schoolId          String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId          String    @map("campus_id")
   curriculumId      String    @map("curriculum_id")
   curriculumVersion Int       @map("curriculum_version")
@@ -8668,6 +8779,7 @@ model ItemEvidenceDecision {
 model SchoolAiResultCorrection {
   id           String    @id @default(uuid())
   schoolId     String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId     String    @map("campus_id")
   assignmentId String    @map("assignment_id")
   attemptId    String    @map("attempt_id")
@@ -8697,6 +8809,7 @@ model SchoolAiResultCorrection {
 model SchoolAiModerationSample {
   id           String   @id @default(uuid())
   schoolId     String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId     String   @map("campus_id")
   assignmentId String   @map("assignment_id")
   method       String
@@ -8723,6 +8836,7 @@ model SchoolAiModerationSample {
 model PracticeSession {
   id               String    @id @default(uuid())
   schoolId         String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId         String    @map("campus_id")
   studentId        String    @map("student_id")
   practiceRecordId String    @map("practice_record_id")
@@ -8746,6 +8860,7 @@ model PracticeSession {
 model PracticeResponse {
   id          String          @id @default(uuid())
   schoolId    String          @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   sessionId   String          @map("session_id")
   session     PracticeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   itemKey     String          @map("item_key")
@@ -8758,6 +8873,7 @@ model PracticeResponse {
   answeredAt  DateTime?       @map("answered_at")
 
   @@unique([sessionId, itemKey])
+  @@index([schoolId])
   @@map("practice_responses")
 }
 
@@ -8765,6 +8881,7 @@ model PracticeResponse {
 model PracticeRevisit {
   id               String    @id @default(uuid())
   schoolId         String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId         String    @map("campus_id")
   studentId        String    @map("student_id")
   practiceRecordId String    @map("practice_record_id")
@@ -8788,6 +8905,7 @@ model PracticeRevisit {
 model SchoolPolicy {
   id            String    @id @default(uuid())
   schoolId      String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String?   @map("campus_id")
   topic         String
   title         String
@@ -8816,6 +8934,7 @@ model SchoolPolicy {
 model PolicyQuestion {
   id            String    @id @default(uuid())
   schoolId      String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String?   @map("campus_id")
   askedById     String    @map("asked_by_id")
   audience      String
@@ -8840,6 +8959,7 @@ model PolicyQuestion {
 model PolicyEvalCase {
   id              String   @id @default(uuid())
   schoolId        String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   question        String
   audience        String
   expectedTopic   String   @map("expected_topic")
@@ -8860,6 +8980,7 @@ model PolicyEvalCase {
 model BookCopy {
   id        String   @id @default(uuid())
   schoolId  String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId  String   @map("campus_id")
   bookId    String   @map("book_id")
   barcode   String
@@ -8871,6 +8992,7 @@ model BookCopy {
 
   @@unique([campusId, barcode])
   @@index([bookId, status])
+  @@index([schoolId])
   @@map("book_copies")
 }
 
@@ -8878,6 +9000,7 @@ model BookCopy {
 model LibraryLoanPolicy {
   id           String   @id @default(uuid())
   schoolId     String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId     String   @map("campus_id")
   version      Int
   loanDays     Int      @map("loan_days")
@@ -8895,6 +9018,7 @@ model LibraryLoanPolicy {
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@unique([campusId, version])
+  @@index([schoolId])
   @@map("library_loan_policies")
 }
 
@@ -8902,6 +9026,7 @@ model LibraryLoanPolicy {
 model BookReservation {
   id         String    @id @default(uuid())
   schoolId   String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId   String    @map("campus_id")
   bookId     String    @map("book_id")
   memberId   String    @map("member_id")
@@ -8915,6 +9040,7 @@ model BookReservation {
 
   @@index([bookId, status, createdAt])
   @@index([memberId, status])
+  @@index([schoolId])
   @@map("book_reservations")
 }
 
@@ -8923,6 +9049,7 @@ model BookReservation {
 model LibraryCharge {
   id          String    @id @default(uuid())
   schoolId    String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId    String    @map("campus_id")
   issueId     String    @map("issue_id")
   memberId    String    @map("member_id")
@@ -8942,6 +9069,7 @@ model LibraryCharge {
 
   @@unique([issueId, kind])
   @@index([memberId, status])
+  @@index([schoolId])
   @@map("library_charges")
 }
 
@@ -8951,6 +9079,7 @@ model LibraryCharge {
 model PurchaseBudget {
   id            String   @id @default(uuid())
   schoolId      String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String   @map("campus_id")
   costCenter    String   @map("cost_center")
   period        String
@@ -8962,6 +9091,7 @@ model PurchaseBudget {
   createdAt     DateTime @default(now()) @map("created_at")
 
   @@unique([campusId, costCenter, period])
+  @@index([schoolId])
   @@map("purchase_budgets")
 }
 
@@ -8970,6 +9100,7 @@ model PurchaseBudget {
 model PurchaseRequest {
   id           String    @id @default(uuid())
   schoolId     String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId     String    @map("campus_id")
   budgetId     String    @map("budget_id")
   poNumber     String    @map("po_number")
@@ -8993,6 +9124,7 @@ model PurchaseRequest {
 
   @@unique([campusId, poNumber])
   @@index([budgetId, status])
+  @@index([schoolId])
   @@map("purchase_requests")
 }
 
@@ -9000,6 +9132,7 @@ model PurchaseRequest {
 model GoodsReceipt {
   id             String   @id @default(uuid())
   schoolId       String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId       String   @map("campus_id")
   requestId      String   @map("request_id")
   idempotencyKey String   @map("idempotency_key")
@@ -9011,6 +9144,7 @@ model GoodsReceipt {
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@unique([requestId, idempotencyKey])
+  @@index([schoolId])
   @@map("goods_receipts")
 }
 
@@ -9018,6 +9152,7 @@ model GoodsReceipt {
 model SupplierInvoice {
   id          String    @id @default(uuid())
   schoolId    String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId    String    @map("campus_id")
   requestId   String    @map("request_id")
   supplierId  String?   @map("supplier_id")
@@ -9039,6 +9174,7 @@ model SupplierInvoice {
 model SchoolAsset {
   id            String    @id @default(uuid())
   schoolId      String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String    @map("campus_id")
   tag           String
   description   String
@@ -9053,6 +9189,7 @@ model SchoolAsset {
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
   @@unique([campusId, tag])
+  @@index([schoolId])
   @@map("school_assets")
 }
 
@@ -9060,6 +9197,7 @@ model SchoolAsset {
 model AssetService {
   id          String    @id @default(uuid())
   schoolId    String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   assetId     String    @map("asset_id")
   dueOn       DateTime  @map("due_on") @db.Date
   status      String    @default("SCHEDULED")
@@ -9071,6 +9209,7 @@ model AssetService {
   createdAt   DateTime  @default(now()) @map("created_at")
 
   @@index([assetId, status])
+  @@index([schoolId])
   @@map("asset_services")
 }
 
@@ -9081,6 +9220,7 @@ model AssetService {
 model PayrollPolicy {
   id                  String   @id @default(uuid())
   schoolId            String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId            String   @map("campus_id")
   entityName          String   @map("entity_name")
   version             Int
@@ -9109,6 +9249,7 @@ model PayrollPolicy {
 model PayrollProvider {
   id          String   @id @default(uuid())
   schoolId    String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId    String   @map("campus_id")
   code        String
   name        String
@@ -9128,6 +9269,7 @@ model PayrollProvider {
 model PayrollEmployee {
   id          String    @id @default(uuid())
   schoolId    String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId    String    @map("campus_id")
   userId      String    @map("user_id")
   /// { providerCode: employeeId }
@@ -9145,6 +9287,7 @@ model PayrollEmployee {
 model PayrollAdjustment {
   id          String    @id @default(uuid())
   schoolId    String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId    String    @map("campus_id")
   userId      String    @map("user_id")
   year        Int
@@ -9169,6 +9312,7 @@ model PayrollAdjustment {
 model PayrollCalculation {
   id              String    @id @default(uuid())
   schoolId        String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId        String    @map("campus_id")
   year            Int
   month           Int
@@ -9205,6 +9349,7 @@ model PayrollCalculation {
 model PayrollSubmission {
   id             String    @id @default(uuid())
   schoolId       String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId       String    @map("campus_id")
   calculationId  String    @unique @map("calculation_id")
   reference      String
@@ -9230,6 +9375,7 @@ model PayrollSubmission {
 model PlanningBaseline {
   id           String   @id @default(uuid())
   schoolId     String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId     String   @map("campus_id")
   version      Int
   takenAt      DateTime @default(now()) @map("taken_at")
@@ -9249,6 +9395,7 @@ model PlanningBaseline {
 model PlanningScenario {
   id           String   @id @default(uuid())
   schoolId     String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId     String   @map("campus_id")
   baselineId   String   @map("baseline_id")
   name         String
@@ -9271,6 +9418,7 @@ model PlanningScenario {
 model PlanningHandoff {
   id            String    @id @default(uuid())
   schoolId      String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String    @map("campus_id")
   scenarioId    String    @map("scenario_id")
   scenarioVersion Int     @map("scenario_version")
@@ -9425,6 +9573,7 @@ model QuestionNetworkStat {
 model PathwayCounsellor {
   id          String    @id @default(uuid())
   schoolId    String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId    String    @map("campus_id")
   userId      String    @map("user_id")
   grantedById String    @map("granted_by_id")
@@ -9439,6 +9588,7 @@ model PathwayCounsellor {
 model PathwayGoal {
   id           String    @id @default(uuid())
   schoolId     String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId     String    @map("campus_id")
   studentId    String    @map("student_id")
   title        String
@@ -9459,6 +9609,7 @@ model PathwayGoal {
 model PathwayAction {
   id            String    @id @default(uuid())
   schoolId      String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   goalId        String    @map("goal_id")
   studentId     String    @map("student_id")
   title         String
@@ -9474,6 +9625,7 @@ model PathwayAction {
   createdAt     DateTime  @default(now()) @map("created_at")
 
   @@index([goalId])
+  @@index([schoolId])
   @@map("pathway_actions")
 }
 
@@ -9481,6 +9633,7 @@ model PathwayAction {
 model PathwayOpportunity {
   id             String    @id @default(uuid())
   schoolId       String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId       String    @map("campus_id")
   title          String
   provider       String
@@ -9503,6 +9656,7 @@ model PathwayOpportunity {
 model CounsellingAppointment {
   id            String   @id @default(uuid())
   schoolId      String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String   @map("campus_id")
   studentId     String   @map("student_id")
   counsellorId  String   @map("counsellor_id")
@@ -9524,6 +9678,7 @@ model CounsellingAppointment {
 model CounsellingNote {
   id            String   @id @default(uuid())
   schoolId      String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String   @map("campus_id")
   studentId     String   @map("student_id")
   appointmentId String?  @map("appointment_id")
@@ -9539,6 +9694,7 @@ model CounsellingNote {
 model AlumniProfile {
   id                 String    @id @default(uuid())
   schoolId           String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId           String    @map("campus_id")
   studentId          String?   @map("student_id")
   displayName        String    @map("display_name")
@@ -9566,6 +9722,7 @@ model AlumniProfile {
 model MentoringRequest {
   id                   String    @id @default(uuid())
   schoolId             String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId             String    @map("campus_id")
   reference            String
   studentId            String    @map("student_id")
@@ -9613,6 +9770,7 @@ model EvidenceFramework {
 model EvidenceCriterion {
   id                         String            @id @default(uuid())
   schoolId                   String            @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   frameworkId                String            @map("framework_id")
   framework                  EvidenceFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
   code                       String
@@ -9630,6 +9788,7 @@ model EvidenceCriterion {
 model EvidenceItem {
   id            String            @id @default(uuid())
   schoolId      String            @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   frameworkId   String            @map("framework_id")
   framework     EvidenceFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
   criterionIds  String[]          @map("criterion_ids")
@@ -9659,6 +9818,7 @@ model EvidenceItem {
 model ImprovementAction {
   id                   String            @id @default(uuid())
   schoolId             String            @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   frameworkId          String            @map("framework_id")
   framework            EvidenceFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
   criterionIds         String[]          @map("criterion_ids")
@@ -9687,6 +9847,7 @@ model ImprovementAction {
 model EvidenceReviewerGrant {
   id           String            @id @default(uuid())
   schoolId     String            @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   frameworkId  String            @map("framework_id")
   framework    EvidenceFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
   userId       String            @map("user_id")
@@ -9704,6 +9865,7 @@ model EvidenceReviewerGrant {
 model EvidencePack {
   id          String            @id @default(uuid())
   schoolId    String            @default("") @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   frameworkId String            @map("framework_id")
   framework   EvidenceFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
   version     Int
@@ -9725,6 +9887,7 @@ model EvidencePack {
 model CampusPackage {
   id          String    @id @default(uuid())
   schoolId    String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId    String    @map("campus_id")
   /// CANTEEN | BOARDING | SPECIALIST
   package     String
@@ -9750,6 +9913,7 @@ model CampusPackage {
 model CanteenItem {
   id          String   @id @default(uuid())
   schoolId    String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId    String   @map("campus_id")
   serviceDate DateTime @map("service_date") @db.Date
   name        String
@@ -9771,6 +9935,7 @@ model CanteenItem {
 model CanteenOrder {
   id             String   @id @default(uuid())
   schoolId       String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId       String   @map("campus_id")
   itemId         String   @map("item_id")
   studentId      String   @map("student_id")
@@ -9796,6 +9961,7 @@ model CanteenOrder {
 model CanteenLedgerEntry {
   id          String   @id @default(uuid())
   schoolId    String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId    String   @map("campus_id")
   studentId   String   @map("student_id")
   orderId     String   @map("order_id")
@@ -9815,6 +9981,7 @@ model CanteenLedgerEntry {
 model CanteenSpendLimit {
   id         String   @id @default(uuid())
   schoolId   String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   studentId  String   @map("student_id")
   dailyLimit Int      @map("daily_limit")
   setById    String   @map("set_by_id")
@@ -9829,6 +9996,7 @@ model CanteenSpendLimit {
 model DietaryRecord {
   id            String    @id @default(uuid())
   schoolId      String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String    @map("campus_id")
   studentId     String    @map("student_id")
   allergens     String[]
@@ -9852,6 +10020,7 @@ model DietaryRecord {
 model BoardingLeave {
   id               String    @id @default(uuid())
   schoolId         String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId         String    @map("campus_id")
   studentId        String    @map("student_id")
   departAt         DateTime  @map("depart_at")
@@ -9877,6 +10046,7 @@ model BoardingLeave {
 model BoardingRollCall {
   id         String   @id @default(uuid())
   schoolId   String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId   String   @map("campus_id")
   label      String
   takenAt    DateTime @default(now()) @map("taken_at")
@@ -9939,6 +10109,7 @@ model PerformanceRun {
 model SchoolAiAssessmentRepair {
   id                String    @id @default(uuid())
   schoolId          String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId          String    @map("campus_id")
   assignmentId      String    @map("assignment_id")
   paperVersion      Int       @map("paper_version")
@@ -9973,6 +10144,7 @@ model SchoolAiAssessmentRepair {
 model LearningTransferCase {
   id                   String    @id @default(uuid())
   schoolId             String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId             String    @map("campus_id")
   studentId            String    @map("student_id")
   sourceInstitution    String    @map("source_institution")
@@ -10008,6 +10180,7 @@ model LearningTransferCase {
 model LearningTransferMapping {
   id                     String    @id @default(uuid())
   schoolId               String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   caseId                 String    @map("case_id")
   transferCase           LearningTransferCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
   sourceObjectiveId      String    @map("source_objective_id")
@@ -10033,6 +10206,7 @@ model LearningTransferMapping {
 model TeachingProgress {
   id                String   @id @default(uuid())
   schoolId          String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId          String   @map("campus_id")
   subjectId         String   @map("subject_id")
   classId           String   @map("class_id")
@@ -10056,6 +10230,7 @@ model TeachingProgress {
 model ExamPaperSlot {
   id                String      @id @default(uuid())
   schoolId          String      @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId          String      @map("campus_id")
   examSessionId     String      @map("exam_session_id")
   examSession       ExamSession @relation(fields: [examSessionId], references: [id], onDelete: Cascade)
@@ -10118,6 +10293,7 @@ model ExamPaperSlot {
 model ExamPaperScript {
   id           String    @id @default(uuid())
   schoolId     String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId     String    @map("campus_id")
   slotId       String    @map("slot_id")
   scheduleId   String    @map("schedule_id")
@@ -10143,6 +10319,7 @@ model ExamPaperScript {
 model ExamAttendance {
   id           String    @id @default(uuid())
   schoolId     String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId     String    @map("campus_id")
   scheduleId   String    @map("schedule_id")
   studentId    String    @map("student_id")
@@ -10162,6 +10339,7 @@ model ExamAttendance {
 model ExamPrintRun {
   id          String   @id @default(uuid())
   schoolId    String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId    String   @map("campus_id")
   slotId      String   @map("slot_id")
   scheduleId  String   @map("schedule_id")
@@ -10182,6 +10360,7 @@ model ExamPrintRun {
 model ExamPaperModeration {
   id            String        @id @default(uuid())
   schoolId      String        @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String        @map("campus_id")
   slotId        String        @map("slot_id")
   slot          ExamPaperSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
@@ -10205,6 +10384,7 @@ model ExamPaperModeration {
 model FamilyResultNote {
   id            String    @id @default(uuid())
   schoolId      String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId      String    @map("campus_id")
   assignmentId  String    @map("assignment_id")
   attemptId     String    @map("attempt_id")
@@ -10231,6 +10411,7 @@ model FamilyResultNote {
 model ExamBriefReceipt {
   id             String   @id @default(uuid())
   schoolId       String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId       String   @map("campus_id")
   versionId      String   @map("version_id")
   studentId      String   @map("student_id")
@@ -10248,6 +10429,7 @@ model ExamBriefReceipt {
 model ExamException {
   id           String    @id @default(uuid())
   schoolId     String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId     String    @map("campus_id")
   examId       String    @map("exam_id")
   studentId    String    @map("student_id")
@@ -10271,6 +10453,7 @@ model ExamException {
 /// SKO-507 Pilot Ledger: a school opts in before any metric about it is computed or kept.
 model PilotLedgerSetting {
   schoolId    String   @id @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   optedIn     Boolean  @default(false) @map("opted_in")
   changedById String   @map("changed_by_id")
   changedAt   DateTime @default(now()) @map("changed_at")
@@ -10282,6 +10465,7 @@ model PilotLedgerSetting {
 model PilotLedgerSnapshot {
   id         String   @id @default(uuid())
   schoolId   String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   computedAt DateTime @default(now()) @map("computed_at")
   metrics    Json
 
@@ -10660,6 +10844,7 @@ model CurriculumPackActivation {
 model CurriculumPackActivationEvent {
   id            String   @id @default(uuid())
   schoolId      String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   activationId  String   @map("activation_id")
   activation    CurriculumPackActivation @relation(fields: [activationId], references: [id], onDelete: Cascade)
   fromStatus    String?  @map("from_status")
@@ -10697,6 +10882,7 @@ model MarketTrustReview {
 model PilotProposal {
   id                     String   @id @default(uuid())
   schoolId               String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   version                Int
   market                 String
   currency               String
@@ -10718,6 +10904,7 @@ model PilotProposal {
 model PilotCommercialEvent {
   id                 String   @id @default(uuid())
   schoolId           String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   stage              String
   demoAttended       Boolean  @default(false) @map("demo_attended")
   declinedToPay      Boolean  @default(false) @map("declined_to_pay")
@@ -10735,6 +10922,7 @@ model PilotCommercialEvent {
 model PilotReadinessRecord {
   id           String   @id @default(uuid())
   schoolId     String   @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   pilotId      String?  @map("pilot_id")
   version      Int
   market       String?
@@ -10815,6 +11003,7 @@ model WhatsAppUsageEntry {
 model StorageCleanup {
   id          String    @id @default(uuid())
   schoolId    String    @map("school_id")
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   campusId    String    @map("campus_id")
   objectKey   String    @unique @map("object_key")
   receiptId   String?   @map("receipt_id")
