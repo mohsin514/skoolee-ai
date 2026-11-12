@@ -18,18 +18,32 @@ export function ExamNotices({ id, locale, active, onPaused }: { id: string; loca
   // Held in a ref so a parent's inline callback never restarts the poll.
   const pausedRef = useRef(onPaused);
   useEffect(() => { pausedRef.current = onPaused; }, [onPaused]);
-  const load = useCallback(async () => {
-    const response = await fetch(api, { cache: "no-store" }).catch(() => null);
+  const load = useCallback(async (signal?: AbortSignal) => {
+    const response = await fetch(api, { cache: "no-store", signal }).catch(() => null);
     if (!response?.ok) return;
-    const payload = (await response.json()) as { notices: Notice[]; pausedAt?: string | null; deadlineAt?: string | null };
+    const payload = (await response.json().catch(() => null)) as { notices: Notice[]; pausedAt?: string | null; deadlineAt?: string | null } | null;
+    if (!payload || signal?.aborted) return;
     setNotices(payload.notices ?? []);
     pausedRef.current?.(payload.pausedAt ?? null, payload.deadlineAt ?? null);
   }, [api]);
+  // SKAI-1882: one request at a time, a jittered 15-18s cadence so a sitting's tabs do not poll in step, and no
+  // polling while the tab is hidden. Returning to the tab resyncs at once, so a pause or extension still lands.
   useEffect(() => {
-    void load();
-    if (!active) return;
-    const timer = window.setInterval(() => void load(), 8000);
-    return () => window.clearInterval(timer);
+    let controller: AbortController | null = null, timer: number | undefined, disposed = false;
+    const tick = async () => {
+      if (controller) return;
+      const current = new AbortController(); controller = current;
+      try { await load(current.signal); } finally { if (controller === current) controller = null; }
+    };
+    const schedule = () => {
+      window.clearTimeout(timer);
+      if (disposed || document.hidden) return;
+      timer = window.setTimeout(() => void tick().then(schedule), 15000 + Math.random() * 3000);
+    };
+    const onVisibility = () => { if (document.hidden) { window.clearTimeout(timer); return; } void tick(); schedule(); };
+    void tick();
+    if (active) { schedule(); document.addEventListener("visibilitychange", onVisibility); }
+    return () => { disposed = true; window.clearTimeout(timer); document.removeEventListener("visibilitychange", onVisibility); controller?.abort(); };
   }, [active, load]);
   if (!notices.length) return null;
   const acknowledge = async (noticeId: string) => {

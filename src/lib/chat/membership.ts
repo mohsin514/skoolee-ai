@@ -38,16 +38,19 @@ function outsideScope(user: AuthUser, loaded: Pick<ConversationRow, "schoolId" |
   return user.role === "APP_OWNER" || loaded.schoolId !== user.schoolId || !["SUPER_ADMIN", "PARENT", "STUDENT"].includes(user.role) && loaded.campusId !== user.campusId;
 }
 
+/** A DIRECT thread stays open only while the current messaging policy allows the other member. */
+async function assertDirectPeer(user: AuthUser, members: Array<{ userId: string }>, db: TxClient) {
+  const other = members.find(member => member.userId !== user.userId);
+  const peer = other && await db.user.findFirst({ where: { id: other.userId, schoolId: user.schoolId, isActive: true }, select: { id: true, role: true, campusId: true, isActive: true } });
+  if (!peer || !(await canDirectMessage(user, peer, await getChatSettings(user.schoolId, db), db)).allowed) throw new ApiError("Conversation not found", 404);
+}
+
 export async function assertCurrentConversationAccess(user: AuthUser, loaded: ConversationRow, db: TxClient = prisma) {
   if (outsideScope(user, loaded)) throw new ApiError("Conversation not found", 404);
   const row = await currentClassMembers(loaded, db);
   const me = row.members.find(member => member.userId === user.userId);
   if (!me) throw new ApiError("Conversation not found", 404);
-  if (row.kind === "DIRECT") {
-    const other = row.members.find(member => member.userId !== user.userId);
-    const peer = other && await db.user.findFirst({ where: { id: other.userId, schoolId: user.schoolId, isActive: true }, select: { id: true, role: true, campusId: true, isActive: true } });
-    if (!peer || !(await canDirectMessage(user, peer, await getChatSettings(user.schoolId, db), db)).allowed) throw new ApiError("Conversation not found", 404);
-  }
+  if (row.kind === "DIRECT") await assertDirectPeer(user, row.members, db);
   return { row, me };
 }
 
@@ -55,6 +58,42 @@ export async function requireMembership(user: AuthUser, conversationId: string, 
   const row = await db.conversation.findFirst({ where: { id: conversationId, ...campusScope(user) }, include: conversationInclude });
   if (!row) throw new ApiError("Conversation not found", 404);
   return assertCurrentConversationAccess(user, row, db);
+}
+
+/**
+ * SKAI-1879: requireMembership's decision for one conversation without its roster, for callers that only need
+ * "may this user read or act here" (message pages, read receipts, attachments). It reads the caller's own membership
+ * (and the other member of a DIRECT thread), checks only the caller's own class guardian link, and runs the same
+ * DIRECT policy, so the cost no longer grows with the size of a class or group channel.
+ */
+export async function requireConversationAccess(user: AuthUser, conversationId: string, db: TxClient = prisma) {
+  const row = await db.conversation.findFirst({
+    where: { id: conversationId, ...campusScope(user) },
+    select: {
+      id: true, kind: true, schoolId: true, campusId: true, classId: true,
+      members: { where: { ...conversationInclude.members.where, OR: [{ userId: user.userId }, { conversation: { kind: "DIRECT" } }] }, select: { userId: true, memberRole: true, user: { select: { role: true } } } },
+    },
+  });
+  if (!row || outsideScope(user, row)) throw new ApiError("Conversation not found", 404);
+  const me = row.members.find(member => member.userId === user.userId);
+  if (!me) throw new ApiError("Conversation not found", 404);
+  // currentClassMembers: a parent stays in a CLASS channel only while a live guardian link to that class holds.
+  if (row.kind === "CLASS" && me.user.role === "PARENT") {
+    const links = row.classId ? await db.guardianRelationship.findMany({ where: classGuardianMembershipWhere(row.schoolId, row.classId, [user.userId]), select: { guardianUserId: true }, take: 1 }) : [];
+    if (!links.length) throw new ApiError("Conversation not found", 404);
+  }
+  if (row.kind === "DIRECT") await assertDirectPeer(user, row.members, db);
+  return { row, me };
+}
+
+/**
+ * SKAI-1879: how many members currentClassMembers would keep, counted in the database: active members, less CLASS
+ * parents without a live guardian link to the class. Lets a caller skip loading a large roster it would not use.
+ */
+export async function currentMemberCount(row: { id: string; kind: string; schoolId: string; classId: string | null }, db: TxClient = prisma) {
+  const linked: Prisma.UserWhereInput[] = row.classId ? [{ role: "PARENT", guardianRelationships: { some: { AND: [liveGuardianRelationshipWhere(null, "communication", new Date(), row.schoolId), { student: { classId: row.classId } }] } } }] : [];
+  const user: Prisma.UserWhereInput = row.kind === "CLASS" ? { isActive: true, OR: [{ role: { not: "PARENT" } }, ...linked] } : { isActive: true };
+  return db.conversationMember.count({ where: { schoolId: row.schoolId, conversationId: row.id, leftAt: null, user } });
 }
 
 /**

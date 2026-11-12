@@ -406,6 +406,7 @@ export const GLOBAL_MODELS = new Set<string>([
   "questionNetworkStat",
   "resourcePolicy",
   "school",
+  "statusValueViolation",
   "stripeWebhookReceipt",
   "superAdminAuditLog",
 ]);
