@@ -235,54 +235,84 @@ function getWeightForExamType(examType: string, config: WeightConfig): number {
   }
 }
 
-export async function calculateWeightedGrade(
-  studentId: string,
+/** Everything a weighted grade needs that is the same for every learner in a class. */
+export interface WeightedGradeContext {
+  config: WeightConfig;
+  subjects: Array<{ id: string; name: string; totalMarks: number }>;
+  exams: Array<{ id: string; title: string; examType: string; totalMarks: number; subjectId: string | null }>;
+}
+
+export interface WeightedGradeMark {
+  examId: string;
+  subjectId: string;
+  marksObtained: number;
+  isAbsent: boolean;
+  isExempt: boolean;
+}
+
+/** SKAI-1832: load the config, subjects and exams once per class instead of once per learner. */
+export async function loadWeightedGradeContext(
   campusId: string,
   classId: string,
   academicYear: number,
   db: TxClient = prisma,
   academicModelVersionId?: string | null,
-  /** SKAI-152: evaluate proposed rules without saving them (the editor's preview). */
   configOverride?: WeightConfig,
-): Promise<WeightedGradeResult> {
-  const [student, config] = await Promise.all([
-    db.student.findUnique({
-      where: { id: studentId },
-      select: { id: true, fullName: true, classId: true },
-    }),
-    configOverride ?? getOrCreateGradeWeightConfig(campusId, classId, academicYear, db, academicModelVersionId),
-  ]);
-
-  if (!student) throw new Error("Student not found");
-
+): Promise<WeightedGradeContext> {
+  const config = configOverride ?? await getOrCreateGradeWeightConfig(campusId, classId, academicYear, db, academicModelVersionId);
   const subjects = await db.subject.findMany({
     where: { classId, campusId },
-      select: { id: true, name: true, totalMarks: true },
+    select: { id: true, name: true, totalMarks: true },
     orderBy: { name: "asc" },
   });
-
   const exams = await db.exam.findMany({
     where: { classId, campusId, academicYear, status: { notIn: ["DRAFT", "ACTIVE"] } },
     select: { id: true, title: true, examType: true, totalMarks: true, subjectId: true },
     orderBy: [{ examType: "asc" }, { title: "asc" }],
   });
+  return { config, subjects, exams };
+}
 
-  const examIds = exams.map((e) => e.id);
-  const subjectIds = subjects.map((s) => s.id);
-
+/** One mark query for the whole roster, grouped by learner. */
+async function loadMarksByStudent(ctx: WeightedGradeContext, campusId: string, studentIds: string[], db: TxClient) {
+  const byStudent = new Map<string, WeightedGradeMark[]>();
+  if (!studentIds.length || !ctx.exams.length || !ctx.subjects.length) return byStudent;
   const marks = await db.mark.findMany({
-    where: { studentId, examId: { in: examIds }, subjectId: { in: subjectIds } },
-    include: { subject: { select: { id: true, name: true, totalMarks: true } } },
+    where: {
+      campusId,
+      studentId: { in: studentIds },
+      examId: { in: ctx.exams.map((e) => e.id) },
+      subjectId: { in: ctx.subjects.map((s) => s.id) },
+    },
+    select: { studentId: true, examId: true, subjectId: true, marksObtained: true, isAbsent: true, isExempt: true },
   });
-
-  const marksByExam = new Map<string, typeof marks>();
   for (const mark of marks) {
-    if (!marksByExam.has(mark.examId)) marksByExam.set(mark.examId, []);
-    marksByExam.get(mark.examId)!.push(mark);
+    const list = byStudent.get(mark.studentId);
+    if (list) list.push(mark);
+    else byStudent.set(mark.studentId, [mark]);
   }
+  return byStudent;
+}
+
+/** Pure: the weighted grade for one learner. Throws when the academic model blocks calculation. */
+export function computeWeightedGrade(
+  student: { id: string; fullName: string },
+  ctx: WeightedGradeContext,
+  marks: WeightedGradeMark[],
+): WeightedGradeResult {
+  const { config, subjects, exams } = ctx;
+  const markByExamSubject = new Map<string, WeightedGradeMark>();
+  for (const mark of marks) markByExamSubject.set(`${mark.examId}:${mark.subjectId}`, mark);
+  const markFor = (examId: string, subjectId: string) => markByExamSubject.get(`${examId}:${subjectId}`);
+  const policyFor = (mark: WeightedGradeMark | undefined) => !mark
+    ? config.missingMarkPolicy ?? "COUNT_AS_ZERO"
+    : mark.isAbsent
+      ? config.absentMarkPolicy ?? "COUNT_AS_ZERO"
+      : mark.isExempt
+        ? config.exemptMarkPolicy ?? "EXCLUDE"
+        : "COUNT_AS_ZERO";
 
   const examResults: WeightedExamResult[] = exams.map((exam) => {
-    const examMarks = marksByExam.get(exam.id) || [];
     // If exam targets a single subject, only count that subject's marks
     const relevantSubjects = exam.subjectId
       ? subjects.filter((s) => s.id === exam.subjectId)
@@ -290,14 +320,8 @@ export async function calculateWeightedGrade(
     let totalMarks = 0;
     let obtainedMarks = 0;
     for (const subject of relevantSubjects) {
-      const mark = examMarks.find((row) => row.subjectId === subject.id);
-      const policy = !mark
-        ? config.missingMarkPolicy ?? "COUNT_AS_ZERO"
-        : mark.isAbsent
-          ? config.absentMarkPolicy ?? "COUNT_AS_ZERO"
-          : mark.isExempt
-            ? config.exemptMarkPolicy ?? "EXCLUDE"
-            : "COUNT_AS_ZERO";
+      const mark = markFor(exam.id, subject.id);
+      const policy = policyFor(mark);
       if (policy === "BLOCK") throw new Error(`${subject.name} has ${!mark ? "a missing mark" : mark.isAbsent ? "an absent result" : "an exempt result"}; this academic model blocks calculation until it is resolved.`);
       if (policy === "EXCLUDE") continue;
       totalMarks += subject.totalMarks;
@@ -326,14 +350,8 @@ export async function calculateWeightedGrade(
     let obtainedMarks = 0;
     let totalMarks = 0;
     for (const exam of exams.filter((row) => !row.subjectId || row.subjectId === subject.id)) {
-      const mark = marks.find((row) => row.examId === exam.id && row.subjectId === subject.id);
-      const policy = !mark
-        ? config.missingMarkPolicy ?? "COUNT_AS_ZERO"
-        : mark.isAbsent
-          ? config.absentMarkPolicy ?? "COUNT_AS_ZERO"
-          : mark.isExempt
-            ? config.exemptMarkPolicy ?? "EXCLUDE"
-            : "COUNT_AS_ZERO";
+      const mark = markFor(exam.id, subject.id);
+      const policy = policyFor(mark);
       if (policy === "EXCLUDE") continue;
       if (policy === "BLOCK") throw new Error(`${subject.name} has an unresolved ${!mark ? "missing mark" : mark.isAbsent ? "absence" : "exemption"}; this academic model blocks calculation.`);
       totalMarks += subject.totalMarks;
@@ -361,6 +379,55 @@ export async function calculateWeightedGrade(
   };
 }
 
+/**
+ * SKAI-1832: weighted grades for many learners of one class with a constant number of queries.
+ * Database errors reject the whole call; a learner the academic model blocks comes back as `null`.
+ */
+export async function calculateWeightedGradesForStudents(
+  students: Array<{ id: string; fullName: string }>,
+  campusId: string,
+  classId: string,
+  academicYear: number,
+  db: TxClient = prisma,
+  academicModelVersionId?: string | null,
+  configOverride?: WeightConfig,
+): Promise<Array<WeightedGradeResult | null>> {
+  if (!students.length) return [];
+  const ctx = await loadWeightedGradeContext(campusId, classId, academicYear, db, academicModelVersionId, configOverride);
+  const marksByStudent = await loadMarksByStudent(ctx, campusId, students.map((s) => s.id), db);
+  return students.map((student) => {
+    try {
+      return computeWeightedGrade(student, ctx, marksByStudent.get(student.id) ?? []);
+    } catch {
+      return null;
+    }
+  });
+}
+
+export async function calculateWeightedGrade(
+  studentId: string,
+  campusId: string,
+  classId: string,
+  academicYear: number,
+  db: TxClient = prisma,
+  academicModelVersionId?: string | null,
+  /** SKAI-152: evaluate proposed rules without saving them (the editor's preview). */
+  configOverride?: WeightConfig,
+): Promise<WeightedGradeResult> {
+  const [student, ctx] = await Promise.all([
+    db.student.findUnique({
+      where: { id: studentId },
+      select: { id: true, fullName: true, classId: true },
+    }),
+    loadWeightedGradeContext(campusId, classId, academicYear, db, academicModelVersionId, configOverride),
+  ]);
+
+  if (!student) throw new Error("Student not found");
+
+  const marksByStudent = await loadMarksByStudent(ctx, campusId, [student.id], db);
+  return computeWeightedGrade(student, ctx, marksByStudent.get(student.id) ?? []);
+}
+
 export async function calculateWeightedGradeForClass(
   classId: string,
   campusId: string,
@@ -373,12 +440,8 @@ export async function calculateWeightedGradeForClass(
     orderBy: { rollNo: "asc" },
   });
 
-  const results = await Promise.all(
-    students.map((student) =>
-      calculateWeightedGrade(student.id, campusId, classId, academicYear)
-        .catch(() => null)
-    )
-  );
+  // SKAI-1832: one batched load for the class; a database error fails the request instead of silently dropping learners.
+  const results = await calculateWeightedGradesForStudents(students, campusId, classId, academicYear);
 
   const validResults = results.filter((r): r is WeightedGradeResult => r !== null);
 
