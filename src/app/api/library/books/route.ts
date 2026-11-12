@@ -25,7 +25,9 @@ export async function GET(req: NextRequest) {
     const search = (params.get("search") ?? "").trim().slice(0, 100);
     const categoryId = params.get("categoryId");
     const { page: requestedPage, limit } = listPagination(params, 24, 100);
-    const where = { schoolId: user.schoolId, campusId, ...(categoryId ? { categoryId } : {}), ...(search ? { OR: [{ title: { contains: search, mode: "insensitive" as const } }, { author: { contains: search, mode: "insensitive" as const } }, { isbn: { contains: search, mode: "insensitive" as const } }] } : {}) };
+    // SKAI-1820: `available=1` narrows to lendable titles, so the issue picker searches the server, not a full catalogue.
+    const available = params.get("available") === "1";
+    const where = { schoolId: user.schoolId, campusId, ...(categoryId ? { categoryId } : {}), ...(available ? { copiesAvailable: { gt: 0 } } : {}), ...(search ? { OR: [{ title: { contains: search, mode: "insensitive" as const } }, { author: { contains: search, mode: "insensitive" as const } }, { isbn: { contains: search, mode: "insensitive" as const } }] } : {}) };
     const total = await prisma.book.count({ where });
     const { page, skip, pages } = pageWindow(total, requestedPage, limit);
     const data = await prisma.book.findMany({

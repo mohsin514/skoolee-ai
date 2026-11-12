@@ -6049,6 +6049,7 @@ model ItemTransaction {
   @@index([itemId])
   @@index([storeId])
   @@index([supplierId])
+  @@index([schoolId, campusId, date])
   @@map("item_transactions")
 }
 
