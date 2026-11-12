@@ -27,6 +27,7 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  dropSessions DropSession[]
   stripeWebhookReceipts StripeWebhookReceipt[]
   correctionNotes CorrectionNote[]
   paymentAllocations PaymentAllocation[]
@@ -2465,6 +2466,7 @@ model ReportCard {
   @@index([enrollmentId])
   @@index([campusId])
   @@index([schoolId, campusId])
+  @@index([schoolId, studentId, generatedAt])
   @@map("report_cards")
 }
 
@@ -2824,6 +2826,9 @@ model Invoice {
   @@unique([schoolId, invoiceNumber])
   @@index([enrollmentId])
   @@index([schoolId, campusId])
+  // SKAI-1885: invoice list page order and the overdue-balance aggregates by currency.
+  @@index([campusId, invoiceDate(sort: Desc), id])
+  @@index([campusId, currency, dueDate])
   @@map("invoices")
 }
 
@@ -5767,6 +5772,9 @@ model Notification {
   @@index([sourceType, sourceId])
   @@index([userId, isRead, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
+  // SKAI-1885: inbox order. The migration builds last_reminded_at DESC NULLS LAST to match the query;
+  // Prisma cannot spell NULLS LAST here and does not report it as drift.
+  @@index([userId, lastRemindedAt(sort: Desc), createdAt(sort: Desc)])
   @@index([schoolId])
   @@map("notifications")
 }
@@ -6049,6 +6057,7 @@ model BookIssue {
   @@index([memberId, returnedAt])
   @@index([bookId])
   @@index([schoolId, returnedAt, dueAt])
+  @@index([schoolId, issuedAt])
   @@index([memberId])
   @@map("book_issues")
 }
@@ -8331,6 +8340,8 @@ model TeachingAssignment {
 
   @@index([schoolId, campusId, classId])
   @@index([subjectId])
+  // SKAI-1885: a teacher's current assignments (chat policy, teacher scope).
+  @@index([schoolId, teacherId])
   @@map("teaching_assignments")
 }
 
@@ -11038,4 +11049,42 @@ model StorageCleanup {
   @@index([schoolId, status])
   @@index([receiptId])
   @@map("storage_cleanups")
+}
+
+/// SKAI-1847: a short-lived phone-to-computer upload handoff. The signed-in creator opens it; a phone holding its
+/// signed link may only add files to it until it expires or is closed. Files stay in private staging (drop/…)
+/// and never reach a record by themselves: the creator's own destination upload applies its usual checks.
+model DropSession {
+  id          String     @id @default(uuid())
+  schoolId    String     @map("school_id")
+  school      School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdById String     @map("created_by_id")
+  label       String
+  accept      String[]
+  maxFiles    Int        @map("max_files")
+  status      String     @default("OPEN") // OPEN | CLOSED
+  expiresAt   DateTime   @map("expires_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  items       DropItem[]
+
+  @@index([schoolId, createdById])
+  @@index([expiresAt])
+  @@map("drop_sessions")
+}
+
+model DropItem {
+  id          String      @id @default(uuid())
+  schoolId    String      @map("school_id")
+  sessionId   String      @map("session_id")
+  session     DropSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  storageKey  String      @unique @map("storage_key")
+  fileName    String      @map("file_name")
+  contentType String      @map("content_type")
+  sizeBytes   Int         @map("size_bytes")
+  sha256      String
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  @@unique([sessionId, sha256])
+  @@index([schoolId])
+  @@map("drop_items")
 }

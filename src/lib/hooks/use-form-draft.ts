@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { clearDeviceDrafts, conflictingFields, draftKey, DRAFT_PREFIX, DRAFT_TTL, mergeDraft, permittedValues, readDraft, sameValue, type DraftRecord, type DraftValues, type DraftStructures } from "@/lib/drafts/store";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { draftCopy } from "@/lib/drafts/messages";
+import { createDebouncedTask } from "@/lib/drafts/debounce";
 import { useNavGuard, useUnsavedGuard } from "./use-unsaved-guard";
 
 interface Options<T extends DraftValues> {
@@ -19,7 +20,9 @@ interface Options<T extends DraftValues> {
   current?: () => Promise<T>;
 }
 
-export function useFormDraft<T extends DraftValues>({ record, schema, values, baseline, fields, structures = {}, enabled = true, section, apply, current }: Options<T>) {
+const NO_STRUCTURES: DraftStructures = {};
+
+export function useFormDraft<T extends DraftValues>({ record, schema, values, baseline, fields, structures = NO_STRUCTURES, enabled = true, section, apply, current }: Options<T>) {
   const { language } = useLocale();
   const copy = draftCopy(language);
   const [expired, setExpired] = useState(false);
@@ -37,11 +40,16 @@ export function useFormDraft<T extends DraftValues>({ record, schema, values, ba
   const live = useRef({ key, values });
   useLayoutEffect(() => { operation.current++; live.current = { key, values }; }, [key]);
   useLayoutEffect(() => { live.current.values = values; }, [values]);
-  useEffect(() => () => { operation.current++; }, []);
+  // SKAI-1869: the draft is written once typing pauses, and flushed on page hide, record change and unmount.
+  const [persist] = useState(() => createDebouncedTask());
+  const unmounted = useRef(false);
+  useEffect(() => { unmounted.current = false; return () => { operation.current++; unmounted.current = true; }; }, []);
   const activeRecovery = checkedKey === key ? recovery : null;
   const activeBaseline = checkedKey === key ? reviewBaseline : null;
-  const confirmed = checkedKey === key && confirmedValues === JSON.stringify(values);
-  const dirty = enabled && !confirmed && !sameValue(values, activeBaseline ?? baseline);
+  const valuesSignature = useMemo(() => JSON.stringify(values), [values]);
+  const confirmed = checkedKey === key && confirmedValues !== null && confirmedValues === valuesSignature;
+  const differs = useMemo(() => !sameValue(values, activeBaseline ?? baseline), [values, activeBaseline, baseline]);
+  const dirty = enabled && !confirmed && differs;
   useUnsavedGuard(dirty);
   const guard = useNavGuard(dirty, copy.leave);
 
@@ -85,8 +93,8 @@ export function useFormDraft<T extends DraftValues>({ record, schema, values, ba
     return () => { active = false; window.removeEventListener("focus", check); window.removeEventListener("pageshow", check); window.removeEventListener("skoolee:drafts-cleared", clear); };
   }, []);
 
-  const fieldSignature = JSON.stringify(fields);
-  const structureSignature = JSON.stringify(structures);
+  const fieldSignature = useMemo(() => JSON.stringify(fields), [fields]);
+  const structureSignature = useMemo(() => JSON.stringify(structures), [structures]);
   useEffect(() => {
     if (!key) { setCheckedKey(null); setRecovery(null); setReviewBaseline(null); return; }
     setReviewBaseline(null);
@@ -97,23 +105,42 @@ export function useFormDraft<T extends DraftValues>({ record, schema, values, ba
     } catch { setStorageError(true); setCheckedKey(key); }
   }, [key, schema, fieldSignature, structureSignature]);
 
-  const valuesJson = JSON.stringify(permittedValues(values, fields, structures));
-  const baselineJson = JSON.stringify(permittedValues(activeBaseline ?? baseline, fields, structures));
+  const valuesJson = useMemo(() => JSON.stringify(permittedValues(values, fields, structures)), [values, fields, structures]);
+  const reviewedBaseline = activeBaseline ?? baseline;
+  const baselineJson = useMemo(() => JSON.stringify(permittedValues(reviewedBaseline, fields, structures)), [reviewedBaseline, fields, structures]);
   useEffect(() => {
-    if (!key || checkedKey !== key || recovery || suspended.current || confirmed) return;
-    try {
-      if (!dirty) { sessionStorage.removeItem(key); setSavedAt(null); return; }
-      // Re-renders and section visits must not falsely announce a new save or
-      // indefinitely renew an untouched draft's retention window.
-      const existing = readDraft(sessionStorage, key, schema, fields, Date.now(), structures);
-      if (existing && sameValue(existing.values, JSON.parse(valuesJson)) && sameValue(existing.baseline, JSON.parse(baselineJson)) && existing.section === section) return;
-      const time = Date.now();
-      const draft: DraftRecord = { schema, savedAt: time, expiresAt: time + DRAFT_TTL,
-        values: JSON.parse(valuesJson), baseline: JSON.parse(baselineJson), section };
-      sessionStorage.setItem(key, JSON.stringify(draft));
-      setSavedAt(time); setStorageError(false); setExpired(false);
-    } catch { setStorageError(true); }
-  }, [key, checkedKey, recovery, confirmed, dirty, valuesJson, baselineJson, schema, section]);
+    if (!key || checkedKey !== key || suspended.current || confirmed) { persist.cancel(); return; }
+    // A recovery prompt replaces the editor: keep the last typed values on disk, then stop writing.
+    if (recovery) { persist.flush(); return; }
+    if (!dirty) {
+      persist.cancel();
+      try { sessionStorage.removeItem(key); setSavedAt(null); } catch { setStorageError(true); }
+      return;
+    }
+    persist.schedule(() => {
+      if (suspended.current) return;
+      try {
+        // Re-renders and section visits must not falsely announce a new save or
+        // indefinitely renew an untouched draft's retention window.
+        const existing = readDraft(sessionStorage, key, schema, fields, Date.now(), structures);
+        if (existing && sameValue(existing.values, JSON.parse(valuesJson)) && sameValue(existing.baseline, JSON.parse(baselineJson)) && existing.section === section) return;
+        const time = Date.now();
+        const draft: DraftRecord = { schema, savedAt: time, expiresAt: time + DRAFT_TTL,
+          values: JSON.parse(valuesJson), baseline: JSON.parse(baselineJson), section };
+        sessionStorage.setItem(key, JSON.stringify(draft));
+        setSavedAt(time); setStorageError(false); setExpired(false);
+      } catch { setStorageError(true); }
+    });
+    // Leaving this record (or the page) writes the pending draft now; a newer edit simply reschedules it.
+    return () => { if (unmounted.current || live.current.key !== key) persist.flush(); };
+  }, [key, checkedKey, recovery, confirmed, dirty, valuesJson, baselineJson, schema, section, persist]);
+  useEffect(() => {
+    const flush = () => persist.flush();
+    const hidden = () => { if (document.visibilityState === "hidden") persist.flush(); };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", hidden);
+    return () => { window.removeEventListener("pagehide", flush); document.removeEventListener("visibilitychange", hidden); };
+  }, [persist]);
 
   useEffect(() => {
     if (!key || !savedAt) return;
@@ -126,6 +153,7 @@ export function useFormDraft<T extends DraftValues>({ record, schema, values, ba
 
   const discard = () => {
     operation.current++;
+    persist.cancel();
     if (key) { try { sessionStorage.removeItem(key); } catch { setStorageError(true); } }
     setRecovery(null); setSavedAt(null);
   };
@@ -185,7 +213,7 @@ export function useFormDraft<T extends DraftValues>({ record, schema, values, ba
     if (live.current.key !== key) return;
     // A late acknowledgement cannot erase edits made while the save was in flight.
     if (!sameValue(live.current.values, values)) { setReviewBaseline(values); return; }
-    discard(); setConfirmedValues(JSON.stringify(values));
+    discard(); setConfirmedValues(valuesSignature);
   };
   return { dirty, guard, recovery: activeRecovery, conflicts: activeRecovery ? conflictingFields(activeRecovery, activeBaseline ?? baseline) : [], baseline: activeBaseline ?? baseline, savedAt: checkedKey === key ? savedAt : null, storageError, expired, acknowledged: confirmed,
     record, schema, ready: !!key && key === checkedKey, accept, discard, markSaved, reviewCurrent, prepareReview };

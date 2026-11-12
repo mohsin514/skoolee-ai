@@ -41,8 +41,24 @@ function answer(model: string, method: string, args: any): unknown {
   return [];
 }
 
+/** `prisma.$queryRaw` as a tagged template: recorded as `{ read: "$queryRaw", args: { sql, values } }` (SKAI-1856). */
+async function fakeQueryRaw(strings: TemplateStringsArray, ...values: unknown[]) {
+  h.inFlight += 1;
+  h.maxInFlight = Math.max(h.maxInFlight, h.inFlight);
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    const args = { sql: strings.join("?"), values };
+    h.calls.push({ read: "$queryRaw", args });
+    if (h.failing.has("$queryRaw")) throw poolTimeout("$queryRaw");
+    const canned = h.answers.get("$queryRaw");
+    return canned ? canned(args) : [];
+  } finally {
+    h.inFlight -= 1;
+  }
+}
+
 const fakePrisma = new Proxy({}, {
-  get: (_target, model: string) => new Proxy({}, {
+  get: (_target, model: string) => model === "$queryRaw" ? fakeQueryRaw : new Proxy({}, {
     get: (_inner, method: string) => async (args: unknown) => {
       h.inFlight += 1;
       h.maxInFlight = Math.max(h.maxInFlight, h.inFlight);

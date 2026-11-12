@@ -44,8 +44,8 @@ import {
   FEE_STACK_COLOR,
   FEE_STACK_KEYS,
   gradeDistribution,
-  latestReportCards,
-  networkStudents,
+  networkEnrolments,
+  networkGrades,
 } from "./metrics";
 
 interface NetworkOverviewProps {
@@ -71,7 +71,7 @@ export function NetworkOverview({ data, onSelectCampus }: NetworkOverviewProps) 
   const money = (value: number) => new Intl.NumberFormat(tag, { style: "currency", currency, minimumFractionDigits: minorUnits(currency), maximumFractionDigits: minorUnits(currency) }).format(value);
   const derived = useMemo(() => {
     const rows = campusRows(campuses);
-    const students = networkStudents(campuses);
+    const enrolments = networkEnrolments(campuses);
     const byStudents = [...rows].sort((a, b) => b.students - a.students);
     const billed = rows.reduce((sum, r) => sum + r.billed, 0);
     const collected = rows.reduce((sum, r) => sum + r.collected, 0);
@@ -85,8 +85,8 @@ export function NetworkOverview({ data, onSelectCampus }: NetworkOverviewProps) 
       collected,
       collectionRate: billed > 0 ? Math.round((collected / billed) * 100) : 0,
       feeStack: campusFeeStack(campuses),
-      enrolment: enrolmentTrend(students, 12, tag),
-      grades: gradeDistribution(latestReportCards(students)),
+      enrolment: enrolmentTrend(enrolments, 12, tag),
+      grades: gradeDistribution(networkGrades(campuses)),
       gaps,
       coverage: [...rows].sort(
         (a, b) => Number(a.hasAdmin) + Number(a.hasPrincipal) - (Number(b.hasAdmin) + Number(b.hasPrincipal)),

@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert } from "@/components/ui/alert";
@@ -15,6 +14,7 @@ import { studioSlotsCopy } from "@/lib/school-ai/exam-studio-copy-slots";
 import { sourceStructureApprovalIssues } from "@/lib/school-ai/intake";
 import type { AiWorkspaceRecord, SourceData } from "@/lib/school-ai/types";
 import { DocumentJobsPanel } from "../document-jobs-panel";
+import { ScanPagesUpload } from "../scan-pages-upload";
 import { SourceStructureReview } from "../source-structure-review";
 
 type Warning = { code: string; values: Array<string | number> };
@@ -137,7 +137,7 @@ function ScopedUploadPaper({ slotId, subjectId, classId, onDone }: UploadPaperPr
       <label className="flex items-start gap-3 text-sm"><Checkbox checked={reviewed} disabled={locked || !draft.extractedText.trim() || structureIssues.length > 0 || source.status === "ARCHIVED"} onChange={event => setReviewed(event.target.checked)} data-upload-reviewed />{t.uploadReviewed}</label>
       <div className="flex flex-wrap gap-2"><Button type="button" disabled={locked || !reviewed || (!changed && !needsReviewSave) || source.status === "ARCHIVED"} onClick={() => void saveReview()} data-upload-save-review>{t.uploadSaveReview}</Button><Button type="button" disabled={locked || changed || !reviewed || !sourceReady(source)} onClick={() => void run()} data-upload-continue>{t.uploadContinue}</Button><Button type="button" variant="ghost" disabled={locked} onClick={() => { try { sessionStorage.removeItem(storageKey); } catch { /* Storage is optional. */ } setSource(null); setDraft(null); setFile(null); setText(""); setError(null); }} data-upload-start-over>{t.uploadStartOver}</Button></div>
     </div> : <>
-      <FormField name="paperFile" label={t.uploadFile}><Input type="file" accept="application/pdf,image/jpeg,image/png,image/webp,text/plain,text/csv" disabled={busy || restoring} onChange={event => setFile(event.currentTarget.files?.[0] ?? null)} /></FormField>
+      <FormField name="paperFile" label={t.uploadFile}><ScanPagesUpload documentKind="paper" subjectId={subjectId} classId={classId} label={t.uploadFile} accept="application/pdf,image/jpeg,image/png,image/webp,text/plain,text/csv" value={file} onChange={setFile} disabled={busy || restoring} /></FormField>
       <FormField name="paperText" label={t.pasteText}><Textarea rows={8} dir="auto" value={text} maxLength={80000} disabled={busy || restoring} onChange={event => setText(event.currentTarget.value)} /></FormField>
       <Button type="button" disabled={busy || restoring || (!file && !text.trim())} onClick={() => void run()} data-upload-read><FileUp aria-hidden="true" />{t.uploadDo}</Button>
     </>}

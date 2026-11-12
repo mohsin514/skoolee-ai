@@ -14,8 +14,10 @@ import { useLocaleFormat, useUiText, useLocale } from "@/components/locale/Local
 // went; matched rows post as payments only after an explicit review; unmatched money stays visible.
 
 type Row = { rowNumber: number; date: string; amountMinor: number; description: string; currency?: string; studentName?: string | null; manualMatch?: { reason: string } | null };
+// SKAI-1865: the list arrives as a summary (counts, currency, the first unallocated rows); "Show all" loads one statement in full.
 type Rec = {
-  id: string; status: string; bankAccount: string | null; from: string | null; to: string | null; matched: Row[]; unmatched: Row[];
+  id: string; status: string; bankAccount: string | null; from: string | null; to: string | null;
+  matchedCount: number; manualMatchCount: number; currency: string | null; unmatched: Row[]; unmatchedCount: number;
   posting: { posted?: { rowNumber: number; receiptNo: string | null }[]; exceptions?: { rowNumber: number; amountMinor: number; reason: string }[] } | null;
   report: { received: number; allocated: number; credited: number; unallocated: number; adjustments: number; difference: number; balanced: boolean };
 };
@@ -25,13 +27,25 @@ export function ReconciliationsPanel({ campusId, version = 0, onPosted, showEmpt
   const { money, date } = useLocaleFormat();
   const { currency: campusCurrency } = useLocale();
   const [items, setItems] = useState<Rec[] | null>(null), [posting, setPosting] = useState<Rec | null>(null), [busy, setBusy] = useState(false), [failed, setFailed] = useState(false);
+  const [allUnmatched, setAllUnmatched] = useState<Record<string, Row[]>>({}), [expanding, setExpanding] = useState<string | null>(null);
+  const scope = campusId ? `campusId=${encodeURIComponent(campusId)}` : "";
   const load = useCallback(async () => {
     setFailed(false);
-    const response = await fetch(`/api/fees/reconciliations${campusId ? `?campusId=${encodeURIComponent(campusId)}` : ""}`, { cache: "no-store" }).catch(() => null);
+    const response = await fetch(`/api/fees/reconciliations?summary=1${scope ? `&${scope}` : ""}`, { cache: "no-store" }).catch(() => null);
     const json = response ? await response.json().catch(() => ({})) : {};
-    if (response?.ok && json.success) setItems(json.data);
+    if (response?.ok && json.success) { setItems(json.data); setAllUnmatched({}); }
     else setFailed(true);
-  }, [campusId]);
+  }, [scope]);
+  const showAll = async (id: string) => {
+    setExpanding(id);
+    try {
+      const response = await fetch(`/api/fees/reconciliations?id=${encodeURIComponent(id)}${scope ? `&${scope}` : ""}`, { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      const rows: Row[] | undefined = json.data?.[0]?.unmatched;
+      if (!response.ok || !json.success || !rows) throw new Error(json.error || ui("The unallocated rows could not be loaded."));
+      setAllUnmatched(current => ({ ...current, [id]: rows }));
+    } catch (failure) { toast.error(failure instanceof Error ? failure.message : ui("The unallocated rows could not be loaded.")); } finally { setExpanding(null); }
+  };
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load, version]);
   const post = async () => {
     if (!posting) return;
@@ -52,7 +66,7 @@ export function ReconciliationsPanel({ campusId, version = 0, onPosted, showEmpt
     <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><Landmark className="size-4 text-primary" aria-hidden="true" />{ui("Bank reconciliations")}</h3>
     {/* Statements awaiting review lead; posted and reversed ones are history. */}
     {urgencyFirst(items, rec => (rec.status === "pending" ? 0 : 1)).map(rec => {
-      const currency = rec.matched[0]?.currency || rec.unmatched[0]?.currency || campusCurrency, fmt = (amount: number) => money(amount, currency), r = rec.report;
+      const currency = rec.currency || campusCurrency, fmt = (amount: number) => money(amount, currency), r = rec.report;
       const tone = rec.status === "posted" ? "success" : rec.status === "reversed" ? "neutral" : r.balanced ? "warning" : "danger";
       return <article key={rec.id} data-tone={tone} className={`${deskRow} space-y-3`} data-reconciliation={rec.id} data-reconciliation-status={rec.status}>
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -61,13 +75,14 @@ export function ReconciliationsPanel({ campusId, version = 0, onPosted, showEmpt
         </div>
         <p className={`flex flex-wrap items-center gap-2 text-xs ${r.balanced ? "text-ink-muted" : "font-semibold text-status-error-text"}`} data-conservation={r.balanced ? "balanced" : "difference"}><Scale className="size-3.5" aria-hidden="true" />
           <bdi>{ui("Received {0} = allocated {1} + credit {2} + unallocated {3}", [fmt(r.received), fmt(r.allocated), fmt(r.credited), fmt(r.unallocated)])}</bdi>{r.balanced ? "" : ` · ${ui("Unexplained difference {0}", [fmt(r.difference)])}`}</p>
-        {rec.unmatched.length > 0 && <div className="space-y-1"><p className="sk-eyebrow text-ink-subtle">{ui("Unallocated — stays visible until reviewed")}</p><ul className="space-y-1 text-xs" data-unallocated>{rec.unmatched.map(row => <li key={row.rowNumber} className="rounded-lg border border-status-warning-border bg-status-warning-surface px-3 py-1.5 tabular-nums">{date(row.date)} · <bdi>{fmt(row.amountMinor)}</bdi> · <bdi>{row.description}</bdi></li>)}</ul></div>}
+        {rec.unmatchedCount > 0 && <div className="space-y-1"><p className="sk-eyebrow text-ink-subtle">{ui("Unallocated — stays visible until reviewed")}</p><ul className="space-y-1 text-xs" data-unallocated>{(allUnmatched[rec.id] ?? rec.unmatched).map(row => <li key={row.rowNumber} className="rounded-lg border border-status-warning-border bg-status-warning-surface px-3 py-1.5 tabular-nums">{date(row.date)} · <bdi>{fmt(row.amountMinor)}</bdi> · <bdi>{row.description}</bdi></li>)}</ul>
+          {!allUnmatched[rec.id] && rec.unmatchedCount > rec.unmatched.length && <Button variant="secondary" size="sm" onClick={() => void showAll(rec.id)} loading={expanding === rec.id} disabled={expanding !== null}>{ui("Show all {0} unallocated rows", [rec.unmatchedCount])}</Button>}</div>}
         {(rec.posting?.exceptions ?? []).length > 0 && <ul className="space-y-1 text-xs" data-reconciliation-exceptions>{rec.posting!.exceptions!.map(item => <li key={item.rowNumber} className="rounded-lg border border-status-error-border bg-status-error-surface px-3 py-1.5 tabular-nums">{ui("Row {0}", [item.rowNumber])} · <bdi>{fmt(item.amountMinor)}</bdi> · {ui(item.reason)}</li>)}</ul>}
-        {rec.matched.some(row => row.manualMatch) && <p className="text-xs text-ink-muted">{ui("{0} matched by hand with a recorded reason.", [rec.matched.filter(row => row.manualMatch).length])}</p>}
-        {rec.status === "pending" && rec.matched.length > 0 && <Button onClick={() => setPosting(rec)} disabled={busy} loading={busy && posting?.id === rec.id}>{ui("Post {0} matched payment(s)", [rec.matched.length])}</Button>}
+        {rec.manualMatchCount > 0 && <p className="text-xs text-ink-muted">{ui("{0} matched by hand with a recorded reason.", [rec.manualMatchCount])}</p>}
+        {rec.status === "pending" && rec.matchedCount > 0 && <Button onClick={() => setPosting(rec)} disabled={busy} loading={busy && posting?.id === rec.id}>{ui("Post {0} matched payment(s)", [rec.matchedCount])}</Button>}
       </article>;
     })}
-    <ConfirmAction open={Boolean(posting)} title={ui("Post matched payments?")} description={posting ? ui("{0} matched transaction(s) totalling {1} become payments with receipts. {2} stays unallocated for review. This cannot be posted twice.", [posting.matched.length, money(posting.report.allocated, posting.matched[0]?.currency || campusCurrency), money(posting.report.unallocated, posting.matched[0]?.currency || campusCurrency)]) : ""}
+    <ConfirmAction open={Boolean(posting)} title={ui("Post matched payments?")} description={posting ? ui("{0} matched transaction(s) totalling {1} become payments with receipts. {2} stays unallocated for review. This cannot be posted twice.", [posting.matchedCount, money(posting.report.allocated, posting.currency || campusCurrency), money(posting.report.unallocated, posting.currency || campusCurrency)]) : ""}
       confirmLabel={ui("Post payments")} cancelLabel={ui("Keep editing")} tone="primary" busy={busy} onConfirm={() => post()} onCancel={() => setPosting(null)} />
   </section>;
 }

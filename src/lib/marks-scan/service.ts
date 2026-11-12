@@ -83,9 +83,14 @@ export async function startBatch(user: AuthUser, body: Record<string, unknown>) 
     if (body.qr) { const { reference } = parseQr(String(body.qr)); const found = await tx.markSheetTemplate.findFirst({ where: { reference, schoolId: user.schoolId }, select: { id: true } }); if (!found) throw new ApiError("Marks sheet not found", 404); templateId = found.id; }
     const { template, roster, exam } = await loadTemplate(user, templateId, tx);
     assertOpen(exam);
+    // SKAI-1851: scanning a printed sheet again resumes its open scan instead of starting a parallel one.
+    if (body.qr) {
+      const open = await tx.markScanBatch.findFirst({ where: { templateId: template.id, schoolId: user.schoolId, status: { in: ["CAPTURING", "REVIEW", "APPROVED"] } }, orderBy: { createdAt: "desc" } });
+      if (open) return { ...open, examId: template.examId };
+    }
     const marks = await tx.mark.findMany({ where: { examId: template.examId, subjectId: template.subjectId, studentId: { in: roster.map(r => r.studentId) } }, select: { studentId: true, marksObtained: true, isAbsent: true, isExempt: true } });
     const baseline = Object.fromEntries(marks.map(m => [m.studentId, { marksObtained: m.marksObtained, isAbsent: m.isAbsent, isExempt: m.isExempt }]));
-    return tx.markScanBatch.create({ data: { schoolId: user.schoolId, campusId: template.campusId, templateId: template.id, baseline, createdById: user.userId } });
+    return { ...await tx.markScanBatch.create({ data: { schoolId: user.schoolId, campusId: template.campusId, templateId: template.id, baseline, createdById: user.userId } }), examId: template.examId };
   });
 }
 
