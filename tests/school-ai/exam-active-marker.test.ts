@@ -32,6 +32,9 @@ test("without the gate, Redis disabled, or Redis failing, every student request 
   assert.deepEqual(calls, [], "no Redis read unless the gate is on");
   assert.equal(await candidateMayBeInExam("student-user-a", { env: gateOn, client: failing }), true);
   assert.equal(await candidateMayBeInExam("student-user-a", { env: gateOn, client: hanging, timeoutMs: 5 }), true);
+  // A reconnecting client is not asked at all: proxy reads must not pile up in its offline queue.
+  assert.equal(await candidateMayBeInExam("student-user-a", { env: gateOn, client: { ...client, status: "reconnecting" } }), true);
+  assert.deepEqual(calls, [], "no Redis read while the connection is not ready");
 });
 
 test("a student with no marker skips the database; starting an exam confines the very next request", async () => {

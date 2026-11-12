@@ -16,7 +16,7 @@ export function canonicalExamPath(pathname: string): string | null {
 }
 
 /**
- * SKAI-1840: files served from public/ (kept in step by tests/school-ai/exam-boundary.test.ts).
+ * SKAI-1840: files served from public/ (kept in step by tests/school-ai/exam-active-marker.test.ts).
  * They hold no school data, so the proxy skips the database-backed exam boundary for them.
  */
 export const PUBLIC_STATIC_FILES: ReadonlySet<string> = new Set([

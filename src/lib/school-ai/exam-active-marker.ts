@@ -23,6 +23,8 @@ import { isRealtimeEnabled } from "@/lib/queue/redis-config";
 
 type Env = Record<string, string | undefined>;
 export interface ExamMarkerClient {
+  /** ioredis connection state; reads are skipped unless "ready" so an outage never grows the offline queue. */
+  status?: string;
   get(key: string): Promise<string | null>;
   eval(script: string, numKeys: number, ...args: (string | number)[]): Promise<unknown>;
 }
@@ -91,6 +93,7 @@ export async function candidateMayBeInExam(userId: string, options: Options = {}
   if (!examMarkerGateEnabled(options.env ?? process.env)) return true;
   try {
     const client = options.client ?? await defaultClient();
+    if (client.status !== undefined && client.status !== "ready") return true;
     return (await withTimeout(client.get(examMarkerKey(userId)), options.timeoutMs ?? READ_TIMEOUT_MS)) !== null;
   } catch {
     return true;
