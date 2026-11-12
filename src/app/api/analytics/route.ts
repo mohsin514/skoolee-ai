@@ -38,29 +38,25 @@ export async function GET(req: Request) {
 
     const examIds = exams.map((e) => e.id);
 
-    const [reportCards, marks, students, attendance] = await Promise.all([
+    // SKAI-1830: report cards are read as bare scalars (names are fetched only for the listed pupils
+    // below), and marks are summed per subject in the database instead of loading every mark row.
+    const [reportCards, markTotals, students, attendance] = await Promise.all([
       prisma.reportCard.findMany({
-        where: { examId: { in: examIds } },
+        where: { examId: { in: examIds }, schoolId: user.schoolId },
         select: {
           examId: true,
           studentId: true,
           percentage: true,
           grade: true,
-          obtainedMarks: true,
-          totalMarks: true,
           attendancePresent: true,
           attendanceTotal: true,
-          student: { select: { fullName: true, rollNo: true, classId: true } },
         },
       }),
-      prisma.mark.findMany({
-        where: { examId: { in: examIds } },
-        select: {
-          examId: true,
-          subjectId: true,
-          marksObtained: true,
-          subject: { select: { name: true, totalMarks: true } },
-        },
+      prisma.mark.groupBy({
+        by: ["subjectId"],
+        where: { examId: { in: examIds }, schoolId: user.schoolId },
+        _sum: { marksObtained: true },
+        _count: { _all: true },
       }),
       prisma.student.count({ where: campusId ? { campusId } : { campus: { schoolId: user.schoolId } } }),
       prisma.attendance.groupBy({
@@ -117,7 +113,8 @@ export async function GET(req: Request) {
     // SKAI-1609: a report belongs to the class whose exam produced it, not the pupil's class today.
     const examClass = new Map(exams.map((e) => [e.id, e.classId]));
     for (const r of reportCards) {
-      const classId = examClass.get(r.examId) ?? r.student.classId;
+      // Every card comes from one of `exams`, so its exam's class is always known.
+      const classId = examClass.get(r.examId) ?? "";
       const className = classMap.get(classId) || "Unknown";
       const prev = classPerfMap.get(className) || { total: 0, count: 0 };
       prev.total += r.percentage;
@@ -132,20 +129,26 @@ export async function GET(req: Request) {
       }))
       .sort((a, b) => b.average - a.average);
 
-    const subjectMap = new Map<string, { name: string; obtained: number; total: number; count: number }>();
-    for (const m of marks) {
-      const prev = subjectMap.get(m.subjectId) || { name: m.subject.name, obtained: 0, total: 0, count: 0 };
-      prev.obtained += m.marksObtained;
-      prev.total += m.subject.totalMarks;
-      prev.count += 1;
-      subjectMap.set(m.subjectId, prev);
-    }
-    const subjectPerformance = [...subjectMap.values()]
-      .map((s) => ({
-        subject: s.name,
-        average: s.total > 0 ? Math.round((s.obtained / s.total) * 100 * 10) / 10 : 0,
-        entries: s.count,
-      }))
+    // Each mark row counted its subject's totalMarks once, so the subject's total is count x totalMarks.
+    const markSubjects = markTotals.length
+      ? await prisma.subject.findMany({
+          where: { id: { in: markTotals.map((m) => m.subjectId) }, schoolId: user.schoolId },
+          select: { id: true, name: true, totalMarks: true },
+        })
+      : [];
+    const subjectById = new Map(markSubjects.map((s) => [s.id, s]));
+    const subjectPerformance = markTotals
+      .flatMap((m) => {
+        const subject = subjectById.get(m.subjectId);
+        if (!subject) return [];
+        const obtained = m._sum.marksObtained ?? 0;
+        const total = m._count._all * subject.totalMarks;
+        return [{
+          subject: subject.name,
+          average: total > 0 ? Math.round((obtained / total) * 100 * 10) / 10 : 0,
+          entries: m._count._all,
+        }];
+      })
       .sort((a, b) => a.subject.localeCompare(b.subject));
 
     const gradeDistribution: Record<string, number> = {};
@@ -160,39 +163,55 @@ export async function GET(req: Request) {
         return order.indexOf(a.grade) - order.indexOf(b.grade);
       });
 
+    const examTotals = new Map<string, { sum: number; count: number }>();
+    for (const r of reportCards) {
+      const prev = examTotals.get(r.examId) ?? { sum: 0, count: 0 };
+      prev.sum += r.percentage;
+      prev.count += 1;
+      examTotals.set(r.examId, prev);
+    }
     const examTrends = exams.map((exam) => {
-      const cards = reportCards.filter((r) => r.examId === exam.id);
-      const avg = cards.length
-        ? Math.round(cards.reduce((s, c) => s + c.percentage, 0) / cards.length * 10) / 10
-        : 0;
+      const cards = examTotals.get(exam.id) ?? { sum: 0, count: 0 };
+      const avg = cards.count ? Math.round(cards.sum / cards.count * 10) / 10 : 0;
       return {
         examId: exam.id,
         title: exam.title,
         term: exam.term,
         type: exam.examType,
         average: avg,
-        students: cards.length,
+        students: cards.count,
         className: classMap.get(exam.classId) || "",
       };
     });
 
-    const topStudents = [...pupilResults]
-      .sort((a, b) => b.percentage - a.percentage)
-      .slice(0, 10)
+    const topResults = [...pupilResults].sort((a, b) => b.percentage - a.percentage).slice(0, 10);
+    const atRiskResults = pupilResults
+      .filter((r) => !passes(r))
+      .sort((a, b) => a.percentage - b.percentage)
+      .slice(0, 10);
+    // Only the (at most 20) listed pupils need a name and roll number.
+    const listedIds = [...new Set([...topResults, ...atRiskResults].map((r) => r.studentId))];
+    const listed = listedIds.length
+      ? await prisma.student.findMany({
+          where: { id: { in: listedIds }, schoolId: user.schoolId },
+          select: { id: true, fullName: true, rollNo: true },
+        })
+      : [];
+    const pupilById = new Map(listed.map((s) => [s.id, s]));
+    const pupilOf = (r: { studentId: string }) => pupilById.get(r.studentId) ?? { fullName: "", rollNo: "" };
+
+    const topStudents = topResults
       .map((r) => ({
-        name: r.student.fullName,
-        rollNo: r.student.rollNo,
+        name: pupilOf(r).fullName,
+        rollNo: pupilOf(r).rollNo,
         percentage: r.percentage,
         grade: r.grade || gradeForPercentage(r.percentage),
       }));
 
-    const atRiskStudents = [...pupilResults]
-      .filter((r) => !passes(r))
-      .sort((a, b) => a.percentage - b.percentage)
-      .slice(0, 10)
+    const atRiskStudents = atRiskResults
       .map((r) => ({
-        name: r.student.fullName,
-        rollNo: r.student.rollNo,
+        name: pupilOf(r).fullName,
+        rollNo: pupilOf(r).rollNo,
         percentage: r.percentage,
         attendancePct: r.attendanceTotal > 0
           ? Math.round((r.attendancePresent / r.attendanceTotal) * 100)
