@@ -20,10 +20,17 @@ const campusApi = {
   create: async ({ data }: { data: Omit<Campus, "id" | "archivedAt"> }) => { const c = { ...data, id: `c${++seq}`, archivedAt: null }; campuses.push(c); return c; },
 };
 
-type Tx = { campus: typeof campusApi; $queryRaw: (s: TemplateStringsArray, schoolId: string) => Promise<void>; held: (() => void)[] };
+// SKAI-1402 (#1003) seeds the new campus's year and weekend inside the same transaction, so the tx exposes them.
+const calendarApi = {
+  academicCycle: { findFirst: async () => null, create: async () => ({}) },
+  weekend: { findMany: async () => [], createMany: async () => ({}) },
+};
+
+type Tx = { campus: typeof campusApi; academicCycle: typeof calendarApi.academicCycle; weekend: typeof calendarApi.weekend; $queryRaw: (s: TemplateStringsArray, schoolId: string) => Promise<void>; held: (() => void)[] };
 const makeTx = (): Tx => {
   const t: Tx = {
     campus: campusApi,
+    ...calendarApi,
     held: [],
     $queryRaw: async (_s, schoolId) => {
       while (locks.has(schoolId)) await locks.get(schoolId);
@@ -37,8 +44,7 @@ const makeTx = (): Tx => {
 
 const prisma = {
   campus: campusApi,
-  academicCycle: { findFirst: async () => null, create: async () => ({}) },
-  weekend: { findMany: async () => [], createMany: async () => ({}) },
+  ...calendarApi,
   $transaction: async <T>(fn: (t: Tx) => Promise<T>) => {
     const t = makeTx();
     openTx++;
