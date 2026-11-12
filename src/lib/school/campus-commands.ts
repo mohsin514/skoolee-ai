@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { Prisma, type Campus } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { withoutAutoAudit } from "@/lib/db/audit-trail";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { defaultBoardFor } from "@/config/boards";
@@ -107,7 +107,7 @@ export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid
     newCampus = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM schools WHERE id = ${schoolId} FOR UPDATE`;
       await assertPlanCapacity({ schoolId, metric: "campuses", client: tx });
-      return tx.campus.create({
+      const created = await tx.campus.create({
       data: {
         name: valid.name,
         regId: finalRegId,
@@ -123,6 +123,11 @@ export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid
         board,
       }
       });
+      // A campus created after onboarding needs the same academic grounding the wizard gives the first one,
+      // copied from a sibling campus. Seeded in the same transaction (SKAI-1402): if the cycle or weekend
+      // cannot be written the campus is rolled back and the caller sees the error, never a half-made campus.
+      await seedCampusCalendar(schoolId, created.id, tx);
+      return created;
     });
   } catch (error) {
     if ((error as { code?: string })?.code === "P2002") {
@@ -131,14 +136,6 @@ export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid
     throw error;
   }
 
-  // A campus created after onboarding needs the same academic grounding the
-  // wizard gives the first one, or the Academic Hub opens reporting the year
-  // as unset, getActiveAcademicYear() falls back to the calendar year, and
-  // exam scheduling will happily book a paper on the group's weekend.
-  //
-  // Inherit from a sibling campus so a new branch matches the group it joins,
-  // rather than asking an admin to re-enter the session they already defined.
-  await seedCampusCalendar(schoolId, newCampus.id);
   return newCampus;
 }
 
@@ -146,54 +143,52 @@ export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid
  * Gives a new campus an ACTIVE academic cycle and a working week, copied from
  * an existing campus in the same school when there is one.
  *
- * Best-effort: the campus itself is already created and usable, so a failure
- * here must not fail the whole action — the admin can still set the calendar
- * from Academic → Calendar.
+ * Every row carries schoolId. Failures propagate: pass the campus-create
+ * transaction as `client` so a failed seed rolls the campus back; without one
+ * the cycle and weekend are written together in their own transaction.
  */
-export async function seedCampusCalendar(schoolId: string, campusId: string) {
-  try {
-    const sibling = await prisma.campus.findFirst({
-      where: { schoolId, id: { not: campusId } },
-      orderBy: { createdAt: "asc" },
-      select: { id: true },
-    });
+export async function seedCampusCalendar(schoolId: string, campusId: string, client?: TxClient): Promise<void> {
+  if (!client) return prisma.$transaction((tx) => seedCampusCalendar(schoolId, campusId, tx));
+  const db = client;
+  const sibling = await db.campus.findFirst({
+    where: { schoolId, id: { not: campusId } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
 
-    const template = sibling
-      ? await prisma.academicCycle.findFirst({
-          where: { campusId: sibling.id, status: "ACTIVE" },
-          select: { label: true, academicYear: true, startDate: true, endDate: true },
-        })
-      : null;
+  const template = sibling
+    ? await db.academicCycle.findFirst({
+        where: { schoolId, campusId: sibling.id, status: "ACTIVE" },
+        select: { label: true, academicYear: true, startDate: true, endDate: true },
+      })
+    : null;
 
-    const year = template?.academicYear ?? new Date().getFullYear();
-    await prisma.academicCycle.create({
-      data: {
-        schoolId,
-        campusId,
-        label: template?.label ?? `${year}-${String((year + 1) % 100).padStart(2, "0")}`,
-        academicYear: year,
-        status: "ACTIVE",
-        startDate: template?.startDate ?? new Date(),
-        endDate: template?.endDate ?? null,
-      },
-    });
+  const year = template?.academicYear ?? new Date().getFullYear();
+  await db.academicCycle.create({
+    data: {
+      schoolId,
+      campusId,
+      label: template?.label ?? `${year}-${String((year + 1) % 100).padStart(2, "0")}`,
+      academicYear: year,
+      status: "ACTIVE",
+      startDate: template?.startDate ?? new Date(),
+      endDate: template?.endDate ?? null,
+    },
+  });
 
-    const siblingWeekends = sibling
-      ? await prisma.weekend.findMany({
-          where: { campusId: sibling.id },
-          select: { dayOfWeek: true },
-        })
-      : [];
+  const siblingWeekends = sibling
+    ? await db.weekend.findMany({
+        where: { schoolId, campusId: sibling.id },
+        select: { dayOfWeek: true },
+      })
+    : [];
 
-    // Sunday is the sane default when there is no sibling to copy.
-    const days = siblingWeekends.length > 0 ? siblingWeekends.map((w) => w.dayOfWeek) : [7];
-    await prisma.weekend.createMany({
-      data: days.map((dayOfWeek) => ({ schoolId, campusId, dayOfWeek })),
-      skipDuplicates: true,
-    });
-  } catch (error) {
-    console.error("[addCampus] calendar seeding failed", error);
-  }
+  // Sunday is the sane default when there is no sibling to copy.
+  const days = siblingWeekends.length > 0 ? siblingWeekends.map((w) => w.dayOfWeek) : [7];
+  await db.weekend.createMany({
+    data: days.map((dayOfWeek) => ({ schoolId, campusId, dayOfWeek })),
+    skipDuplicates: true,
+  });
 }
 
 // ─── Update details ──────────────────────────────────────────────────────
