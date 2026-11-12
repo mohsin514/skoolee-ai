@@ -674,6 +674,7 @@ type LedgerTotals = { income: number; expense: number; net: number; incomeCount:
 
 const SOURCE_LABEL: Record<LedgerRow["source"], string> = { MANUAL: "Manual", FEE: "Fee payment", PAYROLL: "Payroll", CORRECTION: "Correction" };
 const PAGE_SIZE = 50;
+const DATE_FILTER_DEBOUNCE_MS = 300;
 
 function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionProps & { kind: "INCOME" | "EXPENSE" }) {
   const { money, date: formatDate } = useLocaleFormat();
@@ -706,18 +707,23 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
   const [correcting, setCorrecting] = useState<LedgerRow | null>(null);
   const [reason, setReason] = useState(""), [correctionError, setCorrectionError] = useState(""), [acting, setActing] = useState(false);
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
+  // SKAI-1865: the first ledger response reports its currency; later loads keep it without reloading for it.
+  // A currency the reader picks in the filter is state, so picking one reloads the ledger as before.
+  const ledgerCurrency = useRef("");
+  const [pickedCurrency, setPickedCurrency] = useState("");
 
-  const filterParams = useCallback(() => {
+  const buildParams = useCallback((ledgerCurrencyCode: string) => {
     const params = new URLSearchParams({ kind });
     if (campusId) params.set("campusId", campusId);
-    if (currency) params.set("currency", currency);
+    if (ledgerCurrencyCode) params.set("currency", ledgerCurrencyCode);
     if (from) params.set("from", from);
     if (to) params.set("to", to);
     if (filterAccount) params.set("accountId", filterAccount);
     if (source) params.set("source", source);
     if (status !== "all") params.set("status", status);
     return params;
-  }, [campusId, kind, currency, from, to, filterAccount, source, status]);
+  }, [campusId, kind, from, to, filterAccount, source, status]);
+  const filterParams = () => buildParams(currency);
   const filtered = Boolean(from || to || filterAccount || source || status !== "all");
 
   const requestVersion = useRef(0);
@@ -726,33 +732,47 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
     setLoading(true);
     setLoadError("");
     try {
-      const params = filterParams();
+      const params = buildParams(pickedCurrency || ledgerCurrency.current);
       params.set("page", String(page));
       params.set("pageSize", String(PAGE_SIZE));
-      const scope = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
-      const [eRes, aRes, bRes] = await Promise.all([
-        fetch(`${API}/accounts/ledger?${params}`, { cache: "no-store" }),
-        fetch(`${API}/accounts/chart${scope}`, { cache: "no-store" }),
-        fetch(`${API}/accounts/bank-accounts${scope}`, { cache: "no-store" }),
-      ]);
-      const [eJson, aJson, bJson] = await Promise.all([eRes.json().catch(() => ({})), aRes.json().catch(() => ({})), bRes.json().catch(() => ({}))]);
+      const eRes = await fetch(`${API}/accounts/ledger?${params}`, { cache: "no-store" });
+      const eJson = await eRes.json().catch(() => ({}));
       if (version !== requestVersion.current) return;
       if (!eRes.ok || !eJson.success) throw new Error(eRes.status === 403 ? tr("You do not have access to the ledger for this campus.") : eJson.error || tr("Failed to load ledger"));
       setEntries(eJson.data);
       setTotals(eJson.totals);
       if (eJson.page !== page) setPage(eJson.page);
-      if (!currency) setCurrency(eJson.currency);
-      if (aJson.success) setAccounts(aJson.data);
-      if (bJson.success) setBanks(bJson.data);
+      if (!ledgerCurrency.current) { ledgerCurrency.current = eJson.currency; setCurrency(eJson.currency); }
     } catch (failure) {
       if (version !== requestVersion.current) return;
       setLoadError(failure instanceof Error ? tr(failure.message) : tr("Failed to load ledger"));
     } finally {
       if (version === requestVersion.current) setLoading(false);
     }
-  }, [filterParams, page, campusId, currency, tr]);
+  }, [buildParams, pickedCurrency, page, tr]);
 
-  useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => { clearTimeout(timer); requestVersion.current++; }; }, [load]);
+  // Date inputs change once per typed segment, so a date change waits for typing to settle; other changes load at once.
+  const dateRange = `${from}|${to}`;
+  const loadedRange = useRef(dateRange);
+  useEffect(() => {
+    const delay = loadedRange.current === dateRange ? 0 : DATE_FILTER_DEBOUNCE_MS;
+    loadedRange.current = dateRange;
+    const timer = setTimeout(() => void load(), delay);
+    return () => { clearTimeout(timer); requestVersion.current++; };
+  }, [load, dateRange]);
+
+  // The account and bank pick lists are reference data: load them once per campus, not with every ledger page or filter.
+  useEffect(() => {
+    const controller = new AbortController();
+    const scope = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
+    const fetchList = (path: string) => fetch(`${API}/accounts/${path}${scope}`, { cache: "no-store", signal: controller.signal }).then((res) => res.json()).catch(() => ({}));
+    void Promise.all([fetchList("chart"), fetchList("bank-accounts")]).then(([aJson, bJson]) => {
+      if (controller.signal.aborted) return;
+      if (aJson.success) setAccounts(aJson.data);
+      if (bJson.success) setBanks(bJson.data);
+    });
+    return () => controller.abort();
+  }, [campusId]);
 
   const openNew = () => { setFormError(""); setShowModal(true); };
   // "Export ledger" in the accountant's PageHeader downloads exactly the filtered rows (the same filter as the list).
@@ -842,7 +862,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
 
       <fieldset className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] gap-3 rounded-2xl border border-border p-3" data-ledger-filters>
         <legend className="px-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{tr("Filters")}</legend>
-        <label className="text-xs font-bold">{tr("Currency")}<SystemSelect aria-label={tr("Currency")} value={currency} onChange={(e) => setFilter(() => setCurrency(e.target.value))} className="w-full">{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
+        <label className="text-xs font-bold">{tr("Currency")}<SystemSelect aria-label={tr("Currency")} value={currency} onChange={(e) => setFilter(() => { setPickedCurrency(e.target.value); setCurrency(e.target.value); })} className="w-full">{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
         <label className="text-xs font-bold">{tr("From")}<SystemInput type="date" value={from} onChange={(e) => setFilter(() => setFrom(e.target.value))} className="w-full" /></label>
         <label className="text-xs font-bold">{tr("To")}<SystemInput type="date" value={to} onChange={(e) => setFilter(() => setTo(e.target.value))} className="w-full" /></label>
         <label className="text-xs font-bold">{tr("Account")}<SystemSelect value={filterAccount} onChange={(e) => setFilter(() => setFilterAccount(e.target.value))} className="w-full"><option value="">{tr("All accounts")}</option>{pickList.map((a) => <option key={a.id} value={a.id}>{a.name}{a.isActive === false ? ` (${tr("inactive")})` : ""}</option>)}</SystemSelect></label>

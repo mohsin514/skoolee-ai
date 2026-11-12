@@ -270,7 +270,9 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tags, setTags] = useState<{ categories: any[]; groups: any[] }>({ categories: [], groups: [] });
-  const [siblings, setSiblings] = useState<any[]>([]);
+  // SKAI-1875: the sibling picker searches on demand; this keeps the chosen row so the review can name it.
+  const [siblingPick, setSiblingPick] = useState<SiblingOption | null>(null);
+  const siblings = siblingPick && siblingPick.id === form.siblingStudentId ? [siblingPick] : [];
 
   useEffect(() => {
     let active = true;
@@ -284,13 +286,6 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
           categories: readApiData(cats, []),
           groups: readApiData(grps, []),
         });
-      })
-      .catch(() => {});
-
-    fetch("/api/students/siblings")
-      .then((r) => r.json())
-      .then((j) => {
-        if (active && j.success) setSiblings(j.data || []);
       })
       .catch(() => {});
     return () => {
@@ -509,7 +504,8 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
               selectedGroupKey={selectedGroupKey}
               selectedGroup={selectedGroup}
               tags={tags}
-              siblings={siblings}
+              siblingPick={siblings[0] ?? null}
+              onSiblingPick={setSiblingPick}
               rollNoLoading={rollNoLoading}
               onUpdate={update}
               onSelectClassGroup={selectClassGroup}
@@ -517,7 +513,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
             />
           )}
           {step === 1 && (
-            <StepGuardianDetails form={form} errors={errors} onUpdate={update} />
+            <StepGuardianDetails form={form} errors={errors} onUpdate={update} onSiblingPick={setSiblingPick} />
           )}
           {step === 2 && (
             <StepAddressMedical form={form} errors={errors} onUpdate={update} />
@@ -539,7 +535,8 @@ function StepPersonalInfo({
   selectedGroupKey,
   selectedGroup,
   tags,
-  siblings,
+  siblingPick,
+  onSiblingPick,
   rollNoLoading,
   onUpdate,
   onSelectClassGroup,
@@ -552,7 +549,8 @@ function StepPersonalInfo({
   selectedGroupKey: string;
   selectedGroup: ClassGroup | undefined;
   tags: { categories: any[]; groups: any[] };
-  siblings: any[];
+  siblingPick: SiblingOption | null;
+  onSiblingPick: (row: SiblingOption | null) => void;
   rollNoLoading: boolean;
   onUpdate: (field: keyof FormData, value: string) => void;
   onSelectClassGroup: (key: string) => void;
@@ -750,19 +748,97 @@ function StepPersonalInfo({
         label={ui("Link as sibling of")}
         hint={ui("Choose an existing student — they'll share a sibling group automatically. Leave blank for a new family.")}
       >
-        <Select
+        <SiblingPicker
           value={form.siblingStudentId}
-          onChange={(e) => onUpdate("siblingStudentId", e.target.value)}
-        >
-          <option value="">{ui("No sibling link")}</option>
-          {siblings.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.fullName} · {s.rollNo || ui("No roll")} · {[s.class?.name, s.class?.section].filter(Boolean).join(" ") || ui("Class?")}
-            </option>
-          ))}
-        </Select>
+          picked={siblingPick}
+          onChange={(row) => {
+            onUpdate("siblingStudentId", row?.id ?? "");
+            onSiblingPick(row);
+          }}
+        />
       </FieldGroup>
       </FormSection>
+    </div>
+  );
+}
+
+// ─── Sibling picker ───────────────────────────────────────
+
+interface SiblingOption {
+  id: string;
+  fullName: string;
+  rollNo: string | null;
+  class: { name: string; section: string | null } | null;
+}
+
+/**
+ * SKAI-1875: search grouped pupils as the registrar types (two characters or more, debounced, the stale
+ * request aborted) instead of preloading the first 200 alphabetically, which hid every pupil past them.
+ */
+function SiblingPicker({
+  value,
+  picked,
+  onChange,
+}: {
+  value: string;
+  picked: SiblingOption | null;
+  onChange: (row: SiblingOption | null) => void;
+}) {
+  const ui = useUiText();
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<SiblingOption[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const term = search.trim();
+    if (term.length < 2) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/students/siblings?search=${encodeURIComponent(term)}`, { signal: controller.signal });
+        const json = await res.json();
+        if (!controller.signal.aborted && json.success) setResults(json.data || []);
+      } catch {
+        // Aborted by the next keystroke, or the lookup failed; the link stays optional.
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [search]);
+
+  const options = picked && picked.id === value && !results.some((r) => r.id === value) ? [picked, ...results] : results;
+  const label = (s: SiblingOption) => `${s.fullName} · ${s.rollNo || ui("No roll")} · ${[s.class?.name, s.class?.section].filter(Boolean).join(" ") || ui("Class?")}`;
+
+  return (
+    <div className="space-y-2">
+      <InputGroup>
+        <Search data-field-affix="start" aria-hidden="true" className="pointer-events-none h-4 w-4 text-ink-subtle" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={ui("Search by name, roll or admission number")}
+          aria-label={ui("Search existing students")}
+        />
+        {loading ? <Loader2 data-field-affix="end" aria-hidden="true" className="h-4 w-4 animate-spin text-primary" /> : null}
+      </InputGroup>
+      <Select value={value} onChange={(e) => onChange(options.find((s) => s.id === e.target.value) ?? null)}>
+        <option value="">{ui("No sibling link")}</option>
+        {value && !options.some((s) => s.id === value) ? <option value={value}>{ui("Selected sibling")}</option> : null}
+        {options.map((s) => (
+          <option key={s.id} value={s.id}>
+            {label(s)}
+          </option>
+        ))}
+      </Select>
     </div>
   );
 }
@@ -903,10 +979,12 @@ function StepGuardianDetails({
   form,
   errors,
   onUpdate,
+  onSiblingPick,
 }: {
   form: FormData;
   errors: FormErrors;
   onUpdate: (field: keyof FormData, value: string) => void;
+  onSiblingPick: (row: SiblingOption | null) => void;
 }) {
   const ui = useUiText();
   const noContact = !form.guardianPhone.trim() && !form.guardianEmail.trim();
@@ -922,7 +1000,10 @@ function StepGuardianDetails({
     if (parent.phone) onUpdate("guardianPhone", parent.phone);
     if (parent.email) onUpdate("guardianEmail", parent.email);
     const firstChild = parent.parentedStudents[0];
-    if (firstChild) onUpdate("siblingStudentId", firstChild.id);
+    if (firstChild) {
+      onUpdate("siblingStudentId", firstChild.id);
+      onSiblingPick(firstChild);
+    }
     toast.success(
       firstChild
         ? ui("Guardian copied and linked as a sibling of {0}", [firstChild.fullName])

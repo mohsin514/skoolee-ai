@@ -92,10 +92,22 @@ test("picker rows carry no documents or per-student counts and are capped at 20"
   assert.equal(body.pagination.total, 60);
 });
 
-test("the full roster read is unchanged without the picker flag", async () => {
+test("the full roster read keeps the summary fields without the picker flag", async () => {
   await get(accountantA1, "campusId=campus-a1");
   assert.equal(calls[0].take, 50);
-  assert.ok("documents" in calls[0].select && "_count" in calls[0].select);
+  assert.ok("guardianPhone" in calls[0].select && "class" in calls[0].select);
+});
+
+// SKAI-1875: no roster consumer reads documents or per-pupil counts; each row paid a correlated COUNT over
+// years of attendance, invoices and timeline events. The profile loads them from /api/students/<id>.
+test("roster rows carry no documents or per-pupil attendance, invoice or timeline counts", async () => {
+  for (const query of ["campusId=campus-a1&limit=200", "status=archived&limit=100&page=1"]) {
+    await get(accountantA1, query);
+    assert.equal("documents" in calls[0].select, false);
+    assert.equal("_count" in calls[0].select, false);
+  }
+  const source = readFileSync("src/app/api/students/route.ts", "utf8");
+  assert.doesNotMatch(source, /timelineEvents: true/);
 });
 
 test("picker search stays inside the caller's school and campus", async () => {
