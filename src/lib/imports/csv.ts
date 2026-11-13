@@ -62,3 +62,8 @@ export function importField(row: Record<string, string>, aliases: string[]) {
   }
   return "";
 }
+
+/** SKAI-1224: spreadsheets often write "Mother" or "MOTHER"; the student schema expects lower case. */
+export function importRelationship(value: string) {
+  return value.trim().toLowerCase() || undefined;
+}
