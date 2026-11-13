@@ -207,6 +207,7 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   ["First campus", "الفرع الأول", "پہلا کیمپس"],
   ["Forever at this tier", "دائمًا في هذا المستوى", "اس درجے پر ہمیشہ"],
   ["Grades across the group", "الدرجات عبر المجموعة", "پورے گروپ میں گریڈ"],
+  ["Group policy is not part of your school's plan", "سياسة المجموعة ليست ضمن خطة مدرستك", "گروپ پالیسی آپ کے اسکول کے پلان میں شامل نہیں"],
   ["Group policy reviews could not be loaded.", "تعذّر تحميل مراجعات سياسة المجموعة.", "گروپ پالیسی کے جائزے لوڈ نہیں ہو سکے۔"],
   ["Group roll growth", "نمو أعداد طلاب المجموعة", "گروپ میں طلبہ کی تعداد میں اضافہ"],
   ["Group standards", "معايير المجموعة", "گروپ کے معیارات"],
