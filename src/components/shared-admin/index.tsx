@@ -3470,9 +3470,9 @@ export function TeacherDetailModal({
                   ))
                 )}
                 {timelineCursor ? (
-                  <button type="button" onClick={loadOlderTimeline} disabled={timelineMore === "loading"} className="w-full rounded-2xl border border-edge/20 px-4 py-2 text-xs font-bold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60">
+                  <SystemButton type="button" variant="outline" size="sm" className="w-full" onClick={loadOlderTimeline} disabled={timelineMore === "loading"}>
                     {timelineMore === "loading" ? ui("Loading…") : timelineMore === "failed" ? ui("Could not load older events. Retry") : ui("Load older events")}
-                  </button>
+                  </SystemButton>
                 ) : null}
               </div>
             </div>
