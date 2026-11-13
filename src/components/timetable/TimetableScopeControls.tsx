@@ -6,13 +6,13 @@ import { FormField } from "@/components/ui/form-field";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { timetableScopeCopy } from "@/lib/timetable/editor-copy";
 export { timetableScopeCopy } from "@/lib/timetable/editor-copy";
-import { TIMETABLE_TERMS, scopeTimetables, type TimetableScopeIdentity } from "@/lib/timetable/view-scope";
+import { TIMETABLE_TERMS, defaultTimetableYear, scopeTimetables, type TimetableScopeIdentity } from "@/lib/timetable/view-scope";
 
 
 export function useTimetableScope<T extends TimetableScopeIdentity>(timetables: T[], classes: Array<{ academicYear: number }>, campusId?: string) {
   const [selection, setSelection] = useState<{ campusId?: string; year: number; term: string } | null>(null);
   const years = useMemo(() => [...new Set([...timetables.map(item => item.academicYear), ...classes.map(item => item.academicYear)])].sort((a, b) => b - a), [timetables, classes]);
-  const year = selection && selection.campusId === campusId && years.includes(selection.year) ? selection.year : years[0] ?? new Date().getFullYear();
+  const year = selection && selection.campusId === campusId && years.includes(selection.year) ? selection.year : defaultTimetableYear(years, timetables.map(item => item.academicYear));
   const terms = [...new Set<string>([...TIMETABLE_TERMS, ...timetables.filter(item => item.academicYear === year).map(item => item.term)])];
   const existingTerms = terms.filter(term => timetables.some(item => item.academicYear === year && item.term === term));
   const term = selection && selection.campusId === campusId && selection.year === year ? selection.term : existingTerms[0] || "ANNUAL";
