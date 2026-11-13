@@ -10,6 +10,7 @@ import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { notify } from "@/lib/notifications/in-app";
 import { importReviewToken } from "@/lib/imports/review-token";
 import { assertRosterPermission } from "@/lib/imports/roster-access";
+import { assertAdmissionSeats } from "@/lib/students/enrollment";
 type StudentInput = {
   fullName: string;
   nameUr: string | null;
@@ -235,6 +236,8 @@ export async function createStudentRecords(user: AuthUser, req: NextRequest, opt
         const claimed = await tx.importBatch.updateMany({ where: { id: importBatch.id, schoolId: user.schoolId, campusId: importBatch.campusId, state: "STAGED", expiresAt: { gt: new Date() }, data: { equals: importBatch.data as Prisma.InputJsonValue } }, data: { state: "COMMITTING" } });
         if (claimed.count !== 1) throw new ApiError("Another request already committed or expired this batch", 409);
       }
+      // SKAI-1927: admission respects class capacity, as restore and transfer do (campus lock above serializes it).
+      await assertAdmissionSeats(tx as TxClient, user.schoolId, students.map((student) => student.classId));
 
       for (const student of students) {
         const targetClass = classesById.get(student.classId)!;
