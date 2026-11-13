@@ -17,6 +17,7 @@ const schoolA = `termA-${randomUUID()}`, schoolB = `termB-${randomUUID()}`;
 const campusA1 = randomUUID(), campusA2 = randomUUID(), campusB1 = randomUUID();
 const actor = (schoolId: string, campusId: string, role: AuthUser["role"]): AuthUser => ({ userId: randomUUID(), schoolId, campusId, role, email: `${randomUUID()}@example.invalid` });
 const adminA1 = actor(schoolA, campusA1, "CAMPUS_ADMIN"), accountantA1 = actor(schoolA, campusA1, "ACCOUNTANT");
+const adminA2 = actor(schoolA, campusA2, "CAMPUS_ADMIN");
 const accountantA2 = actor(schoolA, campusA2, "ACCOUNTANT"), accountantB1 = actor(schoolB, campusB1, "ACCOUNTANT");
 const approverA1 = actor(schoolA, campusA1, "CAMPUS_ADMIN");
 const ctx = <T>(user: AuthUser, work: () => Promise<T>) => runWithTenantContext({ schoolId: user.schoolId, campusId: user.campusId!, userId: user.userId, role: user.role }, work);
@@ -35,16 +36,20 @@ async function newStaff(key: string, manager: AuthUser, opts: { isActive: boolea
   await raw.user.create({ data: { id, schoolId: manager.schoolId, campusId: manager.campusId!, role: "TEACHER", email: `${id}@example.invalid`, fullName: `Synthetic ${key}`, onboardingComplete: true, isActive: opts.isActive, joiningDate: new Date("2026-01-01T00:00:00Z") } });
   await raw.staffProfile.create({ data: { schoolId: manager.schoolId, userId: id, basicSalary: opts.basic ?? 310_000, deductionsJson: opts.loan ? { Loan: opts.loan } : {} } });
   staff[key] = { id, schoolId: manager.schoolId, campusId: manager.campusId! };
-  if (opts.leaving) await ctx(manager, () => setEmployee(manager, id, { providerIds: { DEMOPAY: `E-${key}` }, leavingDate: opts.leaving }));
+  // Every staff member needs a provider employee id, or approval stops on the mapping check before the stale-input check.
+  await ctx(manager, () => setEmployee(manager, id, { providerIds: { DEMOPAY: `E-${key}` }, ...(opts.leaving ? { leavingDate: opts.leaving } : {}) }));
   return id;
 }
 
 before(async () => {
   for (const id of [schoolA, schoolB]) await raw.school.create({ data: { id, name: "Synthetic termination school", slug: id, regId: id, contactEmail: `${id}@example.invalid`, city: "Riyadh", status: "ACTIVE", plan: "PRO" } });
   for (const [schoolId, campusId] of [[schoolA, campusA1], [schoolA, campusA2], [schoolB, campusB1]]) await raw.campus.create({ data: { id: campusId, schoolId, name: `Synthetic ${campusId.slice(0, 4)}`, regId: campusId, city: "Riyadh" } });
-  for (const user of [adminA1, accountantA1, accountantA2, accountantB1, approverA1]) await raw.user.create({ data: { id: user.userId, schoolId: user.schoolId, campusId: user.campusId, role: user.role, email: user.email, fullName: `Synthetic ${user.role}`, onboardingComplete: true } });
-  await ctx(adminA1, () => savePolicy(adminA1, policy()));
-  await ctx(adminA1, () => saveProvider(adminA1, provider()));
+  for (const user of [adminA1, adminA2, accountantA1, accountantA2, accountantB1, approverA1]) await raw.user.create({ data: { id: user.userId, schoolId: user.schoolId, campusId: user.campusId, role: user.role, email: user.email, fullName: `Synthetic ${user.role}`, onboardingComplete: true } });
+  // Policy and provider mappings are per campus, so each campus that prepares a run needs its own.
+  for (const admin of [adminA1, adminA2]) {
+    await ctx(admin, () => savePolicy(admin, policy()));
+    await ctx(admin, () => saveProvider(admin, provider()));
+  }
   // Campus A1 staff: a terminated leaver with a loan, and an active peer.
   await newStaff("leaverA1", accountantA1, { isActive: false, leaving: "2026-10-15", loan: 12_000 });
   await newStaff("peerA1", accountantA1, { isActive: true });
