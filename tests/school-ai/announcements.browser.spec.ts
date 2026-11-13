@@ -7,6 +7,7 @@ import { announcementCopy } from "../../src/components/school-ai/announcement-co
 import { announcementChannelCopy } from "../../src/components/school-ai/announcement-channel-copy";
 import type { AnnouncementExecutionReceipt, AnnouncementDelivery } from "../../src/lib/school-ai/announcements";
 import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
+import { putAcademicYear } from "../support/academic-year";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 // Draft saves/approvals use the real local API. Delivery preview, queue and status
@@ -251,7 +252,7 @@ test("guardian profile settings stop an enabled channel using the real API witho
 test("legacy fee reminders enforce channel consent, campus and financial rights and never claim delivery while disabled", async ({ page }) => {
   const parentId = randomUUID(), studentId = randomUUID(), invoiceId = randomUUID();
   await db.user.create({ data: { id: parentId, schoolId, campusId, role: "PARENT", fullName: "Fee guardian", email: `${parentId}@example.test`, preferredLanguage: "ur", isActive: true, onboardingComplete: true } });
-  await db.academicCycle.create({ data: { schoolId, campusId, label: "Fee cycle", academicYear: 2026, status: "ACTIVE", startDate: new Date("2026-01-01Z"), endDate: new Date("2026-12-31Z") } });
+  await putAcademicYear(db, { schoolId, campusId, label: "Fee cycle", academicYear: 2026, status: "ACTIVE", startDate: new Date("2026-01-01Z"), endDate: new Date("2026-12-31Z") });
   await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Fee learner", rollNo: "fee-1", gender: "OTHER", guardianPhone: "+923001234567", enrollmentDate: new Date("2026-01-01Z") } });
   const relation = await db.guardianRelationship.create({ data: { schoolId, campusId, studentId, guardianUserId: parentId, createdByUserId: adminId, fullName: "Fee guardian", email: `${parentId}@example.test`, phone: "+923001234567", relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { school: { connect: { id: schoolId } }, permissions: { communication: true }, reason: "Synthetic communication access only", createdByUserId: adminId } } } });
   await db.invoice.create({ data: { id: invoiceId, schoolId, campusId, studentId, invoiceDate: new Date("2026-10-01Z"), dueDate: new Date("2026-10-31Z"), monthlyFee: 10000, subtotal: 10000, totalAmount: 10000, balanceDue: 10000, currency: "USD" } });

@@ -6,6 +6,7 @@ import { schoolAICopy } from "../../src/lib/school-ai/copy";
 import { feeInvoiceCopy } from "../../src/components/school-ai/fee-invoice-copy";
 import type { Language } from "../../src/lib/locale/package";
 import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
+import { putAcademicYear } from "../support/academic-year";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
@@ -24,7 +25,7 @@ test.beforeEach(async ({ context }) => {
   await db.campus.create({ data: { id: campusId, schoolId, name: "Fee campus", city: "Test", regId: campusId } });
   await db.user.create({ data: { id: adminId, schoolId, campusId, email: `${adminId}@example.invalid`, role: "ADMIN", fullName: "Fee reviewer", isActive: true, onboardingComplete: true, mfaEnabled: true } });
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Fee Grade 8", section: "A", academicYear: 2026 } });
-  await db.academicCycle.create({ data: { schoolId, campusId, label: "2026 cycle", academicYear: 2026, status: "ACTIVE", startDate: new Date("2026-01-01Z"), endDate: new Date("2027-03-31Z") } });
+  await putAcademicYear(db, { schoolId, campusId, label: "2026 cycle", academicYear: 2026, status: "ACTIVE", startDate: new Date("2026-01-01Z"), endDate: new Date("2027-03-31Z") });
   await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Reviewed learner", rollNo: "1", gender: "OTHER", enrollmentDate: new Date("2026-10-13Z") } });
   groupId = (await db.feeGroup.create({ data: { schoolId, campusId, name: "Tuition package", currency: "PKR" } })).id;
   const type = await db.feeType.create({ data: { schoolId, campusId, name: "Tuition", code: "MONTHLY_TUITION" } });

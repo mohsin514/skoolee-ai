@@ -9,6 +9,7 @@ import { publicationCopy } from "../../src/components/school-ai/school-operation
 import { riskCopy } from "../../src/components/school-ai/school-operations-risk-copy";
 import { lifecycleCopy } from "../../src/components/school-ai/school-operations-lifecycle-copy";
 import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
+import { putAcademicYear } from "../support/academic-year";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
@@ -52,7 +53,7 @@ test("substitute coverage uses actual availability and saves a dated duty withou
   const t = schoolOperationsCopy("en"); await open(page, "timetable.assign_substitutes"); await page.getByLabel(t.date, { exact: true }).fill(date.toISOString().slice(0, 10)); await page.getByRole("combobox", { name: t.replacement, exact: true }).selectOption(coverId); await page.getByRole("textbox", { name: t.reason, exact: true }).fill("Scheduled teacher is at training"); await approve(page); await review(page); await page.getByRole("button", { name: t.apply, exact: true }).click(); await expect(page.getByText(t.coverSaved, { exact: true })).toBeVisible(); expect((await db.schoolAiSubstituteDuty.findFirstOrThrow({ where: { schoolId, campusId } })).teacherId).toBe(coverId); expect((await db.timetableSlot.findUniqueOrThrow({ where: { id: board.slots[0].id } })).teacherId).toBe(teacherId);
 });
 test("academic year activation reviews configured dates before the existing cycle changes", async ({ page }) => {
-  const cycle = await db.academicCycle.create({ data: { schoolId, campusId, academicYear: 2026, label: "Reviewed academic calendar", status: "DRAFT", startDate: new Date("2026-01-01Z"), endDate: new Date("2026-12-31Z") } }); const t = lifecycleCopy("en"), operations = schoolOperationsCopy("en");
+  const cycle = await putAcademicYear(db, { schoolId, campusId, academicYear: 2026, label: "Reviewed academic calendar", status: "DRAFT", startDate: new Date("2026-01-01Z"), endDate: new Date("2026-12-31Z") }); const t = lifecycleCopy("en"), operations = schoolOperationsCopy("en");
   await open(page, "academics.transition_year"); await page.getByRole("combobox", { name: t.cycle, exact: true }).selectOption(cycle.id); await page.getByRole("textbox", { name: t.reason, exact: true }).fill("School calendar and resource readiness reviewed"); await page.getByRole("button", { name: t.use, exact: true }).click(); await approve(page); await review(page); await expect(page.getByText("2026-01-01 – 2026-12-31", { exact: true })).toBeVisible(); await page.getByRole("button", { name: operations.apply, exact: true }).click(); await expect(page.getByText(t.applied, { exact: true })).toBeVisible(); const current = await db.academicCycle.findUniqueOrThrow({ where: { id: cycle.id } }); expect(current.status).toBe("ACTIVE"); expect(current.startDate).toEqual(cycle.startDate); expect(current.endDate).toEqual(cycle.endDate);
 });
 test("Urdu reviewed promotion preserves the old register and creates the selected enrollment without mobile overflow", async ({ page }) => {
