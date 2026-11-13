@@ -15,7 +15,9 @@ export type IdentityKey = (typeof IDENTITY_KEYS)[number];
 export type Condition = { field: string; equals: string };
 export type FieldDef = { key: string; type: FieldType; label: Localized; help?: Localized; required: boolean; options?: { value: string; label: Localized }[]; showIf?: Condition; identity?: IdentityField; section?: Localized };
 export type DocumentDef = { key: string; label: Localized; required: boolean; showIf?: Condition };
-export type FormDefinition = { fields: FieldDef[]; documents: DocumentDef[]; identityKeys: IdentityKey[]; consent: Localized };
+/** SKAI-1261: a priority criterion (sibling, catchment, faith…): points earned when a question has a given answer. */
+export type PriorityCriterion = { label: Localized; field: string; equals: string; points: number };
+export type FormDefinition = { fields: FieldDef[]; documents: DocumentDef[]; identityKeys: IdentityKey[]; consent: Localized; priorityCriteria?: PriorityCriterion[] };
 export type Answers = Record<string, string | boolean | undefined>;
 export type Problem = { key: string; message: string };
 
@@ -80,6 +82,17 @@ export function definitionProblems(definition: FormDefinition): string[] {
     if ((IDENTITY_KEYS as readonly string[]).includes(key) && needs[key].some(field => !identities.has(field))) problems.push(`The duplicate check "${key}" needs questions mapped to ${needs[key].join(" and ")}.`);
   }
   if (!definition?.consent?.en?.trim()) problems.push("Write the consent statement families agree to.");
+  const criteria = definition?.priorityCriteria ?? [];
+  if (!Array.isArray(criteria)) problems.push("Priority criteria must be a list.");
+  else {
+    if (criteria.length > 20) problems.push("A form can have at most 20 priority criteria.");
+    criteria.forEach((criterion, index) => {
+      if (!criterion?.label?.en?.trim()) problems.push(`Priority criterion ${index + 1}: write the English name.`);
+      if (!fields.some(field => field.key === criterion?.field)) problems.push(`Priority criterion ${index + 1}: it must use a question on this form.`);
+      if (!String(criterion?.equals ?? "").trim()) problems.push(`Priority criterion ${index + 1}: write the answer that earns the points.`);
+      if (!Number.isInteger(criterion?.points) || criterion.points < -100 || criterion.points > 100 || criterion.points === 0) problems.push(`Priority criterion ${index + 1}: points must be a whole number from -100 to 100, not 0.`);
+    });
+  }
   return problems;
 }
 
@@ -139,3 +152,18 @@ export function identityKeysFor(definition: FormDefinition, answers: Answers) {
   return keys;
 }
 export const foldName = fold;
+
+/** SKAI-1261: the priority score used to rank offers — the sum of the criteria the visible answers meet. */
+export function priorityScore(definition: FormDefinition, answers: Answers): { score: number; met: PriorityCriterion[] } {
+  const criteria = Array.isArray(definition?.priorityCriteria) ? definition.priorityCriteria : [];
+  if (!criteria.length) return { score: 0, met: [] };
+  const visible = new Set(visibleFields(definition, answers).map(field => field.key));
+  const met = criteria.filter(criterion => visible.has(criterion.field) && String(answers[criterion.field] ?? "").trim().toLowerCase() === String(criterion.equals).trim().toLowerCase());
+  return { score: met.reduce((sum, criterion) => sum + criterion.points, 0), met };
+}
+/** Highest score first, then earliest submission; unscored applications last. Stable for equal keys. */
+export function rankByPriority<T extends { priorityScore: number | null; submittedAt: Date | null }>(rows: T[], enabled: boolean) {
+  if (!enabled) return rows;
+  const time = (row: T) => row.submittedAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
+  return [...rows].sort((a, b) => (b.priorityScore ?? -Infinity) - (a.priorityScore ?? -Infinity) || time(a) - time(b));
+}

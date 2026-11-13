@@ -1913,6 +1913,12 @@ model AdmissionApplication {
   // SKAI-1142: an offer's respond-by date (families cannot accept after it) and the waitlist order.
   offerExpiresAt     DateTime?                   @map("offer_expires_at")
   waitlistRank       Int?                        @map("waitlist_rank")
+  // SKAI-1258: enrolment terms and acceptance deposit set with the offer; the family's agreement (time + text hash).
+  offerTerms         String?                     @map("offer_terms") @db.Text
+  depositAmount      Int?                        @map("deposit_amount")
+  depositCurrency    String?                     @map("deposit_currency")
+  termsAcceptedAt    DateTime?                   @map("terms_accepted_at")
+  termsHash          String?                     @map("terms_hash")
   submittedAt        DateTime?                   @map("submitted_at")
   consentAt          DateTime?                   @map("consent_at")
   consentText        String?                     @map("consent_text") @db.Text

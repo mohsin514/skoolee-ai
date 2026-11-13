@@ -30,6 +30,22 @@ export const admissionsLifecycleUiEntries: readonly (readonly [string, string, s
   ["Send to {0} families", "إرسال إلى {0} أسرة", "{0} خاندانوں کو بھیجیں"],
   ["Start from a template", "البدء من قالب", "سانچے سے شروع کریں"],
   ["{child} and {reference} are filled in for each application.", "يُملأ {child} و{reference} لكل طلب.", "ہر درخواست کے لیے {child} اور {reference} خود بھر دیے جاتے ہیں۔"],
+  // SKAI-1258: offer terms and acceptance deposit.
+  ["Enrolment terms the family must agree to (optional)", "شروط التسجيل التي يجب أن توافق عليها الأسرة (اختياري)", "داخلے کی شرائط جن پر خاندان کو متفق ہونا ہوگا (اختیاری)"],
+  ["Acceptance deposit (optional)", "عربون القبول (اختياري)", "قبولیت کی پیشگی رقم (اختیاری)"],
+  ["Deposit currency", "عملة العربون", "پیشگی رقم کی کرنسی"],
+  ["Enrolment terms", "شروط التسجيل", "داخلے کی شرائط"],
+  ["Acceptance deposit: {0}", "عربون القبول: {0}", "قبولیت کی پیشگی رقم: {0}"],
+  ["I have read and agree to these enrolment terms.", "لقد قرأت شروط التسجيل هذه وأوافق عليها.", "میں نے داخلے کی یہ شرائط پڑھ لی ہیں اور ان سے متفق ہوں۔"],
+  ["You agreed to these terms on {0}.", "لقد وافقت على هذه الشروط في {0}.", "آپ نے {0} کو ان شرائط سے اتفاق کیا۔"],
+  // SKAI-1261: priority criteria and score.
+  ["Most urgent first", "الأكثر إلحاحًا أولًا", "سب سے فوری پہلے"],
+  ["Highest priority score first", "أعلى درجة أولوية أولًا", "سب سے زیادہ ترجیحی اسکور پہلے"],
+  ["Priority {0}", "الأولوية {0}", "ترجیح {0}"],
+  ["Priority score {0}", "درجة الأولوية {0}", "ترجیحی اسکور {0}"],
+  ["No priority criteria met", "لم يُستوفَ أي معيار أولوية", "کوئی ترجیحی معیار پورا نہیں ہوا"],
+  ["Priority criteria, one per line: points | question key | answer | name (English)", "معايير الأولوية، معيار في كل سطر: النقاط | مفتاح السؤال | الإجابة | الاسم (بالإنجليزية)", "ترجیحی معیارات، ہر سطر میں ایک: پوائنٹس | سوال کی کلید | جواب | نام (انگریزی)"],
+  ["Used to rank offers, for example: 10 | hasSibling | yes | Sibling at the school", "تُستخدم لترتيب العروض، مثلًا: 10 | hasSibling | yes | أخ أو أخت في المدرسة", "پیشکشوں کی درجہ بندی کے لیے، مثلاً: 10 | hasSibling | yes | اسکول میں بہن بھائی"],
 ];
 export const arabicAdmissionsLifecycleUi: Record<string, string> = Object.fromEntries(admissionsLifecycleUiEntries.map(([key, ar]) => [key, ar]));
 export const urduAdmissionsLifecycleUi: Record<string, string> = Object.fromEntries(admissionsLifecycleUiEntries.map(([key, , ur]) => [key, ur]));

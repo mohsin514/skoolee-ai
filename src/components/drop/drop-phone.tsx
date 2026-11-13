@@ -83,7 +83,7 @@ export function DropPhone() {
       <header className="space-y-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-primary">{ui("Send to your computer")}</p>
         <h1 className="text-xl font-bold text-ink">{info.label}</h1>
-        <p className="text-sm text-ink-muted">{info.maxFiles === 1 ? ui("Send one file.") : ui("{0} more files can be sent.", [Math.max(0, room)])}</p>
+        <p className="text-sm text-ink-muted">{info.maxFiles === 1 ? ui("Send one file.") : room === 1 ? ui("1 more file can be sent.") : ui("{0} more files can be sent.", [Math.max(0, room)])}</p>
       </header>
 
       {shot ? (
