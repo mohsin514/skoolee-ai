@@ -35,6 +35,7 @@ mock.module("@/lib/db/prisma", { namedExports: { prisma: { ...db, $transaction: 
 mock.module("@/lib/audit-events", { namedExports: { writeAuditEvent: async (_tx: unknown, _u: unknown, e: { action: string }) => { audits.push(e.action); } } });
 mock.module("@/lib/api/scope", { namedExports: {
   ApiError,
+  ValidationError: class extends ApiError {}, // the envelope's failFrom checks it
   requireAuthUser: async () => user,
   canManageCampusOps: (u: U) => u.ops,
   assertPermission: async (u: U) => { if (u.denied) throw new ApiError("Forbidden", 403); },
@@ -58,7 +59,7 @@ test("a campus operator adds a dotted line inside their school, audited", async 
   reset();
   const { status, body } = await post({ userId: A1, managerId: A2, kind: "FUNCTIONAL", label: "Exam duty" });
   assert.equal(status, 201);
-  assert.equal(body.line.kind, "FUNCTIONAL");
+  assert.equal(body.data.line.kind, "FUNCTIONAL");
   assert.equal(lines.length, 1);
   assert.deepEqual(audits, ["CREATE"]);
 });

@@ -3,7 +3,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { parseEmiratesId, parseNationality, parseRegulatorId, regulatorAuditChange } from "@/lib/identity/regulator-ids";
-import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageCampusOps, requireAuthUser } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 import { getLocalePackage } from "@/lib/locale/store";
@@ -75,9 +76,9 @@ export async function GET(req: NextRequest) {
       downloadUrl: `/api/staff/documents?userId=${encodeURIComponent(userId)}&documentId=${encodeURIComponent(doc.id)}`,
     }));
 
-    return Response.json({ success: true, data: { ...staff, staffDocuments: documents } }, { headers: { "Cache-Control": "private, no-store" } });
+    return ok({ ...staff, staffDocuments: documents }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    return errorResponse(error, "[staff/profile] GET failed");
+    return failFrom(error, "[staff/profile] GET failed");
   }
 }
 
@@ -194,8 +195,8 @@ export async function PATCH(req: NextRequest) {
       return saved;
     });
 
-    return Response.json({ success: true, data: profile, events: events.length });
+    return ok({ ...profile, events: events.length });
   } catch (error) {
-    return errorResponse(error, "[staff/profile] PATCH failed");
+    return failFrom(error, "[staff/profile] PATCH failed");
   }
 }

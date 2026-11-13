@@ -5,7 +5,8 @@ import { privateDownloadResponse } from "@/lib/storage/private-download";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageCampusOps, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -46,9 +47,9 @@ export async function GET(req: NextRequest) {
       downloadUrl: `/api/staff/documents?userId=${encodeURIComponent(userId)}&documentId=${encodeURIComponent(doc.id)}`,
     }));
 
-    return Response.json({ success: true, data }, { headers: { "Cache-Control": "private, no-store" } });
+    return ok(data, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    return errorResponse(error, "[staff/documents] GET failed");
+    return failFrom(error, "[staff/documents] GET failed");
   }
 }
 
@@ -99,9 +100,9 @@ export async function POST(req: NextRequest) {
       await writeAuditEvent(tx, user, { table: "staff_documents", recordId: created.id, action: "CREATE", campusId, after: { userId, kind: created.kind } });
       return { doc: created, replay: false };
     });
-    return Response.json({ success: true, data: result.doc, replay: result.replay }, { status: result.replay ? 200 : 201 });
+    return ok(result.doc, { status: result.replay ? 200 : 201 });
   } catch (error) {
-    return errorResponse(error, "[staff/documents] POST failed");
+    return failFrom(error, "[staff/documents] POST failed");
   }
 }
 

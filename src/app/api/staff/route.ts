@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { inviteStaff, removeStaff, cancelInvitation, resendInvitation } from "@/app/actions/invite";
-import { ApiError, assertModuleRead, canManageAcademics, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertModuleRead, canManageAcademics, canManageCampusOps, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { fail, failFrom, ok } from "@/lib/api/envelope";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody, requiredIdBody } from "@/lib/validators/route-bodies";
@@ -17,6 +18,13 @@ async function assertStaffWriter() {
   if (!canManageCampusOps(user) || !(isInstitutionAuthority(user) || user.canManageMemberships === true)) {
     throw new ApiError("Staff invitations are managed by your campus admin.", 403);
   }
+}
+
+/** The invite actions return `{ success, error? }`; a refused action becomes an envelope error. */
+function actionResponse(result: { success: boolean; error?: string } & Record<string, unknown>, status = 200) {
+  const { success, error, ...data } = result;
+  if (!success) return fail("BAD_REQUEST", error || "The staff change could not be saved.");
+  return ok(data, { status });
 }
 
 export async function GET(req: NextRequest) {
@@ -68,9 +76,9 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    return Response.json({ success: true, staff, invitations });
+    return ok({ staff, invitations });
   } catch (error) {
-    return errorResponse(error, "[staff] GET failed");
+    return failFrom(error, "[staff] GET failed");
   }
 }
 
@@ -79,9 +87,9 @@ export async function POST(req: NextRequest) {
     await assertStaffWriter();
     const body = await parseBody(req, jsonObjectBody);
     const result = await inviteStaff(body as Parameters<typeof inviteStaff>[0]);
-    return Response.json(result, { status: 201 });
+    return actionResponse(result, 201);
   } catch (error) {
-    return errorResponse(error, "[staff] POST failed");
+    return failFrom(error, "[staff] POST failed");
   }
 }
 
@@ -90,9 +98,9 @@ export async function PATCH(req: NextRequest) {
     await assertStaffWriter();
     const body = await parseBody(req, requiredIdBody("userId"));
     const result = await removeStaff(body.userId);
-    return Response.json(result);
+    return actionResponse(result);
   } catch (error) {
-    return errorResponse(error, "[staff] PATCH failed");
+    return failFrom(error, "[staff] PATCH failed");
   }
 }
 
@@ -101,9 +109,9 @@ export async function PUT(req: NextRequest) {
     await assertStaffWriter();
     const body = await parseBody(req, requiredIdBody("inviteId"));
     const result = await resendInvitation(body.inviteId);
-    return Response.json(result);
+    return actionResponse(result);
   } catch (error) {
-    return errorResponse(error, "[staff] PUT failed");
+    return failFrom(error, "[staff] PUT failed");
   }
 }
 
@@ -114,8 +122,8 @@ export async function DELETE(req: NextRequest) {
     const inviteId = searchParams.get("inviteId");
     if (!inviteId) throw new ApiError("inviteId is required", 400);
     const result = await cancelInvitation(inviteId);
-    return Response.json(result);
+    return actionResponse(result);
   } catch (error) {
-    return errorResponse(error, "[staff] DELETE failed");
+    return failFrom(error, "[staff] DELETE failed");
   }
 }
