@@ -24,7 +24,7 @@ import { Menu } from "@/components/ui/menu";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
 import { COMMERCIAL_CONTRACT } from "@/config/commercial-contract";
-import { roleLabel, type UserRole } from "@/lib/roles";
+import { platformRoleLabel } from "@/lib/roles";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -302,7 +302,7 @@ const ROLE_BADGES: Record<string, BadgeVariant> = {
 
 function RoleBadge({ role }: { role: string }) {
   const { language } = useLocale();
-  return <Badge variant={ROLE_BADGES[role] ?? "neutral"} size="sm">{roleLabel(role as UserRole, language)}</Badge>;
+  return <Badge variant={ROLE_BADGES[role] ?? "neutral"} size="sm">{platformRoleLabel(role, language)}</Badge>;
 }
 
 const PLAN_BADGES: Record<string, { variant: BadgeVariant; className?: string }> = {
@@ -1484,7 +1484,7 @@ function UsersView() {
           >
             <option value="">{t("All roles")}</option>
             {(["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "RECEPTIONIST", "LIBRARIAN", "PARENT", "STUDENT"] as const).map((role) => (
-              <option key={role} value={role}>{roleLabel(role, language)}</option>
+              <option key={role} value={role}>{platformRoleLabel(role, language)}</option>
             ))}
           </SystemSelect>
           <SystemSelect
@@ -1763,7 +1763,7 @@ function AuditLogView() {
                           <User aria-hidden="true" className="size-3" /> <bdi>{log.user?.fullName || t("System")}</bdi>
                         </span>
                         {log.user?.role && (
-                          <span>{roleLabel(log.user.role as UserRole, language)}</span>
+                          <span>{platformRoleLabel(log.user.role, language)}</span>
                         )}
                         {log.targetName && (
                           <span className="text-ink-muted">{t("Target")}: <bdi>{log.targetName}</bdi></span>

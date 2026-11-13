@@ -31,7 +31,8 @@ export async function GET(req: NextRequest) {
     const schoolId = searchParams.get("schoolId") || "";
     const status = searchParams.get("status") || "";
 
-    const where: any = {};
+    // SKAI-1943: the platform operator's own account lives in a host school but is not a tenant user.
+    const where: any = { NOT: { role: "APP_OWNER" } };
     if (role && !isUserRole(role)) throw new ApiError("Unknown role", 400);
     if (role) where.role = role;
     if (schoolId) where.schoolId = schoolId;

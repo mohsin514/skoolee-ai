@@ -27,7 +27,7 @@ import {
 } from "recharts";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
-import { roleLabel, type UserRole } from "@/lib/roles";
+import { platformRoleLabel } from "@/lib/roles";
 import { getPlanLimits } from "@/config/plans";
 import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
 import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, RAMP_BRAND, SERIES, STATUS } from "./palette";
@@ -96,7 +96,7 @@ export function PlatformOverview({
       .map(([plan, count]) => ({ plan, label: getPlanLimits(plan).name, count }))
       .sort((a, b) => b.count - a.count);
     const roles = Object.entries(stats.usersByRole ?? {})
-      .map(([role, count]) => ({ label: roleLabel(role as UserRole, locale.language), count }))
+      .map(([role, count]) => ({ label: platformRoleLabel(role, locale.language), count }))
       .sort((a, b) => b.count - a.count);
     const signups = (stats.signupsByMonth ?? []).map((r) => ({ label: monthLabel(r.month), count: r.count }));
     const logins = (stats.loginsByDay ?? []).map((r) => ({ label: dayLabel(r.day), count: r.count }));
