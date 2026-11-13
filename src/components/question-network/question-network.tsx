@@ -1,5 +1,6 @@
 "use client";
 
+import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,8 +34,8 @@ const ISSUE: Record<string, string> = { KEY_ERROR: "Answer key error", AMBIGUOUS
 async function call(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json" } }).catch(() => null);
   const json = await response?.json().catch(() => null);
-  if (!response?.ok || !json?.success) throw new Error(json?.error || "Request failed");
-  return json.data;
+  if (!response?.ok || !isApiOk(json)) throw new Error(readApiError(json));
+  return readApiData<any>(json, null);
 }
 
 export function QuestionNetwork() {

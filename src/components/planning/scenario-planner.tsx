@@ -1,5 +1,6 @@
 "use client";
 
+import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 import { useCallback, useEffect, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -46,8 +47,8 @@ function findingText(ui: ReturnType<typeof useUiText>, finding: Finding) {
 async function call(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json" } }).catch(() => null);
   const json = await response?.json().catch(() => null);
-  if (!response?.ok || !json?.success) throw new Error(json?.error || "Request failed");
-  return json.data;
+  if (!response?.ok || !isApiOk(json)) throw new Error(readApiError(json));
+  return readApiData<any>(json, null);
 }
 
 const blank = { name: "", classCap: "30", grade: "", intake: "0", subject: "", periods: "", roomType: "LAB", addType: "", addCount: "1", addSeats: "30", teacherId: "", teacherPeriods: "", newSubject: "", newPeriods: "", currency: "", tLow: "", tHigh: "", rLow: "", rHigh: "" };
