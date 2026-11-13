@@ -45,10 +45,22 @@ export function pageStillLoading(doc: Document = document): boolean {
  * there. The overlay is aria-hidden and ignores the pointer: assistive tech and
  * the page underneath stay usable while it plays.
  */
+type BootPhase = 'playing' | 'waiting' | 'fading' | 'done';
+
+/**
+ * Decided once, from the URL the document was loaded at. `/` plays its own
+ * splash and then soft-navigates to /login; this wrapper must not wake up on
+ * that /login and play the beat a second time, so a load that starts at `/`
+ * is finished for good.
+ */
+export function initialBootPhase(loadedAt: string | null): BootPhase {
+  return loadedAt === '/' ? 'done' : 'playing';
+}
+
 export default function BootSplash() {
   const pathname = usePathname();
   const { language } = useDocumentLocale();
-  const [phase, setPhase] = useState<'playing' | 'waiting' | 'fading' | 'done'>('playing');
+  const [phase, setPhase] = useState<BootPhase>(() => initialBootPhase(pathname));
 
   useEffect(() => {
     if (phase !== 'waiting') return;
@@ -69,7 +81,7 @@ export default function BootSplash() {
     return () => window.clearTimeout(timer);
   }, [phase]);
 
-  if (pathname === '/' || phase === 'done') return null;
+  if (phase === 'done') return null;
 
   return (
     <div
