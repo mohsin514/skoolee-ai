@@ -10,15 +10,23 @@ import { notify } from "@/lib/notifications/in-app";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
-function parseLocalDate(date: string): Date {
+// The attendance column is a DATE. Build it in UTC so the stored day never shifts with the server timezone.
+function parseCalendarDate(date: string): Date {
   const [y, m, d] = date.split("-").map(Number);
-  return new Date(y, m - 1, d);
+  return new Date(Date.UTC(y, m - 1, d));
 }
 
 // SKAI-1502: campus-wide teacher attendance (names, emails, counts) is campus-operations data.
 const CAMPUS_READ_ROLES = ["ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "SUPER_ADMIN"];
 const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+const ATTENDANCE_STATUSES = ["PRESENT", "ABSENT", "LEAVE"];
+
+// Rejects impossible dates such as 2026-02-30 or 2026-13-45, which Date would silently roll over.
+function isRealCalendarDate(date: string): boolean {
+  if (!DATE_RE.test(date)) return false;
+  return parseCalendarDate(date).toISOString().slice(0, 10) === date;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -30,7 +38,7 @@ export async function GET(req: NextRequest) {
     const sp = req.nextUrl.searchParams;
     const date = sp.get("date");
     const month = sp.get("month");
-    if (date && !DATE_RE.test(date)) throw new ApiError("Invalid date", 400);
+    if (date && !isRealCalendarDate(date)) throw new ApiError("Invalid date", 400);
     if (month && !MONTH_RE.test(month)) throw new ApiError("Invalid month", 400);
     const rawUserId = sp.get("userId");
     const requested = rawUserId === "self" ? user.userId : rawUserId;
@@ -45,7 +53,7 @@ export async function GET(req: NextRequest) {
     if (userId) {
       const where: any = { userId, campusId };
       if (date) {
-        where.date = parseLocalDate(date);
+        where.date = parseCalendarDate(date);
       } else if (month) {
         const [y, m] = month.split("-").map(Number);
         where.date = {
@@ -71,7 +79,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (date) {
-      const targetDate = parseLocalDate(date);
+      const targetDate = parseCalendarDate(date);
 
       const [teachers, attendance] = await Promise.all([
         prisma.user.findMany({
@@ -178,9 +186,24 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(entries) || !dateStr) {
       throw new ApiError("entries array and date required", 400);
     }
+    if (typeof dateStr !== "string" || !isRealCalendarDate(dateStr)) {
+      throw new ApiError("Invalid date", 400);
+    }
+    // Validate every entry before the transaction so a bad row never leaves a partial write.
+    for (const entry of entries as Array<{ userId?: unknown; status?: unknown; notes?: unknown }>) {
+      if (!entry || typeof entry.userId !== "string" || !entry.userId) {
+        throw new ApiError("Each entry needs a userId", 400);
+      }
+      if (typeof entry.status !== "string" || !ATTENDANCE_STATUSES.includes(entry.status)) {
+        throw new ApiError("Invalid attendance status", 400);
+      }
+      if (entry.notes !== undefined && entry.notes !== null && typeof entry.notes !== "string") {
+        throw new ApiError("Invalid notes", 400);
+      }
+    }
 
     const campusId = await resolveCampusId(user, body.campusId);
-    const targetDate = parseLocalDate(dateStr);
+    const targetDate = parseCalendarDate(dateStr);
 
     const results = await prisma.$transaction(
       entries.map((entry: { userId: string; status: "PRESENT" | "ABSENT" | "LEAVE"; notes?: string }) =>
