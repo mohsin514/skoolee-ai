@@ -18,6 +18,7 @@ import { loadOwnerPages } from "@/lib/owner/load-pages";
 import { SUPPORT_SESSION_STATE_EVENT, watchSupportSession, type SupportSessionCheck } from "@/lib/owner/support-session-poll";
 import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 import { useConsoleView } from "@/components/nav/useConsoleView";
+import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { PageHeader, type PageAction } from "@/components/ui/page-header";
 import { Menu } from "@/components/ui/menu";
 import { useLocale } from "@/components/locale/LocaleProvider";
@@ -28,7 +29,8 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { InfoTip } from "@/components/ui/tooltip";
 import { Alert } from "@/components/ui/alert";
@@ -82,6 +84,7 @@ import {
   Wifi,
   X,
   Zap,
+  ShieldAlert,
   type LucideIcon,
 } from "lucide-react";
 import { toast, friendlyErrorMessage } from "@/components/ui/toast";
@@ -571,6 +574,9 @@ function SupportSessionBanner() {
 function SupportAccessView({ schools }: { schools: { id: string; name: string }[] }) {
   const t = useUiText();
   const dates = useOwnerDates();
+  // SKAI-1942: requesting or starting access needs two-step sign-in; say so up front, as the school Approvals view does.
+  const access = useConsoleAccess();
+  const mfaReady = !access.ready || access.has("mfaVerified");
   const [grants, setGrants] = useState<SupportGrantRow[]>([]);
   const [supportSession, setSupportSession] = useState<{ id: string; purpose: string; scope: string[]; actions: string[]; expiresAt: string; queuedActions: { id: string; domain: string; action: string; status: string }[] } | null>(null);
   const [preview, setPreview] = useState<{ id: string; domain: string; data: unknown } | null>(null);
@@ -644,14 +650,14 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
       toast.success(emergency ? t("Emergency support access started; school review is required") : t("Support request sent to the school approver"));
       setPurpose(""); setImpact(""); setEmergencyReason(""); setEmergency(false); await load();
       window.dispatchEvent(new Event("skoolee:support-session-change"));
-    } catch { toast.error(t("Could not request support access")); }
+    } catch (error) { toast.error(friendlyErrorMessage(error, t("Could not request support access"))); }
     finally { setBusy(false); }
   };
 
   const start = (grant: SupportGrantRow) => track(`start:${grant.id}`, t("Could not start support access"), async () => {
     const response = await fetch(`/api/owner/support/grants/${grant.id}/start`, { method: "POST" });
     const json = await response.json();
-    if (!response.ok) { toast.error(t("Could not start support access")); return; }
+    if (!response.ok) { toast.error(friendlyErrorMessage(readApiError(json, ""), t("Could not start support access"))); return; }
     toast.success(t("Support access started")); await load(); window.dispatchEvent(new Event("skoolee:support-session-change"));
   });
   const stop = (grant: SupportGrantRow) => track(`stop:${grant.id}`, t("Could not revoke support access"), async () => {
@@ -796,6 +802,19 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
       ) : <>
         <section ref={requestFormRef} aria-labelledby="support-request-heading" className="sk-panel scroll-mt-4 p-4 sm:p-6">
           <h2 id="support-request-heading" className="text-base font-bold text-ink-strong">{t("Request scoped access")}</h2>
+          {!mfaReady ? (
+            <Alert
+              tone="warning"
+              icon={ShieldAlert}
+              title={t("Turn on two-step sign-in")}
+              className="mt-4"
+              live="off"
+              actions={<Link href="/account/security" className={buttonVariants({ variant: "outline", size: "sm" })}>{t("Turn on two-step sign-in")}</Link>}
+              data-mfa-required
+            >
+              {t("Requesting or starting support access needs two-step sign-in on your account.")}
+            </Alert>
+          ) : null}
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField name="support-school" label={t("School")} required>
               <SystemSelect value={schoolId} onChange={(event) => setSchoolId(event.target.value)} aria-label={t("School")}>
