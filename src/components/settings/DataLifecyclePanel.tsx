@@ -258,6 +258,12 @@ function SubjectPicker({ subject, value, onChange, copy }: { subject: DsrSubject
   const [matches, setMatches] = useState<SubjectMatch[] | null>(null);
   const [chosen, setChosen] = useState<SubjectMatch | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Keyboard users: picking a match unmounts the match button, and "Change" unmounts itself, so move focus to the
+  // control that replaces it instead of dropping it to the page (SKAI-1193).
+  const changeRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const focusNext = useRef<"change" | "search" | null>(null);
+  useEffect(() => { const target = focusNext.current === "change" ? changeRef.current : focusNext.current === "search" ? searchRef.current : null; if (target) { focusNext.current = null; target.focus(); } }, [chosen]);
   useEffect(() => { setChosen(null); setQuery(""); setMatches(null); }, [subject]);
   useEffect(() => {
     const q = query.trim();
@@ -272,14 +278,14 @@ function SubjectPicker({ subject, value, onChange, copy }: { subject: DsrSubject
   }, [query, subject, copy.noMatches]);
   if (value && chosen) return <div className="grid gap-1 text-sm font-semibold"><span>{copy.selected}</span>
     <div className="flex min-w-0 items-center justify-between gap-2 rounded-lg border px-3 py-2"><span className="min-w-0 [overflow-wrap:anywhere]">{chosen.label}{chosen.detail ? <span className="block text-xs font-normal text-ink-muted">{chosen.detail}</span> : null}</span>
-      <Button type="button" size="sm" variant="outline" onClick={() => { onChange(""); setChosen(null); }}>{copy.change}</Button></div></div>;
+      <Button ref={changeRef} type="button" size="sm" variant="outline" onClick={() => { focusNext.current = "search"; onChange(""); setChosen(null); }}>{copy.change}</Button></div></div>;
   return <div className="grid gap-1 text-sm font-semibold">
-    <label className="grid gap-1">{copy.recordId}<Input type="search" autoComplete="off" value={query} aria-describedby="dsr-subject-hint" onChange={event => setQuery(event.target.value)} /></label>
+    <label className="grid gap-1">{copy.recordId}<Input ref={searchRef} type="search" autoComplete="off" value={query} aria-describedby="dsr-subject-hint" onChange={event => setQuery(event.target.value)} /></label>
     <span id="dsr-subject-hint" className="text-xs font-normal text-ink-muted">{copy.searchHint}</span>
     {error && <span role="alert" className="text-xs text-destructive">{error}</span>}
     {matches && (matches.length === 0 ? <span className="text-xs font-normal text-ink-muted">{copy.noMatches}</span>
       : <ul className="grid gap-1" aria-label={copy.recordId}>{matches.map(match => <li key={match.id}>
-        <Button type="button" variant="ghost" className="h-auto w-full justify-start text-start" onClick={() => { setChosen(match); onChange(match.id); }}>
+        <Button type="button" variant="ghost" className="h-auto w-full justify-start text-start" onClick={() => { focusNext.current = "change"; setChosen(match); onChange(match.id); }}>
           <span className="min-w-0 [overflow-wrap:anywhere]">{match.label}{match.detail ? <span className="block text-xs font-normal text-ink-muted">{match.detail}</span> : null}</span></Button></li>)}</ul>)}
   </div>;
 }
