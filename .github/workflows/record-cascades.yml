@@ -37,6 +37,7 @@ jobs:
       - run: pnpm exec prisma generate && pnpm exec prisma migrate deploy
       - run: pnpm exec prisma migrate diff --from-url "$DIRECT_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
       - run: pnpm run test:record-cascades
+      - run: pnpm run test:tenant-rls-db
       - run: pnpm run test:placement-db
       - run: pnpm run test:academic-year-db
       - run: pnpm run test:enrollment-placement-db
