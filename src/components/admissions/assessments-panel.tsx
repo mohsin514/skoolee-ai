@@ -19,10 +19,10 @@ type Run = (body: Record<string, unknown>, message: string) => Promise<void>;
 
 export const kindLabel = (ui: Ui, kind: string) => ({ INTERVIEW: ui("Interview"), ASSESSMENT: ui("Entrance assessment"), TOUR: ui("School tour"), TASTER_DAY: ui("Taster day") } as Record<string, string>)[kind] ?? kind;
 const recommendationLabel = (ui: Ui, value: string) => ({ RECOMMEND: ui("Recommend"), CONSIDER: ui("Consider"), NOT_RECOMMENDED: ui("Not recommended") } as Record<string, string>)[value] ?? value;
-const statusTone = (value: string): DeskTone => ({ SCHEDULED: "info", COMPLETED: "success", NO_SHOW: "warning", CANCELLED: "neutral" } as Record<string, DeskTone>)[value] ?? "neutral";
+const statusTone = (value: string): DeskTone => ({ OFFERED: "warning", SCHEDULED: "info", COMPLETED: "success", NO_SHOW: "warning", CANCELLED: "neutral" } as Record<string, DeskTone>)[value] ?? "neutral";
 const recommendationTone = (value: string): DeskTone => ({ RECOMMEND: "success", CONSIDER: "warning", NOT_RECOMMENDED: "danger" } as Record<string, DeskTone>)[value] ?? "neutral";
 const kindIcon = (kind: string) => ({ INTERVIEW: MessagesSquare, ASSESSMENT: ClipboardCheck, TOUR: MapPinned, TASTER_DAY: School } as Record<string, typeof School>)[kind] ?? CalendarClock;
-const statusText = (ui: Ui, value: string) => ({ SCHEDULED: ui("Booked"), COMPLETED: ui("Completed"), NO_SHOW: ui("Did not attend"), CANCELLED: ui("Cancelled") } as Record<string, string>)[value] ?? value;
+const statusText = (ui: Ui, value: string) => ({ OFFERED: ui("Offered to the family"), SCHEDULED: ui("Booked"), COMPLETED: ui("Completed"), NO_SHOW: ui("Did not attend"), CANCELLED: ui("Cancelled") } as Record<string, string>)[value] ?? value;
 
 export function AssessmentsPanel({ assessments, staff, canBook, busy, officeNote, run }: { assessments: Assessment[]; staff: Person[]; canBook: boolean; busy: boolean; officeNote: string; run: Run }) {
   const ui = useUiText();
@@ -30,6 +30,10 @@ export function AssessmentsPanel({ assessments, staff, canBook, busy, officeNote
   const [kind, setKind] = useState("INTERVIEW"), [when, setWhen] = useState(""), [duration, setDuration] = useState("30"), [location, setLocation] = useState(""), [staffId, setStaffId] = useState("");
   const [recording, setRecording] = useState(""), [recommendation, setRecommendation] = useState("RECOMMEND"), [score, setScore] = useState(""), [outcome, setOutcome] = useState("");
   const book = () => run({ action: "schedule-assessment", kind, scheduledAt: new Date(when).toISOString(), durationMin: Number(duration), location: location || undefined, staffId: staffId || undefined, officeNote: officeNote || undefined }, ui("Booked.")).then(() => { setWhen(""); setLocation(""); });
+  // SKAI-1263: times collected here are offered together; the family books one of them from its application link.
+  const [offering, setOffering] = useState<string[]>([]);
+  const addOffer = () => { if (when && !offering.includes(when)) setOffering([...offering, when]); setWhen(""); };
+  const offer = () => run({ action: "offer-slots", kind, slots: offering.map(time => ({ scheduledAt: new Date(time).toISOString(), durationMin: Number(duration), location: location || undefined, staffId: staffId || undefined })), officeNote: officeNote || undefined }, ui("Times offered to the family.")).then(() => setOffering([]));
   const record = (id: string, attended: boolean) => run({ action: "record-assessment", assessmentId: id, attended, recommendation: attended ? recommendation : undefined, score: attended && score ? Number(score) : undefined, outcomeNote: outcome || undefined }, ui("Outcome saved.")).then(() => { setRecording(""); setScore(""); setOutcome(""); });
 
   return <section className="sk-desk-section gap-2 text-sm" aria-label={ui("Interviews and assessments")} data-assessments>
@@ -42,6 +46,7 @@ export function AssessmentsPanel({ assessments, staff, canBook, busy, officeNote
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => setRecording(item.id)}>{ui("Record outcome")}</Button>
         <Button size="sm" variant="ghost" disabled={busy || officeNote.trim().length < 2} onClick={() => void run({ action: "cancel-assessment", assessmentId: item.id, officeNote }, ui("Booking cancelled."))}>{ui("Cancel (needs office note)")}</Button>
       </div> : null}
+      {item.status === "OFFERED" ? <div className="mt-1"><Button size="sm" variant="ghost" disabled={busy || officeNote.trim().length < 2} onClick={() => void run({ action: "cancel-assessment", assessmentId: item.id, officeNote }, ui("Booking cancelled."))}>{ui("Withdraw (needs office note)")}</Button></div> : null}
       {recording === item.id ? <div className="mt-2 grid items-end gap-2 sm:grid-cols-3" data-record-form>
         <FormField name="assessment-recommendation" label={ui("Recommendation")}><Select value={recommendation} onChange={event => setRecommendation(event.target.value)}>{["RECOMMEND", "CONSIDER", "NOT_RECOMMENDED"].map(value => <option key={value} value={value}>{recommendationLabel(ui, value)}</option>)}</Select></FormField>
         <FormField name="assessment-score" label={ui("Score (0–100, optional)")}><Input type="number" min={0} max={100} dir="ltr" value={score} onChange={event => setScore(event.target.value)} /></FormField>
@@ -60,6 +65,12 @@ export function AssessmentsPanel({ assessments, staff, canBook, busy, officeNote
       <FormField name="assessment-staff" label={ui("Run by")}><Select value={staffId} onChange={event => setStaffId(event.target.value)}><option value="">{ui("Not set")}</option>{staff.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></FormField>
       <FormField name="assessment-location" label={ui("Room or link")}><Input value={location} maxLength={200} onChange={event => setLocation(event.target.value)} /></FormField>
       <Button variant="secondary" disabled={busy || !when} onClick={() => void book()}>{ui("Book")}</Button>
+      <Button variant="ghost" disabled={busy || !when || offering.length >= 6} onClick={addOffer} data-add-offer>{ui("Add as a time to offer")}</Button>
+      {offering.length ? <div className="flex flex-wrap items-center gap-2 sm:col-span-3" data-offer-list>
+        {offering.map(time => <DeskPill key={time} tone="info"><bdi>{dateTime(new Date(time).toISOString())}</bdi></DeskPill>)}
+        <Button size="sm" disabled={busy} onClick={() => void offer()}>{ui("Offer these times to the family")}</Button>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => setOffering([])}>{ui("Clear")}</Button>
+      </div> : null}
     </div> : null}
   </section>;
 }
