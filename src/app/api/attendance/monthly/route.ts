@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, canMarkAttendance, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { countedRuleRate, ruleRate } from "@/lib/attendance";
 import { attendanceRuleFor } from "@/lib/attendance/rule";
+import { rosterStatusWhere } from "@/lib/students/roster-status";
 
 export async function GET(req: NextRequest) {
   try {
@@ -166,7 +167,8 @@ export async function GET(req: NextRequest) {
     const [classes, groups] = await Promise.all([
       prisma.class.findMany({
         where: { campusId, campus: { schoolId: user.schoolId } },
-        select: { id: true, name: true, section: true, _count: { select: { students: true } } },
+        // SKAI-1926: a class counts its on-roll pupils only, like the roster and the home KPI.
+        select: { id: true, name: true, section: true, _count: { select: { students: { where: rosterStatusWhere(false) } } } },
         orderBy: [{ name: "asc" }, { section: "asc" }],
       }),
       prisma.attendance.groupBy({
