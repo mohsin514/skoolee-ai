@@ -28,7 +28,8 @@ import {
   X,
 } from "lucide-react";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
-import { useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { bulkStatusConfirmCopy } from "@/components/shared-admin/bulk-status-copy";
 import { describeCounts } from "@/components/shared-admin/academic-impact";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { AvatarImage } from "@/components/ui/avatar-image";
@@ -209,6 +210,8 @@ export function StudentsPanel({
   const [bulkTag, setBulkTag] = useState<{ kind: "category" | "group" } | null>(null);
   const [bulkMove, setBulkMove] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState<"archived" | "active" | null>(null);
+  const { language } = useLocale();
+  const confirmCopy = bulkStatusConfirmCopy(confirmArchive ?? "archived", selected.size, language, ui);
 
   // The full tag lists, not just the ones already in use — otherwise the first
   // student to get a category could never be given one from here.
@@ -947,13 +950,13 @@ export function StudentsPanel({
 
       <ConfirmAction
         open={confirmArchive !== null}
-        title={confirmArchive === "archived" ? ui("Archive {0} student(s)?", [selected.size]) : ui("Restore these students?")}
+        title={confirmCopy.title}
         description={
           confirmArchive === "archived"
             ? ui("The selected students have {0}. Archive removes them from active lists; academic, financial and document history stays preserved and each can be restored later.", [archiveSummary ?? ui("no linked records")])
-            : ui("{0} student(s) will return to the active roster in their existing class.", [selected.size])
+            : confirmCopy.description ?? ""
         }
-        confirmLabel={confirmArchive === "archived" ? ui("Archive Student") : ui("Restore")}
+        confirmLabel={confirmCopy.confirmLabel}
         cancelLabel={ui("Keep editing")}
         tone={confirmArchive === "archived" ? "warning" : "success"}
         busy={busy}
