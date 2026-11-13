@@ -389,6 +389,19 @@ function SlotEditorModal({
   // A failed lookup is not "no free teachers or rooms" (SKAI-1390): it is shown with a retry, and the current selections stay.
   const [availFailed, setAvailFailed] = useState(false), [availNonce, setAvailNonce] = useState(0);
 
+  // The saved teacher and room always stay selectable, even when availability is failing or they are not free (SKAI-1390).
+  const teacherOptions = useMemo<TeacherOption[]>(() => {
+    if (!teacherId || freeTeachers.some((t) => t.id === teacherId)) return freeTeachers;
+    const known = slot.teacher?.id === teacherId ? slot.teacher : subjects.find((s) => s.teacher?.id === teacherId)?.teacher;
+    return [{ id: teacherId, fullName: known?.fullName || ui("Current teacher") }, ...freeTeachers];
+  }, [teacherId, freeTeachers, slot.teacher, subjects, ui]);
+  const roomOptions = useMemo<RoomOption[]>(() => {
+    if (!roomId || freeRooms.some((r) => r.id === roomId)) return freeRooms;
+    const known = slot.room?.id === roomId ? slot.room : null;
+    const label = known?.roomNumber || (slot.roomId === roomId ? slot.roomNumber : null) || ui("Current room");
+    return [{ id: roomId, roomNumber: label, capacity: known?.capacity ?? 0 }, ...freeRooms];
+  }, [roomId, freeRooms, slot.room, slot.roomNumber, ui]);
+
   useEffect(() => {
     let cancelled = false;
     setLoadingAvail(true);
@@ -507,7 +520,7 @@ function SlotEditorModal({
                   className="w-full px-4 py-2.5"
                 >
                   <option value="">{ui("— No teacher —")}</option>
-                  {freeTeachers.map((t) => (
+                  {teacherOptions.map((t) => (
                     <option key={t.id} value={t.id}>{t.fullName}</option>
                   ))}
                 </SystemSelect>
@@ -532,7 +545,7 @@ function SlotEditorModal({
                   className="w-full px-4 py-2.5"
                 >
                   <option value="">{ui("— No room —")}</option>
-                  {freeRooms.map((r) => (
+                  {roomOptions.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.capacity > 0 ? ui("{0} ({1} seats)", [r.roomNumber, r.capacity]) : r.roomNumber}
                     </option>
