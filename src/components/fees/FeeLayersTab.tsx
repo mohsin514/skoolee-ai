@@ -33,7 +33,7 @@ import { API, classLabel, formatPKR, rupeesToPaisa, paisaToRupees, usePanelComma
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 import { readApiData } from "@/lib/api/envelope-client";
-import { studentPickerUrl, useStudentPicker } from "./use-student-picker";
+import { addStudentNotice, studentPickerUrl, useStudentPicker, type AddStudentNotice } from "./use-student-picker";
 
 const inputClass = "w-full";
 const labelClass = "block mb-2 ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
@@ -661,6 +661,7 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
   const picker = useStudentPicker(campusId, search, Boolean(assigning), pickerReload);
   const assignedIds = useMemo(() => new Set(assigned.map((a) => a.studentId)), [assigned]);
   const addable = picker.students.filter((s) => !assignedIds.has(s.id));
+  const addNotice = addStudentNotice(picker, search, addable.length);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
@@ -907,8 +908,8 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
                       ><UiText>{"Add"}</UiText></Button>
                     </div>
                   ))}
-                {picker.loaded && !search.trim() && addable.length === 0 && picker.total <= picker.students.length && (
-                  <p className="text-2xs font-semibold text-ink-subtle italic"><UiText>{"All students already assigned."}</UiText></p>
+                {addNotice && (
+                  <p className="text-2xs font-semibold text-ink-subtle italic">{tr(ADD_STUDENT_NOTICE[addNotice])}</p>
                 )}
               </div>
             </div>
@@ -919,6 +920,13 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
     </div>
   );
 }
+
+const ADD_STUDENT_NOTICE: Record<NonNullable<AddStudentNotice>, string> = {
+  noStudents: "No students on this campus yet.",
+  allAssigned: "All students already assigned.",
+  noMatch: "No matching students.",
+  allMatchesAssigned: "All matching students already assigned.",
+};
 
 /* ── Carry Forward ─────────────────────────────────────── */
 
