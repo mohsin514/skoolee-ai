@@ -128,7 +128,7 @@ test('multiple memberships require explicit password-verified institution select
 test('purchasing is delegated only to another group admin (G7/G7b); a teacher can never pay or read the subscription',async()=> {
  const id=accepted.get('TEACHER')!;
  const change=await request(owner,'/api/memberships',{userId:id,role:'TEACHER',campusId:second,canPurchaseSubscription:true,canManageMemberships:false,isActive:true,expectedVersion:1,reviewed:true},'PUT');assert.equal(change.status,400,await change.clone().text());
- assert.equal((await change.json()).error,'Subscription purchasing can only be shared with another group admin, from People & access.');
+ assert.equal((await change.json()).error.message,'Subscription purchasing can only be shared with another group admin, from People & access.');
  assert.equal((await raw.user.findUniqueOrThrow({where:{id}})).canPurchaseSubscription,false);
  assert.equal((await request(id,'/api/billing')).status,403,'no subscription snapshot for a teacher');
  const promote=await request(owner,'/api/memberships',{userId:id,role:'SUPER_ADMIN',campusId:second,canPurchaseSubscription:false,canManageMemberships:false,isActive:true,expectedVersion:1,reviewed:true},'PUT');assert.equal(promote.status,400,'no role change to group admin from People & access');
@@ -153,5 +153,5 @@ test('turning a delegation on needs two-step sign-in, and the refusal says so wi
  const token=await new SignJWT({mfaVerified:'deferred',userId:deferred,schoolId:school,campusId:null,role:'SUPER_ADMIN',onboardingComplete:true,accessVersion:0}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('1h').sign(new TextEncoder().encode(process.env.AUTH_SECRET));
  await raw.loginSession.create({data:{schoolId:school,userId:deferred,tokenHash:hashSessionToken(token),expiresAt:new Date(Date.now()+3600_000)}});
  const response=await fetch('http://127.0.0.1:3219/api/memberships',{method:'PUT',redirect:'manual',headers:{cookie:`skoolee_token=${token}`,'content-type':'application/json'},body:JSON.stringify({userId:id,role:'ACCOUNTANT',campusId:user.campusId,canPurchaseSubscription:false,canManageMemberships:true,isActive:true,expectedVersion:user.accessVersion,reviewed:true})});
- assert.equal(response.status,403);assert.deepEqual(await response.json(),{error:'Turn on two-step sign-in before you delegate purchasing or membership management.',code:'MFA_REQUIRED'});
+ assert.equal(response.status,403);assert.deepEqual(await response.json(),{error:{code:'MFA_REQUIRED',message:'Turn on two-step sign-in before you delegate purchasing or membership management.'}});
 });

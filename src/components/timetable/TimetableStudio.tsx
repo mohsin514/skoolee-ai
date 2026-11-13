@@ -52,6 +52,7 @@ import { timetablePeriods } from "@/lib/timetable/view-scope";
 import { AddPeriodDialog, addPeriodCopy } from "./AddPeriodDialog";
 import { PeriodChangeReview } from "./PeriodChangeReview";
 import { planPeriodChanges, type PeriodConfiguration } from "@/lib/timetable/period-changes";
+import { withCurrentOption } from "./current-option";
 
 
 const TIMETABLE_LAYOUT_KEY = "skoolee.timetable.layout";
@@ -360,12 +361,16 @@ function SlotEditorModal({
   subjects,
   activeTimetableId,
   campusId,
+  teachers = [],
+  rooms = [],
   onSave,
   onClose,
 }: {
   slot: StudioSlot;
   pendingChange?: SlotChange;
   subjects: SubjectOption[];
+  teachers?: TeacherOption[];
+  rooms?: RoomOption[];
   activeTimetableId: string;
   campusId?: string;
   onSave: (updates: SlotChange) => void;
@@ -386,6 +391,9 @@ function SlotEditorModal({
   const [freeTeachers, setFreeTeachers] = useState<TeacherOption[]>([]);
   const [freeRooms, setFreeRooms] = useState<RoomOption[]>([]);
   const [loadingAvail, setLoadingAvail] = useState(true);
+  // SKAI-1390: the saved teacher and room always stay selectable, even when availability failed or omits them.
+  const teacherOptions = withCurrentOption(freeTeachers, current.teacherId, teachers, (id) => ({ id, fullName: ui("Current teacher") }));
+  const roomOptions = withCurrentOption(freeRooms, current.roomId, rooms, (id) => ({ id, roomNumber: ui("Current room"), capacity: 0 }));
   // A failed lookup is not "no free teachers or rooms" (SKAI-1390): it is shown with a retry, and the current selections stay.
   const [availFailed, setAvailFailed] = useState(false), [availNonce, setAvailNonce] = useState(0);
 
@@ -507,7 +515,7 @@ function SlotEditorModal({
                   className="w-full px-4 py-2.5"
                 >
                   <option value="">{ui("— No teacher —")}</option>
-                  {freeTeachers.map((t) => (
+                  {teacherOptions.map((t) => (
                     <option key={t.id} value={t.id}>{t.fullName}</option>
                   ))}
                 </SystemSelect>
@@ -532,7 +540,7 @@ function SlotEditorModal({
                   className="w-full px-4 py-2.5"
                 >
                   <option value="">{ui("— No room —")}</option>
-                  {freeRooms.map((r) => (
+                  {roomOptions.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.capacity > 0 ? ui("{0} ({1} seats)", [r.roomNumber, r.capacity]) : r.roomNumber}
                     </option>
@@ -1500,6 +1508,8 @@ export function TimetableStudio({ campusId, periodsHref, hideActions = false, co
           subjects={subjects}
           activeTimetableId={activeTimetable.id}
           campusId={campusId}
+          teachers={teachers}
+          rooms={rooms}
           onSave={(updates) => {
             handleSlotUpdate(editingSlot.id, updates);
             setEditingSlot(null);

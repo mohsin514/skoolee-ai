@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
-import { requireAuthUser, errorResponse, ApiError, readJsonObject } from "@/lib/api/scope";
+import { requireAuthUser, ApiError, readJsonObject } from "@/lib/api/scope";
+import { ok, failFrom } from "@/lib/api/envelope";
 import { INVITABLE_ROLES, membershipAuthority, membershipChangeDecision } from "@/lib/membership-access";
 import { authorityRoleFor, kindFor } from "@/lib/auth/institution";
 import { z } from "zod";
@@ -18,12 +19,12 @@ export async function GET() {
     const school = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { name: true, registrationKind: true } });
     const campuses = await prisma.campus.findMany({ where: { schoolId: user.schoolId, ...(authority ? {} : { id: user.campusId || "" }) }, select: { id: true, name: true } });
     const kind = kindFor(user);
-    return Response.json({
+    return ok({
       members, school, campuses, canManage, isOwner: Boolean(user.isInstitutionOwner), currentUserId: user.userId,
       // The purchase checkbox is offered only for another holder of the authority role (§10.11 MembershipsPanel).
       isAuthority: authority, institutionKind: kind, authorityRole: kind ? authorityRoleFor(kind) : null,
     });
-  } catch (error) { return errorResponse(error); }
+  } catch (error) { return failFrom(error); }
 }
 
 // role: an invitable role, or — for a flag-only change on another authority-role user — that user's current role.
@@ -58,6 +59,6 @@ export async function PUT(req: Request) {
       await tx.loginSession.updateMany({ where: { userId: target.id }, data: { isActive: false } });
       await tx.auditLog.create({ data: { userId: actor.userId, tableName: "membership", recordId: target.id, oldValue: before, newValue: { ...after, ...(input.reason ? { reason: input.reason } : {}) } } });
     });
-    return Response.json({ success: true });
-  } catch (error) { return errorResponse(error); }
+    return ok({ updated: true });
+  } catch (error) { return failFrom(error); }
 }
