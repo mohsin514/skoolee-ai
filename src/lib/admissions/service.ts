@@ -308,23 +308,44 @@ async function duplicatesFor(db: TxClient, application: AdmissionApplication & {
   return { applications, students };
 }
 
+/**
+ * SKAI-1262: existing pupils on the campus who share the applying child's guardian phone but not the child's
+ * name, so staff can link the new pupil into that family's sibling group at enrolment. Same school and campus only.
+ */
+async function siblingsFor(db: TxClient, application: AdmissionApplication & { formVersion: { definition: Prisma.JsonValue } }) {
+  const identity = identityValues(asDefinition(application.formVersion.definition), application.answers as Answers);
+  const phone = identity.guardianPhone?.replace(/\D/g, "").slice(-9);
+  if (!phone || phone.length < 6) return [];
+  const rows = await db.student.findMany({ where: { schoolId: application.schoolId, campusId: application.campusId, consolidatedIntoId: null, archivedAt: null, guardianPhone: { contains: phone } }, select: { id: true, fullName: true, rollNo: true, siblingGroupId: true, class: { select: { name: true, section: true } } }, take: 20 });
+  const name = foldName(identity.childName ?? application.childName);
+  return rows.filter(student => foldName(student.fullName) !== name).map(student => ({ id: student.id, fullName: student.fullName, rollNo: student.rollNo, className: [student.class.name, student.class.section].filter(Boolean).join(" "), grouped: Boolean(student.siblingGroupId) }));
+}
+
+/** Joins the sibling's group, opening one on the sibling only if it has none (a conditional claim, as SKAI-1500). */
+async function siblingGroupOf(db: TxClient, siblingId: string) {
+  await db.student.updateMany({ where: { id: siblingId, siblingGroupId: null }, data: { siblingGroupId: randomUUID() } });
+  const sibling = await db.student.findUniqueOrThrow({ where: { id: siblingId }, select: { siblingGroupId: true } });
+  return sibling.siblingGroupId;
+}
+
 export async function applicationDetail(user: AuthUser, campusId: string, id: string) {
   await canRead(user);
   const application = await prisma.admissionApplication.findFirst({ where: { id, campusId, schoolId: user.schoolId }, include: { formVersion: { select: { id: true, version: true, definition: true, form: { select: { name: true } } } }, owner: { select: { id: true, fullName: true } }, enquiry: { select: { id: true, name: true, source: true } }, convertedStudent: { select: { id: true, fullName: true, rollNo: true } } } });
   if (!application) throw new ApiError("Application not found", 404);
-  const [submissions, events, documents, duplicates, assessments] = await Promise.all([
+  const [submissions, events, documents, duplicates, assessments, siblings] = await Promise.all([
     prisma.admissionSubmission.findMany({ where: { applicationId: id }, orderBy: { submittedAt: "asc" }, select: { id: true, submittedAt: true, submittedBy: true, answers: true, documentIds: true, formVersion: { select: { version: true } } } }),
     prisma.admissionApplicationEvent.findMany({ where: { applicationId: id }, orderBy: { createdAt: "asc" } }),
     prisma.admissionDocument.findMany({ where: { applicationId: id }, select: { id: true, key: true, fileName: true, contentType: true, sizeBytes: true, uploadedBy: true, uploadedAt: true, sha256: true }, orderBy: { uploadedAt: "asc" } }),
     duplicatesFor(prisma, application as never),
     prisma.admissionAssessment.findMany({ where: { applicationId: id, schoolId: user.schoolId }, orderBy: { scheduledAt: "asc" }, include: { staff: { select: { id: true, fullName: true } } } }),
+    siblingsFor(prisma, application as never),
   ]);
   const ids = [...new Set(events.map(event => event.actorId).filter(actor => actor !== "FAMILY"))];
   const people = new Map((await prisma.user.findMany({ where: { id: { in: ids }, schoolId: user.schoolId }, select: { id: true, fullName: true } })).map(person => [person.id, person.fullName]));
   const { resumeKeyHash: _key, ...rest } = application;
   const definition = asDefinition(application.formVersion.definition);
   const missing = answerProblems(definition, application.answers as Answers, [...new Set(documents.map(d => d.key))], true).map(problem => problem.key);
-  return { ...rest, ...priorityOf(application.formVersion.definition, application.answers), missing, submissions, documents, duplicates, assessments, offerLapsed: offerLapsed(application), events: events.map(event => ({ ...event, actorName: event.actorId === "FAMILY" ? null : people.get(event.actorId) ?? null })) };
+  return { ...rest, ...priorityOf(application.formVersion.definition, application.answers), missing, submissions, documents, duplicates, siblings, assessments, offerLapsed: offerLapsed(application), events: events.map(event => ({ ...event, actorName: event.actorId === "FAMILY" ? null : people.get(event.actorId) ?? null })) };
 }
 
 export async function documentFile(user: AuthUser, campusId: string, id: string) {
@@ -535,13 +556,16 @@ export async function convertApplication(user: AuthUser, campusId: string, body:
       const clash = await db.$queryRaw<{ id: string }[]>`SELECT id FROM students WHERE school_id = ${user.schoolId} AND campus_id = ${campusId} AND archived_at IS NULL AND lower(btrim(roll_no)) = ${rollNo.toLocaleLowerCase("en")} LIMIT 1`;
       if (clash.length) throw new ApiError("This roll number already belongs to a pupil in the campus.", 409);
       await assertPlanCapacity({ schoolId: user.schoolId, metric: "students", increment: 1 });
+      const siblingId = body.siblingStudentId ? String(body.siblingStudentId) : null;
+      if (siblingId && !(await siblingsFor(db, application)).some(sibling => sibling.id === siblingId)) throw new ApiError("Choose one of the listed siblings.", 400);
+      const siblingGroupId = siblingId ? await siblingGroupOf(db, siblingId) : null;
       const gender = ["MALE", "FEMALE", "OTHER"].includes(String(identity.gender)) ? identity.gender as "MALE" | "FEMALE" | "OTHER" : "OTHER";
       const created = await db.student.create({ data: {
         schoolId: user.schoolId, campusId, classId: cls.id, fullName: identity.childName ?? application.childName, rollNo, gender,
         admissionNo: `ADM-${new Date().getUTCFullYear()}-${randomUUID().replaceAll("-", "").toUpperCase()}`,
         dateOfBirth: identity.dateOfBirth ? new Date(`${identity.dateOfBirth}T00:00:00Z`) : null,
         guardianName: identity.guardianName || null, guardianPhone: identity.guardianPhone || null, guardianEmail: identity.guardianEmail?.toLowerCase() || null,
-        address: identity.address || null, previousSchool: identity.previousSchool || null,
+        address: identity.address || null, previousSchool: identity.previousSchool || null, siblingGroupId,
       }, select: { id: true, fullName: true, rollNo: true, admissionNo: true } });
       await db.studentTimelineEvent.create({ data: { studentId: created.id, kind: "ADMITTED", title: "Student admitted", detail: `From application ${application.reference} · Class ${cls.name}${cls.section ? ` - ${cls.section}` : ""} · Roll ${rollNo}`, actorId: user.userId } });
       student = created;
