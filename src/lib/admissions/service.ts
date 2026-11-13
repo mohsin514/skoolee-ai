@@ -435,6 +435,13 @@ export async function staffStart(user: AuthUser, campusId: string, body: Record<
   const problems = answerProblems(definition, answers, [], false);
   if (problems.length) throw problemsError(problems);
   return schoolAiTransaction(user, async db => {
+    if (enquiryId) {
+      // SKAI-920: two staff converting the same enquiry at once must end with one linked application. The
+      // enquiry row lock serialises them; the second re-checks inside the lock and gets an explicit conflict.
+      await db.$queryRaw`SELECT id FROM admission_queries WHERE id = ${enquiryId} FOR UPDATE`;
+      const linked = await db.admissionApplication.findFirst({ where: { enquiryId, status: { notIn: ["WITHDRAWN", "REJECTED", "DECLINED"] } }, select: { reference: true } });
+      if (linked) throw new ApiError(`This enquiry already has application ${linked.reference}.`, 409);
+    }
     const created = await db.admissionApplication.create({ data: { schoolId: user.schoolId, campusId, formVersionId: version.id, reference: `APP-${randomBytes(4).toString("hex").toUpperCase()}`, channel: "STAFF", answers: answers as Prisma.InputJsonValue, childName: String(identityValues(definition, answers).childName ?? ""), identityKeys: [], enquiryId, ownerId: user.userId } });
     await db.admissionApplicationEvent.create({ data: { schoolId: user.schoolId, applicationId: created.id, kind: "CREATED", toStatus: "DRAFT", actorId: user.userId, detail: enquiryId ? { enquiryId } : undefined } });
     const { resumeKeyHash: _key, ...data } = created;
