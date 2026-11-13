@@ -5,9 +5,17 @@ import { runUnscoped } from "@/lib/db/tenant-context";
 import { normalizeUserRole } from "@/lib/roles";
 import type { AuthUser } from "@/lib/auth";
 import { INSTITUTION_KIND_SCHOOL_SELECT, resolveInstitutionKind } from "./institution-server";
+import { principalCache, type PrincipalClaims } from "./principal-cache";
 
-/** A signed identity is only a lookup key. Never authorize from stale claims. */
-export async function resolveCurrentPrincipal(claims: { userId: string; schoolId: string; role?: unknown; accessVersion?: unknown; mfaVerified?: unknown }): Promise<AuthUser | null> {
+/**
+ * A signed identity is only a lookup key. Never authorize from stale claims.
+ * Served from the principal cache when PRINCIPAL_CACHE=on; every write to the rows it reads invalidates it.
+ */
+export function resolveCurrentPrincipal(claims: PrincipalClaims): Promise<AuthUser | null> {
+  return principalCache().resolve(claims, () => loadCurrentPrincipal(claims));
+}
+
+async function loadCurrentPrincipal(claims: PrincipalClaims): Promise<AuthUser | null> {
   const account = await runUnscoped("authenticate exact signed account and school", () => prisma.user.findFirst({
     where: { id: claims.userId, schoolId: claims.schoolId, isActive: true },
     select: { mfaEnabled: true, isInstitutionOwner: true, canPurchaseSubscription: true, canManageMemberships: true, accessVersion: true, id: true, schoolId: true, campusId: true, role: true, email: true, fullName: true, onboardingComplete: true,
