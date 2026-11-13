@@ -13,6 +13,7 @@ import {
 import { GLOBAL_MODELS, TENANT_MODELS } from "./tenant-models";
 import { pooledDatabaseUrl } from "./pool-url";
 import { auditTrail, withTransactionAudit } from "./audit-trail";
+import { invalidationTargets, principalCache } from "@/lib/auth/principal-cache";
 
 // ─────────────────────────────────────────────────────────────────
 // Tenant guard
@@ -475,8 +476,26 @@ const prismaClientSingleton = () => {
   })
     .$extends(tenantGuard())
     // SKAI-1162: one audit row per create/update/delete, written through the guarded client.
-    .$extends(auditTrail());
+    .$extends(auditTrail())
+    // Scale §3.2: a write to the rows a principal is built from invalidates the principal cache.
+    .$extends(principalCacheInvalidation());
 };
+
+function principalCacheInvalidation() {
+  return Prisma.defineExtension({
+    name: "principal-cache-invalidation",
+    query: {
+      $allModels: {
+        async $allOperations({ model, operation, args, query }) {
+          const result = await query(args);
+          const targets = invalidationTargets(model, operation, args as Parameters<typeof invalidationTargets>[2], getTenantContext()?.schoolId || undefined);
+          if (targets) await principalCache().invalidate(targets);
+          return result;
+        },
+      },
+    },
+  });
+}
 
 declare global {
   var prisma: undefined | ReturnType<typeof prismaClientSingleton>;
