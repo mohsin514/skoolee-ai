@@ -68,6 +68,8 @@ interface GroupedDay {
  * - Download: the panel offers "Download" (CSV of the chosen exam's papers) beside Print. A host that puts
  *   "Download date sheet" in its PageHeader passes `downloadRequest` (each new number downloads once; the panel then
  *   drops its own Download button) and reads `onDownloadState(available)` to enable its button.
+ * - `weekends`: a host that already loaded the campus calendar passes its off days, so the panel does not fetch
+ *   /api/academic/calendar a second time (SKAI-1934).
  * - Load failures (the exam list or one exam's papers) are an inline ErrorState with Retry, never a toast (R4).
  */
 export function ExamDateSheet({
@@ -77,6 +79,7 @@ export function ExamDateSheet({
   campusId,
   downloadRequest,
   onDownloadState,
+  weekends: hostWeekends,
 }: {
   classId?: string;
   studentId?: string;
@@ -84,6 +87,7 @@ export function ExamDateSheet({
   campusId?: string;
   downloadRequest?: number;
   onDownloadState?: (available: boolean) => void;
+  weekends?: number[];
 }) {
   const ui = useUiText();
   const { language } = useLocale();
@@ -94,7 +98,9 @@ export function ExamDateSheet({
   const [schedules, setSchedules] = useState<Record<string, PaperRow[]>>({});
   const [selectedExamId, setSelectedExamId] = useState("");
   const [classFilter, setClassFilter] = useState("");
-  const [weekends, setWeekends] = useState<number[]>([]);
+  const [loadedWeekends, setWeekends] = useState<number[]>([]);
+  const weekends = hostWeekends ?? loadedWeekends;
+  const ownCalendar = hostWeekends === undefined;
   const [loading, setLoading] = useState(true);
   const [loadingExam, setLoadingExam] = useState<string | null>(null);
   // The exam whose papers failed to load (inline ErrorState + Retry); a retry bumps `sheetAttempt`.
@@ -122,7 +128,7 @@ export function ExamDateSheet({
       } else {
         const [exRes, calRes] = await Promise.all([
           fetch(`/api/exams${examsQuery}`),
-          fetch(`/api/academic/calendar${qp}`).catch(() => null),
+          ownCalendar ? fetch(`/api/academic/calendar${qp}`).catch(() => null) : Promise.resolve(null),
         ]);
         const [exJson, calJson] = await Promise.all([
           exRes.json(),
@@ -139,7 +145,7 @@ export function ExamDateSheet({
     } finally {
       setLoading(false);
     }
-  }, [token, classId, qp, examsQuery]);
+  }, [token, classId, qp, examsQuery, ownCalendar]);
 
   useEffect(() => { load(); }, [load]);
 

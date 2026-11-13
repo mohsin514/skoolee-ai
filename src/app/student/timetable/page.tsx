@@ -85,7 +85,8 @@ export default function StudentTimetablePage() {
         )}
         {/* SKO-505: paper and online sittings in one list, the next one with a countdown. */}
         <MyNextPaper source="/api/student/exam-timeline" examHref={id => `/ai/exams/${encodeURIComponent(id)}`} />
-        <ExamDateSheet classId={data?.classId} />
+        {/* SKAI-1934: the page already loaded the calendar, so the date sheet reuses its off days. */}
+        <ExamDateSheet classId={data?.classId} weekends={weekendDays} />
       </div>
     </StudentPage>
   );
