@@ -9,7 +9,7 @@ const src = (path: string) => pathToFileURL(join(__dirname, "..", "..", "src", p
 class ApiError extends Error { constructor(message: string, public status: number) { super(message); } }
 mock.module(src("lib/api/scope.ts"), { namedExports: { ApiError } });
 
-let actOnAssessment: typeof import("../../src/lib/admissions/assessments").actOnAssessment, moveOnWaitlist: typeof import("../../src/lib/admissions/assessments").moveOnWaitlist;
+let actOnAssessment: (...args: Parameters<typeof import("../../src/lib/admissions/assessments").actOnAssessment>) => Promise<any>, moveOnWaitlist: typeof import("../../src/lib/admissions/assessments").moveOnWaitlist;
 let bookOfferedSlot: typeof import("../../src/lib/admissions/assessments").bookOfferedSlot;
 let nextWaitlistRank: typeof import("../../src/lib/admissions/assessments").nextWaitlistRank, offerDeadline: typeof import("../../src/lib/admissions/assessments").offerDeadline, offerLapsed: typeof import("../../src/lib/admissions/assessments").offerLapsed;
 before(async () => ({ bookOfferedSlot, actOnAssessment, moveOnWaitlist, nextWaitlistRank, offerDeadline, offerLapsed } = await import("../../src/lib/admissions/assessments")));
@@ -171,7 +171,7 @@ test("offer-slots validates the list and caps open offers", async () => {
   await assert.rejects(actOnAssessment(ctx(app("UNDER_REVIEW")), "offer-slots", { kind: "TOUR", slots: [{ scheduledAt: t(8) }, { scheduledAt: t(9) }] }), { status: 409 });
   const [first] = db.admissionAssessment.rows;
   await assert.rejects(actOnAssessment(ctx(app("UNDER_REVIEW")), "record-assessment", { assessmentId: first.id, recommendation: "RECOMMEND" }), { status: 409 });
-  assert.equal((await actOnAssessment(ctx(app("UNDER_REVIEW"), "No longer free"), "cancel-assessment", { assessmentId: first.id })).status, "CANCELLED");
+  assert.equal(((await actOnAssessment(ctx(app("UNDER_REVIEW"), "No longer free"), "cancel-assessment", { assessmentId: first.id })) as Row).status, "CANCELLED");
 });
 
 test("a family cannot book another school's slot, a slot taken meanwhile, or after the decision", async () => {
@@ -180,7 +180,7 @@ test("a family cannot book another school's slot, a slot taken meanwhile, or aft
   await assert.rejects(bookOfferedSlot(db as never, app("UNDER_REVIEW"), "foreign"), { status: 404 });
   const [slot] = await actOnAssessment(ctx(app("UNDER_REVIEW")), "offer-slots", { kind: "INTERVIEW", slots: [{ scheduledAt: when, staffId: "t-1" }] }) as Row[];
   await assert.rejects(bookOfferedSlot(db as never, app("REJECTED"), slot.id), { status: 409 });
-  await actOnAssessment(ctx({ ...app("UNDER_REVIEW"), id: "app-2" } as never), "schedule-assessment", { kind: "INTERVIEW", scheduledAt: when, staffId: "t-1" });
+  await actOnAssessment(ctx({ ...(app("UNDER_REVIEW") as object), id: "app-2" } as never), "schedule-assessment", { kind: "INTERVIEW", scheduledAt: when, staffId: "t-1" });
   await assert.rejects(bookOfferedSlot(db as never, app("UNDER_REVIEW"), slot.id), { status: 409 });
   assert.equal(slot.status, "OFFERED");
 });
