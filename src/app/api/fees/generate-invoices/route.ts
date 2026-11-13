@@ -58,9 +58,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (students.length === 0) {
-      throw new ApiError("No active students found for this class/campus", 404);
-    }
+    // SKAI-1946: nobody to bill is an empty result, not a missing resource, so it answers 200 with a zero count.
+    if (students.length === 0) return null;
 
     const existingInvoices = await existingMonthlyStudentInvoices(tx, user.schoolId, campusId, students.map(student => student.id), invoiceDate, nextMonth);
     if (existingInvoices.length > 0) {
@@ -259,6 +258,9 @@ export async function POST(req: NextRequest) {
 
     return { generated, errors, totalStudents: students.length, className: students[0]?.class?.name };
     });
+    if (!committed) {
+      return Response.json({ success: false, error: "No active students found for this class/campus", totalStudents: 0, generated: 0, errors: [] });
+    }
     const { generated, errors } = committed;
     const status = invoiceBatchStatus(generated, errors.length);
     if (status !== 201) {
