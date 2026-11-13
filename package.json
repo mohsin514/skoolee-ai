@@ -96,7 +96,7 @@
     "test:fee-campus-summary": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/campus-summary-by-class.test.ts",
     "test:fee-campus-summary-db": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/fees/campus-summary-by-class.database.test.ts",
     "test:fee-collection-report-db": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/fees/report-collection-sql.database.test.ts",
-    "test:fee-due": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/next-due.test.ts",
+    "test:fee-due": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/next-due.test.ts tests/fees/remind-separation.test.ts",
     "test:profit-report-sources": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/profit-report-sources.test.ts",
     "test:fee-defaulters": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/report-defaulters.test.ts",
     "test:password-reset": "node --import tsx --test tests/password-reset/*.test.ts",
