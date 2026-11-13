@@ -115,6 +115,15 @@ export function isLaunchTask(search: string, hash = "") {
   );
 }
 
+/**
+ * The visit the automatic welcome check belongs to: the ?view= being shown and whether it is a deep-linked task. List
+ * filters and search boxes write their state to the URL on every keystroke (sq=, ledger.*, library.search=, ...); they
+ * do not change the visit, so they never re-check the welcome.
+ */
+export function welcomeVisitKey(search: string) {
+  return `${new URLSearchParams(search).getAll("view").join(",")}|${isLaunchTask(search) ? "task" : "entry"}`;
+}
+
 /** Family and operational staff accounts never belong in institution creation. */
 export function requiredOnboardingPath(role: string, complete: boolean): string | null {
   if (complete) return null;

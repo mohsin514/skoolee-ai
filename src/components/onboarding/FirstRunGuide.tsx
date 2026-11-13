@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AI_SETUP_HREF, campusTaskHref, opensWelcomeAutomatically, isLaunchTask, START_CAMPUS_SETUP_EVENT } from "@/lib/onboarding/launch-plan";
+import { AI_SETUP_HREF, campusTaskHref, opensWelcomeAutomatically, isLaunchTask, START_CAMPUS_SETUP_EVENT, welcomeVisitKey } from "@/lib/onboarding/launch-plan";
 // The dependency-free tours module only: event names and the hand-off key, never the tour engine or its catalogs.
 import { REPLAY_WELCOME_EVENT, TOUR_STATE_EVENT, WELCOME_FINISHED_EVENT, pendingStartKey } from "@/lib/onboarding/tours/types";
 import type { Language } from "@/lib/locale/package";
@@ -67,6 +67,9 @@ export function FirstRunGuide() {
   const pathname = usePathname();
   const router = useRouter();
   const search = useSearchParams().toString();
+  // Only ?view= and the deep-link check re-run the automatic welcome, never a list filter or search box (SKAI-1925).
+  const visit = welcomeVisitKey(search);
+  const deepLinked = isLaunchTask(search);
   const [context, setContext] = useState<LaunchContext | null>(null);
   const [open, setOpen] = useState(false);
   const generation = useRef(0);
@@ -93,7 +96,7 @@ export function FirstRunGuide() {
     setOpen(false); setContext(null);
     if (!enabled) return () => controller.abort();
     // Deep links lead straight to their task. Replay remains available from Help afterwards.
-    const directTask = isLaunchTask(search, window.location.hash);
+    const directTask = deepLinked || isLaunchTask("", window.location.hash);
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]);
     void loadWelcome(signal).then(({ context: next }) => {
       if (sequence !== generation.current || controller.signal.aborted || replaying.current) return;
@@ -104,7 +107,7 @@ export function FirstRunGuide() {
       // An automatic welcome that cannot load stays out of the way; Help → Replay welcome retries and explains.
     });
     return () => controller.abort();
-  }, [pathname, enabled, search]);
+  }, [pathname, enabled, visit, deepLinked]);
 
   const replay = useCallback(async () => {
     // One replay at a time. An automatic request still in flight (every ?view= switch starts one) is superseded, not
