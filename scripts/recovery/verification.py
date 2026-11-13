@@ -8,7 +8,7 @@ REQUIRED_CHECKS = {
     'redacted-environment-preflight',
     'published-artifact-bytes-and-reference-restored', 'post-restore-job-retry-and-tenant-load-smoke',
     'clean-provisioning-and-schema-drift', 'populated-schema-push-adoption-and-upgrade',
-    'additive-migration-tables-initially-empty', 'enrollment-backfill-complete',
+    'additive-migration-tables-initially-empty', 'enrollment-backfill-complete', 'academic-year-backfill-complete',
     'backup-artifact-checksum', 'all-record-counts-and-content-hashes',
     'migration-ledger-restored', 'schema-security-catalog-restored',
     'invoice-balance-and-grade', 'tenant-ownership-reconciled',

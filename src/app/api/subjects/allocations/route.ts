@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
-import { ApiError, canManageAcademics, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, canManageAcademics, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { planTeacherAllocations } from "@/lib/api/teacher-assignments";
 import { parseAllocations } from "@/lib/academic/teacher-allocation";
 import { notify } from "@/lib/notifications/in-app";
 import { parseBody } from "@/lib/api/validate";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKAI-150: bulk teacher allocation for one campus.
@@ -27,8 +28,8 @@ export async function POST(req: NextRequest) {
         teacherId: subject.teacherId ?? undefined,
       });
     }
-    return Response.json({ success: true, data: { ...result, results: result.results.map(s => ({ id: s.id, teacherId: s.teacherId })) } });
+    return ok({ ...result, results: result.results.map(s => ({ id: s.id, teacherId: s.teacherId })) });
   } catch (error) {
-    return errorResponse(error, "[subjects/allocations] POST failed");
+    return failFrom(error, "[subjects/allocations] POST failed");
   }
 }

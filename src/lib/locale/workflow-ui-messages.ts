@@ -834,6 +834,9 @@ const entries: [string, string, string][] = [
   ["Record the claim owner and expiry date before approving or exporting it.", "سجّل مالك الادعاء وتاريخ انتهائه قبل اعتماده أو تصديره.", "منظوری یا برآمد سے پہلے دعوے کا ذمہ دار اور میعاد کی تاریخ درج کریں۔"],
   ["The claim has expired; review it again with a new expiry date.", "انتهت صلاحية الادعاء؛ راجعه مجددًا بتاريخ انتهاء جديد.", "دعوے کی میعاد ختم ہو گئی ہے؛ نئی تاریخ کے ساتھ دوبارہ جائزہ لیں۔"],
 ["{0} family notice(s) withheld: no current communication permission for the guardian.", "حُجب {0} إشعار للأسرة: لا توجد موافقة تواصل حالية من ولي الأمر.", "{0} خاندانی اطلاع روکا گیا: سرپرست کی موجودہ رابطہ اجازت نہیں ہے۔"],
+  ["Possible siblings already at the school (same guardian phone). Link the new pupil to their family:", "إخوة محتملون مسجلون في المدرسة (رقم ولي الأمر نفسه). اربط الطالب الجديد بأسرتهم:", "اسکول میں ممکنہ بہن بھائی (سرپرست کا ایک ہی فون)۔ نئے طالب علم کو ان کے خاندان سے جوڑیں:"],
+  ["Do not link a sibling", "لا تربط بأخ أو أخت", "کسی بہن بھائی سے نہ جوڑیں"],
+  ["Sibling of", "أخ أو أخت", "بہن بھائی"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));

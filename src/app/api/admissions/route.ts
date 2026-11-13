@@ -12,7 +12,7 @@ import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 // GET   ?document=<documentId>           → one attached file
 // GET   ?funnel=1&year=YYYY            → SKAI-1260 enquiry → application → offer → enrolled, by source
 // GET   ?owners=1 | ?classes=1           → choices for owner and intake class
-// GET   ?view=active|mine|unassigned|overdue|all&status=&q=   → pipeline with counts
+// GET   ?view=active|mine|unassigned|overdue|all&status=&q=&sort=priority   → pipeline with counts (SKAI-1261 priority order)
 // POST  {action: save-form|publish-form|open-form|start|save-answers|convert, ...}
 // PATCH {id, version, action: assign|note|review|request-info|offer|waitlist|reject|record-acceptance|record-decline|withdraw|staff-submit, ...}
 
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     if (!["active", "mine", "unassigned", "overdue", "all"].includes(view)) throw new ApiError("Unknown view", 400);
     const status = params.get("status");
     if (status && !STATUSES.includes(status)) throw new ApiError("Unknown status", 400);
-    return Response.json({ success: true, ...(await listApplications(user, campusId, { view, status, q: params.get("q") ?? "" })) });
+    return Response.json({ success: true, ...(await listApplications(user, campusId, { view, status, q: params.get("q") ?? "", sort: params.get("sort") === "priority" ? "priority" : undefined })) });
   } catch (error) {
     return errorResponse(error, "[admissions] GET failed");
   }

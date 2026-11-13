@@ -29,6 +29,14 @@ export const admissionsLifecycleUiEntries: readonly (readonly [string, string, s
   ["{0}% of applications", "{0}% من الطلبات", "درخواستوں کا {0}%"],
   ["No enquiries or applications this year.", "لا توجد استفسارات أو طلبات هذا العام.", "اس سال کوئی استفسار یا درخواست نہیں۔"],
   ["The funnel could not be loaded.", "تعذّر تحميل مسار القبول.", "مرحلہ وار جائزہ لوڈ نہیں ہو سکا۔"],
+  // SKAI-1261: priority criteria and score.
+  ["Most urgent first", "الأكثر إلحاحًا أولًا", "سب سے فوری پہلے"],
+  ["Highest priority score first", "أعلى درجة أولوية أولًا", "سب سے زیادہ ترجیحی اسکور پہلے"],
+  ["Priority {0}", "الأولوية {0}", "ترجیح {0}"],
+  ["Priority score {0}", "درجة الأولوية {0}", "ترجیحی اسکور {0}"],
+  ["No priority criteria met", "لم يُستوفَ أي معيار أولوية", "کوئی ترجیحی معیار پورا نہیں ہوا"],
+  ["Priority criteria, one per line: points | question key | answer | name (English)", "معايير الأولوية، معيار في كل سطر: النقاط | مفتاح السؤال | الإجابة | الاسم (بالإنجليزية)", "ترجیحی معیارات، ہر سطر میں ایک: پوائنٹس | سوال کی کلید | جواب | نام (انگریزی)"],
+  ["Used to rank offers, for example: 10 | hasSibling | yes | Sibling at the school", "تُستخدم لترتيب العروض، مثلًا: 10 | hasSibling | yes | أخ أو أخت في المدرسة", "پیشکشوں کی درجہ بندی کے لیے، مثلاً: 10 | hasSibling | yes | اسکول میں بہن بھائی"],
 ];
 export const arabicAdmissionsLifecycleUi: Record<string, string> = Object.fromEntries(admissionsLifecycleUiEntries.map(([key, ar]) => [key, ar]));
 export const urduAdmissionsLifecycleUi: Record<string, string> = Object.fromEntries(admissionsLifecycleUiEntries.map(([key, , ur]) => [key, ur]));
