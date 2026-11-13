@@ -22,7 +22,7 @@ for (const [file, url] of Object.entries(REGISTERS)) {
     assert.match(body, /const request = listLoad\.start\(\);\n\s+setLoading\(true\);/);
     assert.ok(body.includes(`await fetch(\`${url}\`, { cache: "no-store", signal: request.signal });`), "the list fetch carries the abort signal");
     const guard = body.indexOf("if (!request.isCurrent()) return;");
-    assert.ok(guard > 0 && guard < body.indexOf("if (!response.ok || !json.success)"), "a stale response returns before touching state");
+    assert.ok(guard > 0 && guard < body.indexOf("if (!response.ok || !isApiOk(json))"), "a stale response returns before touching state");
     assert.match(body, /catch \(failure\) \{ if \(request\.isCurrent\(\)\) setLoadError\(/);
     assert.match(body, /finally \{ if \(request\.isCurrent\(\)\) setLoading\(false\); \}/);
     assert.ok(ui.includes("useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => { clearTimeout(timer); listLoad.cancel(); }; }, [load, q, listLoad]);"), "a new query or unmount cancels the in-flight list request, keeping the 250ms debounce");
