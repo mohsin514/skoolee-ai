@@ -7,10 +7,10 @@ import {
   assertModuleRead,
   assertPermission,
   canManageFrontDesk,
-  errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { fail, failFrom, failWith, okWith } from "@/lib/api/envelope";
 import { parseBody } from "@/lib/api/validate";
 import { getSchoolTimeZone } from "@/lib/datetime";
 import { zonedInstant } from "@/lib/meetings/time";
@@ -65,14 +65,14 @@ export async function GET(request: NextRequest) {
       for (const row of data) lines.push([row.name, row.reference ?? "", row.purpose ?? "", row.toMeet ?? "", row.status, row.inTime.toISOString(), row.outTime?.toISOString() ?? "", row.phone ?? ""].map(csvCell).join(","));
       return new Response("﻿" + lines.join("\r\n") + "\r\n", { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="visitors-${date || "all"}.csv"`, "Cache-Control": "no-store" } });
     }
-    return Response.json({ success: true, data, onSite: onSite.length, overdue: onSite.filter(row => now - row.inTime.getTime() > OVERDUE_MS).length, overdueHours: OVERDUE_HOURS });
+    return okWith(data, { onSite: onSite.length, overdue: onSite.filter(row => now - row.inTime.getTime() > OVERDUE_MS).length, overdueHours: OVERDUE_HOURS });
   } catch (error) {
-    return errorResponse(error, "[front-desk] visitors GET failed");
+    return failFrom(error, "[front-desk] visitors GET failed");
   }
 }
 
 function conflict(error: unknown) {
-  if (error instanceof ApiError && "duplicates" in error) return Response.json({ error: error.message, duplicates: (error as ApiError & { duplicates: unknown }).duplicates }, { status: error.status });
+  if (error instanceof ApiError && "duplicates" in error) return failWith("CONFLICT", error.message, { duplicates: (error as ApiError & { duplicates: unknown }).duplicates }, error.status);
   return null;
 }
 
@@ -85,9 +85,9 @@ export async function POST(request: NextRequest) {
     if (body.action && body.action !== "check-in" && body.action !== "refuse") throw new ApiError("Unknown action", 400);
     const campusId = await resolveCampusId(user, body.campusId);
     const { visit, replayed } = await checkIn(user, campusId, body);
-    return Response.json({ success: true, data: visibleFields(visit), replayed }, { status: replayed ? 200 : 201 });
+    return okWith(visibleFields(visit), { replayed }, { status: replayed ? 200 : 201 });
   } catch (error) {
-    return conflict(error) ?? errorResponse(error, "[front-desk] visitors POST failed");
+    return conflict(error) ?? failFrom(error, "[front-desk] visitors POST failed");
   }
 }
 
@@ -104,12 +104,12 @@ export async function PATCH(request: NextRequest) {
       : action === "correct" ? await correctVisit(user, campusId, body)
       : null;
     if (!result) throw new ApiError("Unknown action", 400);
-    return Response.json({ success: true, data: visibleFields(result.visit), replayed: result.replayed });
+    return okWith(visibleFields(result.visit), { replayed: result.replayed });
   } catch (error) {
-    return errorResponse(error, "[front-desk] visitors PATCH failed");
+    return failFrom(error, "[front-desk] visitors PATCH failed");
   }
 }
 
 export async function DELETE() {
-  return Response.json({ error: "Visitor records are kept for safeguarding. Correct the record with a reason instead." }, { status: 405 });
+  return fail("BAD_REQUEST", "Visitor records are kept for safeguarding. Correct the record with a reason instead.", undefined, 405);
 }
