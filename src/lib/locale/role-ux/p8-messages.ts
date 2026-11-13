@@ -32,6 +32,8 @@ const P8: Record<string, readonly [ar: string, ur: string]> = {
   "The finance desk could not be loaded": ["تعذّر تحميل مكتب المالية", "شعبۂ مالیات لوڈ نہیں ہو سکا"],
   "The front desk could not be loaded": ["تعذّر تحميل مكتب الاستقبال", "استقبالیہ لوڈ نہیں ہو سکا"],
   "The library could not be loaded": ["تعذّر تحميل المكتبة", "لائبریری لوڈ نہیں ہو سکی"],
+  "No campus assigned yet": ["لم يُخصَّص لك فرع بعد", "ابھی آپ کو کوئی کیمپس نہیں دیا گیا"],
+  "Ask your school administrator to assign you to a campus. Your workspace opens as soon as they do.": ["اطلب من مسؤول المدرسة أن يخصّص لك فرعًا. ستُفتح مساحة عملك فور قيامه بذلك.", "اپنے اسکول کے ایڈمنسٹریٹر سے کہیں کہ آپ کو کسی کیمپس پر مقرر کریں۔ جیسے ہی وہ ایسا کریں گے، آپ کا ورک اسپیس کھل جائے گا۔"],
   "Your work is safe. Check your connection and try again.": ["عملك محفوظ. تحقّق من اتصالك وحاول مجددًا.", "آپ کا کام محفوظ ہے۔ اپنا کنکشن جانچیں اور دوبارہ کوشش کریں۔"],
   "More actions": ["إجراءات أخرى", "مزید اقدامات"],
 

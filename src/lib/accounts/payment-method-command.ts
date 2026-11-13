@@ -18,7 +18,7 @@ export async function createPaymentMethod(user: AuthUser, body: Record<string, u
 
   return prisma.$transaction(async (tx) => {
     const created = await tx.paymentMethodRef.create({
-      data: { campusId, name, isActive: body.isActive !== false },
+      data: { schoolId: user.schoolId, campusId, name, isActive: body.isActive !== false },
     });
     await writeAuditEvent(tx, user, {
       table: "payment_method_refs", recordId: created.id, action: "CREATE", campusId: created.campusId,

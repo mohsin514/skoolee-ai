@@ -44,6 +44,7 @@ import {
 import { endSession } from "@/lib/auth/session-revocation";
 import { clientIp } from "@/lib/http/client-ip";
 import { ApiError, errorResponse } from "@/lib/api/scope";
+import { isDatabaseUnavailable } from "@/lib/db/availability";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -198,6 +199,8 @@ async function handleLogin(req: NextRequest) {
   } catch (error) {
     // Input rejected by the validation boundary keeps its 4xx instead of a generic 500.
     if (error instanceof ApiError) return errorResponse(error);
+    // A database outage is "try again", not a failed sign-in.
+    if (isDatabaseUnavailable(error)) return errorResponse(error, "Login failed");
     console.error("[auth/login]", error);
     return Response.json({ error: "Login failed" }, { status: 500 });
   }

@@ -12,6 +12,7 @@ import { candidateExamUrl } from "@/lib/school-ai/exam-boundary";
 import { loadPermissionMap } from "@/lib/permissions";
 import { draftAuthorizationFingerprint } from "@/lib/drafts/scope";
 import { getDisplayLocale } from "@/lib/locale/display";
+import { isDatabaseUnavailable, ServiceUnavailableError } from "@/lib/db/availability";
 
 const noStore = { "Cache-Control": "private, no-store" };
 
@@ -87,6 +88,9 @@ export async function GET() {
       },
     }, { headers: noStore });
   } catch (error) {
+    if (error instanceof ServiceUnavailableError || isDatabaseUnavailable(error)) {
+      return NextResponse.json({ error: "The service is busy. Please try again in a moment.", code: "SERVICE_UNAVAILABLE" }, { status: 503, headers: { ...noStore, "Retry-After": "5" } });
+    }
     console.error("[auth/session] GET failed", error);
     return NextResponse.json({ error: "Operation failed" }, { status: 500, headers: noStore });
   }

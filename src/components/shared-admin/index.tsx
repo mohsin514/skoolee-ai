@@ -2746,6 +2746,8 @@ export function TeacherDetailModal({
   const [staff, setStaff] = useState<any>(null);
   const [staffDocs, setStaffDocs] = useState<any[]>([]);
   const [staffTimeline, setStaffTimeline] = useState<any[]>([]);
+  const [timelineCursor, setTimelineCursor] = useState<string | null>(null);
+  const [timelineMore, setTimelineMore] = useState<"idle" | "loading" | "failed">("idle");
   const [editStaff, setEditStaff] = useState(false);
   const [staffForm, setStaffForm] = useState<Record<string, string>>({});
   const [staffSaving, setStaffSaving] = useState(false);
@@ -2769,6 +2771,7 @@ export function TeacherDetailModal({
       setStaff(json.data);
       setStaffDocs(json.data.staffDocuments || []);
       setStaffTimeline(json.data.staffTimelineEvents || []);
+      setTimelineCursor(json.data.staffTimelineNextCursor ?? null);
       setStaffRecordsState("loaded");
     } catch {
       setStaffRecordsState("failed");
@@ -2778,6 +2781,22 @@ export function TeacherDetailModal({
   useEffect(() => {
     loadStaffRecords();
   }, [loadStaffRecords]);
+
+  // SKAI-130: older timeline pages; a failed page keeps what is shown and offers Retry.
+  const loadOlderTimeline = async () => {
+    if (!timelineCursor || timelineMore === "loading") return;
+    setTimelineMore("loading");
+    try {
+      const res = await fetch(`/api/staff/profile?userId=${encodeURIComponent(teacher.id)}&timelineCursor=${encodeURIComponent(timelineCursor)}`);
+      const json = await res.json();
+      if (!res.ok || !isApiOk(json)) { setTimelineMore("failed"); return; }
+      setStaffTimeline((prev) => [...prev, ...(json.data.staffTimelineEvents || []).filter((e: any) => !prev.some((p) => p.id === e.id))]);
+      setTimelineCursor(json.data.staffTimelineNextCursor ?? null);
+      setTimelineMore("idle");
+    } catch {
+      setTimelineMore("failed");
+    }
+  };
 
   const openStaffEditor = () => {
     const p = staff?.staffProfile || {};
@@ -3445,10 +3464,16 @@ export function TeacherDetailModal({
                         <p className="text-xs font-bold text-ink-strong">{event.title}</p>
                         {event.detail ? <p className="mt-0.5 text-2xs font-semibold text-ink-muted">{event.detail}</p> : null}
                         <p className="mt-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{formatStaffDate(event.createdAt)}</p>
+                        <p className="mt-0.5 text-2xs font-semibold text-ink-muted">{ui("By")} {event.actorName || ui("Unknown user")}</p>
                       </div>
                     </div>
                   ))
                 )}
+                {timelineCursor ? (
+                  <button type="button" onClick={loadOlderTimeline} disabled={timelineMore === "loading"} className="w-full rounded-2xl border border-edge/20 px-4 py-2 text-xs font-bold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60">
+                    {timelineMore === "loading" ? ui("Loading…") : timelineMore === "failed" ? ui("Could not load older events. Retry") : ui("Load older events")}
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>
