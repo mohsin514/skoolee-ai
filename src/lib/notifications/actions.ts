@@ -5,6 +5,7 @@ import { moduleFlags } from "@/lib/permissions";
 import { accessibleConversationIds, requireMembership } from "@/lib/chat/membership";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { notificationHref, type NotificationLinkContext } from "@/lib/notifications/links";
+import { mergeLatestActivity, olderThanCursor } from "@/lib/notifications/inbox-pages";
 
 // SKO-416: notifications point at a source record. Reading one is attention only; an ACTION is resolved
 // when its source changes (a leave request is decided or cancelled), never by reading or "mark all read".
@@ -181,7 +182,19 @@ export async function listInbox(user: AuthUser, options: { view: InboxView; stat
     ...(options.view === "actions" && options.status === "open" ? { resolvedAt: null } : options.view === "actions" && options.status === "resolved" ? { resolvedAt: { not: null } } : {}),
     ...(options.unreadOnly ? { isRead: false } : {}),
   };
-  const rows = await prisma.notification.findMany({ where, orderBy: [{ lastRemindedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }], take: options.limit + 1, ...(options.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}), select });
+  // SKAI-1940: order by latest activity (lastRemindedAt ?? createdAt), id descending, so a reminded row never jumps
+  // ahead of newer rows. The cursor is still a row id; the next page is every row after it in that order. NULLS LAST
+  // is a no-op under the NOT NULL filter but lets the reminded stream use the SKAI-1885 inbox index.
+  const cursor = options.cursor
+    ? await prisma.notification.findFirst({ where: { id: options.cursor, userId: user.userId }, select: { id: true, createdAt: true, lastRemindedAt: true } })
+    : null;
+  if (options.cursor && !cursor) return { items: [], nextCursor: null };
+  const take = options.limit + 1;
+  const [reminded, plain] = await Promise.all([
+    prisma.notification.findMany({ where: { AND: [where, { lastRemindedAt: { not: null } }, ...(cursor ? [olderThanCursor("lastRemindedAt", cursor)] : [])] }, orderBy: [{ lastRemindedAt: { sort: "desc", nulls: "last" } }, { id: "desc" }], take, select }),
+    prisma.notification.findMany({ where: { AND: [where, { lastRemindedAt: null }, ...(cursor ? [olderThanCursor("createdAt", cursor)] : [])] }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take, select }),
+  ]);
+  const rows = mergeLatestActivity(reminded, plain, take);
   const page = rows.slice(0, options.limit);
   const now = Date.now();
   const lookup = sourceLookup(user, page, prisma, { batchChat: true });
