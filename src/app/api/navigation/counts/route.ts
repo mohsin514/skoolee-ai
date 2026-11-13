@@ -3,6 +3,9 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requireAuthUser, requirePlatformOwner } from "@/lib/api/scope";
 import { isInstitutionAuthority, kindFor } from "@/lib/auth/institution";
 import { collectSources } from "@/lib/principal/queue";
+import { createTtlMemo } from "@/lib/cache/ttl-memo";
+
+const badgeCounts = createTtlMemo({ ttlMs: 60_000 });
 
 /**
  * Sidebar badges (§1.4). Never part of /api/navigation/access, which must stay boolean.
@@ -76,7 +79,15 @@ async function queueFor(user: AuthUser) {
 export async function GET() {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    const [{ approvals, breakdown }, queue] = await Promise.all([approvalsFor(user), queueFor(user)]);
+    // Scale: the badge rebuilds the whole action queue (~35 queries). Badges are display only — the queue page stays
+    // live — so the numbers are shared per user scope for 60 s per instance.
+    const { approvals, breakdown, queue } = await badgeCounts.get(
+      JSON.stringify([user.userId, user.schoolId, user.campusId ?? null, user.role, user.accessVersion ?? 0]),
+      async () => {
+        const [{ approvals, breakdown }, queue] = await Promise.all([approvalsFor(user), queueFor(user)]);
+        return { approvals, breakdown, queue };
+      },
+    );
     return Response.json({ counts: { approvals, queue }, ...(breakdown ? { approvalBreakdown: breakdown } : {}) }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return errorResponse(error, "Could not load workspace counts.");

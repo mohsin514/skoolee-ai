@@ -14,6 +14,7 @@
 // Node process.
 // ─────────────────────────────────────────────────────────────────
 import { cache } from "react";
+import { sessionRowsForRequest } from "@/lib/auth/request-auth";
 
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
@@ -98,8 +99,11 @@ export async function checkRevocationStrict(
  * call would repeat the same lookup. Outside a request scope it degrades to
  * simply not memoising, which is correct rather than fatal.
  */
+/** One session-row read per request, shared by the lenient and the strict check. */
+const lookupSessionRowsOnce: SessionLookup = (tokenHash) => sessionRowsForRequest(tokenHash, lookupSessionRows);
+
 export const isSessionRevoked = cache(
-  async (tokenHash: string): Promise<boolean> => checkRevocation(tokenHash)
+  async (tokenHash: string): Promise<boolean> => checkRevocation(tokenHash, lookupSessionRowsOnce)
 );
 
 /**
@@ -107,7 +111,14 @@ export const isSessionRevoked = cache(
  * (checkRevocationStrict). getAuthUser uses it so a database outage answers 503, not "signed out".
  */
 export const isSessionRevokedStrict = cache(
-  async (tokenHash: string): Promise<boolean> => checkRevocationStrict(tokenHash)
+  async (tokenHash: string): Promise<boolean> => {
+    try {
+      return decideRevocation(await lookupSessionRowsOnce(tokenHash));
+    } catch {
+      // The shared read failed; one fresh retry absorbs a cold connection (checkRevocationStrict semantics).
+      return decideRevocation(await lookupSessionRows(tokenHash));
+    }
+  }
 );
 
 /**

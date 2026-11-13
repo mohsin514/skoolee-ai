@@ -10,7 +10,16 @@
  * the target degrades. Credentials are never printed. Report: test-results/load/<run>.{json,md}; exit 1 on FAIL.
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { assertAllowedTarget, checkVirtualUsers, journeyFor, label, report, shouldAbort, type Sample } from "./load-core";
+import { assertAllowedTarget, checkVirtualUsers, label, pageViewFor, report, shouldAbort, type Sample } from "./load-core";
+import { ROLE_JOURNEYS } from "./role-journeys";
+
+// Node 24's bundled undici can throw `setTypeOfService EINVAL` from inside its socket handling on macOS when a socket is
+// already closing; under thousands of concurrent requests that otherwise kills the run. Only that error is ignored.
+process.on("uncaughtException", (error: NodeJS.ErrnoException) => {
+  if (error?.syscall === "setTypeOfService") return;
+  console.error(error);
+  process.exit(1);
+});
 
 function arg(name: string, fallback: string) {
   const i = process.argv.indexOf(`--${name}`);
@@ -23,7 +32,7 @@ checkVirtualUsers(vus, process.env.LOAD_ALLOW_HIGH === "1");
 const durationSec = Number(arg("duration", "60"));
 const rampSec = Math.min(durationSec, Number(arg("ramp", String(Math.min(30, Math.ceil(durationSec / 4))))));
 const [thinkMin, thinkMax] = arg("think", "1000-4000").split("-").map(Number);
-const roles = arg("roles", "teacher,guardian,student").split(",").map((r) => r.trim());
+const roles = arg("roles", Object.keys(ROLE_JOURNEYS).join(",")).split(",").map((r) => r.trim());
 const credentialsFile = arg("credentials", process.env.LOAD_CREDENTIALS_FILE ?? "qa-credentials.json");
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -40,7 +49,20 @@ async function signIn(account: Account): Promise<Session | null> {
     body: JSON.stringify({ email: account.email, password: account.password }),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
-  const cookie = res.headers.getSetCookie().find((c) => c.startsWith("skoolee_token="))?.split(";")[0];
+  const body = (await res.json().catch(() => ({}))) as { mfaRequired?: boolean };
+  const jar = res.headers.getSetCookie().map((c) => c.split(";")[0]);
+  if (res.ok && body.mfaRequired) {
+    // Privileged synthetic accounts sign in like a person choosing "Do it later" (only possible before enrolling).
+    const ticket = jar.find((c) => c.startsWith("skoolee-mfa="));
+    if (!ticket) return null;
+    const deferred = await fetch(`${target}/api/auth/mfa`, {
+      method: "POST", headers: { "content-type": "application/json", origin: target, cookie: ticket },
+      body: JSON.stringify({ action: "defer" }), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    const cookie = deferred.headers.getSetCookie().map((c) => c.split(";")[0]).find((c) => c.startsWith("skoolee_token="));
+    return deferred.ok && cookie ? { role: account.role, cookie } : null;
+  }
+  const cookie = jar.find((c) => c.startsWith("skoolee_token="));
   return res.ok && cookie ? { role: account.role, cookie } : null;
 }
 
@@ -61,6 +83,8 @@ async function main() {
   console.log(`signed in ${sessions.length} accounts${skipped.length ? `, skipped ${skipped.join(", ")}` : ""}; ramping ${vus} virtual users over ${rampSec}s`);
 
   const samples: Sample[] = [];
+  /** 503 answers by the server's x-db-unavailable reason (SKAI-1948). */
+  const unavailable = new Map<string, number>();
   const startedAt = new Date().toISOString();
   const deadline = Date.now() + durationSec * 1000;
   let aborted: string | null = null;
@@ -68,20 +92,24 @@ async function main() {
   async function virtualUser(index: number) {
     await sleep((rampSec * 1000 * index) / vus);
     const session = sessions[index % sessions.length];
-    const journey = journeyFor(session.role, today);
+    const view = pageViewFor(session.role, today);
+    const hit = async (path: string) => {
+      const started = performance.now();
+      let status = 0;
+      try {
+        const res = await fetch(`${target}${path}`, { headers: { cookie: session.cookie }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+        await res.arrayBuffer();
+        status = res.status;
+        if (status === 503) unavailable.set(res.headers.get("x-db-unavailable") ?? "unlabelled", (unavailable.get(res.headers.get("x-db-unavailable") ?? "unlabelled") ?? 0) + 1);
+      } catch { status = 0; }
+      samples.push({ at: Date.now(), endpoint: label(path), ms: Math.round(performance.now() - started), status });
+    };
+    // A page view as a browser makes it: the page, then the dashboard's requests together; then the person reads.
     while (Date.now() < deadline && !aborted) {
-      for (const path of journey) {
-        if (Date.now() >= deadline || aborted) return;
-        const started = performance.now();
-        let status = 0;
-        try {
-          const res = await fetch(`${target}${path}`, { headers: { cookie: session.cookie }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-          await res.arrayBuffer();
-          status = res.status;
-        } catch { status = 0; }
-        samples.push({ at: Date.now(), endpoint: label(path), ms: Math.round(performance.now() - started), status });
-        await sleep(thinkMin + Math.random() * (thinkMax - thinkMin));
-      }
+      await hit(view.home);
+      if (Date.now() >= deadline || aborted) return;
+      await Promise.all(view.apis.map(hit));
+      await sleep(thinkMin + Math.random() * (thinkMax - thinkMin));
     }
   }
 
@@ -102,7 +130,8 @@ async function main() {
   const base = `test-results/load/${startedAt.replace(/[:.]/g, "-")}`;
   writeFileSync(`${base}.json`, JSON.stringify({ meta, overall: result.overall, endpoints: result.endpoints }, null, 2));
   writeFileSync(`${base}.md`, result.markdown);
-  console.log(`\n${result.markdown}\n\nReport: ${base}.md`);
+  const reasons = [...unavailable.entries()].map(([k, v]) => `${k}×${v}`).join(" ");
+  console.log(`\n${result.markdown}\n${reasons ? `\n503 reasons: ${reasons}\n` : ""}\nReport: ${base}.md`);
   if (!result.passed) process.exitCode = 1;
 }
 

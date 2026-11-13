@@ -7,6 +7,7 @@ import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { isCampusOperator } from "@/lib/auth/institution";
 import { getCampusSeats } from "@/lib/auth/seats";
 import { endOfCalendarDayIn } from "@/lib/calendar-date";
+import { createTtlMemo } from "@/lib/cache/ttl-memo";
 
 // SKO-417: one accountable queue derived from live source conditions. Each item names its source record,
 // the deterministic trigger, the owner and the next action, and links to the workspace that resolves it.
@@ -235,8 +236,21 @@ function forSeats(campus: Awaited<ReturnType<typeof collectCampusSources>>, seat
 }
 
 /** Every currently true source condition for the campus, limited to the viewer's seats. Errors per source are reported, not hidden. */
+/**
+ * Scale: the campus feeds (~25 queries) are the same for every admin and principal of a campus with the same role
+ * (the seat slice is applied afterwards in forSeats). Shared per (school, campus, role) for 15 s per instance with the
+ * default client, so the queue page and the sidebar badge stop rebuilding them on every load; a transaction reads
+ * fresh. An item handled elsewhere can stay listed for up to 15 s.
+ */
+// Production only: tests and local dev see every change at once.
+const campusSourceMemo = createTtlMemo({ ttlMs: 15_000, maxEntries: 2_000, enabled: process.env.NODE_ENV === "production" });
+function campusSources(user: AuthUser, campusId: string, db: TxClient = prisma): ReturnType<typeof collectCampusSources> {
+  if (db !== prisma) return collectCampusSources(user, campusId, db);
+  return campusSourceMemo.get(JSON.stringify([user.schoolId, campusId, user.role]), () => collectCampusSources(user, campusId, db));
+}
+
 export async function collectSources(user: AuthUser, campusId: string, db: TxClient = prisma) {
-  const [seat, campus] = await Promise.all([queueSeats(user, campusId), collectCampusSources(user, campusId, db)]);
+  const [seat, campus] = await Promise.all([queueSeats(user, campusId), campusSources(user, campusId, db)]);
   return forSeats(campus, seat);
 }
 
@@ -250,7 +264,7 @@ function reasonFor(item: SourceItem, overdue: boolean, now: number) {
 /** Active queue plus resolved history. Items whose source condition has gone are recorded as resolved. */
 export async function loadQueue(user: AuthUser, campusId: string) {
   assertQueueAccess(user);
-  const [seat, campus] = await Promise.all([queueSeats(user, campusId), collectCampusSources(user, campusId)]);
+  const [seat, campus] = await Promise.all([queueSeats(user, campusId), campusSources(user, campusId)]);
   const { items, failed, checkedAt } = forSeats(campus, seat);
   const campusActive = new Set(campus.items.map(item => item.key));
   // SKAI-1866: read only the rows this load can use — open ones (to settle or decorate) and resolved ones whose key is

@@ -24,7 +24,10 @@ export async function getDisplayLocale(principal: DisplayPrincipal): Promise<Loc
       const user = await prisma.user.findFirst({ where: { id: userId, schoolId, isActive: true }, select: { preferredLanguage: true } });
       const personal = parseLanguage(user?.preferredLanguage);
       if (role === "APP_OWNER") return resolvePackage(defaultLocale, {}, personal);
-      return getLocalePackage(schoolId, campusId, new Date(), personal);
+      // Scale: the school/campus timeline (weekends, locale policy, timezone: 3 queries) is configuration, shared
+      // by every request in the school, so it is memoised per instance for 60 s. The personal language above is
+      // still read live, so a user's own language change applies on the next request.
+      return getLocalePackage(schoolId, campusId ?? null, new Date(), personal);
     });
   } catch {
     console.warn("[locale] display locale unavailable", { userId });
