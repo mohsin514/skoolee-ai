@@ -162,11 +162,18 @@ export function stripeStatusToSchoolStatus(status: string | null | undefined) {
   return "SUSPENDED";
 }
 
-export async function assertSchoolOperational(schoolId: string, client: DbClient = prisma) {
-  const school = await client.school.findUnique({
-    where: { id: schoolId },
-    select: { status: true, subscriptionLifecycleState: true, graceEndsAt: true },
-  });
+export async function assertSchoolOperational(
+  schoolId: string,
+  client: DbClient = prisma,
+  /** The same three columns already read with the principal in this request (scale: saves a query per request). */
+  known?: { status: string; subscriptionLifecycleState: string; graceEndsAt: string | null },
+) {
+  const school = known
+    ? { status: known.status, subscriptionLifecycleState: known.subscriptionLifecycleState, graceEndsAt: known.graceEndsAt ? new Date(known.graceEndsAt) : null }
+    : await client.school.findUnique({
+      where: { id: schoolId },
+      select: { status: true, subscriptionLifecycleState: true, graceEndsAt: true },
+    });
 
   if (!school) throw new BillingAccessError("School not found", 404);
 
