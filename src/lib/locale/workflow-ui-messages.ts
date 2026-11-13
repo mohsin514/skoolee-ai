@@ -445,6 +445,8 @@ const entries: [string, string, string][] = [
 ["All Paid", "مدفوع بالكامل", "سب ادا شدہ"],
 ["All fields required", "جميع الحقول مطلوبة", "تمام خانے ضروری ہیں"],
 ["All students already assigned.", "تم تعيين جميع الطلاب بالفعل.", "تمام طلبہ پہلے ہی شامل ہیں۔"],
+["All matching students already assigned.", "تم تعيين جميع الطلاب المطابقين بالفعل.", "تمام مماثل طلبہ پہلے ہی شامل ہیں۔"],
+["No students on this campus yet.", "لا يوجد طلاب في هذا الحرم بعد.", "اس کیمپس میں ابھی کوئی طالب علم نہیں۔"],
 ["All students are up to date on their payments.", "جميع الطلاب منتظمون في سداد المدفوعات.", "تمام طلبہ کی ادائیگیاں مکمل ہیں۔"],
 ["Already happened", "حدث سابق", "ہو چکا ہے"],
 ["Amount", "المبلغ", "رقم"],
