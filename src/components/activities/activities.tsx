@@ -10,6 +10,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Modal } from "@/components/ui/modal";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
+import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Progress } from "@/components/ui/progress";
 import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowButton, DeskRowIcon, DeskStats, RelativeTime, StatTile, urgencyFirst, type DeskTone } from "@/components/ui/desk";
@@ -29,8 +30,8 @@ type Ui = ReturnType<typeof useUiText>;
 async function call(url: string, method = "GET", body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw Object.assign(new Error(json.error || "The change was not saved."), { status: response.status });
-  return json.data;
+  if (!response.ok || !isApiOk(json)) throw Object.assign(new Error(readApiError(json, "The change was not saved.")), { status: response.status });
+  return readApiData(json, undefined);
 }
 const statusLabel = (ui: Ui, s: string) => ({ WAITLIST: ui("On the waitlist"), OFFERED: ui("Place offered"), RESERVED: ui("Place reserved · conditional"), CONFIRMED: ui("Confirmed"), DECLINED: ui("Declined"), EXPIRED: ui("Offer expired"), CANCELLED: ui("Cancelled") } as Record<string, string>)[s] ?? s;
 // A requirement that does not apply is not shown at all.
