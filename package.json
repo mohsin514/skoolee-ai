@@ -165,6 +165,7 @@
     "app:ios": "cap sync ios && cap open ios",
     "app:desktop:dev": "tauri dev",
     "app:desktop:build": "tauri build",
+    "brand:icons": "node scripts/generate-brand-icons.mjs && tauri icon public/icon-1024.png",
     "app:icons": "tauri icon public/icon-1024.png",
     "test:report-versions": "node --import ./tests/support/server-only.mjs --import tsx --test tests/report-versions/version.test.ts",
     "test:package-choice": "node --import ./tests/support/server-only.mjs --import tsx --test tests/checkout-intents/domain.test.ts && node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/checkout-intents/settlement-replay.test.mts",
