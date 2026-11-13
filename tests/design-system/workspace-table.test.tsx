@@ -81,3 +81,18 @@ test("existing render callbacks run once and supply useful fallback selection na
   assert.match(html, /aria-label="Select Example A"/);
   assert.match(html, /aria-label="Select Example B"/);
 });
+
+test("data grids follow the shell comfortable/compact control unless a screen overrides it", async () => {
+  const { WorkspacePrefsContext } = await import("../../src/components/role-dashboard/workspace-controls");
+  const columns = [{ key: "name", label: "Student", render: (row: { id: string; name: string }) => row.name }];
+  const noop = () => undefined;
+  const shell = (density: "compact" | "comfortable") => ({ focus: false, setFocus: noop, density, setDensity: noop, openShortcuts: noop });
+  const inShell = (density: "compact" | "comfortable", node: React.ReactNode) =>
+    renderToStaticMarkup(<WorkspacePrefsContext.Provider value={shell(density)}>{node}</WorkspacePrefsContext.Provider>);
+  const compact = inShell("compact", <DataTable rows={rows.slice(0, 1)} rowKey={row => row.id} columns={columns} />);
+  assert.match(compact, /px-3 py-2/);
+  const comfortable = inShell("comfortable", <DataTable rows={rows.slice(0, 1)} rowKey={row => row.id} columns={columns} />);
+  assert.match(comfortable, /px-4 py-3/);
+  const overridden = inShell("compact", <DataTable rows={rows.slice(0, 1)} rowKey={row => row.id} columns={columns} density="comfortable" />);
+  assert.match(overridden, /px-4 py-3/);
+});

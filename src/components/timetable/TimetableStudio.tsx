@@ -1,7 +1,7 @@
 "use client";
 import { InputGroup } from "@/components/ui/input-group";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -27,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { WorkspacePrefsContext } from "@/components/role-dashboard/workspace-controls";
 
 import { ConflictPanel } from "./ConflictPanel";
 import { RoomView } from "./RoomView";
@@ -664,6 +665,12 @@ export function TimetableStudio({ campusId, periodsHref, hideActions = false, co
   const [showLegend, setShowLegend] = useState(true);
   const [density, setDensity] = useState<GridDensity>("comfortable");
   const [layoutLoaded, setLayoutLoaded] = useState(false);
+  // SKAI-75: the shell's comfortable/compact control drives the grid too. Declared before the
+  // layout load below so a stored timetable density still wins on mount.
+  const shellDensity = useContext(WorkspacePrefsContext).density;
+  useEffect(() => {
+    setDensity(shellDensity === "compact" ? "compact" : "comfortable");
+  }, [shellDensity]);
 
   useEffect(() => {
     try {
