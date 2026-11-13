@@ -151,6 +151,10 @@ export async function addNote(user: AuthUser, campusId: string, teacherId: strin
   if (!teacher) throw new ApiError("Teacher not found in this campus", 404);
   // A leader records a reviewed support action; the teacher records a response. Neither is an employment decision.
   const kind = user.userId === teacherId ? "TEACHER_RESPONSE" : "SUPPORT_ACTION";
+  // SKAI-138: a retried or double-submitted identical note from the same author within 10 seconds is replayed,
+  // not appended again (notes are append-only, so a duplicate could not be removed later).
+  const recent = await prisma.teacherSupportNote.findFirst({ where: { campusId, teacherId, academicYear, authorId: user.userId, kind, body: text, createdAt: { gte: new Date(Date.now() - 10_000) } }, orderBy: { createdAt: "desc" }, select: { id: true } });
+  if (recent) return { id: recent.id, kind };
   // SKAI-1692: the audit-trail extension already writes the one audit row for this create (actor, school, note,
   // teacher, year and kind); a hand-written row on top of it logged every append twice.
   const note = await prisma.teacherSupportNote.create({ data: { schoolId: user.schoolId, campusId, teacherId, authorId: user.userId, academicYear, kind, body: text } });

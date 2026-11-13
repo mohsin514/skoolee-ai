@@ -20,3 +20,10 @@ test("SKAI-1733: last-known notes for the same teacher stay; adding waits for au
   assert.match(src, /if \(response\?\.ok && isApiOk\(json\) && Array\.isArray\(json\.data\)\) \{ lastNotes\.current = \{ teacherId, notes: json\.data \}; setNotes\(json\.data\); \}/);
   for (const key of ["Support notes could not be loaded.", "Showing the notes last loaded. Adding a note waits until the history loads.", "Adding a note waits until the history loads."]) assert.ok(arabicWorkflowUi[key] && urduWorkflowUi[key], key);
 });
+
+test("SKAI-138: a fast repeat submit cannot post the same note twice", () => {
+  const postFn = src.slice(src.indexOf("const postNote = async"), src.indexOf("const saveNote = async"));
+  assert.match(src, /const noteInFlight = useRef\(false\);/);
+  assert.match(postFn, /if \(noteInFlight\.current\) return false;/);
+  assert.match(postFn, /finally \{ noteInFlight\.current = false; \}/);
+});
