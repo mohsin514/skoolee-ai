@@ -4,7 +4,6 @@ import { invitationContext } from "@/lib/auth/invitation-context";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped, runWithTenantContext } from "@/lib/db/tenant-context";
 import { getAuthUser } from "@/lib/auth";
-import { isCampusAdminRole } from "@/lib/roles";
 import { ApiError } from "@/lib/api/scope";
 import { authRateLimit } from "@/lib/auth/rate-limit";
 import { z } from "zod";
@@ -17,6 +16,7 @@ import { notify } from "@/lib/notifications/in-app";
 import { InviteSchema } from "@/lib/staff/invitation-schema";
 import { createStaffInvitation, isCompatibleInviteRole } from "@/lib/staff/invitation-write";
 import { membershipAuthority } from "@/lib/membership-access";
+import { removeStaffMember } from "@/lib/staff/removal";
 
 
 
@@ -141,52 +141,10 @@ export async function removeStaff(userId: string) {
   if (!session || !membershipAuthority(session).canManage) {
     throw new ApiError('Forbidden', 403);
   }
-  const { authority } = membershipAuthority(session);
   await assertSchoolOperational(session.schoolId);
   if (!(await authRateLimit(`invite-admin:${session.userId}`, { limit: 20, windowMs: 300_000 })).ok) throw new ApiError("Wait five minutes before trying again", 429);
 
-  if (userId === session.userId) {
-    throw new ApiError("You can't remove your own account", 403);
-  }
-
-  const target = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, role: true, schoolId: true, campusId: true, fullName: true, isInstitutionOwner: true, canManageMemberships: true, canPurchaseSubscription: true },
-  });
-
-  if (!target || target.schoolId !== session.schoolId) {
-    throw new ApiError("Staff member not found", 404);
-  }
-
-  if (!authority && target.campusId !== session.campusId) {
-    throw new ApiError("Staff member is outside your campus", 403);
-  }
-
-  if (target.isInstitutionOwner) {
-    throw new ApiError("The account owner cannot be removed", 403);
-  }
-
-  if (!authority && (target.canManageMemberships || target.canPurchaseSubscription || isCampusAdminRole(target.role) || target.role === "PRINCIPAL" || target.role === "SUPER_ADMIN")) {
-    throw new ApiError("Only the institution administrator can remove campus leaders and delegated administrators", 403);
-  }
-  await prisma.$transaction(async tx => {
-    await tx.user.update({ where: { id: userId }, data: { isActive: false, accessVersion: { increment: 1 } } });
-    await tx.loginSession.updateMany({ where: { userId }, data: { isActive: false } });
-    await tx.auditLog.create({ data: { tableName: "membership", recordId: userId, userId: session.userId, oldValue: { isActive: true, role: target.role, campusId: target.campusId }, newValue: { isActive: false } } });
-  });
-
-  notify("STAFF_REMOVED", {
-    schoolId: session.schoolId,
-    campusId: target.campusId,
-    actorId: session.userId,
-    actorName: session.fullName,
-    staffId: target.id,
-    staffName: target.fullName,
-    // The removed person's role routes a principal/campus-admin vacancy to the institution authority (P9 staffing()).
-    roleName: target.role,
-  });
-
-  return { success: true };
+  return removeStaffMember(session, userId);
 }
 
 export async function cancelInvitation(inviteId: string) {
