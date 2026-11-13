@@ -27,6 +27,7 @@ mock.module(src("lib/api/scope.ts"), {
     },
     canManageOperations: () => false,
     canLeadAcademics: async () => false,
+    canManageAcademics: (user: User) => ["PRINCIPAL", "CAMPUS_ADMIN", "ADMIN", "SUPER_ADMIN"].includes(user.role),
     errorResponse: (error: unknown) => error instanceof ApiError ? Response.json({ error: error.message }, { status: error.status }) : Response.json({ error: String(error) }, { status: 500 }),
   },
 });
