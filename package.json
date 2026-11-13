@@ -47,6 +47,7 @@
     "test:exam-candidate-poll": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/school-ai/exam-candidate-poll.test.ts",
     "test:payroll-leave-batch": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/payroll/leave-deduction-batch.test.ts",
     "test:payroll-terminated-eligibility": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/payroll/terminated-staff-eligibility.test.ts",
+    "test:payroll-terminated-tenancy": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/payroll/terminated-staff-tenancy.database.test.ts",
     "test:exam-board-progress": "node --import ./tests/support/server-only.mjs --import tsx --test tests/exams/exam-board-server-progress.test.ts tests/exams/exam-board-progress-unavailable.test.ts",
     "test:datesheet-latest-snapshot": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/exams/datesheet-latest-snapshot.test.ts",
     "test:exam-session-list-batch": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/academic/exam-session-list-batch.test.ts",
