@@ -25,7 +25,7 @@ const raw = new PrismaClient();
 const base = CORRECTIONS_APP;
 const schoolId = randomUUID(), campusId = randomUUID(), classId = randomUUID(), studentId = randomUUID(), subjectId = randomUUID(), examId = randomUUID(), reportId = randomUUID();
 const users: Record<string, string> = {}, cookies: Record<string, string> = {}, payments: Record<string, string> = {};
-let markId = "", publishedId = "";
+let markId = "", publishedId = "", guardianRelationshipId = "";
 const scoped = <T>(fn: () => Promise<T>) => runWithTenantContext({ schoolId, campusId, userId: users.PRINCIPAL, role: "PRINCIPAL" }, fn);
 async function api(role: string, kind = "MARK", body?: unknown) { const response = await fetch(`${base}/api/corrections?kind=${kind}`, { headers: { cookie: cookies[role], "Content-Type": "application/json" }, ...(body ? { method: "POST", body: JSON.stringify(body) } : {}) }); return { status: response.status, data: await response.json() }; }
 async function request(role: string, kind: string, id: string, changes: any, overrides: any = {}) { const catalog = await api(role, kind); assert.equal(catalog.status, 200, JSON.stringify(catalog.data)); const record = catalog.data.records.items.find((r: any) => r.id === id); assert(record); const proposal = { kind, sourceId: id, expectedVersion: record.version, ...changes }; const preview = await api(role, kind, { action: "preview", proposal }); assert.equal(preview.status, 200, JSON.stringify(preview.data)); const input = { action: "request", proposal, reviewHash: preview.data.hash, reason: "PRIVATE RECONCILIATION REASON", publicExplanation: "Corrected after review", privateNote: "PRIVATE INTERNAL NOTE", ...overrides }; return { ...(await api(role, kind, input)), proposal, preview: preview.data }; }
@@ -42,6 +42,10 @@ before(async () => {
     }
     await raw.class.create({ data: { id: classId, schoolId, campusId, name: "Correction class", academicYear: 2026, classTeacherId: users.TEACHER } });
     await raw.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Synthetic pupil", rollNo: "C213", gender: "MALE", parentUserId: users.PARENT, studentUserId: users.STUDENT } });
+    // SKAI-1899: the parent reaches the pupil through a verified guardian relationship, not the legacy parentUserId link.
+    const guardian = await raw.guardianRelationship.create({ data: { schoolId, campusId, studentId, guardianUserId: users.PARENT, createdByUserId: users.CAMPUS_ADMIN, fullName: "Synthetic PARENT", email: `${users.PARENT}@example.invalid`, relationship: "Father", status: "ACTIVE", verifiedAt: new Date(), validFrom: new Date(Date.now() - 60_000) } });
+    guardianRelationshipId = guardian.id;
+    await raw.guardianAccessVersion.create({ data: { schoolId, relationshipId: guardian.id, createdByUserId: guardian.createdByUserId, reason: "Synthetic corrections fixture", effectiveFrom: new Date(Date.now() - 60_000), permissions: { learningRecords: true, attendance: true, finances: true, communication: true, pickup: false } } });
     await raw.subject.create({ data: { id: subjectId, schoolId, campusId, classId, name: "Mathematics", totalMarks: 100, teacherId: users.TEACHER } });
     await raw.exam.create({ data: { id: examId, schoolId, campusId, classId, title: "Correction exam", term: "Term 1", academicYear: 2026, status: "LOCKED", isLocked: true } });
     markId = (await raw.mark.create({ data: { schoolId, campusId, examId, studentId, subjectId, marksObtained: 80 } })).id;
@@ -156,9 +160,10 @@ test("tenant, campus and unrelated family IDs are denied", async () => {
     await raw.user.update({ where: { id: users.ACCOUNTANT }, data: { schoolId: foreignSchool.id, campusId: foreignCampus.id } });
     assert([401, 403].includes((await api("ACCOUNTANT", "PAYMENT", payload)).status));
     await raw.user.update({ where: { id: users.ACCOUNTANT }, data: { schoolId, campusId } });
-    await raw.student.update({ where: { id: studentId }, data: { parentUserId: null } });
+    // SKAI-1899: with the relationship suspended, the legacy parentUserId link (still set) grants no history.
+    await raw.guardianRelationship.update({ where: { id: guardianRelationshipId }, data: { status: "SUSPENDED" } });
     assert.equal((await api("PARENT", "PAYMENT")).data.history.length, 0);
-    await raw.student.update({ where: { id: studentId }, data: { parentUserId: users.PARENT } });
+    await raw.guardianRelationship.update({ where: { id: guardianRelationshipId }, data: { status: "ACTIVE" } });
 });
 test("one partially allocated payment reverses across both affected invoices atomically", async () => {
     const invoices = [];
