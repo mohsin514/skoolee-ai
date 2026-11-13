@@ -16,14 +16,17 @@ test("only dev and local hosts can be targeted; production is always refused", (
 test("virtual users are capped unless high load is explicitly allowed", () => {
   checkVirtualUsers(300, false);
   assert.throws(() => checkVirtualUsers(301, false), /LOAD_ALLOW_HIGH/);
-  checkVirtualUsers(2000, true);
-  assert.throws(() => checkVirtualUsers(2001, true), /capped/);
+  checkVirtualUsers(5000, true);
+  assert.throws(() => checkVirtualUsers(5001, true), /capped/);
   assert.throws(() => checkVirtualUsers(0, false), /positive/);
 });
 
 test("journeys are read-only paths and labels drop ids and queries", () => {
   const teacher = journeyFor("teacher", "2026-11-13");
   assert.ok(teacher.includes("/api/timetable/teacher"));
+  assert.equal(teacher[0], "/teacher", "a page view starts with the role's home page");
+  assert.ok(teacher.every((p) => !p.includes("{date}")), "dates are filled in");
+  for (const role of ["owner", "admin", "principal", "accountant", "guardian", "student", "noaccess", "platform-owner"]) assert.ok(journeyFor(role, "2026-11-13").length > 5, role);
   assert.ok(teacher.every((p) => p.startsWith("/")));
   assert.equal(label("/api/teacher-attendance?userId=self&date=2026-11-13"), "/api/teacher-attendance");
   assert.equal(label("/api/students/32e6d4af-86d1-4a84-8237-11d5bb4e8b10/profile"), "/api/students/:id/profile");
