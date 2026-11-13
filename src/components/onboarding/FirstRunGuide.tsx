@@ -8,6 +8,7 @@ import { AI_SETUP_HREF, campusTaskHref, opensWelcomeAutomatically, isLaunchTask,
 import { REPLAY_WELCOME_EVENT, TOUR_STATE_EVENT, WELCOME_FINISHED_EVENT, pendingStartKey } from "@/lib/onboarding/tours/types";
 import type { Language } from "@/lib/locale/package";
 import type { LaunchContext } from "./LaunchGuide";
+import { readSession } from "@/lib/client/session-read";
 
 export { REPLAY_WELCOME_EVENT, WELCOME_FINISHED_EVENT };
 
@@ -29,9 +30,9 @@ const LaunchGuide = dynamic(() => import("./LaunchGuide").then((loaded) => loade
 async function withInstitutionKind(context: LaunchContext | null, signal: AbortSignal): Promise<LaunchContext | null> {
   if (!context || context.role !== "ADMIN" || (context.institutionKind && context.billing !== undefined)) return context;
   try {
-    const response = await fetch("/api/auth/session", { cache: "no-store", signal });
-    if (!response.ok) return context;
-    const body = await response.json() as { user?: { institution?: { kind?: unknown; isAuthority?: unknown; isOwner?: unknown } } | null };
+    const response = await readSession({ signal });
+    if (!response.ok || !response.body) return context;
+    const body = response.body as { user?: { institution?: { kind?: unknown; isAuthority?: unknown; isOwner?: unknown } } | null };
     const institution = body.user?.institution;
     const kind = institution?.kind;
     if (kind !== "GROUP" && kind !== "STANDALONE") return context;

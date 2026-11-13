@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { readSession } from "@/lib/client/session-read";
 
 const eventName = "skoolee:exam-session-changed";
 const channelName = "skoolee-exam-session";
@@ -32,9 +33,11 @@ export function CandidateExamGuard({ children }: { children: ReactNode }) {
     const path = window.location.pathname;
     setChecking(true); setLocale(document.documentElement.lang);
     try {
-      const response = await fetch("/api/auth/session", { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]) });
+      // SKAI-1900: shares the page's session read; this guard's own abort and 10 s timeout still apply.
+      const response = await readSession({ signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]) });
       if (!response.ok && response.status !== 401) return;
-      const data = await response.json();
+      const data = response.body as { activeExamUrl?: unknown; user?: { role?: unknown } | null } | null;
+      if (!data) return;
       if (!mounted.current || controller.signal.aborted) return;
       const next = examPath(data.activeExamUrl) ? data.activeExamUrl : null;
       setCandidate(data.user?.role === "STUDENT"); setActiveExamUrl(next); setCheckedPath(path);
