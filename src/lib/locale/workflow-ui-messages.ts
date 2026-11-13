@@ -839,6 +839,8 @@ const entries: [string, string, string][] = [
   ["Possible siblings already at the school (same guardian phone). Link the new pupil to their family:", "إخوة محتملون مسجلون في المدرسة (رقم ولي الأمر نفسه). اربط الطالب الجديد بأسرتهم:", "اسکول میں ممکنہ بہن بھائی (سرپرست کا ایک ہی فون)۔ نئے طالب علم کو ان کے خاندان سے جوڑیں:"],
   ["Do not link a sibling", "لا تربط بأخ أو أخت", "کسی بہن بھائی سے نہ جوڑیں"],
   ["Sibling of", "أخ أو أخت", "بہن بھائی"],
+  ["No matching conversations", "لا توجد محادثات مطابقة", "کوئی مماثل گفتگو نہیں"],
+  ["Try a different name or word.", "جرّب اسمًا أو كلمة أخرى.", "کوئی دوسرا نام یا لفظ آزمائیں۔"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));
