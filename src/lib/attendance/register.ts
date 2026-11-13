@@ -3,6 +3,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, assertPermission, canMarkAttendance, canManageOperations } from "@/lib/api/scope";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
+import { getLocalePackage } from "@/lib/locale/store";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { guardianHasAccess } from "@/lib/parent/guardian-access";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
@@ -238,20 +239,31 @@ export async function reviewExplanation(user: AuthUser, body: Record<string, unk
   return outcome.explanation;
 }
 
-/** Work that needs a person: open registers with unmarked pupils, unexplained absences and explanations to decide. */
+/**
+ * Work that needs a person: open registers with unmarked pupils, unexplained absences and explanations to decide.
+ * SKAI-1931: "not submitted" also counts today's classes (on a school day) whose register was never started and that
+ * have no attendance recorded, the same condition the principal's "Attendance not submitted" item uses.
+ */
 export async function exceptionQueue(user: AuthUser, campusId: string, todayText: string) {
   if (!canMarkAttendance(user)) throw new ApiError("You cannot view attendance exceptions.", 403);
   const today = dayDate(todayText), since = new Date(today.getTime() - 14 * 86_400_000);
-  const classFilter: Prisma.AttendanceWhereInput = user.role === "TEACHER" ? { class: { OR: [{ classTeacherId: user.userId }, { subjects: { some: { teacherId: user.userId } } }] } } : {};
-  const [absences, explanations, openRegisters] = await Promise.all([
+  const teacherClasses: Prisma.ClassWhereInput = user.role === "TEACHER" ? { OR: [{ classTeacherId: user.userId }, { subjects: { some: { teacherId: user.userId } } }] } : {};
+  const classFilter: Prisma.AttendanceWhereInput = user.role === "TEACHER" ? { class: teacherClasses } : {};
+  const notStartedToday = async () => {
+    if ((await getLocalePackage(user.schoolId, campusId)).weekend.includes(today.getUTCDay())) return [];
+    return prisma.class.findMany({ where: { schoolId: user.schoolId, campusId, archivedAt: null, ...teacherClasses, students: { some: { archivedAt: null } }, attendanceRegisterPlacements: { none: { date: today } }, attendance: { none: { date: today } } }, select: { id: true }, orderBy: { name: "asc" } });
+  };
+  const [absences, explanations, openRegisters, notStarted] = await Promise.all([
     prisma.attendance.findMany({ where: { schoolId: user.schoolId, campusId, status: "ABSENT", date: { gte: since, lte: today }, explanations: { none: { status: { in: ["PENDING", "CLARIFICATION", "ACCEPTED"] } } }, ...classFilter }, select: { id: true, date: true, version: true, student: { select: { id: true, fullName: true } }, class: { select: { name: true, section: true } } }, orderBy: { date: "desc" }, take: 200 }),
     prisma.attendanceExplanation.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: ["PENDING", "CLARIFICATION"] }, ...(user.role === "TEACHER" ? { attendance: classFilter } : {}) }, include: { attendance: { select: { id: true, date: true, status: true, version: true, student: { select: { fullName: true } }, class: { select: { name: true, section: true } } } } }, orderBy: { createdAt: "asc" } }),
     prisma.attendanceRegister.findMany({ where: { schoolId: user.schoolId, campusId, status: "OPEN", date: { gte: since, lte: today } }, select: { id: true, date: true, classId: true }, orderBy: { date: "desc" } }),
+    notStartedToday(),
   ]);
   return {
     unexplainedAbsences: absences.map(row => ({ attendanceId: row.id, date: row.date.toISOString().slice(0, 10), studentId: row.student.id, studentName: row.student.fullName, className: [row.class?.name, row.class?.section].filter(Boolean).join(" "), version: row.version })),
     explanations: explanations.map(row => ({ id: row.id, status: row.status, reason: row.reason, proposedStatus: row.proposedStatus, arrivalTime: row.arrivalTime, reviewNote: row.reviewNote, attendanceId: row.attendance.id, date: row.attendance.date.toISOString().slice(0, 10), currentStatus: row.attendance.status, version: row.attendance.version, studentName: row.attendance.student.fullName, className: [row.attendance.class?.name, row.attendance.class?.section].filter(Boolean).join(" ") })),
     openRegisters: openRegisters.map(row => ({ id: row.id, date: row.date.toISOString().slice(0, 10), classId: row.classId })),
+    notStartedRegisters: notStarted.map(row => ({ date: todayText, classId: row.id })),
   };
 }
 
