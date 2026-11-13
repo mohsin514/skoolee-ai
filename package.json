@@ -55,7 +55,7 @@
     "test:datesheet-latest-snapshot": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/exams/datesheet-latest-snapshot.test.ts",
     "test:exam-session-list-batch": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/academic/exam-session-list-batch.test.ts",
     "test:exam-list-year-scope": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/exams/exam-list-year-scope.test.ts",
-    "test:timetable-read-authz": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/timetable/read-authz.test.ts tests/timetable/list-read-authz.test.ts tests/timetable/class-read-unlinked.test.ts",
+    "test:timetable-read-authz": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/timetable/read-authz.test.ts tests/timetable/list-read-authz.test.ts tests/timetable/class-read-unlinked.test.ts tests/timetable/exam-timeline-unlinked.test.ts",
     "test:timetable-default-year": "tsx --test tests/timetable/default-year.test.ts",
     "test:teacher-schedule-batch": "node --import ./tests/support/server-only.mjs --import tsx --test tests/timetable/teacher-schedule-batch.test.ts tests/timetable/rollover-board.test.ts tests/timetable/slot-editor-current-option.test.ts",
     "test:exam-date-sheet-load": "node --import ./tests/support/server-only.mjs --import tsx --test tests/timetable/exam-date-sheet-load.test.ts",
