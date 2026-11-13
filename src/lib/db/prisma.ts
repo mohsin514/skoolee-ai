@@ -12,6 +12,7 @@ import {
 } from "./tenant-context";
 import { GLOBAL_MODELS, TENANT_MODELS } from "./tenant-models";
 import { pooledDatabaseUrl } from "./pool-url";
+import { createPgAdapter } from "./pg-pool";
 import { auditTrail, withTransactionAudit } from "./audit-trail";
 import { invalidationTargets, principalCache } from "@/lib/auth/principal-cache";
 
@@ -469,11 +470,15 @@ function tenantGuard() {
 }
 
 const prismaClientSingleton = () => {
-  return new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+  // Scale §3.4: on Vercel, Prisma runs on a pg pool that closes idle connections (pg-pool.ts) so warm-but-idle
+  // instances stop holding pooler slots. Elsewhere, or with PRISMA_PG_ADAPTER=off, the engine's own pool is used.
+  const adapter = createPgAdapter(process.env.DATABASE_URL);
+  const log: Prisma.LogLevel[] = process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"];
+  const client = (adapter
+    ? new PrismaClient({ log, adapter })
     // SKAI-1038: pgbouncer + a small per-instance pool, so serverless instances cannot exhaust the pooler.
-    datasourceUrl: pooledDatabaseUrl(process.env.DATABASE_URL),
-  })
+    : new PrismaClient({ log, datasourceUrl: pooledDatabaseUrl(process.env.DATABASE_URL) })) as PrismaClient;
+  return client
     .$extends(tenantGuard())
     // SKAI-1162: one audit row per create/update/delete, written through the guarded client.
     .$extends(auditTrail())
