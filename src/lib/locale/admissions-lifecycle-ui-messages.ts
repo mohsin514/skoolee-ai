@@ -21,6 +21,14 @@ export const admissionsLifecycleUiEntries: readonly (readonly [string, string, s
   ["Acceptance deposit: {0}", "عربون القبول: {0}", "قبولیت کی پیشگی رقم: {0}"],
   ["I have read and agree to these enrolment terms.", "لقد قرأت شروط التسجيل هذه وأوافق عليها.", "میں نے داخلے کی یہ شرائط پڑھ لی ہیں اور ان سے متفق ہوں۔"],
   ["You agreed to these terms on {0}.", "لقد وافقت على هذه الشروط في {0}.", "آپ نے {0} کو ان شرائط سے اتفاق کیا۔"],
+  // SKAI-1261: priority criteria and score.
+  ["Most urgent first", "الأكثر إلحاحًا أولًا", "سب سے فوری پہلے"],
+  ["Highest priority score first", "أعلى درجة أولوية أولًا", "سب سے زیادہ ترجیحی اسکور پہلے"],
+  ["Priority {0}", "الأولوية {0}", "ترجیح {0}"],
+  ["Priority score {0}", "درجة الأولوية {0}", "ترجیحی اسکور {0}"],
+  ["No priority criteria met", "لم يُستوفَ أي معيار أولوية", "کوئی ترجیحی معیار پورا نہیں ہوا"],
+  ["Priority criteria, one per line: points | question key | answer | name (English)", "معايير الأولوية، معيار في كل سطر: النقاط | مفتاح السؤال | الإجابة | الاسم (بالإنجليزية)", "ترجیحی معیارات، ہر سطر میں ایک: پوائنٹس | سوال کی کلید | جواب | نام (انگریزی)"],
+  ["Used to rank offers, for example: 10 | hasSibling | yes | Sibling at the school", "تُستخدم لترتيب العروض، مثلًا: 10 | hasSibling | yes | أخ أو أخت في المدرسة", "پیشکشوں کی درجہ بندی کے لیے، مثلاً: 10 | hasSibling | yes | اسکول میں بہن بھائی"],
 ];
 export const arabicAdmissionsLifecycleUi: Record<string, string> = Object.fromEntries(admissionsLifecycleUiEntries.map(([key, ar]) => [key, ar]));
 export const urduAdmissionsLifecycleUi: Record<string, string> = Object.fromEntries(admissionsLifecycleUiEntries.map(([key, , ur]) => [key, ur]));

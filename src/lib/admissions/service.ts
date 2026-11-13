@@ -12,7 +12,7 @@ import { resolveSourceActions } from "@/lib/notifications/actions";
 import { deliverNotification } from "@/lib/notifications/in-app";
 import { ASSESSMENT_ACTIONS, actOnAssessment, assignWaitlistRank, moveOnWaitlist, offerDeadline, offerLapsed } from "./assessments";
 import { acceptTerms, parseOfferTerms } from "./offer-terms";
-import { answerProblems, definitionProblems, foldName, identityKeysFor, identityValues, keepVisible, visibleDocuments, type Answers, type FormDefinition } from "./form-rules";
+import { answerProblems, definitionProblems, foldName, identityKeysFor, identityValues, keepVisible, priorityScore, rankByPriority, visibleDocuments, type Answers, type FormDefinition } from "./form-rules";
 
 // SKO-398: admission forms, family applications and the pipeline to enrollment.
 // - A form's draft is edited freely; publishing freezes a version (DB trigger). An application keeps the
@@ -71,7 +71,7 @@ export async function saveForm(user: AuthUser, campusId: string, body: Record<st
   const definition = asDefinition(body.definition);
   const problems = definitionProblems(definition);
   if (problems.length) throw new ApiError(problems.join(" "), 400);
-  const draft = { fields: definition.fields, documents: definition.documents, identityKeys: definition.identityKeys, consent: definition.consent } as unknown as Prisma.InputJsonValue;
+  const draft = { fields: definition.fields, documents: definition.documents, identityKeys: definition.identityKeys, consent: definition.consent, ...(definition.priorityCriteria?.length ? { priorityCriteria: definition.priorityCriteria } : {}) } as unknown as Prisma.InputJsonValue;
   if (body.id) {
     const form = await prisma.admissionForm.findFirst({ where: { id: String(body.id), campusId, schoolId: user.schoolId } });
     if (!form) throw new ApiError("Admission form not found", 404);
@@ -266,7 +266,7 @@ export function familyRespond(reference: string, resumeKey: string, accept: bool
 
 async function canRead(user: AuthUser) { assertStaffRole(user); await assertModuleRead(user, "admissions"); }
 
-export async function listApplications(user: AuthUser, campusId: string, filters: { view: string; status: string | null; q: string }) {
+export async function listApplications(user: AuthUser, campusId: string, filters: { view: string; status: string | null; q: string; sort?: string }) {
   await canRead(user);
   const now = new Date();
   const q = filters.q.trim().slice(0, 80);
@@ -276,15 +276,22 @@ export async function listApplications(user: AuthUser, campusId: string, filters
     ...(q ? { OR: [{ reference: { contains: q, mode: "insensitive" } }, { childName: { contains: q, mode: "insensitive" } }, { guardianPhone: { contains: q.replace(/\D/g, "") || q } }] } : {}),
   };
   const [rows, active] = await Promise.all([
-    prisma.admissionApplication.findMany({ where, orderBy: [{ nextContactAt: { sort: "asc", nulls: "last" } }, { submittedAt: "asc" }], take: 300, select: { id: true, reference: true, status: true, channel: true, childName: true, dateOfBirth: true, submittedAt: true, nextContactAt: true, offerExpiresAt: true, waitlistRank: true, version: true, updatedAt: true, owner: { select: { id: true, fullName: true } }, formVersion: { select: { version: true, form: { select: { name: true } } } }, events: { where: { familyMessage: { not: null } }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } } }),
+    prisma.admissionApplication.findMany({ where, orderBy: [{ nextContactAt: { sort: "asc", nulls: "last" } }, { submittedAt: "asc" }], take: 300, select: { id: true, reference: true, status: true, channel: true, childName: true, dateOfBirth: true, submittedAt: true, nextContactAt: true, offerExpiresAt: true, waitlistRank: true, version: true, updatedAt: true, answers: true, owner: { select: { id: true, fullName: true } }, formVersion: { select: { version: true, definition: true, form: { select: { name: true } } } }, events: { where: { familyMessage: { not: null } }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } } } }),
     prisma.admissionApplication.findMany({ where: { campusId, schoolId: user.schoolId, status: { in: ACTIVE.filter(status => status !== "DRAFT") } }, select: { ownerId: true, nextContactAt: true } }),
   ]);
   return {
-    data: rows.map(({ events, ...row }) => ({ ...row, lastFamilyContact: events[0]?.createdAt ?? null, overdue: Boolean(row.nextContactAt && row.nextContactAt < now && ACTIVE.includes(row.status)), offerLapsed: offerLapsed(row, now) })),
+    data: rankByPriority(rows.map(({ events, answers, formVersion: { definition, ...formVersion }, ...row }) => ({ ...row, formVersion, ...priorityOf(definition, answers), lastFamilyContact: events[0]?.createdAt ?? null, overdue: Boolean(row.nextContactAt && row.nextContactAt < now && ACTIVE.includes(row.status)), offerLapsed: offerLapsed(row, now) })), filters.sort === "priority"),
     counts: { active: active.length, unassigned: active.filter(row => !row.ownerId).length, overdue: active.filter(row => row.nextContactAt && row.nextContactAt < now).length, mine: active.filter(row => row.ownerId === user.userId).length },
   };
 }
 
+/** SKAI-1261: the score and the names of the criteria met; null when the form version has no criteria. */
+function priorityOf(definition: Prisma.JsonValue, answers: Prisma.JsonValue) {
+  const form = asDefinition(definition);
+  if (!form?.priorityCriteria?.length) return { priorityScore: null, priorityMet: [] as string[] };
+  const { score, met } = priorityScore(form, (answers ?? {}) as Answers);
+  return { priorityScore: score, priorityMet: met.map(criterion => criterion.label.en) };
+}
 /** Possible duplicates by the form's configured identifiers: other applications and existing pupils. */
 async function duplicatesFor(db: TxClient, application: AdmissionApplication & { formVersion: { definition: Prisma.JsonValue } }) {
   const definition = asDefinition(application.formVersion.definition);
@@ -338,7 +345,7 @@ export async function applicationDetail(user: AuthUser, campusId: string, id: st
   const { resumeKeyHash: _key, ...rest } = application;
   const definition = asDefinition(application.formVersion.definition);
   const missing = answerProblems(definition, application.answers as Answers, [...new Set(documents.map(d => d.key))], true).map(problem => problem.key);
-  return { ...rest, missing, submissions, documents, duplicates, siblings, assessments, offerLapsed: offerLapsed(application), events: events.map(event => ({ ...event, actorName: event.actorId === "FAMILY" ? null : people.get(event.actorId) ?? null })) };
+  return { ...rest, ...priorityOf(application.formVersion.definition, application.answers), missing, submissions, documents, duplicates, siblings, assessments, offerLapsed: offerLapsed(application), events: events.map(event => ({ ...event, actorName: event.actorId === "FAMILY" ? null : people.get(event.actorId) ?? null })) };
 }
 
 export async function documentFile(user: AuthUser, campusId: string, id: string) {

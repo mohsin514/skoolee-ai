@@ -145,12 +145,19 @@ def main():
         sql(upgrade, baseline)
         sql(upgrade, (ROOT / 'scripts/recovery/fixtures.sql').read_text())
         before = snapshot(upgrade)
+        # SKAI-1887 backfills academic_cycles (it adds a cycle for every campus year that classes or
+        # enrollments already use). Existing cycle rows must survive unchanged; only new rows may appear.
+        cycle_projection = ', '.join(f'"{column}"' for column in before['academic_cycles']['columns'])
+        cycle_rows = f'SELECT row_to_json(t)::text FROM (SELECT {cycle_projection} FROM public.academic_cycles) t;'
+        cycles_before = set(sql(upgrade, cycle_rows).splitlines())
         migrate(upgrade, 'resolve', '--applied', BASELINE)
         migrate(upgrade, 'deploy')
         migrate(upgrade, 'status')
         after = snapshot(upgrade)
         preserved = snapshot(upgrade, predecessor=before)
-        check('populated-schema-push-adoption-and-upgrade', all(preserved.get(name) == value for name, value in before.items()))
+        check('populated-schema-push-adoption-and-upgrade', cycles_before <= set(sql(upgrade, cycle_rows).splitlines()) and
+              all(preserved.get(name) == value for name, value in before.items() if name != 'academic_cycles'))
+        check('academic-year-backfill-complete', sql(upgrade, "SELECT NOT EXISTS (SELECT 1 FROM (SELECT campus_id, academic_year FROM classes UNION SELECT campus_id, academic_year FROM student_enrollments) y WHERE NOT EXISTS (SELECT 1 FROM academic_cycles ac WHERE ac.campus_id = y.campus_id AND ac.academic_year = y.academic_year));") == 't')
         # Enrollment migration deliberately backfills retained source context;
         # every other newly introduced table must still start empty.
         check('additive-migration-tables-initially-empty', all(value['rows'] == 0 for name, value in after.items() if name not in before and name != 'student_enrollments'))
