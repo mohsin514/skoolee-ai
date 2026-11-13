@@ -22,6 +22,7 @@ import { downloadCSV } from "@/lib/csv";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
 // SKO-464: the postal and courier register. The queue opens on items still awaiting a handoff; closing an
 // item names who it was handed to, and a delivery also says how it was confirmed. Corrections need a reason
@@ -49,7 +50,7 @@ const todayText = () => new Date().toISOString().slice(0, 10);
 async function send(method: string, body: Record<string, unknown>) {
   const response = await fetch("/api/front-desk/postal", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(typeof json.error === "string" ? json.error : "The change was not saved.");
+  if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The change was not saved."));
   return json;
 }
 
@@ -83,7 +84,7 @@ export function PostalRegister({ hideHeader = false, command }: { hideHeader?: b
       const response = await fetch(`/api/front-desk/postal?${params}`, { cache: "no-store", signal: request.signal });
       const json = await response.json().catch(() => ({}));
       if (!request.isCurrent()) return;
-      if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to the postal register for this campus.") : json.error || ui("Postal items could not be loaded."));
+      if (!response.ok || !isApiOk(json)) throw new Error(response.status === 403 ? ui("You do not have access to the postal register for this campus.") : readApiError(json, ui("Postal items could not be loaded.")));
       setRows(json.data); setCounts(json.counts); setTruncated(Boolean(json.truncated));
       // Owner candidates come with the list (G40: campus admins incl. a single school's admin, and receptionists).
       if (Array.isArray(json.owners)) setOwners((json.owners as Owner[]).filter(person => !person.role || OWNER_ROLES.has(person.role)));
@@ -207,7 +208,7 @@ function ItemDialog({ item, owners, onClose, onChanged }: { item: Item; owners: 
   const closed = CLOSED.includes(item.status);
   useEffect(() => {
     let cancelled = false;
-    void fetch(`/api/front-desk/postal?history=${encodeURIComponent(item.id)}`, { cache: "no-store" }).then(r => r.json()).then(json => { if (!cancelled) { if (json.success) setHistory(json.data); else setHistoryError(ui(json.error || "History could not be loaded.")); } }).catch(() => !cancelled && setHistoryError(ui("History could not be loaded.")));
+    void fetch(`/api/front-desk/postal?history=${encodeURIComponent(item.id)}`, { cache: "no-store" }).then(r => r.json()).then(json => { if (!cancelled) { if (isApiOk(json)) setHistory(json.data); else setHistoryError(ui(readApiError(json, "History could not be loaded."))); } }).catch(() => !cancelled && setHistoryError(ui("History could not be loaded.")));
     return () => { cancelled = true; };
   }, [item.id, ui]);
   const run = async (body: Record<string, unknown>, message: string) => {
