@@ -34,8 +34,30 @@ export async function currentClassMembers(row: ConversationRow, db: TxClient = p
   return row;
 }
 
+/** Roles that see conversations school-wide; every other role sees only its own campus's conversations. */
+const SCHOOL_WIDE_CHAT_ROLES: readonly string[] = ["SUPER_ADMIN", "PARENT", "STUDENT"];
+export const campusBoundChatRole = (role: string) => role !== "APP_OWNER" && !SCHOOL_WIDE_CHAT_ROLES.includes(role);
+
 function outsideScope(user: AuthUser, loaded: Pick<ConversationRow, "schoolId" | "campusId">) {
-  return user.role === "APP_OWNER" || loaded.schoolId !== user.schoolId || !["SUPER_ADMIN", "PARENT", "STUDENT"].includes(user.role) && loaded.campusId !== user.campusId;
+  return user.role === "APP_OWNER" || loaded.schoolId !== user.schoolId || campusBoundChatRole(user.role) && loaded.campusId !== user.campusId;
+}
+
+/**
+ * SKAI-1938: the campus a new group or channel is stamped with. A creator with a campus keeps it. A creator without
+ * one (a school-wide SUPER_ADMIN) takes the campus of the campus-bound staff they add, so those staff can see it;
+ * staff from two campuses cannot share one room, because each of them only sees their own campus.
+ */
+export function groupCampusId(user: Pick<AuthUser, "campusId" | "role">, members: Array<{ role: string; campusId: string | null }>): string | null {
+  // A campus-bound creator sees only its own campus (even a null one), so its rooms keep that campus as before.
+  if (user.campusId || campusBoundChatRole(user.role)) return user.campusId;
+  const campuses = new Set(members.filter((member) => campusBoundChatRole(member.role)).map((member) => member.campusId));
+  if (campuses.size > 1) throw new ApiError("Staff from different campuses cannot share a group. Create one group per campus.", 400);
+  return [...campuses][0] ?? null;
+}
+
+/** SKAI-1938: the same campus rule as outsideScope, as a conversation filter (the unread badge counts only visible rooms). */
+export function visibleConversationWhere(user: AuthUser): Prisma.ConversationWhereInput {
+  return { schoolId: user.schoolId, ...(campusBoundChatRole(user.role) ? { campusId: user.campusId } : {}) };
 }
 
 /** A DIRECT thread stays open only while the current messaging policy allows the other member. */
@@ -113,7 +135,7 @@ export async function accessibleConversationIds(user: AuthUser, ids: string[], d
     },
   });
   const mine = (row: typeof rows[number]) => row.members.find((member) => member.userId === user.userId);
-  const reachable = rows.filter((row) => row.schoolId === user.schoolId && (["SUPER_ADMIN", "PARENT", "STUDENT"].includes(user.role) || row.campusId === user.campusId) && mine(row));
+  const reachable = rows.filter((row) => row.schoolId === user.schoolId && (!campusBoundChatRole(user.role) || row.campusId === user.campusId) && mine(row));
   // currentClassMembers: a parent stays in a CLASS channel only while a live guardian link to that class holds.
   const parentClasses = new Set(reachable.filter((row) => row.kind === "CLASS" && mine(row)?.user.role === "PARENT").map((row) => row.id));
   const classIds = [...new Set(reachable.flatMap((row) => (parentClasses.has(row.id) && row.classId ? [row.classId] : [])))];

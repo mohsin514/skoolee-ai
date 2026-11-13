@@ -18,7 +18,7 @@ import type { AuthUser } from "@/lib/auth";
 import { ApiError, requireAuthUser } from "@/lib/api/scope";
 import { roleLabel, type UserRole } from "@/lib/roles";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
-import { conversationListInclude, accessibleConversationList, currentMemberCount, requireConversationAccess, requireMembership, type ConversationRow } from "./membership";
+import { conversationListInclude, accessibleConversationList, currentMemberCount, groupCampusId, requireConversationAccess, requireMembership, visibleConversationWhere, type ConversationRow } from "./membership";
 import {
   canCreateAnnouncement,
   canCreateGroup,
@@ -370,7 +370,7 @@ export async function listMessages(
 
 export async function totalUnread(user: AuthUser): Promise<number> {
   const result = await prisma.conversationMember.aggregate({
-    where: { userId: user.userId, leftAt: null, isArchived: false, isMuted: false },
+    where: { userId: user.userId, leftAt: null, isArchived: false, isMuted: false, conversation: visibleConversationWhere(user) },
     _sum: { unreadCount: true },
   });
   return result._sum.unreadCount ?? 0;
@@ -494,7 +494,8 @@ export async function createGroupConversation(
   if (memberIds.size === 0) throw new ApiError("Add at least one other person", 400);
   if (memberIds.size > 500) throw new ApiError("A conversation is limited to 500 members", 400);
 
-  await assertReachable(user, [...memberIds], settings);
+  const peers = await assertReachable(user, [...memberIds], settings);
+  const campusId = groupCampusId(user, peers);
 
   const created = await inTenant(user, async (tx) => {
     const conversation = await tx.conversation.create({
@@ -503,7 +504,7 @@ export async function createGroupConversation(
         title,
         topic: input.topic?.trim() || null,
         classId: input.classId ?? null,
-        campusId: user.campusId,
+        campusId,
         createdById: user.userId,
       },
       select: { id: true },
@@ -583,6 +584,7 @@ async function assertReachable(user: AuthUser, ids: string[], settings: ChatSett
       throw new ApiError(`${peer.fullName}: ${decision.reason}`, 403);
     }
   });
+  return peers;
 }
 
 // ─── Sending ─────────────────────────────────────────────────────
