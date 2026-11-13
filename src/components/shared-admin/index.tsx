@@ -2765,7 +2765,7 @@ export function TeacherDetailModal({
     try {
       const res = await fetch(`/api/staff/profile?userId=${encodeURIComponent(teacher.id)}`);
       const json = await res.json();
-      if (!res.ok || !json.success) { setStaffRecordsState("failed"); return; }
+      if (!res.ok || !isApiOk(json)) { setStaffRecordsState("failed"); return; }
       setStaff(json.data);
       setStaffDocs(json.data.staffDocuments || []);
       setStaffTimeline(json.data.staffTimelineEvents || []);
@@ -2841,8 +2841,9 @@ export function TeacherDetailModal({
         }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "");
-      toast.success(json.events ? ui(json.events === 1 ? "Saved ({0} change logged)" : "Saved ({0} changes logged)", [json.events]) : ui("Staff record saved"));
+      if (!isApiOk(json)) throw new Error(readApiError(json, ""));
+      const events = readApiData<{ events?: number }>(json, {}).events;
+      toast.success(events ? ui(events === 1 ? "Saved ({0} change logged)" : "Saved ({0} changes logged)", [events]) : ui("Staff record saved"));
       setEditStaff(false);
       await loadStaffRecords();
     } catch (error) {
@@ -2887,7 +2888,7 @@ export function TeacherDetailModal({
         }),
       });
       const rec = await recRes.json();
-      if (!rec.success) throw new Error(rec.error || "Could not save document");
+      if (!isApiOk(rec)) throw new Error(readApiError(rec, "Could not save document"));
       toast.success(ui("Document uploaded"));
       await loadStaffRecords();
     } catch (error) {

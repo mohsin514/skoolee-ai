@@ -13,6 +13,7 @@
  * sees a short line saying so and carries on inviting people.
  */
 
+import { readApiData } from "@/lib/api/envelope-client";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { useEffect, useState } from "react";
 import { Network } from "lucide-react";
@@ -64,7 +65,7 @@ export function usePositionOptions(campusId?: string) {
       try {
         const res = await fetch(`/api/staff/hierarchy${campusId ? `?campusId=${campusId}` : ""}`);
         if (!res.ok) throw new Error("hierarchy options failed");
-        const data = await res.json();
+        const data = readApiData<{ designations?: Option[]; departments?: Option[]; nodes?: Array<{ id: string; fullName: string; designation?: { name: string; level: number } }> }>(await res.json(), {});
         if (cancelled) return;
         setDesignations(data.designations ?? []);
         setDepartments(data.departments ?? []);
@@ -75,7 +76,7 @@ export function usePositionOptions(campusId?: string) {
               (a: { designation?: { level: number }; fullName: string }, b: { designation?: { level: number }; fullName: string }) =>
                 (a.designation?.level ?? 999) - (b.designation?.level ?? 999) || a.fullName.localeCompare(b.fullName)
             )
-            .map((n: { id: string; fullName: string; designation: { name: string } | null }) => ({
+            .map((n: { id: string; fullName: string; designation?: { name: string } }) => ({
               id: n.id,
               name: n.fullName,
               designation: n.designation,

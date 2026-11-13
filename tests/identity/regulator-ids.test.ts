@@ -24,6 +24,7 @@ class ApiError extends Error {
 mock.module(src("lib/api/scope.ts"), {
   namedExports: {
     ApiError,
+    ValidationError: class extends ApiError {}, // the envelope's failFrom checks it
     requireAuthUser: async () => state.user,
     canManageCampusOps: (user: Record<string, unknown>) => ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN"].includes(String(user.role)),
     assertPermission: async () => undefined,

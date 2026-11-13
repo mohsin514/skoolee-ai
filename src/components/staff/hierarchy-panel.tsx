@@ -11,6 +11,7 @@
  * there rather than showing a bare canvas.
  */
 
+import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Building2, Layers, Network, RefreshCw, TriangleAlert, Users, CalendarClock } from "lucide-react";
 import { DeskStats, StatTile } from "@/components/ui/desk";
@@ -83,8 +84,9 @@ export function StaffHierarchyPanel({
       if (quiet) setRefreshing(true);
       try {
         const res = await fetch(`/api/staff/hierarchy${campusId ? `?campusId=${campusId}` : ""}`);
-        const payload = await res.json();
-        if (!res.ok) throw new Error(payload.error || "Could not load the staff hierarchy");
+        const json = await res.json();
+        if (!res.ok || !isApiOk(json)) throw new Error(readApiError(json, "Could not load the staff hierarchy"));
+        const payload = readApiData<HierarchyResponse>(json, {} as HierarchyResponse);
         setData(payload);
         setLoadError(false);
         // Keep the open dialog pointed at the refreshed record, not a stale copy.

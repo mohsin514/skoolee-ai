@@ -13,6 +13,7 @@
  * pulls a rank out from under the people holding it.
  */
 
+import { readApiData, readApiError } from "@/lib/api/envelope-client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
@@ -110,8 +111,9 @@ export function DesignationLadder({ campusId, onChanged, addRequest, hideAdd = f
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/staff/designations");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not load the rank ladder");
+      const json = await res.json();
+      if (!res.ok) throw new Error(readApiError(json, "Could not load the rank ladder"));
+      const data = readApiData<{ designations?: Designation[]; presets?: Preset[]; institutionType?: string }>(json, {});
       setDesignations(data.designations ?? []);
       setPresets(data.presets ?? []);
       setInstitutionType(data.institutionType ?? "SCHOOL");
@@ -154,8 +156,9 @@ export function DesignationLadder({ campusId, onChanged, addRequest, hideAdd = f
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ preset: type, campusId }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "");
+      const json = await res.json();
+      if (!res.ok) throw new Error(readApiError(json, ""));
+      const data = readApiData<{ designationsAdded?: number; departmentsAdded?: number }>(json, {});
       toast.success(
         data.designationsAdded === 0 && data.departmentsAdded === 0
           ? "Everything in that preset already exists here."
@@ -196,8 +199,8 @@ export function DesignationLadder({ campusId, onChanged, addRequest, hideAdd = f
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "");
+      const json = await res.json();
+      if (!res.ok) throw new Error(readApiError(json, ""));
       toast.success(draft.id ? ui("Rank updated") : ui("{0} added to the ladder", [payload.name]));
       setDraft(null);
       await load();
@@ -213,9 +216,9 @@ export function DesignationLadder({ campusId, onChanged, addRequest, hideAdd = f
     setRemoving(true);
     try {
       const res = await fetch(`/api/staff/designations?id=${designation.id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "");
-      toast.success(data.message || ui("{0} removed", [designation.name]));
+      const json = await res.json();
+      if (!res.ok) throw new Error(readApiError(json, ""));
+      toast.success(readApiData<{ message?: string }>(json, {}).message || ui("{0} removed", [designation.name]));
       setPendingRemoval(null);
       await load();
       onChanged?.();

@@ -1,4 +1,5 @@
 "use client";
+import { isApiOk, readApiData } from "@/lib/api/envelope-client";
 import { InputGroup } from "@/components/ui/input-group";
 
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -748,8 +749,8 @@ export function TimetableStudio({ campusId, periodsHref, hideActions = false, co
         const cls = classJson.data || classJson;
         setClasses(Array.isArray(cls) ? cls : []);
       }
-      if (teacherJson.success) {
-        const staffList = teacherJson.staff || [];
+      if (isApiOk(teacherJson)) {
+        const staffList = readApiData<{ staff?: TeacherOption[] }>(teacherJson, {}).staff || [];
         const teacherList = (Array.isArray(staffList) ? staffList : []).filter(
           (u: any) => u.role === "TEACHER"
         );

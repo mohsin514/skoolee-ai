@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { coverBoard, proposeCover } from "@/lib/staff/workload";
-import { errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { created, failFrom, ok } from "@/lib/api/envelope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -11,14 +12,14 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     const campusId = await resolveCampusId(user, request.nextUrl.searchParams.get("campusId"));
-    return Response.json({ success: true, data: await coverBoard(user, campusId, request.nextUrl.searchParams.get("date")) });
-  } catch (error) { return errorResponse(error, "[staff/cover] GET failed"); }
+    return ok(await coverBoard(user, campusId, request.nextUrl.searchParams.get("date")));
+  } catch (error) { return failFrom(error, "[staff/cover] GET failed"); }
 }
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     const body = await parseBody(request, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
-    return Response.json({ success: true, data: await proposeCover(user, campusId, body) }, { status: 201 });
-  } catch (error) { return errorResponse(error, "[staff/cover] POST failed"); }
+    return created(await proposeCover(user, campusId, body));
+  } catch (error) { return failFrom(error, "[staff/cover] POST failed"); }
 }

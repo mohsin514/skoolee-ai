@@ -13,6 +13,7 @@
  * does not promote them, and it does not demote the person who had it.
  */
 
+import { readApiData, readApiError } from "@/lib/api/envelope-client";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -121,9 +122,9 @@ export function DepartmentManager({
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/staff/departments${campusId ? `?campusId=${campusId}` : ""}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not load departments");
-      setUnits(data.departments ?? []);
+      const json = await res.json();
+      if (!res.ok) throw new Error(readApiError(json, "Could not load departments"));
+      setUnits(readApiData<{ departments?: Unit[] }>(json, {}).departments ?? []);
       setLoadError(false);
     } catch (error) {
       // R4: the inline ErrorState below (with retry) is the only signal; no toast on top of it.
@@ -174,8 +175,8 @@ export function DepartmentManager({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "");
+      const json = await res.json();
+      if (!res.ok) throw new Error(readApiError(json, ""));
       toast.success(draft.id ? ui("Unit updated") : ui("{0} created", [payload.name]));
       setDraft(null);
       await load();
@@ -191,9 +192,9 @@ export function DepartmentManager({
     setRemoving(true);
     try {
       const res = await fetch(`/api/staff/departments?id=${unit.id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "");
-      toast.success(data.message || ui("{0} removed", [unit.name]));
+      const json = await res.json();
+      if (!res.ok) throw new Error(readApiError(json, ""));
+      toast.success(readApiData<{ message?: string }>(json, {}).message || ui("{0} removed", [unit.name]));
       setPendingRemoval(null);
       await load();
       onChanged?.();
@@ -211,8 +212,8 @@ export function DepartmentManager({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "");
+      const json = await res.json();
+      if (!res.ok) throw new Error(readApiError(json, ""));
       toast.success(successMessage);
       await load();
       onChanged?.();

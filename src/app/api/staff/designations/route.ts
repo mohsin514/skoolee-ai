@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, assertPermission, canManageAcademics, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageAcademics, canManageCampusOps, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { created as createdResponse, failFrom, ok } from "@/lib/api/envelope";
 import { applyInstitutionPreset } from "@/lib/staff/hierarchy";
 import { INSTITUTION_PRESETS, isInstitutionType } from "@/lib/staff/hierarchy-presets";
 import { wouldCreatePromotionCycle } from "@/lib/staff/designation-promotion";
@@ -59,8 +60,7 @@ export async function GET() {
       }),
     ]);
 
-    return Response.json({
-      success: true,
+    return ok({
       institutionType: school?.institutionType ?? "SCHOOL",
       presets: Object.values(INSTITUTION_PRESETS).map((p) => ({
         type: p.type,
@@ -72,7 +72,7 @@ export async function GET() {
       designations: designations.map(({ _count, ...d }) => ({ ...d, staffCount: _count.staffProfiles })),
     });
   } catch (error) {
-    return errorResponse(error, "[staff/designations] GET failed");
+    return failFrom(error, "[staff/designations] GET failed");
   }
 }
 
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       if (!isInstitutionType(body.preset)) throw new ApiError("Unknown institution type", 400);
       const campusId = await resolveCampusId(user, body.campusId ?? null);
       const result = await applyInstitutionPreset({ user, campusId, type: body.preset });
-      return Response.json({ success: true, ...result }, { status: 201 });
+      return createdResponse(result);
     }
 
     const input = DesignationInput.parse(body);
@@ -112,9 +112,9 @@ export async function POST(req: NextRequest) {
       return row;
     });
 
-    return Response.json({ success: true, designation: created }, { status: 201 });
+    return createdResponse({ designation: created });
   } catch (error) {
-    return errorResponse(error, "[staff/designations] POST failed");
+    return failFrom(error, "[staff/designations] POST failed");
   }
 }
 
@@ -177,9 +177,9 @@ export async function PATCH(req: NextRequest) {
       return next;
     });
 
-    return Response.json({ success: true, designation: updated });
+    return ok({ designation: updated });
   } catch (error) {
-    return errorResponse(error, "[staff/designations] PATCH failed");
+    return failFrom(error, "[staff/designations] PATCH failed");
   }
 }
 
@@ -205,8 +205,7 @@ export async function DELETE(req: NextRequest) {
         await tx.staffDesignation.update({ where: { id }, data: { isActive: false } });
         await writeAuditEvent(tx, user, { table: "staff_designations", recordId: id, action: "ARCHIVE", before: { isActive: designation.isActive, holders: designation._count.staffProfiles }, after: { isActive: false } });
       });
-      return Response.json({
-        success: true,
+      return ok({
         retired: true,
         message: `${designation.name} is held by ${designation._count.staffProfiles} staff, so it has been retired rather than deleted. It will no longer be offered for new appointments.`,
       });
@@ -216,9 +215,9 @@ export async function DELETE(req: NextRequest) {
       await tx.staffDesignation.delete({ where: { id } });
       await writeAuditEvent(tx, user, { table: "staff_designations", recordId: id, action: "DELETE", before: { level: designation.level, isActive: designation.isActive } });
     });
-    return Response.json({ success: true, retired: false });
+    return ok({ retired: false });
   } catch (error) {
-    return errorResponse(error, "[staff/designations] DELETE failed");
+    return failFrom(error, "[staff/designations] DELETE failed");
   }
 }
 

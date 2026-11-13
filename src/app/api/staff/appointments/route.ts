@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageAcademics, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageAcademics, requireAuthUser } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { getReportingChain } from "@/lib/staff/hierarchy";
 
 // A staff member's service record (Module 8b).
@@ -73,8 +74,7 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    return Response.json({
-      success: true,
+    return ok({
       staff,
       appointments,
       reportingChain: chain,
@@ -82,6 +82,6 @@ export async function GET(req: NextRequest) {
       memberships,
     });
   } catch (error) {
-    return errorResponse(error, "[staff/appointments] GET failed");
+    return failFrom(error, "[staff/appointments] GET failed");
   }
 }

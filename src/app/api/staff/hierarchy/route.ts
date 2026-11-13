@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageAcademics, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageAcademics, canManageCampusOps, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { buildOrgChart, setStaffPosition } from "@/lib/staff/hierarchy";
 import { readJsonBody } from "@/lib/api/validate";
 
@@ -67,14 +68,13 @@ export async function GET(req: NextRequest) {
       prisma.school.findUnique({ where: { id: user.schoolId }, select: { institutionType: true } }),
     ]);
 
-    return Response.json({
-      success: true,
+    return ok({
       institutionType: school?.institutionType ?? "SCHOOL",
       designations,
       ...chart,
     });
   } catch (error) {
-    return errorResponse(error, "[staff/hierarchy] GET failed");
+    return failFrom(error, "[staff/hierarchy] GET failed");
   }
 }
 
@@ -121,8 +121,8 @@ export async function PATCH(req: NextRequest) {
       },
     });
 
-    return Response.json({ success: true, ...result });
+    return ok(result);
   } catch (error) {
-    return errorResponse(error, "[staff/hierarchy] PATCH failed");
+    return failFrom(error, "[staff/hierarchy] PATCH failed");
   }
 }
