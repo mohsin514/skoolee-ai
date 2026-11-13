@@ -29,12 +29,12 @@ import { AssessmentsPanel, kindLabel, type Assessment } from "./assessments-pane
 
 type Ui = ReturnType<typeof useUiText>;
 type Status = "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "INFO_REQUESTED" | "OFFERED" | "WAITLISTED" | "ACCEPTED" | "DECLINED" | "REJECTED" | "WITHDRAWN" | "ENROLLED";
-type Row = { id: string; reference: string; status: Status; channel: string; childName: string; submittedAt: string | null; nextContactAt: string | null; version: number; owner: { id: string; fullName: string } | null; formVersion: { version: number; form: { name: string } }; lastFamilyContact: string | null; overdue: boolean; offerExpiresAt: string | null; offerLapsed: boolean; waitlistRank: number | null };
+type Row = { id: string; reference: string; status: Status; channel: string; childName: string; submittedAt: string | null; nextContactAt: string | null; version: number; owner: { id: string; fullName: string } | null; formVersion: { version: number; form: { name: string } }; lastFamilyContact: string | null; overdue: boolean; offerExpiresAt: string | null; offerLapsed: boolean; waitlistRank: number | null; priorityScore: number | null; priorityMet: string[] };
 type Person = { id: string; fullName: string };
 type ClassOption = { id: string; name: string; section: string | null };
 type Form = { id: string; name: string; draft: FormDefinition; currentVersion: number; publicToken: string; isOpen: boolean; published: { version: number; publishedAt: string } | null };
 type Event = { id: string; kind: string; fromStatus: string | null; toStatus: string | null; detail: Record<string, unknown> | null; officeNote: string | null; familyMessage: string | null; actorName: string | null; createdAt: string };
-type Detail = { id: string; reference: string; status: Status; channel: string; version: number; answers: Answers; childName: string; intakeClassId: string | null; nextContactAt: string | null; owner: Person | null; enquiry: { id: string; name: string; source: string } | null; convertedStudent: { id: string; fullName: string; rollNo: string } | null; formVersion: { version: number; definition: FormDefinition; form: { name: string } }; missing: string[]; submissions: { id: string; submittedAt: string; submittedBy: string; formVersion: { version: number } }[]; documents: { id: string; key: string; fileName: string; sizeBytes: number; uploadedBy: string; uploadedAt: string }[]; duplicates: { applications: { id: string; reference: string; status: string; childName: string }[]; students: { id: string; fullName: string; rollNo: string; admissionNo: string | null; className: string; archived: boolean; dateOfBirth: string | null }[] }; events: Event[]; assessments: Assessment[]; offerExpiresAt: string | null; offerLapsed: boolean; waitlistRank: number | null };
+type Detail = { id: string; reference: string; status: Status; channel: string; version: number; answers: Answers; childName: string; intakeClassId: string | null; nextContactAt: string | null; owner: Person | null; enquiry: { id: string; name: string; source: string } | null; convertedStudent: { id: string; fullName: string; rollNo: string } | null; formVersion: { version: number; definition: FormDefinition; form: { name: string } }; missing: string[]; submissions: { id: string; submittedAt: string; submittedBy: string; formVersion: { version: number } }[]; documents: { id: string; key: string; fileName: string; sizeBytes: number; uploadedBy: string; uploadedAt: string }[]; duplicates: { applications: { id: string; reference: string; status: string; childName: string }[]; students: { id: string; fullName: string; rollNo: string; admissionNo: string | null; className: string; archived: boolean; dateOfBirth: string | null }[] }; events: Event[]; assessments: Assessment[]; offerExpiresAt: string | null; offerLapsed: boolean; waitlistRank: number | null; priorityScore: number | null; priorityMet: string[] };
 
 const statusLabel = (ui: Ui, status: string) => ({ DRAFT: ui("Draft"), SUBMITTED: ui("New"), UNDER_REVIEW: ui("In review"), INFO_REQUESTED: ui("Waiting for family"), OFFERED: ui("Offered"), WAITLISTED: ui("Waitlisted"), ACCEPTED: ui("Accepted — ready to enrol"), DECLINED: ui("Declined"), REJECTED: ui("Not offered"), WITHDRAWN: ui("Withdrawn"), ENROLLED: ui("Enrolled") } as Record<string, string>)[status] ?? status;
 const eventLabel = (ui: Ui, kind: string) => ({ CREATED: ui("Started"), SUBMITTED: ui("Sent"), ASSIGNED: ui("Owner or next contact set"), STAGE: ui("Stage changed"), INFO_REQUESTED: ui("Information requested"), NOTE: ui("Office note"), ACCEPTED: ui("Offer accepted"), DUPLICATE_DECISION: ui("Duplicate decision"), ENROLLED: ui("Enrolled"), WITHDRAWN: ui("Withdrawn"), ASSESSMENT_SCHEDULED: ui("Booked"), ASSESSMENT_RECORDED: ui("Outcome recorded"), ASSESSMENT_CANCELLED: ui("Booking cancelled"), WAITLIST_MOVED: ui("Waitlist place changed") } as Record<string, string>)[kind] ?? kind;
@@ -98,7 +98,7 @@ function Pipeline({ forms, owners, classes, canDecide, entryInHeader, command }:
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
   const [rows, setRows] = useState<Row[]>([]), [counts, setCounts] = useState({ active: 0, unassigned: 0, overdue: 0, mine: 0 });
-  const [view, setView] = useState("mine"), [status, setStatus] = useState(""), [q, setQ] = useState("");
+  const [view, setView] = useState("mine"), [status, setStatus] = useState(""), [q, setQ] = useState(""), [sort, setSort] = useState("");
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState("");
   const [openId, setOpenId] = useState<string | null>(null), [creating, setCreating] = useState(false);
   const load = useCallback(async () => {
@@ -107,12 +107,13 @@ function Pipeline({ forms, owners, classes, canDecide, entryInHeader, command }:
       const params = new URLSearchParams({ view });
       if (status) params.set("status", status);
       if (q.trim()) params.set("q", q.trim());
+      if (sort) params.set("sort", sort);
       const response = await fetch(`/api/admissions?${params}`, { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to admissions for this campus.") : json.error || ui("Applications could not be loaded."));
       setRows(json.data); setCounts(json.counts);
     } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("Applications could not be loaded.")); } finally { setLoading(false); }
-  }, [view, status, q, ui]);
+  }, [view, status, q, sort, ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
   const published = forms.filter(form => form.currentVersion > 0);
   // The PageHeader's "Enter an application" (one command per nonce; ignored until a form is published).
@@ -131,17 +132,18 @@ function Pipeline({ forms, owners, classes, canDecide, entryInHeader, command }:
       <StatTile index={3} icon={AlarmClock} tone={counts.overdue ? "danger" : "success"} value={counts.overdue} label={ui("Follow-up overdue")} onSelect={() => setView(view === "overdue" ? "mine" : "overdue")} selected={view === "overdue"} data-overdue={counts.overdue} />
     </DeskStats>
     <div className="flex flex-wrap items-end gap-3">
-      <div className="grid flex-1 gap-3 sm:grid-cols-3">
+      <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <FormField name="admission-filter-view" label={ui("Show")}><Select value={view} onChange={event => setView(event.target.value)}><option value="mine">{ui("Needs my action")}</option><option value="unassigned">{ui("Unassigned")}</option><option value="overdue">{ui("Follow-up overdue")}</option><option value="active">{ui("All active")}</option><option value="all">{ui("All applications")}</option></Select></FormField>
         <FormField name="admission-filter-status" label={ui("Stage")}><Select value={status} onChange={event => setStatus(event.target.value)}><option value="">{ui("Any stage")}</option>{["SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "OFFERED", "WAITLISTED", "ACCEPTED", "ENROLLED", "DECLINED", "REJECTED", "WITHDRAWN", "DRAFT"].map(value => <option key={value} value={value}>{statusLabel(ui, value)}</option>)}</Select></FormField>
         <FormField name="admission-filter-q" label={ui("Search reference, child or phone")}><Input value={q} onChange={event => setQ(event.target.value)} /></FormField>
+        <FormField name="admission-sort" label={ui("Order")}><Select value={sort} onChange={event => setSort(event.target.value)}><option value="">{ui("Most urgent first")}</option><option value="priority">{ui("Highest priority score first")}</option></Select></FormField>
       </div>
       {entryInHeader ? null : (() => { const enter = <Button onClick={() => setCreating(true)} disabled={!published.length}><Plus className="size-4" aria-hidden="true" />{ui("Enter an application")}</Button>; return published.length ? enter : <Tooltip content={ui("Publish an application form first.")}><span tabIndex={0} className="inline-flex">{enter}</span></Tooltip>; })()}
     </div>
     {loading && !rows.length ? <SkeletonList rows={4} label={ui("Loading applications…")} />
       : loadError ? <ErrorState variant="panel" description={loadError} retryLabel={ui("Retry")} onRetry={() => void load()} />
       : !rows.length ? <div className="sk-panel" data-admissions-empty><EmptyState size="sm" icon={view === "mine" && !status && !q ? BadgeCheck : ClipboardList} title={view === "mine" && !status && !q ? ui("Nothing needs your action. Unassigned applications are under Unassigned.") : ui("No applications match these filters. Share a published form's link with families, or enter an application.")} /></div>
-      : <ul className="space-y-2.5" aria-label={ui("Applications")}>{urgencyFirst(rows, urgency).map(row => <li key={row.id} data-tone={rowTone(row)} className={cn(deskRow, "flex flex-wrap items-center gap-3 text-sm")} data-application={row.reference} data-application-status={row.status}>
+      : <ul className="space-y-2.5" aria-label={ui("Applications")}>{(sort === "priority" ? rows : urgencyFirst(rows, urgency)).map(row => <li key={row.id} data-tone={rowTone(row)} className={cn(deskRow, "flex flex-wrap items-center gap-3 text-sm")} data-application={row.reference} data-application-status={row.status}>
         <DeskRowIcon icon={STAGE_ICON[row.status] ?? CircleDashed} />
         <div className="min-w-0 flex-1 basis-[calc(100%-3.5rem)] space-y-0.5 sm:basis-52">
           <p className="font-bold text-ink-strong"><bdi dir="ltr" className="font-mono text-xs font-semibold text-primary">{row.reference}</bdi> <span className="text-ink-faint">·</span> <bdi>{row.childName || ui("(name not given yet)")}</bdi></p>
@@ -149,6 +151,7 @@ function Pipeline({ forms, owners, classes, canDecide, entryInHeader, command }:
           <p className="text-xs text-ink-muted">{row.owner ? <>{ui("Owner")}: <bdi>{row.owner.fullName}</bdi></> : <span className="font-bold text-status-warning-text">{ui("Unassigned")}</span>}{row.nextContactAt ? <> · <span className={row.overdue ? "font-bold text-status-error-text" : ""}>{ui("Next contact")} <bdi><RelativeTime iso={row.nextContactAt} full={dateTime(row.nextContactAt)} /></bdi></span></> : null}</p>
         </div>
         <DeskPill tone={STAGE_TONE[row.status] ?? "neutral"}>{statusLabel(ui, row.status)}{row.status === "WAITLISTED" && row.waitlistRank ? ` · #${row.waitlistRank}` : ""}</DeskPill>
+        {row.priorityScore !== null ? <DeskPill tone="info" data-priority-score={row.priorityScore}>{ui("Priority {0}", [row.priorityScore])}</DeskPill> : null}
         {row.status === "OFFERED" && row.offerExpiresAt ? <DeskPill tone={row.offerLapsed ? "danger" : "warning"} data-offer-deadline={row.offerLapsed ? "lapsed" : "open"}>{row.offerLapsed ? ui("Offer lapsed") : ui("Respond by {0}", [dateTime(row.offerExpiresAt)])}</DeskPill> : null}
         <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)} aria-label={ui("Review application {0}", [row.reference])}>{ui("Review")}</Button>
       </li>)}</ul>}
@@ -242,6 +245,7 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
         <span className="font-bold">{ui("Waitlist place #{0}", [detail.waitlistRank])}</span>
         {canDecide ? <><Button size="sm" variant="secondary" disabled={busy} onClick={() => void run({ action: "waitlist-move", direction: "up" }, ui("Moved up."))}>{ui("Move up")}</Button><Button size="sm" variant="secondary" disabled={busy} onClick={() => void run({ action: "waitlist-move", direction: "down" }, ui("Moved down."))}>{ui("Move down")}</Button></> : null}
       </div> : null}
+      {detail.priorityScore !== null ? <p className="text-sm" data-priority-detail={detail.priorityScore}><span className="font-bold">{ui("Priority score {0}", [detail.priorityScore])}</span> · {detail.priorityMet.length ? <bdi>{detail.priorityMet.join(", ")}</bdi> : ui("No priority criteria met")}</p> : null}
       {detail.convertedStudent ? <Alert tone="success" compact live="off" data-converted>{ui("Enrolled as {0}, roll {1}.", [detail.convertedStudent.fullName, detail.convertedStudent.rollNo])}</Alert> : null}
 
       {staffDraft ? <section className="sk-desk-section gap-2" aria-label={ui("Answers")}>
@@ -363,6 +367,7 @@ function FormEditor({ form, onClose, onSaved }: { form: Form | null; onClose: ()
   const ui = useUiText();
   const [name, setName] = useState(form?.name ?? ""), [definition, setDefinition] = useState<FormDefinition>(form?.draft ?? starterDefinition());
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const [criteria, setCriteria] = useState(() => criteriaText(form?.draft ?? starterDefinition()));
   const updateField = (index: number, patch: Partial<FieldDef>) => setDefinition(current => ({ ...current, fields: current.fields.map((field, i) => i === index ? { ...field, ...patch } : field) }));
   const move = (index: number, delta: number) => setDefinition(current => { const fields = [...current.fields]; const [field] = fields.splice(index, 1); fields.splice(Math.max(0, Math.min(fields.length, index + delta)), 0, field); return { ...current, fields }; });
   const save = async () => {
@@ -408,7 +413,12 @@ function FormEditor({ form, onClose, onSaved }: { form: Form | null; onClose: ()
       <fieldset className="space-y-1 text-sm"><legend className="text-sm font-bold">{ui("Find possible duplicates by")}</legend>
         {IDENTITY_KEYS.map(key => <label key={key} className="flex items-center gap-2"><Checkbox checked={definition.identityKeys.includes(key)} onChange={event => setDefinition(current => ({ ...current, identityKeys: event.target.checked ? [...current.identityKeys, key] : current.identityKeys.filter(k => k !== key) }))} />{key === "nationalId" ? ui("National ID / birth registration number") : key === "nameAndDob" ? ui("Child's name and date of birth") : ui("Guardian phone and child's name")}</label>)}
       </fieldset>
+      <FormField name="form-priority" label={ui("Priority criteria, one per line: points | question key | answer | name (English)")} hint={ui("Used to rank offers, for example: 10 | hasSibling | yes | Sibling at the school")}><Textarea dir="ltr" rows={3} value={criteria} onChange={event => { setCriteria(event.target.value); setDefinition(current => ({ ...current, priorityCriteria: parseCriteria(event.target.value) })); }} /></FormField>
       <FormField name="form-consent" label={ui("Consent statement (English)")}><Textarea rows={2} value={definition.consent.en} onChange={event => setDefinition(current => ({ ...current, consent: { ...current.consent, en: event.target.value } }))} /></FormField>
     </div>
   </Modal>;
 }
+
+// SKAI-1261: priority criteria as editable lines, "points | question key | answer | English name".
+const criteriaText = (definition: FormDefinition) => (definition.priorityCriteria ?? []).map(c => [c.points, c.field, c.equals, c.label.en].join(" | ")).join("\n");
+const parseCriteria = (value: string) => value.split("\n").filter(line => line.trim()).map(line => { const [points, field, equals, ...name] = line.split("|").map(part => part.trim()); return { points: Number(points), field: field ?? "", equals: equals ?? "", label: { en: name.join(" | ") } }; });
