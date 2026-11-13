@@ -12,7 +12,7 @@ import { SESSION_COOKIE_NAME, hashSessionToken } from "@/lib/auth/session-cookie
 import { isSessionRevokedStrict } from "@/lib/auth/session-revocation";
 import { prefetchAuth } from "@/lib/auth/request-auth";
 import { principalCacheEnabled } from "@/lib/auth/principal-cache";
-import { isDatabaseUnavailable, ServiceUnavailableError } from "@/lib/db/availability";
+import { isDatabaseUnavailable, ServiceUnavailableError, unavailableReason } from "@/lib/db/availability";
 import { ACTIVE_CAMPUS_COOKIE, resolveActiveCampusId } from "@/lib/auth/active-campus";
 import { lookupSchoolCampus } from "@/lib/auth/active-campus-server";
 
@@ -77,7 +77,7 @@ export async function getAuthUser(): Promise<AuthUser | null> {
   } catch (error) {
     // An unreachable database is an outage, not a sign-out: answering null here made every request 401 and
     // the browser dropped its session (SKAI-1898 load run). Still fail-closed — nothing is authorized.
-    if (isDatabaseUnavailable(error)) throw new ServiceUnavailableError();
+    if (isDatabaseUnavailable(error)) throw new ServiceUnavailableError(5, undefined, unavailableReason(error));
     return null;
   }
 }

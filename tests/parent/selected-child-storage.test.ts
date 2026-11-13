@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
-import { readSelectedChild, SELECTED_CHILD_STORAGE_KEY, storeSelectedChild } from "../../src/app/parent/selected-child-storage";
+import { readSelectedChild, SELECTED_CHILD_STORAGE_KEY, shouldFallBackToDefaultChild, storeSelectedChild } from "../../src/app/parent/selected-child-storage";
 
 // SKAI-1932: the family portal's chosen child survives a reload and a new tab, for the same signed-in identity only.
 function memoryStore() {
@@ -54,6 +54,26 @@ test("the provider restores the choice before its first load and remembers each 
   assert.match(source, /readSelectedChild\(identity\)/);
   assert.match(source, /if \(!restored\) return;\s*void loadData\(\);/);
   assert.match(source, /storeSelectedChild\(identity, studentId\);\s*setSelectedStudentId\(studentId\);/);
-  // A remembered child the server refuses is forgotten, and the default child loads instead.
-  assert.match(source, /selectedStudentId === restoredChild\.current && \[401, 403, 404\]\.includes\(res\.status\)/);
+  // A remembered child, or a ?student= link, the server refuses loads the default child instead (SKAI-1933).
+  assert.match(source, /shouldFallBackToDefaultChild\(\{ selected: selectedStudentId, restored: restoredChild\.current, requested: requestedRef\.current, status: res\.status \}\)/);
+  assert.match(source, /if \(selectedStudentId === restoredChild\.current\) \{\s*restoredChild\.current = null;\s*storeSelectedChild\(identity, null\);\s*\}\s*setSelectedStudentId\(null\);/);
+});
+
+// SKAI-1933: a stale or foreign ?student= link no longer dead-ends at "Couldn't load your portal".
+test("a refused ?student= link or remembered child falls back to the default child", () => {
+  for (const status of [401, 403, 404]) {
+    assert.equal(shouldFallBackToDefaultChild({ selected: "foreign", restored: null, requested: "foreign", status }), true);
+    assert.equal(shouldFallBackToDefaultChild({ selected: "kid-2", restored: "kid-2", requested: null, status }), true);
+  }
+});
+
+test("a child the guardian picked, a default load or a server failure keeps the error and Try again", () => {
+  // A child picked from the switcher (neither restored nor in the link) is reported, not silently swapped.
+  assert.equal(shouldFallBackToDefaultChild({ selected: "kid-3", restored: "kid-2", requested: "kid-1", status: 403 }), false);
+  // The default load (no student id) has nothing to fall back to.
+  assert.equal(shouldFallBackToDefaultChild({ selected: null, restored: null, requested: null, status: 403 }), false);
+  // Outages are not refusals: the same child is retried.
+  for (const status of [500, 502, 503, 429]) {
+    assert.equal(shouldFallBackToDefaultChild({ selected: "foreign", restored: null, requested: "foreign", status }), false);
+  }
 });

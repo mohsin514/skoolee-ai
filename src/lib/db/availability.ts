@@ -34,11 +34,28 @@ export function isDatabaseUnavailable(error: unknown): boolean {
   return (typeof message === "string" && UNAVAILABLE_MESSAGE.test(message)) || (typeof metaMessage === "string" && UNAVAILABLE_MESSAGE.test(metaMessage));
 }
 
+/**
+ * Which kind of outage, for logs and the `x-db-unavailable` response header (no secrets, no hosts): the pooler
+ * refusing clients, a connection that took too long to open, an unreachable server, or a dropped connection.
+ */
+export type UnavailableReason = "max-clients" | "connect-timeout" | "unreachable" | "terminated" | "other";
+
+export function unavailableReason(error: unknown): UnavailableReason {
+  const e = (error ?? {}) as { message?: unknown; code?: unknown; meta?: { message?: unknown }; reason?: unknown };
+  if (typeof e.reason === "string") return e.reason as UnavailableReason;
+  const text = `${String(e.message ?? "")} ${String(e.meta?.message ?? "")} ${String(e.code ?? "")}`;
+  if (/EMAXCONN|max client connections|too many (clients|connections)/i.test(text)) return "max-clients";
+  if (/timeout exceeded when trying to connect|timed out fetching a new connection|P2024|ETIMEDOUT|P1002|P1008/i.test(text)) return "connect-timeout";
+  if (/database not reachable|can't reach database server|ECONNREFUSED|P1001/i.test(text)) return "unreachable";
+  if (/connection terminated|terminating connection|ECONNRESET|P1017/i.test(text)) return "terminated";
+  return "other";
+}
+
 /** A temporary outage of a dependency. Answered as 503 with Retry-After; never as 401. */
 export class ServiceUnavailableError extends Error {
   readonly status = 503;
   readonly code = "SERVICE_UNAVAILABLE";
-  constructor(readonly retryAfterSeconds = 5, message = "The service is busy. Please try again in a moment.") {
+  constructor(readonly retryAfterSeconds = 5, message = "The service is busy. Please try again in a moment.", readonly reason: UnavailableReason = "other") {
     super(message);
     this.name = "ServiceUnavailableError";
   }

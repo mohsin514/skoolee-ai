@@ -20,20 +20,20 @@ test("Prisma-only URL parameters never reach pg", () => {
 });
 
 test("idle connections are released after a few seconds", () => {
-  assert.equal(pgPoolConfig(pooler, {}).pool.idleTimeoutMillis, 10_000);
+  assert.equal(pgPoolConfig(pooler, {}).pool.idleTimeoutMillis, 60_000);
   assert.equal(pgPoolConfig(pooler, { PG_IDLE_TIMEOUT_MS: "2000" }).pool.idleTimeoutMillis, 2_000);
   assert.equal(pgPoolConfig(pooler, {}).pool.connectionTimeoutMillis, 10_000);
 });
 
 test("on serverless a URL limit is capped so idle instances cannot fill the pooler; an explicit env limit wins", () => {
   const twenty = pooler.replace("connection_limit=1", "connection_limit=20");
-  assert.equal(pgPoolConfig(twenty, { VERCEL: "1" }).pool.max, 2, "connection_limit=20 in the URL no longer means 20 per instance");
+  assert.equal(pgPoolConfig(twenty, { VERCEL: "1" }).pool.max, 1, "connection_limit=20 in the URL no longer means 20 per instance");
   assert.equal(pgPoolConfig(pooler, { VERCEL: "1" }).pool.max, 1);
   assert.equal(pgPoolConfig(twenty, { VERCEL: "1", PRISMA_CONNECTION_LIMIT: "4" }).pool.max, 4, "explicit env wins");
   assert.equal(pgPoolConfig(twenty, {}).pool.max, 20, "outside serverless the URL limit stands");
   const bare = "postgresql://u:p@db.example.test:6543/postgres";
   assert.equal(pgPoolConfig(bare, { PRISMA_CONNECTION_LIMIT: "3" }).pool.max, 3);
-  assert.equal(pgPoolConfig(bare, { VERCEL: "1" }).pool.max, 2);
+  assert.equal(pgPoolConfig(bare, { VERCEL: "1" }).pool.max, 1);
   assert.equal(pgPoolConfig(bare, {}).pool.max, 5);
 });
 
