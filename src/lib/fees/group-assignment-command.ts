@@ -27,6 +27,9 @@ export async function assignFeeGroup(user: AuthUser, body: Record<string, unknow
     where: { feeGroupId_classId_academicYear: { feeGroupId, classId, academicYear } },
   });
   if (existing) throw new ApiError("This class already has this group for the year", 409);
+  // SKAI-378: invoices, statements and fee resolution bill exactly one group per class and year.
+  const other = await prisma.feeGroupAssignment.findFirst({ where: { campusId, classId, academicYear }, select: { id: true } });
+  if (other) throw new ApiError("This class already has a fee group for the year. Remove it before assigning another.", 409);
 
   return prisma.$transaction(async (tx) => {
     const created = await tx.feeGroupAssignment.create({
