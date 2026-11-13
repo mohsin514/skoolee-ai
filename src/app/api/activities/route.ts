@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
-import { addSession, cancelActivity, cancelPlace, createActivity, guardiansOf, markAttendance, recordFee, requestRefund, roster, staffActivities } from "@/lib/activities/service";
-import { deliverNotification } from "@/lib/notifications/in-app";
-import { prisma } from "@/lib/db/prisma";
+import { addSession, cancelActivity, cancelPlace, createActivity, markAttendance, recordFee, requestRefund, roster, staffActivities } from "@/lib/activities/service";
+import { notifyOfferedPlaces, sendActivityNotice } from "@/lib/activities/offer-notice";
 
 export const runtime = "nodejs";
 
@@ -21,24 +20,17 @@ export async function POST(request: NextRequest) {
     const user = await requireAuthUser();
     if (user.role === "PARENT" || user.role === "STUDENT") throw new ApiError("Not found", 404);
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
-    const offerNotice = async (placeIds: string[]) => {
-      if (!placeIds.length) return;
-      const places = await prisma.activityPlace.findMany({ where: { id: { in: placeIds } }, select: { studentId: true } });
-      const recipients = await guardiansOf(user.schoolId, places.map(p => p.studentId));
-      if (recipients.length) await deliverNotification("ACTIVITY_PLACE_OFFERED", { schoolId: user.schoolId, campusId: user.campusId ?? "", actorId: user.userId, recipientIds: recipients }).catch(error => console.error("[activities] offer notice failed", error));
-    };
     switch (body.action) {
       case "create": return Response.json({ success: true, data: { id: (await createActivity(user, body)).id } }, { status: 201 });
       case "session": { const s = await addSession(user, body); return Response.json({ success: true, data: { id: s.id, replayed: s.replayed } }, { status: s.replayed ? 200 : 201 }); }
       case "attend": return Response.json({ success: true, data: { id: (await markAttendance(user, body)).id } });
       case "fee": return Response.json({ success: true, data: await recordFee(user, body) });
-      case "cancel-place": { const r = await cancelPlace(user, body); await offerNotice(r.offered); return Response.json({ success: true, data: r }); }
+      case "cancel-place": { const r = await cancelPlace(user, body); const notice = await notifyOfferedPlaces(user, r.offered); return Response.json({ success: true, data: { ...r, noticeWithheld: notice.withheld } }); }
       case "refund": return Response.json({ success: true, data: await requestRefund(user, body) });
       case "cancel": {
         const r = await cancelActivity(user, String(body.activityId ?? ""));
-        const recipients = await guardiansOf(user.schoolId, r.studentIds);
-        if (recipients.length) await deliverNotification("ACTIVITY_CANCELLED", { schoolId: user.schoolId, campusId: user.campusId ?? "", actorId: user.userId, recipientIds: recipients }).catch(error => console.error("[activities] cancel notice failed", error));
-        return Response.json({ success: true, data: { cancelled: r.cancelled } });
+        const notice = await sendActivityNotice(user, "ACTIVITY_CANCELLED", r.studentIds, String(body.activityId ?? ""), r.studentIds.length);
+        return Response.json({ success: true, data: { cancelled: r.cancelled, noticeWithheld: notice.withheld } });
       }
       default: throw new ApiError("Unknown action", 400);
     }

@@ -833,6 +833,7 @@ const entries: [string, string, string][] = [
   ["Claim expires on", "ينتهي الادعاء في", "دعوے کی میعاد ختم ہونے کی تاریخ"],
   ["Record the claim owner and expiry date before approving or exporting it.", "سجّل مالك الادعاء وتاريخ انتهائه قبل اعتماده أو تصديره.", "منظوری یا برآمد سے پہلے دعوے کا ذمہ دار اور میعاد کی تاریخ درج کریں۔"],
   ["The claim has expired; review it again with a new expiry date.", "انتهت صلاحية الادعاء؛ راجعه مجددًا بتاريخ انتهاء جديد.", "دعوے کی میعاد ختم ہو گئی ہے؛ نئی تاریخ کے ساتھ دوبارہ جائزہ لیں۔"],
+["{0} family notice(s) withheld: no current communication permission for the guardian.", "حُجب {0} إشعار للأسرة: لا توجد موافقة تواصل حالية من ولي الأمر.", "{0} خاندانی اطلاع روکا گیا: سرپرست کی موجودہ رابطہ اجازت نہیں ہے۔"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));
