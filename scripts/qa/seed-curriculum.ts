@@ -12,11 +12,17 @@
 import { randomUUID } from "node:crypto";
 import type { AuthUser } from "../../src/lib/auth";
 import { prisma } from "../../src/lib/db/prisma";
+import { runAsUser, runUnscoped } from "../../src/lib/db/tenant-context";
 import { createWorkspaceRecord, updateWorkspaceRecord } from "../../src/lib/school-ai/repository";
 import { assertSeedAllowed } from "./seed-env-guard";
 import { boardsFor, curriculumFor } from "./curriculum-seed-plan";
 
 async function main() {
+  // School/admin lookups run before a school is bound; every school-scoped write below runs in its tenant context.
+  return runUnscoped("qa curriculum seed: resolve synthetic QA school and admin", seed);
+}
+
+async function seed() {
   const decision = assertSeedAllowed();
   const slug = process.argv.find((a) => a.startsWith("--school="))?.split("=")[1] ?? "qa-alpha";
   if (!slug.startsWith("qa-")) throw new Error(`[qa-curriculum] refusing: "${slug}" is not a synthetic QA school`);
@@ -30,6 +36,7 @@ async function main() {
   if (!subject) throw new Error(`[qa-curriculum] no subject on the admin's campus; run pnpm run qa:seed:academics -- --school=${slug} first`);
   const lead: AuthUser = { userId: admin.id, schoolId: school.id, campusId: admin.campusId, role: admin.role, email: admin.email, accessVersion: admin.accessVersion };
 
+  await runAsUser(lead, async () => {
   for (const board of boardsFor(slug)) {
     const existing = await prisma.schoolAiRecord.findFirst({ where: { schoolId: school.id, campusId: admin.campusId, kind: "CURRICULUM", title: board.title, status: "APPROVED" } });
     if (existing) { console.log(`  = ${board.title} (already approved)`); continue; }
@@ -38,6 +45,7 @@ async function main() {
     await updateWorkspaceRecord(lead, created.id, { version: created.version, action: "approve" });
     console.log(`  ✓ ${board.title} approved for ${subject.name} (${subject.class.name})`);
   }
+  });
 }
 
 main().catch((e) => { console.error("❌ QA curriculum seed failed:", e); process.exit(1); }).finally(() => prisma.$disconnect());
