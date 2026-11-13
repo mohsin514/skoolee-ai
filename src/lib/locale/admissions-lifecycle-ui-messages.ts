@@ -21,6 +21,14 @@ export const admissionsLifecycleUiEntries: readonly (readonly [string, string, s
   ["Acceptance deposit: {0}", "عربون القبول: {0}", "قبولیت کی پیشگی رقم: {0}"],
   ["I have read and agree to these enrolment terms.", "لقد قرأت شروط التسجيل هذه وأوافق عليها.", "میں نے داخلے کی یہ شرائط پڑھ لی ہیں اور ان سے متفق ہوں۔"],
   ["You agreed to these terms on {0}.", "لقد وافقت على هذه الشروط في {0}.", "آپ نے {0} کو ان شرائط سے اتفاق کیا۔"],
+  ["Admissions funnel", "مسار القبول", "داخلے کا مرحلہ وار جائزہ"],
+  ["Admissions funnel by source", "مسار القبول حسب المصدر", "ذریعے کے لحاظ سے داخلے کا مرحلہ وار جائزہ"],
+  ["Offers", "العروض", "پیشکشیں"],
+  ["Direct", "مباشر", "براہ راست"],
+  ["{0}% of enquiries", "{0}% من الاستفسارات", "استفسارات کا {0}%"],
+  ["{0}% of applications", "{0}% من الطلبات", "درخواستوں کا {0}%"],
+  ["No enquiries or applications this year.", "لا توجد استفسارات أو طلبات هذا العام.", "اس سال کوئی استفسار یا درخواست نہیں۔"],
+  ["The funnel could not be loaded.", "تعذّر تحميل مسار القبول.", "مرحلہ وار جائزہ لوڈ نہیں ہو سکا۔"],
 ];
 export const arabicAdmissionsLifecycleUi: Record<string, string> = Object.fromEntries(admissionsLifecycleUiEntries.map(([key, ar]) => [key, ar]));
 export const urduAdmissionsLifecycleUi: Record<string, string> = Object.fromEntries(admissionsLifecycleUiEntries.map(([key, , ur]) => [key, ur]));

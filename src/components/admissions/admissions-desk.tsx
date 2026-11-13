@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { DeskPill, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow, deskTimeline, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FunnelPanel } from "./funnel-panel";
 import { AssessmentsPanel, kindLabel, type Assessment } from "./assessments-panel";
 
 // SKO-398: the admissions desk. Work starts from ownership and the next action; the review shows the exact
@@ -91,6 +92,8 @@ export function AdmissionsDesk({ showForms = true, canDecide = true, section, en
     {/* SKAI-1777: the shared ViewTabs — roving tabIndex, ←/→ mirrored in RTL, Home/End — instead of click-only buttons. */}
     {!section && showForms ? <ViewTabs ariaLabel="Admissions" value={tab} onChange={value => setTab(value === "forms" ? "forms" : "applications")} items={[{ id: "applications", label: "Applications" }, { id: "forms", label: "Application forms" }]} /> : null}
     {tab === "applications" ? <Pipeline forms={forms} owners={owners} classes={classes} canDecide={canDecide} entryInHeader={entryInHeader} command={command} /> : <FormsTab forms={forms} onChanged={() => void loadForms()} />}
+    {/* SKAI-1260: conversion funnel for the campus admin, who decides offers (not the front desk). */}
+    {tab === "applications" && canDecide ? <FunnelPanel /> : null}
   </div>;
 }
 

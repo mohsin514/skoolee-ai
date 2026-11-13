@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { actOnApplication, applicationDetail, convertApplication, documentFile, listApplications, listForms, publishForm, saveForm, setFormOpen, staffSaveAnswers, staffStart } from "@/lib/admissions/service";
+import { admissionsFunnel, parseFunnelYear } from "@/lib/admissions/funnel";
 import { ApiError, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -9,6 +10,7 @@ import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 // GET   ?forms=1                         → forms with draft and published version
 // GET   ?id=<applicationId>              → review: answers against their form version, submissions, documents, duplicates, history
 // GET   ?document=<documentId>           → one attached file
+// GET   ?funnel=1&year=YYYY            → SKAI-1260 enquiry → application → offer → enrolled, by source
 // GET   ?owners=1 | ?classes=1           → choices for owner and intake class
 // GET   ?view=active|mine|unassigned|overdue|all&status=&q=   → pipeline with counts
 // POST  {action: save-form|publish-form|open-form|start|save-answers|convert, ...}
@@ -24,6 +26,7 @@ export async function GET(request: NextRequest) {
     if (params.get("forms")) return Response.json({ success: true, data: await listForms(user, campusId) });
     const id = params.get("id");
     if (id) return Response.json({ success: true, data: await applicationDetail(user, campusId, id) });
+    if (params.get("funnel")) return Response.json({ success: true, data: await admissionsFunnel(user, campusId, parseFunnelYear(params.get("year"))) });
     const documentId = params.get("document");
     if (documentId) {
       const document = await documentFile(user, campusId, documentId);
