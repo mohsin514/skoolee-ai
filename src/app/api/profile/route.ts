@@ -119,7 +119,7 @@ export async function PATCH(req: NextRequest) {
     const body = await parseBody(req, jsonObjectBody);
     const currentUser = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { fullName: true, profileImageUrl: true },
+      select: { fullName: true, phone: true, profileImageUrl: true },
     });
     const data: {
       fullName?: string;
@@ -134,7 +134,13 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (body.phone !== undefined) {
-      data.phone = cleanOptionalText(body.phone);
+      const phone = cleanOptionalText(body.phone);
+      // SKAI-815: a phone change is a class C action. It needs two-step sign-in in this session, enforced here
+      // (not only by the UI hand-off). Re-sending the unchanged number stays allowed.
+      if ((phone || null) !== (currentUser?.phone || null) && session.mfaVerified !== true) {
+        throw new ApiError("Turn on two-step sign-in before you change your phone number.", 403, "MFA_REQUIRED");
+      }
+      data.phone = phone;
     }
 
     if (body.profileImageUrl !== undefined) {

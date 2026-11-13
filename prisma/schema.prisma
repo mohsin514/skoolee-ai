@@ -8756,6 +8756,9 @@ model PilotClaim {
   statement    String
   findingKey   String    @map("finding_key")
   identifiable Boolean   @default(false)
+  /// SKAI-834 claims register: who answers for the claim and when it must be re-reviewed.
+  ownerName    String?   @map("owner_name")
+  expiresOn    DateTime? @map("expires_on") @db.Date
   status       String    @default("DRAFT")
   snapshot     Json?
   snapshotHash String?   @map("snapshot_hash")

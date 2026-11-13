@@ -88,7 +88,16 @@ const MeasureInput = z.object({
   supersedesId: z.string().trim().min(1).max(100).nullable().optional(),
 });
 
-const ClaimInput = z.object({ statement: text(20, 600), findingKey: z.string().trim().min(3).max(120), identifiable: z.boolean().default(false) });
+const ClaimInput = z.object({ statement: text(20, 600), findingKey: z.string().trim().min(3).max(120), identifiable: z.boolean().default(false),
+  /** SKAI-834 claims register: a named owner and an expiry date on every claim. */
+  ownerName: text(2, 120), expiresOn: date });
+
+/** SKAI-834: a claim without an owner or past its expiry may not be approved or exported. */
+export function claimRegisterBlock(claim: { ownerName: string | null; expiresOn: Date | null }, now = new Date()): string | null {
+  if (!claim.ownerName || !claim.expiresOn) return "Record the claim owner and expiry date before approving or exporting it.";
+  if (claim.expiresOn.getTime() < Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) return "The claim has expired; review it again with a new expiry date.";
+  return null;
+}
 const ReviewInput = z.object({ decision: z.enum(["APPROVE", "RETURN", "WITHDRAW"]), note: text(8, 1000), version: z.number().int().positive() });
 
 function parse<T extends z.ZodTypeAny>(schema: T, input: unknown): z.infer<T> {
@@ -226,6 +235,8 @@ function exportBlock(pilot: PilotRow, claim: ClaimRow, finding: Finding | null):
   if (cycles) return cycles;
 
   if (pilot.synthetic) return "Synthetic pilot: never exported as a result.";
+  const register = claimRegisterBlock(claim);
+  if (register) return register;
   if (claim.status !== "APPROVED") return `Claim is ${claim.status.toLowerCase()}.`;
   if (claim.snapshotHash !== findingHash(finding)) return "The evidence changed after approval; review the claim again.";
   if (pilot.caseStudyPermission === "NONE" || !pilot.permissionReference) return "The school has not given case-study permission.";
@@ -267,8 +278,10 @@ export async function listPilots() {
 export async function proposeClaim(id: string, input: unknown, actorId: string) {
   await requirePilot(id);
   const data = parse(ClaimInput, input);
-  return prisma.pilotClaim.create({ data: { pilotId: id, statement: data.statement, findingKey: data.findingKey, identifiable: data.identifiable, createdById: actorId,
-    history: [{ at: new Date().toISOString(), by: actorId, action: "PROPOSED", statement: data.statement }] } });
+  const expiresOn = asDate(data.expiresOn);
+  if (claimRegisterBlock({ ownerName: data.ownerName, expiresOn })) throw new PilotError("The expiry date cannot be in the past.");
+  return prisma.pilotClaim.create({ data: { pilotId: id, statement: data.statement, findingKey: data.findingKey, identifiable: data.identifiable, ownerName: data.ownerName, expiresOn, createdById: actorId,
+    history: [{ at: new Date().toISOString(), by: actorId, action: "PROPOSED", statement: data.statement, owner: data.ownerName, expiresOn: data.expiresOn }] } });
 }
 
 export async function reviewClaim(id: string, claimId: string, input: unknown, reviewerId: string) {
@@ -281,6 +294,8 @@ export async function reviewClaim(id: string, claimId: string, input: unknown, r
   const entry = { at: new Date().toISOString(), by: reviewerId, action: data.decision, note: data.note } as Record<string, unknown>;
   if (data.decision === "APPROVE") {
     if (pilot.synthetic) throw new PilotError("A synthetic pilot cannot support an external claim.", 409);
+    const register = claimRegisterBlock(claim);
+    if (register) throw new PilotError(register, 409);
     const cycles = cycleBlock(pilot, claim.findingKey);
     if (cycles) throw new PilotError(cycles, 409);
     const [observations, measures] = await Promise.all([prisma.pilotObservation.findMany({ where: { pilotId: id } }), prisma.pilotMeasure.findMany({ where: { pilotId: id } })]);
