@@ -222,7 +222,11 @@ export async function listAssignments(user: AuthUser, raw: unknown, now = new Da
     }
     const scope = await authorClassIds(tx, user);
     const classes = await tx.class.findMany({ where: { schoolId: user.schoolId, archivedAt: null, ...(scope === "campus" ? (user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) : { id: { in: scope } }) }, select: { id: true, name: true, section: true }, orderBy: [{ name: "asc" }] });
-    if (!classes.length) throw new ApiError("You have no classes to set work for.", 403);
+    // SKAI-1909: no classes yet is an empty list for the author, not a refusal; creating still needs a class (403 below).
+    if (!classes.length) {
+      if (input.classId) throw new ApiError("You cannot set work for this class.", 403);
+      return { mode: "staff" as const, classId: null, classes, subjects: [], nextCursor: null, assignments: [] };
+    }
     if (input.classId && !classes.some(c => c.id === input.classId)) throw new ApiError("You cannot set work for this class.", 403);
     const classId = input.classId ?? classes[0].id;
     const [fetched, subjects] = await Promise.all([
