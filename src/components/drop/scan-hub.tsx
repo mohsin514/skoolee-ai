@@ -125,7 +125,7 @@ export function ScanHub() {
 
       {rest.length > 0 && !busy && (
         <section className="space-y-4 rounded-2xl border border-border p-4" aria-labelledby="scan-kind">
-          <h2 id="scan-kind" className="text-base font-semibold text-ink">{ui("What are these {0} pages?", [rest.length])}</h2>
+          <h2 id="scan-kind" className="text-base font-semibold text-ink">{rest.length === 1 ? ui("What is this page?") : ui("What are these {0} pages?", [rest.length])}</h2>
           <div role="radiogroup" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <ChoiceCard shape="radio" selected={kind === "paper"} onSelect={() => setKind("paper")} option={{ value: "paper", label: ui("Exam paper or quiz"), detail: ui("Questions are read so you can build a paper.") }} />
             <ChoiceCard shape="radio" selected={kind === "syllabus"} onSelect={() => setKind("syllabus")} option={{ value: "syllabus", label: ui("Syllabus"), detail: ui("Topics and outcomes for the subject.") }} />

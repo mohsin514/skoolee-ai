@@ -77,6 +77,8 @@ export const dropUiEntries: readonly (readonly [string, string, string])[] = [
   ["Search pupils by name or roll number", "ابحث عن الطلاب بالاسم أو رقم القيد", "نام یا رول نمبر سے طلبہ تلاش کریں"],
   ["Student document", "مستند الطالب", "طالب علم کی دستاویز"],
   ["Type at least two letters", "اكتب حرفين على الأقل", "کم از کم دو حروف لکھیں"],
+  ["What is this page?", "ما هذه الصفحة؟", "یہ صفحہ کیا ہے؟"],
+  ["1 more file can be sent.", "يمكن إرسال ملف واحد آخر.", "مزید 1 فائل بھیجی جا سکتی ہے۔"],
 ];
 export const arabicDropUi: Record<string, string> = Object.fromEntries(dropUiEntries.map(([en, ar]) => [en, ar]));
 export const urduDropUi: Record<string, string> = Object.fromEntries(dropUiEntries.map(([en, , ur]) => [en, ur]));
