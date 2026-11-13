@@ -9,7 +9,8 @@ import type { InstitutionKind } from "@/lib/auth/institution";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
 import { SESSION_COOKIE_NAME, hashSessionToken } from "@/lib/auth/session-cookie";
-import { isSessionRevoked } from "@/lib/auth/session-revocation";
+import { isSessionRevokedStrict } from "@/lib/auth/session-revocation";
+import { isDatabaseUnavailable, ServiceUnavailableError } from "@/lib/db/availability";
 import { ACTIVE_CAMPUS_COOKIE, resolveActiveCampusId } from "@/lib/auth/active-campus";
 import { lookupSchoolCampus } from "@/lib/auth/active-campus-server";
 
@@ -58,13 +59,16 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     // components and layouts calling getAuthUser() directly are covered too;
     // API routes were never the only way in. The lookup is memoised per
     // request, so the repeated calls a single render makes cost one query.
-    if (await isSessionRevoked(hashSessionToken(token))) return null;
+    if (await isSessionRevokedStrict(hashSessionToken(token))) return null;
 
     const principal = await resolveCurrentPrincipal({ userId, schoolId, role, accessVersion: payload.accessVersion, mfaVerified: payload.mfaVerified });
     if (!principal) return null;
     const activeCampusId = await resolveActiveCampusId(principal, cookieStore.get(ACTIVE_CAMPUS_COOKIE)?.value, lookupSchoolCampus);
     return { ...principal, ...(activeCampusId ? { activeCampusId } : {}), mfaVerified: payload.mfaVerified === "deferred" ? "deferred" : payload.mfaVerified === true };
-  } catch {
+  } catch (error) {
+    // An unreachable database is an outage, not a sign-out: answering null here made every request 401 and
+    // the browser dropped its session (SKAI-1898 load run). Still fail-closed — nothing is authorized.
+    if (isDatabaseUnavailable(error)) throw new ServiceUnavailableError();
     return null;
   }
 }

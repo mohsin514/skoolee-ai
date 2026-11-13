@@ -103,6 +103,14 @@ export const isSessionRevoked = cache(
 );
 
 /**
+ * The same, memoised per request, but an unreachable store throws instead of reading as "revoked"
+ * (checkRevocationStrict). getAuthUser uses it so a database outage answers 503, not "signed out".
+ */
+export const isSessionRevokedStrict = cache(
+  async (tokenHash: string): Promise<boolean> => checkRevocationStrict(tokenHash)
+);
+
+/**
  * Closes the session a token belongs to.
  *
  * Notably it does NOT verify the JWT first. The previous implementation did,
