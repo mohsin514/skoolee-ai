@@ -28,6 +28,7 @@ datasource db {
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
   dropSessions DropSession[]
+  dropItems    DropItem[]
   stripeWebhookReceipts StripeWebhookReceipt[]
   correctionNotes CorrectionNote[]
   paymentAllocations PaymentAllocation[]
@@ -11075,6 +11076,7 @@ model DropSession {
 model DropItem {
   id          String      @id @default(uuid())
   schoolId    String      @map("school_id")
+  school      School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   sessionId   String      @map("session_id")
   session     DropSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   storageKey  String      @unique @map("storage_key")
