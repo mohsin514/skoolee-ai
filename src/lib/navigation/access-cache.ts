@@ -3,21 +3,14 @@
 // for a short time, keyed by everything that changes the answer (user, school, campus, role, access version),
 // is safe: a role or access change bumps accessVersion and misses at once; data-driven menu items appear within
 // the TTL.
-const TTL_MS = 60_000;
-const MAX_ENTRIES = 5_000;
-const entries = new Map<string, { at: number; value: Promise<unknown> }>();
+import { createTtlMemo } from "@/lib/cache/ttl-memo";
+
+const memo = createTtlMemo({ ttlMs: 60_000 });
 
 export function cachedAccess<T>(key: string, compute: () => Promise<T>, now = Date.now()): Promise<T> {
-  const hit = entries.get(key);
-  if (hit && now - hit.at < TTL_MS) return hit.value as Promise<T>;
-  if (entries.size >= MAX_ENTRIES) entries.delete(entries.keys().next().value!);
-  const value = compute();
-  entries.set(key, { at: now, value });
-  // A failure is not remembered.
-  value.catch(() => entries.delete(key));
-  return value;
+  return memo.get(key, compute, now);
 }
 
 export function clearAccessCache() {
-  entries.clear();
+  memo.clear();
 }
