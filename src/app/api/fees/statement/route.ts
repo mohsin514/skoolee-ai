@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
     // Resolve current-year obligation
     const assignment = await prisma.feeGroupAssignment.findFirst({
       where: { campusId: student.campusId, classId: student.classId, academicYear: year },
+      orderBy: { id: "asc" }, // one group per class/year (SKAI-378); oldest wins for legacy duplicates
       include: {
         feeGroup: {
           include: { lines: { include: { feeType: { select: { id: true, name: true, code: true } } } } },

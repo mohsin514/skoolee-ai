@@ -87,9 +87,14 @@ export async function POST(req: NextRequest) {
   cookieStore.set(SESSION_COOKIE_NAME, "", clearedSessionCookieAttributes());
 
   // SKAI-1021: nothing rendered for the signed-out identity may be reused by the
-  // browser (HTTP cache entries for console documents and RSC payloads).
+  // browser. Every page is dynamic (the root layout awaits connection()), so
+  // console documents and RSC payloads are already sent no-store and never
+  // enter the HTTP cache. This response used to add Clear-Site-Data: "cache"
+  // on top; Chrome holds the response until the whole origin cache is wiped,
+  // which on a well-used browser stalled sign-out for many seconds, so the
+  // app never got back to /login. It also threw away every static chunk.
   return NextResponse.json(
     { success: true, message: "Logged out successfully" },
-    { headers: { "Cache-Control": "no-store", "Clear-Site-Data": '"cache"' } }
+    { headers: { "Cache-Control": "no-store" } }
   );
 }
