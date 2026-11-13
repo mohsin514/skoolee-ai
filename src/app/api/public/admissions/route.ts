@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       case "start": await limit(request, "start", 10); return Response.json({ success: true, data: await startApplication(String(body.form ?? ""), body) }, { status: 201 });
       case "save": await limit(request, "write", 60); return Response.json({ success: true, data: await saveApplication(reference, key, body) });
       case "submit": await limit(request, "write", 60); return Response.json({ success: true, data: await submitFamilyApplication(reference, key, body) });
-      case "accept": case "decline": await limit(request, "write", 60); return Response.json({ success: true, data: await familyRespond(reference, key, body.action === "accept") });
+      case "accept": case "decline": await limit(request, "write", 60); return Response.json({ success: true, data: await familyRespond(reference, key, body.action === "accept", body.agreeTerms) });
       default: throw new ApiError("Unknown action", 400);
     }
   } catch (error) {

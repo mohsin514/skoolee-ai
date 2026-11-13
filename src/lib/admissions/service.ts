@@ -11,6 +11,7 @@ import { intakeSeats, type IntakeSeats } from "@/lib/admissions/intake-seats";
 import { resolveSourceActions } from "@/lib/notifications/actions";
 import { deliverNotification } from "@/lib/notifications/in-app";
 import { ASSESSMENT_ACTIONS, actOnAssessment, assignWaitlistRank, moveOnWaitlist, offerDeadline, offerLapsed } from "./assessments";
+import { acceptTerms, parseOfferTerms } from "./offer-terms";
 import { answerProblems, definitionProblems, foldName, identityKeysFor, identityValues, keepVisible, visibleDocuments, type Answers, type FormDefinition } from "./form-rules";
 
 // SKO-398: admission forms, family applications and the pipeline to enrollment.
@@ -145,6 +146,8 @@ async function familyView(application: AdmissionApplication & { formVersion: { d
     schoolName: school?.name ?? "", campusName: campus?.name ?? "", formVersion: application.formVersion.version, version: application.version, definition, answers,
     documents, missing, messages: events.map(event => ({ message: event.familyMessage, at: event.createdAt })), submittedAt: application.submittedAt,
     offerExpiresAt: application.status === "OFFERED" ? application.offerExpiresAt : null,
+    // SKAI-1258: the terms and deposit of the offer, shown while it is open and after it is accepted.
+    ...(["OFFERED", "ACCEPTED", "ENROLLED"].includes(application.status) ? { offerTerms: application.offerTerms, depositAmount: application.depositAmount, depositCurrency: application.depositCurrency, termsAcceptedAt: application.termsAcceptedAt } : {}),
   };
 }
 
@@ -240,7 +243,7 @@ export function submitFamilyApplication(reference: string, resumeKey: string, bo
 }
 
 /** A family accepts (or declines) an offered place. Acceptance is not enrollment; the school confirms that. */
-export function familyRespond(reference: string, resumeKey: string, accept: boolean) {
+export function familyRespond(reference: string, resumeKey: string, accept: boolean, agreeTerms: unknown = false) {
   return runUnscoped("family answers its own offer", async () => {
     const found = await familyApplication(reference, resumeKey);
     const application = await prisma.$transaction(async tx => {
@@ -251,8 +254,9 @@ export function familyRespond(reference: string, resumeKey: string, accept: bool
       if (current.status !== "OFFERED") throw new ApiError("There is no open offer to answer on this application.", 409);
       if (accept && current.offerExpiresAt && current.offerExpiresAt < new Date()) throw new ApiError("The date to accept this offer has passed. Please contact the school.", 409);
       const status = accept ? "ACCEPTED" : "DECLINED";
-      await tx.admissionApplicationEvent.create({ data: { schoolId: current.schoolId, applicationId: current.id, kind: accept ? "ACCEPTED" : "STAGE", fromStatus: "OFFERED", toStatus: status, actorId: "FAMILY", detail: { by: "family" } } });
-      return tx.admissionApplication.update({ where: { id: current.id }, data: { status, version: { increment: 1 } }, include: { formVersion: true } });
+      const agreement = accept ? acceptTerms(current, agreeTerms) : { termsAcceptedAt: null, termsHash: null };
+      await tx.admissionApplicationEvent.create({ data: { schoolId: current.schoolId, applicationId: current.id, kind: accept ? "ACCEPTED" : "STAGE", fromStatus: "OFFERED", toStatus: status, actorId: "FAMILY", detail: { by: "family", ...(agreement.termsHash ? { termsHash: agreement.termsHash, termsAcceptedAt: agreement.termsAcceptedAt?.toISOString() } : {}), ...(accept && current.depositAmount ? { depositOwed: current.depositAmount, depositCurrency: current.depositCurrency } : {}) } } });
+      return tx.admissionApplication.update({ where: { id: current.id }, data: { status, ...agreement, version: { increment: 1 } }, include: { formVersion: true } });
     });
     return familyView(application);
   });
@@ -394,9 +398,10 @@ export async function actOnApplication(user: AuthUser, campusId: string, body: R
     }
     // SKAI-1142: an offer may carry a respond-by date; joining the waitlist takes the next place, leaving it frees it.
     const offerExpiresAt = action === "offer" ? offerDeadline(body.offerExpiresAt) : application.offerExpiresAt;
+    const terms = action === "offer" ? { ...parseOfferTerms(body), termsAcceptedAt: null, termsHash: null } : {};
     const waitlistRank = transition.to === "WAITLISTED" ? await assignWaitlistRank(db, user.schoolId, campusId) : null;
-    const updated = await db.admissionApplication.update({ where: { id }, data: { status: transition.to, intakeClassId, offerExpiresAt, waitlistRank, ...bump } });
-    await db.admissionApplicationEvent.create({ data: { ...event, kind: action === "request-info" ? "INFO_REQUESTED" : action === "record-acceptance" ? "ACCEPTED" : action === "withdraw" ? "WITHDRAWN" : "STAGE", fromStatus: application.status, toStatus: transition.to, officeNote, familyMessage, detail: action === "offer" ? { intakeClassId, offerExpiresAt: offerExpiresAt?.toISOString() ?? null } : waitlistRank ? { waitlistRank } : undefined } });
+    const updated = await db.admissionApplication.update({ where: { id }, data: { status: transition.to, intakeClassId, offerExpiresAt, waitlistRank, ...terms, ...bump } });
+    await db.admissionApplicationEvent.create({ data: { ...event, kind: action === "request-info" ? "INFO_REQUESTED" : action === "record-acceptance" ? "ACCEPTED" : action === "withdraw" ? "WITHDRAWN" : "STAGE", fromStatus: application.status, toStatus: transition.to, officeNote, familyMessage, detail: action === "offer" ? { intakeClassId, offerExpiresAt: offerExpiresAt?.toISOString() ?? null, hasTerms: Boolean("offerTerms" in terms && terms.offerTerms), depositAmount: "depositAmount" in terms ? terms.depositAmount : null, depositCurrency: "depositCurrency" in terms ? terms.depositCurrency : null } : waitlistRank ? { waitlistRank } : undefined } });
     if (["REJECTED", "DECLINED", "WITHDRAWN"].includes(transition.to)) await resolveSourceActions({ schoolId: user.schoolId, sourceType: "application", sourceId: id, resolution: "CANCELLED" }, db);
     // SKAI-1257: count this offer against the class's seats and warn (never block) when it over-offers.
     const seats = action === "offer" && intakeClassId ? await intakeSeats(db, user.schoolId, campusId, intakeClassId) : null;

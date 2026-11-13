@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 
 type PublicForm = { formName: string; schoolName: string; campusName: string; isOpen: boolean; version: number; definition: FormDefinition };
 type Document = { id: string; key: string; fileName: string; sizeBytes: number };
-type View = { reference: string; stage: string; editable: boolean; schoolName: string; campusName: string; formVersion: number; definition: FormDefinition; answers: Answers; documents: Document[]; missing: string[]; messages: { message: string; at: string }[]; submittedAt: string | null; offerExpiresAt?: string | null };
+type View = { reference: string; stage: string; editable: boolean; schoolName: string; campusName: string; formVersion: number; definition: FormDefinition; answers: Answers; documents: Document[]; missing: string[]; messages: { message: string; at: string }[]; submittedAt: string | null; offerExpiresAt?: string | null; offerTerms?: string | null; depositAmount?: number | null; depositCurrency?: string | null; termsAcceptedAt?: string | null };
 type Saved = { reference: string; resumeKey: string };
 const storageKey = (token: string) => `skoolee:application:${token}`;
 type PendingAction = "save" | "submit" | "accept" | "decline";
@@ -56,7 +56,7 @@ export default function ApplyPage() {
   const ui = useUiText();
   const lang = language as Language;
   const [form, setForm] = useState<PublicForm | null>(null), [view, setView] = useState<View | null>(null), [saved, setSaved] = useState<Saved | null>(null);
-  const [answers, setAnswers] = useState<Answers>({}), [consent, setConsent] = useState(false);
+  const [answers, setAnswers] = useState<Answers>({}), [consent, setConsent] = useState(false), [agreeTerms, setAgreeTerms] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState(""), [loadError, setLoadError] = useState("");
   const [showProblems, setShowProblems] = useState(false), [uploading, setUploading] = useState<Record<string, "uploading" | "failed">>({});
   const dirty = useRef(false);
@@ -138,7 +138,7 @@ export default function ApplyPage() {
   const respond = async (accept: boolean) => {
     if (!saved) return;
     setBusy(true); setError("");
-    try { setView(await call("POST", "/api/public/admissions", { action: accept ? "accept" : "decline", reference: saved.reference }, saved.resumeKey)); }
+    try { setView(await call("POST", "/api/public/admissions", { action: accept ? "accept" : "decline", reference: saved.reference, agreeTerms: accept && agreeTerms }, saved.resumeKey)); }
     catch (failure) { setError(ui(failure instanceof Error ? failure.message : "Sending failed.")); }
     finally { setBusy(false); }
   };
@@ -187,9 +187,15 @@ export default function ApplyPage() {
       </section> : null}
       {!formVisible && error ? <Alert tone="danger" compact data-apply-error>{error}</Alert> : null}
       {view?.stage === "OFFERED" && view.offerExpiresAt ? <p className="text-sm font-semibold" data-apply-respond-by>{ui("Please respond by {0}.", [new Date(view.offerExpiresAt).toLocaleString(language === "en" ? "en-GB" : language)])}</p> : null}
+      {view && ["OFFERED", "ACCEPTED"].includes(view.stage) && (view.offerTerms || view.depositAmount) ? <section className="sk-panel flex flex-col gap-2" aria-label={ui("Enrolment terms")} data-apply-offer-terms>
+        {view.depositAmount ? <p className="text-sm font-semibold" data-apply-deposit>{ui("Acceptance deposit: {0}", [new Intl.NumberFormat(language === "en" ? "en-GB" : language, { style: "currency", currency: view.depositCurrency ?? "PKR", maximumFractionDigits: 0 }).format(view.depositAmount)])}</p> : null}
+        {view.offerTerms ? <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink"><bdi>{view.offerTerms}</bdi></p> : null}
+        {view.stage === "OFFERED" && view.offerTerms ? <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4 text-sm leading-relaxed text-ink"><Checkbox className="mt-0.5" checked={agreeTerms} onChange={event => setAgreeTerms(event.target.checked)} data-apply-agree-terms /><span>{ui("I have read and agree to these enrolment terms.")}</span></label> : null}
+        {view.termsAcceptedAt ? <p className="text-xs text-ink-muted">{ui("You agreed to these terms on {0}.", [new Date(view.termsAcceptedAt).toLocaleString(language === "en" ? "en-GB" : language)])}</p> : null}
+      </section> : null}
       {view?.stage === "OFFERED" ? <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="ghost" onClick={() => setConfirmDecline(true)} disabled={busy}>{ui("Decline")}</Button>
-        <Button onClick={() => void track("accept", () => respond(true))} disabled={busy} loading={pendingAction === "accept"}>{ui("Accept the offered place")}</Button>
+        <Button onClick={() => void track("accept", () => respond(true))} disabled={busy || Boolean(view.offerTerms && !agreeTerms)} loading={pendingAction === "accept"}>{ui("Accept the offered place")}</Button>
       </div> : null}
       <ConfirmAction open={confirmDecline} tone="danger" title={ui("Decline the offered place?")} description={ui("Your answer is sent to the school straight away.")} confirmLabel={ui("Decline")} busy={pendingAction === "decline"}
         onCancel={() => setConfirmDecline(false)} onConfirm={() => { void track("decline", () => respond(false)).finally(() => setConfirmDecline(false)); }} />
