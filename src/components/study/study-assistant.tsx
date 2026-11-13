@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
 // SKO-428: study with class resources. Answers come only from the approved passages of this class and show
 // their sources beside them; when the material does not support an answer, it says so. During an exam the
@@ -31,7 +32,7 @@ async function call(method: string, body?: Record<string, unknown>) {
   const json = await response.json().catch(() => ({}));
   // The server's exam lock answers before the assistant: show only the way back to the exam.
   if (response.status === 409 && json.code === "EXAM_SESSION_ACTIVE") throw new ExamActive(String(json.examUrl ?? "/student"));
-  if (!response.ok || !json.success) throw new Error(json.error || "Study assistance is unavailable. Your class resources still work.");
+  if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "Study assistance is unavailable. Your class resources still work."));
   return json.data;
 }
 
@@ -87,9 +88,9 @@ export function TeacherStudyDesk() {
   const ui = useUiText();
   const [desk, setDesk] = useState<Desk | null>(null), [deskFailed, setDeskFailed] = useState(false), [busy, setBusy] = useState(false);
   const [resourceId, setResourceId] = useState(""), [section, setSection] = useState(""), [text, setText] = useState("");
-  const load = useCallback(async () => { let r: Response; try { r = await fetch("/api/study/teacher", { cache: "no-store" }); } catch { setDeskFailed(true); return; } const j = await r.json().catch(() => ({})); setDeskFailed(!r.ok || !j.success); if (r.ok && j.success) { setDesk(j.data); setResourceId(id => id || j.data.resources.find((x: { eligible: boolean }) => x.eligible)?.id || ""); } }, []);
+  const load = useCallback(async () => { let r: Response; try { r = await fetch("/api/study/teacher", { cache: "no-store" }); } catch { setDeskFailed(true); return; } const j = await r.json().catch(() => ({})); setDeskFailed(!r.ok || !isApiOk(j)); if (r.ok && isApiOk(j)) { setDesk(j.data); setResourceId(id => id || j.data.resources.find((x: { eligible: boolean }) => x.eligible)?.id || ""); } }, []);
   useEffect(() => { void load(); }, [load]);
-  const post = async (body: Record<string, unknown>, done: string) => { setBusy(true); try { const r = await fetch("/api/study/teacher", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const j = await r.json().catch(() => ({})); if (!r.ok || !j.success) throw new Error(j.error || "The change was not saved."); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
+  const post = async (body: Record<string, unknown>, done: string) => { setBusy(true); try { const r = await fetch("/api/study/teacher", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const j = await r.json().catch(() => ({})); if (!r.ok || !isApiOk(j)) throw new Error(readApiError(j, "The change was not saved.")); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
   if (!desk && deskFailed) return <section className="sk-panel p-5" data-study-desk><ErrorState title={ui("Could not load study help.")} description={ui("Check your connection and try again.")} onRetry={() => void load()} /></section>;
   if (!desk) return null;
   const eligible = desk.resources.filter(r => r.eligible);

@@ -272,12 +272,25 @@ export async function submitBatch(user: AuthUser, body: Record<string, unknown>)
     keys.add(k);
   }
   const payloadHash = sha(JSON.stringify(rows));
-  const existing = await prisma.rosterBatch.findUnique({ where: { connectionId_externalBatchId: { connectionId, externalBatchId } } });
-  if (existing) {
-    if (existing.payloadHash !== payloadHash) throw new ApiError("This batch id was already used with different rows. The source must send a new batch id.", 409);
+  const replay = async () => {
+    const existing = await prisma.rosterBatch.findUnique({ where: { connectionId_externalBatchId: { connectionId, externalBatchId } } });
+    if (!existing) return null;
+    // The connection was already checked to be this school's, but never answer for another tenant's row.
+    if (existing.schoolId !== user.schoolId || existing.payloadHash !== payloadHash) throw new ApiError("This batch id was already used with different rows. The source must send a new batch id.", 409);
     return { id: existing.id, replayed: true, status: existing.status };
+  };
+  const prior = await replay();
+  if (prior) return prior;
+  let batch: { id: string };
+  try {
+    batch = await prisma.rosterBatch.create({ data: { schoolId: user.schoolId, connectionId, campusId, externalBatchId, payloadHash, rows: rows as unknown as Prisma.InputJsonValue, submittedById: user.userId } });
+  } catch (error) {
+    // SKAI-1517: a concurrent submit of the same batch id won the unique race; answer as a replay, never a raw P2002.
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+    const winner = await replay();
+    if (winner) return winner;
+    throw new ApiError("This batch is being recorded by another request. Retry shortly.", 409);
   }
-  const batch = await prisma.rosterBatch.create({ data: { schoolId: user.schoolId, connectionId, campusId, externalBatchId, payloadHash, rows: rows as unknown as Prisma.InputJsonValue, submittedById: user.userId } });
   const p = await computePreview(user.schoolId, c, campusId, rows);
   await prisma.rosterBatch.update({ where: { id: batch.id }, data: { preview: p.changes as unknown as Prisma.InputJsonValue, previewHash: p.hash } });
   return { id: batch.id, replayed: false, status: "DRY_RUN" };

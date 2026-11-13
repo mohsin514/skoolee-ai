@@ -13,6 +13,14 @@ export const admissionsLifecycleUiEntries: readonly (readonly [string, string, s
   ["Family must respond by (optional)", "يجب على الأسرة الرد قبل (اختياري)", "خاندان کو جواب کی آخری تاریخ (اختیاری)"],
   ["Please respond by {0}.", "يرجى الرد قبل {0}.", "براہ کرم {0} تک جواب دیں۔"],
   ["Offer saved, but this class is over-offered: {0} of {1} seats are taken or offered.", "حُفظ العرض، لكن هذا الصف تجاوز عدد مقاعده: {0} من {1} مقعدًا مشغولة أو معروضة.", "پیشکش محفوظ ہو گئی، لیکن اس کلاس میں گنجائش سے زیادہ پیشکشیں ہیں: {1} میں سے {0} نشستیں لی جا چکی یا پیش کی جا چکی ہیں۔"],
+  // SKAI-1258: offer terms and acceptance deposit.
+  ["Enrolment terms the family must agree to (optional)", "شروط التسجيل التي يجب أن توافق عليها الأسرة (اختياري)", "داخلے کی شرائط جن پر خاندان کو متفق ہونا ہوگا (اختیاری)"],
+  ["Acceptance deposit (optional)", "عربون القبول (اختياري)", "قبولیت کی پیشگی رقم (اختیاری)"],
+  ["Deposit currency", "عملة العربون", "پیشگی رقم کی کرنسی"],
+  ["Enrolment terms", "شروط التسجيل", "داخلے کی شرائط"],
+  ["Acceptance deposit: {0}", "عربون القبول: {0}", "قبولیت کی پیشگی رقم: {0}"],
+  ["I have read and agree to these enrolment terms.", "لقد قرأت شروط التسجيل هذه وأوافق عليها.", "میں نے داخلے کی یہ شرائط پڑھ لی ہیں اور ان سے متفق ہوں۔"],
+  ["You agreed to these terms on {0}.", "لقد وافقت على هذه الشروط في {0}.", "آپ نے {0} کو ان شرائط سے اتفاق کیا۔"],
 ];
 export const arabicAdmissionsLifecycleUi: Record<string, string> = Object.fromEntries(admissionsLifecycleUiEntries.map(([key, ar]) => [key, ar]));
 export const urduAdmissionsLifecycleUi: Record<string, string> = Object.fromEntries(admissionsLifecycleUiEntries.map(([key, , ur]) => [key, ur]));

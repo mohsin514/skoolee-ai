@@ -63,6 +63,19 @@ export function okPage<T, P>(data: T, pagination: P, init?: ResponseInit) {
   return Response.json({ data, pagination }, init);
 }
 
+/**
+ * `{ data, ...meta }`: the envelope plus top-level siblings (counts, flags, cursors)
+ * that list screens already read. `meta` must not carry `data` or `error`.
+ */
+export function okWith<T, M extends Record<string, unknown>>(data: T, meta: M & { data?: never; error?: never }, init?: ResponseInit) {
+  return Response.json({ ...meta, data }, init);
+}
+
+/** `fail` plus top-level siblings the caller needs to act on the error (e.g. possible duplicates). */
+export function failWith(code: ApiErrorCode, message: string, extra: Record<string, unknown>, status = statusForCode(code)) {
+  return Response.json({ ...extra, error: { code, message } } satisfies ApiErrorBody, { status });
+}
+
 export function created<T>(data: T) {
   return ok(data, { status: 201 });
 }

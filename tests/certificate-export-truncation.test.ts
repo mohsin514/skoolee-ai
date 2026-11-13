@@ -12,7 +12,7 @@ test("listIssues reads one past the cap and reports truncation", () => {
   assert.match(fn, /take: 201,/);
   assert.match(fn, /const truncated = rows\.length > 200;\s+rows\.splice\(200\);/);
   assert.match(fn, /return \{ truncated, rows:/);
-  assert.match(route, /return Response\.json\(\{ success: true, data: rows, truncated \}\);/);
+  assert.match(route, /return okWith\(rows, \{ truncated \}\);/);
 });
 
 test("export warns when the history is truncated", () => {

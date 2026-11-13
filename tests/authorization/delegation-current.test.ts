@@ -57,7 +57,7 @@ test("permission PATCH delegates only a scoped action and revocation applies to 
   assert.equal((await db.visitorLog.findUniqueOrThrow({ where: { id: visitor } })).note, "Authorized scoped edit");
   for (const id of [otherVisitor, foreignVisitor, randomUUID()]) {
     const denied = await request("RECEPTIONIST", "/api/front-desk/visitors", "PATCH", { id, note: "Cross-scope edit" });
-    assert.equal(denied.status, 404); assert.deepEqual(await denied.json(), { error: "Visitor log not found" });
+    assert.equal(denied.status, 404); assert.deepEqual(await denied.json(), { error: { code: "NOT_FOUND", message: "Visitor log not found" } });
   }
   assert.equal((await request("RECEPTIONIST", "/api/accounts/chart", "POST", { campusId: campus, name: "Denied account", type: "ASSET" })).status, 403);
   assert.equal((await request("RECEPTIONIST", "/api/navigation/access")).status, 200);

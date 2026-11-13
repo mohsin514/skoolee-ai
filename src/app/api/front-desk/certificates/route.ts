@@ -5,10 +5,10 @@ import {
   ApiError,
   assertModuleRead,
   assertPermission,
-  errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { created, failFrom, ok, okWith } from "@/lib/api/envelope";
 import { parseBody } from "@/lib/api/validate";
 import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -38,16 +38,16 @@ export async function GET(request: NextRequest) {
       return new Response(new Uint8Array(pdf), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${issue.serial}.pdf"`, "X-Artifact-Hash": issue.artifactHash, "X-Pdf-Sha256": pdfSha256, "X-Document-State": issue.status, "Cache-Control": "no-store" } });
     }
     const students = params.get("students");
-    if (students !== null) return Response.json({ success: true, data: await findStudents(user, campusId, students) });
+    if (students !== null) return ok(await findStudents(user, campusId, students));
     if (params.get("issues")) {
       const status = params.get("status");
       if (status && !STATUSES.includes(status)) throw new ApiError("Unknown status", 400);
       const { rows, truncated } = await listIssues(user, campusId, { status, q: params.get("q") ?? "" });
-      return Response.json({ success: true, data: rows, truncated });
+      return okWith(rows, { truncated });
     }
-    return Response.json({ success: true, data: await listTemplates(user, campusId), canApprove: isLeader(user) });
+    return okWith(await listTemplates(user, campusId), { canApprove: isLeader(user) });
   } catch (error) {
-    return errorResponse(error, "[front-desk] certificates GET failed");
+    return failFrom(error, "[front-desk] certificates GET failed");
   }
 }
 
@@ -59,18 +59,18 @@ export async function POST(request: NextRequest) {
     const body = await parseBody(request, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
     switch (body.action) {
-      case "save-template": return Response.json({ success: true, data: await saveTemplate(user, campusId, body) });
-      case "approve-template": return Response.json({ success: true, data: await approveTemplate(user, campusId, String(body.id ?? "")) });
-      case "preview": return Response.json({ success: true, data: await previewIssue(user, campusId, body) });
+      case "save-template": return ok(await saveTemplate(user, campusId, body));
+      case "approve-template": return ok(await approveTemplate(user, campusId, String(body.id ?? "")));
+      case "preview": return ok(await previewIssue(user, campusId, body));
       case "issue": {
         const issue = await requestIssue(user, campusId, body);
         const { requestHash: _hash, idempotencyKey: _key, pdf: _pdf, ...data } = issue;
-        return Response.json({ success: true, data }, { status: 201 });
+        return created(data);
       }
       default: throw new ApiError("Unknown action", 400);
     }
   } catch (error) {
-    return errorResponse(error, "[front-desk] certificates POST failed");
+    return failFrom(error, "[front-desk] certificates POST failed");
   }
 }
 
@@ -82,9 +82,9 @@ export async function PATCH(request: NextRequest) {
     const body = await parseBody(request, idBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const { requestHash: _hash, idempotencyKey: _key, pdf: _pdf, ...data } = await decide(user, campusId, body);
-    return Response.json({ success: true, data });
+    return ok(data);
   } catch (error) {
-    return errorResponse(error, "[front-desk] certificates PATCH failed");
+    return failFrom(error, "[front-desk] certificates PATCH failed");
   }
 }
 
@@ -97,8 +97,8 @@ export async function DELETE(request: NextRequest) {
     if (!id) throw new ApiError("id is required", 400);
     const campusId = await resolveCampusId(user, request.nextUrl.searchParams.get("campusId"));
     await deleteTemplate(user, campusId, id);
-    return Response.json({ success: true, data: { id } });
+    return ok({ id });
   } catch (error) {
-    return errorResponse(error, "[front-desk] certificates DELETE failed");
+    return failFrom(error, "[front-desk] certificates DELETE failed");
   }
 }

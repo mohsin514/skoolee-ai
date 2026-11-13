@@ -14,6 +14,7 @@ import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskStats, StatTile, deskRow, 
 import { cn } from "@/lib/utils";
 
 import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
 // SKO-442: after cover is approved — did each covered lesson get a handover, was it acknowledged, what
 // happened — and which lessons had no cover. A lesson without cover is recorded here so its teacher gets a
@@ -70,7 +71,7 @@ export function CoverFollowUp({ campusId }: { campusId?: string }) {
     try {
       const response = await fetch(`/api/cover/campus?${scope.replace(/&$/, "")}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "uncovered", slotId, date: day }) });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The change was not saved."));
       toast.success(ui("Recorded. The class teacher will decide on a catch-up.")); await load();
     } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); }
   };
