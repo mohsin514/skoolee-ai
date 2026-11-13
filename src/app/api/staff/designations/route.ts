@@ -7,6 +7,7 @@ import { created as createdResponse, failFrom, ok } from "@/lib/api/envelope";
 import { applyInstitutionPreset } from "@/lib/staff/hierarchy";
 import { INSTITUTION_PRESETS, isInstitutionType } from "@/lib/staff/hierarchy-presets";
 import { wouldCreatePromotionCycle } from "@/lib/staff/designation-promotion";
+import { duplicateDesignationNameMessage, isDuplicateDesignationName } from "@/lib/staff/designation-name";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -110,6 +111,9 @@ export async function POST(req: NextRequest) {
       });
       await writeAuditEvent(tx, user, { table: "staff_designations", recordId: row.id, action: "CREATE", after: { level: row.level, track: row.track, canHeadDepartment: row.canHeadDepartment, isInstitutionHead: row.isInstitutionHead, promotesToId: row.promotesToId, isActive: row.isActive } });
       return row;
+    }).catch((error: unknown) => {
+      if (isDuplicateDesignationName(error)) throw new ApiError(duplicateDesignationNameMessage(input.name), 409, "CONFLICT");
+      throw error;
     });
 
     return createdResponse({ designation: created });
@@ -175,6 +179,9 @@ export async function PATCH(req: NextRequest) {
         after: { level: next.level, track: next.track, canHeadDepartment: next.canHeadDepartment, isInstitutionHead: next.isInstitutionHead, promotesToId: next.promotesToId, isActive: next.isActive, renamed: input.name !== undefined },
       });
       return next;
+    }).catch((error: unknown) => {
+      if (isDuplicateDesignationName(error) && input.name !== undefined) throw new ApiError(duplicateDesignationNameMessage(input.name), 409, "CONFLICT");
+      throw error;
     });
 
     return ok({ designation: updated });
