@@ -52,10 +52,13 @@ before(async () => {
     await raw.reportCard.create({ data: { id: reportId, schoolId, campusId, examId, studentId, remarksEn: "Original approved report" } });
     await scoped(async () => { const [v] = await reviewQueue([reportId]); await approveVersions([{ reportCardId: reportId, versionId: v.id }], users.PRINCIPAL); await reviewExam(examId, users.PRINCIPAL); await publishExam(examId, users.PRINCIPAL); publishedId = v.id; });
     for (const currency of ["PKR", "SAR", "AED", "KWD", "USD"]) {
-        const invoice = await raw.invoice.create({ data: { schoolId, campusId, studentId, currency, invoiceDate: new Date(), dueDate: new Date(), monthlyFee: 80001, subtotal: 80001, totalAmount: 80001, balanceDue: 80001 } });
-        // Each currency needs a separate year because the existing carry-forward key
-        // permits one currency per child/year. This is an explicit domain constraint.
+        // Each currency needs a separate year because the carry-forward key permits one currency per
+        // child/year. SKAI-1543 takes that year from the invoice's enrollment, so each currency gets a
+        // closed past enrollment and an invoice dated inside it (SKAI-1912).
         const year = 2020 + Object.keys(payments).length;
+        await raw.studentEnrollment.create({ data: { schoolId, studentId, campusId, classId, campusName: "Correction campus", className: "Correction class", curriculum: "NATIONAL", academicYear: year, rollNo: "C213", status: "ENDED", startDate: new Date(`${year}-01-01`), endDate: new Date(`${year + 1}-01-01`) } });
+        const invoiceDate = new Date(`${year}-06-01`);
+        const invoice = await raw.invoice.create({ data: { schoolId, campusId, studentId, currency, invoiceDate, dueDate: invoiceDate, monthlyFee: 80001, subtotal: 80001, totalAmount: 80001, balanceDue: 80001 } });
         const result = await scoped(() => prisma.$transaction(tx => recordPayment(tx, { campusId, studentId, invoiceId: invoice.id, amount: 100001, paymentDate: new Date(`${year}-06-01`), paymentMethod: "CASH", recordedBy: users.ACCOUNTANT })));
         payments[currency] = result.payment.id;
     }
@@ -174,7 +177,9 @@ test("one partially allocated payment reverses across both affected invoices ato
         await raw.paymentAllocation.create({ data: { schoolId, campusId, paymentId: p.id, invoiceId: i.id, amount: 30000, credit: index === 0 ? 20000 : 0, currency: "KWD" } });
     const account = await raw.chartOfAccount.findFirstOrThrow({ where: { schoolId, campusId, name: "Fee Income" } });
     await raw.ledgerEntry.create({ data: { schoolId, campusId, kind: "INCOME", sourceName: "Synthetic allocated payment", accountId: account.id, paymentMethod: "CASH", date: new Date(), amount: 80000, currency: "KWD", paymentId: p.id, createdById: users.ACCOUNTANT } });
-    await raw.feeCarryForward.create({ data: { schoolId, campusId, studentId, fromAcademicYear: 2035, toAcademicYear: 2036, balance: -20000, currency: "KWD" } });
+    // SKAI-1912: the carry-forward year follows the invoice's enrollment year (SKAI-1543), not the payment date.
+    const year = (await raw.studentEnrollment.findUniqueOrThrow({ where: { id: invoices[0].enrollmentId! } })).academicYear;
+    await raw.feeCarryForward.create({ data: { schoolId, campusId, studentId, fromAcademicYear: year, toAcademicYear: year + 1, balance: -20000, currency: "KWD" } });
     const r = await request("ACCOUNTANT", "PAYMENT", p.id, { allocations: invoices.map(i => ({ invoiceId: i.id, minor: 10000 })), unappliedMinor: 5000 });
     assert.equal(r.status, 201);
     const applied = await api("CAMPUS_ADMIN", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash, reason: "Reviewed synthetic payment correction" });
