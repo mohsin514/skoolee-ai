@@ -31,7 +31,7 @@ async function call(url: string, method = "GET", body?: Record<string, unknown>)
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
   if (!response.ok || !isApiOk(json)) throw Object.assign(new Error(readApiError(json, "The change was not saved.")), { status: response.status });
-  return readApiData(json, undefined);
+  return readApiData<any>(json, undefined);
 }
 const statusLabel = (ui: Ui, s: string) => ({ WAITLIST: ui("On the waitlist"), OFFERED: ui("Place offered"), RESERVED: ui("Place reserved · conditional"), CONFIRMED: ui("Confirmed"), DECLINED: ui("Declined"), EXPIRED: ui("Offer expired"), CANCELLED: ui("Cancelled") } as Record<string, string>)[s] ?? s;
 // A requirement that does not apply is not shown at all.
