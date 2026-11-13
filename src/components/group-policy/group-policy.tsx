@@ -10,6 +10,7 @@ import { Alert } from "@/components/ui/alert";
 import { PageHeader } from "@/components/ui/page-header";
 import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskSection, DeskStats, StatTile, deskRow, type DeskTone } from "@/components/ui/desk";
 import { ErrorState } from "@/components/ui/error-state";
+import { AccessNotice } from "@/components/ui/access-notice";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Modal } from "@/components/ui/modal";
@@ -17,7 +18,8 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { Building2, CalendarClock, FileStack, GitBranch, Hourglass, Layers, Link2, Lock, Scale, ShieldCheck, type LucideIcon } from "lucide-react";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
-import { isApiOk, readApiError } from "@/lib/api/envelope-client";
+import { isApiOk, readApiError, readApiErrorCode } from "@/lib/api/envelope-client";
+import { loadFailureKind } from "./load-failure";
 
 // SKO-443: campus policy shows each effective value with where it comes from — inherited, locked, a reviewed
 // campus override (with its expiry) or a campus setting — never a value the reader has to work out. Group policy
@@ -28,9 +30,11 @@ type Domain = "GRADING" | "CALENDAR";
 async function call(url: string, method = "GET", body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The change was not saved."));
+  if (!response.ok || !isApiOk(json)) throw Object.assign(new Error(readApiError(json, "The change was not saved.")), { code: readApiErrorCode(json) });
   return json.data;
 }
+const PLAN_TITLE = "Group policy is not part of your school's plan";
+const PLAN_REASON = "This feature is not part of the school's plan. The account owner can add it.";
 const LABELS: Record<string, string> = { passingPercentage: "Pass mark (%)", gradeAplus: "A+ starts at (%)", gradeA: "A starts at (%)", gradeB: "B starts at (%)", gradeC: "C starts at (%)", gradeD: "D starts at (%)", roundingRule: "Rounding", missingMarkPolicy: "Missing marks", absentMarkPolicy: "Absent marks", weekStartsOn: "Week starts on", weekend: "Weekend days", termCount: "Terms per year", schoolDayStart: "School day starts" };
 const ENUMS: Record<string, string[]> = { roundingRule: ["WHOLE", "ONE_DECIMAL", "TWO_DECIMALS"], missingMarkPolicy: ["COUNT_AS_ZERO", "EXCLUDE", "BLOCK"], absentMarkPolicy: ["COUNT_AS_ZERO", "EXCLUDE", "BLOCK"] };
 const enumLabel = (ui: Ui, v: string) => ({ WHOLE: ui("Whole numbers"), ONE_DECIMAL: ui("One decimal place"), TWO_DECIMALS: ui("Two decimal places"), COUNT_AS_ZERO: ui("Count as zero"), EXCLUDE: ui("Leave out"), BLOCK: ui("Block the result") } as Record<string, string>)[v] ?? v;
@@ -197,9 +201,11 @@ const statusLabel = (ui: Ui, s: string) => ({ DRAFT: ui("Draft"), IN_REVIEW: ui(
 export function GroupPolicy({ focus }: { focus?: "library" | "reviews" } = {}) {
   const ui = useUiText();
   const { date, dateTime } = useLocaleFormat();
-  const [lib, setLib] = useState<Library | null>(null), [denied, setDenied] = useState(false), [open, setOpen] = useState<string | null>(null), [busy, setBusy] = useState(false);
+  const [lib, setLib] = useState<Library | null>(null), [failure, setFailure] = useState<"plan" | "error" | null>(null), [open, setOpen] = useState<string | null>(null), [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ domain: "GRADING", title: "", countries: "", boards: "", campusIds: [] as string[] });
-  const load = useCallback(async () => { try { setLib(await call("/api/group-policy?view=library")); setDenied(false); } catch { setDenied(true); } }, []);
+  const load = useCallback(async () => { try { setLib(await call("/api/group-policy?view=library")); setFailure(null); } catch (e) { setFailure(loadFailureKind(e)); } }, []);
+  const denied = failure !== null;
+  const planNotice = <AccessNotice title={PLAN_TITLE} reason={PLAN_REASON} />;
   useEffect(() => { void load(); }, [load]);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [declining, setDeclining] = useState<Library["pending"][number] | null>(null);
@@ -218,6 +224,7 @@ export function GroupPolicy({ focus }: { focus?: "library" | "reviews" } = {}) {
     onConfirm={() => { const target = declining; if (!target) return; return run(() => call("/api/group-policy", "POST", { action: "decide-override", id: target.id, decision: "DECLINE" }), "Override declined.", `decline-${target.id}`).then(saved => { if (saved) setDeclining(null); }); }} />;
 
   if (focus === "reviews") {
+    if (failure === "plan") return planNotice;
     if (denied) return <ErrorState description={ui("Group policy reviews could not be loaded.")} onRetry={() => void load()} />;
     if (!lib) return <SkeletonList rows={3} label={ui("Loading policy reviews")} />;
     const mine = lib.templates.flatMap(t => t.versions.filter(v => v.status === "IN_REVIEW" && v.reviewerId === lib.userId).map(v => ({ template: t, version: v })));
@@ -242,7 +249,7 @@ export function GroupPolicy({ focus }: { focus?: "library" | "reviews" } = {}) {
     </div>;
   }
 
-  const library = denied ? (focus === "library" ? <ErrorState description={ui("Group templates could not be loaded.")} onRetry={() => void load()} /> : null) : lib ? <section className="space-y-4" data-group-library>
+  const library = denied ? (focus === "library" ? failure === "plan" ? planNotice : <ErrorState description={ui("Group templates could not be loaded.")} onRetry={() => void load()} /> : null) : lib ? <section className="space-y-4" data-group-library>
       {focus ? null : <PageHeader headingLevel={2} icon={Layers} title="Group templates" />}
       {focus ? null : overrideRequests}
       {lib.templates.length ? lib.templates.map(t => { const current = t.versions[0]; return <div key={t.id} className="sk-panel space-y-3 p-4 sm:p-5" data-template={t.title}>
