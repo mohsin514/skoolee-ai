@@ -45,6 +45,9 @@ const COLUMNS: { header: string; get: (s: any) => unknown }[] = [
   { header: "Nationality", get: (s) => s.nationality },
   { header: "Emirates ID", get: (s) => s.emiratesId },
   { header: "eSIS / MOE ID", get: (s) => s.regulatorId },
+  // Stable per-learner key: survives renames, class moves and re-numbered rolls, so a regulator correction
+  // round-trips to exactly one record even when two pupils share a name and date of birth.
+  { header: "Record Key", get: (s) => s.id },
 ];
 
 // SKO-451: a whole-roster export is background work; admission keeps one school's exports from starving the
