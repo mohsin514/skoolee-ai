@@ -38,6 +38,8 @@ const inList = (value: unknown, filter: unknown) =>
 const prisma = {
   user: { findMany: async ({ where }: { where: Row }) => staffRows.filter((s) => s.campusId === where.campusId && (!where.role?.in || where.role.in.includes(s.role)) && (typeof where.role !== "string" || s.role === where.role)) },
   payrollRun: { findUnique: async () => null },
+  // SKAI-1421: generation reads each staff member's leaving date from the payroll employee record (none in this fixture).
+  payrollEmployee: { findMany: async () => [] },
   leaveRequest: {
     findMany: async ({ where }: { where: Row }) => {
       leaveQueries.push({ model: "leaveRequest", where });

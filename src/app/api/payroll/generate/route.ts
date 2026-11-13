@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
-import { computePayrollLine, proRateFactor, unpaidLeaveDeductionsForMonth } from "@/lib/payroll";
+import { computePayrollLine, employmentFactor, unpaidLeaveDeductionsForMonth } from "@/lib/payroll";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 import { PAYROLL_ROLES, parsePayrollPeriod, parsePayrollRole, type PayrollRole } from "@/lib/payroll-period";
@@ -98,10 +98,19 @@ async function collectStaff(campusId: string, role?: PayrollRole) {
       staffProfile: { select: { basicSalary: true, allowancesJson: true, deductionsJson: true } },
     },
   });
-  return staff.filter((s) => s.staffProfile && s.staffProfile.basicSalary > 0);
+  const paid = staff.filter((s) => s.staffProfile && s.staffProfile.basicSalary > 0);
+  // SKAI-1421: the leaving date lives on the payroll employee record, not on the user.
+  const leavers = await prisma.payrollEmployee.findMany({
+    where: { campusId, userId: { in: paid.map((s) => s.id) } },
+    select: { userId: true, leavingDate: true },
+  });
+  const leavingByUser = new Map(leavers.map((row) => [row.userId, row.leavingDate]));
+  return paid.map((s) => ({ ...s, leavingDate: leavingByUser.get(s.id) ?? null }));
 }
 
-async function buildLines(scope: { schoolId: string; campusId: string }, month: number, year: number, staff: any[]) {
+async function buildLines(scope: { schoolId: string; campusId: string }, month: number, year: number, allStaff: any[]) {
+  // SKAI-1421: staff employed for none of the month (future joiners, prior leavers) get no line.
+  const staff = allStaff.filter((s) => employmentFactor(s.joiningDate, s.leavingDate, month, year) > 0);
   const gross = (s: any) => s.staffProfile.basicSalary + sumAllowances(s.staffProfile.allowancesJson);
   const leave = await unpaidLeaveDeductionsForMonth(
     scope,
@@ -116,7 +125,7 @@ async function buildLines(scope: { schoolId: string; campusId: string }, month: 
       s.staffProfile.basicSalary,
       s.staffProfile.allowancesJson,
       s.staffProfile.deductionsJson,
-      proRateFactor(s.joiningDate, month, year),
+      employmentFactor(s.joiningDate, s.leavingDate, month, year),
       deduction
     );
     lines.push({
