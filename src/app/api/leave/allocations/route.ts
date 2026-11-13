@@ -3,8 +3,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageCampusOps, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { created, failFrom, ok } from "@/lib/api/envelope";
-import { daysToTenths, tenthsToDays } from "@/lib/leave";
-import { createLeaveAllocation } from "@/lib/leave/create-allocation-command";
+import { tenthsToDays } from "@/lib/leave";
+import { createLeaveAllocation, updateLeaveAllocation } from "@/lib/leave/create-allocation-command";
 import { parseBody } from "@/lib/api/validate";
 import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -59,18 +59,7 @@ export async function PATCH(req: NextRequest) {
     await assertPermission(user, "leave", "edit");
     const body = await parseBody(req, idBody);
 
-    const allocation = await prisma.leaveAllocation.findFirst({
-      where: { id: body.id, campus: { schoolId: user.schoolId } },
-    });
-    if (!allocation) throw new ApiError("Allocation not found", 404);
-
-    const data: Record<string, unknown> = {};
-    if (body.days !== undefined) data.days = daysToTenths(Number(body.days));
-    if (body.academicYear !== undefined) data.academicYear = Number(body.academicYear);
-    if (body.role !== undefined) data.role = body.role ? String(body.role).toUpperCase() : null;
-    if (body.userId !== undefined) data.userId = body.userId ? String(body.userId) : null;
-
-    const updated = await prisma.leaveAllocation.update({ where: { id: allocation.id }, data });
+    const updated = await updateLeaveAllocation(user, body);
     return ok(updated);
   } catch (error) {
     return failFrom(error, "[leave/allocations] PATCH failed");

@@ -43,6 +43,41 @@ export async function createLeaveAllocation(user: AuthUser, body: Record<string,
   });
 }
 
+/**
+ * Update an allocation (PATCH /api/leave/allocations). SKAI-1672: the new identity (campus, type, year, role, user) is
+ * checked under the same campus row lock as create, so a PATCH cannot turn one allocation into another's identity.
+ * The caller has already checked canManageCampusOps and the leave.edit permission.
+ */
+export async function updateLeaveAllocation(user: AuthUser, body: Record<string, unknown>) {
+  const id = String(body.id ?? "");
+  const allocation = await prisma.leaveAllocation.findFirst({ where: { id, campus: { schoolId: user.schoolId } } });
+  if (!allocation) throw new ApiError("Allocation not found", 404);
+
+  const days = body.days !== undefined ? daysToTenths(Number(body.days)) : allocation.days;
+  const academicYear = body.academicYear !== undefined ? Number(body.academicYear) : allocation.academicYear;
+  let role = body.role !== undefined ? (body.role ? String(body.role).toUpperCase() : null) : allocation.role;
+  let userId = body.userId !== undefined ? (body.userId ? String(body.userId) : null) : allocation.userId;
+  // Switching scope clears the other side, so a row stays either role-wide or per-user.
+  if (body.role && body.userId === undefined) userId = null;
+  if (body.userId && body.role === undefined) role = null;
+  if (!Number.isInteger(academicYear) || academicYear < 1900) throw new ApiError("academicYear is invalid", 400);
+  if (!role && !userId) throw new ApiError("Provide either a role or a user", 400);
+  if (role && userId) throw new ApiError("Provide either a role or a user, not both", 400);
+  const { campusId, leaveTypeId } = allocation;
+
+  if (userId && userId !== allocation.userId) {
+    const target = await prisma.user.findFirst({ where: { id: userId, campusId, schoolId: user.schoolId } });
+    if (!target) throw new ApiError("User not found on this campus", 404);
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM campuses WHERE id = ${campusId} FOR UPDATE`;
+    const clash = await tx.leaveAllocation.findFirst({ where: { campusId, leaveTypeId, academicYear, role, userId, id: { not: allocation.id } } });
+    if (clash) throw new ApiError("An allocation for this leave type / scope / year already exists", 409);
+    return tx.leaveAllocation.update({ where: { id: allocation.id }, data: { days, academicYear, role, userId } });
+  });
+}
+
 /** The route's duplicate rule: one row per (campus, leave type, academic year, role, user). */
 export function findLeaveAllocation(campusId: string, leaveTypeId: string, academicYear: number, role: string | null, userId: string | null) {
   return prisma.leaveAllocation.findFirst({

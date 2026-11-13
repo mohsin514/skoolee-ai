@@ -15,7 +15,19 @@ async function acquire(key: string): Promise<() => void> {
   return release;
 }
 const pause = () => new Promise((r) => setTimeout(r, 5));
-const matches = (a: Alloc, w: Partial<Alloc>) => Object.entries(w).every(([k, v]) => (a as unknown as Record<string, unknown>)[k] === v);
+const campusSchool: Record<string, string> = { "campus-a": "school-a", "campus-b": "school-a", "campus-x": "school-b" };
+const matches = (a: Alloc, w: Record<string, unknown>) =>
+  Object.entries(w).every(([k, v]) => {
+    if (k === "campus") return campusSchool[a.campusId] === (v as { schoolId: string }).schoolId;
+    if (v && typeof v === "object" && "not" in v) return (a as unknown as Record<string, unknown>)[k] !== (v as { not: unknown }).not;
+    return (a as unknown as Record<string, unknown>)[k] === v;
+  });
+const updateRow = async ({ where, data }: { where: { id: string }; data: Partial<Alloc> }) => {
+  await pause();
+  const row = allocs.find((a) => a.id === where.id)!;
+  Object.assign(row, data);
+  return row;
+};
 
 function fakeTx(held: Array<() => void>) {
   return {
@@ -34,6 +46,7 @@ function fakeTx(held: Array<() => void>) {
         allocs.push(row);
         return row;
       },
+      update: updateRow,
     },
   };
 }
@@ -105,4 +118,43 @@ test("the same allocation on another campus is independent", async () => {
   const [a, b] = await Promise.all([createLeaveAllocation(user, body()), createLeaveAllocation({ ...(user as object), campusId: "campus-b" } as never, body({ campusId: "campus-b" }))]);
   assert.notEqual(a.id, b.id);
   assert.equal(allocs.length, 2);
+});
+
+const seed = (over: Partial<Alloc> = {}): Alloc => {
+  const row = { id: `la-${++seq}`, campusId: "campus-a", leaveTypeId: "lt-1", academicYear: 2026, role: "TEACHER", userId: null, days: 100, ...over };
+  allocs.push(row);
+  return row;
+};
+
+test("PATCH cannot move an allocation onto another allocation's identity", async () => {
+  allocs = []; seq = 0;
+  const { updateLeaveAllocation } = await loadCommand();
+  seed();
+  const other = seed({ academicYear: 2025 });
+  await assert.rejects(() => updateLeaveAllocation(user, { id: other.id, academicYear: 2026 }), is409);
+  assert.equal(other.academicYear, 2025);
+  const perUser = seed({ role: null, userId: "u-1" });
+  await assert.rejects(() => updateLeaveAllocation(user, { id: perUser.id, role: "TEACHER" }), is409);
+  assert.equal(perUser.userId, "u-1");
+});
+
+test("two simultaneous PATCHes onto the same free identity: one wins, the other gets 409", async () => {
+  allocs = []; seq = 0;
+  const { updateLeaveAllocation } = await loadCommand();
+  const a = seed({ academicYear: 2024 });
+  const b = seed({ academicYear: 2025 });
+  const results = await Promise.allSettled([updateLeaveAllocation(user, { id: a.id, academicYear: 2026 }), updateLeaveAllocation(user, { id: b.id, academicYear: 2026 })]);
+  assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+  assert.equal(allocs.filter((x) => x.academicYear === 2026).length, 1);
+});
+
+test("PATCH days only keeps identity, and another school's allocation is not found", async () => {
+  allocs = []; seq = 0;
+  const { updateLeaveAllocation } = await loadCommand();
+  const row = seed();
+  const updated = await updateLeaveAllocation(user, { id: row.id, days: 12 });
+  assert.equal(updated.days, 120);
+  const foreign = seed({ campusId: "campus-x" });
+  await assert.rejects(() => updateLeaveAllocation(user, { id: foreign.id, days: 1 }), (e: { status?: number }) => e.status === 404);
+  assert.equal(foreign.days, 100);
 });
