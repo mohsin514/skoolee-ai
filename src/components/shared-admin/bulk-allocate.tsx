@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { useUiText } from "@/components/locale/LocaleProvider";
-import { apiErrorMessage } from "@/lib/errors";
+import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 import { TeacherPicker, type PickerTeacher, type TeacherAvailability } from "./teacher-picker";
 
 type Row = { subjectId: string; expectedTeacherId: string | null };
@@ -13,9 +13,9 @@ type Preview = { changes: number; unchanged: number; scheduledSubjects: number; 
 
 async function post(body: object) {
   const res = await fetch("/api/subjects/allocations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok || json.success === false) throw new Error(apiErrorMessage(json.error, ""));
-  return json.data as Preview;
+  const json: unknown = await res.json().catch(() => ({}));
+  if (!res.ok || !isApiOk(json)) throw new Error(readApiError(json, ""));
+  return readApiData(json, null) as Preview;
 }
 
 /** SKAI-150: give one teacher a subject in every subject-taught section at once, after a preview of what moves. */
