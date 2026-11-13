@@ -104,6 +104,7 @@ import { cancelInvitation, inviteStaff, removeStaff, resendInvitation } from "@/
 import { getPlanLimits } from "@/config/plans";
 import { cn } from "@/lib/utils";
 import { useSuperAdminData } from "./super-data-context";
+import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 
 type Tr = ReturnType<typeof useUiText>;
 type Campus = any;
@@ -1037,7 +1038,7 @@ function PromotePrincipalConfirm({ campus, onClose, onDone }: { campus: Campus; 
   const confirm = async (reason?: string) => {
     setBusy(true);
     try {
-      const list = await fetch("/api/memberships", { cache: "no-store" }).then((response) => response.json());
+      const list = readApiData<{ members?: any[] }>(await fetch("/api/memberships", { cache: "no-store" }).then((response) => response.json()), {});
       const member = (list.members ?? []).find((item: any) => item.id === principal.id);
       if (!member) throw new Error(t("This person's membership could not be found. Refresh and try again."));
       const response = await fetch("/api/memberships", {
@@ -1052,7 +1053,7 @@ function PromotePrincipalConfirm({ campus, onClose, onDone }: { campus: Campus; 
         }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error);
+      if (!response.ok || !isApiOk(result)) throw new Error(readApiError(result, t("That change could not be saved. Please try again.")));
       toast.success(t("{0} is now the campus admin at {1}.", [name, campus.name]));
       onClose();
       await onDone();
