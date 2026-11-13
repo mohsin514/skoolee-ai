@@ -74,7 +74,7 @@
     "test:portfolio-share-replay": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/portfolio/share-replay.database.test.ts",
     "test:class-grades-scope": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/reports/class-grades-pdf-scope.database.test.ts",
     "test:bank-statement-dates": "node --import ./tests/support/server-only.mjs --import tsx --test tests/fees/bank-statement-dates.test.ts",
-    "test:identity-trust-version": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/identity/trust-version-guard.test.ts",
+    "test:identity-trust-version": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/identity/trust-version-guard.test.ts tests/identity/roster-batch-replay-race.test.ts",
     "test:purchasing-transport-batch": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/purchasing/overview-budget-batch.test.ts tests/transport/emergency-close-batch.test.ts tests/transport/trip-emergency-close-race.test.ts",
     "test:purchasing-service-complete-once": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/purchasing/service-complete-once.test.ts",
     "test:accommodations-rehearsal": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/accommodations/rehearsal-replay.test.ts",
