@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { CreditCard, Download } from "lucide-react";
+import { CreditCard, Download, GraduationCap } from "lucide-react";
 import { StudentPage } from "@/components/student/student-page";
 import { FeesSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { useStudentData } from "../student-data-context";
 import { FamilyFeeStatement } from "@/components/fees/family-fee-statement";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "@/components/ui/toast";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { csvCell } from "@/lib/csv";
@@ -79,7 +80,18 @@ export default function FeesPage() {
         : <Badge variant="success" dot>{tr("All fees cleared")}</Badge>}
       secondaryActions={summary === null ? [] : [{ id: "download-statement", label: "Download statement", icon: Download, onClick: () => void downloadStatement(), loading: downloading }]}
     >
-      <FamilyFeeStatement canPay={false} onSummary={setSummary} />
+      {/* SKAI-1936: with no student record linked there is no statement to ask for, and the server's 404 would
+          read as a permission denial. Show the same not-linked state Today shows instead. */}
+      {data.profileMissing ? (
+        <EmptyState
+          icon={GraduationCap}
+          className="sk-panel"
+          title={tr("Academic profile not linked yet")}
+          description={tr("The account is active, but no central student record is linked to it yet. Ask the school office to link it.")}
+        />
+      ) : (
+        <FamilyFeeStatement canPay={false} onSummary={setSummary} />
+      )}
     </StudentPage>
   );
 }
