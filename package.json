@@ -144,7 +144,7 @@
     "test:tour": "node --import ./tests/support/server-only.mjs --import tsx --test tests/tour/*.test.ts",
     "test:authz": "node --import ./tests/support/server-only.mjs --import tsx --test tests/authz/*.test.ts",
     "test:notifications": "node --import ./tests/support/server-only.mjs --import tsx --test tests/notifications/links.test.ts tests/notifications/item-time.test.ts",
-    "test:notification-sources": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/notifications/source-batching.test.ts",
+    "test:notification-sources": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/notifications/source-batching.test.ts tests/notifications/inbox-order.test.ts",
     "test:school-ai": "node scripts/run-school-ai-tests.mjs",
     "test:school-ai:db": "node scripts/run-school-ai-tests.mjs --database",
     "test:ai-workflows": "node scripts/run-ai-workflows-tests.mjs",
