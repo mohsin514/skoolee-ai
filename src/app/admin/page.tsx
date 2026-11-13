@@ -11,6 +11,7 @@
  * one PageHeader, at most one primary action, and in-view tabs synced to `?tab=`.
  */
 
+import { readSession } from "@/lib/client/session-read";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -202,8 +203,8 @@ function useConsoleSession(): ConsoleSession | null {
   const [session, setSession] = useState<ConsoleSession | null>(null);
   useEffect(() => {
     let live = true;
-    fetch("/api/auth/session", { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
+    readSession()
+      .then((response) => (response.ok ? response.body : null) as { user?: unknown } | null)
       .then((json) => { if (live && json?.user) setSession(json.user as ConsoleSession); })
       .catch(() => undefined);
     return () => { live = false; };
