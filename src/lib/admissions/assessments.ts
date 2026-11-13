@@ -11,7 +11,9 @@ export const ASSESSMENT_KINDS = ["INTERVIEW", "ASSESSMENT", "TOUR", "TASTER_DAY"
 export const RECOMMENDATIONS = ["RECOMMEND", "CONSIDER", "NOT_RECOMMENDED"];
 /** Bookings are possible while the school is still deciding. */
 const BOOKABLE = ["SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "WAITLISTED"];
-export const ASSESSMENT_ACTIONS = new Set(["schedule-assessment", "record-assessment", "cancel-assessment"]);
+export const ASSESSMENT_ACTIONS = new Set(["schedule-assessment", "offer-slots", "record-assessment", "cancel-assessment"]);
+/** SKAI-1263: at most this many open slots are offered to a family at once. */
+export const MAX_OFFERED_SLOTS = 6;
 
 type Ctx = { db: TxClient; user: AuthUser; campusId: string; application: AdmissionApplication; officeNote: string | null };
 
@@ -72,41 +74,93 @@ export async function moveOnWaitlist({ db, user, campusId, application }: Ctx, d
   return { rank: target, moved: true };
 }
 
+type Slot = { scheduledAt: Date; durationMin: number; location: string | null; staffId: string | null };
+
+/** The time, length, room and person of one booking or offered slot, validated against this school and campus. */
+async function slotFields(db: TxClient, user: AuthUser, campusId: string, body: Record<string, unknown>): Promise<Slot> {
+  const scheduledAt = futureDate(body.scheduledAt, "date and time");
+  const durationMin = body.durationMin === undefined ? 30 : Number(body.durationMin);
+  if (!Number.isInteger(durationMin) || durationMin < 5 || durationMin > 480) throw new ApiError("Duration must be between 5 and 480 minutes.", 400);
+  const location = body.location ? String(body.location).trim().slice(0, 200) || null : null;
+  const staffId = body.staffId ? String(body.staffId) : null;
+  if (staffId) {
+    const staff = await db.user.findFirst({ where: { id: staffId, schoolId: user.schoolId, isActive: true, role: { notIn: ["STUDENT", "PARENT"] }, OR: [{ campusId }, { role: "SUPER_ADMIN" }] }, select: { id: true } });
+    if (!staff) throw new ApiError("Choose an active staff member in this campus to run it.", 400);
+  }
+  return { scheduledAt, durationMin, location, staffId };
+}
+
+/** SKAI-1349: the same interviewer or room cannot be double-booked for overlapping times. */
+async function assertNoClash(db: TxClient, schoolId: string, slot: Slot, exceptId?: string) {
+  const { scheduledAt, durationMin, staffId, location } = slot;
+  const end = scheduledAt.getTime() + durationMin * 60_000;
+  const candidates = await db.admissionAssessment.findMany({
+    where: { schoolId, status: "SCHEDULED", scheduledAt: { gt: new Date(scheduledAt.getTime() - 480 * 60_000), lt: new Date(end) } },
+    select: { id: true, scheduledAt: true, durationMin: true, staffId: true, location: true },
+  });
+  const clash = candidates.some((other) => other.id !== exceptId && other.scheduledAt.getTime() < end && other.scheduledAt.getTime() + other.durationMin * 60_000 > scheduledAt.getTime() && ((staffId !== null && other.staffId === staffId) || (location !== null && other.location === location)));
+  if (clash) throw new ApiError("That staff member or room is already booked for an overlapping time.", 409);
+}
+
+/**
+ * SKAI-1263: staff offer a family a few times to choose from. Each is an OFFERED row; nothing is held until the
+ * family picks one (bookOfferedSlot), so offering the same time to two families is allowed and first to pick wins.
+ */
+async function offerSlots({ db, user, campusId, application, officeNote }: Ctx, kind: string, raw: unknown, familyMessage: string | null) {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_OFFERED_SLOTS) throw new ApiError(`Offer between 1 and ${MAX_OFFERED_SLOTS} times.`, 400);
+  const open = await db.admissionAssessment.count({ where: { schoolId: user.schoolId, applicationId: application.id, status: "OFFERED" } });
+  if (open + raw.length > MAX_OFFERED_SLOTS) throw new ApiError(`A family can have at most ${MAX_OFFERED_SLOTS} open times to choose from. Withdraw some first.`, 409);
+  const slots = [];
+  for (const item of raw) slots.push(await slotFields(db, user, campusId, (item ?? {}) as Record<string, unknown>));
+  if (new Set(slots.map(slot => slot.scheduledAt.getTime())).size !== slots.length) throw new ApiError("Each offered time must be different.", 400);
+  const created = [];
+  for (const slot of slots) created.push(await db.admissionAssessment.create({ data: { schoolId: user.schoolId, applicationId: application.id, kind, ...slot, status: "OFFERED", createdById: user.userId } }));
+  await db.admissionApplicationEvent.create({ data: { schoolId: user.schoolId, applicationId: application.id, actorId: user.userId, officeNote, kind: "ASSESSMENT_SLOTS_OFFERED", familyMessage, detail: { kind, assessmentIds: created.map(row => row.id) } } });
+  return created;
+}
+
+/**
+ * SKAI-1263: the family picks one offered time. The caller holds the application row lock. The picked slot becomes
+ * the booking (still refused if the interviewer or room was booked meanwhile); the other open times of the same
+ * kind are withdrawn. Picking the slot already booked is a replay.
+ */
+export async function bookOfferedSlot(db: TxClient, application: AdmissionApplication, assessmentId: unknown) {
+  const id = String(assessmentId ?? "");
+  const slot = id ? await db.admissionAssessment.findFirst({ where: { id, applicationId: application.id, schoolId: application.schoolId } }) : null;
+  if (!slot || !["OFFERED", "SCHEDULED"].includes(slot.status)) throw new ApiError("That time is no longer available. Reload to see the times you can choose.", 404);
+  if (slot.status === "SCHEDULED") return slot;
+  if (!BOOKABLE.includes(application.status)) throw new ApiError("Bookings are not available for this application now.", 409);
+  if (slot.scheduledAt.getTime() < Date.now()) throw new ApiError("That time has passed. Choose another or contact the school.", 409);
+  await assertNoClash(db, application.schoolId, slot, slot.id);
+  const booked = await db.admissionAssessment.update({ where: { id: slot.id }, data: { status: "SCHEDULED" } });
+  await db.admissionAssessment.updateMany({ where: { schoolId: application.schoolId, applicationId: application.id, kind: slot.kind, status: "OFFERED", id: { not: slot.id } }, data: { status: "CANCELLED" } });
+  await db.admissionApplicationEvent.create({ data: { schoolId: application.schoolId, applicationId: application.id, actorId: "FAMILY", kind: "ASSESSMENT_BOOKED", detail: { assessmentId: slot.id, kind: slot.kind, scheduledAt: slot.scheduledAt.toISOString() } } });
+  return booked;
+}
+
 export async function actOnAssessment({ db, user, campusId, application, officeNote }: Ctx, action: string, body: Record<string, unknown>) {
   const event = { schoolId: user.schoolId, applicationId: application.id, actorId: user.userId, officeNote };
-  if (action === "schedule-assessment") {
+  if (action === "schedule-assessment" || action === "offer-slots") {
     if (!BOOKABLE.includes(application.status)) throw new ApiError(`This application is ${application.status.toLowerCase().replace("_", " ")}; bookings are not available now.`, 409);
     const kind = String(body.kind ?? "").toUpperCase();
     if (!ASSESSMENT_KINDS.includes(kind)) throw new ApiError(`kind must be one of: ${ASSESSMENT_KINDS.join(", ")}`, 400);
-    const scheduledAt = futureDate(body.scheduledAt, "date and time");
-    const durationMin = body.durationMin === undefined ? 30 : Number(body.durationMin);
-    if (!Number.isInteger(durationMin) || durationMin < 5 || durationMin > 480) throw new ApiError("Duration must be between 5 and 480 minutes.", 400);
-    const location = body.location ? String(body.location).trim().slice(0, 200) || null : null;
-    const staffId = body.staffId ? String(body.staffId) : null;
-    if (staffId) {
-      const staff = await db.user.findFirst({ where: { id: staffId, schoolId: user.schoolId, isActive: true, role: { notIn: ["STUDENT", "PARENT"] }, OR: [{ campusId }, { role: "SUPER_ADMIN" }] }, select: { id: true } });
-      if (!staff) throw new ApiError("Choose an active staff member in this campus to run it.", 400);
-    }
+    const familyMessage = body.familyMessage ? String(body.familyMessage).trim().slice(0, 2000) || null : null;
+    if (action === "offer-slots") return offerSlots({ db, user, campusId, application, officeNote }, kind, body.slots, familyMessage);
+    const slot = await slotFields(db, user, campusId, body);
     // SKAI-1422: a retry of the same booking after a lost response replays the original. The application row is locked
     // by the caller, so two retries cannot both pass this check.
-    const original = await db.admissionAssessment.findFirst({ where: { schoolId: user.schoolId, applicationId: application.id, status: "SCHEDULED", kind, scheduledAt, durationMin, staffId, location } });
+    const original = await db.admissionAssessment.findFirst({ where: { schoolId: user.schoolId, applicationId: application.id, status: "SCHEDULED", kind, ...slot } });
     if (original) return original;
-    // SKAI-1349: the same interviewer or room cannot be double-booked for overlapping times.
-    const end = scheduledAt.getTime() + durationMin * 60_000;
-    const candidates = await db.admissionAssessment.findMany({
-      where: { schoolId: user.schoolId, status: "SCHEDULED", scheduledAt: { gt: new Date(scheduledAt.getTime() - 480 * 60_000), lt: new Date(end) } },
-      select: { scheduledAt: true, durationMin: true, staffId: true, location: true },
-    });
-    const clash = candidates.some((other) => other.scheduledAt.getTime() < end && other.scheduledAt.getTime() + other.durationMin * 60_000 > scheduledAt.getTime() && ((staffId !== null && other.staffId === staffId) || (location !== null && other.location === location)));
-    if (clash) throw new ApiError("That staff member or room is already booked for an overlapping time.", 409);
-    const booking = await db.admissionAssessment.create({ data: { schoolId: user.schoolId, applicationId: application.id, kind, scheduledAt, durationMin, location, staffId, createdById: user.userId } });
-    await db.admissionApplicationEvent.create({ data: { ...event, kind: "ASSESSMENT_SCHEDULED", familyMessage: body.familyMessage ? String(body.familyMessage).trim().slice(0, 2000) || null : null, detail: { assessmentId: booking.id, kind, scheduledAt: scheduledAt.toISOString() } } });
+    await assertNoClash(db, user.schoolId, slot);
+    const booking = await db.admissionAssessment.create({ data: { schoolId: user.schoolId, applicationId: application.id, kind, ...slot, createdById: user.userId } });
+    await db.admissionApplicationEvent.create({ data: { ...event, kind: "ASSESSMENT_SCHEDULED", familyMessage, detail: { assessmentId: booking.id, kind, scheduledAt: slot.scheduledAt.toISOString() } } });
     return booking;
   }
   const id = String(body.assessmentId ?? "");
   const booking = id ? await db.admissionAssessment.findFirst({ where: { id, applicationId: application.id, schoolId: user.schoolId } }) : null;
   if (!booking) throw new ApiError("Booking not found", 404);
-  if (booking.status !== "SCHEDULED") throw new ApiError("This booking is already closed.", 409);
+  // SKAI-1263: a slot offered to the family and not yet picked can be withdrawn, but has no outcome to record.
+  if (booking.status !== "SCHEDULED" && !(action === "cancel-assessment" && booking.status === "OFFERED")) throw new ApiError("This booking is already closed.", 409);
   if (action === "cancel-assessment") {
     if (!officeNote) throw new ApiError("Add an office note saying why it was cancelled.", 400);
     const updated = await db.admissionAssessment.update({ where: { id }, data: { status: "CANCELLED" } });

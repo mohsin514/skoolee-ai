@@ -46,6 +46,18 @@ export const admissionsLifecycleUiEntries: readonly (readonly [string, string, s
   ["No priority criteria met", "لم يُستوفَ أي معيار أولوية", "کوئی ترجیحی معیار پورا نہیں ہوا"],
   ["Priority criteria, one per line: points | question key | answer | name (English)", "معايير الأولوية، معيار في كل سطر: النقاط | مفتاح السؤال | الإجابة | الاسم (بالإنجليزية)", "ترجیحی معیارات، ہر سطر میں ایک: پوائنٹس | سوال کی کلید | جواب | نام (انگریزی)"],
   ["Used to rank offers, for example: 10 | hasSibling | yes | Sibling at the school", "تُستخدم لترتيب العروض، مثلًا: 10 | hasSibling | yes | أخ أو أخت في المدرسة", "پیشکشوں کی درجہ بندی کے لیے، مثلاً: 10 | hasSibling | yes | اسکول میں بہن بھائی"],
+  ["Booked: {0}", "محجوز: {0}", "بک ہو گیا: {0}"],
+  ["{0} min", "{0} دقيقة", "{0} منٹ"],
+  ["Choose one of the times the school offered. Times are confirmed first come, first served.", "اختر أحد المواعيد التي عرضتها المدرسة. تُؤكَّد المواعيد بحسب الأسبقية.", "اسکول کی پیش کردہ اوقات میں سے ایک منتخب کریں۔ اوقات پہلے آئیں، پہلے پائیں کی بنیاد پر طے ہوتے ہیں۔"],
+  ["Book this time", "احجز هذا الموعد", "یہ وقت بک کریں"],
+  ["That time is no longer available. Reload to see the times you can choose.", "لم يعد هذا الموعد متاحًا. أعد التحميل لرؤية المواعيد المتاحة.", "یہ وقت اب دستیاب نہیں۔ دستیاب اوقات دیکھنے کے لیے دوبارہ لوڈ کریں۔"],
+  ["That time has passed. Choose another or contact the school.", "لقد مضى هذا الموعد. اختر موعدًا آخر أو تواصل مع المدرسة.", "یہ وقت گزر چکا ہے۔ کوئی اور وقت منتخب کریں یا اسکول سے رابطہ کریں۔"],
+  ["Bookings are not available for this application now.", "الحجوزات غير متاحة لهذا الطلب الآن.", "اس درخواست کے لیے ابھی بکنگ دستیاب نہیں۔"],
+  ["Offered to the family", "معروض على الأسرة", "خاندان کو پیش کیا گیا"],
+  ["Times offered to the family.", "تم عرض المواعيد على الأسرة.", "اوقات خاندان کو پیش کر دیے گئے۔"],
+  ["Withdraw (needs office note)", "سحب (يتطلب ملاحظة مكتبية)", "واپس لیں (دفتری نوٹ ضروری ہے)"],
+  ["Add as a time to offer", "أضف كموعد للعرض", "پیش کرنے کے وقت کے طور پر شامل کریں"],
+  ["Offer these times to the family", "اعرض هذه المواعيد على الأسرة", "یہ اوقات خاندان کو پیش کریں"],
 ];
 export const arabicAdmissionsLifecycleUi: Record<string, string> = Object.fromEntries(admissionsLifecycleUiEntries.map(([key, ar]) => [key, ar]));
 export const urduAdmissionsLifecycleUi: Record<string, string> = Object.fromEntries(admissionsLifecycleUiEntries.map(([key, , ur]) => [key, ur]));
