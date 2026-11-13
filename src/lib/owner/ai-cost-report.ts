@@ -8,7 +8,7 @@ import { aiCreditLimit, planPeriodAmount } from "@/lib/billing/plan-pricing";
 import { normalizePlan } from "@/lib/owner/provisioning";
 import { csvCell } from "@/lib/csv";
 import { ApiError } from "@/lib/api/scope";
-import { computeCostReport, COST_REPORT_CSV_HEADER, type CostRates, type UsageAggregate } from "@/lib/owner/ai-cost-math";
+import { computeActionBreakdown, computeCostReport, COST_REPORT_CSV_HEADER, type CostRates, type UsageAggregate } from "@/lib/owner/ai-cost-math";
 
 /**
  * SKAI-1042 (D1-02): AI cost per credit, per school and calendar month (UTC).
@@ -64,9 +64,17 @@ export async function buildCostReport(months: number) {
     return [s.id, { name: s.name, plan: normalizePlan(s.plan), planPricePkr: planPeriodAmount(contract, contract.billedStudents ?? 0, "monthly"), planCredits: aiCreditLimit(contract, s.aiCreditsLimit) }];
   }));
   const aggregates: UsageAggregate[] = usage.map(r => ({ schoolId: r.school_id, month: r.month, model: r.model, tokens: Number(r.tokens), credits: Number(r.credits), calls: Number(r.calls) }));
+  // SKAI-843: credits per feature/action; a call logged with creditsCharged 0 (failed or abandoned) counts as a call, not a charge.
+  const actionUsage = await runUnscoped("ai cost report: credits per AI action across schools for the platform owner", () => prisma.$queryRaw<{ feature: string | null; action: string; tokens: bigint; credits: bigint; calls: bigint; charged: bigint }[]>`
+    SELECT feature, action, SUM(tokens_used)::bigint AS tokens,
+           SUM(CASE WHEN (metadata->>'creditsCharged') ~ '^[0-9]{1,9}$' THEN (metadata->>'creditsCharged')::int ELSE 1 END)::bigint AS credits,
+           COUNT(*)::bigint AS calls,
+           COUNT(*) FILTER (WHERE COALESCE(metadata->>'creditsCharged', '1') <> '0')::bigint AS charged
+    FROM ai_usage_logs WHERE created_at >= ${since} GROUP BY 1, 2`);
+  const actions = computeActionBreakdown(actionUsage.map(r => ({ feature: r.feature, action: r.action, tokens: Number(r.tokens), credits: Number(r.credits), calls: Number(r.calls), chargedCalls: Number(r.charged) })));
   const latest = await runUnscoped("ai cost report: newest usage time across schools", () => prisma.aIUsageLog.findFirst({ where: { createdAt: { gte: since } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }));
   // SKAI-721: when the figures were computed and the newest usage they include, so the page can show last refresh and staleness.
-  return { since: since.toISOString(), generatedAt: new Date().toISOString(), latestUsageAt: latest?.createdAt.toISOString() ?? null, rates, rows: computeCostReport(aggregates, plans, rates) };
+  return { since: since.toISOString(), generatedAt: new Date().toISOString(), latestUsageAt: latest?.createdAt.toISOString() ?? null, rates, rows: computeCostReport(aggregates, plans, rates), actions };
 }
 
 export const DETAIL_LIMIT = 200;
