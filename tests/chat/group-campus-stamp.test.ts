@@ -35,6 +35,7 @@ test("a creator with a campus keeps it, and a families-only owner group stays sc
   const { groupCampusId } = await import("../../src/lib/chat/membership");
   assert.equal(groupCampusId(teacherA, [{ role: "TEACHER", campusId: "campus-b" }]), "campus-a");
   assert.equal(groupCampusId(owner, [{ role: "PARENT", campusId: null }, { role: "SUPER_ADMIN", campusId: null }]), null);
+  assert.equal(groupCampusId(actor("admin-x", "ADMIN", null), [{ role: "TEACHER", campusId: "campus-a" }]), null, "a campus-bound creator without a campus keeps seeing its own room");
 });
 
 test("an owner cannot put staff from two campuses in one group", async () => {

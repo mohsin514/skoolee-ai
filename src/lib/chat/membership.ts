@@ -47,8 +47,9 @@ function outsideScope(user: AuthUser, loaded: Pick<ConversationRow, "schoolId" |
  * one (a school-wide SUPER_ADMIN) takes the campus of the campus-bound staff they add, so those staff can see it;
  * staff from two campuses cannot share one room, because each of them only sees their own campus.
  */
-export function groupCampusId(user: Pick<AuthUser, "campusId">, members: Array<{ role: string; campusId: string | null }>): string | null {
-  if (user.campusId) return user.campusId;
+export function groupCampusId(user: Pick<AuthUser, "campusId" | "role">, members: Array<{ role: string; campusId: string | null }>): string | null {
+  // A campus-bound creator sees only its own campus (even a null one), so its rooms keep that campus as before.
+  if (user.campusId || campusBoundChatRole(user.role)) return user.campusId;
   const campuses = new Set(members.filter((member) => campusBoundChatRole(member.role)).map((member) => member.campusId));
   if (campuses.size > 1) throw new ApiError("Staff from different campuses cannot share a group. Create one group per campus.", 400);
   return [...campuses][0] ?? null;
