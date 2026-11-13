@@ -31,7 +31,7 @@ export function pgAdapterEnabled(env: Env = process.env): boolean {
 /** Prisma-only URL parameters that `pg` must not see (it would treat them as session settings). */
 const PRISMA_PARAMS = ["pgbouncer", "connection_limit", "pool_timeout", "connect_timeout", "socket_timeout", "statement_cache_size", "schema", "sslmode", "sslaccept"];
 /** The most connections one serverless instance takes when only the URL sets a limit. */
-export const SERVERLESS_MAX_FROM_URL = 5;
+export const SERVERLESS_MAX_FROM_URL = 2;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 export function pgPoolConfig(raw: string, env: Env = process.env): { pool: PoolConfig; schema?: string } {
@@ -39,14 +39,16 @@ export function pgPoolConfig(raw: string, env: Env = process.env): { pool: PoolC
   const params = url.searchParams;
   // Per-instance budget. On serverless a limit that only comes from the URL is capped: dev's DATABASE_URL carried
   // connection_limit=20, so each warm instance could hold 20 pooler clients and ten instances filled all 200
-  // (EMAXCONN with no users online, 2026-11-13). A cap of 2 then queued concurrent requests inside each Fluid instance
-  // under load, so the cap is 5 (default 3): 40 busy instances fit the 200 client slots, and idle ones release theirs.
+  // (EMAXCONN with no users online, 2026-11-13). Raising the cap to 5 then made it worse under realistic load: many
+  // Fluid instances × 5 used up the pooler's 200 client slots and new connections were refused (503s) while Postgres
+  // sat idle (SKAI-1919 load runs). The pooler's client slots are the scarce resource, so each instance takes at most 2;
+  // one in-region connection carries many fast queries, and many more instances fit under the limit.
   // An explicit PRISMA_CONNECTION_LIMIT is an operator's choice and wins.
   const fromUrl = Number.parseInt(params.get("connection_limit") ?? "", 10);
   const fromEnv = Number.parseInt(env.PRISMA_CONNECTION_LIMIT ?? "", 10);
   const serverless = Boolean(env.VERCEL || env.AWS_LAMBDA_FUNCTION_NAME);
   const max = fromEnv > 0 ? fromEnv
-    : serverless ? Math.min(fromUrl > 0 ? fromUrl : 3, SERVERLESS_MAX_FROM_URL)
+    : serverless ? Math.min(fromUrl > 0 ? fromUrl : 2, SERVERLESS_MAX_FROM_URL)
     : fromUrl > 0 ? fromUrl : 5;
   const idle = Number.parseInt(env.PG_IDLE_TIMEOUT_MS ?? "", 10);
   const sslmode = params.get("sslmode");
@@ -56,9 +58,9 @@ export function pgPoolConfig(raw: string, env: Env = process.env): { pool: PoolC
   // TLS as the Prisma engine did it (encrypted, certificate not verified), except where disabled or local.
   const ssl = sslmode === "disable" || (!sslmode && LOCAL_HOSTS.has(url.hostname)) ? false : { rejectUnauthorized: false };
   return {
-    // 15 s idle: long enough that a busy instance reuses its connections (each new one is a TLS handshake to the
-    // pooler), short enough that an idle instance lets them go well before the pooler's client limit matters.
-    pool: { connectionString: url.toString(), max, idleTimeoutMillis: idle > 0 ? idle : 15_000, connectionTimeoutMillis: 10_000, ssl },
+    // 10 s idle: a busy instance keeps reusing its connections (each new one is a TLS handshake to the pooler), and an
+    // idle one hands its client slots back quickly — the slots, not Postgres, are what run out first.
+    pool: { connectionString: url.toString(), max, idleTimeoutMillis: idle > 0 ? idle : 10_000, connectionTimeoutMillis: 10_000, ssl },
     ...(schema && schema !== "public" ? { schema } : {}),
   };
 }

@@ -33,18 +33,21 @@ export type EffectiveSettings = {
 };
 
 /**
- * Deterministic: an exam-specific approval wins (it was approved for this assessment); otherwise the
+ * Deterministic: an exam-specific approval sets the time (it was approved for this assessment); otherwise the
  * plan covering the assessment applies; otherwise nothing. Percent extra time rounds up to whole minutes.
+ * SKAI-650: an approval overrides time only. The covering plan's arrangements (submission mode, assistive
+ * tech, instructions, switches) still apply, and the approval's switches can only add to them.
  */
 export function effectiveSettings(input: { baseMinutes: number; type: AssessmentType; at: Date; plan?: PlanRow | null; examApproval?: ExamApproval | null }): EffectiveSettings {
   const { baseMinutes } = input;
+  const plan = input.plan && planCovers(input.plan, input.type, input.at) ? input.plan : null;
   if (input.examApproval) {
     const approval = input.examApproval, breakMinutes = approval.breakMinutes ?? 0;
-    return { source: "EXAM_APPROVAL", planId: null, planVersion: null, baseMinutes, extraMinutes: approval.extraMinutes, breakMinutes, totalMinutes: baseMinutes + approval.extraMinutes + breakMinutes,
-      capabilities: capabilitiesSchema.parse({ reader: approval.reader ?? false, scribe: approval.scribe ?? false, largeText: approval.largeText ?? false, cameraExempt: approval.cameraExempt ?? false }), instructions: "",
+    const base = capabilitiesSchema.parse(plan?.capabilities ?? {});
+    return { source: "EXAM_APPROVAL", planId: plan?.id ?? null, planVersion: plan?.version ?? null, baseMinutes, extraMinutes: approval.extraMinutes, breakMinutes, totalMinutes: baseMinutes + approval.extraMinutes + breakMinutes,
+      capabilities: { ...base, reader: base.reader || !!approval.reader, scribe: base.scribe || !!approval.scribe, largeText: base.largeText || !!approval.largeText, cameraExempt: base.cameraExempt || !!approval.cameraExempt }, instructions: plan?.instructions ?? "",
       steps: [{ key: "base", minutes: baseMinutes }, { key: "examApproval", minutes: approval.extraMinutes }, { key: "break", minutes: breakMinutes }, { key: "total", minutes: baseMinutes + approval.extraMinutes + breakMinutes }] };
   }
-  const plan = input.plan && planCovers(input.plan, input.type, input.at) ? input.plan : null;
   if (!plan) return { source: "NONE", planId: null, planVersion: null, baseMinutes, extraMinutes: 0, breakMinutes: 0, totalMinutes: baseMinutes, capabilities: capabilitiesSchema.parse({}), instructions: "", steps: [{ key: "base", minutes: baseMinutes }, { key: "total", minutes: baseMinutes }] };
   const percentMinutes = Math.ceil(baseMinutes * plan.extraPercent / 100);
   const extraMinutes = plan.extraMinutes + percentMinutes, totalMinutes = baseMinutes + extraMinutes + plan.breakMinutes;
