@@ -1,7 +1,7 @@
 /**
  * SKAI-1808 (DB-01 Phase 2): the allowed values of free-text status columns, one list per column.
  *
- * These lists are the single source for the database watch in
+ * These lists are the single source for the CHECK constraints (SKAI-1852) that replaced the database watch in
  * prisma/migrations/*_skai_1808_status_value_watch (a trigger records any other value in
  * `status_value_violations` without blocking the write) and, once that table stays empty for a release, for
  * CHECK constraints. Add a value here and in a migration in the same PR; tests/db/status-values.test.ts keeps
@@ -14,12 +14,12 @@ export const STATUS_VALUES = {
   students: ["active", "archived", "consolidated", "graduated", "inactive", "withdrawn"],
   classes: ["ACTIVE", "COMPLETED"],
   academic_cycles: ["DRAFT", "ACTIVE", "PAUSED", "ENDED"],
-  guardian_relationships: ["DRAFT", "INVITED", "ACTIVE", "SUSPENDED", "REVOKED"],
+  guardian_relationships: ["DRAFT", "INVITED", "ACTIVE", "SUSPENDED", "REVOKED", "REVIEW_REQUIRED"],
   assignments: ["DRAFT", "RELEASED", "CLOSED"],
   leave_requests: ["PENDING", "APPROVED", "REJECTED", "CANCELLED"],
   admission_queries: ["ACTIVE", "FOLLOW_UP", "CONVERTED", "LOST"],
   admission_applications: ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "OFFERED", "WAITLISTED", "REJECTED", "ACCEPTED", "DECLINED", "WITHDRAWN", "ENROLLED"],
-  complaints: ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"],
+  complaints: ["OPEN", "IN_PROGRESS", "RESOLVED"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type StatusTable = keyof typeof STATUS_VALUES;
