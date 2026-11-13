@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { requireAuthUser } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { acceptCorrection, acceptInvite, adoptQuestion, authorizeShare, createNetwork, inviteSchool, networkOverview, proposeCorrection, publishQuestion, reportUse, reviewQuestion, shareableQuestions, submitQuestion, withdrawQuestion } from "@/lib/question-network/service";
 
@@ -10,8 +11,8 @@ export async function GET() {
   try {
     const user = await requireAuthUser();
     const [overview, shareable] = await Promise.all([networkOverview(user), shareableQuestions(user)]);
-    return Response.json({ success: true, data: { ...overview, shareable } }, { headers });
-  } catch (error) { return errorResponse(error, "[question-network] GET failed"); }
+    return ok({ ...overview, shareable }, { headers });
+  } catch (error) { return failFrom(error, "[question-network] GET failed"); }
 }
 
 export async function POST(request: Request) {
@@ -36,6 +37,6 @@ export async function POST(request: Request) {
         default: return reportUse(user, id, body.data);
       }
     };
-    return Response.json({ success: true, data: await run() }, { headers });
-  } catch (error) { return errorResponse(error, "[question-network] POST failed"); }
+    return ok(await run(), { headers });
+  } catch (error) { return failFrom(error, "[question-network] POST failed"); }
 }

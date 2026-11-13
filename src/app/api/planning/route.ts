@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { requireAuthUser } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { decideHandoff, duplicateScenario, planningOverview, proposeHandoff, refreshScenario, saveScenario, takeBaseline } from "@/lib/planning/service";
 
@@ -7,8 +8,8 @@ import { decideHandoff, duplicateScenario, planningOverview, proposeHandoff, ref
 const headers = { "Cache-Control": "private, no-store" };
 
 export async function GET(request: Request) {
-  try { return Response.json({ success: true, data: await planningOverview(await requireAuthUser(), new URL(request.url).searchParams.get("campusId")) }, { headers }); }
-  catch (error) { return errorResponse(error, "[planning] GET failed"); }
+  try { return ok(await planningOverview(await requireAuthUser(), new URL(request.url).searchParams.get("campusId")), { headers }); }
+  catch (error) { return failFrom(error, "[planning] GET failed"); }
 }
 
 export async function POST(request: Request) {
@@ -27,6 +28,6 @@ export async function POST(request: Request) {
         default: return decideHandoff(user, id, body.data);
       }
     };
-    return Response.json({ success: true, data: await run() }, { headers });
-  } catch (error) { return errorResponse(error, "[planning] POST failed"); }
+    return ok(await run(), { headers });
+  } catch (error) { return failFrom(error, "[planning] POST failed"); }
 }
