@@ -2,7 +2,7 @@ import { needsMfaChallenge, requiresMfa } from "./mfa-crypto";
 import { AccessDenied } from "./policy";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
-import { normalizeUserRole } from "@/lib/roles";
+import { normalizeUserRole, type UserRole } from "@/lib/roles";
 import type { AuthUser } from "@/lib/auth";
 import { resolveInstitutionKind } from "./institution-server";
 import { cache } from "react";
@@ -26,7 +26,7 @@ const resolveMemoised = cache((key: string) => {
 });
 
 type AccountRow = {
-  id: string; schoolId: string; campusId: string | null; role: string; email: string; fullName: string; onboardingComplete: boolean;
+  id: string; schoolId: string; campusId: string | null; role: UserRole; email: string; fullName: string; onboardingComplete: boolean;
   mfaEnabled: boolean; isInstitutionOwner: boolean; canPurchaseSubscription: boolean; canManageMemberships: boolean; accessVersion: number;
   campusSchoolId: string | null; slug: string; status: string; registrationKind: string | null; institutionType: string | null;
 };
