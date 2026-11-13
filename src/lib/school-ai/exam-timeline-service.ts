@@ -35,7 +35,9 @@ export async function examTimelineFor(schoolId: string, student: { id: string; c
 export async function myExamTimeline(user: AuthUser) {
   if (user.role !== "STUDENT") throw new ApiError("Only learners read their own exam timeline here.", 403);
   const student = await prisma.student.findFirst({ where: { schoolId: user.schoolId, studentUserId: user.userId, archivedAt: null, status: "active" }, select: { id: true, classId: true, campusId: true } });
-  if (!student) throw new ApiError("An active student record is required.", 403);
+  // SKAI-1936: no student record linked to this account yet is not an access denial; the caller shows the
+  // not-linked state instead of "Not available with your access".
+  if (!student) return null;
   return examTimelineFor(user.schoolId, student);
 }
 
