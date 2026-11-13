@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, assertPermission, canManageAcademics, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageAcademics, canManageCampusOps, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { created as createdResponse, failFrom, ok } from "@/lib/api/envelope";
 import { setDepartmentHead, setDepartmentMembership } from "@/lib/staff/hierarchy";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -65,8 +66,7 @@ export async function GET(req: NextRequest) {
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
 
-    return Response.json({
-      success: true,
+    return ok({
       departments: departments.map((d) => ({
         ...d,
         members: [...d.members].sort((a, b) => {
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error) {
-    return errorResponse(error, "[staff/departments] GET failed");
+    return failFrom(error, "[staff/departments] GET failed");
   }
 }
 
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
         userId: body.userId ? String(body.userId) : null,
         isActing: Boolean(body.isActing),
       });
-      return Response.json({ success: true, ...result });
+      return ok(result);
     }
 
     if (body.action === "set-member") {
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
         role,
         isPrimary: body.isPrimary === undefined ? undefined : Boolean(body.isPrimary),
       });
-      return Response.json({ success: true, member: result });
+      return ok({ member: result });
     }
 
     if (body.action === "remove-member") {
@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
           after: { endedAt: ended.endedAt?.toISOString() ?? null, headCleared: member.role === "HEAD" },
         });
       });
-      return Response.json({ success: true });
+      return ok({});
     }
 
     await assertPermission(user, "staff", "add");
@@ -165,9 +165,9 @@ export async function POST(req: NextRequest) {
       return row;
     });
 
-    return Response.json({ success: true, department: created }, { status: 201 });
+    return createdResponse({ department: created });
   } catch (error) {
-    return errorResponse(error, "[staff/departments] POST failed");
+    return failFrom(error, "[staff/departments] POST failed");
   }
 }
 
@@ -208,9 +208,9 @@ export async function PATCH(req: NextRequest) {
       return next;
     });
 
-    return Response.json({ success: true, department: updated });
+    return ok({ department: updated });
   } catch (error) {
-    return errorResponse(error, "[staff/departments] PATCH failed");
+    return failFrom(error, "[staff/departments] PATCH failed");
   }
 }
 
@@ -247,8 +247,7 @@ export async function DELETE(req: NextRequest) {
         await tx.department.update({ where: { id }, data: { isActive: false } });
         await writeAuditEvent(tx, user, { table: "departments", recordId: id, action: "ARCHIVE", campusId: department.campusId, before: { isActive: department.isActive, members: department._count.members }, after: { isActive: false } });
       });
-      return Response.json({
-        success: true,
+      return ok({
         retired: true,
         message: `${department.name} still has ${department._count.members} member(s), so it has been archived rather than deleted.`,
       });
@@ -258,9 +257,9 @@ export async function DELETE(req: NextRequest) {
       await tx.department.delete({ where: { id } });
       await writeAuditEvent(tx, user, { table: "departments", recordId: id, action: "DELETE", campusId: department.campusId, before: { kind: department.kind, isActive: department.isActive } });
     });
-    return Response.json({ success: true, retired: false });
+    return ok({ retired: false });
   } catch (error) {
-    return errorResponse(error, "[staff/departments] DELETE failed");
+    return failFrom(error, "[staff/departments] DELETE failed");
   }
 }
 

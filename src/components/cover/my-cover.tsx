@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "@/components/ui/toast";
+import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -26,8 +27,8 @@ type Data = { today: string; duties: Duty[]; recoveries: Recovery[] };
 async function call(method: string, body?: Record<string, unknown>) {
   const response = await fetch("/api/cover", { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved.");
-  return json.data;
+  if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The change was not saved."));
+  return readApiData(json, null);
 }
 
 export function MyCover() {

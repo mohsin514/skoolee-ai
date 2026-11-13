@@ -9,6 +9,7 @@ import { InputGroup } from "@/components/ui/input-group";
 
 import React, {
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -39,6 +40,7 @@ import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { PageHeader, type PageAction } from "@/components/ui/page-header";
 import { useShellSession } from "@/components/role-dashboard/ScopeBadge";
+import { WorkspacePrefsContext } from "@/components/role-dashboard/workspace-controls";
 import { workspacePrefKey } from "@/lib/ui/workspace-pref-storage";
 
 /**
@@ -673,7 +675,7 @@ export function DataTable<T>({
   onSort,
   onRowClick,
   rowClassName,
-  density = "comfortable",
+  density: densityProp,
   empty,
   minWidth = 900,
   caption,
@@ -708,6 +710,9 @@ export function DataTable<T>({
   const locale = useLocale();
   const copy = tableCopy[locale.language];
   const ui = useUiText();
+  // SKAI-75: without an explicit density, follow the shell's comfortable/compact control.
+  const shellDensity = useContext(WorkspacePrefsContext).density;
+  const density = densityProp ?? shellDensity;
   const selectAllRef = useRef<HTMLInputElement>(null);
   const selectable = Boolean(onToggleSelect);
   const allSelected =

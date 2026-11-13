@@ -227,13 +227,18 @@ export function getJob(user: AuthUser, jobId: string) {
     if (!job) throw new WorkflowError("NOT_FOUND");
     // Historical chat receipts must not bypass a source withdrawal or an audience change.
     const { readableWhere, assertKnowledgeAccess } = await import("@/lib/rag/service");
-    for (const step of job.steps) {
-      const receipt = step.receipt as { detail?: { citations?: Array<{ documentId: string; version: number }>; text?: string } } | null;
-      const citations = receipt?.detail?.citations;
-      if (!citations?.length) continue;
+    // SKAI-1884: one readable-documents query for the citations of every step, not one per cited step.
+    type Cited = { documentId: string; version: number };
+    const cited = job.steps.map(step => ({ step, citations: (step.receipt as { detail?: { citations?: Cited[] } } | null)?.detail?.citations })).filter((row): row is { step: typeof row.step; citations: Cited[] } => Boolean(row.citations?.length));
+    const readable = new Set<string>();
+    if (cited.length) {
       await assertKnowledgeAccess(user);
-      const current = await prisma.ragDocument.findMany({ where: { ...readableWhere(user), OR: citations.map(source => ({ id: source.documentId, version: source.version })) }, select: { id: true, version: true } });
-      if (citations.some(source => !current.some(doc => doc.id === source.documentId && doc.version === source.version))) {
+      const sources = cited.flatMap(row => row.citations.map(source => ({ id: source.documentId, version: source.version })));
+      const current = await prisma.ragDocument.findMany({ where: { ...readableWhere(user), OR: sources }, select: { id: true, version: true } });
+      for (const doc of current) readable.add(`${doc.id}@${doc.version}`);
+    }
+    for (const { step, citations } of cited) {
+      if (citations.some(source => !readable.has(`${source.documentId}@${source.version}`))) {
         step.receipt = { ...(step.receipt as Prisma.JsonObject), detail: { text: "This answer used a source that changed or is no longer available to you. Ask again for current information.", citations: [] } };
       }
     }

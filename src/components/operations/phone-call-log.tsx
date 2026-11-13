@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { latestRequest } from "@/lib/http/request-pool";
 import { AlarmClock, CheckCircle2, History, Lock, Phone, PhoneCall, PhoneIncoming, PhoneOutgoing, Plus, UserCheck, UserX } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { InfoTip } from "@/components/ui/tooltip";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
 // SKO-465: the reception call log. Calls are recorded once; a promised callback is an owned task that
 // stays open through attempts and reschedules until an outcome is recorded. Notes marked sensitive are
@@ -52,7 +54,7 @@ function localNow(timezone: string) {
 async function call(method: string, body: Record<string, unknown>) {
   const response = await fetch("/api/front-desk/phone-calls", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(typeof json.error === "string" ? json.error : "The change was not saved.");
+  if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The change was not saved."));
   return json;
 }
 
@@ -75,21 +77,25 @@ export function PhoneCallLog({ hideHeader = false, command }: { hideHeader?: boo
   const toggle = (next: Exclude<Focus, null>) => setFocus(current => current === next ? null : next);
   const shown = urgencyFirst(rows.filter(row => focus === "overdue" ? openCallbacks(row).some(callback => callback.overdue) : focus === "unassigned" ? openCallbacks(row).some(callback => !callback.ownerId) : true), callRank);
 
+  // SKAI-1859: a newer query aborts the older list request, and only the newest one writes state.
+  const [listLoad] = useState(latestRequest);
   const load = useCallback(async () => {
+    const request = listLoad.start();
     setLoading(true); setLoadError("");
     try {
       const params = new URLSearchParams({ view });
       if (direction) params.set("direction", direction);
       if (q.trim()) params.set("q", q.trim());
-      const response = await fetch(`/api/front-desk/phone-calls?${params}`, { cache: "no-store" });
+      const response = await fetch(`/api/front-desk/phone-calls?${params}`, { cache: "no-store", signal: request.signal });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to the call log for this campus.") : json.error || ui("Calls could not be loaded."));
+      if (!request.isCurrent()) return;
+      if (!response.ok || !isApiOk(json)) throw new Error(response.status === 403 ? ui("You do not have access to the call log for this campus.") : readApiError(json, ui("Calls could not be loaded.")));
       setRows(json.data); setCounts(json.counts); setTruncated(Boolean(json.truncated));
       // Owner candidates come with the list (G40: campus admins incl. a single school's admin, and receptionists).
       if (Array.isArray(json.owners)) setOwners((json.owners as Owner[]).filter(person => !person.role || OWNER_ROLES.has(person.role)));
-    } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("Calls could not be loaded.")); } finally { setLoading(false); }
-  }, [view, direction, q, ui]);
-  useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
+    } catch (failure) { if (request.isCurrent()) setLoadError(failure instanceof Error ? ui(failure.message) : ui("Calls could not be loaded.")); } finally { if (request.isCurrent()) setLoading(false); }
+  }, [listLoad, view, direction, q, ui]);
+  useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => { clearTimeout(timer); listLoad.cancel(); }; }, [load, q, listLoad]);
   usePanelCommand(command, { "log-call": () => setLogOpen(true) });
   usePanelCommand(command, {
     export: () => {
@@ -219,7 +225,7 @@ function CallbackDialog({ call: phoneCall, callback, owners, onClose, onChanged 
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   useEffect(() => {
     let cancelled = false;
-    void fetch(`/api/front-desk/phone-calls?history=${encodeURIComponent(callback.id)}`, { cache: "no-store" }).then(r => r.json()).then(json => { if (!cancelled) { if (json.success) setHistory(json.data); else setHistoryError(ui(json.error || "History could not be loaded.")); } }).catch(() => !cancelled && setHistoryError(ui("History could not be loaded.")));
+    void fetch(`/api/front-desk/phone-calls?history=${encodeURIComponent(callback.id)}`, { cache: "no-store" }).then(r => r.json()).then(json => { if (!cancelled) { if (isApiOk(json)) setHistory(json.data); else setHistoryError(ui(readApiError(json, "History could not be loaded."))); } }).catch(() => !cancelled && setHistoryError(ui("History could not be loaded.")));
     return () => { cancelled = true; };
   }, [callback.id, ui]);
   const run = async (body: Record<string, unknown>, message: string) => {

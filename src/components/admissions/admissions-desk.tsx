@@ -1,4 +1,5 @@
 "use client";
+import { SmartUpload } from "@/components/ui/smart-upload";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlarmClock, BadgeCheck, CircleDashed, ClipboardList, Copy, FileText, Globe2, Hourglass, Inbox, MessageCircleQuestion, Plus, Sparkles, UserX, Users } from "lucide-react";
 import { toast } from "@/components/ui/toast";
@@ -195,7 +196,7 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const [ownerId, setOwnerId] = useState(""), [nextContact, setNextContact] = useState(""), [officeNote, setOfficeNote] = useState(""), [familyMessage, setFamilyMessage] = useState("");
   const [intakeClassId, setIntakeClassId] = useState(""), [rollNo, setRollNo] = useState(""), [choice, setChoice] = useState<"new" | "existing" | "">(""), [matchId, setMatchId] = useState(""), [reason, setReason] = useState("");
-  const [answers, setAnswers] = useState<Answers>({}), [consent, setConsent] = useState(false), [respondBy, setRespondBy] = useState("");
+  const [answers, setAnswers] = useState<Answers>({}), [consent, setConsent] = useState(false), [respondBy, setRespondBy] = useState(""), [offerTerms, setOfferTerms] = useState(""), [depositAmount, setDepositAmount] = useState(""), [depositCurrency, setDepositCurrency] = useState("");
   const load = useCallback(async () => {
     const response = await fetch(`/api/admissions?id=${encodeURIComponent(id)}`, { cache: "no-store" });
     const json = await response.json().catch(() => ({}));
@@ -259,7 +260,7 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
           return <div key={document.key} className="flex flex-wrap items-center gap-2" data-review-document={document.key} data-present={files.length > 0}>
             <DeskPill tone={files.length ? "success" : document.required ? "danger" : "neutral"}>{label(document.label, "en")}{document.required ? "" : ` (${ui("optional")})`}</DeskPill>
             {files.map(file => <a key={file.id} className="text-xs font-bold text-primary underline" href={`/api/admissions?document=${encodeURIComponent(file.id)}`}><bdi>{file.fileName}</bdi></a>)}
-            {["DRAFT", "SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "OFFERED", "WAITLISTED", "ACCEPTED"].includes(detail.status) ? <label className="cursor-pointer text-xs text-primary">{ui("Attach")}<input type="file" className="sr-only" accept="application/pdf,image/jpeg,image/png" onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void uploadFile(document.key, file); }} /></label> : null}
+            {["DRAFT", "SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "OFFERED", "WAITLISTED", "ACCEPTED"].includes(detail.status) ? <SmartUpload compact accept="application/pdf,image/jpeg,image/png" maxBytes={5 * 1024 * 1024} label={ui("Attach")} actionLabel={ui("Attach")} onFiles={files => void uploadFile(document.key, files[0])} /> : null}
           </div>;
         })}
         {detail.missing.length ? <p className="text-xs font-bold text-status-error-text" data-review-missing>{ui("Missing: {0}", [detail.missing.join(", ")])}</p> : null}
@@ -288,9 +289,11 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
         <FormField name="review-family-message" label={ui("Message to the family (they will see this)")}><Textarea value={familyMessage} rows={2} maxLength={2000} onChange={event => setFamilyMessage(event.target.value)} /></FormField>
         {stageButtons.some(([action]) => action === "offer") ? <FormField name="review-intake" label={ui("Class offered")}><Select value={intakeClassId} onChange={event => setIntakeClassId(event.target.value)}>{classes.map(cls => <option key={cls.id} value={cls.id}>{className(cls)}</option>)}</Select></FormField> : null}
         {stageButtons.some(([action]) => action === "offer") ? <FormField name="review-respond-by" label={ui("Family must respond by (optional)")}><Input type="datetime-local" value={respondBy} onChange={event => setRespondBy(event.target.value)} /></FormField> : null}
+        {stageButtons.some(([action]) => action === "offer") ? <FormField name="review-offer-terms" label={ui("Enrolment terms the family must agree to (optional)")}><Textarea value={offerTerms} rows={3} maxLength={10000} onChange={event => setOfferTerms(event.target.value)} data-offer-terms /></FormField> : null}
+        {stageButtons.some(([action]) => action === "offer") ? <div className="grid gap-2 sm:grid-cols-2"><FormField name="review-deposit-amount" label={ui("Acceptance deposit (optional)")}><Input type="number" inputMode="numeric" min={1} step={1} value={depositAmount} onChange={event => setDepositAmount(event.target.value)} data-offer-deposit /></FormField><FormField name="review-deposit-currency" label={ui("Deposit currency")}><Input value={depositCurrency} maxLength={3} placeholder="PKR" onChange={event => setDepositCurrency(event.target.value.toUpperCase())} /></FormField></div> : null}
         <div className="flex flex-wrap gap-2">
           {["SUBMITTED", "UNDER_REVIEW"].includes(detail.status) ? <Button size="sm" variant="secondary" disabled={busy || familyMessage.trim().length < 2} onClick={() => void run({ action: "request-info", familyMessage, officeNote: officeNote || undefined }, ui("Request sent to the family."))}>{ui("Request information")}</Button> : null}
-          {stageButtons.map(([action, text]) => <Button key={action} size="sm" variant={action === "offer" || action === "record-acceptance" ? "default" : "secondary"} disabled={busy} onClick={() => void run({ action, officeNote: officeNote || undefined, familyMessage: familyMessage || undefined, intakeClassId: action === "offer" ? intakeClassId : undefined, offerExpiresAt: action === "offer" && respondBy ? new Date(respondBy).toISOString() : undefined }, ui("Saved."))}>{text}</Button>)}
+          {stageButtons.map(([action, text]) => <Button key={action} size="sm" variant={action === "offer" || action === "record-acceptance" ? "default" : "secondary"} disabled={busy} onClick={() => void run({ action, officeNote: officeNote || undefined, familyMessage: familyMessage || undefined, intakeClassId: action === "offer" ? intakeClassId : undefined, offerExpiresAt: action === "offer" && respondBy ? new Date(respondBy).toISOString() : undefined, ...(action === "offer" ? { offerTerms: offerTerms || undefined, depositAmount: depositAmount || undefined, depositCurrency: depositCurrency || undefined } : {}) }, ui("Saved."))}>{text}</Button>)}
           <Button size="sm" variant="ghost" disabled={busy || officeNote.trim().length < 2} onClick={() => void run({ action: "note", officeNote }, ui("Note added."))}>{ui("Add office note")}</Button>
         </div>
       </section> : null}

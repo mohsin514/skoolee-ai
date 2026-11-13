@@ -6,10 +6,10 @@ import {
   assertModuleRead,
   assertPermission,
   canManageFrontDesk,
-  errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { fail, failFrom, ok, okWith } from "@/lib/api/envelope";
 import { parseBody } from "@/lib/api/validate";
 import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -37,17 +37,18 @@ export async function GET(request: NextRequest) {
     const campusId = await resolveCampusId(user, params.get("campusId"));
     if (params.get("owners")) {
       const owners = await ownerCandidates(user, campusId);
-      return Response.json({ success: true, data: owners });
+      return ok(owners);
     }
     const history = params.get("history");
-    if (history) return Response.json({ success: true, data: await itemHistory(user, campusId, history) });
+    if (history) return ok(await itemHistory(user, campusId, history));
     const view = params.get("view") ?? "active";
     if (!VIEWS.includes(view)) throw new ApiError("Unknown view", 400);
     const direction = params.get("direction");
     if (direction && !["RECEIVE", "DISPATCH"].includes(direction)) throw new ApiError("Unknown direction", 400);
-    return Response.json({ success: true, ...(await listItems(user, campusId, { view, direction, q: params.get("q") ?? "" })) });
+    const { data, ...meta } = await listItems(user, campusId, { view, direction, q: params.get("q") ?? "" });
+    return okWith(data, meta);
   } catch (error) {
-    return errorResponse(error, "[front-desk] postal GET failed");
+    return failFrom(error, "[front-desk] postal GET failed");
   }
 }
 
@@ -59,9 +60,9 @@ export async function POST(request: NextRequest) {
     const campusId = await resolveCampusId(user, body.campusId);
     const { item, replayed } = await logItem(user, campusId, body);
     const { requestHash: _hash, idempotencyKey: _key, fileKey: _file, ...data } = item;
-    return Response.json({ success: true, data, replayed }, { status: replayed ? 200 : 201 });
+    return okWith(data, { replayed }, { status: replayed ? 200 : 201 });
   } catch (error) {
-    return errorResponse(error, "[front-desk] postal POST failed");
+    return failFrom(error, "[front-desk] postal POST failed");
   }
 }
 
@@ -72,12 +73,12 @@ export async function PATCH(request: NextRequest) {
     const body = await parseBody(request, idBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const { requestHash: _hash, idempotencyKey: _key, fileKey: _file, ...data } = await actOnItem(user, campusId, body);
-    return Response.json({ success: true, data });
+    return ok(data);
   } catch (error) {
-    return errorResponse(error, "[front-desk] postal PATCH failed");
+    return failFrom(error, "[front-desk] postal PATCH failed");
   }
 }
 
 export async function DELETE() {
-  return Response.json({ error: "Postal items and their history are kept. Correct the item with a reason instead." }, { status: 405 });
+  return fail("BAD_REQUEST", "Postal items and their history are kept. Correct the item with a reason instead.", undefined, 405);
 }

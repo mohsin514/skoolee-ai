@@ -1,4 +1,5 @@
 "use client";
+import { isApiOk, readApiError, readApiErrorCode } from "@/lib/api/envelope-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CalendarClock, UserCheck } from "lucide-react";
@@ -39,14 +40,14 @@ export function WorkloadCover({ campusId }: { campusId?: string }) {
     setWeekError("");
     const response = await fetch(`/api/staff/workload?${scope}weekStart=${week}`, { cache: "no-store" }).catch(() => null);
     const json = await response?.json().catch(() => ({}));
-    if (!response?.ok || !json?.success) { setWeekError(ui(json?.error || "Workload could not be loaded.")); return; }
+    if (!response?.ok || !isApiOk(json)) { setWeekError(ui(readApiError(json, "Workload could not be loaded."))); return; }
     setRows(json.data.rows); setDefinition(json.data.definition);
   }, [scope, week, ui]);
   const loadCover = useCallback(async () => {
     setCoverError(""); setProposal(null);
     const response = await fetch(`/api/staff/cover?${scope}date=${day}`, { cache: "no-store" }).catch(() => null);
     const json = await response?.json().catch(() => ({}));
-    if (!response?.ok || !json?.success) { setCoverError(ui(json?.error || "Cover could not be loaded.")); return; }
+    if (!response?.ok || !isApiOk(json)) { setCoverError(ui(readApiError(json, "Cover could not be loaded."))); return; }
     setLessons(json.data.lessons); setScopeNote(json.data.scopeNote); setChoice({});
   }, [scope, day, ui]);
   useEffect(() => { const timer = setTimeout(() => void loadWeek(), 0); return () => clearTimeout(timer); }, [loadWeek]);
@@ -57,8 +58,8 @@ export function WorkloadCover({ campusId }: { campusId?: string }) {
     const response = await fetch("/api/staff/workload", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campusId, staffId: row.id, capacity, expectedCapacity: row.capacity }) });
     const json = await response.json().catch(() => ({}));
     // SKAI-1631: a stale edit keeps the typed value on screen and asks for a refresh instead of overwriting.
-    if (response.status === 409 && json.code === "CAPACITY_CONFLICT") { toast.error(ui("Someone else changed this capacity. Refresh the board to review it.")); return; }
-    if (!response.ok || !json.success) { toast.error(ui(json.error || "Capacity was not saved.")); return; }
+    if (response.status === 409 && readApiErrorCode(json) === "CAPACITY_CONFLICT") { toast.error(ui("Someone else changed this capacity. Refresh the board to review it.")); return; }
+    if (!response.ok || !isApiOk(json)) { toast.error(ui(readApiError(json, "Capacity was not saved."))); return; }
     toast.success(ui("Capacity saved for {0}.", [row.name])); void loadWeek(); void loadCover();
   };
   const propose = async () => {
@@ -70,7 +71,7 @@ export function WorkloadCover({ campusId }: { campusId?: string }) {
     try {
       const response = await fetch("/api/staff/cover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campusId, date: day, duties, idempotencyKey: attempt.current.key }) });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) { const message: string = typeof json.error === "string" ? json.error : "The proposal was not created."; setCoverError(ui(message)); return; }
+      if (!response.ok || !isApiOk(json)) { setCoverError(ui(readApiError(json, "The proposal was not created."))); return; }
       setProposal({ duties: json.data.duties }); attempt.current = null;
     } catch { setCoverError(ui("The connection failed. Retrying will not create a second proposal.")); }
     finally { setBusy(false); }

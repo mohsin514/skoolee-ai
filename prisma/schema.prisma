@@ -28,6 +28,7 @@ datasource db {
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
   dropSessions DropSession[]
+  dropItems    DropItem[]
   stripeWebhookReceipts StripeWebhookReceipt[]
   correctionNotes CorrectionNote[]
   paymentAllocations PaymentAllocation[]
@@ -1912,6 +1913,12 @@ model AdmissionApplication {
   // SKAI-1142: an offer's respond-by date (families cannot accept after it) and the waitlist order.
   offerExpiresAt     DateTime?                   @map("offer_expires_at")
   waitlistRank       Int?                        @map("waitlist_rank")
+  // SKAI-1258: enrolment terms and acceptance deposit set with the offer; the family's agreement (time + text hash).
+  offerTerms         String?                     @map("offer_terms") @db.Text
+  depositAmount      Int?                        @map("deposit_amount")
+  depositCurrency    String?                     @map("deposit_currency")
+  termsAcceptedAt    DateTime?                   @map("terms_accepted_at")
+  termsHash          String?                     @map("terms_hash")
   submittedAt        DateTime?                   @map("submitted_at")
   consentAt          DateTime?                   @map("consent_at")
   consentText        String?                     @map("consent_text") @db.Text
@@ -2466,6 +2473,7 @@ model ReportCard {
   @@index([enrollmentId])
   @@index([campusId])
   @@index([schoolId, campusId])
+  @@index([schoolId, studentId, generatedAt])
   @@map("report_cards")
 }
 
@@ -2825,6 +2833,9 @@ model Invoice {
   @@unique([schoolId, invoiceNumber])
   @@index([enrollmentId])
   @@index([schoolId, campusId])
+  // SKAI-1885: invoice list page order and the overdue-balance aggregates by currency.
+  @@index([campusId, invoiceDate(sort: Desc), id])
+  @@index([campusId, currency, dueDate])
   @@map("invoices")
 }
 
@@ -5768,6 +5779,9 @@ model Notification {
   @@index([sourceType, sourceId])
   @@index([userId, isRead, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
+  // SKAI-1885: inbox order. The migration builds last_reminded_at DESC NULLS LAST to match the query;
+  // Prisma cannot spell NULLS LAST here and does not report it as drift.
+  @@index([userId, lastRemindedAt(sort: Desc), createdAt(sort: Desc)])
   @@index([schoolId])
   @@map("notifications")
 }
@@ -6050,6 +6064,7 @@ model BookIssue {
   @@index([memberId, returnedAt])
   @@index([bookId])
   @@index([schoolId, returnedAt, dueAt])
+  @@index([schoolId, issuedAt])
   @@index([memberId])
   @@map("book_issues")
 }
@@ -8332,6 +8347,8 @@ model TeachingAssignment {
 
   @@index([schoolId, campusId, classId])
   @@index([subjectId])
+  // SKAI-1885: a teacher's current assignments (chat policy, teacher scope).
+  @@index([schoolId, teacherId])
   @@map("teaching_assignments")
 }
 
@@ -8745,6 +8762,9 @@ model PilotClaim {
   statement    String
   findingKey   String    @map("finding_key")
   identifiable Boolean   @default(false)
+  /// SKAI-834 claims register: who answers for the claim and when it must be re-reviewed.
+  ownerName    String?   @map("owner_name")
+  expiresOn    DateTime? @map("expires_on") @db.Date
   status       String    @default("DRAFT")
   snapshot     Json?
   snapshotHash String?   @map("snapshot_hash")
@@ -11065,6 +11085,7 @@ model DropSession {
 model DropItem {
   id          String      @id @default(uuid())
   schoolId    String      @map("school_id")
+  school      School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   sessionId   String      @map("session_id")
   session     DropSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   storageKey  String      @unique @map("storage_key")

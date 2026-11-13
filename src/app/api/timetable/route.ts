@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { requireAuthUser, errorResponse, resolveCampusId, canManageOperations,
-  assertSharedModuleRead,
+  assertSharedModuleRead, isFamilyRole,
 } from "@/lib/api/scope";
 import { createManualTimetable, resolveTimetableCreateCampus } from "@/lib/timetable/manual";
 import { notify } from "@/lib/notifications/in-app";
@@ -13,6 +13,9 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // SKAI-444 (PM-13.19): families read the version in force through /api/parent/timetable only; this list
+    // includes drafts, so it is never served to them.
+    if (isFamilyRole(user)) return Response.json({ error: "Forbidden" }, { status: 403 });
     await assertSharedModuleRead(user, "timetable");
     const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
     if (!campusId) return Response.json({ error: "No campus" }, { status: 400 });
@@ -23,6 +26,8 @@ export async function GET(req: NextRequest) {
     const where: any = { campusId };
     if (classId) where.classId = classId;
     if (academicYear) where.academicYear = parseInt(academicYear);
+    // SKAI-444: staff who cannot edit the timetable (teachers, viewers) see published versions, never drafts.
+    if (!canManageOperations(user)) where.status = "PUBLISHED";
 
     const timetables = await prisma.timetable.findMany({
       where,

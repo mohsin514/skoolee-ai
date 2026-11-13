@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { latestRequest } from "@/lib/http/request-pool";
 import { AlarmClock, Download, DoorOpen, Eye, LogIn, LogOut, PencilLine, ShieldAlert, UserCheck } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import type { PanelCommand } from "@/components/fees/fee-types";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
 // SKO-466: on-site visitors first, overdue visits flagged, one-action check-out, duplicate check-in
 // warnings that keep the draft, refused visitors recorded without admission, corrections with a reason.
@@ -59,18 +61,22 @@ export function VisitorRegister({ canManage = true, hideHeader = false, command 
     if (date) search.set("date", date);
     return search;
   }, [status, q, date]);
+  // SKAI-1859: a newer query aborts the older list request, and only the newest one writes state.
+  const [listLoad] = useState(latestRequest);
   const load = useCallback(async () => {
+    const request = listLoad.start();
     setLoading(true); setLoadError("");
     try {
-      const response = await fetch(`/api/front-desk/visitors?${params()}`, { cache: "no-store" });
+      const response = await fetch(`/api/front-desk/visitors?${params()}`, { cache: "no-store", signal: request.signal });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to the visitor register for this campus.") : json.error || ui("The visitor register could not be loaded."));
+      if (!request.isCurrent()) return;
+      if (!response.ok || !isApiOk(json)) throw new Error(response.status === 403 ? ui("You do not have access to the visitor register for this campus.") : readApiError(json, ui("The visitor register could not be loaded.")));
       const order = { ON_SITE: 0, REFUSED: 1, LEFT: 2 } as const;
       setRows([...json.data].sort((a: Visit, b: Visit) => order[a.status] - order[b.status] || b.inTime.localeCompare(a.inTime)));
       setCounts({ onSite: json.onSite, overdue: json.overdue, overdueHours: json.overdueHours });
-    } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("The visitor register could not be loaded.")); } finally { setLoading(false); }
-  }, [params, ui]);
-  useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
+    } catch (failure) { if (request.isCurrent()) setLoadError(failure instanceof Error ? ui(failure.message) : ui("The visitor register could not be loaded.")); } finally { if (request.isCurrent()) setLoading(false); }
+  }, [listLoad, params, ui]);
+  useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => { clearTimeout(timer); listLoad.cancel(); }; }, [load, q, listLoad]);
 
   const set = (field: keyof typeof EMPTY) => (event: { target: { value: string } }) => setForm(current => ({ ...current, [field]: event.target.value }));
   const submit = async () => {
@@ -87,7 +93,7 @@ export function VisitorRegister({ canManage = true, hideHeader = false, command 
     try {
       const response = await fetch("/api/front-desk/visitors", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...payload, idempotencyKey: attempt.current.key }) });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) { const message: string = typeof json.error === "string" ? json.error : "The visit was not saved. Your details are kept; try again."; setFormError(ui(message)); setDuplicates(json.duplicates ?? []); return; }
+      if (!response.ok || !isApiOk(json)) { const message: string = readApiError(json, "The visit was not saved. Your details are kept; try again."); setFormError(ui(message)); setDuplicates(json.duplicates ?? []); return; }
       toast.success(json.replayed ? ui("This check-in was already saved; nothing was added twice.") : refused ? ui("Refused visitor recorded. They were not admitted.") : ui("{0} checked in to see {1}.", [json.data.name, json.data.toMeet]));
       draft.markSaved(); attempt.current = null; setForm(EMPTY); setMode("closed"); void load();
     } catch {
@@ -101,7 +107,7 @@ export function VisitorRegister({ canManage = true, hideHeader = false, command 
     try {
       const response = await fetch("/api/front-desk/visitors", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: leaving.id, action: "check-out" }) });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(json.error || "Check-out was not saved.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "Check-out was not saved."));
       toast.success(ui("{0} checked out at {1}.", [leaving.name, dateTime(json.data.outTime)])); setLeaving(null); void load();
     } catch (failure) { toast.error(ui(failure instanceof Error ? failure.message : "Check-out was not saved.")); } finally { setBusy(false); }
   };
@@ -202,7 +208,7 @@ function CorrectVisit({ visit, onClose, onDone }: { visit: Visit; onClose: () =>
     try {
       const response = await fetch("/api/front-desk/visitors", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: visit.id, action: "correct", changes, reason: reason.trim(), version: visit.version }) });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(json.error || "The correction was not saved.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The correction was not saved."));
       toast.success(ui("Visit corrected. The original values are kept in the audit history.")); onDone();
     } catch (failure) { setError(ui(failure instanceof Error ? failure.message : "The correction was not saved.")); } finally { setBusy(false); }
   };

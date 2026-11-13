@@ -8,10 +8,10 @@ import {
   assertModuleRead,
   assertPermission,
   canManageFrontDesk,
-  errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { fail, failFrom, ok, okWith } from "@/lib/api/envelope";
 import { parseBody } from "@/lib/api/validate";
 import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     if (params.get("owners")) {
       const owners = await ownerCandidates(user, campusId);
-      return Response.json({ success: true, data: owners });
+      return ok(owners);
     }
 
     const id = params.get("id");
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
       const actorIds = [...new Set(complaint.events.flatMap(event => [event.actorId, event.ownerId]).filter((value): value is string => Boolean(value)))];
       const people = new Map((await prisma.user.findMany({ where: { id: { in: actorIds }, schoolId: user.schoolId }, select: { id: true, fullName: true } })).map(person => [person.id, person.fullName]));
       const { requestHash: _hash, idempotencyKey: _key, ...rest } = complaint;
-      return Response.json({ success: true, data: { ...rest, overdue: overdue(complaint, todayUtc()), events: complaint.events.map(event => ({ ...event, actorName: people.get(event.actorId) ?? null, ownerName: event.ownerId ? people.get(event.ownerId) ?? null : null })) } });
+      return ok({ ...rest, overdue: overdue(complaint, todayUtc()), events: complaint.events.map(event => ({ ...event, actorName: people.get(event.actorId) ?? null, ownerName: event.ownerId ? people.get(event.ownerId) ?? null : null })) });
     }
 
     const requested = params.get("status");
@@ -80,16 +80,14 @@ export async function GET(request: NextRequest) {
       prisma.complaint.count({ where: { ...activeWhere, AND: [...activeWhere.AND, { ownerId: null }] } }),
       prisma.complaint.count({ where: { ...activeWhere, AND: [...activeWhere.AND, { dueDate: { lt: today } }] } }),
     ]);
-    return Response.json({
-      success: true,
-      data: rows.map(row => ({ ...row, overdue: overdue(row, today) })),
+    return okWith(rows.map(row => ({ ...row, overdue: overdue(row, today) })), {
       counts: { active, unassigned, overdue: late },
       canSeeConfidential: isLeader(user),
       truncated,
       nextCursor: truncated && last ? complaintCursor(last) : null,
     });
   } catch (error) {
-    return errorResponse(error, "[front-desk] complaints GET failed");
+    return failFrom(error, "[front-desk] complaints GET failed");
   }
 }
 
@@ -104,9 +102,9 @@ export async function POST(request: NextRequest) {
     // Reception gets a receipt for a confidential concern, never a handle to read it back.
     const visible = !complaint.confidential || isLeader(user) || complaint.ownerId === user.userId;
     const { requestHash: _hash, idempotencyKey: _key, ...rest } = complaint;
-    return Response.json({ success: true, data: visible ? rest : { referenceCode: complaint.referenceCode, confidential: true }, replayed }, { status: replayed ? 200 : 201 });
+    return okWith(visible ? rest : { referenceCode: complaint.referenceCode, confidential: true }, { replayed }, { status: replayed ? 200 : 201 });
   } catch (error) {
-    return errorResponse(error, "[front-desk] complaints POST failed");
+    return failFrom(error, "[front-desk] complaints POST failed");
   }
 }
 
@@ -118,12 +116,12 @@ export async function PATCH(request: NextRequest) {
     const body = await parseBody(request, idBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const { requestHash: _hash, idempotencyKey: _key, ...data } = await act(user, campusId, body);
-    return Response.json({ success: true, data });
+    return ok(data);
   } catch (error) {
-    return errorResponse(error, "[front-desk] complaints PATCH failed");
+    return failFrom(error, "[front-desk] complaints PATCH failed");
   }
 }
 
 export async function DELETE() {
-  return Response.json({ error: "Complaints and their history are kept. Resolve the complaint with a reason instead." }, { status: 405 });
+  return fail("BAD_REQUEST", "Complaints and their history are kept. Resolve the complaint with a reason instead.", undefined, 405);
 }

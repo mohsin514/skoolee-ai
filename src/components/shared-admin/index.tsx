@@ -1,4 +1,5 @@
 "use client";
+import { SmartUpload } from "@/components/ui/smart-upload";
 import { loadListPages } from "@/lib/lists/load-pages";
 import { latestRequest } from "@/lib/http/request-pool";
 import { useListPage } from "@/hooks/use-list-page";
@@ -2363,7 +2364,6 @@ export function StudentAdmissionsPanel({
   const [documentsError, setDocumentsError] = useState<"denied" | "failed" | null>(null);
   const [uploadProblem, setUploadProblem] = useState<string | null>(null);
   const [uploadKind, setUploadKind] = useState("BIRTH_CERTIFICATE");
-  const fileInput = useRef<HTMLInputElement>(null);
   const [linkSearch, setLinkSearch] = useState("");
   const [linkResults, setLinkResults] = useState<any[]>([]);
   const [linkBusy, setLinkBusy] = useState(false);
@@ -2440,7 +2440,6 @@ export function StudentAdmissionsPanel({
       setUploadProblem(problem === "too_large" ? ui("{0} is larger than 10 MB. Choose a smaller file.", [file.name])
         : problem === "empty" ? ui("{0} is empty. Choose another file.", [file.name])
         : ui("{0} is not a supported file. Use PDF, JPG, PNG, WebP or Word.", [file.name]));
-      if (fileInput.current) fileInput.current.value = "";
       return;
     }
     setUploadProblem(null);
@@ -2489,7 +2488,6 @@ export function StudentAdmissionsPanel({
       toast.error(message);
     } finally {
       setUploading(false);
-      if (fileInput.current) fileInput.current.value = "";
     }
   };
 
@@ -2632,26 +2630,7 @@ export function StudentAdmissionsPanel({
                 ))}
               </FormSelect>
             </div>
-            <input
-              ref={fileInput}
-              type="file"
-              accept={STUDENT_DOCUMENT_ACCEPT}
-              aria-label={ui("Choose a document to upload")}
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) uploadFile(file);
-              }}
-            />
-            <BrandButton
-              variant="dark"
-              className="h-14"
-              icon={uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              onClick={() => fileInput.current?.click()}
-              disabled={uploading}
-            >
-              {uploading ? ui("Uploading…") : ui("Upload (max 10 MB)")}
-            </BrandButton>
+            <SmartUpload compact accept={STUDENT_DOCUMENT_ACCEPT} label={ui("Choose a document to upload")} actionLabel={ui("Upload (max 10 MB)")} busy={uploading} onFiles={(files) => uploadFile(files[0])} />
           </div>
           <p className="mt-2 text-xs text-ink-muted">{ui("PDF, JPG, PNG, WebP or Word, up to 10 MB. Files are private to this school.")}</p>
           {uploadProblem ? <Alert tone="danger" className="mt-3" role="alert">{uploadProblem}</Alert> : null}
@@ -2774,7 +2753,6 @@ export function TeacherDetailModal({
   const [deductions, setDeductions] = useState<{ name: string; amount: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadKind, setUploadKind] = useState("CV");
-  const fileInput = useRef<HTMLInputElement>(null);
 
   // SKAI-1117: prefer the assignments served by /api/staff/profile; fall back to the list row.
   const ledClasses: any[] = staff?.ledClasses ?? teacher.ledClasses ?? [];
@@ -2787,7 +2765,7 @@ export function TeacherDetailModal({
     try {
       const res = await fetch(`/api/staff/profile?userId=${encodeURIComponent(teacher.id)}`);
       const json = await res.json();
-      if (!res.ok || !json.success) { setStaffRecordsState("failed"); return; }
+      if (!res.ok || !isApiOk(json)) { setStaffRecordsState("failed"); return; }
       setStaff(json.data);
       setStaffDocs(json.data.staffDocuments || []);
       setStaffTimeline(json.data.staffTimelineEvents || []);
@@ -2863,8 +2841,9 @@ export function TeacherDetailModal({
         }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "");
-      toast.success(json.events ? ui(json.events === 1 ? "Saved ({0} change logged)" : "Saved ({0} changes logged)", [json.events]) : ui("Staff record saved"));
+      if (!isApiOk(json)) throw new Error(readApiError(json, ""));
+      const events = readApiData<{ events?: number }>(json, {}).events;
+      toast.success(events ? ui(events === 1 ? "Saved ({0} change logged)" : "Saved ({0} changes logged)", [events]) : ui("Staff record saved"));
       setEditStaff(false);
       await loadStaffRecords();
     } catch (error) {
@@ -2909,14 +2888,13 @@ export function TeacherDetailModal({
         }),
       });
       const rec = await recRes.json();
-      if (!rec.success) throw new Error(rec.error || "Could not save document");
+      if (!isApiOk(rec)) throw new Error(readApiError(rec, "Could not save document"));
       toast.success(ui("Document uploaded"));
       await loadStaffRecords();
     } catch (error) {
       toast.error(friendlyErrorMessage(error, ui("Could not upload the document. Please try again.")));
     } finally {
       setUploading(false);
-      if (fileInput.current) fileInput.current.value = "";
     }
   };
 
@@ -3447,19 +3425,7 @@ export function TeacherDetailModal({
                     <option value="PHOTO">{ui("Photo")}</option>
                     <option value="OTHER">{ui("Other")}</option>
                   </FormSelect>
-                  <input
-                    ref={fileInput}
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) uploadStaffDoc(file);
-                    }}
-                  />
-                  <SystemButton type="button" variant="secondary" size="sm" loading={uploading} disabled={staffRecordsState !== "loaded"} onClick={() => fileInput.current?.click()}>
-                    {uploading ? null : <Upload aria-hidden="true" />}{uploading ? ui("Uploading\u2026") : ui("Upload document")}
-                  </SystemButton>
+                  <SmartUpload compact accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" label={ui("Upload document")} actionLabel={ui("Upload document")} busy={uploading} disabled={staffRecordsState !== "loaded"} onFiles={(files) => uploadStaffDoc(files[0])} />
                 </div>
               </div>
             </div>

@@ -2,9 +2,12 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, assertPermission, canManageAcademics, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageAcademics, canManageCampusOps, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { created as createdResponse, failFrom, ok } from "@/lib/api/envelope";
 import { applyInstitutionPreset } from "@/lib/staff/hierarchy";
 import { INSTITUTION_PRESETS, isInstitutionType } from "@/lib/staff/hierarchy-presets";
+import { wouldCreatePromotionCycle } from "@/lib/staff/designation-promotion";
+import { duplicateDesignationNameMessage, isDuplicateDesignationName } from "@/lib/staff/designation-name";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -58,8 +61,7 @@ export async function GET() {
       }),
     ]);
 
-    return Response.json({
-      success: true,
+    return ok({
       institutionType: school?.institutionType ?? "SCHOOL",
       presets: Object.values(INSTITUTION_PRESETS).map((p) => ({
         type: p.type,
@@ -71,7 +73,7 @@ export async function GET() {
       designations: designations.map(({ _count, ...d }) => ({ ...d, staffCount: _count.staffProfiles })),
     });
   } catch (error) {
-    return errorResponse(error, "[staff/designations] GET failed");
+    return failFrom(error, "[staff/designations] GET failed");
   }
 }
 
@@ -87,7 +89,7 @@ export async function POST(req: NextRequest) {
       if (!isInstitutionType(body.preset)) throw new ApiError("Unknown institution type", 400);
       const campusId = await resolveCampusId(user, body.campusId ?? null);
       const result = await applyInstitutionPreset({ user, campusId, type: body.preset });
-      return Response.json({ success: true, ...result }, { status: 201 });
+      return createdResponse(result);
     }
 
     const input = DesignationInput.parse(body);
@@ -109,11 +111,14 @@ export async function POST(req: NextRequest) {
       });
       await writeAuditEvent(tx, user, { table: "staff_designations", recordId: row.id, action: "CREATE", after: { level: row.level, track: row.track, canHeadDepartment: row.canHeadDepartment, isInstitutionHead: row.isInstitutionHead, promotesToId: row.promotesToId, isActive: row.isActive } });
       return row;
+    }).catch((error: unknown) => {
+      if (isDuplicateDesignationName(error)) throw new ApiError(duplicateDesignationNameMessage(input.name), 409, "CONFLICT");
+      throw error;
     });
 
-    return Response.json({ success: true, designation: created }, { status: 201 });
+    return createdResponse({ designation: created });
   } catch (error) {
-    return errorResponse(error, "[staff/designations] POST failed");
+    return failFrom(error, "[staff/designations] POST failed");
   }
 }
 
@@ -131,6 +136,13 @@ export async function PATCH(req: NextRequest) {
 
     const input = DesignationInput.partial().parse(body);
     if (input.promotesToId === id) throw new ApiError("A rank cannot promote into itself", 400);
+    if (input.promotesToId) {
+      const ladder = await prisma.staffDesignation.findMany({ select: { id: true, promotesToId: true } });
+      const promotesToById = new Map(ladder.map((row) => [row.id, row.promotesToId] as const));
+      if (wouldCreatePromotionCycle(id, input.promotesToId, promotesToById)) {
+        throw new ApiError("That promotion path would loop back to this rank. Pick a rank further up the ladder.", 400);
+      }
+    }
     if (input.isInstitutionHead) await assertHeadIsUnique(user.schoolId, true, id);
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -167,11 +179,14 @@ export async function PATCH(req: NextRequest) {
         after: { level: next.level, track: next.track, canHeadDepartment: next.canHeadDepartment, isInstitutionHead: next.isInstitutionHead, promotesToId: next.promotesToId, isActive: next.isActive, renamed: input.name !== undefined },
       });
       return next;
+    }).catch((error: unknown) => {
+      if (isDuplicateDesignationName(error) && input.name !== undefined) throw new ApiError(duplicateDesignationNameMessage(input.name), 409, "CONFLICT");
+      throw error;
     });
 
-    return Response.json({ success: true, designation: updated });
+    return ok({ designation: updated });
   } catch (error) {
-    return errorResponse(error, "[staff/designations] PATCH failed");
+    return failFrom(error, "[staff/designations] PATCH failed");
   }
 }
 
@@ -197,8 +212,7 @@ export async function DELETE(req: NextRequest) {
         await tx.staffDesignation.update({ where: { id }, data: { isActive: false } });
         await writeAuditEvent(tx, user, { table: "staff_designations", recordId: id, action: "ARCHIVE", before: { isActive: designation.isActive, holders: designation._count.staffProfiles }, after: { isActive: false } });
       });
-      return Response.json({
-        success: true,
+      return ok({
         retired: true,
         message: `${designation.name} is held by ${designation._count.staffProfiles} staff, so it has been retired rather than deleted. It will no longer be offered for new appointments.`,
       });
@@ -208,9 +222,9 @@ export async function DELETE(req: NextRequest) {
       await tx.staffDesignation.delete({ where: { id } });
       await writeAuditEvent(tx, user, { table: "staff_designations", recordId: id, action: "DELETE", before: { level: designation.level, isActive: designation.isActive } });
     });
-    return Response.json({ success: true, retired: false });
+    return ok({ retired: false });
   } catch (error) {
-    return errorResponse(error, "[staff/designations] DELETE failed");
+    return failFrom(error, "[staff/designations] DELETE failed");
   }
 }
 

@@ -3,7 +3,7 @@ import type { AuthUser } from "@/lib/auth";
 import { ApiError, assertPermission, canLeadAcademics, canManageOperations } from "@/lib/api/scope";
 import { applyEnrollment, applyWithdrawal, assertRegistrar, dateOnly } from "@/lib/students/enrollment";
 import { assertCapacityFitsEnrolled, parseClassCapacity } from "@/lib/academic/class-setup";
-import { calculateWeightedGrade } from "@/lib/academic/grade-calculator";
+import { rolloverEvidence } from "@/lib/academic/rollover-evidence";
 import { getYearClosureReport } from "@/lib/academic/year-closure";
 import { notify } from "@/lib/notifications/in-app";
 import { schoolToday } from "@/lib/datetime";
@@ -26,7 +26,6 @@ type ClassMap = Record<string, { promote?: string | null; retain?: string | null
 type Baseline = { learners: number; balances: { currency: string; minor: number }[]; history: { attendance: number; reports: number; invoices: number } };
 
 const LEASE_MS = 2 * 60_000;
-const UNFINISHED_EXAM = ["DRAFT", "ACTIVE", "MARKS_ENTRY"];
 // SKAI-1413: "today" is the campus calendar date, not UTC, so execution opens at the campus midnight.
 const today = async (schoolId: string, campusId: string) => dateOnly(await schoolToday(schoolId, campusId));
 const classLabel = (c: { name: string; section: string | null }) => [c.name, c.section].filter(Boolean).join(" - ");
@@ -47,18 +46,6 @@ async function eligibleLearners(db: TxClient, campusId: string, sourceYear: numb
     select: { id: true, fullName: true, rollNo: true, classId: true, enrollments: { where: { status: "ACTIVE", endDate: null }, select: { id: true }, take: 1 } },
     orderBy: [{ classId: "asc" }, { rollNo: "asc" }],
   });
-}
-
-async function evidenceFor(campusId: string, studentId: string, classId: string, year: number) {
-  const exams = await prisma.exam.findMany({ where: { campusId, classId, academicYear: year, status: { notIn: UNFINISHED_EXAM } }, select: { id: true } });
-  const marks = exams.length ? await prisma.mark.count({ where: { studentId, examId: { in: exams.map(e => e.id) } } }) : 0;
-  if (!marks) return { evidence: "MISSING" as const, detail: { note: "No locked marks recorded for this year." } };
-  try {
-    const result = await calculateWeightedGrade(studentId, campusId, classId, year);
-    return { evidence: result.passed ? "PASSED" as const : "FAILED" as const, detail: { percentage: Math.round(result.overallPercentage * 10) / 10, grade: result.overallGrade } };
-  } catch (error) {
-    return { evidence: "MISSING" as const, detail: { note: error instanceof Error ? error.message : "The result could not be calculated." } };
-  }
 }
 
 async function getPlan(user: AuthUser, planId: string, db: TxClient = prisma) {
@@ -84,8 +71,8 @@ export async function preparePlan(user: AuthUser, campusId: string, sourceYear: 
   if (!Number.isInteger(sourceYear) || sourceYear < 2000 || sourceYear > 2200) throw new ApiError("Choose a source year", 400);
   const effectiveDate = dateOnly(effectiveDateText);
   const learners = await eligibleLearners(prisma, campusId, sourceYear);
-  const evidence = new Map<string, Awaited<ReturnType<typeof evidenceFor>>>();
-  for (const learner of learners) evidence.set(learner.id, await evidenceFor(campusId, learner.id, learner.classId, sourceYear));
+  // SKAI-1877: grades are worked out per class in a constant number of queries, not per learner.
+  const evidence = await rolloverEvidence(user.schoolId, campusId, sourceYear, learners);
 
   return prisma.$transaction(async tx => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`rollover:${campusId}:${sourceYear}`}))`;
@@ -162,13 +149,19 @@ export async function setClassCapacity(user: AuthUser, campusId: string, classId
   await assertRegistrar(user);
   // SKAI-202: rollover edits capacity under the same rule as class setup (1–200 or blank, never below enrolled).
   const capacity = parseClassCapacity(rawCapacity);
+  // SKAI-1448: lock the class row and run serializable so an enrollment committed between the count
+  // and the update cannot leave enrolled > capacity; a lost race surfaces as a 409, not a bad write.
   return prisma.$transaction(async tx => {
     const cls = await tx.class.findFirst({ where: { id: classId, campusId, schoolId: user.schoolId } });
     if (!cls) throw new ApiError("Class not found", 404);
+    await tx.$queryRaw`SELECT id FROM classes WHERE id = ${classId} AND school_id = ${user.schoolId} FOR UPDATE`;
     assertCapacityFitsEnrolled(capacity, await tx.student.count({ where: { schoolId: user.schoolId, classId, archivedAt: null, status: "active" } }));
     await tx.class.update({ where: { id: classId }, data: { capacity } });
     await tx.auditLog.create({ data: { tableName: "classes", recordId: classId, userId: user.userId, oldValue: { capacity: cls.capacity }, newValue: { capacity } } });
     return { capacity };
+  }, { isolationLevel: "Serializable" }).catch((err: unknown) => {
+    if ((err as { code?: string })?.code === "P2034") throw new ApiError("Enrollment changed while saving capacity. Reload and try again.", 409);
+    throw err;
   });
 }
 

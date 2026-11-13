@@ -4,11 +4,13 @@ import type { RunView } from "@/lib/ai-workflows/view";
 
 /**
  * Client state for one AI Workflows run. The server owns every status; the client only polls
- * (1 s while the run is moving, never while it waits for a person) and sends commands carrying the
+ * (1 s while the run is moving, 2.5 s once it has moved for 10 s, never while it waits for a person) and
+ * sends commands carrying the
  * version, hashes and a per-click command id. A command id is reused while the same click is retried,
  * so a double submit replays instead of acting twice.
  */
 const MOVING = new Set(["PLANNING", "RUNNING"]);
+const FAST_POLL_MS = 1000, SLOW_POLL_MS = 2500, FAST_WINDOW_MS = 10_000;
 
 export class WorkflowRequestError extends Error {
   constructor(readonly code: string) { super(code); this.name = "WorkflowRequestError"; }
@@ -20,6 +22,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   if (!response.ok) throw new WorkflowRequestError(typeof body?.code === "string" ? body.code : "INTERNAL");
   return body as T;
 }
+
+/** Healthy-poll delay for a run that has been moving for `movingForMs`. */
+export const pollDelay = (movingForMs: number) => movingForMs > FAST_WINDOW_MS ? SLOW_POLL_MS : FAST_POLL_MS;
 
 export function useWorkflowRun(initial: RunView | null) {
   const [run, setRun] = useState<RunView | null>(initial);
@@ -49,9 +54,16 @@ export function useWorkflowRun(initial: RunView | null) {
     } catch { setFailures(count => count + 1); }
   }, [refresh]);
 
+  // SKAI-1884: when this run started moving; after FAST_WINDOW_MS a long run is checked every 2.5 s, not 1 s.
+  const movingSince = useRef<{ id: string; at: number } | null>(null);
+  useEffect(() => {
+    if (!run || !MOVING.has(run.status)) { movingSince.current = null; return; }
+    if (movingSince.current?.id !== run.id) movingSince.current = { id: run.id, at: Date.now() };
+  }, [run]);
+
   useEffect(() => {
     if (!run || !MOVING.has(run.status)) return;
-    const delay = failures === 0 ? 1000 : Math.min(15_000, 1000 * 2 ** failures);
+    const delay = failures === 0 ? pollDelay(movingSince.current?.id === run.id ? Date.now() - movingSince.current.at : 0) : Math.min(15_000, 1000 * 2 ** failures);
     // A hidden tab skips the tick; becoming visible again checks once (below).
     const timer = window.setTimeout(() => { if (!document.hidden) void poll(run.id); }, delay);
     return () => window.clearTimeout(timer);

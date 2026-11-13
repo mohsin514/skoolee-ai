@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, ExternalLink, RotateCcw } from "lucide-react";
+import { SmartUpload } from "@/components/ui/smart-upload";
 import { Button } from "@/components/ui/button";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
@@ -139,7 +140,6 @@ function Work({ t, language, item, reload, setStatus, onReceipt }: { t: Assignme
   const [saved, setSaved] = useState<"server" | "local" | "none">(useLocal ? "local" : item.draft?.savedAt ? "server" : "none");
   const [upload, setUpload] = useState<Upload>(item.draft?.file ? { state: item.draft.file.ready ? "uploaded" : "failed", file: null, name: item.draft.file.name, sha256: item.draft.file.sha256 } : { state: "idle", file: null, name: null, sha256: null });
   const [phase, setPhase] = useState<"idle" | "submitting" | "failed">("idle");
-  const fileInput = useRef<HTMLInputElement>(null);
   // SKAI-1442: keep the submit key in memory too, so a retry replays even when storage is unavailable.
   const submitKeyRef = useRef<string | null>(null);
   const post = (body: Record<string, unknown>) => call(`/api/assignments/${item.id}`, body);
@@ -185,13 +185,8 @@ function Work({ t, language, item, reload, setStatus, onReceipt }: { t: Assignme
     <p id="asg-draft-state" role="status" className={`text-xs ${saved === "local" ? "text-status-warning-text" : "text-ink-muted"}`}>{saved === "server" ? `${t.savedDraft} ${item.draft?.savedAt ? formatAt(item.draft.savedAt, language, item.timezone) : ""}` : saved === "local" ? t.savedLocally : t.notSaved}</p>
     {item.allowedTypes.length > 0 && <div className="grid gap-1 text-xs">
       <span className="font-semibold">{t.attach}</span>
-      {/* The shared Button opens the (hidden) file picker, so focus and its ring come from the design system —
-          no focus utility on a stand-in span (§11.0 rule 4). */}
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <input ref={fileInput} type="file" accept={accept} className="sr-only" tabIndex={-1} aria-hidden="true" data-assignment-file onChange={event => { const file = event.target.files?.[0]; if (file) void sendFile(file); event.target.value = ""; }} />
-        <Button type="button" variant="outline" aria-label={`${t.attach}: ${t.chooseFile}`} aria-describedby="asg-upload-state" disabled={upload.state === "uploading"} onClick={() => fileInput.current?.click()}>{t.chooseFile}</Button>
-        <span className="min-w-0 text-sm text-ink-muted [overflow-wrap:anywhere]"><bdi>{upload.name ?? t.noFile}</bdi></span>
-      </div>
+      <SmartUpload accept={accept} label={t.attach} disabled={upload.state === "uploading"} inputData={{ "data-assignment-file": true }} onFiles={files => void sendFile(files[0])} />
+      {upload.name && <span className="min-w-0 text-sm text-ink-muted [overflow-wrap:anywhere]"><bdi>{upload.name}</bdi></span>}
       <p id="asg-upload-state" role="status" className="flex flex-wrap items-center gap-2">
         {upload.state === "uploading" && <><span className="inline-block h-2 w-24 animate-pulse rounded bg-brand-200 motion-reduce:animate-none" role="progressbar" aria-label={t.uploading} />{t.uploading} <bdi>{upload.name}</bdi></>}
         {upload.state === "uploaded" && <span className="text-status-success-text">{t.uploaded}: <bdi>{upload.name}</bdi></span>}

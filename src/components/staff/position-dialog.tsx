@@ -14,6 +14,7 @@
  * ladder skips a rung gets its own answer, not ours.
  */
 
+import { readApiData, readApiError } from "@/lib/api/envelope-client";
 import { fillNodes } from "@/lib/auth/fill-nodes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -152,8 +153,9 @@ export function PositionDialog({
     setHistoryFailed(false);
     try {
       const res = await fetch(`/api/staff/appointments?userId=${node.id}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not load the service record");
+      const json = await res.json();
+      if (!res.ok) throw new Error(readApiError(json, "Could not load the service record"));
+      const data = readApiData<{ appointments?: Appointment[]; reportingChain?: Array<{ id: string; fullName: string; designation: string | null }>; secondaryLines?: SecondaryLine[]; memberships?: Membership[] }>(json, {});
       setHistory(data.appointments ?? []);
       setChain(data.reportingChain ?? []);
       setLines(data.secondaryLines ?? []);
@@ -239,8 +241,9 @@ export function PositionDialog({
           isActing: form.isActing,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "");
+      const json = await res.json();
+      if (!res.ok) throw new Error(readApiError(json, ""));
+      const data = readApiData<{ changeKind?: string }>(json, {});
 
       const label = data.changeKind ? CHANGE_KIND_LABELS[data.changeKind as keyof typeof CHANGE_KIND_LABELS] : null;
       toast.success(label ? ui("{0}: {1}", [node.fullName, ui(label)]) : ui("Position saved"));
@@ -260,8 +263,8 @@ export function PositionDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "");
+      const json = await res.json();
+      if (!res.ok) throw new Error(readApiError(json, ""));
       toast.success(message);
       await loadHistory();
       onSaved();
@@ -293,8 +296,8 @@ export function PositionDialog({
           label: newLine.label.trim() || null,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "");
+      const json = await res.json();
+      if (!res.ok) throw new Error(readApiError(json, ""));
       setNewLine({ managerId: "", kind: "FUNCTIONAL", label: "" });
       await loadHistory();
       onSaved();
@@ -307,7 +310,7 @@ export function PositionDialog({
   const removeLine = async (id: string) => {
     try {
       const res = await fetch(`/api/staff/reporting-lines?id=${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error((await res.json()).error || "Could not remove the line");
+      if (!res.ok) throw new Error(readApiError(await res.json(), "Could not remove the line"));
       toast.success(ui("Reporting line removed"));
       await loadHistory();
       onSaved();

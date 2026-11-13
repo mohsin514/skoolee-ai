@@ -13,6 +13,22 @@ export function proRateFactor(joiningDate: Date | null, month: number, year: num
   return (daysInMonth - joinDay + 1) / daysInMonth;
 }
 
+// SKAI-1421: the share of a month a person is employed, counting days inside both the joining and leaving dates.
+// Zero means the person was not employed at all that month, so no payroll line should be generated.
+export function employmentFactor(joiningDate: Date | null, leavingDate: Date | null, month: number, year: number): number {
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const dayOf = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  const monthStart = Date.UTC(year, month - 1, 1);
+  const monthEnd = Date.UTC(year, month - 1, daysInMonth);
+  const join = joiningDate ? dayOf(joiningDate) : null;
+  const leave = leavingDate ? dayOf(leavingDate) : null;
+  if (join !== null && join > monthEnd) return 0;
+  if (leave !== null && leave < monthStart) return 0;
+  const startDay = join !== null && join > monthStart ? joiningDate!.getUTCDate() : 1;
+  const endDay = leave !== null && leave < monthEnd ? leavingDate!.getUTCDate() : daysInMonth;
+  return Math.max(0, endDay - startDay + 1) / daysInMonth;
+}
+
 export function computePayrollLine(
   basicSalary: number,
   allowancesJson: unknown,

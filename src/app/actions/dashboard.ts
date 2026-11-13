@@ -20,7 +20,7 @@ import { attendanceRuleFor } from "@/lib/attendance/rule";
 import { getActiveAcademicYear } from "@/lib/academic/cycle";
 import { announcementHistoryRestriction } from "@/lib/school-ai/announcement-history";
 import { rosterSummarySelect } from "@/lib/students/roster-summary";
-import { rosterStatusWhere } from "@/lib/students/roster-status";
+import { ARCHIVED_STUDENT_STATUSES, rosterStatusWhere } from "@/lib/students/roster-status";
 
 /**
  * Production strips server-action error messages ("userMessage suppressed internal error" on the client), so a
@@ -208,6 +208,57 @@ async function campusWaitingCounts(schoolId: string): Promise<Map<string, Campus
   }
 }
 
+type LatestCardRow = { campusId: string; grade: string | null; count: number; scored: number; scoreSum: number };
+
+/**
+ * SKAI-1856: each on-roll pupil's latest report card (newest generatedAt, then id, as the old per-pupil `take: 1`),
+ * folded into one row per campus and grade. `scored`/`scoreSum` keep only finite, non-negative percentages, the
+ * rule campusRows applied in the browser. $queryRaw bypasses the tenant guard, so school_id is in the SQL.
+ */
+function latestReportCardTotals(schoolId: string) {
+  return prisma.$queryRaw<LatestCardRow[]>`
+    SELECT latest.campus_id AS "campusId", latest.grade, COUNT(*)::int AS count,
+      COUNT(*) FILTER (WHERE latest.percentage >= 0 AND latest.percentage < 'Infinity'::float8)::int AS scored,
+      COALESCE(SUM(latest.percentage) FILTER (WHERE latest.percentage >= 0 AND latest.percentage < 'Infinity'::float8), 0)::float8 AS "scoreSum"
+    FROM (
+      SELECT DISTINCT ON (rc.student_id) s.campus_id, rc.grade, rc.percentage
+      FROM report_cards rc
+      JOIN students s ON s.id = rc.student_id AND s.school_id = ${schoolId}
+      JOIN campuses c ON c.id = s.campus_id AND c.school_id = ${schoolId}
+      WHERE rc.school_id = ${schoolId} AND c.archived_at IS NULL AND s.status <> ALL(${ARCHIVED_STUDENT_STATUSES}::text[])
+      ORDER BY rc.student_id, rc.generated_at DESC, rc.id DESC
+    ) latest
+    GROUP BY 1, 2`;
+}
+
+type TeacherCardRow = {
+  studentId: string; id: string; percentage: number; grade: string | null; status: string; deliveryStatus: string;
+  generatedAt: Date; examTitle: string; examTerm: string; examStatus: string;
+};
+
+/**
+ * SKAI-1857: each roster pupil's latest report card (newest generatedAt, then id) in one DISTINCT ON read. The
+ * nested `reportCards: { take: 1 }` it replaces fetched every card of every pupil (no relationJoins) and sliced in
+ * memory. The pupil filter mirrors the roster read; $queryRaw bypasses the tenant guard, so school_id is in the SQL.
+ */
+function teacherLatestReportCards(schoolId: string, campusId: string, classIds: string[]) {
+  return prisma.$queryRaw<TeacherCardRow[]>`
+    SELECT DISTINCT ON (rc.student_id) rc.student_id AS "studentId", rc.id, rc.percentage, rc.grade, rc.status,
+      rc.delivery_status AS "deliveryStatus", rc.generated_at AS "generatedAt",
+      e.title AS "examTitle", e.term AS "examTerm", e.status AS "examStatus"
+    FROM report_cards rc
+    JOIN students s ON s.id = rc.student_id AND s.school_id = ${schoolId} AND s.campus_id = ${campusId}
+      AND s.class_id = ANY(${classIds}::text[])
+    JOIN exams e ON e.id = rc.exam_id
+    WHERE rc.school_id = ${schoolId}
+    ORDER BY rc.student_id, rc.generated_at DESC, rc.id DESC`;
+}
+
+function campusAverageScore(rows: LatestCardRow[]): number | null {
+  const scored = rows.reduce((sum, row) => sum + Number(row.scored), 0);
+  return scored ? Math.round(rows.reduce((sum, row) => sum + Number(row.scoreSum), 0) / scored) : null;
+}
+
 /**
  * SKAI-1034 audit: every dashboard loader runs bound to the signed-in user's school instead of leaving each of
  * its parallel queries to re-derive the tenant from the session cookie. Without a session the loader runs as
@@ -247,6 +298,8 @@ async function loadSuperAdminDashboardData() {
     pendingAIReviewItems,
     communicationSummary,
     invoiceSummary,
+    enrolmentRows,
+    latestCardRows,
   ] = await Promise.all([
     prisma.school.findUnique({ where: { id: session.schoolId } }),
     prisma.campus.findMany({
@@ -272,19 +325,6 @@ async function loadSuperAdminDashboardData() {
           where: { role: { in: ["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] }, status: "pending" },
           select: { id: true, email: true, role: true, status: true, expiresAt: true, profile: true },
           orderBy: { createdAt: "desc" },
-        },
-        // Governance charts need dates and grades, not learner/guardian identities or full rosters.
-        // SKAI-1496: only on-roll pupils, matching the roster and the campus headline.
-        students: {
-          where: ON_ROLL,
-          select: {
-            enrollmentDate: true,
-            reportCards: {
-              select: { percentage: true, grade: true },
-              orderBy: [{ generatedAt: "desc" }, { id: "desc" }],
-              take: 1,
-            },
-          },
         },
         _count: {
           select: {
@@ -330,6 +370,15 @@ async function loadSuperAdminDashboardData() {
       _count: { _all: true },
       _sum: { totalAmount: true, totalAmountPaid: true },
     }), [], degraded),
+    // Governance charts need dates and grades, not learner/guardian identities or full rosters.
+    // SKAI-1496: only on-roll pupils, matching the roster and the campus headline.
+    // SKAI-1856: counted in the database, one row per campus and admission date, not one per pupil.
+    prisma.student.groupBy({
+      by: ["campusId", "enrollmentDate"],
+      where: { schoolId: session.schoolId, ...ON_ROLL, campus: { archivedAt: null } },
+      _count: { _all: true },
+    }),
+    latestReportCardTotals(session.schoolId),
   ]);
 
   const aiUsageMap = aiUsageByCampus.reduce<Record<string, { runs: number; tokens: number }>>((acc, item) => {
@@ -354,6 +403,8 @@ async function loadSuperAdminDashboardData() {
   }, {});
 
   const waitingByCampus = await waitingCounts;
+  const latestCards = new Map<string, LatestCardRow[]>();
+  for (const row of latestCardRows) latestCards.set(row.campusId, [...(latestCards.get(row.campusId) ?? []), row]);
   const formattedCampuses = campuses.map((campus) => {
     const admin = campus.users.find((user) => user.role === "CAMPUS_ADMIN" || user.role === "ADMIN");
     const principal = campus.users.find((user) => user.role === "PRINCIPAL");
@@ -379,7 +430,12 @@ async function loadSuperAdminDashboardData() {
       communicationCount: campus._count.parentCommunications,
       teachers,
       teacherCount: teachers.length,
-      students: campus.students,
+      /** SKAI-1856: on-roll admissions per date, and each on-roll pupil's latest report card as grade counts and a mean. */
+      enrolments: enrolmentRows
+        .filter((row) => row.campusId === campus.id)
+        .map((row) => ({ enrollmentDate: row.enrollmentDate, count: row._count._all })),
+      grades: (latestCards.get(campus.id) ?? []).map(({ grade, count }) => ({ grade, count })),
+      averageScore: campusAverageScore(latestCards.get(campus.id) ?? []),
       pendingInvitations: campus.staffInvitations.map(formatPendingInvite),
       pendingTeacherInvitations: pendingTeacherInvitations.map(formatPendingInvite),
       operationsStaff,
@@ -853,58 +909,30 @@ async function loadTeacherDashboardData() {
   const classIds = [...new Set([...subjects.map((subject) => subject.classId), ...ledClasses.map((cls) => cls.id)])];
   const subjectIds = subjects.map((subject) => subject.id);
 
-  const [students, exams, attendanceToday, recentReportCards] = classIds.length
+  const [rosterStudents, latestCards, exams, attendanceToday, recentReportCards] = classIds.length
     ? await Promise.all([
         L.required("students", () => prisma.student.findMany({
           where: { campusId, classId: { in: classIds }, campus: { schoolId: session.schoolId } },
+          // SKAI-1857: only what the teacher console renders (directory, palette, profile modal). Date of birth,
+          // address, medical and other guardian fields were sent for every pupil and never shown.
           select: {
             id: true,
             fullName: true,
-            nameUr: true,
             rollNo: true,
-            dateOfBirth: true,
-            gender: true,
-            bloodType: true,
-            nationality: true,
-            phone: true,
             profileImageUrl: true,
             guardianName: true,
-            guardianNameUr: true,
             guardianPhone: true,
             guardianWhatsapp: true,
             guardianEmail: true,
-            guardianRelationship: true,
-            guardianOccupation: true,
-            city: true,
-            province: true,
-            postalCode: true,
-            address: true,
-            medicalNotes: true,
-            specialNeeds: true,
-            allergies: true,
-            medications: true,
-            previousSchool: true,
             enrollmentDate: true,
             status: true,
-            studentUser: { select: { email: true, isActive: true } },
             classId: true,
             class: { select: { id: true, name: true, section: true, academicYear: true } },
-            reportCards: {
-              select: {
-                id: true,
-                percentage: true,
-                grade: true,
-                status: true,
-                deliveryStatus: true,
-                generatedAt: true,
-                exam: { select: { title: true, term: true, status: true } },
-              },
-              orderBy: { generatedAt: "desc" },
-              take: 1,
-            },
           },
           orderBy: { rollNo: "asc" },
         })),
+        // Required like the roster it used to be nested in: a pupil's latest card is part of the student row.
+        L.required("studentReportCards", () => teacherLatestReportCards(session.schoolId, campusId, classIds)),
         L.widget("exams", () => prisma.exam.findMany({
           where: {
             campusId,
@@ -935,8 +963,10 @@ async function loadTeacherDashboardData() {
           take: 24,
         }), []),
         L.widget("attendanceToday", () => prisma.attendance.findMany({
-          where: { campusId, date: today, student: { classId: { in: classIds } } },
-          select: { id: true, studentId: true, status: true, student: { select: { classId: true } } },
+          // SKAI-1857: the register stamps classId on every row, so the indexed (classId, date) path replaces the
+          // join through students.
+          where: { schoolId: session.schoolId, campusId, date: today, classId: { in: classIds } },
+          select: { id: true, studentId: true, status: true },
         }), []),
         L.widget("recentReportCards", () => prisma.reportCard.findMany({
           where: { campusId, student: { classId: { in: classIds } }, campus: { schoolId: session.schoolId } },
@@ -948,7 +978,27 @@ async function loadTeacherDashboardData() {
           take: 18,
         }), []),
       ])
-    : [[], [], [], []];
+    : [[], [], [], [], []];
+
+  const cardByStudent = new Map(latestCards.map((card) => [card.studentId, card]));
+  const students = rosterStudents.map((student) => {
+    const card = cardByStudent.get(student.id);
+    return {
+      ...student,
+      reportCards: card
+        ? [{
+            id: card.id, percentage: card.percentage, grade: card.grade, status: card.status,
+            deliveryStatus: card.deliveryStatus, generatedAt: card.generatedAt,
+            exam: { title: card.examTitle, term: card.examTerm, status: card.examStatus },
+          }]
+        : [],
+    };
+  });
+  const studentsByClass = students.reduce<Record<string, number>>((acc, student) => {
+    const key = student.class?.id || "";
+    if (key) acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
 
   const ledClassIds = new Set(ledClasses.map((cls) => cls.id));
   const assignedSubjectIds = new Set(subjectIds);
@@ -960,7 +1010,7 @@ async function loadTeacherDashboardData() {
         ...subject.class,
         role: ledClassIds.has(subject.class.id) ? "Class teacher" : "Subject teacher",
         subjects: [],
-        _count: { students: students.filter((student) => student.class?.id === subject.class.id).length, subjects: 0 },
+        _count: { students: studentsByClass[subject.class.id] || 0, subjects: 0 },
       };
       existing.subjects.push(subject);
       existing._count.subjects = existing.subjects.length;
@@ -991,12 +1041,6 @@ async function loadTeacherDashboardData() {
         String(a.name || "").localeCompare(String(b.name || "")) ||
         String(a.section || "").localeCompare(String(b.section || ""))
     );
-
-  const studentsByClass = students.reduce<Record<string, number>>((acc, student) => {
-    const key = student.class?.id || "";
-    if (key) acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {});
 
   const examSummaries = exams.map((exam) => {
     // If exam is for a single subject, restrict to that subject only
@@ -1578,20 +1622,16 @@ export const getOperationsStaffDashboardData = cache(async function getOperation
   // SKAI-1034: bound explicitly to the signed-in operator's school (standalone or a campus of a group) so these
   // queries never fall back to per-query cookie resolution.
   return runAsUser(session, async () => {
-  const [school, campus] = await Promise.all([
-    prisma.school.findUnique({ where: { id: session.schoolId }, select: { name: true, logoUrl: true } }),
-    prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { name: true, city: true, logoUrl: true } }),
-  ]);
-
   // Each console gets only its own summary. A librarian has no business
   // pulling the fee book, and loading all three would triple the query cost
-  // of every one of these dashboards.
-  const summary =
-    session.role === "LIBRARIAN"
-      ? await librarianSummary(session.schoolId, campusId)
-      : session.role === "ACCOUNTANT"
-        ? await accountantSummary(session.schoolId, campusId)
-        : await receptionistSummary(session.schoolId, campusId);
+  // of every one of these dashboards. SKAI-1856: it starts alongside the name lookups.
+  const loadSummary =
+    session.role === "LIBRARIAN" ? librarianSummary : session.role === "ACCOUNTANT" ? accountantSummary : receptionistSummary;
+  const [school, campus, summary] = await Promise.all([
+    prisma.school.findUnique({ where: { id: session.schoolId }, select: { name: true, logoUrl: true } }),
+    prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { name: true, city: true, logoUrl: true } }),
+    loadSummary(session.schoolId, campusId),
+  ]);
 
   return {
     userName: session.fullName || roleLabel(session.role),
@@ -1675,11 +1715,50 @@ function bucketByMonth(
   return out;
 }
 
+/** Month key ("2026-10") of a local month start, the same key bucketByMonth emits. */
+const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+type LoanBucketRow = { kind: "issue" | "return"; bucket: number; count: number };
+
+/**
+ * SKAI-1856: loans and returns per month, counted in the database instead of loading every loan in the window.
+ * `bounds` are the local month starts bucketByMonth uses plus the start of next month, so width_bucket puts a loan
+ * in exactly the month its key would name (0 = before the window, bounds.length = after it; both are dropped, as
+ * before). Columns are UTC wall-clock `timestamp`, so the bounds go in as UTC wall-clock too. $queryRaw bypasses
+ * the tenant guard, so the school and the book's campus are written into the SQL.
+ */
+async function loanMonthCounts(schoolId: string, campusId: string, months: number) {
+  const bounds = Array.from({ length: months + 1 }, (_, i) => {
+    const d = monthsAgo(months - 1);
+    d.setMonth(d.getMonth() + i);
+    return d;
+  });
+  const utc = bounds.map((d) => d.toISOString().slice(0, 23));
+  const rows = await prisma.$queryRaw<LoanBucketRow[]>`
+    SELECT 'issue' AS kind, width_bucket(bi.issued_at, ${utc}::timestamp[]) AS bucket, COUNT(*)::int AS count
+    FROM book_issues bi JOIN books b ON b.id = bi.book_id
+    WHERE bi.school_id = ${schoolId} AND b.school_id = ${schoolId} AND b.campus_id = ${campusId}
+      AND bi.issued_at >= ${utc[0]}::timestamp
+    GROUP BY 2
+    UNION ALL
+    SELECT 'return' AS kind, width_bucket(bi.returned_at, ${utc}::timestamp[]) AS bucket, COUNT(*)::int AS count
+    FROM book_issues bi JOIN books b ON b.id = bi.book_id
+    WHERE bi.school_id = ${schoolId} AND b.school_id = ${schoolId} AND b.campus_id = ${campusId}
+      AND bi.issued_at >= ${utc[0]}::timestamp AND bi.returned_at IS NOT NULL
+    GROUP BY 2`;
+  const series = (kind: LoanBucketRow["kind"]) =>
+    bounds.slice(0, months).map((start, i) => ({
+      month: monthKey(start),
+      count: rows.filter((r) => r.kind === kind && Number(r.bucket) === i + 1).reduce((sum, r) => sum + Number(r.count), 0),
+      value: 0,
+    }));
+  return { issuesByMonth: series("issue"), returnsByMonth: series("return") };
+}
+
 async function librarianSummary(schoolId: string, campusId: string) {
   const now = new Date();
-  const sixMonths = monthsAgo(5);
 
-  const [books, categories, memberCount, openIssues, overdueCount, recentIssues, itemCount, topCategories] =
+  const [books, categories, memberCount, openIssues, overdueCount, loanMonths, fines, itemCount, topCategories] =
     await Promise.all([
       prisma.book.aggregate({
         where: { campusId, schoolId },
@@ -1692,10 +1771,9 @@ async function librarianSummary(schoolId: string, campusId: string) {
       prisma.bookIssue.count({
         where: { schoolId, returnedAt: null, dueAt: { lt: now }, book: { campusId } },
       }),
-      prisma.bookIssue.findMany({
-        where: { schoolId, issuedAt: { gte: sixMonths }, book: { campusId } },
-        select: { issuedAt: true, returnedAt: true, fine: true },
-      }),
+      loanMonthCounts(schoolId, campusId, 6),
+      // Every fine still owed on an open loan, however old the loan (SKAI-1856: was only loans from the last 6 months).
+      prisma.bookIssue.aggregate({ where: { schoolId, returnedAt: null, book: { campusId } }, _sum: { fine: true } }),
       prisma.item.count({ where: { campusId, schoolId } }),
       prisma.book.groupBy({
         by: ["categoryId"],
@@ -1722,12 +1800,9 @@ async function librarianSummary(schoolId: string, campusId: string) {
     members: memberCount,
     onLoan: openIssues,
     overdue: overdueCount,
-    finesOutstanding: recentIssues.reduce((sum, i) => sum + (i.returnedAt ? 0 : i.fine), 0),
-    issuesByMonth: bucketByMonth(recentIssues.map((i) => ({ date: i.issuedAt })), 6),
-    returnsByMonth: bucketByMonth(
-      recentIssues.filter((i) => i.returnedAt).map((i) => ({ date: i.returnedAt! })),
-      6,
-    ),
+    finesOutstanding: fines._sum.fine ?? 0,
+    issuesByMonth: loanMonths.issuesByMonth,
+    returnsByMonth: loanMonths.returnsByMonth,
     inventoryItems: itemCount,
     byCategory: topCategories
       .map((c) => ({

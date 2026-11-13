@@ -1,9 +1,10 @@
 "use client";
 
+import { SmartUpload } from "@/components/ui/smart-upload";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { AlertTriangle, CalendarX2, CheckCircle2, Clock, FileUp, Info, NotebookPen, Loader2, MessageSquare, type LucideIcon } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { AlertTriangle, CalendarX2, CheckCircle2, Clock, Info, NotebookPen, MessageSquare, type LucideIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -26,7 +27,7 @@ import { cn } from "@/lib/utils";
 
 type PublicForm = { formName: string; schoolName: string; campusName: string; isOpen: boolean; version: number; definition: FormDefinition };
 type Document = { id: string; key: string; fileName: string; sizeBytes: number };
-type View = { reference: string; stage: string; editable: boolean; schoolName: string; campusName: string; formVersion: number; definition: FormDefinition; answers: Answers; documents: Document[]; missing: string[]; messages: { message: string; at: string }[]; submittedAt: string | null; offerExpiresAt?: string | null };
+type View = { reference: string; stage: string; editable: boolean; schoolName: string; campusName: string; formVersion: number; definition: FormDefinition; answers: Answers; documents: Document[]; missing: string[]; messages: { message: string; at: string }[]; submittedAt: string | null; offerExpiresAt?: string | null; offerTerms?: string | null; depositAmount?: number | null; depositCurrency?: string | null; termsAcceptedAt?: string | null };
 type Saved = { reference: string; resumeKey: string };
 const storageKey = (token: string) => `skoolee:application:${token}`;
 type PendingAction = "save" | "submit" | "accept" | "decline";
@@ -55,7 +56,7 @@ export default function ApplyPage() {
   const ui = useUiText();
   const lang = language as Language;
   const [form, setForm] = useState<PublicForm | null>(null), [view, setView] = useState<View | null>(null), [saved, setSaved] = useState<Saved | null>(null);
-  const [answers, setAnswers] = useState<Answers>({}), [consent, setConsent] = useState(false);
+  const [answers, setAnswers] = useState<Answers>({}), [consent, setConsent] = useState(false), [agreeTerms, setAgreeTerms] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState(""), [loadError, setLoadError] = useState("");
   const [showProblems, setShowProblems] = useState(false), [uploading, setUploading] = useState<Record<string, "uploading" | "failed">>({});
   const dirty = useRef(false);
@@ -137,7 +138,7 @@ export default function ApplyPage() {
   const respond = async (accept: boolean) => {
     if (!saved) return;
     setBusy(true); setError("");
-    try { setView(await call("POST", "/api/public/admissions", { action: accept ? "accept" : "decline", reference: saved.reference }, saved.resumeKey)); }
+    try { setView(await call("POST", "/api/public/admissions", { action: accept ? "accept" : "decline", reference: saved.reference, agreeTerms: accept && agreeTerms }, saved.resumeKey)); }
     catch (failure) { setError(ui(failure instanceof Error ? failure.message : "Sending failed.")); }
     finally { setBusy(false); }
   };
@@ -186,9 +187,15 @@ export default function ApplyPage() {
       </section> : null}
       {!formVisible && error ? <Alert tone="danger" compact data-apply-error>{error}</Alert> : null}
       {view?.stage === "OFFERED" && view.offerExpiresAt ? <p className="text-sm font-semibold" data-apply-respond-by>{ui("Please respond by {0}.", [new Date(view.offerExpiresAt).toLocaleString(language === "en" ? "en-GB" : language)])}</p> : null}
+      {view && ["OFFERED", "ACCEPTED"].includes(view.stage) && (view.offerTerms || view.depositAmount) ? <section className="sk-panel flex flex-col gap-2" aria-label={ui("Enrolment terms")} data-apply-offer-terms>
+        {view.depositAmount ? <p className="text-sm font-semibold" data-apply-deposit>{ui("Acceptance deposit: {0}", [new Intl.NumberFormat(language === "en" ? "en-GB" : language, { style: "currency", currency: view.depositCurrency ?? "PKR", maximumFractionDigits: 0 }).format(view.depositAmount)])}</p> : null}
+        {view.offerTerms ? <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink"><bdi>{view.offerTerms}</bdi></p> : null}
+        {view.stage === "OFFERED" && view.offerTerms ? <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4 text-sm leading-relaxed text-ink"><Checkbox className="mt-0.5" checked={agreeTerms} onChange={event => setAgreeTerms(event.target.checked)} data-apply-agree-terms /><span>{ui("I have read and agree to these enrolment terms.")}</span></label> : null}
+        {view.termsAcceptedAt ? <p className="text-xs text-ink-muted">{ui("You agreed to these terms on {0}.", [new Date(view.termsAcceptedAt).toLocaleString(language === "en" ? "en-GB" : language)])}</p> : null}
+      </section> : null}
       {view?.stage === "OFFERED" ? <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="ghost" onClick={() => setConfirmDecline(true)} disabled={busy}>{ui("Decline")}</Button>
-        <Button onClick={() => void track("accept", () => respond(true))} disabled={busy} loading={pendingAction === "accept"}>{ui("Accept the offered place")}</Button>
+        <Button onClick={() => void track("accept", () => respond(true))} disabled={busy || Boolean(view.offerTerms && !agreeTerms)} loading={pendingAction === "accept"}>{ui("Accept the offered place")}</Button>
       </div> : null}
       <ConfirmAction open={confirmDecline} tone="danger" title={ui("Decline the offered place?")} description={ui("Your answer is sent to the school straight away.")} confirmLabel={ui("Decline")} busy={pendingAction === "decline"}
         onCancel={() => setConfirmDecline(false)} onConfirm={() => { void track("decline", () => respond(false)).finally(() => setConfirmDecline(false)); }} />
@@ -217,9 +224,9 @@ export default function ApplyPage() {
               {files.length ? <ul className="space-y-1">{files.map(file => <li key={file.id} className="flex min-w-0 items-center gap-1.5 text-xs text-status-success-text"><CheckCircle2 aria-hidden="true" className="size-3.5 shrink-0" /><bdi className="min-w-0 truncate">{file.fileName}</bdi><span className="shrink-0 tabular-nums text-ink-subtle">· {Math.ceil(file.sizeBytes / 1024)} KB</span></li>)}</ul> : null}
               {problem ? <FieldError>{ui(problem)}</FieldError> : null}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                <label className={cn(buttonVariants({ variant: "outline", size: "sm" }), "sk-choice-card", state === "uploading" && "pointer-events-none opacity-70")}>{state === "uploading" ? <Loader2 className="motion-safe:animate-spin" aria-hidden="true" /> : <FileUp aria-hidden="true" />}{state === "uploading" ? ui("Uploading…") : files.length ? ui("Replace or add a file") : ui("Choose a file")}
-                  <input type="file" className="sr-only" accept="application/pdf,image/jpeg,image/png" disabled={state === "uploading"} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(document.key, file); }} data-apply-upload={document.key} />
-                </label>
+                {/* The family is not signed in here, so the phone handoff is off; on a phone the camera opens directly. */}
+                <SmartUpload compact phone={false} accept="application/pdf,image/jpeg,image/png" maxBytes={5 * 1024 * 1024} label={label(document.label, lang)} busy={state === "uploading"}
+                  actionLabel={files.length ? ui("Replace or add a file") : ui("Choose a file")} inputData={{ [`data-apply-upload`]: document.key }} onFiles={chosen => void upload(document.key, chosen[0])} />
                 <p className="text-xs text-ink-subtle">{ui("PDF, JPG or PNG, up to 5 MB.")}</p>
               </div>
               {state === "failed" ? <p className="text-xs font-medium text-status-error-text">{ui("The upload did not finish. Choose the file again.")}</p> : null}

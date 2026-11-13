@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, requireAuthUser } from "@/lib/api/scope";
+import { ok, failFrom } from "@/lib/api/envelope";
 import { PERMISSION_MODULES, isFixedPermissionRole, moduleFlags } from "@/lib/permissions";
 import { kindFor } from "@/lib/auth/institution";
 import { USER_ROLES } from "@/lib/roles";
@@ -13,8 +14,8 @@ import { assertSameOrigin } from "@/lib/auth/same-origin";
 // characters. It is kept in the audit row so the history says why a school-wide permission change was made.
 const patchSchema = z.object({ role: z.enum(USER_ROLES), module: z.enum(PERMISSION_MODULES), canView: z.boolean().optional(), canAdd: z.boolean().optional(), canEdit: z.boolean().optional(), canDelete: z.boolean().optional(), reason: z.string().trim().max(500).optional() }).strict();
 const privateHeaders = { "Cache-Control": "private, no-store" };
-function failure(error: unknown, fallback: string) {
-  const response = errorResponse(error, fallback);
+async function failure(error: unknown, fallback: string) {
+  const response = await failFrom(error, fallback);
   response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
@@ -55,7 +56,7 @@ export async function GET() {
     // F28 pre-check: the authority without a verified second factor sees "Turn on two-step sign-in" instead of a
     // read-only matrix that does not say why (PATCH answers 403 { code: "MFA_REQUIRED" } in that case).
     const { mfaRequired } = permissionAdministrationAccess(user);
-    return Response.json({ success: true, data: { matrix, modules: PERMISSION_MODULES, callerRole: user.role, canEdit, mfaRequired } }, { headers: privateHeaders });
+    return ok({ matrix, modules: PERMISSION_MODULES, callerRole: user.role, canEdit, mfaRequired }, { headers: privateHeaders });
   } catch (error) {
     return failure(error, "[roles/permissions] GET failed");
   }
@@ -99,7 +100,7 @@ export async function PATCH(req: NextRequest) {
       });
       return saved;
     });
-    return Response.json({ success: true, data: updated }, { headers: privateHeaders });
+    return ok(updated, { headers: privateHeaders });
   } catch (error) {
     return failure(error, "[roles/permissions] PATCH failed");
   }

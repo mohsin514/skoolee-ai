@@ -104,6 +104,7 @@ import { cancelInvitation, inviteStaff, removeStaff, resendInvitation } from "@/
 import { getPlanLimits } from "@/config/plans";
 import { cn } from "@/lib/utils";
 import { useSuperAdminData } from "./super-data-context";
+import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 
 type Tr = ReturnType<typeof useUiText>;
 type Campus = any;
@@ -374,18 +375,22 @@ function OverviewView({ data, onOpenCampus, onNavigate, onAppoint, onPromote, on
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    let alive = true;
+    // SKAI-1866: one request instead of three. GET /api/navigation/counts serves the approval breakdown (same rules
+    // the support-grants list and the policy library were filtered by here), so the overview no longer downloads the
+    // whole policy library on every refetch just to count pending overrides. A refetch (Refresh, a save) re-reads it.
+    const controller = new AbortController();
     setCounts(null); setCountsFailed(false);
-    const json = (url: string) => fetch(url, { cache: "no-store" }).then((response) => (response.ok ? response.json() : null)).catch(() => null);
-    void Promise.all([json("/api/navigation/counts"), json("/api/super/support-grants"), json("/api/group-policy?view=library")]).then(([countBody, grants, library]) => {
-      if (!alive) return;
-      if (!countBody || !grants || !library) { setCountsFailed(true); return; }
-      // Same rule as GET /api/navigation/counts: a pending request, or emergency access still awaiting its review.
-      const support = Array.isArray(grants?.data) ? grants.data.filter((grant: any) => grant.status === "pending" || (grant.status === "active" && grant.emergencyReason && !grant.reviewedAt)).length : 0;
-      const overrides = Array.isArray(library?.data?.pending) ? library.data.pending.length : 0;
-      setCounts({ approvals: Number(countBody?.counts?.approvals ?? support + overrides), support, overrides });
-    });
-    return () => { alive = false; };
+    fetch("/api/navigation/counts", { cache: "no-store", signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .catch(() => null)
+      .then((body) => {
+        if (controller.signal.aborted) return;
+        const breakdown = body?.approvalBreakdown;
+        if (!body || !breakdown || breakdown.failed) { setCountsFailed(true); return; }
+        const support = Number(breakdown.support ?? 0), overrides = Number(breakdown.overrides ?? 0);
+        setCounts({ approvals: Number(body?.counts?.approvals ?? support + overrides), support, overrides });
+      });
+    return () => controller.abort();
   }, [data]);
 
   const campuses: Campus[] = data.campuses ?? [];
@@ -1033,7 +1038,7 @@ function PromotePrincipalConfirm({ campus, onClose, onDone }: { campus: Campus; 
   const confirm = async (reason?: string) => {
     setBusy(true);
     try {
-      const list = await fetch("/api/memberships", { cache: "no-store" }).then((response) => response.json());
+      const list = readApiData<{ members?: any[] }>(await fetch("/api/memberships", { cache: "no-store" }).then((response) => response.json()), {});
       const member = (list.members ?? []).find((item: any) => item.id === principal.id);
       if (!member) throw new Error(t("This person's membership could not be found. Refresh and try again."));
       const response = await fetch("/api/memberships", {
@@ -1048,7 +1053,7 @@ function PromotePrincipalConfirm({ campus, onClose, onDone }: { campus: Campus; 
         }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error);
+      if (!response.ok || !isApiOk(result)) throw new Error(readApiError(result, t("That change could not be saved. Please try again.")));
       toast.success(t("{0} is now the campus admin at {1}.", [name, campus.name]));
       onClose();
       await onDone();

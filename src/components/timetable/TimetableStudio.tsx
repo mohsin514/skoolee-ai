@@ -1,7 +1,8 @@
 "use client";
+import { isApiOk, readApiData } from "@/lib/api/envelope-client";
 import { InputGroup } from "@/components/ui/input-group";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -27,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { WorkspacePrefsContext } from "@/components/role-dashboard/workspace-controls";
 
 import { ConflictPanel } from "./ConflictPanel";
 import { RoomView } from "./RoomView";
@@ -50,6 +52,7 @@ import { timetablePeriods } from "@/lib/timetable/view-scope";
 import { AddPeriodDialog, addPeriodCopy } from "./AddPeriodDialog";
 import { PeriodChangeReview } from "./PeriodChangeReview";
 import { planPeriodChanges, type PeriodConfiguration } from "@/lib/timetable/period-changes";
+import { withCurrentOption } from "./current-option";
 
 
 const TIMETABLE_LAYOUT_KEY = "skoolee.timetable.layout";
@@ -358,12 +361,16 @@ function SlotEditorModal({
   subjects,
   activeTimetableId,
   campusId,
+  teachers = [],
+  rooms = [],
   onSave,
   onClose,
 }: {
   slot: StudioSlot;
   pendingChange?: SlotChange;
   subjects: SubjectOption[];
+  teachers?: TeacherOption[];
+  rooms?: RoomOption[];
   activeTimetableId: string;
   campusId?: string;
   onSave: (updates: SlotChange) => void;
@@ -384,6 +391,9 @@ function SlotEditorModal({
   const [freeTeachers, setFreeTeachers] = useState<TeacherOption[]>([]);
   const [freeRooms, setFreeRooms] = useState<RoomOption[]>([]);
   const [loadingAvail, setLoadingAvail] = useState(true);
+  // SKAI-1390: the saved teacher and room always stay selectable, even when availability failed or omits them.
+  const teacherOptions = withCurrentOption(freeTeachers, current.teacherId, teachers, (id) => ({ id, fullName: ui("Current teacher") }));
+  const roomOptions = withCurrentOption(freeRooms, current.roomId, rooms, (id) => ({ id, roomNumber: ui("Current room"), capacity: 0 }));
   // A failed lookup is not "no free teachers or rooms" (SKAI-1390): it is shown with a retry, and the current selections stay.
   const [availFailed, setAvailFailed] = useState(false), [availNonce, setAvailNonce] = useState(0);
 
@@ -505,7 +515,7 @@ function SlotEditorModal({
                   className="w-full px-4 py-2.5"
                 >
                   <option value="">{ui("— No teacher —")}</option>
-                  {freeTeachers.map((t) => (
+                  {teacherOptions.map((t) => (
                     <option key={t.id} value={t.id}>{t.fullName}</option>
                   ))}
                 </SystemSelect>
@@ -530,7 +540,7 @@ function SlotEditorModal({
                   className="w-full px-4 py-2.5"
                 >
                   <option value="">{ui("— No room —")}</option>
-                  {freeRooms.map((r) => (
+                  {roomOptions.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.capacity > 0 ? ui("{0} ({1} seats)", [r.roomNumber, r.capacity]) : r.roomNumber}
                     </option>
@@ -664,6 +674,12 @@ export function TimetableStudio({ campusId, periodsHref, hideActions = false, co
   const [showLegend, setShowLegend] = useState(true);
   const [density, setDensity] = useState<GridDensity>("comfortable");
   const [layoutLoaded, setLayoutLoaded] = useState(false);
+  // SKAI-75: the shell's comfortable/compact control drives the grid too. Declared before the
+  // layout load below so a stored timetable density still wins on mount.
+  const shellDensity = useContext(WorkspacePrefsContext).density;
+  useEffect(() => {
+    setDensity(shellDensity === "compact" ? "compact" : "comfortable");
+  }, [shellDensity]);
 
   useEffect(() => {
     try {
@@ -741,8 +757,8 @@ export function TimetableStudio({ campusId, periodsHref, hideActions = false, co
         const cls = classJson.data || classJson;
         setClasses(Array.isArray(cls) ? cls : []);
       }
-      if (teacherJson.success) {
-        const staffList = teacherJson.staff || [];
+      if (isApiOk(teacherJson)) {
+        const staffList = readApiData<{ staff?: TeacherOption[] }>(teacherJson, {}).staff || [];
         const teacherList = (Array.isArray(staffList) ? staffList : []).filter(
           (u: any) => u.role === "TEACHER"
         );
@@ -1492,6 +1508,8 @@ export function TimetableStudio({ campusId, periodsHref, hideActions = false, co
           subjects={subjects}
           activeTimetableId={activeTimetable.id}
           campusId={campusId}
+          teachers={teachers}
+          rooms={rooms}
           onSave={(updates) => {
             handleSlotUpdate(editingSlot.id, updates);
             setEditingSlot(null);

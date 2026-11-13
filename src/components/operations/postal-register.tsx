@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { latestRequest } from "@/lib/http/request-pool";
 import { History, Inbox, Mail, PackageCheck, PackageOpen, PencilLine, Plus, Send, Truck, UserX } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import { downloadCSV } from "@/lib/csv";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
 // SKO-464: the postal and courier register. The queue opens on items still awaiting a handoff; closing an
 // item names who it was handed to, and a delivery also says how it was confirmed. Corrections need a reason
@@ -48,7 +50,7 @@ const todayText = () => new Date().toISOString().slice(0, 10);
 async function send(method: string, body: Record<string, unknown>) {
   const response = await fetch("/api/front-desk/postal", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(typeof json.error === "string" ? json.error : "The change was not saved.");
+  if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The change was not saved."));
   return json;
 }
 
@@ -70,21 +72,25 @@ export function PostalRegister({ hideHeader = false, command }: { hideHeader?: b
   const toggle = (next: Exclude<Focus, null>) => setFocus(current => current === next ? null : next);
   const shown = urgencyFirst(rows.filter(row => inFocus(row, focus)), rowRank);
 
+  // SKAI-1859: a newer query aborts the older list request, and only the newest one writes state.
+  const [listLoad] = useState(latestRequest);
   const load = useCallback(async () => {
+    const request = listLoad.start();
     setLoading(true); setLoadError("");
     try {
       const params = new URLSearchParams({ view });
       if (direction) params.set("direction", direction);
       if (q.trim()) params.set("q", q.trim());
-      const response = await fetch(`/api/front-desk/postal?${params}`, { cache: "no-store" });
+      const response = await fetch(`/api/front-desk/postal?${params}`, { cache: "no-store", signal: request.signal });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to the postal register for this campus.") : json.error || ui("Postal items could not be loaded."));
+      if (!request.isCurrent()) return;
+      if (!response.ok || !isApiOk(json)) throw new Error(response.status === 403 ? ui("You do not have access to the postal register for this campus.") : readApiError(json, ui("Postal items could not be loaded.")));
       setRows(json.data); setCounts(json.counts); setTruncated(Boolean(json.truncated));
       // Owner candidates come with the list (G40: campus admins incl. a single school's admin, and receptionists).
       if (Array.isArray(json.owners)) setOwners((json.owners as Owner[]).filter(person => !person.role || OWNER_ROLES.has(person.role)));
-    } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("Postal items could not be loaded.")); } finally { setLoading(false); }
-  }, [view, direction, q, ui]);
-  useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
+    } catch (failure) { if (request.isCurrent()) setLoadError(failure instanceof Error ? ui(failure.message) : ui("Postal items could not be loaded.")); } finally { if (request.isCurrent()) setLoading(false); }
+  }, [listLoad, view, direction, q, ui]);
+  useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => { clearTimeout(timer); listLoad.cancel(); }; }, [load, q, listLoad]);
   usePanelCommand(command, { "record-item": () => setIntakeOpen(true) });
   usePanelCommand(command, {
     export: () => {
@@ -202,7 +208,7 @@ function ItemDialog({ item, owners, onClose, onChanged }: { item: Item; owners: 
   const closed = CLOSED.includes(item.status);
   useEffect(() => {
     let cancelled = false;
-    void fetch(`/api/front-desk/postal?history=${encodeURIComponent(item.id)}`, { cache: "no-store" }).then(r => r.json()).then(json => { if (!cancelled) { if (json.success) setHistory(json.data); else setHistoryError(ui(json.error || "History could not be loaded.")); } }).catch(() => !cancelled && setHistoryError(ui("History could not be loaded.")));
+    void fetch(`/api/front-desk/postal?history=${encodeURIComponent(item.id)}`, { cache: "no-store" }).then(r => r.json()).then(json => { if (!cancelled) { if (isApiOk(json)) setHistory(json.data); else setHistoryError(ui(readApiError(json, "History could not be loaded."))); } }).catch(() => !cancelled && setHistoryError(ui("History could not be loaded.")));
     return () => { cancelled = true; };
   }, [item.id, ui]);
   const run = async (body: Record<string, unknown>, message: string) => {

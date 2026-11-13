@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { mondayOf } from "@/lib/family/week";
+import { campusInstant, campusMondayOf } from "@/lib/family/week";
 import { checkedJson, readRequest, RequestFailure, requestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Modal } from "@/components/ui/modal";
 import { ConfirmAction } from "@/components/ui/confirm-action";
-import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DeskPill, DeskRowIcon, deskRow } from "@/components/ui/desk";
 import { Eye, Newspaper, PenLine, Sprout, UserRound } from "lucide-react";
@@ -51,7 +51,8 @@ async function call(url: string, method: string, body?: Record<string, unknown>)
 export function FamilyDigestReview({ classes }: { classes: { id: string; label: string }[] }) {
   const ui = useUiText();
   const { date, dateTime } = useLocaleFormat();
-  const [classId, setClassId] = useState(classes[0]?.id ?? ""), [week, setWeek] = useState(mondayOf(new Date()));
+  const { timezone } = useLocale();
+  const [classId, setClassId] = useState(classes[0]?.id ?? ""), [week, setWeek] = useState(() => campusMondayOf(new Date(), timezone));
   const [digest, setDigest] = useState<Digest | null>(null), [busy, setBusy] = useState(false), [editing, setEditing] = useState<Entry | null>(null), [preview, setPreview] = useState<Entry | null>(null);
   const [draft, setDraft] = useState<{ texts: Record<string, string>; removed: string[]; step: { objective: string; minutes: string; materials: string; alternative: string } | null; skipped: boolean }>({ texts: {}, removed: [], step: null, skipped: false });
   const [scheduleAt, setScheduleAt] = useState("");
@@ -82,7 +83,7 @@ export function FamilyDigestReview({ classes }: { classes: { id: string; label: 
     <header><h2 className="flex items-center gap-2 text-lg font-bold text-ink-strong"><Newspaper aria-hidden="true" className="size-5 text-primary" />{ui("Weekly family updates")}</h2><p className="text-xs text-ink-muted">{ui("Only results and feedback already released to families are used. Nothing is sent until you approve this exact version.")}</p></header>
     <div className="flex flex-wrap items-end gap-3">
       <FormField name="digest-class" label={ui("Class")}><Select value={classId} onChange={e => setClassId(e.target.value)}>{classes.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</Select></FormField>
-      <FormField name="digest-week" label={ui("Week starting")}><Input type="date" value={week} onChange={e => setWeek(e.target.value)} /></FormField>
+      <FormField name="digest-week" label={ui("Week starting")} hint={ui("Times are in the school's timezone: {0}.", [timezone])}><Input type="date" value={week} onChange={e => setWeek(e.target.value)} /></FormField>
       <Button disabled={busy || !classId} onClick={() => void prepare()} data-digest-prepare>{ui("Open the week's update")}</Button>
     </div>
     {digest ? <>
@@ -95,8 +96,8 @@ export function FamilyDigestReview({ classes }: { classes: { id: string; label: 
       <div className="flex flex-wrap items-end justify-end gap-2">
         {digest.status === "DRAFT" ? <Button disabled={busy} onClick={() => void act({ action: "approve" }, "Approved for sending.")} data-digest-approve>{ui("Approve version {0}", [String(digest.version)])}</Button> : null}
         {approved ? <>
-          <FormField name="digest-at" label={ui("Send at")}><Input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)} /></FormField>
-          <Button variant="outline" disabled={busy || !scheduleAt} onClick={() => void act({ action: "schedule", at: new Date(scheduleAt).toISOString() }, "Scheduled.")} data-digest-schedule>{ui("Schedule")}</Button>
+          <FormField name="digest-at" label={ui("Send at")} hint={ui("Times are in the school's timezone: {0}.", [timezone])}><Input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)} /></FormField>
+          <Button variant="outline" disabled={busy || !campusInstant(scheduleAt, timezone)} onClick={() => { const at = campusInstant(scheduleAt, timezone); if (at) void act({ action: "schedule", at }, "Scheduled."); }} data-digest-schedule>{ui("Schedule")}</Button>
           <Button disabled={busy} onClick={() => setConfirmSend(true)} data-digest-send>{ui("Send now")}</Button>
         </> : null}
       </div>

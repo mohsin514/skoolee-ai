@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageCampusOps, requireAuthUser } from "@/lib/api/scope";
+import { created, failFrom, ok } from "@/lib/api/envelope";
 import { readJsonBody } from "@/lib/api/validate";
 
 // Secondary reporting lines (Module 8b).
@@ -57,9 +58,9 @@ export async function POST(req: NextRequest) {
       return created;
     });
 
-    return Response.json({ success: true, line }, { status: 201 });
+    return created({ line });
   } catch (error) {
-    return errorResponse(error, "[staff/reporting-lines] POST failed");
+    return failFrom(error, "[staff/reporting-lines] POST failed");
   }
 }
 
@@ -78,8 +79,8 @@ export async function DELETE(req: NextRequest) {
       await tx.staffReportingLine.update({ where: { id }, data: { endedAt: new Date() } });
       await writeAuditEvent(tx, user, { table: "staff_reporting_lines", recordId: id, action: "ARCHIVE", before: { userId: line.userId, managerId: line.managerId, kind: line.kind }, after: { ended: true } });
     });
-    return Response.json({ success: true });
+    return ok({});
   } catch (error) {
-    return errorResponse(error, "[staff/reporting-lines] DELETE failed");
+    return failFrom(error, "[staff/reporting-lines] DELETE failed");
   }
 }

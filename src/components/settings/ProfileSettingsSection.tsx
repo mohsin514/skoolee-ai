@@ -80,13 +80,14 @@ export function ProfileSettingsSection({ onSaved, onDirtyChange }: {
         body: JSON.stringify({ fullName: form.fullName.trim(), phone: form.phone.trim() || null, profileImageUrl: form.profileImageUrl.trim() || null }),
       });
       const result = await res.json().catch(() => ({}));
-      if (!res.ok || !result.profile) throw new Error("save");
+      if (!res.ok || !result.profile) throw Object.assign(new Error("save"), { code: result.code });
       setProfile(result.profile);
       setForm(toForm(result.profile));
       onSaved?.(result.profile);
       setMessage({ kind: "saved", text: t("Profile updated") });
-    } catch {
-      setMessage({ kind: "error", text: t("Profile could not be saved") });
+    } catch (error) {
+      const mfaRequired = (error as { code?: string }).code === "MFA_REQUIRED";
+      setMessage({ kind: "error", text: t(mfaRequired ? "Turn on two-step sign-in before you change your phone number." : "Profile could not be saved") });
     } finally {
       setSaving(false);
     }

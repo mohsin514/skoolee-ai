@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { latestRequest } from "@/lib/http/request-pool";
 import { AlarmClock, CheckCircle2, FileText, Inbox, Lock, MessageSquare, MessageSquareWarning, Plus, UserX } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
 // SKO-467: intake (routine or confidential), a queue with owner and due date, and a case view where the
 // original report stays fixed and every assignment, note, resolution and reopening is appended.
@@ -44,7 +46,7 @@ const EMPTY = { complainantName: "", anonymous: false, type: "", description: ""
 async function call(method: string, body: Record<string, unknown>) {
   const response = await fetch("/api/front-desk/complaints", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(typeof json.error === "string" ? json.error : "The change was not saved.");
+  if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The change was not saved."));
   return json;
 }
 
@@ -69,36 +71,43 @@ export function ComplaintsDesk({ hideHeader = false, command }: { hideHeader?: b
   const toggle = (next: "unassigned" | "overdue") => setFocus(current => current === next ? null : next);
   const shown = urgencyFirst(rows.filter(row => focus === "unassigned" ? !row.owner && row.status !== "RESOLVED" : focus === "overdue" ? row.overdue : true), rowRank);
 
+  // SKAI-1859: a newer query aborts the older list request, and only the newest one writes state.
+  const [listLoad] = useState(latestRequest);
   const load = useCallback(async () => {
+    const request = listLoad.start();
     setLoading(true); setLoadError("");
     try {
       const params = new URLSearchParams();
       if (status !== "all") params.set("status", status);
       if (owner === "overdue") params.set("overdue", "1"); else if (owner) params.set("owner", owner);
       if (q.trim()) params.set("q", q.trim());
-      const response = await fetch(`/api/front-desk/complaints?${params}`, { cache: "no-store" });
+      const response = await fetch(`/api/front-desk/complaints?${params}`, { cache: "no-store", signal: request.signal });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to complaints for this campus.") : json.error || ui("Complaints could not be loaded."));
+      if (!request.isCurrent()) return;
+      if (!response.ok || !isApiOk(json)) throw new Error(response.status === 403 ? ui("You do not have access to complaints for this campus.") : readApiError(json, ui("Complaints could not be loaded.")));
       setRows(json.data); setCounts(json.counts); setLeader(json.canSeeConfidential); setTruncated(Boolean(json.truncated)); setNextCursor(json.nextCursor ?? null); setMore("idle"); setQuery(params.toString());
-    } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("Complaints could not be loaded.")); } finally { setLoading(false); }
-  }, [status, owner, q, ui]);
-  useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
+    } catch (failure) { if (request.isCurrent()) setLoadError(failure instanceof Error ? ui(failure.message) : ui("Complaints could not be loaded.")); } finally { if (request.isCurrent()) setLoading(false); }
+  }, [listLoad, status, owner, q, ui]);
+  useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => { clearTimeout(timer); listLoad.cancel(); }; }, [load, q, listLoad]);
   const loadMore = async () => {
     if (!nextCursor) return;
     const from = nextCursor;
+    // The next page shares the list's request slot, so a new search drops an older page instead of appending it.
+    const request = listLoad.start();
     setMore("loading");
     try {
       const params = new URLSearchParams(query); params.set("cursor", from);
-      const response = await fetch(`/api/front-desk/complaints?${params}`, { cache: "no-store" });
+      const response = await fetch(`/api/front-desk/complaints?${params}`, { cache: "no-store", signal: request.signal });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error();
+      if (!request.isCurrent()) return;
+      if (!response.ok || !isApiOk(json)) throw new Error();
       setRows(current => [...current, ...json.data]); setCounts(json.counts); setTruncated(Boolean(json.truncated)); setNextCursor(json.nextCursor ?? null); setMore("idle");
-    } catch { setMore("failed"); }
+    } catch { if (request.isCurrent()) setMore("failed"); }
   };
   // Owner candidates (G40, F13): the campus's admins — including a single school's admin — and receptionists. The
   // complaints route's older `?owners=1` list still names the principal and omits ADMIN, so the candidates come from
   // the front-desk list that serves them (the smallest one: callbacks the viewer owns).
-  useEffect(() => { void fetch("/api/front-desk/phone-calls?view=mine", { cache: "no-store" }).then(r => r.json()).then(json => json.success && Array.isArray(json.owners) && setOwners((json.owners as Owner[]).filter(person => !person.role || OWNER_ROLES.has(person.role)))).catch(() => undefined); }, []);
+  useEffect(() => { void fetch("/api/front-desk/phone-calls?view=mine", { cache: "no-store" }).then(r => r.json()).then(json => isApiOk(json) && Array.isArray(json.owners) && setOwners((json.owners as Owner[]).filter(person => !person.role || OWNER_ROLES.has(person.role)))).catch(() => undefined); }, []);
   usePanelCommand(command, { "record-complaint": () => setIntakeOpen(true) });
   usePanelCommand(command, {
     export: () => {
@@ -216,7 +225,7 @@ function CaseDialog({ id, owners, leader, onClose, onChanged }: { id: string; ow
   const load = useCallback(async () => {
     const response = await fetch(`/api/front-desk/complaints?id=${encodeURIComponent(id)}`, { cache: "no-store" });
     const json = await response.json().catch(() => ({}));
-    if (!response.ok || !json.success) { setLoadError(ui(json.error || "This complaint could not be loaded.")); return; }
+    if (!response.ok || !isApiOk(json)) { setLoadError(ui(readApiError(json, "This complaint could not be loaded."))); return; }
     setDetail(json.data); setOwnerId(json.data.owner?.id ?? ""); setDueDate(json.data.dueDate?.slice(0, 10) ?? ""); setPublicResponse(json.data.publicResponse ?? "");
   }, [id, ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);

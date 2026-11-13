@@ -17,6 +17,7 @@ import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { permissionCopy, permissionLabel, type PermissionCopyKey } from "./permission-copy";
+import { isApiOk, readApiData } from "@/lib/api/envelope-client";
 
 type Flags = { canView: boolean; canAdd: boolean; canEdit: boolean; canDelete: boolean };
 type Matrix = Record<string, Record<string, Flags> & { _fixed?: boolean }>;
@@ -29,8 +30,8 @@ class PermissionRequestError extends Error { constructor(readonly status: number
 async function request(method: "GET" | "PATCH", body?: unknown) {
   const response = await fetch("/api/roles/permissions", { method, cache: "no-store", signal: AbortSignal.timeout(8000), ...(body ? { headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : {}) });
   const json = await response.json();
-  if (!response.ok || !json.success) throw new PermissionRequestError(response.status);
-  return json.data;
+  if (!response.ok || !isApiOk(json)) throw new PermissionRequestError(response.status);
+  return readApiData<any>(json, null);
 }
 
 export function RolePermissionsPanel() {

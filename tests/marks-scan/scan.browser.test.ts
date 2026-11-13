@@ -121,6 +121,9 @@ test("capture: blurred page kept as retake, duplicate ignored, replaced page bac
   const started = await call(teacher, "post", "/api/marks-scan", { action: "start", qr: ids.code1 });
   assert.equal(started.status, 201, JSON.stringify(started.json));
   ids.batch = started.json.data.id;
+  // SKAI-1851: scanning the same printed sheet again (e.g. from the scan hub) resumes its open scan.
+  const resumed = await call(teacher, "post", "/api/marks-scan", { action: "start", qr: ids.code1 });
+  assert.equal(resumed.json.data.id, ids.batch, "a second scan of the sheet's QR resumes the open batch");
   const page1 = await photo("page one");
   const readings1 = [
     { row: 1, value: 7, confidence: 0.55, alternatives: [1] }, // ambiguous 7/1

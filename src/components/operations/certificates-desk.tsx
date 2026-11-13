@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { latestRequest } from "@/lib/http/request-pool";
 import { Award, Ban, CheckCircle2, Eye, FilePen, FileText, Hourglass, IdCard, Plus, Replace, ShieldCheck } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import type { PanelCommand } from "@/components/fees/fee-types";
 import { downloadCSV } from "@/lib/csv";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
 // SKO-469: issue certificates and ID cards from approved template versions. Reception previews the exact
 // text for the chosen pupil (missing fields block issuing), a leader approves identity-sensitive documents,
@@ -47,7 +49,7 @@ const fieldLabel = (ui: Ui, field: string) => ({ studentName: ui("Student name")
 async function send(method: string, body: Record<string, unknown>) {
   const response = await fetch("/api/front-desk/certificates", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(typeof json.error === "string" ? json.error : "The change was not saved.");
+  if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The change was not saved."));
   return json;
 }
 
@@ -70,7 +72,7 @@ export function CertificatesDesk({ showTemplates = true, hideHeader = false, com
     try {
       const response = await fetch("/api/front-desk/certificates", { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
-      if (response.ok && json.success) { setTemplates(json.data); setCanApprove(Boolean(json.canApprove)); setTemplatesFailed(false); }
+      if (response.ok && isApiOk(json)) { setTemplates(json.data); setCanApprove(Boolean(json.canApprove)); setTemplatesFailed(false); }
       else setTemplatesFailed(true);
     } catch { setTemplatesFailed(true); }
     finally { setTemplatesLoaded(true); }
@@ -101,24 +103,28 @@ function DocumentsTab({ templates, canApprove, command, commandReady = true, sho
   // Counters over the loaded documents; pressing one narrows the list to that state (again to show all).
   const [focus, setFocus] = useState<Status | null>(null);
   const toggle = (next: Status) => setFocus(current => current === next ? null : next);
+  // SKAI-1859: a newer query aborts the older list request, and only the newest one writes state.
+  const [listLoad] = useState(latestRequest);
   const load = useCallback(async () => {
+    const request = listLoad.start();
     setLoading(true); setLoadError("");
     try {
       const params = new URLSearchParams({ issues: "1" });
       if (status) params.set("status", status);
       if (q.trim()) params.set("q", q.trim());
-      const response = await fetch(`/api/front-desk/certificates?${params}`, { cache: "no-store" });
+      const response = await fetch(`/api/front-desk/certificates?${params}`, { cache: "no-store", signal: request.signal });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to certificates for this campus.") : json.error || ui("Documents could not be loaded."));
+      if (!request.isCurrent()) return;
+      if (!response.ok || !isApiOk(json)) throw new Error(response.status === 403 ? ui("You do not have access to certificates for this campus.") : readApiError(json, ui("Documents could not be loaded.")));
       setRows(json.data); setTruncated(Boolean(json.truncated));
-    } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("Documents could not be loaded.")); } finally { setLoading(false); }
-  }, [status, q, ui]);
-  useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
+    } catch (failure) { if (request.isCurrent()) setLoadError(failure instanceof Error ? ui(failure.message) : ui("Documents could not be loaded.")); } finally { if (request.isCurrent()) setLoading(false); }
+  }, [listLoad, status, q, ui]);
+  useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => { clearTimeout(timer); listLoad.cancel(); }; }, [load, q, listLoad]);
   const download = async (issue: Issue) => {
     setDownloading(issue.id);
     try {
       const response = await fetch(`/api/front-desk/certificates?download=${encodeURIComponent(issue.id)}`, { cache: "no-store" });
-      if (!response.ok) { const json = await response.json().catch(() => ({})); throw new Error(json.error || "The PDF could not be generated. The document itself is safe and unchanged; try the download again."); }
+      if (!response.ok) { const json = await response.json().catch(() => ({})); throw new Error(readApiError(json, "The PDF could not be generated. The document itself is safe and unchanged; try the download again.")); }
       const state = response.headers.get("X-Document-State");
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a"); link.href = url; link.download = `${issue.serial}.pdf`; link.click();
@@ -204,12 +210,14 @@ function IssueDialog({ templates, reissue, onClose, onDone }: { templates: Templ
   const [searchFailed, setSearchFailed] = useState(false), [searchNonce, setSearchNonce] = useState(0);
   useEffect(() => {
     if (reissue || query.trim().length < 2) return;
+    // SKAI-1859: a newer search aborts the older one, so a slow earlier response cannot replace the matches.
+    const controller = new AbortController();
     const timer = setTimeout(() => {
-      fetch(`/api/front-desk/certificates?students=${encodeURIComponent(query.trim())}`, { cache: "no-store" })
-        .then(async r => { const json = await r.json().catch(() => ({})); if (!r.ok || !json.success) throw new Error("search"); setMatches(json.data); setSearchFailed(false); })
-        .catch(() => { setMatches([]); setSearchFailed(true); });
+      fetch(`/api/front-desk/certificates?students=${encodeURIComponent(query.trim())}`, { cache: "no-store", signal: controller.signal })
+        .then(async r => { const json = await r.json().catch(() => ({})); if (controller.signal.aborted) return; if (!r.ok || !isApiOk(json)) throw new Error("search"); setMatches(json.data); setSearchFailed(false); })
+        .catch(() => { if (!controller.signal.aborted) { setMatches([]); setSearchFailed(true); } });
     }, 250);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); controller.abort(); };
   }, [query, reissue, searchNonce]);
   useEffect(() => {
     if (!student || !templateId) return;
@@ -305,7 +313,7 @@ function TemplatesTab({ templates, canApprove, onChanged }: { templates: Templat
       description={deleting ? ui("\"{0}\" has never been approved, so no document uses it. Deleting it cannot be undone.", [deleting.name]) : ""}
       confirmLabel={ui("Delete draft")}
       cancelLabel={ui("Keep editing")}
-      onConfirm={async () => { const template = deleting; if (template && await run(`delete-${template.id}`, async () => { const response = await fetch(`/api/front-desk/certificates?id=${encodeURIComponent(template.id)}`, { method: "DELETE" }); const json = await response.json().catch(() => ({})); if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved."); }, ui("Draft deleted."))) setDeleting(null); }}
+      onConfirm={async () => { const template = deleting; if (template && await run(`delete-${template.id}`, async () => { const response = await fetch(`/api/front-desk/certificates?id=${encodeURIComponent(template.id)}`, { method: "DELETE" }); const json = await response.json().catch(() => ({})); if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The change was not saved.")); }, ui("Draft deleted."))) setDeleting(null); }}
       onCancel={() => setDeleting(null)}
     />
     {!templates.length ? <EmptyState size="sm" icon={FileText} title={ui("No templates yet. Create one, then approve it before documents can be issued.")} />

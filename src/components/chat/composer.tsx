@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ImageIcon, Loader2, Lock, Paperclip, Send, X } from "lucide-react";
+import { Camera, Check, ImageIcon, Loader2, Lock, Paperclip, Send, Smartphone, X } from "lucide-react";
+import { PhoneDrop } from "@/components/ui/smart-upload";
 import { cn } from "@/lib/utils";
 import { useChat, type SendAttachment } from "./chat-provider";
 import { sendGate } from "./send-gate";
@@ -59,7 +60,10 @@ export function Composer({
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null), cameraInputRef = useRef<HTMLInputElement>(null);
+  // SKAI-1889: a photo straight from the camera on phones; on computers, pages sent from the phone (Skoolee Drop).
+  const [phoneOpen, setPhoneOpen] = useState(false), [touch, setTouch] = useState(false);
+  useEffect(() => { setTouch(window.matchMedia?.("(pointer: coarse)").matches ?? false); }, []);
 
   // Entering edit mode loads the existing text, so the author corrects what
   // they wrote rather than retyping it.
@@ -144,7 +148,7 @@ export function Composer({
     }
   }
 
-  async function handleFiles(list: FileList | null) {
+  async function handleFiles(list: FileList | File[] | null) {
     if (!list || list.length === 0) return;
 
     const chosen = Array.from(list).slice(0, 5 - files.length);
@@ -324,6 +328,18 @@ export function Composer({
             >
               <Paperclip aria-hidden="true" className="h-4 w-4" />
             </IconButton>
+            {touch ? <>
+              <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" aria-label={ui("Take photo")} onChange={(e) => { handleFiles(e.target.files); e.target.value = ""; }} />
+              <IconButton variant="ghost" size="sm" label={ui("Take photo")} onClick={() => cameraInputRef.current?.click()} disabled={files.length >= 5}>
+                <Camera aria-hidden="true" className="h-4 w-4" />
+              </IconButton>
+            </> : (
+              <IconButton variant="ghost" size="sm" label={ui("Use my phone")} onClick={() => setPhoneOpen(true)} disabled={files.length >= 5}>
+                <Smartphone aria-hidden="true" className="h-4 w-4" />
+              </IconButton>
+            )}
+            {phoneOpen && <PhoneDrop label={ui("Attach a file")} accept="image/jpeg,image/png,image/webp,application/pdf,.docx,.xlsx,.txt" limit={Math.max(1, 5 - files.length)}
+              onClose={() => setPhoneOpen(false)} onFiles={(sent) => { setPhoneOpen(false); handleFiles(sent); }} />}
           </>
         )}
 

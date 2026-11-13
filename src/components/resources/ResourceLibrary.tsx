@@ -1,4 +1,5 @@
 "use client";
+import { SmartUpload } from "@/components/ui/smart-upload";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Archive, Download, ExternalLink, Eye, MoreHorizontal, Users } from "lucide-react";
 import { Menu } from "@/components/ui/menu";
@@ -238,7 +239,7 @@ function ResourceForm({ t, language, classId, busy, onCancel, onSubmit }: { t: R
     <label className="grid gap-1 text-xs font-semibold">{t.language}<Select name="language" defaultValue={language}><option value="en">English</option><option value="ar">العربية</option><option value="ur">اردو</option></Select></label>
     <div className="grid gap-1 text-xs"><label className="grid gap-1 font-semibold">{t.sourceRights}<Input name="sourceRights" maxLength={240} aria-describedby="resource-source-help" /></label><span id="resource-source-help" className="text-ink-muted">{t.sourceHelp}</span></div>
     <div className="grid gap-1 text-xs sm:col-span-2"><label className="grid gap-1 font-semibold">{t.description}<Textarea name="description" required minLength={10} maxLength={2000} rows={3} className="rounded-md border px-3 py-2 text-sm font-normal" aria-describedby="resource-description-help" /></label><span id="resource-description-help" className="text-ink-muted">{t.descriptionHelp}</span></div>
-    <div className="grid gap-1 text-xs"><label className="grid gap-1 font-semibold">{t.file}<Input type="file" accept={ACCEPT} aria-describedby="resource-file-help" onChange={event => setFile(event.target.files?.[0] ?? null)} /></label><span id="resource-file-help" className="text-ink-muted">{t.fileHelp}</span></div>
+    <div className="grid gap-1 text-xs"><span className="font-semibold">{t.file}</span><SmartUpload accept={ACCEPT} label={t.file} hint={t.fileHelp} onFiles={files => setFile(files[0])} />{file && <span className="text-sm text-ink-muted"><bdi>{file.name}</bdi></span>}</div>
     <label className="grid gap-1 text-xs font-semibold">{t.link}<Input name="link" type="url" inputMode="url" placeholder="https://" disabled={!!file} /></label>
     <div className="flex flex-wrap gap-2 sm:col-span-2"><Button type="submit" disabled={busy}>{busy ? t.uploading : t.save}</Button><Button type="button" variant="ghost" onClick={onCancel}>{t.cancel}</Button></div>
   </form>;
@@ -249,7 +250,7 @@ function VersionForm({ t, busy, onCancel, onSubmit }: { t: ResourceCopy; busy: b
   return <form aria-label={t.replace} className="mt-3 grid gap-3 rounded-xl border border-border-subtle bg-surface-subtle p-3 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); void onSubmit(String(form.get("description") ?? ""), file, String(form.get("link") ?? "")); }}>
     <p className="text-xs text-ink-muted sm:col-span-2">{t.replaceHelp}</p>
     <label className="grid gap-1 text-xs font-semibold sm:col-span-2">{t.description}<Textarea name="description" required minLength={10} maxLength={2000} rows={2} className="rounded-md border px-3 py-2 text-sm font-normal" /></label>
-    <label className="grid gap-1 text-xs font-semibold">{t.file}<Input type="file" accept={ACCEPT} onChange={event => setFile(event.target.files?.[0] ?? null)} /></label>
+    <div className="grid gap-1 text-xs"><span className="font-semibold">{t.file}</span><SmartUpload accept={ACCEPT} label={t.file} onFiles={files => setFile(files[0])} />{file && <span className="text-sm text-ink-muted"><bdi>{file.name}</bdi></span>}</div>
     <label className="grid gap-1 text-xs font-semibold">{t.link}<Input name="link" type="url" placeholder="https://" disabled={!!file} /></label>
     <div className="flex flex-wrap gap-2 sm:col-span-2"><Button type="submit" disabled={busy}>{busy ? t.uploading : t.save}</Button><Button type="button" variant="ghost" onClick={onCancel}>{t.cancel}</Button></div>
   </form>;
