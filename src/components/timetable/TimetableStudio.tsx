@@ -1076,8 +1076,8 @@ export function TimetableStudio({ campusId, periodsHref, hideActions = false, co
       {addingPeriod && activeTimetable && <AddPeriodDialog key={activeTimetable.id} timetableId={activeTimetable.id} slots={activeTimetable.slots} definitions={periodDefs} weekendDays={weekendDays} onClose={() => setAddingPeriod(false)} onAdded={slot => { setTimetables(previous => previous.map(timetable => timetable.id === activeTimetable.id ? { ...timetable, slots: [...timetable.slots.filter(existing => existing.id !== slot.id), slot] } : timetable)); toast.success(addCopy.saved); }} />}
       {/* Toolbar: class picker, view tabs, publish */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-surface-subtle via-card to-brand-100 p-2 shadow-sm border border-edge/10">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <InputGroup surfaceClassName="bg-card" className="min-w-[240px] flex-1 sm:max-w-sm">
+        <div className="flex w-full min-w-0 flex-1 items-center gap-3 sm:w-auto">
+          <InputGroup surfaceClassName="bg-card" className="w-full min-w-0 flex-1 sm:min-w-[240px] sm:max-w-sm">
             <SystemSelect
               value={selectedClassId || ""}
               onChange={(e) => { const id = e.target.value || null; changeSelection(() => setSelectedClassId(id)); }}
