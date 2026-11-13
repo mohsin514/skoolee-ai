@@ -16,6 +16,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { EmptyState } from "@/components/ui/empty-state";
+import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { FormField } from "@/components/ui/form-field";
@@ -100,7 +101,8 @@ export function MembershipsPanel({ exportRequest }: { exportRequest?: number } =
     const version = ++sequence.current;
     setLoadFailed(null);
     try {
-      const result = await checkedJson(await readRequest("/api/memberships"), { envelope: false });
+      const result = readApiData<any>(await checkedJson(await readRequest("/api/memberships")), null);
+      if (!result) throw new Error("Invalid membership response");
       if (!Array.isArray(result.members) || !Array.isArray(result.campuses)) throw new Error("Invalid membership response");
       if (version === sequence.current) setData(result);
     } catch (failure) { if (version === sequence.current) { setData(null); setLoadFailed(requestFailure(failure)); } }
@@ -162,7 +164,7 @@ export function MembershipsPanel({ exportRequest }: { exportRequest?: number } =
         : { userId: editing.id, role: draft.role, campusId: draft.campusId, canPurchaseSubscription: false, canManageMemberships: draft.manage, isActive: draft.active, expectedVersion: editing.accessVersion, reviewed: true, reason };
       const response = await fetch("/api/memberships", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error);
+      if (!response.ok || !isApiOk(result)) throw new Error(readApiError(result, t("The change could not be saved. Try again.")));
       toast.success(changes.includes("revoke") ? t("{0}'s access was revoked.", [editing.fullName]) : t("Access updated. {0} signs in again with the new access.", [editing.fullName]));
       close();
       await load();
