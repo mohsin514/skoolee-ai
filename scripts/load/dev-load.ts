@@ -83,6 +83,8 @@ async function main() {
   console.log(`signed in ${sessions.length} accounts${skipped.length ? `, skipped ${skipped.join(", ")}` : ""}; ramping ${vus} virtual users over ${rampSec}s`);
 
   const samples: Sample[] = [];
+  /** 503 answers by the server's x-db-unavailable reason (SKAI-1948). */
+  const unavailable = new Map<string, number>();
   const startedAt = new Date().toISOString();
   const deadline = Date.now() + durationSec * 1000;
   let aborted: string | null = null;
@@ -98,6 +100,7 @@ async function main() {
         const res = await fetch(`${target}${path}`, { headers: { cookie: session.cookie }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
         await res.arrayBuffer();
         status = res.status;
+        if (status === 503) unavailable.set(res.headers.get("x-db-unavailable") ?? "unlabelled", (unavailable.get(res.headers.get("x-db-unavailable") ?? "unlabelled") ?? 0) + 1);
       } catch { status = 0; }
       samples.push({ at: Date.now(), endpoint: label(path), ms: Math.round(performance.now() - started), status });
     };
@@ -127,7 +130,8 @@ async function main() {
   const base = `test-results/load/${startedAt.replace(/[:.]/g, "-")}`;
   writeFileSync(`${base}.json`, JSON.stringify({ meta, overall: result.overall, endpoints: result.endpoints }, null, 2));
   writeFileSync(`${base}.md`, result.markdown);
-  console.log(`\n${result.markdown}\n\nReport: ${base}.md`);
+  const reasons = [...unavailable.entries()].map(([k, v]) => `${k}×${v}`).join(" ");
+  console.log(`\n${result.markdown}\n${reasons ? `\n503 reasons: ${reasons}\n` : ""}\nReport: ${base}.md`);
   if (!result.passed) process.exitCode = 1;
 }
 

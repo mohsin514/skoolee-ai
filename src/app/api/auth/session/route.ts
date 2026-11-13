@@ -16,7 +16,7 @@ import { createTtlMemo } from "@/lib/cache/ttl-memo";
 
 /** Names of who leads and who pays, shown in the shell: display only, so shared per school for 60 s. */
 const institutionContacts = createTtlMemo({ ttlMs: 60_000 });
-import { isDatabaseUnavailable, ServiceUnavailableError } from "@/lib/db/availability";
+import { isDatabaseUnavailable, ServiceUnavailableError, unavailableReason } from "@/lib/db/availability";
 
 const noStore = { "Cache-Control": "private, no-store" };
 
@@ -106,7 +106,9 @@ export async function GET() {
     }, { headers: noStore });
   } catch (error) {
     if (error instanceof ServiceUnavailableError || isDatabaseUnavailable(error)) {
-      return NextResponse.json({ error: "The service is busy. Please try again in a moment.", code: "SERVICE_UNAVAILABLE" }, { status: 503, headers: { ...noStore, "Retry-After": "5" } });
+      const reason = unavailableReason(error);
+      console.warn("[auth/session] database unavailable", { reason });
+      return NextResponse.json({ error: "The service is busy. Please try again in a moment.", code: "SERVICE_UNAVAILABLE" }, { status: 503, headers: { ...noStore, "Retry-After": "5", "x-db-unavailable": reason } });
     }
     console.error("[auth/session] GET failed", error);
     return NextResponse.json({ error: "Operation failed" }, { status: 500, headers: noStore });
