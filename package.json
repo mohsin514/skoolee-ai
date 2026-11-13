@@ -60,6 +60,7 @@
     "test:marks-scan-reversal": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/marks-scan/reversal-exempt-state.database.test.ts",
     "test:record-cascades": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/db/record-cascades.database.test.ts",
     "test:legacy-parent-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/legacy-parent-review.database.test.ts",
+    "test:tenant-rls-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/tenant-rls.database.test.ts",
     "test:placement-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/placement-consistency.database.test.ts",
     "test:academic-year-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/academic-year-spine.database.test.ts",
     "test:enrollment-placement-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/enrollment-placement.database.test.ts",
