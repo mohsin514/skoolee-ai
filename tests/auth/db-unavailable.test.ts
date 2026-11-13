@@ -10,6 +10,9 @@ test("connection failures are classified as the database being unavailable", () 
   assert.equal(isDatabaseUnavailable(Object.assign(new Error("init"), { name: "PrismaClientInitializationError" })), true);
   assert.equal(isDatabaseUnavailable(new Error("FATAL: (EMAXCONN) max client connections reached, limit: 200")), true);
   assert.equal(isDatabaseUnavailable(new Error("Timed out fetching a new connection from the connection pool")), true);
+  // pg driver adapter (SKAI-1910): raw queries fail as P2010 carrying the driver's message.
+  assert.equal(isDatabaseUnavailable(Object.assign(prismaError("P2010", "Raw query failed. Code: `N/A`."), { meta: { code: "N/A", message: "Database not reachable: 127.0.0.1:55699" } })), true);
+  assert.equal(isDatabaseUnavailable(new Error("timeout exceeded when trying to connect")), true);
 });
 
 test("data and query errors are not outages", () => {

@@ -10,6 +10,8 @@ import type { InstitutionKind } from "@/lib/auth/institution";
 import { JWT_SECRET } from "@/lib/auth/secret";
 import { SESSION_COOKIE_NAME, hashSessionToken } from "@/lib/auth/session-cookie";
 import { isSessionRevokedStrict } from "@/lib/auth/session-revocation";
+import { prefetchAuth } from "@/lib/auth/request-auth";
+import { principalCacheEnabled } from "@/lib/auth/principal-cache";
 import { isDatabaseUnavailable, ServiceUnavailableError } from "@/lib/db/availability";
 import { ACTIVE_CAMPUS_COOKIE, resolveActiveCampusId } from "@/lib/auth/active-campus";
 import { lookupSchoolCampus } from "@/lib/auth/active-campus-server";
@@ -62,7 +64,11 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     // components and layouts calling getAuthUser() directly are covered too;
     // API routes were never the only way in. The lookup is memoised per
     // request, so the repeated calls a single render makes cost one query.
-    if (await isSessionRevokedStrict(hashSessionToken(token))) return null;
+    const tokenHash = hashSessionToken(token);
+    // Scale: session rows and account in one round trip; the checks below read them from this request's store.
+    // With the Redis principal cache on, the principal usually comes from Redis, so only the session is read.
+    if (!principalCacheEnabled()) await prefetchAuth(tokenHash, userId, schoolId);
+    if (await isSessionRevokedStrict(tokenHash)) return null;
 
     const principal = await resolveCurrentPrincipal({ userId, schoolId, role, accessVersion: payload.accessVersion, mfaVerified: payload.mfaVerified });
     if (!principal) return null;
