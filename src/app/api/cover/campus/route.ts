@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { ApiError, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { created, failFrom, ok } from "@/lib/api/envelope";
 import { campusFollowUp, openRecoveries, recordUncovered } from "@/lib/cover/recovery";
 import { deliverNotification } from "@/lib/notifications/in-app";
 
@@ -13,9 +14,9 @@ export async function GET(request: NextRequest) {
     const user = await requireAuthUser();
     const campusId = await resolveCampusId(user, request.nextUrl.searchParams.get("campusId"));
     const recoveriesCursor = request.nextUrl.searchParams.get("recoveriesCursor");
-    if (recoveriesCursor) return Response.json({ success: true, data: await openRecoveries(user, campusId, recoveriesCursor) }, { headers: { "Cache-Control": "private, no-store" } });
-    return Response.json({ success: true, data: await campusFollowUp(user, campusId, request.nextUrl.searchParams.get("date") ?? "") }, { headers: { "Cache-Control": "private, no-store" } });
-  } catch (error) { return errorResponse(error, "[cover/campus] GET failed"); }
+    if (recoveriesCursor) return ok(await openRecoveries(user, campusId, recoveriesCursor), { headers: { "Cache-Control": "private, no-store" } });
+    return ok(await campusFollowUp(user, campusId, request.nextUrl.searchParams.get("date") ?? ""), { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return failFrom(error, "[cover/campus] GET failed"); }
 }
 
 export async function POST(request: NextRequest) {
@@ -25,6 +26,6 @@ export async function POST(request: NextRequest) {
     if (body.action !== "uncovered") throw new ApiError("Unknown action", 400);
     const result = await recordUncovered(user, body);
     await deliverNotification("LESSON_RECOVERY_NEEDED", { schoolId: user.schoolId, campusId: result.campusId, actorId: user.userId, recipientIds: [result.ownerId] }).catch(error => console.error("[cover/campus] notice failed", error));
-    return Response.json({ success: true, data: { id: result.recovery.id, status: result.recovery.status } }, { status: 201 });
-  } catch (error) { return errorResponse(error, "[cover/campus] POST failed"); }
+    return created({ id: result.recovery.id, status: result.recovery.status });
+  } catch (error) { return failFrom(error, "[cover/campus] POST failed"); }
 }
