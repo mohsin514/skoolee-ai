@@ -8,7 +8,7 @@ const fake = { pilot: {
     if (race) return { count: 0 };
     Object.assign(rows.get(where.id)!, data); return { count: 1 };
   },
-}, pilotClaim: { findFirst: async () => ({ id: "QA-01-claim", version: 1, findingKey: "TIME:MARKS_ENTRY" }) },
+}, pilotClaim: { findFirst: async () => ({ id: "QA-01-claim", version: 1, findingKey: "TIME:MARKS_ENTRY", ownerName: "QA-01 lead", expiresOn: new Date("2099-01-01") }) },
   // SKAI-1018 gate: a ready readiness record and a passing Pakistan trust gate unless `gateOpen` is false.
   marketTrustReview: { findMany: async () => trustRows() },
   pilotReadinessRecord: { findFirst: async () => (gateOpen ? { record: readyRecord() } : null), findMany: async () => [] } };
