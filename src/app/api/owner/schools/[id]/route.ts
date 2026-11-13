@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { rosterStatusWhere } from "@/lib/students/roster-status";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { logSuperAdminAction } from "@/lib/audit";
 import { createPlanContract } from "@/config/commercial-contract";
@@ -27,7 +28,7 @@ export async function GET(
             name: true,
             city: true,
             address: true,
-            _count: { select: { students: true, users: true, classes: true } },
+            _count: { select: { students: { where: rosterStatusWhere(false) }, users: true, classes: true } },
           },
         },
         users: {

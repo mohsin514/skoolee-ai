@@ -42,3 +42,18 @@ export function useStudentPicker(campusId: string | undefined, search: string, e
 
   return state;
 }
+
+export type AddStudentNotice = "noStudents" | "allAssigned" | "noMatch" | "allMatchesAssigned" | null;
+
+/**
+ * SKAI-1945: which note the "Add student" list shows when it has nothing to add. An empty campus is not "all
+ * assigned", and a search that finds nobody says so instead of leaving the list blank. Nothing shows while
+ * loading, after a failure (the error state covers it) or when more students exist beyond this page.
+ */
+export function addStudentNotice(picker: StudentPickerState, search: string, addableCount: number): AddStudentNotice {
+  if (!picker.loaded || picker.failed || addableCount > 0) return null;
+  const searching = Boolean(search.trim());
+  if (picker.students.length === 0) return searching ? "noMatch" : "noStudents";
+  if (picker.total > picker.students.length) return null;
+  return searching ? "allMatchesAssigned" : "allAssigned";
+}

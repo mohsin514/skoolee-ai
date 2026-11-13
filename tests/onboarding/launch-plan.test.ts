@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { AI_SETUP_HREF, campusTaskHref, flagshipOf, isLaunchEntry, isLaunchTask, launchPlan, planFlagships, requiredOnboardingPath } from "../../src/lib/onboarding/launch-plan";
+import { AI_SETUP_HREF, campusTaskHref, flagshipOf, isLaunchEntry, isLaunchTask, launchPlan, planFlagships, requiredOnboardingPath, welcomeVisitKey } from "../../src/lib/onboarding/launch-plan";
 import { USER_ROLES, dashboardPathForRole } from "../../src/lib/roles";
 import { launchCopy } from "../../src/components/onboarding/launch-copy";
 import { guideRoleFor, roleGuideCopy } from "../../src/components/onboarding/role-guide-copy";
@@ -236,4 +236,20 @@ test("flagships: the welcome leads each role to the flagships it may use, marked
   // Truthful copy: AI drafts are reviewed and approved before anything applies.
   for (const text of [en.taskDetail("aiSetup"), en.taskDetail("aiWorkspace")]) assert.match(text, /creates|automatically/i, text);
   for (const text of [en.taskDetail("studio"), en.flagshipPitch("ai-workflows")]) assert.match(text, /review|approv/i, text);
+});
+
+test("list searches and filters in the URL do not start a new welcome visit; a ?view= switch or deep link does (SKAI-1925)", () => {
+  // Each keystroke in a list search or each finance filter rewrites the query string; the welcome visit stays the same.
+  for (const [before, after] of [
+    ["view=students", "view=students&sq=B"],
+    ["view=students&sq=B", "view=students&sq=Bulk2&spage=2"],
+    ["view=accounts&tab=expense", "view=accounts&tab=expense&ledger.EXPENSE.from=2026-10-15"],
+    ["view=invoices", "view=invoices&inv.statusFilter=PAID"],
+    ["view=library", "view=library&library.search=Algebra"],
+    ["view=overview", "view=overview&lang=ur"],
+  ]) assert.equal(welcomeVisitKey(after), welcomeVisitKey(before), `${before} -> ${after}`);
+  // Switching views, or turning a landing into a deep-linked task, is a new visit and re-checks the welcome.
+  assert.notEqual(welcomeVisitKey("view=students"), welcomeVisitKey("view=invoices"));
+  assert.notEqual(welcomeVisitKey("view=overview"), welcomeVisitKey("view=overview&record=1"));
+  assert.notEqual(welcomeVisitKey(""), welcomeVisitKey("setup=1"));
 });
