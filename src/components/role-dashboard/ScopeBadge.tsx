@@ -7,6 +7,7 @@ import { noteNavigationIdentity, useNavigationAccess } from "@/components/nav/Na
 import { subscribeWorkspaceNavigation } from "@/components/nav/useWorkspaceView";
 import { useSuperAdminData } from "@/app/super/super-data-context";
 import type { UserRole } from "@/lib/roles";
+import { forgetSessionRead, readSession } from "@/lib/client/session-read";
 
 /** The `/api/auth/session` user the shell reads (P1 adds `institution`; every field is optional on the wire). */
 export interface ShellSession {
@@ -55,17 +56,19 @@ const listeners = new Set<() => void>();
  */
 export function resetShellSession() {
   sessionPromise = null;
+  forgetSessionRead();
   if (sessionValue === null) return;
   sessionValue = null;
   listeners.forEach((listener) => listener());
 }
 function loadSession(force = false): Promise<ShellSession | null> {
   if (sessionPromise && !force) return sessionPromise;
-  const request: Promise<ShellSession | null> = fetch("/api/auth/session", { cache: "no-store" })
+  // SKAI-1900: shares the page's session read with the other callers; a locale change asks for a fresh one.
+  const request: Promise<ShellSession | null> = readSession({ fresh: force })
     .then((response) => {
       // Signed out: the shell's cached access map belongs to nobody any more.
       if (response.status === 401) { noteNavigationIdentity(null); resetShellSession(); }
-      return response.ok ? response.json() : null;
+      return response.ok ? (response.body as { user?: ShellSession | null } | null) : null;
     })
     .then((body) => (body?.user ?? null) as ShellSession | null)
     .catch(() => null)

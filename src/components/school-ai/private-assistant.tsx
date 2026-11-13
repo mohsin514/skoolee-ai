@@ -23,6 +23,7 @@ import { catalogOperationsForFocus, type AssistantCatalogSelection } from "@/lib
 import { AssistantResponse } from "./assistant-response";
 import { DemoWorkflowPanel } from "./demo-workflow-panel";
 import { prototypeCopy } from "./prototype-copy";
+import { readSession } from "@/lib/client/session-read";
 
 export interface PrivateAssistantProps {
   language: Language; campusId?: string | null; subjectId?: string; classId?: string;
@@ -48,7 +49,7 @@ function ConversationPanel({ language, campusId, subjectId, classId, canCreate, 
   // SKO-460: an unsent message survives a reload in this tab only, keyed to the signed-in user, the
   // assistant scope and the conversation, so another person signing in here never sees it.
   const [draftOwner, setDraftOwner] = useState<string | null>(null);
-  useEffect(() => { let live = true; void fetch("/api/auth/session", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(data => { if (live) setDraftOwner(typeof data?.user?.id === "string" ? data.user.id : null); }).catch(() => undefined); return () => { live = false; }; }, []);
+  useEffect(() => { let live = true; void readSession().then(response => (response.ok ? response.body : null) as { user?: { id?: unknown } } | null).then(data => { if (live) setDraftOwner(typeof data?.user?.id === "string" ? data.user.id : null); }).catch(() => undefined); return () => { live = false; }; }, []);
   const scopeKey = JSON.stringify([campusId ?? null, subjectId ?? null, classId ?? null, purpose, topicKey ?? null]);
   const draftKey = draftOwner ? `skoolee.ai-draft.v1:${draftOwner}:${scopeKey}:${page?.conversation.id ?? "new"}` : null;
   const clearDraft = () => { if (draftKey) { try { sessionStorage.removeItem(draftKey); } catch { /* storage unavailable */ } } };

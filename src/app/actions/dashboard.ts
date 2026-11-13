@@ -1617,7 +1617,9 @@ export const getOperationsStaffDashboardData = cache(async function getOperation
   const session = await getAuthUser();
   if (!session || !OPS_ROLES.includes(session.role as any)) throw new Error("Permission Denied");
   await assertSchoolOperational(session.schoolId);
-  const campusId = requireCampusId(session);
+  // SKAI-1895: staff not yet assigned to a campus get a clear state, not a failure that Retry can never fix.
+  if (!session.campusId) return { campusUnassigned: true as const };
+  const campusId = session.campusId;
 
   // SKAI-1034: bound explicitly to the signed-in operator's school (standalone or a campus of a group) so these
   // queries never fall back to per-query cookie resolution.

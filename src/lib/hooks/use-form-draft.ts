@@ -6,6 +6,7 @@ import { useLocale } from "@/components/locale/LocaleProvider";
 import { draftCopy } from "@/lib/drafts/messages";
 import { createDebouncedTask } from "@/lib/drafts/debounce";
 import { useNavGuard, useUnsavedGuard } from "./use-unsaved-guard";
+import { readSession } from "@/lib/client/session-read";
 
 interface Options<T extends DraftValues> {
   record: string;
@@ -60,8 +61,9 @@ export function useFormDraft<T extends DraftValues>({ record, schema, values, ba
     const check = async () => {
       const version = ++request;
       try {
-        const res = await fetch("/api/auth/session", { cache: "no-store" });
-        const result = await res.json();
+        const res = await readSession();
+        if (res.body === null) throw new Error("The session answer could not be read.");
+        const result = res.body as { user?: { draftScope?: unknown } | null };
         if (!active || version !== request) return;
         if (!res.ok && res.status !== 401 && res.status !== 403) { setStorageError(true); return; }
         const next = res.ok && typeof result.user?.draftScope === "string" ? result.user.draftScope : null;

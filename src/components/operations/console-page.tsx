@@ -1,12 +1,13 @@
 "use client";
 
 import { Fragment, useId, useSyncExternalStore, type ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
+import { Building2, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader, type PageAction } from "@/components/ui/page-header";
 import { SkeletonBar as SkeletonBlock } from "@/components/ui/skeleton";
 import { Alert } from "@/components/ui/alert";
 import { ErrorState } from "@/components/ui/error-state";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Select } from "@/components/ui/select";
 import { PageHeaderSkeleton, TileSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
 import { useUiText } from "@/components/locale/LocaleProvider";
@@ -187,6 +188,16 @@ export function ConsoleSkeleton({ cards = 4, label = "Loading the console", bare
   return (
     <div role="status" aria-busy="true" aria-label={ui(label)} className={cn("min-h-0 flex-1 overflow-hidden", CONSOLE_GUTTER, "py-4 sm:py-6")}>
       {body}
+    </div>
+  );
+}
+
+/** SKAI-1895: a staff member with no campus yet. Nothing to retry; an administrator has to assign one. */
+export function ConsoleNoCampus() {
+  const ui = useUiText();
+  return (
+    <div className={cn("flex min-h-0 flex-1 flex-col justify-center", CONSOLE_GUTTER, "py-6")} data-console-state="no-campus">
+      <EmptyState icon={Building2} title={ui("No campus assigned yet")} description={ui("Ask your school administrator to assign you to a campus. Your workspace opens as soon as they do.")} />
     </div>
   );
 }
