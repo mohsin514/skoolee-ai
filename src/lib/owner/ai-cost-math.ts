@@ -67,3 +67,23 @@ export function reconcileDetail(row: Pick<CostRow, "calls" | "tokens" | "credits
   const tokens = records.reduce((s, r) => s + r.tokens, 0), credits = records.reduce((s, r) => s + r.credits, 0);
   return { complete: records.length === row.calls, matches: records.length === row.calls && tokens === row.tokens && credits === row.credits, tokens, credits };
 }
+
+/** SKAI-843 (AI-07): credits per action — one row per AI feature and action, failed/abandoned calls (0 credits) included. */
+export type ActionAggregate = { feature: string | null; action: string; credits: number; calls: number; chargedCalls: number; tokens: number };
+export type ActionRow = ActionAggregate & { creditsPerCall: number | null; creditsPerChargedCall: number | null; uncharged: number };
+
+export function computeActionBreakdown(items: ActionAggregate[]): ActionRow[] {
+  const groups = new Map<string, ActionAggregate>();
+  for (const a of items) {
+    const key = `${a.feature ?? ""}|${a.action}`;
+    const g = groups.get(key) ?? { feature: a.feature, action: a.action, credits: 0, calls: 0, chargedCalls: 0, tokens: 0 };
+    g.credits += a.credits; g.calls += a.calls; g.chargedCalls += a.chargedCalls; g.tokens += a.tokens;
+    groups.set(key, g);
+  }
+  return [...groups.values()].map(g => ({
+    ...g,
+    uncharged: g.calls - g.chargedCalls,
+    creditsPerCall: g.calls ? round(g.credits / g.calls, 4) : null,
+    creditsPerChargedCall: g.chargedCalls ? round(g.credits / g.chargedCalls, 4) : null,
+  })).sort((a, b) => b.credits - a.credits || (a.feature ?? "").localeCompare(b.feature ?? "") || a.action.localeCompare(b.action));
+}
