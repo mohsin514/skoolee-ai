@@ -2,10 +2,10 @@ import { needsMfaChallenge, requiresMfa } from "./mfa-crypto";
 import { AccessDenied } from "./policy";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
-import { normalizeUserRole, type UserRole } from "@/lib/roles";
+import { normalizeUserRole } from "@/lib/roles";
 import type { AuthUser } from "@/lib/auth";
 import { resolveInstitutionKind } from "./institution-server";
-import { cache } from "react";
+import { memoForRequest, prefetchedAccount, queryAccount, type AccountRow } from "./request-auth";
 import { principalCache, type PrincipalClaims } from "./principal-cache";
 
 /**
@@ -14,44 +14,21 @@ import { principalCache, type PrincipalClaims } from "./principal-cache";
  */
 export function resolveCurrentPrincipal(claims: PrincipalClaims): Promise<AuthUser | null> {
   // getAuthUser and the tenant context both resolve the same claims in one request; the memo makes that one read.
-  // React's cache compares arguments by identity, so the claims travel as one string; JSON keeps undefined (key
-  // absent) apart from null, which the role/version checks below rely on.
+  // Memoised per request (request-auth.ts) under one string key; JSON keeps undefined (key absent) apart from null,
+  // which the role/version checks below rely on.
   const { userId, schoolId, role, accessVersion, mfaVerified } = claims;
   return resolveMemoised(JSON.stringify({ userId, schoolId, role, accessVersion, mfaVerified }));
 }
 
-const resolveMemoised = cache((key: string) => {
+function resolveMemoised(key: string): Promise<AuthUser | null> {
   const claims = JSON.parse(key) as PrincipalClaims;
-  return principalCache().resolve(claims, () => loadCurrentPrincipal(claims));
-});
+  return memoForRequest("principals", key, () => principalCache().resolve(claims, () => loadCurrentPrincipal(claims)));
+}
 
-type AccountRow = {
-  id: string; schoolId: string; campusId: string | null; role: UserRole; email: string; fullName: string; onboardingComplete: boolean;
-  mfaEnabled: boolean; isInstitutionOwner: boolean; canPurchaseSubscription: boolean; canManageMemberships: boolean; accessVersion: number;
-  campusSchoolId: string | null; slug: string; status: string; registrationKind: string | null; institutionType: string | null;
-  subscriptionLifecycleState: string; graceEndsAt: Date | null;
-};
-
-/**
- * The account, its campus's school, its school and the institution setup in ONE round trip. The relation select
- * this replaces ran four queries (users, campuses, schools, institution_setups) on every authenticated request.
- */
+/** The account read: taken from this request's one-round-trip prefetch when getAuthUser made one (request-auth.ts). */
 async function readAccount(userId: string, schoolId: string): Promise<AccountRow | null> {
-  const rows = await runUnscoped("authenticate exact signed account and school", () => prisma.$queryRaw<AccountRow[]>`
-    SELECT u.id, u.school_id AS "schoolId", u.campus_id AS "campusId", u.role::text AS role, u.email, u.full_name AS "fullName",
-           u.onboarding_complete AS "onboardingComplete", u.mfa_enabled AS "mfaEnabled", u.is_institution_owner AS "isInstitutionOwner",
-           u.can_purchase_subscription AS "canPurchaseSubscription", u.can_manage_memberships AS "canManageMemberships",
-           u.access_version AS "accessVersion", c.school_id AS "campusSchoolId", s.slug, s.status,
-           s.registration_kind AS "registrationKind", isu.institution_type AS "institutionType",
-           s.subscription_lifecycle_state AS "subscriptionLifecycleState", s.grace_ends_at AS "graceEndsAt"
-    FROM users u
-    JOIN schools s ON s.id = u.school_id
-    LEFT JOIN campuses c ON c.id = u.campus_id
-    LEFT JOIN institution_setups isu ON isu.school_id = u.school_id
-    WHERE u.id = ${userId} AND u.school_id = ${schoolId} AND u.is_active = true
-    LIMIT 1`);
-  const row = rows[0];
-  return row ? { ...row, accessVersion: Number(row.accessVersion) } : null;
+  const prefetched = await prefetchedAccount(userId, schoolId);
+  return prefetched !== undefined ? prefetched : queryAccount(userId, schoolId);
 }
 
 async function loadCurrentPrincipal(claims: PrincipalClaims): Promise<AuthUser | null> {

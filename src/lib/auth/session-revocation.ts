@@ -14,6 +14,7 @@
 // Node process.
 // ─────────────────────────────────────────────────────────────────
 import { cache } from "react";
+import { sessionRowsForRequest } from "@/lib/auth/request-auth";
 
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
@@ -99,7 +100,7 @@ export async function checkRevocationStrict(
  * simply not memoising, which is correct rather than fatal.
  */
 /** One session-row read per request, shared by the lenient and the strict check. */
-const lookupSessionRowsOnce = cache((tokenHash: string) => lookupSessionRows(tokenHash));
+const lookupSessionRowsOnce: SessionLookup = (tokenHash) => sessionRowsForRequest(tokenHash, lookupSessionRows);
 
 export const isSessionRevoked = cache(
   async (tokenHash: string): Promise<boolean> => checkRevocation(tokenHash, lookupSessionRowsOnce)
