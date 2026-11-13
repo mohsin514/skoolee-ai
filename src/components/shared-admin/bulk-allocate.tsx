@@ -15,7 +15,7 @@ async function post(body: object) {
   const res = await fetch("/api/subjects/allocations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const json: unknown = await res.json().catch(() => ({}));
   if (!res.ok || !isApiOk(json)) throw new Error(readApiError(json, ""));
-  return readApiData(json, null) as Preview;
+  return readApiData<Preview | null>(json, null) as Preview;
 }
 
 /** SKAI-150: give one teacher a subject in every subject-taught section at once, after a preview of what moves. */
