@@ -34,9 +34,12 @@ test("families default-deny on pages: their own portal and a short shared list; 
   assert.equal(roleGuardRedirect("STUDENT", "/student"), null);
   assert.equal(roleGuardRedirect("STUDENT", "/ai/exams/x"), null);
   for (const role of ["STUDENT", "PARENT", "APP_OWNER"] as const) {
-    for (const path of ["/ai", "/ai/knowledge", "/ai/knowledge/doc-123"]) assert.equal(roleGuardRedirect(role, path), null);
+    for (const path of ["/ai", "/ai/setup", "/ai/setup/", "/ai/knowledge", "/ai/knowledge/doc-123"]) assert.equal(roleGuardRedirect(role, path), null);
   }
   assert.equal(roleGuardRedirect("STUDENT", "/ai/studio"), "/student");
+  // SKAI-811: the family and student first-login sheets live at /ai/setup; deeper paths stay closed.
+  assert.equal(roleGuardRedirect("STUDENT", "/ai/setup/x"), "/student");
+  assert.equal(roleGuardRedirect("PARENT", "/ai/setup/x"), "/parent");
   assert.equal(roleGuardRedirect("PARENT", "/ai/exams/x"), "/parent");
   assert.equal(roleGuardRedirect("STUDENT", "/parent"), "/student");
   assert.equal(roleGuardRedirect("STUDENT", "/care"), "/student");
