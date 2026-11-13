@@ -133,3 +133,23 @@ test("the fee pickers no longer preload the roster with the ignored pageSize par
   assert.match(hook, /fields: "picker"/);
   assert.match(hook, /controller\.abort\(\)/);
 });
+
+// SKAI-1945: an empty campus is not "all assigned", and a search that finds nobody says so.
+test("the Add student note tells an empty campus, an empty search and a fully assigned list apart", async () => {
+  const { addStudentNotice } = await import("@/components/fees/use-student-picker");
+  const one = [{ id: "a1-0", fullName: "QA Pupil 00", rollNo: "R0" }] as never[];
+  const state = (students: never[], total: number, extra = {}) => ({ students, total, loaded: true, failed: false, ...extra });
+  assert.equal(addStudentNotice(state([], 0), "", 0), "noStudents");
+  assert.equal(addStudentNotice(state([], 0), "Zainab", 0), "noMatch");
+  assert.equal(addStudentNotice(state(one, 1), "", 0), "allAssigned");
+  assert.equal(addStudentNotice(state(one, 1), "Pupil", 0), "allMatchesAssigned");
+  assert.equal(addStudentNotice(state(one, 1), "", 1), null);
+  assert.equal(addStudentNotice(state(one, 40), "", 0), null);
+  assert.equal(addStudentNotice(state([], 0, { loaded: false }), "", 0), null);
+  assert.equal(addStudentNotice(state([], 0, { failed: true }), "Zainab", 0), null);
+  const { arabicWorkflowUi, urduWorkflowUi } = await import("@/lib/locale/workflow-ui-messages");
+  for (const copy of ["No students on this campus yet.", "No matching students.", "All matching students already assigned."]) {
+    assert.ok((arabicWorkflowUi as Record<string, string>)[copy], `AR copy for ${copy}`);
+    assert.ok((urduWorkflowUi as Record<string, string>)[copy], `UR copy for ${copy}`);
+  }
+});
