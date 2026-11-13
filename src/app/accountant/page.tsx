@@ -6,7 +6,7 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { getOperationsStaffDashboardData } from "@/app/actions/dashboard";
 import { RoleShell } from "@/components/role-dashboard";
 import { useConsoleView } from "@/components/nav/useConsoleView";
-import { ConsoleError, ConsolePage, ConsoleSkeleton } from "@/components/operations/console-page";
+import { ConsoleError, ConsoleNoCampus, ConsolePage, ConsoleSkeleton } from "@/components/operations/console-page";
 import { ViewTabs } from "@/components/ui/view-tabs";
 import { FEE_SETUP_CREATE, FEE_SETUP_TABS, FeeStructuresTab, feeSetupSection } from "@/components/fees/FeeStructuresTab";
 import { FeeInvoicesTab } from "@/components/fees/FeeInvoicesTab";
@@ -33,7 +33,8 @@ import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
  * A load failure stays inside the console with a retry — it never signs the accountant out (M88).
  */
 
-type OpsData = Awaited<ReturnType<typeof getOperationsStaffDashboardData>>;
+type OpsResult = Awaited<ReturnType<typeof getOperationsStaffDashboardData>>;
+type OpsData = Exclude<OpsResult, { campusUnassigned: true }>;
 
 const PAYMENT_TABS: { id: PaymentsSection; label: string }[] = [
   { id: "payments", label: "Payments" },
@@ -56,7 +57,7 @@ function campusLine(data: OpsData) {
 export default function AccountantPage() {
   const tr = useUiText();
   const { view, tab, setView, setTab, retiredNotice } = useConsoleView("accountant");
-  const [data, setData] = useState<OpsData | null>(null);
+  const [data, setData] = useState<OpsResult | null>(null);
   const [failed, setFailed] = useState(false);
 
   const load = useCallback(async () => {
@@ -68,23 +69,27 @@ export default function AccountantPage() {
     }
   }, []);
   useEffect(() => { void load(); }, [load]);
+  // SKAI-1895: staff without a campus get their own state instead of the console.
+  const ops = data && !("campusUnassigned" in data) ? data : null;
 
   return (
     <RoleShell
       console="accountant"
       activeView={view}
       onSelectView={setView}
-      userName={data?.userName || tr("Accountant")}
-      avatarSeed={data?.userEmail}
-      logoUrl={data?.logoUrl}
+      userName={ops?.userName || tr("Accountant")}
+      avatarSeed={ops?.userEmail}
+      logoUrl={ops?.logoUrl}
       dashboardHref="/accountant"
     >
       {failed && !data ? (
         <ConsoleError title="The finance desk could not be loaded" onRetry={() => void load()} />
       ) : !data ? (
         <ConsoleSkeleton label="Loading the finance desk" />
+      ) : !ops ? (
+        <ConsoleNoCampus />
       ) : (
-        <AccountantWorkspace data={data} view={view} tab={tab} setView={setView} setTab={setTab} retiredNotice={retiredNotice} />
+        <AccountantWorkspace data={ops} view={view} tab={tab} setView={setView} setTab={setTab} retiredNotice={retiredNotice} />
       )}
     </RoleShell>
   );

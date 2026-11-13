@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
+import { ApiError, errorResponse } from "@/lib/api/scope";
 import { inboxCounts, listInbox, VIEWS, type InboxView } from "@/lib/notifications/actions";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -38,8 +39,9 @@ export async function GET(req: NextRequest) {
       nextCursor,
     });
   } catch (error) {
-    console.error("[notifications] GET failed:", error);
-    return Response.json({ error: "Failed to fetch notifications" }, { status: 500 });
+    // SKAI-1895: an authorization denial (for example a staff member with no campus yet) is a 403, never a 500.
+    if (!(error instanceof ApiError)) console.error("[notifications] GET failed:", error);
+    return errorResponse(error, "Failed to fetch notifications");
   }
 }
 

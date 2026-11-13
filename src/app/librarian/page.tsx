@@ -6,7 +6,7 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { getOperationsStaffDashboardData } from "@/app/actions/dashboard";
 import { RoleShell } from "@/components/role-dashboard";
 import { useConsoleView } from "@/components/nav/useConsoleView";
-import { ConsoleError, ConsolePage, ConsoleSkeleton } from "@/components/operations/console-page";
+import { ConsoleError, ConsoleNoCampus, ConsolePage, ConsoleSkeleton } from "@/components/operations/console-page";
 import { LendingDesk } from "@/components/library/lending-desk";
 import { CATALOGUE_CREATE, CATALOGUE_TABS, LibraryPanel } from "@/components/operations";
 import { ViewTabs } from "@/components/ui/view-tabs";
@@ -22,7 +22,8 @@ import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
  * with a notice) and the broken Issues tab is gone (M84): the lending desk issues, renews and returns.
  */
 
-type OpsData = Awaited<ReturnType<typeof getOperationsStaffDashboardData>>;
+type OpsResult = Awaited<ReturnType<typeof getOperationsStaffDashboardData>>;
+type OpsData = Exclude<OpsResult, { campusUnassigned: true }>;
 
 const DESCRIPTIONS: Record<string, string> = {
   dashboard: "Books on loan, overdue items and charges waiting.",
@@ -37,7 +38,7 @@ function campusLine(data: OpsData) {
 export default function LibrarianPage() {
   const tr = useUiText();
   const { view, tab, setView, setTab, retiredNotice } = useConsoleView("librarian");
-  const [data, setData] = useState<OpsData | null>(null);
+  const [data, setData] = useState<OpsResult | null>(null);
   const [failed, setFailed] = useState(false);
   const [loadedAt, setLoadedAt] = useState<Date | null>(null);
 
@@ -52,23 +53,27 @@ export default function LibrarianPage() {
     }
   }, []);
   useEffect(() => { void load(); }, [load]);
+  // SKAI-1895: staff without a campus get their own state instead of the console.
+  const ops = data && !("campusUnassigned" in data) ? data : null;
 
   return (
     <RoleShell
       console="librarian"
       activeView={view}
       onSelectView={setView}
-      userName={data?.userName || tr("Librarian")}
-      avatarSeed={data?.userEmail}
-      logoUrl={data?.logoUrl}
+      userName={ops?.userName || tr("Librarian")}
+      avatarSeed={ops?.userEmail}
+      logoUrl={ops?.logoUrl}
       dashboardHref="/librarian"
     >
       {failed && !data ? (
         <ConsoleError title="The library could not be loaded" onRetry={() => void load()} />
       ) : !data ? (
         <ConsoleSkeleton label="Loading the library" cards={4} />
+      ) : !ops ? (
+        <ConsoleNoCampus />
       ) : (
-        <LibraryWorkspace data={data} freshness={loadedAt ? { loadedAt, refreshFailed: failed, onRefresh: () => void load() } : undefined} view={view} tab={tab} setView={setView} setTab={setTab} retiredNotice={retiredNotice} />
+        <LibraryWorkspace data={ops} freshness={loadedAt ? { loadedAt, refreshFailed: failed, onRefresh: () => void load() } : undefined} view={view} tab={tab} setView={setView} setTab={setTab} retiredNotice={retiredNotice} />
       )}
     </RoleShell>
   );
