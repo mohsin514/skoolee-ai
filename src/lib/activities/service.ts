@@ -397,8 +397,22 @@ export async function cancelActivity(user: AuthUser, activityId: string) {
  * consent), re-read at every call so a delayed or retried notice sees a later revocation.
  */
 export async function guardiansOf(schoolId: string, studentIds: string[]) {
+  return (await guardianNoticeRecipients(schoolId, studentIds)).recipients;
+}
+
+/**
+ * SKAI-1713: the guardians who may receive an activity notice, and how many active guardian relationships
+ * were withheld by the communication policy. Withheld counts only; no names or contact details leave here.
+ */
+export async function guardianNoticeRecipients(schoolId: string, studentIds: string[]) {
   const unique = [...new Set(studentIds)];
-  if (!unique.length) return [];
-  const targets = await Promise.all(unique.map(studentId => authorizedGuardianCommunicationTargets({ schoolId, studentId }, "IN_APP")));
-  return [...new Set(targets.flat().map(t => t.guardianUserId))];
+  if (!unique.length) return { recipients: [] as string[], withheld: 0 };
+  const [targets, candidates] = await Promise.all([
+    Promise.all(unique.map(studentId => authorizedGuardianCommunicationTargets({ schoolId, studentId }, "IN_APP"))),
+    prisma.guardianRelationship.findMany({ where: { schoolId, studentId: { in: unique }, status: "ACTIVE" }, select: { studentId: true, guardianUserId: true } }),
+  ]);
+  const allowed = new Set(targets.flatMap((list, i) => list.map(t => `${unique[i]}:${t.guardianUserId}`)));
+  const pairs = new Set(candidates.flatMap(c => c.guardianUserId ? [`${c.studentId}:${c.guardianUserId}`] : []));
+  const withheld = [...pairs].filter(pair => !allowed.has(pair)).length;
+  return { recipients: [...new Set(targets.flat().map(t => t.guardianUserId))], withheld };
 }

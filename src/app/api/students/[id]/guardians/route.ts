@@ -38,6 +38,14 @@ function activePermissionVersion(versions: Array<{ id: string; permissions: unkn
   return versions.find((item) => item.effectiveFrom <= at && (!item.effectiveUntil || item.effectiveUntil > at)) ?? null;
 }
 
+const STALE_PREVIEW_MESSAGE = "Access changed after the preview. Review the latest permissions again.";
+
+/** SKAI-1471: the Postgres exclusion violation for overlapping access intervals (SQLSTATE 23P01), a lost race rather than a server fault. */
+function isOverlapConflict(error: unknown) {
+  const text = `${String(error)} ${JSON.stringify(error ?? null)}`;
+  return text.includes("guardian_access_versions_no_overlap") || text.includes("23P01");
+}
+
 function canonical(value: unknown): string {
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
@@ -204,27 +212,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
     }
 
-    const relation = await prisma.guardianRelationship.findFirst({
-      where: { id: input.relationshipId, schoolId: user.schoolId, studentId },
-      include: { accessVersions: { orderBy: { effectiveFrom: "desc" } } },
-    });
-    const preview = await prisma.guardianAccessEvent.findFirst({ where: {
-      id: input.previewId, relationshipId: input.relationshipId, schoolId: user.schoolId, actorUserId: user.userId,
-      action: "CHANGE_PREVIEWED", createdAt: { gte: new Date(Date.now() - 10 * 60 * 1000) },
-    } });
-    if (!relation || !preview || !preview.afterState) throw new ApiError("Review the current access summary before applying this change", 409);
-    const now = new Date();
-    const current = activePermissionVersion(relation.accessVersions, now);
-    const actualBefore = { status: relation.status, currentVersionId: current?.id ?? null, permissions: current ? parseGuardianPermissions(current.permissions) : null };
-    if (canonical(actualBefore) !== canonical(preview.beforeState)) throw new ApiError("Access changed after the preview. Review the latest permissions again.", 409);
-    const change = preview.afterState as { status: string; permissions: unknown; effectiveFrom: string; validUntil: string | null };
-    const effectiveFrom = new Date(change.effectiveFrom);
-    const permissions = parseGuardianPermissions(change.permissions);
-    const finalStatus = relation.status === "DRAFT" ? "INVITED" : change.status;
-    if (!["INVITED", "ACTIVE", "SUSPENDED", "REVOKED"].includes(finalStatus) || finalStatus === "ACTIVE" && !relation.verifiedAt) {
-      throw new ApiError("A guardian must accept the invitation before access can be activated", 409);
-    }
-    await prisma.$transaction(async (tx) => {
+    // SKAI-1471: the apply re-reads the relationship, its versions and the preview inside the transaction, under a lock
+    // on this relationship. Two concurrent applies for one preview therefore serialise: the loser sees the committed
+    // version and gets an explicit 409 (fresh preview required) instead of the overlap constraint's generic 500.
+    const outcome = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`guardian-access:${user.schoolId}:${input.relationshipId}`}))`;
+      const relation = await tx.guardianRelationship.findFirst({
+        where: { id: input.relationshipId, schoolId: user.schoolId, studentId },
+        include: { accessVersions: { orderBy: { effectiveFrom: "desc" } } },
+      });
+      const preview = await tx.guardianAccessEvent.findFirst({ where: {
+        id: input.previewId, relationshipId: input.relationshipId, schoolId: user.schoolId, actorUserId: user.userId,
+        action: "CHANGE_PREVIEWED", createdAt: { gte: new Date(Date.now() - 10 * 60 * 1000) },
+      } });
+      if (!relation || !preview || !preview.afterState) throw new ApiError("Review the current access summary before applying this change", 409);
+      const now = new Date();
+      const current = activePermissionVersion(relation.accessVersions, now);
+      const actualBefore = { status: relation.status, currentVersionId: current?.id ?? null, permissions: current ? parseGuardianPermissions(current.permissions) : null };
+      if (canonical(actualBefore) !== canonical(preview.beforeState)) throw new ApiError(STALE_PREVIEW_MESSAGE, 409);
+      const change = preview.afterState as { status: string; permissions: unknown; effectiveFrom: string; validUntil: string | null };
+      const effectiveFrom = new Date(change.effectiveFrom);
+      const permissions = parseGuardianPermissions(change.permissions);
+      const finalStatus = relation.status === "DRAFT" ? "INVITED" : change.status;
+      if (!["INVITED", "ACTIVE", "SUSPENDED", "REVOKED"].includes(finalStatus) || finalStatus === "ACTIVE" && !relation.verifiedAt) {
+        throw new ApiError("A guardian must accept the invitation before access can be activated", 409);
+      }
       const future = relation.accessVersions.find((version) => version.effectiveFrom > now);
       if (future && effectiveFrom >= future.effectiveFrom) throw new ApiError("Review the existing scheduled permission change before adding another", 409);
       if (current) await tx.guardianAccessVersion.update({ where: { id: current.id }, data: { effectiveUntil: effectiveFrom } });
@@ -243,7 +255,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         action: relation.status === "DRAFT" ? "INVITED" : finalStatus === "REVOKED" ? "REVOKED" : finalStatus === "SUSPENDED" ? "SUSPENDED" : "PERMISSIONS_CHANGED",
         reason: preview.reason, beforeState: actualBefore, afterState: change, effectiveAt: effectiveFrom,
       } });
+      return { finalStatus, effectiveFrom };
+    }).catch((error: unknown) => {
+      // A racing write that slipped past the lock (for example a second process) still gets the same clear 409.
+      if (isOverlapConflict(error)) throw new ApiError(STALE_PREVIEW_MESSAGE, 409);
+      throw error;
     });
+    const { finalStatus, effectiveFrom } = outcome;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     return Response.json({ success: true, status: finalStatus, effectiveAt: effectiveFrom.toISOString(), ...(finalStatus === "INVITED" ? { invitationUrl: `${appUrl}/parent-invitations` } : {}) });
   } catch (error) { return errorResponse(error, "Failed to update guardian access"); }
