@@ -1,7 +1,7 @@
-fullName,rollNo,className,classSection,gender,dateOfBirth,guardianName,guardianPhone,guardianEmail,guardianRelationship,city
-QA Import Pupil One,QA1224-001,,,FEMALE,2015-03-14,QA Import Guardian One,+923000001224,qa1224-g1@example.invalid,MOTHER,Lahore
-QA Import Pupil Two,QA1224-002,,,MALE,2015-07-02,QA Import Guardian One,+923000001224,qa1224-g1@example.invalid,MOTHER,Lahore
-QA Import Pupil Three,QA1224-003,,,MALE,14/13/2015,QA Import Guardian Three,+923000001226,,FATHER,Karachi
-QA Import Pupil Four,QA1224-001,,,FEMALE,2015-01-20,QA Import Guardian Four,+923000001227,,MOTHER,Lahore
-QA Import Pupil Five,QA1224-005,No Such Class,Z,FEMALE,2015-05-05,QA Import Guardian Five,+923000001228,,OTHER,Lahore
-,QA1224-006,,,MALE,2015-06-06,QA Import Guardian Six,+923000001229,,FATHER,Lahore
+fullName,rollNo,className,classSection,gender,dateOfBirth,guardianName,guardianPhone,guardianEmail,guardianRelationship,city,address,medicalNotes
+QA Import Pupil One,QA1224-001,,,FEMALE,2015-03-14,QA Import Guardian One,+923000001224,qa1224-g1@example.invalid,MOTHER,Lahore,QA Street 2,None
+QA Import Pupil Two,QA1224-002,,,MALE,2015-07-02,QA Import Guardian One,+923000001224,qa1224-g1@example.invalid,MOTHER,Lahore,QA Street 3,None
+QA Import Pupil Three,QA1224-003,,,MALE,14/13/2015,QA Import Guardian Three,+923000001226,,FATHER,Karachi,QA Street 4,None
+QA Import Pupil Four,QA1224-001,,,FEMALE,2015-01-20,QA Import Guardian Four,+923000001227,,MOTHER,Lahore,QA Street 5,None
+QA Import Pupil Five,QA1224-005,No Such Class,Z,FEMALE,2015-05-05,QA Import Guardian Five,+923000001228,,OTHER,Lahore,QA Street 6,None
+,QA1224-006,,,MALE,2015-06-06,QA Import Guardian Six,+923000001229,,FATHER,Lahore,QA Street 7,None
