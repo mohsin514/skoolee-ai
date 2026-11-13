@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, requireAuthUser } from "@/lib/api/scope";
+import { ok, failFrom } from "@/lib/api/envelope";
 import { acknowledgeDuty, myCover, recordCoverOutcome, saveHandover, updateRecovery } from "@/lib/cover/recovery";
 import { deliverNotification } from "@/lib/notifications/in-app";
 
@@ -11,8 +12,8 @@ export const runtime = "nodejs";
 export async function GET() {
   try {
     const user = await requireAuthUser();
-    return Response.json({ success: true, data: await myCover(user) }, { headers: { "Cache-Control": "private, no-store" } });
-  } catch (error) { return errorResponse(error, "[cover] GET failed"); }
+    return ok(await myCover(user), { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return failFrom(error, "[cover] GET failed"); }
 }
 
 export async function POST(request: NextRequest) {
@@ -25,16 +26,16 @@ export async function POST(request: NextRequest) {
       case "handover": {
         const result = await saveHandover(user, body);
         if (result.substituteId !== user.userId) await notice("COVER_HANDOVER_READY", result.campusId, result.substituteId);
-        return Response.json({ success: true, data: { dutyId: result.handover.dutyId, updatedAt: result.handover.updatedAt } });
+        return ok({ dutyId: result.handover.dutyId, updatedAt: result.handover.updatedAt });
       }
-      case "acknowledge": { const h = await acknowledgeDuty(user, String(body.dutyId ?? "")); return Response.json({ success: true, data: { acknowledgedAt: h.acknowledgedAt } }); }
+      case "acknowledge": { const h = await acknowledgeDuty(user, String(body.dutyId ?? "")); return ok({ acknowledgedAt: h.acknowledgedAt }); }
       case "outcome": {
         const result = await recordCoverOutcome(user, body);
         if (result.recoveryId && result.ownerId !== user.userId) await notice("LESSON_RECOVERY_NEEDED", result.campusId, result.ownerId);
-        return Response.json({ success: true, data: { outcome: result.outcome, recoveryId: result.recoveryId } });
+        return ok({ outcome: result.outcome, recoveryId: result.recoveryId });
       }
-      case "recovery": { const row = await updateRecovery(user, body); return Response.json({ success: true, data: { id: row.id, status: row.status, version: row.version } }); }
+      case "recovery": { const row = await updateRecovery(user, body); return ok({ id: row.id, status: row.status, version: row.version }); }
       default: throw new ApiError("Unknown action", 400);
     }
-  } catch (error) { return errorResponse(error, "[cover] POST failed"); }
+  } catch (error) { return failFrom(error, "[cover] POST failed"); }
 }
