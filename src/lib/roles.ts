@@ -165,7 +165,7 @@ export function roleGuardRedirect(role: UserRole, pathname: string): string | nu
   if (within(pathname, "/api")) return null;
   const home = dashboardPathForRole(role);
   if (role === "PARENT" || role === "STUDENT") {
-    if (["/ai", "/ai/can-do", "/ai/waiting", "/ai/knowledge"].includes(pathname.replace(/\/$/, "")) || /^\/ai\/knowledge\/[a-zA-Z0-9-]+\/?$/.test(pathname)) return null;
+    if (["/ai", "/ai/setup", "/ai/can-do", "/ai/waiting", "/ai/knowledge"].includes(pathname.replace(/\/$/, "")) || /^\/ai\/knowledge\/[a-zA-Z0-9-]+\/?$/.test(pathname)) return null;
     if (role === "PARENT" && within(pathname, "/student")) return PARENT_FOR_STUDENT_PAGE[pathname.split("/")[2] ?? ""] ?? "/parent";
     if (role === "PARENT" && within(pathname, "/parent")) return null;
     if (role === "STUDENT" && (within(pathname, "/student") || within(pathname, "/ai/exams"))) return null;
