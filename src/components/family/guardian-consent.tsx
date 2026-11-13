@@ -14,6 +14,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { SegmentedChoice } from "@/components/ui/choice-card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 import { readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 
 // SKAI-1157: the guardian answers yes or no for each purpose; nothing is pre-selected, and both answers are
@@ -50,8 +51,8 @@ function useJson<T>(url: string) {
     try {
       const response = await readRequest(url);
       const json = await response.json();
-      if (!response.ok || !json.success) throw new Error(json.error || "Could not load consent.");
-      if (run === sequence.current) setData(json.data);
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "Could not load consent."));
+      if (run === sequence.current) setData(readApiData<T | null>(json, null));
     } catch (error) { if (run === sequence.current) { setData(null); setFailure(requestFailure(error)); } }
   }, [url]);
   useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);

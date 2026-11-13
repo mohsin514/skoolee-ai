@@ -6,6 +6,7 @@ import { campusScope } from "@/lib/auth/policy";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { readBoundedJson } from "@/lib/school-ai/http";
 import { sendStudentTemplatedCommunication } from "@/lib/notifications/service";
+import { moneySeparationRequired } from "@/lib/fees/collect-command";
 
 /** One existing invoice, current verified guardians and truthful provider acceptance. */
 export async function POST(req: NextRequest) {
@@ -16,9 +17,11 @@ export async function POST(req: NextRequest) {
     const parsed = z.strictObject({ studentId: z.string().min(1).max(128) }).safeParse(await readBoundedJson(req, 2000));
     if (!parsed.success) throw new ApiError("A valid studentId is required", 400);
     const body = parsed.data;
-    const student = await prisma.student.findFirst({ where: { id: body.studentId, ...campusScope(user), archivedAt: null }, select: { id: true, invoices: { where: { status: { in: ["PENDING", "OVERDUE"] }, balanceDue: { gt: 0 } }, orderBy: [{ dueDate: "asc" }, { id: "asc" }], take: 1, select: { id: true, balanceDue: true, dueDate: true, status: true } } } });
+    const student = await prisma.student.findFirst({ where: { id: body.studentId, ...campusScope(user), archivedAt: null }, select: { id: true, campusId: true, invoices: { where: { status: { in: ["PENDING", "OVERDUE"] }, balanceDue: { gt: 0 } }, orderBy: [{ dueDate: "asc" }, { id: "asc" }], take: 1, select: { id: true, balanceDue: true, dueDate: true, status: true } } } });
     if (!student) throw new ApiError("Student not found", 404);
     const invoice = student.invoices[0]; if (!invoice) throw new ApiError("No outstanding dues for this student", 400);
+    // SKAI-825: when the Delivery Policy requires separation of duties, one person may not send a fee reminder alone.
+    if (await moneySeparationRequired(user, student.campusId ?? null)) throw new ApiError("Your school requires a second person for fee reminders. Hand this reminder off to another fee approver.", 409);
     const communications = await sendStudentTemplatedCommunication({ studentId: student.id, key: invoice.status === "OVERDUE" ? "FEE_OVERDUE_REMINDER" : "FEE_DUE_REMINDER", channels: ["WHATSAPP"], context: { balanceDueMinor: invoice.balanceDue }, createdById: user.userId, relatedType: "INVOICE", relatedId: invoice.id, approvedData: true, idempotencyBase: `fee-reminder:${invoice.id}:${new Date().toISOString().slice(0, 10)}` });
     if (!communications.length) throw new ApiError("No current guardian has verified WhatsApp consent and financial record access. Review guardian channel preferences.", 409);
     return Response.json({ success: true, data: { studentId: student.id, accepted: communications.filter(item => item.status === "SENT").length, delivered: false, communications: communications.map(item => ({ id: item.id, status: item.status })), message: "Provider acceptance is shown separately from confirmed delivery." } });
