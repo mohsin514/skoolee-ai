@@ -265,12 +265,14 @@ export async function inboxCounts(user: AuthUser) {
     settleCampusVacancies(user).catch((error) => console.error("[notifications] vacancy settle failed:", error)),
     settleTaxSignoffs(user).catch((error) => console.error("[notifications] tax sign-off settle failed:", error)),
   ]);
-  const now = new Date();
-  const [unread, mentionsUnread, openActions, overdueActions] = await Promise.all([
-    prisma.notification.count({ where: { userId: user.userId, isRead: false } }),
-    prisma.notification.count({ where: { userId: user.userId, isRead: false, category: "MENTION" } }),
-    prisma.notification.count({ where: { userId: user.userId, category: "ACTION", resolvedAt: null } }),
-    prisma.notification.count({ where: { userId: user.userId, category: "ACTION", resolvedAt: null, dueAt: { lt: now } } }),
-  ]);
-  return { unread, mentionsUnread, openActions, overdueActions };
+  // Scale: the four inbox badges in one pass over the user's rows instead of four count queries on every shell
+  // load. Scoped to the caller's school exactly as the tenant guard scopes the Prisma counts it replaces.
+  const [row] = await prisma.$queryRaw<{ unread: bigint; mentionsUnread: bigint; openActions: bigint; overdueActions: bigint }[]>`
+    SELECT count(*) FILTER (WHERE is_read = false) AS unread,
+           count(*) FILTER (WHERE is_read = false AND category = 'MENTION') AS "mentionsUnread",
+           count(*) FILTER (WHERE category = 'ACTION' AND resolved_at IS NULL) AS "openActions",
+           count(*) FILTER (WHERE category = 'ACTION' AND resolved_at IS NULL AND due_at < now()) AS "overdueActions"
+    FROM notifications
+    WHERE user_id = ${user.userId} AND school_id = ${user.schoolId}`;
+  return { unread: Number(row?.unread ?? 0), mentionsUnread: Number(row?.mentionsUnread ?? 0), openActions: Number(row?.openActions ?? 0), overdueActions: Number(row?.overdueActions ?? 0) };
 }
