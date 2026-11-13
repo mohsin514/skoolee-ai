@@ -9,7 +9,9 @@ Who should be on the call: the principal or head of secondary, plus whoever appr
 1. **Context (5 min).** Introduce Skoolee as a bounded exam workflow that runs alongside your existing systems. It is not an ERP replacement and has no Noor, Madrasati or KHDA connector.
 2. **Current exam workflow.** How are papers authored, moderated, printed and marked today? Which curriculum and grades? How many campuses and students per grade?
 3. **Pain and cost.** Where do staff hours go? What breaks at exam time? What do you use today, and what does it cost? (Record the answer as stated; do not prompt with numbers.)
-4. **Systems.** Which SIS/LMS do you use (e.g. Noor, Madrasati, Classera, other)? Import/export only: is CSV acceptable?
+4. **Systems.** Which SIS/LMS do you use (e.g. Noor, Madrasati, Classera, iSAMS, PowerSchool, other)? When does that contract renew, and who decides on renewal? Import/export only: is CSV acceptable? (SKAI-1139; we expect to sit next to the incumbent, not replace it.)
+   - **Regulator reporting.** Which regulator returns do you file (ADEK eSIS, KHDA, MOE, Noor)? Which part hurts most: data entry, deadlines, corrections or re-keying from the SIS? Record the answer as stated. Skoolee has no regulator connector (SKAI-1104), so do not promise one.
+   - **AI policy.** Does the school (or group/regulator) have a written AI policy for staff and students? What does it allow, forbid or require (approval, disclosure, data limits)? Ask for a copy if they can share it.
 5. **Data and approval.** Who approves processing student data? What residency or hosting requirements apply? Data cannot be processed until the SKAI-1016 trust gate passes for this market.
 6. **Language.** Arabic and English needs for staff, students and parents.
 7. **Buying process.** Budget cycle, approvers, whether procurement uses a vendor registration, and the timeline to a decision.

@@ -374,10 +374,14 @@ export function useSetupWizard(): SetupWizard {
 
   const handleLogout = async () => {
     clearDeviceDrafts();
-    await logout();
-    // A full-document navigation discards the client router cache, so Back
-    // cannot repaint this half-finished setup after sign-out.
-    window.location.href = '/login';
+    try {
+      await logout();
+    } finally {
+      // A full-document navigation discards the client router cache, so Back
+      // cannot repaint this half-finished setup after sign-out. Always leave,
+      // even if the server action failed: /login is public.
+      window.location.replace('/login');
+    }
   };
 
   const saveAndExit = async () => {

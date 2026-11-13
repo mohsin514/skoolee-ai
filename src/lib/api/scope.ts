@@ -10,6 +10,7 @@ import { runUnscoped } from "@/lib/db/tenant-context";
 import { assertPermission as assertPermissionImpl, moduleFlags, type PermissionAction, type PermissionModule } from "@/lib/permissions";
 import { cookies } from "next/headers";
 import { ZodError } from "zod";
+import { isDatabaseUnavailable, ServiceUnavailableError } from "@/lib/db/availability";
 
 export class ApiError extends Error {
   status: number;
@@ -135,6 +136,12 @@ export function errorResponse(error: unknown, fallback = "Request failed") {
       { error: error.fieldErrors, message: error.message, details: error.fieldErrors },
       { status: 400 }
     );
+  }
+
+  if (error instanceof ServiceUnavailableError || isDatabaseUnavailable(error)) {
+    const retryAfter = error instanceof ServiceUnavailableError ? error.retryAfterSeconds : 5;
+    console.warn("[api.unavailable]", { requestId, status: 503, where: fallback });
+    return respond({ error: "The service is busy. Please try again in a moment.", code: "SERVICE_UNAVAILABLE" }, { status: 503, headers: { "Retry-After": String(retryAfter) } });
   }
 
   if (error instanceof ApiError) {

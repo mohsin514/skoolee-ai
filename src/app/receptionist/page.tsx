@@ -9,7 +9,7 @@ import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/Local
 import { getOperationsStaffDashboardData } from "@/app/actions/dashboard";
 import { RoleShell } from "@/components/role-dashboard";
 import { useConsoleView } from "@/components/nav/useConsoleView";
-import { ConsoleError, ConsolePage, ConsoleSkeleton } from "@/components/operations/console-page";
+import { ConsoleError, ConsoleNoCampus, ConsolePage, ConsoleSkeleton } from "@/components/operations/console-page";
 import { ViewTabs } from "@/components/ui/view-tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +42,8 @@ import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
 import { usePrivateDashboardData } from "@/lib/auth/use-private-dashboard-data";
 
-type OpsData = Awaited<ReturnType<typeof getOperationsStaffDashboardData>>;
+type OpsResult = Awaited<ReturnType<typeof getOperationsStaffDashboardData>>;
+type OpsData = Exclude<OpsResult, { campusUnassigned: true }>;
 
 const ADMISSION_TABS = [
   { id: "enquiries", label: "Enquiries" },
@@ -67,23 +68,27 @@ export default function ReceptionistPage() {
   const tr = useUiText();
   const { view, tab, setView, setTab, retiredNotice } = useConsoleView("receptionist");
   const { data, error: failed, refetch: load } = usePrivateDashboardData(getOperationsStaffDashboardData);
+  // SKAI-1895: staff without a campus get their own state instead of the console.
+  const ops = data && !("campusUnassigned" in data) ? data : null;
 
   return (
     <RoleShell
       console="receptionist"
       activeView={view}
       onSelectView={setView}
-      userName={data?.userName || tr("Receptionist")}
-      avatarSeed={data?.userEmail}
-      logoUrl={data?.logoUrl}
+      userName={ops?.userName || tr("Receptionist")}
+      avatarSeed={ops?.userEmail}
+      logoUrl={ops?.logoUrl}
       dashboardHref="/receptionist"
     >
       {failed && !data ? (
         <ConsoleError title="The front desk could not be loaded" onRetry={() => void load()} />
       ) : !data ? (
         <ConsoleSkeleton label="Loading the front desk" cards={3} />
+      ) : !ops ? (
+        <ConsoleNoCampus />
       ) : (
-        <ReceptionWorkspace data={data} view={view} tab={tab} setView={setView} setTab={setTab} retiredNotice={retiredNotice} />
+        <ReceptionWorkspace data={ops} view={view} tab={tab} setView={setView} setTab={setTab} retiredNotice={retiredNotice} />
       )}
     </RoleShell>
   );

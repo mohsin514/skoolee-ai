@@ -36,6 +36,7 @@ const prisma: Row = {
   ...base,
   purchaseRequest: { ...base.purchaseRequest, updateMany: audited("purchaseRequest", "updateMany") },
   auditLog: { create: audited("auditLog", "create") },
+  $executeRaw: async () => 0,
   $transaction: async (fn: (tx: unknown) => unknown) => fn(prisma),
 };
 class ApiError extends Error { constructor(message: string, public status: number) { super(message); } }

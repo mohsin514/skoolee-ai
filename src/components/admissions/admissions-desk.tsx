@@ -22,6 +22,7 @@ import { DeskPill, DeskRowIcon, DeskStats, RelativeTime, StatTile, deskRow, desk
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FunnelPanel } from "./funnel-panel";
+import { renderFamilyMessage, templatesFor } from "@/lib/admissions/family-message-templates";
 import { AssessmentsPanel, kindLabel, type Assessment } from "./assessments-panel";
 
 // SKO-398: the admissions desk. Work starts from ownership and the next action; the review shows the exact
@@ -38,7 +39,7 @@ type Event = { id: string; kind: string; fromStatus: string | null; toStatus: st
 type Detail = { id: string; reference: string; status: Status; channel: string; version: number; answers: Answers; childName: string; intakeClassId: string | null; nextContactAt: string | null; owner: Person | null; enquiry: { id: string; name: string; source: string } | null; convertedStudent: { id: string; fullName: string; rollNo: string } | null; formVersion: { version: number; definition: FormDefinition; form: { name: string } }; missing: string[]; submissions: { id: string; submittedAt: string; submittedBy: string; formVersion: { version: number } }[]; documents: { id: string; key: string; fileName: string; sizeBytes: number; uploadedBy: string; uploadedAt: string }[]; siblings?: { id: string; fullName: string; rollNo: string; className: string; grouped: boolean }[]; duplicates: { applications: { id: string; reference: string; status: string; childName: string }[]; students: { id: string; fullName: string; rollNo: string; admissionNo: string | null; className: string; archived: boolean; dateOfBirth: string | null }[] }; events: Event[]; assessments: Assessment[]; offerExpiresAt: string | null; offerLapsed: boolean; waitlistRank: number | null; priorityScore: number | null; priorityMet: string[] };
 
 const statusLabel = (ui: Ui, status: string) => ({ DRAFT: ui("Draft"), SUBMITTED: ui("New"), UNDER_REVIEW: ui("In review"), INFO_REQUESTED: ui("Waiting for family"), OFFERED: ui("Offered"), WAITLISTED: ui("Waitlisted"), ACCEPTED: ui("Accepted — ready to enrol"), DECLINED: ui("Declined"), REJECTED: ui("Not offered"), WITHDRAWN: ui("Withdrawn"), ENROLLED: ui("Enrolled") } as Record<string, string>)[status] ?? status;
-const eventLabel = (ui: Ui, kind: string) => ({ CREATED: ui("Started"), SUBMITTED: ui("Sent"), ASSIGNED: ui("Owner or next contact set"), STAGE: ui("Stage changed"), INFO_REQUESTED: ui("Information requested"), NOTE: ui("Office note"), ACCEPTED: ui("Offer accepted"), DUPLICATE_DECISION: ui("Duplicate decision"), ENROLLED: ui("Enrolled"), WITHDRAWN: ui("Withdrawn"), ASSESSMENT_SCHEDULED: ui("Booked"), ASSESSMENT_RECORDED: ui("Outcome recorded"), ASSESSMENT_CANCELLED: ui("Booking cancelled"), WAITLIST_MOVED: ui("Waitlist place changed") } as Record<string, string>)[kind] ?? kind;
+const eventLabel = (ui: Ui, kind: string) => ({ CREATED: ui("Started"), SUBMITTED: ui("Sent"), ASSIGNED: ui("Owner or next contact set"), STAGE: ui("Stage changed"), INFO_REQUESTED: ui("Information requested"), NOTE: ui("Office note"), ACCEPTED: ui("Offer accepted"), DUPLICATE_DECISION: ui("Duplicate decision"), ENROLLED: ui("Enrolled"), WITHDRAWN: ui("Withdrawn"), ASSESSMENT_SCHEDULED: ui("Booked"), ASSESSMENT_RECORDED: ui("Outcome recorded"), ASSESSMENT_CANCELLED: ui("Booking cancelled"), WAITLIST_MOVED: ui("Waitlist place changed"), MESSAGE: ui("Message to the family") } as Record<string, string>)[kind] ?? kind;
 const STAGE_TONE: Record<string, DeskTone> = { SUBMITTED: "info", UNDER_REVIEW: "brand", INFO_REQUESTED: "warning", OFFERED: "brand", WAITLISTED: "neutral", ACCEPTED: "success", ENROLLED: "success" };
 const STAGE_ICON: Record<string, LucideIcon> = { SUBMITTED: Inbox, UNDER_REVIEW: FileText, INFO_REQUESTED: MessageCircleQuestion, OFFERED: Sparkles, WAITLISTED: Hourglass, ACCEPTED: BadgeCheck, ENROLLED: BadgeCheck };
 /** Work that slips first: overdue follow-ups, lapsed offers, unowned live applications, then families waiting on an answer. */
@@ -104,6 +105,7 @@ function Pipeline({ forms, owners, classes, canDecide, entryInHeader, command }:
   const [view, setView] = useState("mine"), [status, setStatus] = useState(""), [q, setQ] = useState(""), [sort, setSort] = useState("");
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState("");
   const [openId, setOpenId] = useState<string | null>(null), [creating, setCreating] = useState(false);
+  const [messaging, setMessaging] = useState(false);
   const load = useCallback(async () => {
     setLoading(true); setLoadError("");
     try {
@@ -158,9 +160,39 @@ function Pipeline({ forms, owners, classes, canDecide, entryInHeader, command }:
         {row.status === "OFFERED" && row.offerExpiresAt ? <DeskPill tone={row.offerLapsed ? "danger" : "warning"} data-offer-deadline={row.offerLapsed ? "lapsed" : "open"}>{row.offerLapsed ? ui("Offer lapsed") : ui("Respond by {0}", [dateTime(row.offerExpiresAt)])}</DeskPill> : null}
         <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)} aria-label={ui("Review application {0}", [row.reference])}>{ui("Review")}</Button>
       </li>)}</ul>}
+    {status && rows.length ? <Button size="sm" variant="secondary" onClick={() => setMessaging(true)} data-bulk-message>{ui("Message these families ({0})", [rows.length])}</Button> : null}
+    {messaging ? <BulkMessageDialog rows={rows} status={status} onClose={() => setMessaging(false)} onSent={() => { setMessaging(false); void load(); }} /> : null}
     {openId ? <ReviewDialog id={openId} owners={owners} classes={classes} canDecide={canDecide} onClose={() => { setOpenId(null); void load(); }} /> : null}
     {creating ? <EntryDialog forms={published} onClose={() => setCreating(false)} onCreated={id => { setCreating(false); setOpenId(id); void load(); }} /> : null}
   </div>;
+}
+
+/** SKAI-1259: starting texts for the stage; picking one fills the message, which staff can still edit. */
+function TemplatePicker({ name, status, onPick }: { name: string; status: string; onPick: (body: string) => void }) {
+  const ui = useUiText();
+  const templates = templatesFor(status);
+  if (!templates.length) return null;
+  return <FormField name={name} label={ui("Start from a template")}><Select value="" onChange={event => { const template = templates.find(t => t.key === event.target.value); if (template) onPick(ui(template.body)); }}>
+    <option value="">{ui("Choose…")}</option>{templates.map(template => <option key={template.key} value={template.key}>{ui(template.label)}</option>)}
+  </Select></FormField>;
+}
+
+/** SKAI-1259: one message to every family in the filtered stage; {child} and {reference} are filled per application. */
+function BulkMessageDialog({ rows, status, onClose, onSent }: { rows: Row[]; status: string; onClose: () => void; onSent: () => void }) {
+  const ui = useUiText();
+  const [message, setMessage] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const submit = async () => {
+    setBusy(true); setError("");
+    try { const json = await send("POST", { action: "message-families", ids: rows.map(row => row.id), message }); toast.success(ui("Message sent to {0} families; {1} skipped.", [json.data.sent, json.data.skipped])); onSent(); }
+    catch (failure) { setError(errorText(ui, failure)); } finally { setBusy(false); }
+  };
+  return <Modal title={ui("Message these families ({0})", [rows.length])} eyebrow={ui("Admissions")} subtitle={statusLabel(ui, status)} icon={MessageCircleQuestion} onClose={onClose} dirty={Boolean(message)} footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose}>{ui("Cancel")}</Button><Button disabled={busy || message.trim().length < 2} onClick={() => void submit()} data-bulk-send>{ui("Send to {0} families", [rows.length])}</Button></div>}>
+    <div className="space-y-3" data-bulk-message-dialog>
+      {error ? <Alert tone="danger" compact>{error}</Alert> : null}
+      <TemplatePicker name="bulk-template" status={status} onPick={setMessage} />
+      <FormField name="bulk-message" label={ui("Message to the family (they will see this)")} hint={ui("{child} and {reference} are filled in for each application.")}><Textarea value={message} rows={4} maxLength={2000} onChange={event => setMessage(event.target.value)} /></FormField>
+    </div>
+  </Modal>;
 }
 
 /** Renders a form version's questions; used for staff-entered applications. */
@@ -293,6 +325,7 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
 
       {!["ENROLLED"].includes(detail.status) && !staffDraft ? <section className="sk-desk-section gap-2" aria-label={ui("Next step")}>
         <FormField name="review-office-note" label={ui("Office note (staff only)")}><Textarea value={officeNote} rows={2} maxLength={2000} onChange={event => setOfficeNote(event.target.value)} /></FormField>
+        <TemplatePicker name="review-template" status={detail.status} onPick={body => setFamilyMessage(renderFamilyMessage(body, detail))} />
         <FormField name="review-family-message" label={ui("Message to the family (they will see this)")}><Textarea value={familyMessage} rows={2} maxLength={2000} onChange={event => setFamilyMessage(event.target.value)} /></FormField>
         {stageButtons.some(([action]) => action === "offer") ? <FormField name="review-intake" label={ui("Class offered")}><Select value={intakeClassId} onChange={event => setIntakeClassId(event.target.value)}>{classes.map(cls => <option key={cls.id} value={cls.id}>{className(cls)}</option>)}</Select></FormField> : null}
         {stageButtons.some(([action]) => action === "offer") ? <FormField name="review-respond-by" label={ui("Family must respond by (optional)")}><Input type="datetime-local" value={respondBy} onChange={event => setRespondBy(event.target.value)} /></FormField> : null}
@@ -301,6 +334,7 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
         <div className="flex flex-wrap gap-2">
           {["SUBMITTED", "UNDER_REVIEW"].includes(detail.status) ? <Button size="sm" variant="secondary" disabled={busy || familyMessage.trim().length < 2} onClick={() => void run({ action: "request-info", familyMessage, officeNote: officeNote || undefined }, ui("Request sent to the family."))}>{ui("Request information")}</Button> : null}
           {stageButtons.map(([action, text]) => <Button key={action} size="sm" variant={action === "offer" || action === "record-acceptance" ? "default" : "secondary"} disabled={busy} onClick={() => void run({ action, officeNote: officeNote || undefined, familyMessage: familyMessage || undefined, intakeClassId: action === "offer" ? intakeClassId : undefined, offerExpiresAt: action === "offer" && respondBy ? new Date(respondBy).toISOString() : undefined, ...(action === "offer" ? { offerTerms: offerTerms || undefined, depositAmount: depositAmount || undefined, depositCurrency: depositCurrency || undefined } : {}) }, ui("Saved."))}>{text}</Button>)}
+          <Button size="sm" variant="secondary" disabled={busy || familyMessage.trim().length < 2} onClick={() => void run({ action: "message-families", ids: [detail.id], message: familyMessage }, ui("Message sent to the family."), "POST")} data-send-family-message>{ui("Send message only")}</Button>
           <Button size="sm" variant="ghost" disabled={busy || officeNote.trim().length < 2} onClick={() => void run({ action: "note", officeNote }, ui("Note added."))}>{ui("Add office note")}</Button>
         </div>
       </section> : null}
