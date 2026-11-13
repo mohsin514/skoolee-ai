@@ -19,6 +19,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { systemEventText } from "@/lib/chat/system-event-text";
+import { emptyListCopy } from "./empty-list-copy";
 import { localeTag } from "@/lib/locale/package";
 
 type Ui = ReturnType<typeof useUiText>;
@@ -169,7 +170,7 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
           {isLoadingList ? (
             <ListSkeleton />
           ) : listFailed && conversations.length === 0 ? null : conversations.length === 0 ? (
-            <EmptyList filter={filter} onNewChat={onNewChat} />
+            <EmptyList filter={filter} search={search} onNewChat={onNewChat} />
           ) : (
             <ul className="space-y-1">
               {conversations.map((c) => (
@@ -310,21 +311,15 @@ function ListSkeleton() {
 
 function EmptyList({
   filter,
+  search,
   onNewChat,
 }: {
   filter: ConversationFilter;
+  search: string;
   onNewChat: () => void;
 }) {
   const ui = useUiText();
-  const copy =
-    filter === "unread"
-      ? { title: ui("Nothing unread"), body: ui("You are all caught up.") }
-      : filter === "archived"
-        ? { title: ui("No archived chats"), body: ui("Archived conversations land here.") }
-        : {
-            title: ui("No conversations yet"),
-            body: ui("Start one with a colleague, a teacher, or the office."),
-          };
+  const copy = emptyListCopy(filter, search, ui);
 
   return (
     <div className="flex h-full items-center justify-center px-2 py-8">
@@ -334,7 +329,7 @@ function EmptyList({
         title={copy.title}
         description={copy.body}
         action={
-          filter === "all" ? (
+          copy.showNewMessage ? (
             <Button variant="default" size="sm" type="button" onClick={onNewChat}>
               <SquarePen className="h-3.5 w-3.5" aria-hidden="true" />
               {ui("New message")}

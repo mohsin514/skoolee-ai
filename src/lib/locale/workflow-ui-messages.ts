@@ -445,6 +445,8 @@ const entries: [string, string, string][] = [
 ["All Paid", "مدفوع بالكامل", "سب ادا شدہ"],
 ["All fields required", "جميع الحقول مطلوبة", "تمام خانے ضروری ہیں"],
 ["All students already assigned.", "تم تعيين جميع الطلاب بالفعل.", "تمام طلبہ پہلے ہی شامل ہیں۔"],
+["All matching students already assigned.", "تم تعيين جميع الطلاب المطابقين بالفعل.", "تمام مماثل طلبہ پہلے ہی شامل ہیں۔"],
+["No students on this campus yet.", "لا يوجد طلاب في هذا الحرم بعد.", "اس کیمپس میں ابھی کوئی طالب علم نہیں۔"],
 ["All students are up to date on their payments.", "جميع الطلاب منتظمون في سداد المدفوعات.", "تمام طلبہ کی ادائیگیاں مکمل ہیں۔"],
 ["Already happened", "حدث سابق", "ہو چکا ہے"],
 ["Amount", "المبلغ", "رقم"],
@@ -837,6 +839,8 @@ const entries: [string, string, string][] = [
   ["Possible siblings already at the school (same guardian phone). Link the new pupil to their family:", "إخوة محتملون مسجلون في المدرسة (رقم ولي الأمر نفسه). اربط الطالب الجديد بأسرتهم:", "اسکول میں ممکنہ بہن بھائی (سرپرست کا ایک ہی فون)۔ نئے طالب علم کو ان کے خاندان سے جوڑیں:"],
   ["Do not link a sibling", "لا تربط بأخ أو أخت", "کسی بہن بھائی سے نہ جوڑیں"],
   ["Sibling of", "أخ أو أخت", "بہن بھائی"],
+  ["No matching conversations", "لا توجد محادثات مطابقة", "کوئی مماثل گفتگو نہیں"],
+  ["Try a different name or word.", "جرّب اسمًا أو كلمة أخرى.", "کوئی دوسرا نام یا لفظ آزمائیں۔"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));

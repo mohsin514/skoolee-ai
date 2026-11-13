@@ -40,3 +40,30 @@ export function storeSelectedChild(identity: string | null, studentId: string | 
     else store.removeItem(SELECTED_CHILD_STORAGE_KEY);
   } catch { /* blocked storage: the choice still holds for this page's client navigations */ }
 }
+
+/**
+ * SKAI-1933: whether a refused child load should fall back to the guardian's default child instead of ending at an
+ * error with only "Try again" (which would repeat the same refused id). It applies to a child this page asked for on
+ * its own — one restored from storage, or one named in a stale or foreign `?student=` link — never to a child the
+ * guardian just picked. The fallback load sends no student id, so the server still chooses and authorizes the child.
+ */
+export function shouldFallBackToDefaultChild({ selected, restored, requested, status }: {
+  selected: string | null;
+  restored: string | null;
+  requested: string | null;
+  status: number;
+}): boolean {
+  if (!selected || ![401, 403, 404].includes(status)) return false;
+  return selected === restored || selected === requested;
+}
+
+/**
+ * SKAI-1934: the child a family panel should load for. While the provider is still choosing (no child yet and its
+ * first load in flight) it is `undefined`, so a panel waits instead of loading once unscoped and again for the child
+ * the payload names. Once settled it is the child's id, or null when there is no child to scope to (no linked child,
+ * a failed load); the server still picks and authorizes the child for an unscoped request.
+ */
+export function settledChildScope(activeId: string | null, loading: boolean): string | null | undefined {
+  if (activeId) return activeId;
+  return loading ? undefined : null;
+}
