@@ -10,9 +10,17 @@ const compiled = buildSync({
   entryPoints: [resolve("src/components/BootSplash.tsx")], bundle: false, write: false, platform: "node", format: "cjs", loader: { ".tsx": "tsx" }, jsx: "automatic",
 }).outputFiles[0].text;
 const loaded = { exports: {} as typeof import("../../src/components/BootSplash") };
-const fakeRequire = (id: string) => (id.startsWith("@/") || id === "next/navigation" ? {} : require(id));
+let currentPath = "/";
+const fakes: Record<string, unknown> = {
+  "next/navigation": { usePathname: () => currentPath },
+  "@/hooks/use-document-locale": { useDocumentLocale: () => ({ language: "en" }) },
+  "@/components/SplashScreen": { __esModule: true, default: () => null },
+};
+const fakeRequire = (id: string) => fakes[id] ?? require(id);
 new Function("module", "exports", "require", compiled)(loaded, loaded.exports, fakeRequire);
-const { pageStillLoading } = loaded.exports;
+const { pageStillLoading, initialBootPhase, default: BootSplash } = loaded.exports;
+const React = require("react");
+const { renderToStaticMarkup } = require("react-dom/server");
 
 type Box = { w: number; h: number; inSplash?: boolean };
 const doc = (boxes: Box[]) => ({
@@ -37,4 +45,16 @@ test("nothing busy releases the splash", () => {
 
 test("the splash's own progress region is ignored", () => {
   assert.equal(pageStillLoading(doc([{ w: 1000, h: 800, inSplash: true }])), false);
+});
+
+test("a load that starts at / is finished for good, so /login after the entry splash gets no second splash", () => {
+  assert.equal(initialBootPhase("/"), "done");
+  assert.equal(initialBootPhase("/login"), "playing");
+  currentPath = "/";
+  assert.equal(renderToStaticMarkup(React.createElement(BootSplash)), "");
+});
+
+test("a hard load of a console still plays the boot splash", () => {
+  currentPath = "/teacher";
+  assert.match(renderToStaticMarkup(React.createElement(BootSplash)), /data-boot-splash/);
 });
