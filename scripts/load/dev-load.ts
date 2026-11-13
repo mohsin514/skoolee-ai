@@ -2,7 +2,7 @@
  * SKAI-1898: realistic concurrent-user load against the deployed dev site (or a local app).
  *
  *   npx tsx scripts/load/dev-load.ts --target https://dev.skooleeai.com --vus 25 --duration 120 [--ramp 30]
- *     [--think 1000-4000] [--roles teacher,guardian,student] [--credentials qa-credentials.json]
+ *     [--think 1000-4000] [--roles teacher,guardian,student] [--credentials qa-credentials.json] [--shell-batch off]
  *
  * Read-only by construction: after one sign-in per synthetic QA-01 account it only sends GET requests along the
  * journeys a role's browser makes (scripts/load/load-core.ts). Sessions are shared by virtual users, so the run never
@@ -10,7 +10,7 @@
  * the target degrades. Credentials are never printed. Report: test-results/load/<run>.{json,md}; exit 1 on FAIL.
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { assertAllowedTarget, checkVirtualUsers, label, pageViewFor, report, shouldAbort, type Sample } from "./load-core";
+import { assertAllowedTarget, checkVirtualUsers, label, pageViewFor, report, shellBatched, shouldAbort, type Sample } from "./load-core";
 import { ROLE_JOURNEYS } from "./role-journeys";
 
 // Node 24's bundled undici can throw `setTypeOfService EINVAL` from inside its socket handling on macOS when a socket is
@@ -34,6 +34,8 @@ const rampSec = Math.min(durationSec, Number(arg("ramp", String(Math.min(30, Mat
 const [thinkMin, thinkMax] = arg("think", "1000-4000").split("-").map(Number);
 const roles = arg("roles", Object.keys(ROLE_JOURNEYS).join(",")).split(",").map((r) => r.trim());
 const credentialsFile = arg("credentials", process.env.LOAD_CREDENTIALS_FILE ?? "qa-credentials.json");
+/** Send the shell GETs as one /api/shell request, like the browser (SKAI-1949). `--shell-batch off` sends them one by one. */
+const shellBatch = arg("shell-batch", "on") !== "off";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 type Account = { email: string; password: string; role: string; school: string };
@@ -93,6 +95,7 @@ async function main() {
     await sleep((rampSec * 1000 * index) / vus);
     const session = sessions[index % sessions.length];
     const view = pageViewFor(session.role, today);
+    const apis = shellBatch ? shellBatched(view.apis) : view.apis;
     const hit = async (path: string) => {
       const started = performance.now();
       let status = 0;
@@ -108,7 +111,7 @@ async function main() {
     while (Date.now() < deadline && !aborted) {
       await hit(view.home);
       if (Date.now() >= deadline || aborted) return;
-      await Promise.all(view.apis.map(hit));
+      await Promise.all(apis.map(hit));
       await sleep(thinkMin + Math.random() * (thinkMax - thinkMin));
     }
   }

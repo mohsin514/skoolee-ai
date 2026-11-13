@@ -15,6 +15,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { connection, OfflineError } from "./connection";
+import { batchablePath, createShellBatcher } from "./shell-batch";
 
 const PATCH_FLAG = "__skooleeFetchPatched";
 
@@ -71,6 +72,19 @@ export function installFetchInterceptor(): void {
 
   const original = window.fetch.bind(window);
 
+  // SKAI-1949: the shell's GETs that start together go out as one /api/shell call (shell-batch.ts).
+  // NEXT_PUBLIC_SHELL_BATCH=off sends every request individually again.
+  const batcher = process.env.NEXT_PUBLIC_SHELL_BATCH === "off" ? null : createShellBatcher(async (url) => {
+    try {
+      const res = await original(url, { credentials: "same-origin", cache: "no-store" });
+      connection.reportSuccess();
+      return res;
+    } catch (err) {
+      if (isNetworkFailure(err)) connection.reportFailure();
+      throw err;
+    }
+  });
+
   window.fetch = async function patchedFetch(
     input: RequestInfo | URL,
     init?: RequestInit
@@ -83,6 +97,9 @@ export function installFetchInterceptor(): void {
     if (!sameOrigin) return original(input, init);
 
     const method = resolveMethod(input, init);
+
+    const batchPath = batcher && method === "GET" ? batchablePath(input, init, window.location.origin) : null;
+    if (batcher && batchPath) return batcher.enqueue(batchPath, init?.signal);
 
     if (MUTATING.has(method) && connection.getSnapshot().status === "offline") {
       throw new OfflineError();

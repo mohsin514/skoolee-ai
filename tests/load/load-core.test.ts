@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertAllowedTarget, checkVirtualUsers, journeyFor, label, percentile, report, shouldAbort, type Sample } from "../../scripts/load/load-core";
+import { assertAllowedTarget, checkVirtualUsers, journeyFor, label, percentile, report, shellBatched, shouldAbort, type Sample } from "../../scripts/load/load-core";
 
 test("only dev and local hosts can be targeted; production is always refused", () => {
   assert.equal(assertAllowedTarget("https://dev.skooleeai.com").hostname, "dev.skooleeai.com");
@@ -59,4 +59,11 @@ test("the report passes or fails against the SKO-451 objectives", () => {
   assert.equal(report(meta, samples(100, 2_000, 200)).passed, false);
   assert.equal(report(meta, [...samples(98, 300, 200), ...samples(2, 300, 500)]).passed, false);
   assert.equal(report({ ...meta, aborted: "error rate" }, samples(100, 300, 200)).passed, false);
+});
+
+test("shell GETs in a page view go as one /api/shell request, like the browser (SKAI-1949)", () => {
+  const out = shellBatched(["/api/auth/session", "/api/students?page=1", "/api/notifications?limit=30"]);
+  assert.deepEqual(out, ["/api/shell?p=%2Fapi%2Fauth%2Fsession&p=%2Fapi%2Fnotifications%3Flimit%3D30", "/api/students?page=1"]);
+  assert.equal(label(out[0]), "/api/shell");
+  assert.deepEqual(shellBatched(["/api/profile", "/api/students"]), ["/api/profile", "/api/students"], "a lone shell GET is sent as itself");
 });
