@@ -263,12 +263,9 @@ export async function decideCorrection(user: AuthUser, id: string, decision: "AP
 export async function history(user: AuthUser, kind: Kind) {
     await permit(user, kind);
     const approver = !isFamily(user) && await canApproveKind(user, kind, user.campusId ?? null);
-    // A parent reaches a pupil through either a live guardian relationship
-    // (current model) or the pupil's explicit parent account link. Corrections
-    // keep both so a linked parent still sees the child's released history.
-    const children = await prisma.student.findMany({ where: user.role === "PARENT"
-        ? { schoolId: user.schoolId, OR: [studentScope(user), { parentUserId: user.userId }] }
-        : studentScope(user), select: { id: true } });
+    // SKAI-1899: a parent reaches a pupil only through a live, verified guardian relationship, as on every other
+    // screen. The legacy students.parent_user_id link grants nothing; it is queued for admin review (SKAI-1893).
+    const children = await prisma.student.findMany({ where: studentScope(user), select: { id: true } });
     const rows = await prisma.correction.findMany({ where: { ...campusScope(user), kind, studentId: { in: children.map(x => x.id) }, ...(isFamily(user) ? { status: "APPLIED" } : {}) }, orderBy: { requestedAt: "desc" } });
     const output = [];
     for (const row of rows) {

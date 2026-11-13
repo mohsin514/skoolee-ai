@@ -40,6 +40,7 @@ export async function loadInvoiceGenerationInputs(tx: InputsTx, scope: { schoolI
   const assignments = studentIds.length
     ? await tx.feeGroupAssignment.findMany({
         where: { schoolId, campusId, classId: { in: classIds }, academicYear: { in: years } },
+        orderBy: { id: "asc" }, // firstBy keeps the oldest group for legacy duplicates (SKAI-378)
         include: { feeGroup: { include: { lines: { include: { feeType: { select: { id: true, name: true, code: true } } } } } } },
       })
     : [];

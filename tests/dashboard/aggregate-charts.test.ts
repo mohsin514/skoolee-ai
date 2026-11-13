@@ -68,6 +68,7 @@ test("SKAI-1856: the librarian console counts loans per month in SQL scoped to i
   h.answers.set("bookIssue.aggregate", () => ({ _sum: { fine: 350 } }));
   h.answers.set("book.aggregate", () => ({ _count: 0, _sum: { copiesTotal: null, copiesAvailable: null } }));
   const data = await dashboard.getOperationsStaffDashboardData();
+  assert.ok(!("campusUnassigned" in data), "a librarian with a campus gets the console data");
   const summary = data.summary as any;
 
   assert.equal(reads("bookIssue.findMany").length, 0, "no loan rows are loaded");
