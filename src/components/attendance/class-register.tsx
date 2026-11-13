@@ -15,7 +15,7 @@ import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { AlertTriangle, CalendarX2, ClipboardCheck, GitCompareArrows, MessageSquareText, Users } from "lucide-react";
+import { AlertTriangle, CalendarX2, ClipboardCheck, GitCompareArrows, History, MessageSquareText, Users } from "lucide-react";
 import { DeskPill, DeskSection, deskRow, type DeskTone } from "@/components/ui/desk";
 
 // SKO-405: the class register. Unmarked is shown as its own state and nothing is assumed from it;
@@ -27,7 +27,7 @@ import { DeskPill, DeskSection, deskRow, type DeskTone } from "@/components/ui/d
 type Ui = ReturnType<typeof useUiText>;
 export type Status = "PRESENT" | "LATE" | "PARTIAL" | "ABSENT" | "EXCUSED" | "LEAVE";
 const STATUSES: Status[] = ["PRESENT", "LATE", "PARTIAL", "ABSENT", "EXCUSED", "LEAVE"];
-type Entry = { studentId: string; name: string; rollNo: string; movedSince: boolean; status: Status | null; arrivalTime: string | null; departureTime: string | null; note: string | null; version: number; markedBy: string | null; openExplanation: string | null };
+type Entry = { studentId: string; attendanceId?: string | null; name: string; rollNo: string; movedSince: boolean; status: Status | null; arrivalTime: string | null; departureTime: string | null; note: string | null; version: number; markedBy: string | null; openExplanation: string | null };
 type Register = { canCorrect?: boolean; class: { id: string; name: string }; date: string; today: string; register: { status: "OPEN" | "SUBMITTED"; submittedAt: string | null }; entries: Entry[]; rule: { version: number }; regulator: { regulator: string; name: string; confirmed: boolean; codes: Record<Status, string>; schoolDay: boolean } | null };
 type Draft = { status: Status | null; arrivalTime: string; departureTime: string };
 type Conflict = { studentId: string; name: string; current: string | null; yours: string; seen: string | null; markedBy: string | null };
@@ -44,6 +44,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
   const [date, setDate] = useState("");
   const [data, setData] = useState<Register | null>(null), [loadError, setLoadError] = useState(""), [loading, setLoading] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [historyFor, setHistoryFor] = useState<Entry | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false), [conflicts, setConflicts] = useState<Conflict[]>([]), [saving, setSaving] = useState(false);
 
   useEffect(() => { if (!classId && classes[0]) setClassId(classes[0].id); }, [classes, classId]);
@@ -112,6 +113,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
             <FormField name={`arrive-${entry.studentId}`} label={ui("Arrived")}><Input type="time" disabled={locked} value={d.arrivalTime} onChange={event => setDraft(entry.studentId, { arrivalTime: event.target.value })} className="w-28" /></FormField>
             {d.status === "PARTIAL" ? <FormField name={`depart-${entry.studentId}`} label={ui("Left")}><Input type="time" disabled={locked} value={d.departureTime} onChange={event => setDraft(entry.studentId, { departureTime: event.target.value })} className="w-28" /></FormField> : null}
           </div> : null}
+          {entry.attendanceId ? <Button variant="ghost" size="sm" type="button" onClick={() => setHistoryFor(entry)} aria-label={ui("Show the history of this day's mark")} data-register-history={entry.attendanceId}><History className="h-3.5 w-3.5" aria-hidden />{ui("History")}</Button> : null}
         </li>; })}
       </ul>}
       {/* §4.4b: "Submit register" stays in reach on a long register — the action bar sticks to the bottom of the
@@ -125,6 +127,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
       </div>
     </> : null}
     {reviewOpen && data ? <ReviewDialog ui={ui} listNames={names => new Intl.ListFormat(localeTag(locale), { type: "conjunction" }).formatToParts(names).map((part, index) => part.type === "element" ? <bdi key={index}>{part.value}</bdi> : part.value)} submitted={submitted} counts={counts} unmarked={entries.filter(entry => !drafts[entry.studentId]?.status)} changed={changed.map(entry => ({ name: entry.name, from: entry.status, to: drafts[entry.studentId].status }))} className={data.class.name} date={formatDate(data.date)} saving={saving} onClose={() => setReviewOpen(false)} onConfirm={reason => void save({ submit: !submitted, reason })} /> : null}
+    {historyFor?.attendanceId ? <HistoryDialog ui={ui} attendanceId={historyFor.attendanceId} name={historyFor.name} onClose={() => setHistoryFor(null)} /> : null}
     {conflicts.length ? <ConflictDialog ui={ui} conflicts={conflicts} saving={saving} onClose={() => { setConflicts([]); void load(); }} onKeepMine={ids => void (async () => { await save({ submit: false, reviewed: new Set(ids), reason: submitted ? ui("Conflicting change reviewed") : undefined }); })()} /> : null}
   </div>;
 }
@@ -144,6 +147,41 @@ function ReviewDialog({ ui, listNames, submitted, counts, unmarked, changed, cla
         <ul className="space-y-1 text-sm" data-review-changes>{changed.map(row => <li key={row.name}><bdi>{row.name}</bdi>: {statusLabel(ui, row.from)} → {statusLabel(ui, row.to)}</li>)}</ul>
         <FormField name="correction-reason" label={ui("Reason for the correction")} hint={ui("Kept with the record's history.")}><Textarea value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField>
       </> : null}
+    </div>
+  </Modal>;
+}
+
+type HistoryData = { status: string; changes: { id: string; at: string; from: string; to: string; by: string | null; reason: string | null; source: string }[]; explanations: { status: string; reason: string; proposedStatus: string; reviewNote: string | null; at: string }[] };
+
+/** SKAI-230: one pupil-day's mark history (oldest first), read from the scoped register API. */
+function HistoryDialog({ ui, attendanceId, name, onClose }: { ui: Ui; attendanceId: string; name: string; onClose: () => void }) {
+  const { dateTime } = useLocaleFormat();
+  const [data, setData] = useState<HistoryData | null>(null), [error, setError] = useState("");
+  const load = useCallback(async () => {
+    setError("");
+    try {
+      const response = await fetch(`/api/attendance/register?history=${encodeURIComponent(attendanceId)}`, { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.success) throw new Error(json.error || "The history could not be loaded.");
+      setData(json.data);
+    } catch (failure) { setError(ui(failure instanceof Error ? failure.message : "The history could not be loaded.")); }
+  }, [attendanceId, ui]);
+  useEffect(() => { void load(); }, [load]);
+  const sourceLabel = (source: string) => ({ REGISTER: ui("Marked on the register"), CORRECTION: ui("Correction after submission"), EXPLANATION: ui("Explanation accepted") } as Record<string, string>)[source] ?? source;
+  return <Modal size="sm" icon={History} tone="sky" title={ui("Attendance history for {0}", [name])} eyebrow={ui("Attendance")} onClose={onClose} footer={<div className="flex justify-end"><Button variant="secondary" onClick={onClose}>{ui("Close")}</Button></div>}>
+    <div className="space-y-3" data-register-history-dialog>
+      {error ? <ErrorState title={ui("The history could not be loaded.")} description={error} onRetry={() => void load()} /> : null}
+      {!data && !error ? <SkeletonList rows={3} label={ui("Loading…")} /> : null}
+      {data && !data.changes.length && !data.explanations.length ? <EmptyState size="sm" icon={History} title={ui("No change has been recorded for this day yet.")} /> : null}
+      {data?.changes.length ? <DeskSection icon={History} tone="info" title={ui("Changes to the mark")}><ol className="space-y-2 text-sm">{data.changes.map(change => <li key={change.id} className={deskRow} data-history-change={change.id} data-source={change.source}>
+        <p className="font-semibold">{statusLabel(ui, change.from)} → {statusLabel(ui, change.to)}</p>
+        <p className="text-xs text-ink-muted"><bdi>{dateTime(change.at)}</bdi> · {sourceLabel(change.source)}{change.by ? <> · {ui("By {0}", [change.by])}</> : null}</p>
+        {change.reason ? <p className="text-xs text-ink-muted"><bdi>{change.reason}</bdi></p> : null}
+      </li>)}</ol></DeskSection> : null}
+      {data?.explanations.length ? <DeskSection icon={MessageSquareText} tone="brand" title={ui("Family explanations")}><ol className="space-y-2 text-sm">{data.explanations.map((row, index) => <li key={index} className={deskRow} data-history-explanation={row.status}>
+        <p className="text-sm">{ui("Family says: {0}", [row.reason])}</p>
+        <p className="text-xs text-ink-muted"><bdi>{dateTime(row.at)}</bdi> · {ui("Asks to record: {0}", [statusLabel(ui, row.proposedStatus)])}</p>
+      </li>)}</ol></DeskSection> : null}
     </div>
   </Modal>;
 }

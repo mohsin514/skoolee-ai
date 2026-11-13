@@ -85,7 +85,7 @@ export async function registerView(user: AuthUser, classId: string, dateText: st
   const entries = roster.map(enrollment => {
     const row = byStudent.get(enrollment.studentId);
     return { studentId: enrollment.studentId, enrollmentId: enrollment.id, name: enrollment.student.fullName, rollNo: enrollment.rollNo, movedSince: enrollment.student.classId !== cls.id, photo: enrollment.student.profileImageUrl,
-      status: (row?.status ?? null) as Status | null, arrivalTime: row?.arrivalTime ?? null, departureTime: row?.departureTime ?? null, note: row?.notes ?? null, version: row?.version ?? 0, markedBy: row?.marker?.fullName ?? null, markedAt: row?.markedAt ?? null, openExplanation: row?.explanations[0]?.status ?? null };
+      attendanceId: row?.id ?? null, status: (row?.status ?? null) as Status | null, arrivalTime: row?.arrivalTime ?? null, departureTime: row?.departureTime ?? null, note: row?.notes ?? null, version: row?.version ?? 0, markedBy: row?.marker?.fullName ?? null, markedAt: row?.markedAt ?? null, openExplanation: row?.explanations[0]?.status ?? null };
   });
   const counts = Object.fromEntries([...ATTENDANCE_STATUSES, "UNMARKED"].map(status => [status, entries.filter(entry => (entry.status ?? "UNMARKED") === status).length]));
   const canCorrect = await canCorrectRegister(() => assertPermission(user, "attendance", "edit"));
@@ -264,7 +264,7 @@ export async function entryHistory(user: AuthUser, attendanceId: string) {
   if (user.role === "TEACHER" && row.classId) await assignedClass(prisma, user, row.classId);
   const ids = [...new Set([...row.editHistory.map(h => h.editedBy), row.markedBy].filter((v): v is string => Boolean(v)))];
   const people = new Map((await prisma.user.findMany({ where: { schoolId: user.schoolId, id: { in: ids } }, select: { id: true, fullName: true } })).map(p => [p.id, p.fullName]));
-  return { status: row.status, version: row.version, changes: row.editHistory.map(h => ({ at: h.editedAt, from: h.oldStatus, to: h.newStatus, by: h.editedBy ? people.get(h.editedBy) ?? null : null, reason: h.reason, source: h.source })), explanations: row.explanations.map(e => ({ status: e.status, reason: e.reason, proposedStatus: e.proposedStatus, reviewNote: e.reviewNote, at: e.createdAt })) };
+  return { status: row.status, version: row.version, changes: row.editHistory.map(h => ({ id: h.id, at: h.editedAt, from: h.oldStatus, to: h.newStatus, by: h.editedBy ? people.get(h.editedBy) ?? null : null, reason: h.reason, source: h.source })), explanations: row.explanations.map(e => ({ status: e.status, reason: e.reason, proposedStatus: e.proposedStatus, reviewNote: e.reviewNote, at: e.createdAt })) };
 }
 
 /** A guardian's view of a child's recent absences and their explanations. */
