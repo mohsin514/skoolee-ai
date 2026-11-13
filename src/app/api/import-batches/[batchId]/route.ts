@@ -12,6 +12,13 @@ import { readJsonBody } from "@/lib/api/validate";
 type RouteContext = { params: Promise<{ batchId: string }> };
 type Batch = NonNullable<Awaited<ReturnType<typeof findBatch>>>;
 
+// SKAI-1224: committing a roster row creates one enrollment and at most one guardian link per pupil.
+// Those belong to the import, so they do not block its reversal; anything beyond them does.
+const IMPORT_OWNED_REFERENCES: Record<string, number> = { enrollments: 1, guardianRelationships: 1 };
+function laterReferences(count: Record<string, number>) {
+  return Object.entries(count).filter(([name, value]) => value > (IMPORT_OWNED_REFERENCES[name] ?? 0));
+}
+
 async function findBatch(id: string, schoolId: string, campusId: string) {
   return prisma.importBatch.findFirst({ where: { id, schoolId, campusId } });
 }
@@ -304,7 +311,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const students = studentIds.length ? await prisma.student.findMany({ where: { id: { in: studentIds }, schoolId: user.schoolId, campusId: batch.campusId }, select: { id: true, fullName: true, rollNo: true, _count: { select: { attendance: true, invoices: true, marks: true, reportCards: true, examSeats: true, payments: true, guardianRelationships: true, classHistory: true, enrollments: true, enrollmentProposals: true, corrections: true, documents: true } } } }) : [];
       const dependencies = students.flatMap((student) => {
         const count = student._count;
-        const refs = Object.entries(count).filter(([, value]) => value > 0).map(([name, value]) => `${name}: ${value}`);
+        const refs = laterReferences(count).map(([name, value]) => `${name}: ${value}`);
         return refs.length ? [{ studentId: student.id, studentName: student.fullName, rollNo: student.rollNo, references: refs }] : [];
       });
       const missing = studentIds.filter((id) => !students.some((student) => student.id === id));
@@ -318,7 +325,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
         const claimed = await tx.importBatch.updateMany({ where: { id: batch.id, schoolId: user.schoolId, campusId: batch.campusId, state: { in: ["COMMITTED", "PARTIAL"] } }, data: { state: "REVERSED", reversedAt } });
         if (!claimed.count) throw new ApiError("This batch was already reversed", 409);
         const stillPresent = await tx.student.findMany({ where: { id: { in: studentIds }, schoolId: user.schoolId, campusId: batch.campusId }, select: { id: true, _count: { select: { attendance: true, invoices: true, marks: true, reportCards: true, examSeats: true, payments: true, guardianRelationships: true, classHistory: true, enrollments: true, enrollmentProposals: true, corrections: true, documents: true } } } });
-        if (stillPresent.length !== studentIds.length || stillPresent.some((student) => Object.values(student._count).some((count) => count > 0))) throw new ApiError("Pupil dependencies changed during reversal; recheck before trying again", 409);
+        if (stillPresent.length !== studentIds.length || stillPresent.some((student) => laterReferences(student._count).length > 0)) throw new ApiError("Pupil dependencies changed during reversal; recheck before trying again", 409);
+        // Enrollments do not cascade from the pupil; remove the placement the import itself created.
+        await tx.studentEnrollment.deleteMany({ where: { studentId: { in: studentIds }, schoolId: user.schoolId } });
         const deleted = await tx.student.deleteMany({ where: { id: { in: studentIds }, schoolId: user.schoolId, campusId: batch.campusId } });
         if (deleted.count !== studentIds.length) throw new ApiError("Pupil dependencies changed during reversal; recheck before trying again", 409);
         const newReceipt = { ...(receipt || {}), reversal: { state: "REVERSED", reversedAt: reversedAt.toISOString(), actorId: user.userId, deletedStudentIds: studentIds } };

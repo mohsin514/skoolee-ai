@@ -4,7 +4,7 @@ import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import { studentSchema } from "@/lib/validators/schemas";
-import { importField, normalizeImportHeader } from "@/lib/imports/csv";
+import { importField, importRelationship, normalizeImportHeader } from "@/lib/imports/csv";
 import { isoDate, summarizeImportRows, type ImportRow } from "@/lib/imports/batch";
 import { importReviewToken } from "@/lib/imports/review-token";
 import { resolveRosterClass } from "@/lib/imports/roster-class";
@@ -84,7 +84,7 @@ function studentFromCsv(row: Record<string, string>, defaultClassId: string) {
     guardianPhone: importField(row, ["guardianPhone", "parentPhone"]),
     guardianWhatsapp: importField(row, ["guardianWhatsapp", "whatsapp"]) || null,
     guardianEmail: importField(row, ["guardianEmail", "parentEmail"]) || null,
-    guardianRelationship: importField(row, ["guardianRelationship", "relationship"]) || undefined,
+    guardianRelationship: importRelationship(importField(row, ["guardianRelationship", "relationship"])),
     address: importField(row, ["address"]) || null,
     city: importField(row, ["city"]) || null,
     medicalNotes: importField(row, ["medicalNotes", "medical"]) || null,
