@@ -90,12 +90,19 @@ export function TeacherPerformancePanel({ self = false, hideHeading = false, exp
     await fetchNotes(teacherId);
   };
   // One POST for the row editor and the "Add note" composer; `draft` is the note text either one passes in.
+  // SKAI-138 (QA duplicate submit): React state lags behind a fast triple click, so an in-flight ref blocks
+  // every submit after the first until that POST settles. The server also replays an identical recent note.
+  const noteInFlight = useRef(false);
   const postNote = async (teacherId: string, draft: string) => {
-    const response = await fetch("/api/teachers/performance/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teacherId, academicYear: year, body: draft }) }).catch(() => null);
-    const json = await response?.json().catch(() => ({}));
-    if (!response?.ok || !isApiOk(json)) { toast.error(ui(readApiError(json, "The note was not saved."))); return false; }
-    toast.success(ui("Note saved."));
-    return true;
+    if (noteInFlight.current) return false;
+    noteInFlight.current = true;
+    try {
+      const response = await fetch("/api/teachers/performance/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teacherId, academicYear: year, body: draft }) }).catch(() => null);
+      const json = await response?.json().catch(() => ({}));
+      if (!response?.ok || !isApiOk(json)) { toast.error(ui(readApiError(json, "The note was not saved."))); return false; }
+      toast.success(ui("Note saved."));
+      return true;
+    } finally { noteInFlight.current = false; }
   };
   const saveNote = async (teacherId: string) => {
     setSaving(true);
