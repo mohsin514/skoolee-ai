@@ -11,3 +11,12 @@ export function appendInboxPage<T extends { id: string }>(shown: T[], page: T[])
   const seen = new Set(shown.map(row => row.id));
   return [...shown, ...page.filter(row => !seen.has(row.id))];
 }
+
+/**
+ * SKAI-1940: a reminder bumps an existing row (reminderCount, lastRemindedAt) instead of adding a new one, and the
+ * inbox is ordered by lastRemindedAt first. The time shown and the day heading follow the same latest activity, so a
+ * grouped chat notification reads "4 minutes ago" for its newest message, not the age of the first one.
+ */
+export function inboxItemTime(item: { createdAt: string; lastRemindedAt?: string | null }): string {
+  return item.lastRemindedAt ?? item.createdAt;
+}

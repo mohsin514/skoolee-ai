@@ -5,7 +5,7 @@ import { AlertTriangle, AtSign, Bell, CheckCircle2, ClipboardList, Eye, Reply } 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { appendInboxPage, inboxPageUrl } from "@/lib/notifications/inbox-pages";
+import { appendInboxPage, inboxItemTime, inboxPageUrl } from "@/lib/notifications/inbox-pages";
 import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -21,7 +21,7 @@ import { NOTIFICATION_FIXED_MESSAGE_KINDS, NOTIFICATION_FIXED_TITLE_KINDS, NOTIF
 type Item = {
   id: string; type?: string; title: string; message: string; link: string | null; isRead: boolean; createdAt: string; actorName: string | null;
   category: "UPDATE" | "MENTION" | "ACTION"; state: "open" | "resolved" | "unavailable"; overdue: boolean; dueAt: string | null;
-  resolution: string | null; reminderCount: number;
+  resolution: string | null; reminderCount: number; lastRemindedAt?: string | null;
 };
 type Counts = { unread: number; mentionsUnread: number; openActions: number; overdueActions: number };
 const TABS = [
@@ -139,8 +139,8 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
           const message = hidden || (item.type && NOTIFICATION_FIXED_MESSAGE_KINDS.has(item.type)) ? ui(item.message) : item.message;
           const openable = !hidden && !(item.type && NOTIFICATION_NOTICE_ONLY_KINDS.has(item.type));
           // A day heading opens each run of items from the same day (the list arrives newest first).
-          const day = dayBucket(item.createdAt);
-          const heading = index === 0 || dayBucket(items[index - 1].createdAt) !== day ? <h3 className="sk-notif-day" data-notification-day={day}>{ui(day)}</h3> : null;
+          const at = inboxItemTime(item), day = dayBucket(at);
+          const heading = index === 0 || dayBucket(inboxItemTime(items[index - 1])) !== day ? <h3 className="sk-notif-day" data-notification-day={day}>{ui(day)}</h3> : null;
           return <div key={item.id}>{heading}<article data-tone={toneOf(item)} data-unread={!item.isRead || undefined} className={cn("sk-notif-item", openable && "cursor-pointer")} data-notification={item.id} data-category={item.category} data-state={item.state} data-read={item.isRead} onClick={() => { if (openable) void open(item); }}>
             <div className="flex items-start gap-2.5">
               <span aria-hidden="true" className="sk-notif-icon"><Icon className="h-4 w-4" /></span>
@@ -148,7 +148,7 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
                 <p className={cn("text-sm text-ink-strong", !item.isRead ? "font-bold" : "font-semibold")}>{!item.isRead ? <span className="sk-notif-dot" aria-hidden="true" /> : null}<bdi>{title}</bdi>{item.reminderCount > 0 ? <span className="ms-1 text-2xs font-bold text-ink-muted">· {ui("{0} more", [item.reminderCount])}</span> : null}</p>
                 <p className="line-clamp-2 text-xs text-ink-muted"><bdi>{message}</bdi></p>
                 <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-2xs font-semibold text-ink-subtle">
-                  <span>{formatTime(item.createdAt)}</span>
+                  <span>{formatTime(at)}</span>
                   {item.category === "ACTION" ? (
                     item.state === "resolved" ? <span className="inline-flex items-center gap-0.5 text-status-success-text" data-action-state="resolved"><CheckCircle2 className="h-3 w-3" aria-hidden />{item.resolution === "CANCELLED" ? ui("Withdrawn") : ui("Done")}</span>
                     : item.state === "open" ? <span className={cn("rounded px-1", item.overdue ? "bg-status-error-surface text-status-error-text" : "bg-status-warning-surface text-status-warning-text")} data-action-state={item.overdue ? "overdue" : "open"}>{item.overdue ? ui("Overdue") : ui("Waiting for you")}</span> : null
