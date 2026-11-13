@@ -1,5 +1,6 @@
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { parseStoredLocaleSettings, resolvePackage, type Language } from "./package";
+import { createTtlMemo } from "@/lib/cache/ttl-memo";
 
 /** Load once for calendars that resolve hundreds of date-only cells. */
 export async function loadLocaleTimeline(schoolId: string, campusId: string | null = null, db: Pick<TxClient, "school" | "localePolicy" | "weekend"> = prisma) {
@@ -15,8 +16,19 @@ export async function loadLocaleTimeline(schoolId: string, campusId: string | nu
     return resolvePackage({ timezone: school.timezone, ...(campusId ? { weekend: legacyWeekends.map((w) => w.dayOfWeek % 7) } : {}), ...parseStoredLocaleSettings(schoolPolicy?.settings || {}) }, parseStoredLocaleSettings(campusPolicy?.settings || {}), personal);
   };
 }
+/**
+ * Scale: the school/campus timeline (timezone, locale policies, weekends: 3 queries) is configuration shared by every
+ * request in the school, and ~70 call sites resolve it per request — some once per child or per row. With the default
+ * client it is memoised per instance for 60 s; a caller passing its own client (a transaction) always reads fresh.
+ * The timeline still evaluates `at` and `personal` on every call.
+ */
+const timelines = createTtlMemo({ ttlMs: 60_000 });
+
 export async function getLocalePackage(schoolId: string, campusId: string | null = null, at = new Date(), personal?: Language | null, db: Pick<TxClient, "school" | "localePolicy" | "weekend"> = prisma) {
-  return (await loadLocaleTimeline(schoolId, campusId, db))(at, personal);
+  const timeline = db === prisma
+    ? await timelines.get(JSON.stringify([schoolId, campusId]), () => loadLocaleTimeline(schoolId, campusId, db))
+    : await loadLocaleTimeline(schoolId, campusId, db);
+  return timeline(at, personal);
 }
 
 export async function loadCampusLocaleTimeline(campusId: string) {

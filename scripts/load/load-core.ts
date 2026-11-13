@@ -1,5 +1,6 @@
 // SKAI-1898: the pure parts of the dev load runner — target safety, journeys, statistics, the abort rule and the
 // report. Kept free of I/O so they are unit-tested (tests/load/load-core.test.ts).
+import { ROLE_JOURNEYS } from "./role-journeys";
 
 /** Hosts a load run may target. Production is never on this list and there is no flag that adds it. */
 const ALLOWED_HOSTS = [/^dev\.skooleeai\.com$/, /^localhost$/, /^127\.0\.0\.1$/, /^skoolee-ai-dev[a-z0-9-]*\.vercel\.app$/];
@@ -14,7 +15,7 @@ export function assertAllowedTarget(target: string): URL {
 }
 
 export const DEFAULT_MAX_VUS = 300;
-export const HARD_MAX_VUS = 2000;
+export const HARD_MAX_VUS = 5000;
 
 export function checkVirtualUsers(vus: number, allowHigh: boolean) {
   if (!Number.isInteger(vus) || vus < 1) throw new Error("--vus must be a positive whole number.");
@@ -22,15 +23,19 @@ export function checkVirtualUsers(vus: number, allowHigh: boolean) {
   if (vus > DEFAULT_MAX_VUS && !allowHigh) throw new Error(`--vus above ${DEFAULT_MAX_VUS} needs LOAD_ALLOW_HIGH=1.`);
 }
 
-/** Read-only requests a signed-in role's browser makes when its workspace opens. GET only, by construction. */
+/**
+ * One page view for a role, as its browser makes it: the home page first, then the dashboard's GET requests together.
+ * Recorded per role in role-journeys.ts. GET only, by construction.
+ */
+export function pageViewFor(role: string, today: string): { home: string; apis: string[] } {
+  const journey = ROLE_JOURNEYS[role] ?? ROLE_JOURNEYS.teacher;
+  return { home: journey.home, apis: journey.apis.map((p) => p.replaceAll("{date}", today)) };
+}
+
+/** Back-compatible flat list: the home page followed by its APIs. */
 export function journeyFor(role: string, today: string): string[] {
-  const shell = ["/dashboard", "/api/auth/session", "/api/notifications?limit=30", "/api/chat/unread", "/api/academic-cycle", "/api/navigation/access", "/api/profile"];
-  const extras: Record<string, string[]> = {
-    teacher: ["/api/timetable/teacher", `/api/teacher-attendance?userId=self&date=${today}`, "/api/school-ai/paper-slots/mine", "/api/chat/conversations?filter=all"],
-    guardian: ["/api/chat/conversations?filter=all"],
-    student: ["/api/chat/conversations?filter=all"],
-  };
-  return [...shell, ...(extras[role] ?? [])];
+  const view = pageViewFor(role, today);
+  return [view.home, ...view.apis];
 }
 
 /** Endpoint label without ids or dates, so samples group per route. */

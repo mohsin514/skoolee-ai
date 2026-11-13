@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { familyRespond, loadApplication, publicForm, saveApplication, startApplication, submitFamilyApplication } from "@/lib/admissions/service";
+import { familyBookSlot, familyRespond, loadApplication, publicForm, saveApplication, startApplication, submitFamilyApplication } from "@/lib/admissions/service";
 import { ApiError, errorResponse } from "@/lib/api/scope";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -10,6 +10,7 @@ import { rateLimit } from "@/lib/rate-limit";
 // GET  ?reference=<APP-…>  + X-Resume-Key    → the family's own application
 // POST {action: start, form, answers}        → { reference, resumeKey }
 // POST {action: save|submit|accept|decline, reference, answers?, consent?} + X-Resume-Key
+// POST {action: book-slot, reference, assessmentId} + X-Resume-Key  → SKAI-1263 the family picks an offered time
 
 async function limit(request: NextRequest, bucket: string, max: number) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
       case "save": await limit(request, "write", 60); return Response.json({ success: true, data: await saveApplication(reference, key, body) });
       case "submit": await limit(request, "write", 60); return Response.json({ success: true, data: await submitFamilyApplication(reference, key, body) });
       case "accept": case "decline": await limit(request, "write", 60); return Response.json({ success: true, data: await familyRespond(reference, key, body.action === "accept", body.agreeTerms) });
+      case "book-slot": await limit(request, "write", 60); return Response.json({ success: true, data: await familyBookSlot(reference, key, body.assessmentId) });
       default: throw new ApiError("Unknown action", 400);
     }
   } catch (error) {

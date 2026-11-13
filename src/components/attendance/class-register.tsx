@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { AlertTriangle, CalendarX2, ClipboardCheck, GitCompareArrows, MessageSquareText, Users } from "lucide-react";
+import { copyPreviousIntoDrafts, hasMarks, previousDates } from "@/lib/attendance/copy-previous";
 import { DeskPill, DeskSection, deskRow, type DeskTone } from "@/components/ui/desk";
 
 // SKO-405: the class register. Unmarked is shown as its own state and nothing is assumed from it;
@@ -69,6 +70,26 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
   const locked = submitted && data?.canCorrect === false;
   const setDraft = (id: string, patch: Partial<Draft>) => setDrafts(current => ({ ...current, [id]: { ...current[id], ...patch } }));
   const fillPresent = () => setDrafts(current => Object.fromEntries(Object.entries(current).map(([id, d]) => [id, d.status ? d : { ...d, status: "PRESENT" }])));
+  // SKAI-228: copy the last earlier register that has marks into this draft. Only unmarked pupils are filled and
+  // nothing is saved; the teacher checks the marks and saves through the normal review and conflict checks.
+  const [copying, setCopying] = useState(false);
+  const copyPrevious = async () => {
+    if (!data) return;
+    setCopying(true);
+    try {
+      for (const day of previousDates(data.date)) {
+        const response = await fetch(`/api/attendance/register?${new URLSearchParams({ classId: data.class.id, date: day })}`, { cache: "no-store" });
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok || !json.success) throw new Error("load");
+        if (!hasMarks(json.data.entries as Entry[])) continue;
+        const out = copyPreviousIntoDrafts(drafts, json.data.entries as Entry[]);
+        setDrafts(out.drafts);
+        toast.success(ui("Copied {0} marks from {1}. Check them, then save.", [String(out.copied), formatDate(day)]));
+        return;
+      }
+      toast.error(ui("No earlier register with marks in the last week."));
+    } catch { toast.error(ui("The previous register could not be loaded. Nothing has changed.")); } finally { setCopying(false); }
+  };
   const missingTime = changed.find(entry => { const d = drafts[entry.studentId]; return d.status === "LATE" && !d.arrivalTime || d.status === "PARTIAL" && !d.arrivalTime && !d.departureTime; });
 
   const save = async (options: { submit: boolean; reason?: string; reviewed?: Set<string> }) => {
@@ -118,6 +139,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
           page's scroll area (above the mobile navigation) instead of sitting below the last pupil. */}
       <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap items-center justify-end gap-2 rounded-b-[inherit] border-t border-border-subtle bg-card/95 px-5 py-3 backdrop-blur" data-register-actions>
         {missingTime ? <p className="me-auto text-xs font-semibold text-status-error-text" role="alert">{ui("Add the time for {0}.", [missingTime.name])}</p> : null}
+        {!submitted && counts.UNMARKED ? <Button variant="outline" disabled={copying} onClick={() => void copyPrevious()} data-copy-previous>{ui("Copy previous register")}</Button> : null}
         {!submitted && counts.UNMARKED ? <Button variant="secondary" onClick={fillPresent} data-fill-present>{ui("Mark unmarked present")}</Button> : null}
         {!submitted ? <Button variant="outline" disabled={!changed.length || saving || Boolean(missingTime)} onClick={() => void save({ submit: false })} data-save-register>{ui("Save")}</Button> : null}
         {locked ? <p className="me-auto text-xs font-semibold text-ink-muted" data-register-locked>{ui("Only a school leader can correct a submitted register.")}</p> : null}

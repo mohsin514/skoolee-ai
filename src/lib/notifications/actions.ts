@@ -5,6 +5,9 @@ import { moduleFlags } from "@/lib/permissions";
 import { accessibleConversationIds, requireMembership } from "@/lib/chat/membership";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { notificationHref, type NotificationLinkContext } from "@/lib/notifications/links";
+import { createTtlMemo } from "@/lib/cache/ttl-memo";
+
+const settleThrottle = createTtlMemo({ ttlMs: 30_000 });
 
 // SKO-416: notifications point at a source record. Reading one is attention only; an ACTION is resolved
 // when its source changes (a leave request is decided or cancelled), never by reading or "mark all read".
@@ -261,10 +264,12 @@ export async function settleTaxSignoffs(user: AuthUser, db: TxClient = prisma): 
 }
 
 export async function inboxCounts(user: AuthUser) {
-  await Promise.all([
+  // Scale: the catch-up settles (2–6 queries for authorities) run at most once per user per 30 s per instance; the
+  // badges they correct follow within that window.
+  await settleThrottle.get(user.userId, () => Promise.all([
     settleCampusVacancies(user).catch((error) => console.error("[notifications] vacancy settle failed:", error)),
     settleTaxSignoffs(user).catch((error) => console.error("[notifications] tax sign-off settle failed:", error)),
-  ]);
+  ]));
   // Scale: the four inbox badges in one pass over the user's rows instead of four count queries on every shell
   // load. Scoped to the caller's school exactly as the tenant guard scopes the Prisma counts it replaces.
   const [row] = await prisma.$queryRaw<{ unread: bigint; mentionsUnread: bigint; openActions: bigint; overdueActions: bigint }[]>`

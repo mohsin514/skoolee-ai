@@ -10,7 +10,7 @@ import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { intakeSeats, type IntakeSeats } from "@/lib/admissions/intake-seats";
 import { resolveSourceActions } from "@/lib/notifications/actions";
 import { deliverNotification } from "@/lib/notifications/in-app";
-import { ASSESSMENT_ACTIONS, actOnAssessment, assignWaitlistRank, moveOnWaitlist, offerDeadline, offerLapsed } from "./assessments";
+import { ASSESSMENT_ACTIONS, actOnAssessment, bookOfferedSlot, assignWaitlistRank, moveOnWaitlist, offerDeadline, offerLapsed } from "./assessments";
 import { acceptTerms, parseOfferTerms } from "./offer-terms";
 import { answerProblems, definitionProblems, foldName, identityKeysFor, identityValues, keepVisible, priorityScore, rankByPriority, visibleDocuments, type Answers, type FormDefinition } from "./form-rules";
 
@@ -132,11 +132,13 @@ async function familyApplication(reference: string, resumeKey: string, db: TxCli
 
 async function familyView(application: AdmissionApplication & { formVersion: { definition: Prisma.JsonValue; version: number } }) {
   const definition = asDefinition(application.formVersion.definition);
-  const [documents, events, school, campus] = await Promise.all([
+  const [documents, events, school, campus, bookings] = await Promise.all([
     prisma.admissionDocument.findMany({ where: { applicationId: application.id }, select: { id: true, key: true, fileName: true, sizeBytes: true, uploadedAt: true }, orderBy: { uploadedAt: "asc" } }),
     prisma.admissionApplicationEvent.findMany({ where: { applicationId: application.id, familyMessage: { not: null } }, select: { familyMessage: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
     prisma.school.findUnique({ where: { id: application.schoolId }, select: { name: true } }),
     prisma.campus.findUnique({ where: { id: application.campusId }, select: { name: true } }),
+    // SKAI-1263: the times offered to choose from and what is booked; never the interviewer, score or notes.
+    prisma.admissionAssessment.findMany({ where: { applicationId: application.id, schoolId: application.schoolId, status: { in: ["OFFERED", "SCHEDULED"] }, scheduledAt: { gt: new Date() } }, select: { id: true, kind: true, status: true, scheduledAt: true, durationMin: true, location: true }, orderBy: { scheduledAt: "asc" } }),
   ]);
   const answers = application.answers as Answers;
   const uploaded = [...new Set(documents.map(document => document.key))];
@@ -146,6 +148,7 @@ async function familyView(application: AdmissionApplication & { formVersion: { d
     schoolName: school?.name ?? "", campusName: campus?.name ?? "", formVersion: application.formVersion.version, version: application.version, definition, answers,
     documents, missing, messages: events.map(event => ({ message: event.familyMessage, at: event.createdAt })), submittedAt: application.submittedAt,
     offerExpiresAt: application.status === "OFFERED" ? application.offerExpiresAt : null,
+    slotOffers: bookings.filter(row => row.status === "OFFERED"), bookings: bookings.filter(row => row.status === "SCHEDULED"),
     // SKAI-1258: the terms and deposit of the offer, shown while it is open and after it is accepted.
     ...(["OFFERED", "ACCEPTED", "ENROLLED"].includes(application.status) ? { offerTerms: application.offerTerms, depositAmount: application.depositAmount, depositCurrency: application.depositCurrency, termsAcceptedAt: application.termsAcceptedAt } : {}),
   };
@@ -257,6 +260,21 @@ export function familyRespond(reference: string, resumeKey: string, accept: bool
       const agreement = accept ? acceptTerms(current, agreeTerms) : { termsAcceptedAt: null, termsHash: null };
       await tx.admissionApplicationEvent.create({ data: { schoolId: current.schoolId, applicationId: current.id, kind: accept ? "ACCEPTED" : "STAGE", fromStatus: "OFFERED", toStatus: status, actorId: "FAMILY", detail: { by: "family", ...(agreement.termsHash ? { termsHash: agreement.termsHash, termsAcceptedAt: agreement.termsAcceptedAt?.toISOString() } : {}), ...(accept && current.depositAmount ? { depositOwed: current.depositAmount, depositCurrency: current.depositCurrency } : {}) } } });
       return tx.admissionApplication.update({ where: { id: current.id }, data: { status, ...agreement, version: { increment: 1 } }, include: { formVersion: true } });
+    });
+    return familyView(application);
+  });
+}
+
+/** SKAI-1263: a family picks one of the assessment or interview times the school offered. */
+export function familyBookSlot(reference: string, resumeKey: string, assessmentId: unknown) {
+  return runUnscoped("family books an offered assessment time on its own application", async () => {
+    const found = await familyApplication(reference, resumeKey);
+    const application = await prisma.$transaction(async tx => {
+      const [locked] = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM admission_applications WHERE id = ${found.id} FOR UPDATE`;
+      const current = locked ? await tx.admissionApplication.findUniqueOrThrow({ where: { id: found.id }, include: { formVersion: true } }) : null;
+      if (!current) throw new ApiError("Application not found", 404);
+      await bookOfferedSlot(tx as TxClient, current, assessmentId);
+      return tx.admissionApplication.update({ where: { id: current.id }, data: { version: { increment: 1 } }, include: { formVersion: true } });
     });
     return familyView(application);
   });
