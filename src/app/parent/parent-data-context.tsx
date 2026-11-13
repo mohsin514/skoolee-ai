@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { readSelectedChild, storeSelectedChild } from "./selected-child-storage";
+import { readSelectedChild, shouldFallBackToDefaultChild, storeSelectedChild } from "./selected-child-storage";
 
 interface ReportCard {
   id: string;
@@ -213,8 +213,11 @@ export function ParentDataProvider({ children, identity = null }: {
   const seed = lastPayload && lastPayload.identity === identity && lastPayload.requested === requestedChild ? lastPayload : null;
   const seedAccess = lastAccess && lastAccess.identity === identity ? lastAccess.access : null;
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(requestedChild);
+  /** The `?student=` id, read by a refused load (SKAI-1933) without making every URL change reload the family. */
+  const requestedRef = useRef(requestedChild);
   // Shared layouts persist across client navigation and payment-return query changes.
   useEffect(() => {
+    requestedRef.current = requestedChild;
     if (requestedChild !== null) setSelectedStudentId(requestedChild);
   }, [requestedChild]);
   // SKAI-1932: a reload, a new tab or a typed URL reopens the child chosen last for this same identity. Read after
@@ -274,10 +277,14 @@ export function ParentDataProvider({ children, identity = null }: {
         setChildList(list);
         lastPayload = { identity, requested: selectedStudentId, data: payload, children: list };
         if (selectedStudentId) storeSelectedChild(identity, selectedStudentId);
-      } else if (selectedStudentId && selectedStudentId === restoredChild.current && [401, 403, 404].includes(res.status)) {
-        // A remembered child this guardian can no longer open: forget it and load the default child instead.
-        restoredChild.current = null;
-        storeSelectedChild(identity, null);
+      } else if (shouldFallBackToDefaultChild({ selected: selectedStudentId, restored: restoredChild.current, requested: requestedRef.current, status: res.status })) {
+        // A remembered child, or a stale or foreign ?student= link, this guardian can't open: load the default child
+        // instead of a dead end whose only "Try again" repeats the refused id (SKAI-1933). A refused remembered
+        // choice is also forgotten; a refused link leaves the stored choice alone.
+        if (selectedStudentId === restoredChild.current) {
+          restoredChild.current = null;
+          storeSelectedChild(identity, null);
+        }
         setSelectedStudentId(null);
         requestVersion.current += 1; // stay in loading until the default child's load settles
       } else {

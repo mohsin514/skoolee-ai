@@ -40,3 +40,19 @@ export function storeSelectedChild(identity: string | null, studentId: string | 
     else store.removeItem(SELECTED_CHILD_STORAGE_KEY);
   } catch { /* blocked storage: the choice still holds for this page's client navigations */ }
 }
+
+/**
+ * SKAI-1933: whether a refused child load should fall back to the guardian's default child instead of ending at an
+ * error with only "Try again" (which would repeat the same refused id). It applies to a child this page asked for on
+ * its own — one restored from storage, or one named in a stale or foreign `?student=` link — never to a child the
+ * guardian just picked. The fallback load sends no student id, so the server still chooses and authorizes the child.
+ */
+export function shouldFallBackToDefaultChild({ selected, restored, requested, status }: {
+  selected: string | null;
+  restored: string | null;
+  requested: string | null;
+  status: number;
+}): boolean {
+  if (!selected || ![401, 403, 404].includes(status)) return false;
+  return selected === restored || selected === requested;
+}
