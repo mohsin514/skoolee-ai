@@ -5,6 +5,7 @@ import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageAcademics, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { applyInstitutionPreset } from "@/lib/staff/hierarchy";
 import { INSTITUTION_PRESETS, isInstitutionType } from "@/lib/staff/hierarchy-presets";
+import { wouldCreatePromotionCycle } from "@/lib/staff/designation-promotion";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -131,6 +132,13 @@ export async function PATCH(req: NextRequest) {
 
     const input = DesignationInput.partial().parse(body);
     if (input.promotesToId === id) throw new ApiError("A rank cannot promote into itself", 400);
+    if (input.promotesToId) {
+      const ladder = await prisma.staffDesignation.findMany({ select: { id: true, promotesToId: true } });
+      const promotesToById = new Map(ladder.map((row) => [row.id, row.promotesToId] as const));
+      if (wouldCreatePromotionCycle(id, input.promotesToId, promotesToById)) {
+        throw new ApiError("That promotion path would loop back to this rank. Pick a rank further up the ladder.", 400);
+      }
+    }
     if (input.isInstitutionHead) await assertHeadIsUnique(user.schoolId, true, id);
 
     const updated = await prisma.$transaction(async (tx) => {
