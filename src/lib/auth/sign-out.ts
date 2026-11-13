@@ -13,6 +13,10 @@
 //  3. a full-document `replace` to /login, so the JS heap and the App Router
 //     cache are discarded and Back cannot repaint the console.
 //
+// Each attempt in step 2 is bounded: a sign-out request that never answers used
+// to leave the person staring at the console with the button spinning, never
+// reaching /login. /login is public, so leaving is always safe.
+//
 // The login route additionally revokes any session cookie the browser still
 // presents when it issues a new one, so even a failed step 2 cannot be resumed.
 // ─────────────────────────────────────────────────────────────────
@@ -28,14 +32,21 @@ export function clearClientIdentity(): void {
   clearWorkspacePrefs(); // SKAI-1780
 }
 
+/** How long one sign-out attempt may take before it is abandoned. */
+export const SIGN_OUT_ATTEMPT_MS = 4000;
+
 /** POSTs the sign-out, retrying once. Resolves true when the server confirmed it. */
-export async function endServerSession(fetcher: typeof fetch = fetch): Promise<boolean> {
+export async function endServerSession(fetcher: typeof fetch = fetch, attemptMs = SIGN_OUT_ATTEMPT_MS): Promise<boolean> {
   for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), attemptMs);
     try {
-      const response = await fetcher("/api/auth/logout", { method: "POST", cache: "no-store", credentials: "same-origin" });
+      const response = await fetcher("/api/auth/logout", { method: "POST", cache: "no-store", credentials: "same-origin", signal: controller.signal });
       if (response.ok) return true;
     } catch {
-      /* retry once, then fall through */
+      /* timed out or failed: retry once, then fall through */
+    } finally {
+      clearTimeout(timer);
     }
   }
   return false;

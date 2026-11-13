@@ -43,7 +43,7 @@ export async function signOutInvalidSession(): Promise<void> {
   try {
     clearDeviceDrafts();
     clearWorkspacePrefs(); // SKAI-1780
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch("/api/auth/logout", { method: "POST", signal: AbortSignal.timeout(4000) });
   } catch {
     /* ignore — the redirect below is what actually matters */
   }
