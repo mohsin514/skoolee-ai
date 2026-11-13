@@ -1,3 +1,5 @@
+import { readApiError } from "@/lib/api/envelope-client";
+
 export class MfaRequestError extends Error {
   constructor(readonly status: number, readonly reason?: string, message?: string) { super(message ?? ""); }
 }
@@ -19,7 +21,7 @@ export async function callMfaApi<T = Record<string, unknown>>(url: string, init?
   if (!response.ok) {
     const reason = typeof data.reason === "string" ? data.reason : undefined;
     if (response.status === 403 && !reason && typeof data.error === "string") window.location.assign("/first-login");
-    throw new MfaRequestError(response.status, reason, typeof data.error === "string" ? data.error : undefined);
+    throw new MfaRequestError(response.status, reason, readApiError(data, "") || undefined);
   }
   return data as T;
 }

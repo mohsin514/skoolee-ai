@@ -16,6 +16,7 @@ import { DisableTwoFactorDialog } from "./DisableTwoFactorDialog";
 import { MFA_MANAGE_URL } from "./dialog-parts";
 import { securityUiCopy } from "@/lib/auth/security-ui-copy";
 import { cn } from "@/lib/utils";
+import { readApiData } from "@/lib/api/envelope-client";
 
 type Dialog = "password" | "change" | "enable" | "regenerate" | "disable" | null;
 type Outcome = "changed" | "enabled" | "regenerated" | "disabled";
@@ -45,10 +46,12 @@ export function SecuritySettingsPanel() {
   const load = useCallback(async () => {
     const [nextStatus, nextSessions] = await Promise.all([
       callMfaApi<TwoFactorStatus>(MFA_MANAGE_URL, { cache: "no-store" }),
-      callMfaApi<{ sessions: SecuritySession[] }>("/api/auth/sessions", { cache: "no-store" }),
+      callMfaApi<unknown>("/api/auth/sessions", { cache: "no-store" }),
     ]);
     setStatus(nextStatus);
-    setSessions(nextSessions.sessions ?? []);
+    // SKAI-1209: the route answers `{ data: { sessions } }`; a legacy `{ sessions }` body still reads.
+    const sessionBody = nextSessions as { sessions?: SecuritySession[] };
+    setSessions(readApiData(nextSessions, sessionBody).sessions ?? []);
   }, []);
 
   useEffect(() => {
