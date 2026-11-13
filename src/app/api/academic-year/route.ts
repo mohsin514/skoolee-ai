@@ -14,6 +14,7 @@ import {
 } from "@/lib/api/scope";
 import { getYearClosureReport } from "@/lib/academic/year-closure";
 import { admissionNumberAllocator } from "@/lib/students/admission-number";
+import { rosterStatusWhere } from "@/lib/students/roster-status";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
@@ -37,7 +38,8 @@ export async function GET(req: NextRequest) {
         status: true,
         classTeacherId: true,
         classTeacher: { select: { fullName: true } },
-        _count: { select: { students: true, subjects: true, exams: true } },
+        // SKAI-1926: on-roll pupils only, like the roster and the year-end eligibility count.
+        _count: { select: { students: { where: rosterStatusWhere(false) }, subjects: true, exams: true } },
       },
       orderBy: [{ academicYear: "desc" }, { name: "asc" }, { section: "asc" }],
     });

@@ -4,6 +4,7 @@ import { bindProvisionHandoff, completeProvisionHandoff } from "@/lib/owner/work
 import { ownerPagination } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { rosterStatusWhere } from "@/lib/students/roster-status";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import bcrypt from "bcryptjs";
 import { PLANS } from "@/config/plans";
@@ -81,7 +82,7 @@ export async function GET(req: NextRequest) {
               website: true,
               principalName: true,
               board: true,
-              _count: { select: { students: true, users: { where: { role: { notIn: ["PARENT", "STUDENT", "APP_OWNER"] } } }, classes: true } },
+              _count: { select: { students: { where: rosterStatusWhere(false) }, users: { where: { role: { notIn: ["PARENT", "STUDENT", "APP_OWNER"] } } }, classes: true } },
             },
           },
           _count: { select: { users: { where: { role: { notIn: ["PARENT", "STUDENT", "APP_OWNER"] } } } } },

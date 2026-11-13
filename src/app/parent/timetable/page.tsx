@@ -11,6 +11,7 @@ import { MyNextPaper } from "@/components/exams/my-next-paper";
 import { FamilyExamBrief } from "@/components/exams/family-exam-brief";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { useParentData } from "../parent-data-context";
+import { settledChildScope } from "../selected-child-storage";
 import { useUiText } from "@/components/locale/LocaleProvider";
 
 import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
@@ -35,7 +36,11 @@ const COLORS = [
 
 export default function ParentTimetablePage() {
   const tr = useUiText();
-  const { selectedStudentId, data } = useParentData();
+  const { selectedStudentId: activeId, data, loading: familyLoading } = useParentData();
+  // SKAI-1934: wait for the provider to settle on a child, or every panel loads once unscoped and again scoped.
+  const childScope = settledChildScope(activeId, familyLoading);
+  const scopeSettled = childScope !== undefined;
+  const selectedStudentId = childScope ?? null;
   const [timetableData, setTimetableData] = useState<any>(null);
   const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +51,7 @@ export default function ParentTimetablePage() {
   const sequence = useRef(0);
 
   const loadTimetable = useCallback(async () => {
+    if (!scopeSettled) return;
     const version = ++sequence.current;
     setLoading(true);
     setLoadError(null);
@@ -62,7 +68,7 @@ export default function ParentTimetablePage() {
     } catch (error) {
       if (version === sequence.current) { setTimetableData(null); setWeekendDays([]); setLoadError(requestFailure(error)); }
     } finally { if (version === sequence.current) setLoading(false); }
-  }, [selectedStudentId]);
+  }, [scopeSettled, selectedStudentId]);
 
   // Only render the campus's working days so a 5-day calendar hides Saturday.
   const visibleDays = DAYS.filter((d) => !weekendDays.includes(d.num));
@@ -182,8 +188,12 @@ export default function ParentTimetablePage() {
           <EmptyState size="sm" icon={Clock} title={tr("No timetable published")} description={tr("The class timetable will appear here once published by the school.")} />
         )}
         {/* SKO-505: what changed on the date sheet for this child, then their papers and online sittings in one list. */}
-        <FamilyExamBrief studentId={selectedStudentId} />
-        <MyNextPaper source={`/api/parent/exam-timeline${selectedStudentId ? `?studentId=${encodeURIComponent(selectedStudentId)}` : ""}`} />
+        {scopeSettled ? (
+          <>
+            <FamilyExamBrief studentId={selectedStudentId} />
+            <MyNextPaper source={`/api/parent/exam-timeline${selectedStudentId ? `?studentId=${encodeURIComponent(selectedStudentId)}` : ""}`} />
+          </>
+        ) : null}
         <ExamDateSheet />
         {/* M96: the school calendar moved here from Home. Meetings moved to Meet a teacher (M92). */}
         <AcademicCalendar readOnly role="PARENT" />
