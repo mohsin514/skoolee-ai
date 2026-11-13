@@ -3,7 +3,10 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { defaultLocale, resolvePackage, type LocalePackage } from "./package";
-import { getLocalePackage } from "./store";
+import { loadLocaleTimeline } from "./store";
+import { createTtlMemo } from "@/lib/cache/ttl-memo";
+
+const localeTimelines = createTtlMemo({ ttlMs: 60_000 });
 import { LANGUAGE_COOKIE, parseLanguage } from "./language-cookie";
 
 export type DisplayPrincipal = { userId: string; schoolId: string; campusId: string | null; role: string };
@@ -24,7 +27,11 @@ export async function getDisplayLocale(principal: DisplayPrincipal): Promise<Loc
       const user = await prisma.user.findFirst({ where: { id: userId, schoolId, isActive: true }, select: { preferredLanguage: true } });
       const personal = parseLanguage(user?.preferredLanguage);
       if (role === "APP_OWNER") return resolvePackage(defaultLocale, {}, personal);
-      return getLocalePackage(schoolId, campusId, new Date(), personal);
+      // Scale: the school/campus timeline (weekends, locale policy, timezone: 3 queries) is configuration, shared
+      // by every request in the school, so it is memoised per instance for 60 s. The personal language above is
+      // still read live, so a user's own language change applies on the next request.
+      const timeline = await localeTimelines.get(JSON.stringify([schoolId, campusId ?? null]), () => loadLocaleTimeline(schoolId, campusId ?? null));
+      return timeline(new Date(), personal);
     });
   } catch {
     console.warn("[locale] display locale unavailable", { userId });
