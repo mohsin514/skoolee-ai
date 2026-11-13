@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { Download, Plus, Trash2 } from "lucide-react";
+import { BookOpen, Download, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
@@ -13,12 +13,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ErrorState } from "@/components/ui/error-state";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 
 // SKO-409 teacher workspace: queue by status, draft editor, release review, marking and return.
 type Status = "DRAFT" | "RELEASED" | "CLOSED";
 type Summary = { id: string; title: string; status: Status; currentVersion: number | null; dueLocal: string | null; dueAt: string | null; timezone: string | null; rubricVersion: number | null; recipients: number; counts: { submitted: number; needsFeedback: number; late: number; returned: number } };
-type ListView = { classId: string; classes: { id: string; name: string; section: string | null }[]; subjects: { id: string; name: string }[]; assignments: Summary[]; nextCursor?: string | null };
+type ListView = { classId: string | null; classes: { id: string; name: string; section: string | null }[]; subjects: { id: string; name: string }[]; assignments: Summary[]; nextCursor?: string | null };
 type StaffFeedback = (NonNullable<Feedback> & { status: "DRAFT" | "RETURNED"; gradebookTransfer: string; updatedAt?: string }) | null;
 type QueueRow = { studentId: string; name: string; rollNo: string; enrolled: boolean; inAudience: boolean; status: string; effectiveDueAt: string | null; extension: { dueLocal: string; reason: string } | null; versions: (Receipt & { feedback: StaffFeedback })[] };
 type Draft = { id: string; classId?: string; title: string; subjectId: string | null; instructions: string; status: Status; submissionMode: "ONLINE" | "PAPER" | "BOTH"; allowedTypes: string[]; opensLocal: string | null; dueLocal: string | null; latePolicy: "ACCEPT_FLAGGED" | "REFUSE"; resubmission: "NEVER" | "AFTER_RETURN"; rubric: Criterion[]; resourceIds: string[]; currentVersion: number | null; updatedAt: string };
@@ -53,7 +54,7 @@ export function AssignmentWorkspace({ createRequest, hideCreateButton = false }:
   const loadList = useCallback(async () => {
     const data = await call(`/api/assignments${classId ? `?classId=${encodeURIComponent(classId)}` : ""}`);
     setView(data);
-    if (!classId) setClassId(data.classId);
+    if (!classId && data.classId) setClassId(data.classId);
   }, [classId]);
   const loadOlder = useCallback(async (from: string) => {
     const data = await call(`/api/assignments?classId=${encodeURIComponent(classId)}&cursor=${encodeURIComponent(from)}`);
@@ -73,6 +74,11 @@ export function AssignmentWorkspace({ createRequest, hideCreateButton = false }:
 
   if (!view && loadFailed) return <div dir={rtl ? "rtl" : "ltr"} className="sk-panel"><ErrorState title={t.errorTitle} description={t.failed} retryLabel={t.retry} onRetry={() => { setLoadFailed(false); loadList().catch(() => setLoadFailed(true)); }} /></div>;
   if (!view) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3"><Banner status={status} />{!status && <SkeletonList rows={3} label={t.loading} />}</div>;
+  // SKAI-1909: a teacher with no class yet gets a clear state; "Create homework" says why it cannot open the editor.
+  if (!view.classes.length || !view.classId) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">
+    {editing === "new" ? <Alert tone="info">{t.noClassesHint}</Alert> : null}
+    <div className="sk-panel"><EmptyState icon={BookOpen} title={t.noClassesTitle} description={t.noClassesHint} /></div>
+  </div>;
   const totals = { DRAFT: view.assignments.filter(a => a.status === "DRAFT").length, RELEASED: view.assignments.filter(a => a.status === "RELEASED").length, NEEDS_FEEDBACK: view.assignments.reduce((n, a) => n + a.counts.needsFeedback, 0), RETURNED: view.assignments.reduce((n, a) => n + a.counts.returned, 0) };
   const shown = view.assignments.filter(a => matches(filter, a));
 
