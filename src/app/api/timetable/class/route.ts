@@ -23,6 +23,11 @@ export async function GET(req: NextRequest) {
         select: { classId: true },
       });
       resolvedClassId = student?.classId || null;
+      // SKAI-1936: an unlinked learner or a learner without a class has nothing published yet. That is
+      // an empty timetable, not a bad request, so the page shows its empty state instead of an error.
+      if (!resolvedClassId) {
+        return Response.json({ success: true, data: null, upcoming: null, linked: Boolean(student) });
+      }
     }
 
     if (!resolvedClassId) {
