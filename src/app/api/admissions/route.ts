@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { actOnApplication, applicationDetail, convertApplication, documentFile, listApplications, listForms, publishForm, saveForm, setFormOpen, staffSaveAnswers, staffStart } from "@/lib/admissions/service";
 import { ApiError, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { sendFamilyMessages } from "@/lib/admissions/family-messages";
 import { parseBody } from "@/lib/api/validate";
 import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -11,7 +12,7 @@ import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 // GET   ?document=<documentId>           → one attached file
 // GET   ?owners=1 | ?classes=1           → choices for owner and intake class
 // GET   ?view=active|mine|unassigned|overdue|all&status=&q=   → pipeline with counts
-// POST  {action: save-form|publish-form|open-form|start|save-answers|convert, ...}
+// POST  {action: save-form|publish-form|open-form|start|save-answers|convert|message-families, ...}
 // PATCH {id, version, action: assign|note|review|request-info|offer|waitlist|reject|record-acceptance|record-decline|withdraw|staff-submit, ...}
 
 const STATUSES = ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "OFFERED", "WAITLISTED", "ACCEPTED", "DECLINED", "REJECTED", "WITHDRAWN", "ENROLLED"];
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
       case "open-form": return Response.json({ success: true, data: await setFormOpen(user, campusId, String(body.id ?? ""), body.isOpen === true) });
       case "start": return Response.json({ success: true, data: await staffStart(user, campusId, body) }, { status: 201 });
       case "save-answers": return Response.json({ success: true, data: await staffSaveAnswers(user, campusId, body) });
+      case "message-families": return Response.json({ success: true, data: await sendFamilyMessages(user, campusId, body) });
       case "convert": return Response.json({ success: true, data: await convertApplication(user, campusId, body) });
       default: throw new ApiError("Unknown action", 400);
     }
