@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { requireAuthUser, errorResponse, canLeadAcademics, canManageOperations } from "@/lib/api/scope";
+import { requireAuthUser, errorResponse, canLeadAcademics, canManageOperations, isFamilyRole, assertSharedModuleRead } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
 import { saveManualTimetable, changeManualTimetableStatus, deleteManualTimetable, TimetableValidationError, resolveTimetableCampus, previewTimetablePublish, publishTimetableVersion } from "@/lib/timetable/manual";
 import { notifyTimetableVersion } from "@/lib/timetable/notify";
@@ -12,6 +12,10 @@ export const runtime = "nodejs";
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAuthUser();
+    // SKAI-430 (PM-13.05): the by-id read had no role check, so a guardian could read a draft. Families never read
+    // timetables here (no staff consumer does); staff need the timetable view permission, as the list route does.
+    if (isFamilyRole(user)) return Response.json({ error: "Not found" }, { status: 404 });
+    await assertSharedModuleRead(user, "timetable");
     const { id } = await params;
     const campusId = await resolveTimetableCampus(user, id);
     // SKO-403: what publishing this draft would do (conflicts, changed lessons, who is told).
