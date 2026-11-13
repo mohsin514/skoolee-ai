@@ -22,7 +22,7 @@ const UNAVAILABLE_CODES = new Set([
   "P2024", // timed out fetching a connection from the pool
 ]);
 
-const UNAVAILABLE_MESSAGE = /EMAXCONN|max client connections|too many (clients|connections)|can't reach database server|connection pool|ECONNREFUSED|ECONNRESET|ETIMEDOUT/i;
+const UNAVAILABLE_MESSAGE = /EMAXCONN|max client connections|too many (clients|connections)|can't reach database server|connection pool|timeout exceeded when trying to connect|connection terminated|terminating connection|ECONNREFUSED|ECONNRESET|ETIMEDOUT/i;
 
 export function isDatabaseUnavailable(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;

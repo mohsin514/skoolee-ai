@@ -2,6 +2,7 @@ import { errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { loadPermissionMap } from "@/lib/permissions";
 import { capabilitiesFor } from "@/lib/navigation/capabilities";
 import { schoolPlanFeatures } from "@/lib/billing/entitlements";
+import { cachedAccess } from "@/lib/navigation/access-cache";
 
 /**
  * Read only the current caller's effective module visibility and capability keys (§1.4, G4). Every value is a
@@ -11,11 +12,17 @@ import { schoolPlanFeatures } from "@/lib/billing/entitlements";
 export async function GET() {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    const permissionsPromise = loadPermissionMap(user.schoolId, user.role);
-    // Menus follow the school's plan; the platform operator has none.
-    const plan = user.role === "APP_OWNER" ? null : await schoolPlanFeatures(user.schoolId).catch(() => null);
-    const capabilitiesPromise = capabilitiesFor(user, permissionsPromise, plan);
-    const [permissions, capabilities] = await Promise.all([permissionsPromise, capabilitiesPromise]);
+    const { permissions, capabilities } = await cachedAccess(
+      JSON.stringify([user.userId, user.schoolId, user.campusId ?? null, user.activeCampusId ?? null, user.role, user.accessVersion ?? 0, user.schoolStatus ?? null]),
+      async () => {
+        const permissionsPromise = loadPermissionMap(user.schoolId, user.role);
+        // Menus follow the school's plan; the platform operator has none.
+        const plan = user.role === "APP_OWNER" ? null : await schoolPlanFeatures(user.schoolId).catch(() => null);
+        const capabilitiesPromise = capabilitiesFor(user, permissionsPromise, plan);
+        const [permissions, capabilities] = await Promise.all([permissionsPromise, capabilitiesPromise]);
+        return { permissions, capabilities };
+      },
+    );
     // `scope` names whose access this is (addendum 2026-10-22 §3): the shell keys its per-tab cache on userId + schoolId +
     // role + accessVersion and drops the cache when any of them changes. It drives presentation only — every API and
     // page still enforces its own gate on each request.
