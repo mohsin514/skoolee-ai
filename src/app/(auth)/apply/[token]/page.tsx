@@ -20,6 +20,7 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { answerProblems, label, visibleDocuments, visibleFields, type Answers, type FormDefinition, type Language, type Problem } from "@/lib/admissions/form-rules";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { kindLabel } from "@/components/admissions/assessments-panel";
 
 // SKO-398: a family's admission application. No account: the draft is found again with its reference and a
 // resume key, which lives in this browser and in the "continue later" link's #fragment (never sent as part of
@@ -27,10 +28,12 @@ import { cn } from "@/lib/utils";
 
 type PublicForm = { formName: string; schoolName: string; campusName: string; isOpen: boolean; version: number; definition: FormDefinition };
 type Document = { id: string; key: string; fileName: string; sizeBytes: number };
-type View = { reference: string; stage: string; editable: boolean; schoolName: string; campusName: string; formVersion: number; definition: FormDefinition; answers: Answers; documents: Document[]; missing: string[]; messages: { message: string; at: string }[]; submittedAt: string | null; offerExpiresAt?: string | null; offerTerms?: string | null; depositAmount?: number | null; depositCurrency?: string | null; termsAcceptedAt?: string | null };
+type View = { reference: string; stage: string; editable: boolean; schoolName: string; campusName: string; formVersion: number; definition: FormDefinition; answers: Answers; documents: Document[]; missing: string[]; messages: { message: string; at: string }[]; submittedAt: string | null; offerExpiresAt?: string | null; offerTerms?: string | null; depositAmount?: number | null; depositCurrency?: string | null; termsAcceptedAt?: string | null; slotOffers?: Slot[]; bookings?: Slot[] };
+/** SKAI-1263: a time the school offered (to pick) or booked. */
+type Slot = { id: string; kind: string; scheduledAt: string; durationMin: number; location: string | null };
 type Saved = { reference: string; resumeKey: string };
 const storageKey = (token: string) => `skoolee:application:${token}`;
-type PendingAction = "save" | "submit" | "accept" | "decline";
+type PendingAction = "save" | "submit" | "accept" | "decline" | `slot:${string}`;
 
 /** How each stage reads at a glance; the sentence beside it carries the meaning. */
 const STAGE_LOOK: Record<string, { icon: LucideIcon; tile: string }> = {
@@ -142,6 +145,14 @@ export default function ApplyPage() {
     catch (failure) { setError(ui(failure instanceof Error ? failure.message : "Sending failed.")); }
     finally { setBusy(false); }
   };
+  const bookSlot = async (assessmentId: string) => {
+    if (!saved) return;
+    setBusy(true); setError("");
+    try { setView(await call("POST", "/api/public/admissions", { action: "book-slot", reference: saved.reference, assessmentId }, saved.resumeKey)); }
+    catch (failure) { setError(ui(failure instanceof Error ? failure.message : "Sending failed.")); }
+    finally { setBusy(false); }
+  };
+  const when = (slot: Slot) => `${new Date(slot.scheduledAt).toLocaleString(language === "en" ? "en-GB" : language, { dateStyle: "full", timeStyle: "short" })} · ${ui("{0} min", [String(slot.durationMin)])}`;
   const continueLink = saved && typeof window !== "undefined" ? `${window.location.origin}/apply/${token}#ref=${saved.reference}&key=${saved.resumeKey}` : "";
 
   const stageText: Record<string, string> = { DRAFT: ui("Draft — not sent yet"), RECEIVED: ui("Received — the school is reviewing it"), INFO_REQUESTED: ui("The school needs more information"), OFFERED: ui("A place has been offered"), WAITLISTED: ui("On the waiting list"), ACCEPTED: ui("You accepted the offer — the school will confirm enrollment"), ENROLLED: ui("Enrolled"), CLOSED: ui("Closed") };
@@ -186,6 +197,17 @@ export default function ApplyPage() {
         </Alert>
       </section> : null}
       {!formVisible && error ? <Alert tone="danger" compact data-apply-error>{error}</Alert> : null}
+      {view?.bookings?.length || view?.slotOffers?.length ? <section className="sk-panel flex flex-col gap-3" aria-label={ui("Interviews and assessments")} data-apply-slots>
+        <p className="sk-eyebrow">{ui("Interviews and assessments")}</p>
+        {view.bookings?.map(slot => <p key={slot.id} className="text-sm text-ink" data-apply-booking><span className="font-semibold">{ui("Booked: {0}", [kindLabel(ui, slot.kind)])}</span> — <bdi>{when(slot)}</bdi>{slot.location ? <> · <bdi>{slot.location}</bdi></> : null}</p>)}
+        {view.slotOffers?.length ? <>
+          <p className="text-sm text-ink-muted">{ui("Choose one of the times the school offered. Times are confirmed first come, first served.")}</p>
+          <ul className="flex flex-col gap-2">{view.slotOffers.map(slot => <li key={slot.id} className="flex flex-col gap-2 rounded-2xl border border-border-subtle bg-surface-subtle p-3 sm:flex-row sm:items-center sm:justify-between" data-apply-slot-offer>
+            <span className="text-sm text-ink"><span className="font-semibold">{kindLabel(ui, slot.kind)}</span> — <bdi>{when(slot)}</bdi>{slot.location ? <> · <bdi>{slot.location}</bdi></> : null}</span>
+            <Button size="sm" onClick={() => void track(`slot:${slot.id}`, () => bookSlot(slot.id))} disabled={busy} loading={pendingAction === `slot:${slot.id}`}>{ui("Book this time")}</Button>
+          </li>)}</ul>
+        </> : null}
+      </section> : null}
       {view?.stage === "OFFERED" && view.offerExpiresAt ? <p className="text-sm font-semibold" data-apply-respond-by>{ui("Please respond by {0}.", [new Date(view.offerExpiresAt).toLocaleString(language === "en" ? "en-GB" : language)])}</p> : null}
       {view && ["OFFERED", "ACCEPTED"].includes(view.stage) && (view.offerTerms || view.depositAmount) ? <section className="sk-panel flex flex-col gap-2" aria-label={ui("Enrolment terms")} data-apply-offer-terms>
         {view.depositAmount ? <p className="text-sm font-semibold" data-apply-deposit>{ui("Acceptance deposit: {0}", [new Intl.NumberFormat(language === "en" ? "en-GB" : language, { style: "currency", currency: view.depositCurrency ?? "PKR", maximumFractionDigits: 0 }).format(view.depositAmount)])}</p> : null}

@@ -15,3 +15,12 @@ export function timetablePeriods(slots: Array<{ periodNumber: number; startTime:
   for (const period of definitions) if (!periods.has(period.periodNumber)) periods.set(period.periodNumber, { num: period.periodNumber, start: period.startTime, end: period.endTime, type: "CLASS" });
   return [...periods.values()].sort((a, b) => a.num - b.num);
 }
+
+/** Default to the current school year, not the furthest-future one: prefer years that hold timetables, then the latest year not after today. */
+export function defaultTimetableYear(years: number[], timetableYears: number[], now = new Date()) {
+  const withTimetables = years.filter(year => timetableYears.includes(year));
+  const candidates = withTimetables.length ? withTimetables : years;
+  if (!candidates.length) return now.getFullYear();
+  const current = now.getFullYear();
+  return candidates.filter(year => year <= current).sort((a, b) => b - a)[0] ?? Math.min(...candidates);
+}

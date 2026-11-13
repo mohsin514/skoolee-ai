@@ -1998,7 +1998,7 @@ model AdmissionAssessment {
   location       String?
   staffId        String?              @map("staff_id")
   staff          User?                @relation("AssessmentStaff", fields: [staffId], references: [id], onDelete: SetNull)
-  status         String               @default("SCHEDULED") // SCHEDULED | COMPLETED | NO_SHOW | CANCELLED
+  status         String               @default("SCHEDULED") // OFFERED (SKAI-1263, family to pick) | SCHEDULED | COMPLETED | NO_SHOW | CANCELLED
   recommendation String? // RECOMMEND | CONSIDER | NOT_RECOMMENDED, set when completed
   score          Int?
   outcomeNote    String?              @map("outcome_note") @db.Text
