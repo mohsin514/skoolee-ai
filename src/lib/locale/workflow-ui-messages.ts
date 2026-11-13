@@ -829,6 +829,10 @@ const entries: [string, string, string][] = [
   ["The charge could not be updated. Try again.", "تعذّر تحديث الرسوم. حاول مرة أخرى.", "چارج اپ ڈیٹ نہیں ہو سکا۔ دوبارہ کوشش کریں۔"],  // SKAI-1865: the reconciliation list previews unallocated rows; one statement loads in full on request.
   ["Show all {0} unallocated rows", "عرض كل الصفوف غير المخصصة ({0})", "تمام {0} غیر مختص قطاریں دکھائیں"],
   ["The unallocated rows could not be loaded.", "تعذّر تحميل الصفوف غير المخصصة.", "غیر مختص قطاریں لوڈ نہیں ہو سکیں۔"],
+  ["Claim owner", "مالك الادعاء", "دعوے کا ذمہ دار"],
+  ["Claim expires on", "ينتهي الادعاء في", "دعوے کی میعاد ختم ہونے کی تاریخ"],
+  ["Record the claim owner and expiry date before approving or exporting it.", "سجّل مالك الادعاء وتاريخ انتهائه قبل اعتماده أو تصديره.", "منظوری یا برآمد سے پہلے دعوے کا ذمہ دار اور میعاد کی تاریخ درج کریں۔"],
+  ["The claim has expired; review it again with a new expiry date.", "انتهت صلاحية الادعاء؛ راجعه مجددًا بتاريخ انتهاء جديد.", "دعوے کی میعاد ختم ہو گئی ہے؛ نئی تاریخ کے ساتھ دوبارہ جائزہ لیں۔"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));

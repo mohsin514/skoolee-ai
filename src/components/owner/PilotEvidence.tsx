@@ -42,7 +42,7 @@ type TimeFinding = { key: string; workflow: string; counts: { baseline: number; 
 type MeasureFinding = { key: string; kind: string; workflow: string | null; current: { id: string; value: number | null; denominator: number | null; unit: string; state: string; method: string; reference: string | null; periodStart: string; periodEnd: string }[];
   excludedSynthetic: number; superseded: number; rate: number | null; rateWithheld: string | null };
 type Observation = { id: string; workflow: string; phase: string; participant: string; task: string; difficulty: string; activeSeconds: number | null; correctionSeconds: number | null; elapsedSeconds: number | null; completed: boolean; source: string; synthetic: boolean; excludedReason: string | null; observedOn: string };
-type Claim = { id: string; version: number; statement: string; findingKey: string; identifiable: boolean; status: string; stale: boolean; reviewNote: string | null; support: { supported: boolean; reason: string | null }; exportBlockedBy: string | null };
+type Claim = { id: string; version: number; statement: string; findingKey: string; identifiable: boolean; ownerName: string | null; expiresOn: string | null; status: string; stale: boolean; reviewNote: string | null; support: { supported: boolean; reason: string | null }; exportBlockedBy: string | null };
 type Detail = { pilot: Pilot; observations: Observation[]; findings: { time: TimeFinding[]; correctness: { workflow: string; extraction: MeasureFinding; final: MeasureFinding }[]; other: MeasureFinding[] }; claims: Claim[];
   activationGate?: { allowed: true; market: string } | { allowed: false; blockers: { item: string; reason: string }[] } | null };
 type Exported = { generatedAt: string; statements: { claimId: string; statement: string; school: string | null; cohort: Record<string, string>; sample: Record<string, number>; limitations: string[] }[]; excluded: { claimId: string; pilot: string; reason: string }[] };
@@ -475,6 +475,8 @@ function ClaimsPanel({ claims, findingKeys, act }: { claims: Claim[]; findingKey
   const [statement, setStatement] = useState("");
   const [findingKey, setFindingKey] = useState(findingKeys[0] ?? "");
   const [identifiable, setIdentifiable] = useState(false);
+  const [ownerName, setOwnerName] = useState("");
+  const [expiresOn, setExpiresOn] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({});
   return (
     <div className="space-y-3">
@@ -482,10 +484,12 @@ function ClaimsPanel({ claims, findingKeys, act }: { claims: Claim[]; findingKey
       <p className="text-xs text-ink-muted">{ui("A target is not a result. A claim is approved against the exact evidence it cites; if that evidence changes, the claim becomes stale and is blocked from export.")}</p>
       <form className="grid gap-3 rounded-2xl border border-border p-4 md:grid-cols-2" onSubmit={async (e) => {
         e.preventDefault();
-        if (await act("claim", { statement, findingKey, identifiable }, "Claim proposed for review.")) { setStatement(""); setIdentifiable(false); }
+        if (await act("claim", { statement, findingKey, identifiable, ownerName, expiresOn }, "Claim proposed for review.")) { setStatement(""); setIdentifiable(false); setOwnerName(""); setExpiresOn(""); }
       }}>
         <FormField name="pilot-f37" label={ui("Proposed statement")} required className="md:col-span-2"><Textarea value={statement} onChange={(e) => setStatement(e.target.value)} /></FormField>
         <FormField name="pilot-f38" label={ui("Evidence it rests on")} required><Select value={findingKey} onChange={(e) => setFindingKey(e.target.value)}>{findingKeys.map((k) => <option key={k} value={k}>{k}</option>)}</Select></FormField>
+        <FormField name="pilot-f40" label={ui("Claim owner")} required><Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} /></FormField>
+        <FormField name="pilot-f41" label={ui("Claim expires on")} required><Input type="date" value={expiresOn} onChange={(e) => setExpiresOn(e.target.value)} /></FormField>
         <label className="flex items-center gap-2 text-sm"><Checkbox checked={identifiable} onChange={(e) => setIdentifiable(e.target.checked)} /> {ui("Identifies the school")}</label>
         <div className="md:col-span-2"><Button type="submit">{ui("Propose claim")}</Button></div>
       </form>
@@ -495,6 +499,7 @@ function ClaimsPanel({ claims, findingKeys, act }: { claims: Claim[]; findingKey
             <Badge tone={claim.status === "APPROVED" && !claim.stale ? "good" : claim.status === "STALE" || claim.stale ? "bad" : "neutral"}>{ui(claim.stale ? "Stale" : STATUS_LABEL[claim.status] ?? claim.status)}</Badge>
             <span className="text-xs text-ink-muted" dir="ltr">{claim.findingKey} · v{claim.version}</span>
             {claim.identifiable ? <Badge tone="warn">{ui("Identifies the school")}</Badge> : null}
+            <span className="text-xs text-ink-muted">{ui("Owner")}: <bdi>{claim.ownerName ?? ui("Not recorded")}</bdi> · {ui("Expires")}: <bdi dir="ltr">{claim.expiresOn?.slice(0, 10) ?? ui("Not recorded")}</bdi></span>
           </div>
           <p className="mt-2 text-sm font-semibold text-ink"><bdi>{claim.statement}</bdi></p>
           {!claim.support.supported ? <Alert className="mt-2" tone="danger" compact live="off">{ui("Not supported")}: {ui(claim.support.reason ?? "")}</Alert> : null}

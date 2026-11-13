@@ -71,6 +71,12 @@ export const dropUiEntries: readonly (readonly [string, string, string])[] = [
   ["What are these {0} pages?", "ما هذه الصفحات الـ {0}؟", "یہ {0} صفحات کیا ہیں؟"],
   ["Marks sheet page {0} added to its scan. Reviewing scanned marks is not part of your school's plan.", "أُضيفت صفحة كشف الدرجات {0} إلى مسحها. مراجعة الدرجات الممسوحة ليست ضمن خطة مدرستك.", "مارکس شیٹ کا صفحہ {0} اس کے اسکین میں شامل ہو گیا۔ اسکین شدہ نمبروں کا جائزہ آپ کے اسکول کے پلان میں شامل نہیں۔"],
   ["Use 1 file", "استخدام ملف واحد", "1 فائل استعمال کریں"],
+  ["A certificate or form saved to a pupil's record.", "شهادة أو نموذج يُحفظ في سجل الطالب.", "سرٹیفکیٹ یا فارم جو طالب علم کے ریکارڈ میں محفوظ ہو۔"],
+  ["Choose a pupil", "اختر طالبًا", "طالب علم منتخب کریں"],
+  ["Saved to the documents of {0}.", "حُفظ في مستندات {0}.", "{0} کی دستاویزات میں محفوظ ہو گیا۔"],
+  ["Search pupils by name or roll number", "ابحث عن الطلاب بالاسم أو رقم القيد", "نام یا رول نمبر سے طلبہ تلاش کریں"],
+  ["Student document", "مستند الطالب", "طالب علم کی دستاویز"],
+  ["Type at least two letters", "اكتب حرفين على الأقل", "کم از کم دو حروف لکھیں"],
 ];
 export const arabicDropUi: Record<string, string> = Object.fromEntries(dropUiEntries.map(([en, ar]) => [en, ar]));
 export const urduDropUi: Record<string, string> = Object.fromEntries(dropUiEntries.map(([en, , ur]) => [en, ur]));
