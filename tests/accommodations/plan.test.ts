@@ -37,3 +37,19 @@ test("plans close to expiry need review; diagnosis in operational notes is flagg
   assert.match(sensitiveInstructionIssue("Learner has a dyslexia diagnosis")!, /supporting record/);
   assert.equal(sensitiveInstructionIssue("Provide a reader and a quiet room."), null);
 });
+
+test("SKAI-650: an exam approval overrides time only; the plan's alternative arrangements still apply", () => {
+  const withPlan = plan({ extraMinutes: 10, capabilities: { reader: true, submissionMode: "ORAL" }, instructions: "answers given orally" });
+  const effective = effectiveSettings({ baseMinutes: 45, type: "EXAM", at, plan: withPlan, examApproval: { extraMinutes: 20, scribe: true } });
+  assert.equal(effective.source, "EXAM_APPROVAL");
+  assert.equal(effective.totalMinutes, 65);
+  assert.equal(effective.capabilities.submissionMode, "ORAL");
+  assert.equal(effective.capabilities.reader, true);
+  assert.equal(effective.capabilities.scribe, true);
+  assert.equal(effective.instructions, "answers given orally");
+  const noPlan = effectiveSettings({ baseMinutes: 45, type: "EXAM", at, examApproval: { extraMinutes: 5 } });
+  assert.equal(noPlan.capabilities.submissionMode, "STANDARD");
+  assert.equal(noPlan.instructions, "");
+  const outOfWindow = effectiveSettings({ baseMinutes: 45, type: "EXAM", at: new Date("2027-01-01T09:00:00Z"), plan: withPlan, examApproval: { extraMinutes: 5 } });
+  assert.equal(outOfWindow.capabilities.submissionMode, "STANDARD", "a plan outside its window adds nothing");
+});

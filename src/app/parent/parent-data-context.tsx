@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
+import { readSelectedChild, storeSelectedChild } from "./selected-child-storage";
 
 interface ReportCard {
   id: string;
@@ -216,6 +217,20 @@ export function ParentDataProvider({ children, identity = null }: {
   useEffect(() => {
     if (requestedChild !== null) setSelectedStudentId(requestedChild);
   }, [requestedChild]);
+  // SKAI-1932: a reload, a new tab or a typed URL reopens the child chosen last for this same identity. Read after
+  // mount (the server render has no storage) and before the first load, so the first child never flashes in first.
+  const [restored, setRestored] = useState(requestedChild !== null);
+  /** The choice restored from storage; if the server refuses it (child unlinked), it is dropped and the default shown. */
+  const restoredChild = useRef<string | null>(null);
+  useEffect(() => {
+    if (restored) return;
+    const stored = readSelectedChild(identity);
+    if (stored) {
+      restoredChild.current = stored;
+      setSelectedStudentId((current) => current ?? stored);
+    }
+    setRestored(true);
+  }, [restored, identity]);
   const [data, setData] = useState<ParentData | null>(seed?.data ?? null);
   const [childList, setChildList] = useState<ParentChild[]>(seed?.children ?? []);
   const [loading, setLoading] = useState(!seed);
@@ -246,6 +261,7 @@ export function ParentDataProvider({ children, identity = null }: {
         setAccess(json.navigationAccess ?? {});
         storeAccess(identity, isBooleanMap(json.navigationAccess) ? json.navigationAccess : {});
         lastPayload = null;
+        storeSelectedChild(identity, null);
         loadedFor.current = selectedStudentId;
       } else if (res.ok && json.success) {
         const payload = json.data as ParentData & { selectedStudentId?: string };
@@ -257,12 +273,20 @@ export function ParentDataProvider({ children, identity = null }: {
         const list = Array.isArray((payload as unknown as { children?: ParentChild[] }).children) ? (payload as unknown as { children: ParentChild[] }).children : [];
         setChildList(list);
         lastPayload = { identity, requested: selectedStudentId, data: payload, children: list };
+        if (selectedStudentId) storeSelectedChild(identity, selectedStudentId);
+      } else if (selectedStudentId && selectedStudentId === restoredChild.current && [401, 403, 404].includes(res.status)) {
+        // A remembered child this guardian can no longer open: forget it and load the default child instead.
+        restoredChild.current = null;
+        storeSelectedChild(identity, null);
+        setSelectedStudentId(null);
+        requestVersion.current += 1; // stay in loading until the default child's load settles
       } else {
         setData(null);
         setError(loadErrorKey(res.status));
         // A refused load (signed out, guardian link revoked) drops the remembered navigation with it.
         if (res.status === 401 || res.status === 403) {
           storeAccess(null, null);
+          storeSelectedChild(null, null);
           lastPayload = null;
           setAccess(null);
         }
@@ -279,9 +303,10 @@ export function ParentDataProvider({ children, identity = null }: {
   }, [selectedStudentId, identity]);
 
   useEffect(() => {
+    if (!restored) return;
     void loadData();
     return () => { requestVersion.current += 1; };
-  }, [loadData]);
+  }, [loadData, restored]);
 
   // After a reload (no memory copy) the stored map for this same identity draws the navigation while the family
   // payload loads; a map that arrives from the server first always wins. Read after mount: the server render has
@@ -303,8 +328,9 @@ export function ParentDataProvider({ children, identity = null }: {
   useEffect(() => { activeRef.current = activeId; }, [activeId]);
   const selectChild = useCallback((studentId: string) => {
     if (studentId === activeRef.current) return;
+    storeSelectedChild(identity, studentId);
     setSelectedStudentId(studentId);
-  }, []);
+  }, [identity]);
 
   return (
     <ParentDataContext.Provider

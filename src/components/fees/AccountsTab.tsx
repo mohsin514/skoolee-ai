@@ -681,7 +681,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
   // Until the ledger reports its currency, amounts are in the campus currency (locale package, R7).
   const { currency: campusCurrency } = useLocale();
   const tr = useUiText();
-  const [currency, setCurrency] = useState("");
+  const [reportedCurrency, setReportedCurrency] = useState("");
   const [from, setFrom] = useListField<string>(`ledger.${kind}.from`, "", `ledger.${kind}.page`);
   const [to, setTo] = useListField<string>(`ledger.${kind}.to`, "", `ledger.${kind}.page`);
   const [filterAccount, setFilterAccount] = useListField<string>(`ledger.${kind}.filterAccount`, "", `ledger.${kind}.page`);
@@ -708,9 +708,11 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
   const [reason, setReason] = useState(""), [correctionError, setCorrectionError] = useState(""), [acting, setActing] = useState(false);
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
   // SKAI-1865: the first ledger response reports its currency; later loads keep it without reloading for it.
-  // A currency the reader picks in the filter is state, so picking one reloads the ledger as before.
+  // SKAI-1944: a currency the reader picks is kept in the URL like the other filters, so it survives a reload.
   const ledgerCurrency = useRef("");
-  const [pickedCurrency, setPickedCurrency] = useState("");
+  const [urlCurrency, setPickedCurrency] = useListField<string>(`ledger.${kind}.currency`, "", `ledger.${kind}.page`);
+  const pickedCurrency = (CURRENCIES as readonly string[]).includes(urlCurrency) ? urlCurrency : "";
+  const currency = pickedCurrency || reportedCurrency;
 
   const buildParams = useCallback((ledgerCurrencyCode: string) => {
     const params = new URLSearchParams({ kind });
@@ -742,7 +744,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
       setEntries(eJson.data);
       setTotals(eJson.totals);
       if (eJson.page !== page) setPage(eJson.page);
-      if (!ledgerCurrency.current) { ledgerCurrency.current = eJson.currency; setCurrency(eJson.currency); }
+      if (!ledgerCurrency.current) { ledgerCurrency.current = eJson.currency; setReportedCurrency(eJson.currency); }
     } catch (failure) {
       if (version !== requestVersion.current) return;
       setLoadError(failure instanceof Error ? tr(failure.message) : tr("Failed to load ledger"));
@@ -862,7 +864,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
 
       <fieldset className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] gap-3 rounded-2xl border border-border p-3" data-ledger-filters>
         <legend className="px-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{tr("Filters")}</legend>
-        <label className="text-xs font-bold">{tr("Currency")}<SystemSelect aria-label={tr("Currency")} value={currency} onChange={(e) => setFilter(() => { setPickedCurrency(e.target.value); setCurrency(e.target.value); })} className="w-full">{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
+        <label className="text-xs font-bold">{tr("Currency")}<SystemSelect aria-label={tr("Currency")} value={currency} onChange={(e) => setFilter(() => setPickedCurrency(e.target.value))} className="w-full">{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
         <label className="text-xs font-bold">{tr("From")}<SystemInput type="date" value={from} onChange={(e) => setFilter(() => setFrom(e.target.value))} className="w-full" /></label>
         <label className="text-xs font-bold">{tr("To")}<SystemInput type="date" value={to} onChange={(e) => setFilter(() => setTo(e.target.value))} className="w-full" /></label>
         <label className="text-xs font-bold">{tr("Account")}<SystemSelect value={filterAccount} onChange={(e) => setFilter(() => setFilterAccount(e.target.value))} className="w-full"><option value="">{tr("All accounts")}</option>{pickList.map((a) => <option key={a.id} value={a.id}>{a.name}{a.isActive === false ? ` (${tr("inactive")})` : ""}</option>)}</SystemSelect></label>
