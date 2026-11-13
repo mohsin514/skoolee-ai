@@ -105,7 +105,8 @@ export function RoleHeader({
   const displayAvatar = headerProfile?.profileImageUrl;
   const viewerRole = role ?? session?.role;
   const home = dashboardHref ?? (viewerRole ? dashboardPathForRole(viewerRole) : session?.dashboardPath ?? "/login");
-  const scopeLine = session?.schoolName ? (session.campusName && session.role !== "SUPER_ADMIN" && !session.institution?.standaloneOwner ? `${session.schoolName} · ${session.campusName}` : session.schoolName) : null;
+  // SKAI-1943: the platform operator works across schools, so its host school is no scope line.
+  const scopeLine = session?.schoolName && session.role !== "APP_OWNER" ? (session.campusName && session.role !== "SUPER_ADMIN" && !session.institution?.standaloneOwner ? `${session.schoolName} · ${session.campusName}` : session.schoolName) : null;
   const showCycle = Boolean(viewerRole) && !NO_CYCLE.has(viewerRole as string);
 
   const greeting = (() => {

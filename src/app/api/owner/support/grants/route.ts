@@ -10,6 +10,9 @@ import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
+// SKAI-1942: the console shows this reason (and offers to turn two-step sign-in on) instead of a generic failure.
+const SUPPORT_REQUEST_MFA_MESSAGE = "Turn on two-step sign-in before you request support access.";
+
 export async function GET() {
   try {
     await requirePlatformOwner();
@@ -24,7 +27,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const actor = await requirePlatformOwner();
-    if (actor.mfaVerified !== true) throw new ApiError("Privileged MFA is required", 403);
+    if (actor.mfaVerified !== true) throw new ApiError(SUPPORT_REQUEST_MFA_MESSAGE, 403, "MFA_REQUIRED");
     const body = await parseBody(req, jsonObjectBody);
     const schoolId = typeof body.schoolId === "string" ? body.schoolId.trim() : "";
     const purpose = typeof body.purpose === "string" ? body.purpose.trim() : "";

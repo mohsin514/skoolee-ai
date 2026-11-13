@@ -6,6 +6,7 @@ import { schoolToday } from "@/lib/fees/statement";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { isCampusOperator } from "@/lib/auth/institution";
 import { getCampusSeats } from "@/lib/auth/seats";
+import { endOfCalendarDayIn } from "@/lib/calendar-date";
 import { createTtlMemo } from "@/lib/cache/ttl-memo";
 
 // SKO-417: one accountable queue derived from live source conditions. Each item names its source record,
@@ -69,7 +70,6 @@ function linkFor(user: AuthUser, campusId: string) {
   const base = user.role === "PRINCIPAL" ? "/principal" : "/admin";
   return (view: string, params: Record<string, string> = {}) => `${base}?${new URLSearchParams({ view, ...params })}`;
 }
-const endOfDay = (day: string) => new Date(`${day}T23:59:59.999Z`);
 
 type QueueSeat = { academic: boolean; operations: boolean };
 type Family = keyof QueueSeat;
@@ -91,6 +91,8 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
   const policy = await getLocalePackage(user.schoolId, campusId, undefined, undefined, db);
   const today = schoolToday(policy.timezone);
   const weekday = new Date(`${today}T12:00:00Z`).getUTCDay();
+  // SKAI-1931: a calendar-day deadline ends at midnight on the campus clock, not midnight UTC.
+  const endOfDay = (day: string) => endOfCalendarDayIn(day, policy.timezone);
   const items: SeatedItem[] = [], failed: QueueType[] = [];
   const scope = { schoolId: user.schoolId, campusId };
   // SKAI-1829: the source readers are independent, so they run concurrently (latency is the slowest source, not the
@@ -110,7 +112,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
     const done = new Set(marked.map(row => row.classId));
     for (const cls of classes) if (!done.has(cls.id)) {
       const name = `${cls.name}${cls.section ? ` ${cls.section}` : ""}`;
-      items.push({ family: "academic", key: `ATTENDANCE_MISSING:${cls.id}:${today}`, type: "ATTENDANCE_MISSING", sourceId: cls.id, title: `Attendance not submitted for ${name}`, titleMessage: { key: "Attendance not submitted for {0}", values: [name] }, triggerMessage: { key: "No attendance is recorded for {0} on {1}.", values: [name, today] }, trigger: `No attendance is recorded for ${name} on ${today}.`, nextAction: "Ask the class teacher to submit today's attendance", sourceOwner: cls.classTeacher ? { id: cls.classTeacher.id, name: cls.classTeacher.fullName } : null, dueAt: endOfDay(today).toISOString(), link: link("attendance") });
+      items.push({ family: "academic", key: `ATTENDANCE_MISSING:${cls.id}:${today}`, type: "ATTENDANCE_MISSING", sourceId: cls.id, title: `Attendance not submitted for ${name}`, titleMessage: { key: "Attendance not submitted for {0}", values: [name] }, triggerMessage: { key: "No attendance is recorded for {0} on {1}.", values: [name, today] }, trigger: `No attendance is recorded for ${name} on ${today}.`, nextAction: "Ask the class teacher to submit today's attendance", sourceOwner: cls.classTeacher ? { id: cls.classTeacher.id, name: cls.classTeacher.fullName } : null, dueAt: endOfDay(today), link: link("attendance") });
     }
   });
   run("LEAVE_PENDING", async items => {
@@ -150,7 +152,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
       const late = complaint.dueDate && complaint.dueDate < new Date(`${today}T00:00:00.000Z`);
       // A confidential concern shows only its reference: no category, no complainant.
       const label = complaint.confidential ? `Confidential concern ${complaint.referenceCode}` : `Complaint ${complaint.referenceCode} (${complaint.type})`;
-      items.push({ family: "operations", key: `COMPLAINT:${complaint.id}`, type: "COMPLAINT", sourceId: complaint.id, title: complaint.ownerId ? `${label} is past its response date` : `${label} has no owner`, titleMessage: { key: complaint.confidential ? (complaint.ownerId ? "Confidential concern {0} is past its response date" : "Confidential concern {0} has no owner") : (complaint.ownerId ? "Complaint {0} is past its response date" : "Complaint {0} has no owner"), values: [complaint.referenceCode ?? "—"] }, triggerMessage: { key: complaint.ownerId ? "The response was due {0}." : "Received {0} and not yet assigned.", values: [(complaint.ownerId ? complaint.dueDate : complaint.date)?.toISOString().slice(0, 10) ?? "—"] }, trigger: complaint.ownerId ? `The response was due ${complaint.dueDate?.toISOString().slice(0, 10)}.` : `Received ${complaint.date.toISOString().slice(0, 10)} and not yet assigned.`, nextAction: complaint.ownerId ? "Follow up with the owner or resolve the complaint" : "Assign an owner in Complaints", sourceOwner: complaint.owner ? { id: complaint.owner.id, name: complaint.owner.fullName } : null, dueAt: late ? complaint.dueDate!.toISOString() : endOfDay(complaint.date.toISOString().slice(0, 10)).toISOString(), link: link("front-desk", { tab: "complaints" }) });
+      items.push({ family: "operations", key: `COMPLAINT:${complaint.id}`, type: "COMPLAINT", sourceId: complaint.id, title: complaint.ownerId ? `${label} is past its response date` : `${label} has no owner`, titleMessage: { key: complaint.confidential ? (complaint.ownerId ? "Confidential concern {0} is past its response date" : "Confidential concern {0} has no owner") : (complaint.ownerId ? "Complaint {0} is past its response date" : "Complaint {0} has no owner"), values: [complaint.referenceCode ?? "—"] }, triggerMessage: { key: complaint.ownerId ? "The response was due {0}." : "Received {0} and not yet assigned.", values: [(complaint.ownerId ? complaint.dueDate : complaint.date)?.toISOString().slice(0, 10) ?? "—"] }, trigger: complaint.ownerId ? `The response was due ${complaint.dueDate?.toISOString().slice(0, 10)}.` : `Received ${complaint.date.toISOString().slice(0, 10)} and not yet assigned.`, nextAction: complaint.ownerId ? "Follow up with the owner or resolve the complaint" : "Assign an owner in Complaints", sourceOwner: complaint.owner ? { id: complaint.owner.id, name: complaint.owner.fullName } : null, dueAt: late ? complaint.dueDate!.toISOString() : endOfDay(complaint.date.toISOString().slice(0, 10)), link: link("front-desk", { tab: "complaints" }) });
     }
   });
   run("ADJUSTMENT_APPROVAL", async items => {
@@ -172,7 +174,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
     const owners = new Map((await db.user.findMany({ where: { id: { in: overdue.map(o => o.ownerId).filter((x): x is string => Boolean(x)) } }, select: { id: true, fullName: true } })).map(u => [u.id, u.fullName]));
     for (const plan of overdue) {
       const due = plan.nextCheckInDate!.toISOString().slice(0, 10);
-      items.push({ family: "academic", key: `SUPPORT_CHECKIN:${plan.id}:${due}`, type: "SUPPORT_CHECKIN", sourceId: plan.id, title: `Learning-action check-in missed: ${plan.title}`, titleMessage: { key: "Learning-action check-in missed: {0}", values: [plan.title] }, triggerMessage: { key: "The check-in due on {0} is not recorded or rescheduled.", values: [due] }, trigger: `The check-in due on ${due} is not recorded or rescheduled.`, nextAction: "Ask the responsible adult to record or reschedule the check-in", sourceOwner: plan.ownerId ? { id: plan.ownerId, name: owners.get(plan.ownerId) ?? "" } : null, dueAt: endOfDay(due).toISOString(), link: link("learning-actions", { plan: plan.id }) });
+      items.push({ family: "academic", key: `SUPPORT_CHECKIN:${plan.id}:${due}`, type: "SUPPORT_CHECKIN", sourceId: plan.id, title: `Learning-action check-in missed: ${plan.title}`, titleMessage: { key: "Learning-action check-in missed: {0}", values: [plan.title] }, triggerMessage: { key: "The check-in due on {0} is not recorded or rescheduled.", values: [due] }, trigger: `The check-in due on ${due} is not recorded or rescheduled.`, nextAction: "Ask the responsible adult to record or reschedule the check-in", sourceOwner: plan.ownerId ? { id: plan.ownerId, name: owners.get(plan.ownerId) ?? "" } : null, dueAt: endOfDay(due), link: link("learning-actions", { plan: plan.id }) });
     }
   });
   // SKO-500: the exam chain. A syllabus sent for approval; a requested paper due within three days (or late) that is
@@ -196,7 +198,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
       if (status === "IN_REVIEW" || status === "APPROVED") continue;
       const name = `${slot.schedules[0]?.subject.name ?? slot.subjectName} ${slot.schedules[0]?.exam.class.name ?? slot.gradeName}`;
       const due = slot.dueOn.toISOString().slice(0, 10);
-      items.push({ family: "academic", key: `PAPER_DUE:${slot.id}`, type: "PAPER_DUE", sourceId: slot.id, title: `Paper due: ${name}`, titleMessage: { key: "Paper due: {0}", values: [name] }, triggerMessage: { key: "Due on {0} and not yet sent for review.", values: [due] }, trigger: `Due on ${due} and not yet sent for review.`, nextAction: "Remind the author from the Papers step", sourceOwner: slot.authorUserId ? { id: slot.authorUserId, name: authors.get(slot.authorUserId) ?? "" } : null, dueAt: endOfDay(due).toISOString(), link: link("exam-cycles") });
+      items.push({ family: "academic", key: `PAPER_DUE:${slot.id}`, type: "PAPER_DUE", sourceId: slot.id, title: `Paper due: ${name}`, titleMessage: { key: "Paper due: {0}", values: [name] }, triggerMessage: { key: "Due on {0} and not yet sent for review.", values: [due] }, trigger: `Due on ${due} and not yet sent for review.`, nextAction: "Remind the author from the Papers step", sourceOwner: slot.authorUserId ? { id: slot.authorUserId, name: authors.get(slot.authorUserId) ?? "" } : null, dueAt: endOfDay(due), link: link("exam-cycles") });
     }
   });
   run("PAPER_MODERATION", async items => {

@@ -182,7 +182,7 @@ function ConflictDialog({ ui, conflicts, saving, onClose, onKeepMine }: { ui: Ui
   </Modal>;
 }
 
-type QueueData = { unexplainedAbsences: { attendanceId: string; date: string; studentName: string; className: string }[]; explanations: { id: string; status: string; reason: string; proposedStatus: string; arrivalTime: string | null; reviewNote: string | null; date: string; currentStatus: string; version: number; studentName: string; className: string }[]; openRegisters: { id: string; date: string; classId: string }[] };
+type QueueData = { unexplainedAbsences: { attendanceId: string; date: string; studentName: string; className: string }[]; explanations: { id: string; status: string; reason: string; proposedStatus: string; arrivalTime: string | null; reviewNote: string | null; date: string; currentStatus: string; version: number; studentName: string; className: string }[]; openRegisters: { id: string; date: string; classId: string }[]; notStartedRegisters?: { date: string; classId: string }[] };
 
 /** Attendance work waiting for a person. */
 export function AttendanceExceptions() {
@@ -197,6 +197,8 @@ export function AttendanceExceptions() {
     if (!response.ok || !json.success) setError(ui(json.error || "Attendance exceptions could not be loaded.")); else setData(json.data);
   }, [ui]);
   useEffect(() => { void load(); }, [load]);
+  // SKAI-1931: started-but-open registers plus today's classes whose register was never started.
+  const notSubmitted = data ? data.openRegisters.length + (data.notStartedRegisters?.length ?? 0) : 0;
   const decide = async () => {
     if (!deciding) return;
     setBusy(true);
@@ -223,7 +225,7 @@ export function AttendanceExceptions() {
       <DeskSection data-queue-absences icon={CalendarX2} tone={data.unexplainedAbsences.length ? "danger" : "success"} title={ui("Absences with no explanation ({0})", [String(data.unexplainedAbsences.length)])}>
         {data.unexplainedAbsences.length ? <ul className="space-y-2 text-sm">{data.unexplainedAbsences.map(row => <li key={row.attendanceId} data-unexplained={row.attendanceId} data-tone="danger" className={cn(deskRow, "flex flex-wrap items-center gap-x-2 gap-y-1")}><span className="font-semibold"><bdi>{row.studentName}</bdi></span> · <bdi>{row.className}</bdi> · <bdi>{formatDate(row.date)}</bdi></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("Nothing waiting.")}</p>}
       </DeskSection>
-      <DeskSection data-queue-open icon={AlertTriangle} tone={data.openRegisters.length ? "warning" : "success"} title={ui("Registers not submitted ({0})", [String(data.openRegisters.length)])} />
+      <DeskSection data-queue-open icon={AlertTriangle} tone={notSubmitted ? "warning" : "success"} title={ui("Registers not submitted ({0})", [String(notSubmitted)])} />
     </> : null}
     {deciding ? <Modal size="sm" icon={deciding.action === "accept" ? ClipboardCheck : deciding.action === "reject" ? CalendarX2 : MessageSquareText} tone={deciding.action === "accept" ? "emerald" : deciding.action === "reject" ? "rose" : "sky"} title={deciding.action === "accept" ? ui("Accept the explanation") : deciding.action === "reject" ? ui("Do not accept the explanation") : ui("Ask for clarification")} eyebrow={ui("Attendance")} subtitle={deciding.action === "accept" ? ui("The day's mark is corrected and the change is kept in its history.") : ui("The day's mark stays as it is.")} onClose={() => setDeciding(null)}
       footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setDeciding(null)}>{ui("Cancel")}</Button><Button disabled={busy || deciding.action !== "accept" && note.trim().length < 2} onClick={() => void decide()} data-confirm-decision>{ui("Confirm")}</Button></div>}>
