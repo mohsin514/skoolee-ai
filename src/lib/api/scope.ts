@@ -66,7 +66,7 @@ export async function requireAuthUser(options: { allowSuspended?: boolean } = {}
   }
   if (!options.allowSuspended) {
     try {
-      await assertSchoolOperational(user.schoolId);
+      await assertSchoolOperational(user.schoolId, undefined, user.schoolOperational);
     } catch (error) {
       // A cookie naming a school that no longer exists is an invalid *session*,
       // not a billing state. Reported as 404 "School not found" it left the

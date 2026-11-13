@@ -34,6 +34,9 @@ export interface AuthUser {
   institutionKind?: InstitutionKind;
   /** SKAI-1113: SUPER_ADMIN only. A validated campus of this school chosen in the campus switcher; null/absent = "All campuses". */
   activeCampusId?: string | null;
+  /** The school row's billing/operational state as read with this principal, so requireAuthUser needs no second
+   *  school query. Dates are ISO strings (the principal may come from the JSON cache). */
+  schoolOperational?: { status: string; subscriptionLifecycleState: string; graceEndsAt: string | null };
 }
 
 export async function getAuthUser(): Promise<AuthUser | null> {

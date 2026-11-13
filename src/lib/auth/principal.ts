@@ -29,6 +29,7 @@ type AccountRow = {
   id: string; schoolId: string; campusId: string | null; role: UserRole; email: string; fullName: string; onboardingComplete: boolean;
   mfaEnabled: boolean; isInstitutionOwner: boolean; canPurchaseSubscription: boolean; canManageMemberships: boolean; accessVersion: number;
   campusSchoolId: string | null; slug: string; status: string; registrationKind: string | null; institutionType: string | null;
+  subscriptionLifecycleState: string; graceEndsAt: Date | null;
 };
 
 /**
@@ -41,7 +42,8 @@ async function readAccount(userId: string, schoolId: string): Promise<AccountRow
            u.onboarding_complete AS "onboardingComplete", u.mfa_enabled AS "mfaEnabled", u.is_institution_owner AS "isInstitutionOwner",
            u.can_purchase_subscription AS "canPurchaseSubscription", u.can_manage_memberships AS "canManageMemberships",
            u.access_version AS "accessVersion", c.school_id AS "campusSchoolId", s.slug, s.status,
-           s.registration_kind AS "registrationKind", isu.institution_type AS "institutionType"
+           s.registration_kind AS "registrationKind", isu.institution_type AS "institutionType",
+           s.subscription_lifecycle_state AS "subscriptionLifecycleState", s.grace_ends_at AS "graceEndsAt"
     FROM users u
     JOIN schools s ON s.id = u.school_id
     LEFT JOIN campuses c ON c.id = u.campus_id
@@ -79,7 +81,8 @@ async function loadCurrentPrincipal(claims: PrincipalClaims): Promise<AuthUser |
   const institutionKind = await resolveInstitutionKind(account.schoolId, account.school);
   return { institutionKind, isInstitutionOwner: account.isInstitutionOwner, canPurchaseSubscription: account.canPurchaseSubscription, canManageMemberships: account.canManageMemberships, accessVersion: account.accessVersion, userId: account.id, schoolId: account.schoolId, campusId: account.campusId,
     role: account.role, email: account.email, fullName: account.fullName,
-    onboardingComplete: account.onboardingComplete, schoolSlug: account.school.slug, schoolStatus: account.school.status };
+    onboardingComplete: account.onboardingComplete, schoolSlug: account.school.slug, schoolStatus: account.school.status,
+    schoolOperational: { status: account.school.status, subscriptionLifecycleState: account.subscriptionLifecycleState, graceEndsAt: account.graceEndsAt ? new Date(account.graceEndsAt).toISOString() : null } };
 }
 
 /** Legacy standalone ADMIN may initialize only the institution it registered. */
