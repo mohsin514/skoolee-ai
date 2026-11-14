@@ -1,5 +1,6 @@
 import { campusScope } from "@/lib/auth/policy";
 import { NextRequest } from "next/server";
+import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { parseEmiratesId, parseNationality, parseRegulatorId, regulatorAuditChange } from "@/lib/identity/regulator-ids";
@@ -29,8 +30,24 @@ export async function GET(req: NextRequest) {
     // SKAI-130: keyset pagination for the timeline; ties on createdAt are broken by id.
     const timelineCursor = req.nextUrl.searchParams.get("timelineCursor");
 
+    const where = { id: userId, role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] as UserRole[] }, ...campusScope(user) };
+    const timelineSelect = {
+      select: { id: true, kind: true, title: true, detail: true, createdAt: true, actorId: true },
+      orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
+      take: TIMELINE_PAGE + 1,
+      ...(timelineCursor ? { cursor: { id: timelineCursor }, skip: 1 } : {}),
+    };
+
+    // SKAI-1983: an older timeline page reads only the timeline, under the same scoped where.
+    if (timelineCursor) {
+      const staff = await prisma.user.findFirst({ where, select: { id: true, staffTimelineEvents: timelineSelect } });
+      if (!staff) throw new ApiError("Staff member not found", 404);
+      const timeline = await timelinePage(staff.staffTimelineEvents, user.schoolId);
+      return ok({ id: staff.id, ...timeline }, { headers: { "Cache-Control": "private, no-store" } });
+    }
+
     const staff = await prisma.user.findFirst({
-      where: { id: userId, role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] }, ...campusScope(user) },
+      where,
       select: {
         id: true,
         fullName: true,
@@ -65,12 +82,7 @@ export async function GET(req: NextRequest) {
           },
           orderBy: { name: "asc" },
         },
-        staffTimelineEvents: {
-          select: { id: true, kind: true, title: true, detail: true, createdAt: true, actorId: true },
-          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          take: TIMELINE_PAGE + 1,
-          ...(timelineCursor ? { cursor: { id: timelineCursor }, skip: 1 } : {}),
-        },
+        staffTimelineEvents: timelineSelect,
       },
     });
     if (!staff) throw new ApiError("Staff member not found", 404);
@@ -80,20 +92,26 @@ export async function GET(req: NextRequest) {
       downloadUrl: `/api/staff/documents?userId=${encodeURIComponent(userId)}&documentId=${encodeURIComponent(doc.id)}`,
     }));
 
-    const page = staff.staffTimelineEvents.slice(0, TIMELINE_PAGE);
-    const actorIds = [...new Set(page.map((e) => e.actorId).filter((id): id is string => Boolean(id)))];
-    // Actor names come from the caller's own school only; an actor outside it shows as unknown.
-    const actors = actorIds.length
-      ? await prisma.user.findMany({ where: { id: { in: actorIds }, schoolId: user.schoolId }, select: { id: true, fullName: true } })
-      : [];
-    const actorName = new Map(actors.map((a) => [a.id, a.fullName]));
-    const staffTimelineEvents = page.map(({ actorId, ...e }) => ({ ...e, actorName: actorId ? actorName.get(actorId) ?? null : null }));
-    const staffTimelineNextCursor = staff.staffTimelineEvents.length > TIMELINE_PAGE ? page[page.length - 1].id : null;
-
-    return ok({ ...staff, staffDocuments: documents, staffTimelineEvents, staffTimelineNextCursor }, { headers: { "Cache-Control": "private, no-store" } });
+    const timeline = await timelinePage(staff.staffTimelineEvents, user.schoolId);
+    return ok({ ...staff, staffDocuments: documents, ...timeline }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return failFrom(error, "[staff/profile] GET failed");
   }
+}
+
+type TimelineRow = { id: string; kind: string; title: string; detail: string | null; createdAt: Date; actorId: string | null };
+
+async function timelinePage(rows: TimelineRow[], schoolId: string) {
+  const page = rows.slice(0, TIMELINE_PAGE);
+  const actorIds = [...new Set(page.map((e) => e.actorId).filter((id): id is string => Boolean(id)))];
+  // Actor names come from the caller's own school only; an actor outside it shows as unknown.
+  const actors = actorIds.length
+    ? await prisma.user.findMany({ where: { id: { in: actorIds }, schoolId }, select: { id: true, fullName: true } })
+    : [];
+  const actorName = new Map(actors.map((a) => [a.id, a.fullName]));
+  const staffTimelineEvents = page.map(({ actorId, ...e }) => ({ ...e, actorName: actorId ? actorName.get(actorId) ?? null : null }));
+  const staffTimelineNextCursor = rows.length > TIMELINE_PAGE ? page[page.length - 1].id : null;
+  return { staffTimelineEvents, staffTimelineNextCursor };
 }
 
 export async function PATCH(req: NextRequest) {

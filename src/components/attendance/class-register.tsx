@@ -17,7 +17,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { AlertTriangle, CalendarX2, ClipboardCheck, GitCompareArrows, History, MessageSquareText, Users } from "lucide-react";
-import { copyPreviousIntoDrafts, hasMarks, previousDates } from "@/lib/attendance/copy-previous";
+import { copyPreviousIntoDrafts, hasMarks } from "@/lib/attendance/copy-previous";
 import { DeskPill, DeskSection, deskRow, type DeskTone } from "@/components/ui/desk";
 
 // SKO-405: the class register. Unmarked is shown as its own state and nothing is assumed from it;
@@ -79,17 +79,15 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
     if (!data) return;
     setCopying(true);
     try {
-      for (const day of previousDates(data.date)) {
-        const response = await fetch(`/api/attendance/register?${new URLSearchParams({ classId: data.class.id, date: day })}`, { cache: "no-store" });
-        const json = await response.json().catch(() => ({}));
-        if (!response.ok || !isApiOk(json)) throw new Error("load");
-        if (!hasMarks(json.data.entries as Entry[])) continue;
-        const out = copyPreviousIntoDrafts(drafts, json.data.entries as Entry[]);
-        setDrafts(out.drafts);
-        toast.success(ui("Copied {0} marks from {1}. Check them, then save.", [String(out.copied), formatDate(day)]));
-        return;
-      }
-      toast.error(ui("No earlier register with marks in the last week."));
+      // SKAI-1983: the server finds the newest earlier register with marks in the last week in one request.
+      const response = await fetch(`/api/attendance/register?${new URLSearchParams({ classId: data.class.id, before: data.date, withMarks: "1" })}`, { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !isApiOk(json)) throw new Error("load");
+      const previous = json.data as { date: string; entries: Entry[] } | null;
+      if (!previous || !hasMarks(previous.entries)) { toast.error(ui("No earlier register with marks in the last week.")); return; }
+      const out = copyPreviousIntoDrafts(drafts, previous.entries);
+      setDrafts(out.drafts);
+      toast.success(ui("Copied {0} marks from {1}. Check them, then save.", [String(out.copied), formatDate(previous.date)]));
     } catch { toast.error(ui("The previous register could not be loaded. Nothing has changed.")); } finally { setCopying(false); }
   };
   const missingTime = changed.find(entry => { const d = drafts[entry.studentId]; return d.status === "LATE" && !d.arrivalTime || d.status === "PARTIAL" && !d.arrivalTime && !d.departureTime; });
