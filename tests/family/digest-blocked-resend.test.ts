@@ -20,7 +20,12 @@ const tx = {
   familyDigestDelivery: { findUnique: async () => null, create: async () => ({ id: "del1" }) },
 };
 
-mock.module(src("lib/db/prisma.ts"), { namedExports: { prisma: { $transaction: async (fn: (t: unknown) => unknown) => fn(tx) } } });
+// SKAI-474: dispatch must run through tenantTransaction (the RLS-aware wrapper), not a raw prisma.$transaction.
+const tenantTransactionCalls: string[] = [];
+mock.module(src("lib/db/prisma.ts"), { namedExports: {
+  prisma: { $transaction: async () => { throw new Error("dispatchDigest must not use prisma.$transaction"); } },
+  tenantTransaction: async (fn: (t: unknown) => unknown) => { tenantTransactionCalls.push("tenant"); return fn(tx); },
+} });
 
 test("a digest with a blocked entry reopens for review and is not marked sent", async () => {
   const { dispatchDigest } = await import(src("lib/family/digests.ts"));
@@ -31,6 +36,15 @@ test("a digest with a blocked entry reopens for review and is not marked sent", 
   assert.equal(digestUpdates.at(-1)?.status, "DRAFT");
   assert.equal(digestUpdates.at(-1)?.approvedVersion, null);
   assert.equal(digestUpdates.some(d => d.status === "SENT"), false);
+});
+
+test("dispatch runs inside the tenant transaction wrapper", async () => {
+  const { dispatchDigest } = await import(src("lib/family/digests.ts"));
+  digestUpdates.length = 0;
+  tenantTransactionCalls.length = 0;
+  digest.entries = [];
+  await dispatchDigest("school1", "d1", new Date("2026-10-31T00:00:00Z"));
+  assert.deepEqual(tenantTransactionCalls, ["tenant"]);
 });
 
 test("a fully sent digest is still marked sent", async () => {

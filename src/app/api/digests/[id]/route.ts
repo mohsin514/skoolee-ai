@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { approveDigest, dispatchDigest, editEntry, getDigest, scheduleDigest } from "@/lib/family/digests";
 import { notifyDigestDeliveries } from "@/lib/family/digest-notify";
+import { runAsUser } from "@/lib/db/tenant-context";
 
 // SKO-423: one digest. GET · PATCH {action: edit|approve|schedule|send, knownVersion, ...}
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -19,7 +20,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (body.action === "send") {
       const digest = await getDigest(user, id);
       if (Number(body.knownVersion) !== digest.version) throw new ApiError("This digest changed since you opened it. Review the new version.", 409);
-      const result = await dispatchDigest(user.schoolId, id);
+      const result = await runAsUser(user, () => dispatchDigest(user.schoolId, id));
       await notifyDigestDeliveries(user.schoolId, digest.campusId, result.created);
       return Response.json({ success: true, data: { delivered: result.created.length, blocked: result.blocked } });
     }

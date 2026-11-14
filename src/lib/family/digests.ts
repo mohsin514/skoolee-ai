@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
-import { prisma, type TxClient } from "@/lib/db/prisma";
+import { prisma, tenantTransaction, type TxClient } from "@/lib/db/prisma";
 import { digestDeliveryState } from "@/lib/notifications/delivery-state";
 import { ApiError, canManageOperations } from "@/lib/api/scope";
 import { publishedReportsWhere } from "@/lib/auth/policy";
@@ -154,7 +154,9 @@ async function sourceStillReleased(tx: TxClient, schoolId: string, s: Statement)
 
 /** Deliver an approved digest. Returns the deliveries created now, for the caller's notifications. */
 export async function dispatchDigest(schoolId: string, digestId: string, now = new Date()) {
-  return prisma.$transaction(async tx => {
+  // SKAI-474: prisma.$transaction nests a second RLS transaction for every guarded query inside it, which
+  // fails the due send (500 in the API, error in the cron). tenantTransaction is the documented wrapper.
+  return tenantTransaction(async tx => {
     const [locked] = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM family_digests WHERE id = ${digestId} AND school_id = ${schoolId} FOR UPDATE`;
     const digest = locked ? await tx.familyDigest.findUnique({ where: { id: digestId }, include: { entries: true } }) : null;
     if (!digest) throw new ApiError("Digest not found", 404);
