@@ -136,8 +136,10 @@ export async function GET(req: NextRequest) {
       const totalPresent = studentStats.reduce((s, st) => s + st.present, 0);
       const totalAbsent = studentStats.reduce((s, st) => s + st.absent, 0);
       const totalLeave = studentStats.reduce((s, st) => s + st.leave, 0);
-      const avgPercentage = studentStats.length > 0
-        ? Math.round((studentStats.reduce((s, st) => s + st.percentage, 0) / studentStats.length) * 10) / 10
+      // SKAI-223: a pupil with no marks this month is left out of the class average, the same as the at-risk list.
+      const marked = studentStats.filter(s => s.total > 0);
+      const avgPercentage = marked.length > 0
+        ? Math.round((marked.reduce((s, st) => s + st.percentage, 0) / marked.length) * 10) / 10
         : 0;
       const atRisk = studentStats.filter(s => s.percentage < 75 && s.total > 0);
 
@@ -155,7 +157,7 @@ export async function GET(req: NextRequest) {
         })),
         students: studentStats.map(s => ({
           studentId: s.id, name: s.fullName, rollNo: s.rollNo, profileImageUrl: s.profileImageUrl,
-          present: s.present, absent: s.absent, leave: s.leave, percentage: s.percentage,
+          present: s.present, absent: s.absent, leave: s.leave, percentage: s.percentage, marked: s.total > 0,
         })),
       });
     }
