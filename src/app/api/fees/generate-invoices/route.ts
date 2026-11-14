@@ -6,6 +6,7 @@ import { minorUnits } from "@/lib/locale/package";
 import { activationFor, issueDocument, taxForActivation } from "@/lib/tax/service";
 import { classYearKey, loadInvoiceGenerationInputs, memoByKey } from "@/lib/fees/invoice-generation-inputs";
 import { calculateInvoiceAmounts, invoiceMonthDates, MAX_INVOICE_MINOR } from "@/lib/school-ai/fee-invoices";
+import { evaluateFeeCap, feeCapDecision } from "@/lib/fees/regulator-cap";
 import { generateInvoicesSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
@@ -85,6 +86,9 @@ export async function POST(req: NextRequest) {
       const picked = pickStructureForClass(feeStructures, student.classId, student.class.academicYear);
       if (picked) feeMap.set(student.classId, picked);
     }
+    // SKAI-1254: the school's regulator fee-cap policy (OFF unless the school opted in).
+    const capSchool = await tx.school.findUnique({ where: { id: user.schoolId }, select: { feeCapMode: true } });
+    const capMode = capSchool?.feeCapMode ?? "OFF";
     const enrollments = await tx.studentEnrollment.findMany({ where: { schoolId: user.schoolId, campusId, studentId: { in: students.map(student => student.id) }, NOT: { origin: { startsWith: "LEGACY" } } }, select: { id: true, studentId: true, classId: true, academicYear: true, startDate: true, endDate: true } });
 
     const maxSeq = await tx.invoice.findFirst({
@@ -159,6 +163,12 @@ export async function POST(req: NextRequest) {
           discountAmount = resolved.discountAmount;
           taxLines = lines.filter(line => line.amount > 0).map(line => ({ code: line.code, name: line.name, amount: line.amount }));
         } catch { results.push({ studentId: student.id, status: "error", error: "Review fee and discount amounts." }); continue; }
+        // SKAI-1254: a fee-group invoice prints the class's approved fee and is checked against it, like a per-class fee.
+        const classStructure = feeMap.get(student.classId);
+        approvedFee = classStructure?.approvedFee ?? null;
+        approvedFeeReference = classStructure?.approvedFeeReference ?? null;
+        const cap = feeCapDecision(evaluateFeeCap({ mode: capMode, fee: monthlyFee, approvedFee }), capMode);
+        if (cap.error) { results.push({ studentId: student.id, status: "error", error: cap.error }); continue; }
       } else {
         // 2. Legacy fallback: feeStructure per class
         const feeStructure = feeMap.get(student.classId);
