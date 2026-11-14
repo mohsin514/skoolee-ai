@@ -13,6 +13,7 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { readApiError } from "@/lib/api/envelope-client";
 
 // SKO-471: the learning transfer bridge. Staff import evidence, the family consents, teachers review each
 // mapping, and a reviewed bridge plan becomes a draft learning action. No grade is converted and no
@@ -37,7 +38,7 @@ const FIELD: Record<string, string> = { objectives: "Objectives", work: "Samples
 async function call(url: string, body?: unknown) {
   const response = await fetch(url, body === undefined ? { cache: "no-store" } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
   const payload = await response?.json().catch(() => ({})) ?? {};
-  if (!response?.ok) throw new Error(typeof payload.error === "string" ? payload.error : "");
+  if (!response?.ok) throw new Error(readApiError(payload, ""));
   return payload.data;
 }
 
