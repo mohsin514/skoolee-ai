@@ -7,7 +7,7 @@ import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { JWT_SECRET } from "@/lib/auth/secret";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { candidateExamBoundary } from "@/lib/school-ai/exam-boundary-service";
-import { parseTourProgress, recordTourProgress, tourProgressInput } from "@/lib/onboarding/tours";
+import { parseTourProgress, recordTourProgress, tourProgressInput } from "@/lib/onboarding/tours/progress";
 import type { AuthUser } from "@/lib/auth";
 
 const headers = { "Cache-Control": "private, no-store" };
