@@ -126,3 +126,17 @@ test("the exam-boundary 503 carries Retry-After and gives navigations a localize
   assert.match(examUnavailablePage("<script>"), /<html lang="en"/);
   assert.doesNotMatch(examUnavailablePage("en"), /<script|http-equiv|style=/);
 });
+
+// SKAI-1962 follow-up: the auth prefetch is a raw query, so a role the server refuses arrives as P2010 with SQLSTATE
+// 28000 and the driver text in meta.message. That must be an outage (503, keep the cookie), not a sign-out.
+test("a refused database role on the raw auth read is an outage named refused", () => {
+  const refused = Object.assign(prismaError("P2010", "Raw query failed. Code: `28000`. Message: `role \"perf_role\" is not permitted to log in`"), { meta: { code: "28000", message: 'role "perf_role" is not permitted to log in' } });
+  assert.equal(sqlState(refused), "28000");
+  assert.equal(isDatabaseUnavailable(refused), true);
+  assert.equal(unavailableReason(refused), "refused");
+  const badPassword = Object.assign(new Error('password authentication failed for user "app"'), { code: "28P01" });
+  assert.equal(isDatabaseUnavailable(badPassword), true);
+  assert.equal(unavailableReason(badPassword), "refused");
+  // A unique violation through the same raw path is still a normal error.
+  assert.equal(isDatabaseUnavailable(Object.assign(prismaError("P2010", "Raw query failed. Code: `23505`."), { meta: { code: "23505", message: "duplicate key" } })), false);
+});
