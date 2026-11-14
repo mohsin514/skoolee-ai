@@ -291,7 +291,15 @@ export async function reconcile(user: AuthUser, id: string) {
   if (d.submissionStatus !== "QUEUED") return { id, status: d.submissionStatus, repeated: true };
   const received = d.attempts[0]?.outcome === "TIMEOUT"; // the sandbox kept what it received
   const attempt = (await prisma.taxSubmissionAttempt.count({ where: { documentId: id } })) + 1;
-  await prisma.taxSubmissionAttempt.create({ data: { schoolId: user.schoolId, documentId: id, attempt, revision: d.revision, outcome: received ? "RECONCILED_ACCEPTED" : "RECONCILED_MISSING", detail: received ? "The sandbox already holds this external id as accepted." : "The sandbox has no record; it can be sent again with the same id.", actorId: user.userId } });
+  try {
+    await prisma.taxSubmissionAttempt.create({ data: { schoolId: user.schoolId, documentId: id, attempt, revision: d.revision, outcome: received ? "RECONCILED_ACCEPTED" : "RECONCILED_MISSING", detail: received ? "The sandbox already holds this external id as accepted." : "The sandbox has no record; it can be sent again with the same id.", actorId: user.userId } });
+  } catch (error) {
+    // A concurrent retry claimed this attempt number first: return its committed result, never a raw constraint error.
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+    const current = await prisma.taxDocument.findFirst({ where: { id, schoolId: user.schoolId }, select: { submissionStatus: true } });
+    if (current && current.submissionStatus !== "QUEUED") return { id, status: current.submissionStatus, repeated: true };
+    throw new ApiError("Another reconciliation of this document is already running. Reload to see its status.", 409);
+  }
   if (received) await prisma.taxDocument.update({ where: { id }, data: { submissionStatus: "ACCEPTED", lastError: null } });
   return { id, status: received ? "ACCEPTED" : "QUEUED", externalId: d.externalId };
 }
@@ -305,6 +313,8 @@ export async function correct(user: AuthUser, body: Record<string, unknown>) {
   const note = text(body.note, 500), buyerName = text(body.buyerName, 200);
   if (note.length < 5 || !buyerName) throw new ApiError("Record what was corrected and why.", 400);
   const snapshot = { ...(d.snapshot as Record<string, unknown>), correction: { revision: d.revision + 1, buyerName, note, by: user.userId, at: new Date().toISOString() } };
-  await prisma.taxDocument.update({ where: { id: d.id }, data: { snapshot: snapshot as Prisma.InputJsonValue, revision: { increment: 1 }, submissionStatus: "CORRECTED", correctedById: user.userId, correctionNote: note } });
+  // Claim the rejected revision atomically: a concurrent correction that already moved it on loses with a 409.
+  const { count } = await prisma.taxDocument.updateMany({ where: { id: d.id, schoolId: user.schoolId, submissionStatus: "REJECTED", revision: d.revision }, data: { snapshot: snapshot as Prisma.InputJsonValue, revision: { increment: 1 }, submissionStatus: "CORRECTED", correctedById: user.userId, correctionNote: note } });
+  if (!count) throw new ApiError("This document was corrected by someone else. Reload to see its latest revision.", 409);
   return { id: d.id, revision: d.revision + 1 };
 }
