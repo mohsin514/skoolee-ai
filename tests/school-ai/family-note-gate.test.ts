@@ -38,3 +38,20 @@ test("an explicit formal-session release policy opens notes before report public
   assert.equal(gates.get("s1"), "OPEN");
   assert.equal(queries.some(query => query.table === "report"), false);
 });
+
+// SKAI-283: a non-exam-staff role is refused with 403 before any transaction, on two schools alike.
+test("family notes refuse receptionists, students and parents with 403 before any database work", async () => {
+  const { listFamilyNotes, draftFamilyNotes } = await import("../../src/lib/school-ai/family-note-service");
+  for (const schoolId of ["school-alpha", "school-beta"]) {
+    for (const role of ["RECEPTIONIST", "STUDENT", "PARENT", "ACCOUNTANT", "LIBRARIAN"]) {
+      const user = { userId: "u1", schoolId, campusId: "campus-1", role } as unknown as Parameters<typeof listFamilyNotes>[0];
+      for (const call of [listFamilyNotes, draftFamilyNotes]) {
+        await assert.rejects(call(user, "00000000-0000-0000-0000-000000000000"), (error: unknown) => {
+          assert.equal((error as { status?: number }).status, 403);
+          assert.equal(error instanceof Error && error.name !== "PrismaClientKnownRequestError", true);
+          return true;
+        });
+      }
+    }
+  }
+});
