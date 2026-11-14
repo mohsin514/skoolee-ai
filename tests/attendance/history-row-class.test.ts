@@ -34,6 +34,7 @@ mock.module("@/lib/db/prisma", {
 });
 mock.module("@/lib/api/scope", {
   namedExports: {
+    ValidationError: class extends Error {},
     ApiError: class extends Error {},
     canMarkAttendance: () => true,
     errorResponse: (error: unknown) => { throw error; },
@@ -57,9 +58,9 @@ test("history scans only back to the 60th most recent marked day and returns tho
   assert.deepEqual(groupByCalls[0], { by: ["date"], where: { campusId: "campus-a", classId: "class-7b" }, orderBy: { date: "desc" }, take: 60 });
   // The 60th most recent marked day is day index 30 (every other day), i.e. offset 60.
   assert.deepEqual(groupByCalls[1].where.date, { gte: day(60) });
-  assert.equal(body.history.length, 60);
-  assert.equal(body.history[0].date, day(178).toISOString().slice(0, 10));
-  assert.equal(body.history[59].date, day(60).toISOString().slice(0, 10));
-  assert.equal(body.history.reduce((n: number, h: { total: number }) => n + h.total, 0), 120);
-  assert.ok(body.history.every((h: { marked: boolean }) => h.marked));
+  assert.equal(body.data.history.length, 60);
+  assert.equal(body.data.history[0].date, day(178).toISOString().slice(0, 10));
+  assert.equal(body.data.history[59].date, day(60).toISOString().slice(0, 10));
+  assert.equal(body.data.history.reduce((n: number, h: { total: number }) => n + h.total, 0), 120);
+  assert.ok(body.data.history.every((h: { marked: boolean }) => h.marked));
 });

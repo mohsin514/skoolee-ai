@@ -15,8 +15,14 @@ const pupilA: Viewer = { userId: "s-a", schoolId: "school-a", campusId: "campus-
 
 mock.module("@/lib/api/scope", { namedExports: { ApiError } });
 mock.module("@/lib/school-ai/access", { namedExports: { isSchoolAiManager: (user: Viewer) => user.role !== "TEACHER" } });
-// The SKAI-1840 Redis exam marker is out of scope here; stub it so the test never opens a Redis connection.
-mock.module("@/lib/school-ai/exam-active-marker", { namedExports: { markCandidateExamActive: async () => undefined } });
+// The SKAI-1840 Redis exam marker is stubbed so the test never opens a Redis connection; SKAI-1982 records each
+// batch so a room-wide extend is shown to write its markers in one call, before any deadline moves.
+const markerBatches: { userId: string; deadlineAt: Date }[][] = [];
+const auditsAtMark: number[] = [];
+mock.module("@/lib/school-ai/exam-active-marker", { namedExports: {
+  markCandidateExamActive: async () => { throw new Error("per-attempt marker write"); },
+  markCandidatesExamActive: async (entries: { userId: string; deadlineAt: Date }[]) => { markerBatches.push(entries); auditsAtMark.push(audits.length); },
+} });
 mock.module("@/lib/school-ai/exam-service", {
   namedExports: {
     // The assignment lives on the caller's own campus; a pupil gets their own row back and must be refused.
@@ -25,7 +31,7 @@ mock.module("@/lib/school-ai/exam-service", {
   },
 });
 
-type Attempt = { id: string; schoolId: string; campusId: string; assignmentId: string; status: string; pausedAt: Date | null; deadlineAt: Date };
+type Attempt = { id: string; userId: string; schoolId: string; campusId: string; assignmentId: string; status: string; pausedAt: Date | null; deadlineAt: Date };
 type Audit = { schoolId: string; tableName: string; recordId: string; newValue?: Record<string, unknown> };
 let attempts: Attempt[] = [];
 let audits: Audit[] = [];
@@ -62,9 +68,11 @@ let service: Service;
 before(async () => { service = await import("../../src/lib/school-ai/control-room-service"); });
 
 const later = () => new Date(Date.now() + 30 * 60_000);
-const attempt = (id: string, over: Partial<Attempt> = {}): Attempt => ({ id, schoolId: "school-a", campusId: "campus-a1", assignmentId: "room-1", status: "IN_PROGRESS", pausedAt: null, deadlineAt: later(), ...over });
+const attempt = (id: string, over: Partial<Attempt> = {}): Attempt => ({ id, userId: `u-${id}`, schoolId: "school-a", campusId: "campus-a1", assignmentId: "room-1", status: "IN_PROGRESS", pausedAt: null, deadlineAt: later(), ...over });
 beforeEach(() => {
   reads.length = 0;
+  markerBatches.length = 0;
+  auditsAtMark.length = 0;
   audits = [];
   attempts = [
     ...Array.from({ length: 500 }, (_, i) => attempt(`a${i}`)),
@@ -82,6 +90,17 @@ test("extending a 500-candidate room reads attempts and applied keys once each",
   assert.deepEqual(reads.map(row => row.model), ["attempt", "audit"]);
   assert.deepEqual(reads[1].where.schoolId, "school-a");
   assert.equal(audits.length, 500);
+  assert.equal(markerBatches.length, 1, "one marker batch for the whole room");
+  assert.equal(markerBatches[0].length, 500);
+  assert.deepEqual(auditsAtMark, [0], "markers are written before any extension");
+  assert.equal(markerBatches[0][0].deadlineAt.toISOString(), outcomes[0].deadlineAt);
+});
+
+test("the marker batch holds only attempts that will move: not done, other scopes or already-applied keys", async () => {
+  await extend(teacherA, ["a1"]);
+  markerBatches.length = 0;
+  await extend(teacherA, ["a1", "a2", "done", "other-campus", "other-school", "missing"]);
+  assert.deepEqual(markerBatches.map(batch => batch.map(entry => entry.userId)), [["u-a2"]]);
 });
 
 test("a repeated key is reported as already applied and moves no deadline twice", async () => {

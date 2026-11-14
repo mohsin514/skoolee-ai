@@ -516,7 +516,7 @@ export async function createStudentRecords(user: AuthUser, req: NextRequest, opt
               phone: student.guardianPhone || student.guardianWhatsapp || account.phone,
               relationship, status: "INVITED", validFrom: invitedAt,
               invitationExpiresAt: new Date(invitedAt.getTime() + 14 * 24 * 60 * 60 * 1000),
-              accessVersions: { create: { id: randomUUID(), school: { connect: { id: user.schoolId } }, permissions: {
+              accessVersions: { create: { id: randomUUID(), permissions: {
                 learningRecords: false, attendance: false, finances: false, communication: false, pickup: false,
                 consents: { medicalTreatment: false, fieldTrips: false, mediaPublication: false, offsiteTravel: false },
               }, effectiveFrom: invitedAt, reason: "Awaiting explicit school review of guardian permissions.", createdByUserId: user.userId } },

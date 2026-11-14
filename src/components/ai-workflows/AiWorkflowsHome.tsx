@@ -7,6 +7,7 @@ import { ForwardArrow } from "@/components/onboarding/ForwardArrow";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { useNavigationAccess } from "@/components/nav/NavigationAccess";
 import { AiActionPanel, AIReviewQueue, type AIFeatureOption } from "@/components/role-dashboard/AiActionPanel";
+import { AI_COMPOSER_INPUT_ID } from "./ai-composer-id";
 import { AI_STAGE_OF, fillAi, getAiWorkflowsCopy, type AiStageKey } from "./ai-workflows-copy";
 
 /**
@@ -29,7 +30,7 @@ const STAGES: { key: AiStageKey; icon: LucideIcon }[] = [
   { key: "review", icon: ClipboardCheck },
 ];
 /** The composer's text field; a console's "New request" primary focuses it (§4.4b "AI assistant"). */
-export const AI_COMPOSER_INPUT_ID = "sk-ai-flow-context";
+export { AI_COMPOSER_INPUT_ID };
 const COMPOSER_INPUT = AI_COMPOSER_INPUT_ID;
 
 export function AiWorkflowsHome({

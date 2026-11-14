@@ -2,6 +2,7 @@ import { dominantInvoiceCurrency } from "../invoice-currency";
 import { getLocalePackage } from "@/lib/locale/store";
 import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { listPagination, pageWindow } from "@/lib/lists/query";
 import {
@@ -12,6 +13,19 @@ import {
 } from "@/lib/api/scope";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Students with an overdue balance under the same filter as the route's `where`. $queryRaw bypasses the tenant guard, so school_id is in the SQL. */
+async function countDefaulters(schoolId: string, currency: string, campusIds: string[], cutoff: Date, inclusive: boolean) {
+  if (!campusIds.length) return 0;
+  // Columns are UTC wall-clock `timestamp`s, so the cutoff goes in as UTC wall-clock too.
+  const due = Prisma.sql`${cutoff.toISOString().slice(0, 23)}::timestamp`;
+  const [row] = await prisma.$queryRaw<[{ n: number }]>(Prisma.sql`
+    SELECT COUNT(DISTINCT student_id)::int AS n FROM invoices
+    WHERE school_id = ${schoolId} AND currency = ${currency} AND campus_id IN (${Prisma.join(campusIds)})
+      AND status <> 'CANCELLED' AND balance_due > 0
+      AND ${inclusive ? Prisma.sql`due_date <= ${due}` : Prisma.sql`due_date < ${due}`}`);
+  return Number(row?.n ?? 0);
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -47,7 +61,8 @@ export async function GET(req: NextRequest) {
 
     // A student defaults once an unpaid invoice is at least `minDays` whole days past due.
     const now = new Date();
-    const dueDate = minDaysOverdue === 0 ? { lt: now } : { lte: new Date(now.getTime() - minDaysOverdue * DAY_MS) };
+    const cutoff = minDaysOverdue === 0 ? now : new Date(now.getTime() - minDaysOverdue * DAY_MS);
+    const dueDate = minDaysOverdue === 0 ? { lt: cutoff } : { lte: cutoff };
     const where = {
       schoolId: user.schoolId,
       currency,
@@ -61,14 +76,7 @@ export async function GET(req: NextRequest) {
     // whole list comes back (export and send-all still need every defaulter).
     const paged = searchParams.has("page") || searchParams.has("limit");
     let total = 0, skip = 0, take: number | undefined, page = 1;
-    if (paged) {
-      const { page: requestedPage, limit } = listPagination(searchParams, 25, 100);
-      total = (await prisma.invoice.groupBy({ by: ["studentId"], where })).length;
-      const window = pageWindow(total, requestedPage, limit);
-      ({ skip, page } = window);
-      take = limit;
-    }
-    const groups = await prisma.invoice.groupBy({
+    const pageOf = (skip: number, take: number | undefined) => prisma.invoice.groupBy({
       by: ["studentId"],
       where,
       _sum: { totalAmount: true, totalAmountPaid: true, balanceDue: true },
@@ -78,6 +86,21 @@ export async function GET(req: NextRequest) {
       skip,
       take,
     });
+    let groups: Awaited<ReturnType<typeof pageOf>>;
+    if (paged) {
+      const { page: requestedPage, limit } = listPagination(searchParams, 25, 100);
+      take = limit;
+      // SKAI-1970: count defaulters in SQL (one row, not one per student) alongside the requested page; only a
+      // page past the end needs a second read once the total has clamped it to the last page.
+      [total, groups] = await Promise.all([
+        countDefaulters(user.schoolId, currency, campusIds, cutoff, minDaysOverdue > 0),
+        pageOf((requestedPage - 1) * limit, take),
+      ]);
+      ({ skip, page } = pageWindow(total, requestedPage, limit));
+      if (page !== requestedPage) groups = await pageOf(skip, take);
+    } else {
+      groups = await pageOf(skip, take);
+    }
     if (!paged) total = groups.length;
 
     // Names, guardian contact and the class snapshot come from each student's earliest overdue invoice.

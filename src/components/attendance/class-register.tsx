@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,8 +16,8 @@ import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { AlertTriangle, CalendarX2, ClipboardCheck, GitCompareArrows, MessageSquareText, Users } from "lucide-react";
-import { copyPreviousIntoDrafts, hasMarks, previousDates } from "@/lib/attendance/copy-previous";
+import { AlertTriangle, CalendarX2, ClipboardCheck, GitCompareArrows, History, MessageSquareText, Users } from "lucide-react";
+import { copyPreviousIntoDrafts, hasMarks } from "@/lib/attendance/copy-previous";
 import { DeskPill, DeskSection, deskRow, type DeskTone } from "@/components/ui/desk";
 
 // SKO-405: the class register. Unmarked is shown as its own state and nothing is assumed from it;
@@ -28,7 +29,7 @@ import { DeskPill, DeskSection, deskRow, type DeskTone } from "@/components/ui/d
 type Ui = ReturnType<typeof useUiText>;
 export type Status = "PRESENT" | "LATE" | "PARTIAL" | "ABSENT" | "EXCUSED" | "LEAVE";
 const STATUSES: Status[] = ["PRESENT", "LATE", "PARTIAL", "ABSENT", "EXCUSED", "LEAVE"];
-type Entry = { studentId: string; name: string; rollNo: string; movedSince: boolean; status: Status | null; arrivalTime: string | null; departureTime: string | null; note: string | null; version: number; markedBy: string | null; openExplanation: string | null };
+type Entry = { studentId: string; attendanceId?: string | null; name: string; rollNo: string; movedSince: boolean; status: Status | null; arrivalTime: string | null; departureTime: string | null; note: string | null; version: number; markedBy: string | null; openExplanation: string | null };
 type Register = { canCorrect?: boolean; class: { id: string; name: string }; date: string; today: string; register: { status: "OPEN" | "SUBMITTED"; submittedAt: string | null }; entries: Entry[]; rule: { version: number }; regulator: { regulator: string; name: string; confirmed: boolean; codes: Record<Status, string>; schoolDay: boolean } | null };
 type Draft = { status: Status | null; arrivalTime: string; departureTime: string };
 type Conflict = { studentId: string; name: string; current: string | null; yours: string; seen: string | null; markedBy: string | null };
@@ -45,6 +46,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
   const [date, setDate] = useState("");
   const [data, setData] = useState<Register | null>(null), [loadError, setLoadError] = useState(""), [loading, setLoading] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [historyFor, setHistoryFor] = useState<Entry | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false), [conflicts, setConflicts] = useState<Conflict[]>([]), [saving, setSaving] = useState(false);
 
   useEffect(() => { if (!classId && classes[0]) setClassId(classes[0].id); }, [classes, classId]);
@@ -55,7 +57,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
       const params = new URLSearchParams({ classId }); if (date) params.set("date", date);
       const response = await fetch(`/api/attendance/register?${params}`, { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(json.error || "The register could not be loaded.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The register could not be loaded."));
       setData(json.data); if (!date) setDate(json.data.date);
       setDrafts(Object.fromEntries((json.data.entries as Entry[]).map(entry => [entry.studentId, { status: entry.status, arrivalTime: entry.arrivalTime ?? "", departureTime: entry.departureTime ?? "" }])));
     } catch (failure) { setLoadError(ui(failure instanceof Error ? failure.message : "The register could not be loaded.")); } finally { setLoading(false); }
@@ -77,17 +79,15 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
     if (!data) return;
     setCopying(true);
     try {
-      for (const day of previousDates(data.date)) {
-        const response = await fetch(`/api/attendance/register?${new URLSearchParams({ classId: data.class.id, date: day })}`, { cache: "no-store" });
-        const json = await response.json().catch(() => ({}));
-        if (!response.ok || !json.success) throw new Error("load");
-        if (!hasMarks(json.data.entries as Entry[])) continue;
-        const out = copyPreviousIntoDrafts(drafts, json.data.entries as Entry[]);
-        setDrafts(out.drafts);
-        toast.success(ui("Copied {0} marks from {1}. Check them, then save.", [String(out.copied), formatDate(day)]));
-        return;
-      }
-      toast.error(ui("No earlier register with marks in the last week."));
+      // SKAI-1983: the server finds the newest earlier register with marks in the last week in one request.
+      const response = await fetch(`/api/attendance/register?${new URLSearchParams({ classId: data.class.id, before: data.date, withMarks: "1" })}`, { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !isApiOk(json)) throw new Error("load");
+      const previous = json.data as { date: string; entries: Entry[] } | null;
+      if (!previous || !hasMarks(previous.entries)) { toast.error(ui("No earlier register with marks in the last week.")); return; }
+      const out = copyPreviousIntoDrafts(drafts, previous.entries);
+      setDrafts(out.drafts);
+      toast.success(ui("Copied {0} marks from {1}. Check them, then save.", [String(out.copied), formatDate(previous.date)]));
     } catch { toast.error(ui("The previous register could not be loaded. Nothing has changed.")); } finally { setCopying(false); }
   };
   const missingTime = changed.find(entry => { const d = drafts[entry.studentId]; return d.status === "LATE" && !d.arrivalTime || d.status === "PARTIAL" && !d.arrivalTime && !d.departureTime; });
@@ -100,7 +100,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
       const response = await fetch("/api/attendance/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classId: data.class.id, date: data.date, submit: options.submit, reason: options.reason || undefined, entries: rows.map(entry => { const d = drafts[entry.studentId]; return { studentId: entry.studentId, status: d.status, knownStatus: entry.status, knownVersion: entry.version, arrivalTime: d.arrivalTime || null, departureTime: d.departureTime || null, reviewedConflict: options.reviewed?.has(entry.studentId) || undefined }; }) }) });
       const json = await response.json().catch(() => ({}));
       if (response.status === 409 && json.data?.conflicts?.length) { setConflicts(json.data.conflicts); setReviewOpen(false); return; }
-      if (!response.ok || !json.success) throw new Error(json.error || "The register was not saved.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The register was not saved."));
       setReviewOpen(false); setConflicts([]);
       if (options.submit && json.data.unmarked.length) toast.error(ui("{0} pupils are still unmarked.", [String(json.data.unmarked.length)]));
       else toast.success(json.data.submitted && options.submit ? ui("Register submitted") : ui("Register saved"));
@@ -133,6 +133,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
             <FormField name={`arrive-${entry.studentId}`} label={ui("Arrived")}><Input type="time" disabled={locked} value={d.arrivalTime} onChange={event => setDraft(entry.studentId, { arrivalTime: event.target.value })} className="w-28" /></FormField>
             {d.status === "PARTIAL" ? <FormField name={`depart-${entry.studentId}`} label={ui("Left")}><Input type="time" disabled={locked} value={d.departureTime} onChange={event => setDraft(entry.studentId, { departureTime: event.target.value })} className="w-28" /></FormField> : null}
           </div> : null}
+          {entry.attendanceId ? <Button variant="ghost" size="sm" type="button" onClick={() => setHistoryFor(entry)} aria-label={ui("Show the history of this day's mark")} data-register-history={entry.attendanceId}><History className="h-3.5 w-3.5" aria-hidden />{ui("History")}</Button> : null}
         </li>; })}
       </ul>}
       {/* §4.4b: "Submit register" stays in reach on a long register — the action bar sticks to the bottom of the
@@ -147,6 +148,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
       </div>
     </> : null}
     {reviewOpen && data ? <ReviewDialog ui={ui} listNames={names => new Intl.ListFormat(localeTag(locale), { type: "conjunction" }).formatToParts(names).map((part, index) => part.type === "element" ? <bdi key={index}>{part.value}</bdi> : part.value)} submitted={submitted} counts={counts} unmarked={entries.filter(entry => !drafts[entry.studentId]?.status)} changed={changed.map(entry => ({ name: entry.name, from: entry.status, to: drafts[entry.studentId].status }))} className={data.class.name} date={formatDate(data.date)} saving={saving} onClose={() => setReviewOpen(false)} onConfirm={reason => void save({ submit: !submitted, reason })} /> : null}
+    {historyFor?.attendanceId ? <HistoryDialog ui={ui} attendanceId={historyFor.attendanceId} name={historyFor.name} onClose={() => setHistoryFor(null)} /> : null}
     {conflicts.length ? <ConflictDialog ui={ui} conflicts={conflicts} saving={saving} onClose={() => { setConflicts([]); void load(); }} onKeepMine={ids => void (async () => { await save({ submit: false, reviewed: new Set(ids), reason: submitted ? ui("Conflicting change reviewed") : undefined }); })()} /> : null}
   </div>;
 }
@@ -166,6 +168,41 @@ function ReviewDialog({ ui, listNames, submitted, counts, unmarked, changed, cla
         <ul className="space-y-1 text-sm" data-review-changes>{changed.map(row => <li key={row.name}><bdi>{row.name}</bdi>: {statusLabel(ui, row.from)} → {statusLabel(ui, row.to)}</li>)}</ul>
         <FormField name="correction-reason" label={ui("Reason for the correction")} hint={ui("Kept with the record's history.")}><Textarea value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField>
       </> : null}
+    </div>
+  </Modal>;
+}
+
+type HistoryData = { status: string; changes: { id: string; at: string; from: string; to: string; by: string | null; reason: string | null; source: string }[]; explanations: { status: string; reason: string; proposedStatus: string; reviewNote: string | null; at: string }[] };
+
+/** SKAI-230: one pupil-day's mark history (oldest first), read from the scoped register API. */
+function HistoryDialog({ ui, attendanceId, name, onClose }: { ui: Ui; attendanceId: string; name: string; onClose: () => void }) {
+  const { dateTime } = useLocaleFormat();
+  const [data, setData] = useState<HistoryData | null>(null), [error, setError] = useState("");
+  const load = useCallback(async () => {
+    setError("");
+    try {
+      const response = await fetch(`/api/attendance/register?history=${encodeURIComponent(attendanceId)}`, { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.success) throw new Error(json.error || "The history could not be loaded.");
+      setData(json.data);
+    } catch (failure) { setError(ui(failure instanceof Error ? failure.message : "The history could not be loaded.")); }
+  }, [attendanceId, ui]);
+  useEffect(() => { void load(); }, [load]);
+  const sourceLabel = (source: string) => ({ REGISTER: ui("Marked on the register"), CORRECTION: ui("Correction after submission"), EXPLANATION: ui("Explanation accepted") } as Record<string, string>)[source] ?? source;
+  return <Modal size="sm" icon={History} tone="sky" title={ui("Attendance history for {0}", [name])} eyebrow={ui("Attendance")} onClose={onClose} footer={<div className="flex justify-end"><Button variant="secondary" onClick={onClose}>{ui("Close")}</Button></div>}>
+    <div className="space-y-3" data-register-history-dialog>
+      {error ? <ErrorState title={ui("The history could not be loaded.")} description={error} onRetry={() => void load()} /> : null}
+      {!data && !error ? <SkeletonList rows={3} label={ui("Loading…")} /> : null}
+      {data && !data.changes.length && !data.explanations.length ? <EmptyState size="sm" icon={History} title={ui("No change has been recorded for this day yet.")} /> : null}
+      {data?.changes.length ? <DeskSection icon={History} tone="info" title={ui("Changes to the mark")}><ol className="space-y-2 text-sm">{data.changes.map(change => <li key={change.id} className={deskRow} data-history-change={change.id} data-source={change.source}>
+        <p className="font-semibold">{statusLabel(ui, change.from)} → {statusLabel(ui, change.to)}</p>
+        <p className="text-xs text-ink-muted"><bdi>{dateTime(change.at)}</bdi> · {sourceLabel(change.source)}{change.by ? <> · {ui("By {0}", [change.by])}</> : null}</p>
+        {change.reason ? <p className="text-xs text-ink-muted"><bdi>{change.reason}</bdi></p> : null}
+      </li>)}</ol></DeskSection> : null}
+      {data?.explanations.length ? <DeskSection icon={MessageSquareText} tone="brand" title={ui("Family explanations")}><ol className="space-y-2 text-sm">{data.explanations.map((row, index) => <li key={index} className={deskRow} data-history-explanation={row.status}>
+        <p className="text-sm">{ui("Family says: {0}", [row.reason])}</p>
+        <p className="text-xs text-ink-muted"><bdi>{dateTime(row.at)}</bdi> · {ui("Asks to record: {0}", [statusLabel(ui, row.proposedStatus)])}</p>
+      </li>)}</ol></DeskSection> : null}
     </div>
   </Modal>;
 }
@@ -194,7 +231,7 @@ export function AttendanceExceptions() {
     setError("");
     const response = await fetch("/api/attendance/register?queue=1", { cache: "no-store" });
     const json = await response.json().catch(() => ({}));
-    if (!response.ok || !json.success) setError(ui(json.error || "Attendance exceptions could not be loaded.")); else setData(json.data);
+    if (!response.ok || !isApiOk(json)) setError(ui(readApiError(json, "Attendance exceptions could not be loaded."))); else setData(json.data);
   }, [ui]);
   useEffect(() => { void load(); }, [load]);
   // SKAI-1931: started-but-open registers plus today's classes whose register was never started.
@@ -205,7 +242,7 @@ export function AttendanceExceptions() {
     try {
       const response = await fetch("/api/attendance/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ review: { id: deciding.id, action: deciding.action, note: note.trim() || undefined, knownVersion: deciding.version } }) });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(json.error || "The decision was not saved.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The decision was not saved."));
       toast.success(ui("Decision recorded")); setDeciding(null); setNote(""); await load();
     } catch (failure) { toast.error(ui(failure instanceof Error ? failure.message : "The decision was not saved.")); } finally { setBusy(false); }
   };
@@ -250,7 +287,7 @@ export function GuardianAttendanceExplanations({ studentId }: { studentId: strin
     try {
       const response = await fetch(`/api/parent/attendance?studentId=${encodeURIComponent(studentId)}`, { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) { setLoadFailed(true); return; }
+      if (!response.ok || !isApiOk(json)) { setLoadFailed(true); return; }
       setRows(json.data); setLoadFailed(false);
     } catch { setLoadFailed(true); }
   }, [studentId]);
@@ -262,7 +299,7 @@ export function GuardianAttendanceExplanations({ studentId }: { studentId: strin
     try {
       const response = await fetch("/api/parent/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ attendanceId: open.attendanceId, reason: form.reason, proposedStatus: form.proposedStatus, arrivalTime: form.proposedStatus === "LATE" ? form.arrivalTime : undefined }) });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(json.error || "The explanation was not sent.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The explanation was not sent."));
       toast.success(ui("Explanation sent to the school")); setOpen(null); setForm({ reason: "", proposedStatus: "EXCUSED", arrivalTime: "" }); await load();
     } catch (failure) { setError(ui(failure instanceof Error ? failure.message : "The explanation was not sent.")); } finally { setBusy(false); }
   };
@@ -300,7 +337,7 @@ export function AttendanceRulePanel() {
   const [choice, setChoice] = useState<Record<string, RuleChoice>>({}), [note, setNote] = useState(""), [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     const json = await fetch("/api/attendance/register?rule=1", { cache: "no-store" }).then(r => r.json()).catch(() => ({}));
-    if (json.success) { setRule(json.data); setChoice(Object.fromEntries(RULE_STATUSES.map(status => [status, json.data.attended.includes(status) ? "attended" : json.data.excluded.includes(status) ? "excluded" : "against"]))); }
+    if (isApiOk(json)) { setRule(json.data); setChoice(Object.fromEntries(RULE_STATUSES.map(status => [status, json.data.attended.includes(status) ? "attended" : json.data.excluded.includes(status) ? "excluded" : "against"]))); }
   }, []);
   useEffect(() => { void load(); }, [load]);
   if (!rule) return null;
@@ -310,7 +347,7 @@ export function AttendanceRulePanel() {
       const attended = ["PRESENT", ...RULE_STATUSES.filter(status => choice[status] === "attended")], excluded = RULE_STATUSES.filter(status => choice[status] === "excluded");
       const response = await fetch("/api/attendance/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rule: { attended, excluded, note } }) });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(json.error || "The rule was not published.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The rule was not published."));
       toast.success(ui("Attendance rule published")); setNote(""); await load();
     } catch (failure) { toast.error(ui(failure instanceof Error ? failure.message : "The rule was not published.")); } finally { setBusy(false); }
   };

@@ -9,7 +9,7 @@ import { applySignInLanguage } from "@/lib/locale/sign-in-language";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { loginSchema } from "@/lib/validators/schemas";
-import bcrypt from "bcryptjs";
+import { verifyPassword } from "@/lib/auth/password-hash";
 import { logSuperAdminAction } from "@/lib/audit";
 import { checkLoginThrottle } from "@/lib/auth/login-throttle";
 import { runUnscoped } from "@/lib/db/tenant-context";
@@ -44,7 +44,7 @@ import {
 import { endSession } from "@/lib/auth/session-revocation";
 import { clientIp } from "@/lib/http/client-ip";
 import { ApiError, errorResponse } from "@/lib/api/scope";
-import { isDatabaseUnavailable } from "@/lib/db/availability";
+import { isDatabaseUnavailable, sqlState } from "@/lib/db/availability";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -123,11 +123,11 @@ async function handleLogin(req: NextRequest) {
     const matched: typeof candidates = [];
     for (const candidate of candidates) {
       if (!candidate.password) continue;
-      if (await bcrypt.compare(password, candidate.password)) matched.push(candidate);
+      if (await verifyPassword(password, candidate.password)) matched.push(candidate);
     }
     // SKO-457: an unknown address costs the same bcrypt work as a wrong password,
     // so response time does not reveal whether the address has an account.
-    if (!candidates.some((c) => c.password)) await bcrypt.compare(password, TIMING_HASH);
+    if (!candidates.some((c) => c.password)) await verifyPassword(password, TIMING_HASH);
 
     if (matched.length === 0) {
       const known = candidates.find((c) => c.role === "SUPER_ADMIN");
@@ -193,7 +193,7 @@ async function handleLogin(req: NextRequest) {
 
     // MFA users get their language applied only after the second factor (AC7).
     if (needsMfaChallenge(user)) return startMfa(user, sessionDays);
-    const res = await issueSession(user, sessionDays, false, req);
+    const res = await issueSession(user, sessionDays, false, req, undefined, user.school);
     await applySignInLanguage(user, body, res);
     return res;
   } catch (error) {
@@ -201,7 +201,9 @@ async function handleLogin(req: NextRequest) {
     if (error instanceof ApiError) return errorResponse(error);
     // A database outage is "try again", not a failed sign-in.
     if (isDatabaseUnavailable(error)) return errorResponse(error, "Login failed");
-    console.error("[auth/login]", error);
+    // Name the cause (no message text: it can echo the query) so a load test reads the real failure (SKAI-1962).
+    const { name, code } = (error ?? {}) as { name?: unknown; code?: unknown };
+    console.error("[auth/login]", { name, code, sqlState: sqlState(error) }, error);
     return Response.json({ error: "Login failed" }, { status: 500 });
   }
 }

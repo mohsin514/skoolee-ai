@@ -6,6 +6,7 @@ import { assertModuleRead, assertSharedModuleRead } from "@/lib/api/scope";
 import { examProgressFor, type ProgressDb } from "@/lib/academic/exam-progress";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { examCounts, withExamCounts } from "@/lib/academic/exam-counts";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { diffExamDetails, examDetailsEditSchema, isExamDetailsEdit } from "@/lib/exams/edit-details";
 import { studentScope } from "@/lib/auth/policy";
@@ -170,7 +171,8 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    const exams = await prisma.exam.findMany({
+    // SKAI-1965: counts come from per-exam groupBy reads, not a relation `_count` that aggregates every school's marks.
+    const listed = await prisma.exam.findMany({
       where: {
         campus: { schoolId: user.schoolId, ...(campusId ? { id: campusId } : {}) },
         ...(classId ? { classId } : {}),
@@ -184,10 +186,10 @@ export async function GET(req: NextRequest) {
         locker: { select: { fullName: true } },
         subject: { select: { id: true, name: true, totalMarks: true } },
         session: { select: { id: true, title: true, status: true } },
-        _count: { select: { marks: true, reportCards: true, schedules: true } },
       },
       orderBy: [{ academicYear: "desc" }, { title: "asc" }],
     });
+    const exams = await withExamCounts(prisma, user.schoolId, listed, ["marks", "reportCards", "schedules"] as const);
 
     // `academicYear` echoes the year filter actually applied (null = every year).
     // SKAI-1815: the board asks for marking progress here instead of one GET /api/marks per exam.
@@ -256,10 +258,7 @@ export async function PATCH(req: NextRequest) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
 
-    const exam = await prisma.exam.findUnique({
-      where: { id: parsed.data.id },
-      include: { _count: { select: { marks: true, reportCards: true } } },
-    });
+    const exam = await prisma.exam.findUnique({ where: { id: parsed.data.id } });
 
     if (!exam) return Response.json({ error: "Exam not found" }, { status: 404 });
     if (user.campusId && exam.campusId !== user.campusId) {
@@ -284,7 +283,7 @@ export async function PATCH(req: NextRequest) {
     if (exam.isLocked && (target === "DRAFT" || target === "ACTIVE" || target === "MARKS_ENTRY")) {
       return Response.json({ error: "Locked exams cannot return to editable states" }, { status: 409 });
     }
-    if (target === "DRAFT" && exam._count.marks > 0) {
+    if (target === "DRAFT" && await hasMarks(prisma, user.schoolId, exam.id)) {
       return Response.json({ error: "Exams with marks cannot return to draft" }, { status: 409 });
     }
     if (target === "PRINCIPAL_REVIEWED" && !exam.isLocked) {
@@ -303,11 +302,11 @@ export async function PATCH(req: NextRequest) {
       return Response.json({ success: true, exam: await prisma.exam.findUnique({ where: { id: exam.id } }) });
     }
     const updated = await withExamSchedulingWrite(user, exam.campusId, "edit", async tx => {
-      const current = await tx.exam.findFirst({ where: { id: exam.id, schoolId: user.schoolId, campusId: exam.campusId }, include: { _count: { select: { marks: true } } } });
+      const current = await tx.exam.findFirst({ where: { id: exam.id, schoolId: user.schoolId, campusId: exam.campusId }, });
       if (!current) throw new ApiError("Exam not found", 404);
       if (!canManageExamType(user.role, current.examType)) throw new ApiError(TERM_EXAM_DENIED_MESSAGE, 403);
       if (current.isLocked) throw new ApiError("Locked exams cannot return to editable states", 409);
-      if (target === "DRAFT" && current._count.marks > 0) throw new ApiError("Exams with marks cannot return to draft", 409);
+      if (target === "DRAFT" && await hasMarks(tx, user.schoolId, current.id)) throw new ApiError("Exams with marks cannot return to draft", 409);
       if (user.role === "TEACHER" && !await tx.class.findFirst({ where: { id: current.classId, schoolId: user.schoolId, campusId: current.campusId, OR: [{ classTeacherId: user.userId }, { subjects: { some: { teacherId: user.userId } } }] }, select: { id: true } })) throw new ApiError("You are not assigned to this class", 403);
     const now = new Date();
     const updated = await tx.exam.update({
@@ -321,18 +320,23 @@ export async function PATCH(req: NextRequest) {
         class: { select: { id: true, name: true, section: true, academicYear: true } },
         locker: { select: { fullName: true } },
         subject: { select: { id: true, name: true, totalMarks: true } },
-        _count: { select: { marks: true, reportCards: true } },
       },
     });
 
       const schedules = await tx.examSchedule.findMany({ where: { schoolId: user.schoolId, campusId: current.campusId, examId: current.id }, select: { id: true } });
       await validateStoredExamSchedules(tx, { schoolId: user.schoolId, campusId: current.campusId }, schedules.map(item => item.id));
       await writeAuditEvent(tx, user, { table: "exams", recordId: current.id, action: "UPDATE", campusId: current.campusId, before: { status: current.status }, after: { status: updated.status } });
-      return updated;
+      const countFor = await examCounts(tx, user.schoolId, [updated.id], ["marks", "reportCards"] as const);
+      return { ...updated, _count: countFor(updated.id) };
     }, true);
     return Response.json({ success: true, exam: updated });
   } catch (error) {
     console.error("[exams] PATCH failed", error);
     return permissionAwareError(error);
   }
+}
+
+/** The draft guard only needs to know whether any mark exists, so it stops at the first one. */
+async function hasMarks(db: Pick<typeof prisma, "mark">, schoolId: string, examId: string) {
+  return Boolean(await db.mark.findFirst({ where: { schoolId, examId }, select: { id: true } }));
 }

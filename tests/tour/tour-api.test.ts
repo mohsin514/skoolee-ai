@@ -74,7 +74,7 @@ function fixture(options: { role?: AuthUser["role"]; row?: Partial<Row> | null; 
     if (id === "@/lib/auth/secret") return { JWT_SECRET: SECRET };
     if (id === "@/lib/billing/entitlements") return { assertSchoolOperational: async () => { if (options.suspended) throw Object.assign(new Error("Subscription suspended"), { status: 402 }); } };
     if (id === "@/lib/school-ai/exam-boundary-service") return { candidateExamBoundary: async () => (options.exam ? { attemptId: "attempt-1" } : null) };
-    if (id === "@/lib/onboarding/tours") return tours;
+    if (id === "@/lib/onboarding/tours/progress") return tours;
     return require(id);
   };
   new Function("module", "exports", "require", routeCode)(loaded, loaded.exports, boundary);

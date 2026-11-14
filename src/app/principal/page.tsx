@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useEffect, useState, useSyncExternalStore, type ComponentProps, type ComponentType } from "react";
+import dynamic from "next/dynamic";
 import {
   AlertTriangle,
   ArrowRightLeft,
@@ -65,42 +66,55 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { downloadCSV } from "@/lib/csv";
 import { CommandCentreSkeleton, PageSkeleton, PAGE_CARD_BODY } from "@/components/role-dashboard/RoleShellSkeleton";
 import { FlagshipCard } from "@/components/ui/flagship";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 import { ActionQueue } from "@/components/principal/action-queue";
 import { AcademicOverview } from "@/components/insights/AcademicOverview";
-import { ReportCardPipeline, type ReportSelectionState } from "@/components/academic/ReportCardPipeline";
-import { ExamsWorkspace } from "@/components/academic/exams/ExamsWorkspace";
-import { QuestionNetwork } from "@/components/question-network/question-network";
-import { TimetableStudio, type TimetableCommand, type TimetableDraftState } from "@/components/timetable/TimetableStudio";
-import { AcademicModelPanel, type AcademicModelActionState, type AcademicModelCommand } from "@/components/academic/AcademicModelPanel";
-import { GradingRulesPanel } from "@/components/academic/GradingRulesPanel";
-import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
-import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
-import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
+import type { ReportSelectionState } from "@/components/academic/ReportCardPipeline";
+import type { TimetableCommand, TimetableDraftState } from "@/components/timetable/TimetableStudio";
+import type { AcademicModelActionState, AcademicModelCommand } from "@/components/academic/AcademicModelPanel";
 import type { YearCloseCommand, YearClosureState } from "@/components/academic/YearClosureChecklist";
-import { RolloverReview, type RolloverApprovalState } from "@/components/academic/rollover-review";
-import { ScenarioPlanner } from "@/components/planning/scenario-planner";
-import { UnifiedAttendancePanel } from "@/components/attendance/unified-attendance-panel";
-import { LearningActions } from "@/components/learning/learning-actions";
-import { EngagementPanel, type EngagementCommand } from "@/components/communications/engagement-panel";
-import { AiWorkflowsHome, AI_COMPOSER_INPUT_ID } from "@/components/ai-workflows/AiWorkflowsHome";
-import { PathwayPanel } from "@/components/pathways/pathway-panel";
-import { MyLeavePanel } from "@/components/leave/my-leave";
-import {
-  AcademicPanel,
-  ClassDetailModal,
-  FacultyPanel,
-  LeaveManagementPanel,
-  StudentDetailModal,
-  StudentsPanel,
-  TeacherConflictsBanner,
-  TeacherDetailModal,
-  exportStudentsToCSV,
-} from "@/components/shared-admin";
+import type { RolloverApprovalState } from "@/components/academic/rollover-review";
+import type { EngagementCommand } from "@/components/communications/engagement-panel";
+import { AI_COMPOSER_INPUT_ID } from "@/components/ai-workflows/ai-composer-id";
 import { fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
+
+/*
+ * SKAI-1978: only Today (above) is bundled with the page. Every other workspace view and the detail modals load
+ * their own chunk when first shown, so a cold instance no longer evaluates ~20 panels to render Today. SSR stays on,
+ * so a deep-linked ?view= still server-renders. The view's PageHeader is already drawn, so the fallback is a body-only list.
+ */
+const panelLoading = () => <SkeletonList />;
+const ReportCardPipeline = dynamic(() => import("@/components/academic/ReportCardPipeline").then((m) => m.ReportCardPipeline), { loading: panelLoading });
+const ExamsWorkspace = dynamic(() => import("@/components/academic/exams/ExamsWorkspace").then((m) => m.ExamsWorkspace), { loading: panelLoading });
+const QuestionNetwork = dynamic(() => import("@/components/question-network/question-network").then((m) => m.QuestionNetwork), { loading: panelLoading });
+const TimetableStudio = dynamic(() => import("@/components/timetable/TimetableStudio").then((m) => m.TimetableStudio), { loading: panelLoading });
+const AcademicModelPanel = dynamic(() => import("@/components/academic/AcademicModelPanel").then((m) => m.AcademicModelPanel), { loading: panelLoading });
+const GradingRulesPanel = dynamic(() => import("@/components/academic/GradingRulesPanel").then((m) => m.GradingRulesPanel), { loading: panelLoading });
+const AcademicCalendar = dynamic(() => import("@/components/academic/AcademicCalendar").then((m) => m.AcademicCalendar), { loading: panelLoading });
+const TeacherPerformancePanel = dynamic(() => import("@/components/academic-year/TeacherPerformancePanel").then((m) => m.TeacherPerformancePanel), { loading: panelLoading });
+const CycleManagementPanel = dynamic(() => import("@/components/academic-year/CycleManagementPanel").then((m) => m.CycleManagementPanel), { loading: panelLoading });
+const RolloverReview = dynamic(() => import("@/components/academic/rollover-review").then((m) => m.RolloverReview), { loading: panelLoading });
+const ScenarioPlanner = dynamic(() => import("@/components/planning/scenario-planner").then((m) => m.ScenarioPlanner), { loading: panelLoading });
+const UnifiedAttendancePanel = dynamic(() => import("@/components/attendance/unified-attendance-panel").then((m) => m.UnifiedAttendancePanel), { loading: panelLoading });
+const LearningActions = dynamic(() => import("@/components/learning/learning-actions").then((m) => m.LearningActions), { loading: panelLoading });
+const EngagementPanel = dynamic(() => import("@/components/communications/engagement-panel").then((m) => m.EngagementPanel), { loading: panelLoading });
+const AiWorkflowsHome = dynamic(() => import("@/components/ai-workflows/AiWorkflowsHome").then((m) => m.AiWorkflowsHome), { loading: panelLoading });
+const PathwayPanel = dynamic(() => import("@/components/pathways/pathway-panel").then((m) => m.PathwayPanel), { loading: panelLoading });
+const MyLeavePanel = dynamic(() => import("@/components/leave/my-leave").then((m) => m.MyLeavePanel), { loading: panelLoading });
+const StudentsPanel = dynamic(() => import("@/components/shared-admin/students-panel").then((m) => m.StudentsPanel), { loading: panelLoading });
+const TeacherConflictsBanner = dynamic(() => import("@/components/shared-admin/teacher-conflicts-banner").then((m) => m.TeacherConflictsBanner));
+const AcademicPanel = dynamic(() => import("@/components/shared-admin").then((m) => m.AcademicPanel), { loading: panelLoading });
+const FacultyPanel = dynamic(() => import("@/components/shared-admin").then((m) => m.FacultyPanel), { loading: panelLoading });
+const LeaveManagementPanel = dynamic(() => import("@/components/shared-admin").then((m) => m.LeaveManagementPanel), { loading: panelLoading });
+// Modals open on a click; they render nothing while their chunk loads.
+const StudentDetailModal = dynamic(() => import("@/components/shared-admin").then((m) => m.StudentDetailModal));
+const TeacherDetailModal = dynamic(() => import("@/components/shared-admin").then((m) => m.TeacherDetailModal));
+const ClassDetailModal = dynamic(() => import("@/components/shared-admin").then((m) => m.ClassDetailModal));
 import { cn } from "@/lib/utils";
 import { usePrincipalData } from "./principal-data-context";
 import { currentClassTeacherId, currentSubjectTeacherId } from "@/lib/academic/allocation-version";
+import { reportCardExamsInView } from "@/lib/academic/report-card-exams";
 
 /** The principal's AI workflows (academic only; the group admin no longer has these, M6). */
 const PRINCIPAL_AI_FEATURES = [
@@ -266,6 +280,8 @@ function PrincipalWorkspace({
   // A link to one exam's report cards opens the view with that exam first and in view.
   const examParam = useExamParam();
   const reviewReady = Boolean(data);
+  // SKAI-1960: each listed exam loads its own report versions, so earlier academic years wait behind a toggle.
+  const [showEarlierReportYears, setShowEarlierReportYears] = useState(false);
   useEffect(() => {
     if (view !== "report-cards" || !examParam || !reviewReady) return;
     const node = document.getElementById(`report-exam-${examParam}`);
@@ -391,9 +407,10 @@ function PrincipalWorkspace({
 
   // §4.4b principal · Classes & subjects: Export (secondary) — one row per section with its staffing gaps.
   const exportClasses = () => {
+    // SKAI-1964: the payload no longer nests each class's roster; `_count.students` is the on-roll size the panel shows.
     const rows = (data?.classes ?? []).map((c: any) => {
       const subjects: any[] = c.subjects ?? [];
-      return [c.name ?? "", c.section ?? "", String(c.academicYear ?? ""), c.classTeacher?.fullName ?? "", String(subjects.length), String(subjects.filter((s) => !s.teacher && !s.teacherId).length), String((c.students ?? []).length)];
+      return [c.name ?? "", c.section ?? "", String(c.academicYear ?? ""), c.classTeacher?.fullName ?? "", String(subjects.length), String(subjects.filter((s) => !s.teacher && !s.teacherId).length), String(c._count?.students ?? 0)];
     });
     downloadCSV(`classes-${data?.campusName ?? "campus"}.csv`, [[ui("Class"), ui("Section"), ui("Academic year"), ui("Class teacher"), ui("Subjects"), ui("Subjects without a teacher"), ui("Students")], ...rows]);
   };
@@ -515,9 +532,15 @@ function PrincipalWorkspace({
     /* ── Results ── */
     case "report-cards": {
       const waitingExams: any[] = data.reviewExams ?? [];
-      // `?exam=<id>` (job and notification links): that exam first and outlined; the rest keep their order.
-      const exams = examParam ? [...waitingExams.filter((exam) => exam.id === examParam), ...waitingExams.filter((exam) => exam.id !== examParam)] : waitingExams;
+      // `?exam=<id>` (job and notification links): that exam first and outlined, whatever its year; the rest keep
+      // their order. SKAI-1960: only the active academic year (or later) is listed until "Show earlier years".
+      const { exams, earlierCount } = reportCardExamsInView<any>(waitingExams, { activeYear: data.activeAcademicYear, focusExam: examParam, showEarlier: showEarlierReportYears });
       const linkedGone = Boolean(examParam) && !waitingExams.some((exam) => exam.id === examParam);
+      const earlierToggle = earlierCount > 0 ? (
+        <Button type="button" variant="outline" onClick={() => setShowEarlierReportYears((shown) => !shown)}>
+          {showEarlierReportYears ? ui("Hide earlier years") : ui("Show earlier years ({0})", [earlierCount])}
+        </Button>
+      ) : null;
       // §4.4: "Approve selected" approves the versions ticked in every exam below; "Preview release" opens the
       // first ticked version beside the last approved one (else the first exam's first version).
       const picked = exams.filter((exam) => (selections[exam.id]?.selected ?? 0) > 0);
@@ -543,13 +566,14 @@ function PrincipalWorkspace({
                 />
               </div>
             ))}
+            {earlierToggle ? <div className="flex justify-center">{earlierToggle}</div> : null}
           </div>
         ) : (
           <EmptyState
             icon={ClipboardList}
             title={ui("No exams ready for review")}
             description={ui("An exam appears here once its marks are locked.")}
-            action={access.has("exams") ? <Button variant="outline" type="button" onClick={() => setView("exam-cycles")}>{ui("Open Exams & results")}</Button> : undefined}
+            action={earlierToggle ?? (access.has("exams") ? <Button variant="outline" type="button" onClick={() => setView("exam-cycles")}>{ui("Open Exams & results")}</Button> : undefined)}
           />
         ),
         {
@@ -727,7 +751,7 @@ function PrincipalWorkspace({
             students={data.students ?? []}
             classes={data.classes ?? []}
             onViewStudent={(student, visible) => { setSelectedStudent(student); setStudentSequence(visible || []); }}
-            onExport={(visible) => exportStudentsToCSV(visible ?? data.students ?? [], data.campusName)}
+            onExport={(visible) => { void import("@/components/shared-admin").then((m) => m.exportStudentsToCSV(visible ?? data.students ?? [], data.campusName)); }}
             onRefresh={reload}
           />
           <PathwayPanel />

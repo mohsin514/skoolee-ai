@@ -86,11 +86,37 @@ export async function registerView(user: AuthUser, classId: string, dateText: st
   const entries = roster.map(enrollment => {
     const row = byStudent.get(enrollment.studentId);
     return { studentId: enrollment.studentId, enrollmentId: enrollment.id, name: enrollment.student.fullName, rollNo: enrollment.rollNo, movedSince: enrollment.student.classId !== cls.id, photo: enrollment.student.profileImageUrl,
-      status: (row?.status ?? null) as Status | null, arrivalTime: row?.arrivalTime ?? null, departureTime: row?.departureTime ?? null, note: row?.notes ?? null, version: row?.version ?? 0, markedBy: row?.marker?.fullName ?? null, markedAt: row?.markedAt ?? null, openExplanation: row?.explanations[0]?.status ?? null };
+      attendanceId: row?.id ?? null, status: (row?.status ?? null) as Status | null, arrivalTime: row?.arrivalTime ?? null, departureTime: row?.departureTime ?? null, note: row?.notes ?? null, version: row?.version ?? 0, markedBy: row?.marker?.fullName ?? null, markedAt: row?.markedAt ?? null, openExplanation: row?.explanations[0]?.status ?? null };
   });
   const counts = Object.fromEntries([...ATTENDANCE_STATUSES, "UNMARKED"].map(status => [status, entries.filter(entry => (entry.status ?? "UNMARKED") === status).length]));
   const canCorrect = await canCorrectRegister(() => assertPermission(user, "attendance", "edit"));
   return { canCorrect, class: { id: cls.id, name: [cls.name, cls.section].filter(Boolean).join(" "), academicYear: cls.academicYear }, date: dateText, register: register ? { status: register.status, submittedAt: register.submittedAt, version: register.version } : { status: "OPEN", submittedAt: null, version: 0 }, entries, counts, rule, regulator: regulatorView(school?.attendanceRegulator, date) };
+}
+
+/**
+ * SKAI-1983: the newest earlier register with a mark, within `lookback` days before `beforeText`, in one request.
+ * Candidate days come from one indexed attendance read over everyone enrolled in the class during the window;
+ * each candidate is then checked through registerView, so the dated roster and access rules stay the same.
+ */
+export async function previousMarkedRegisterView(user: AuthUser, classId: string, beforeText: string, lookback = 7) {
+  if (!canMarkAttendance(user)) throw new ApiError("You cannot view attendance registers.", 403);
+  const before = dayDate(beforeText);
+  const from = new Date(before.getTime() - lookback * 86_400_000);
+  const cls = await assignedClass(prisma, user, classId);
+  const enrolled = await prisma.studentEnrollment.findMany({
+    where: { schoolId: user.schoolId, classId: cls.id, startDate: { lt: before }, OR: [{ endDate: null }, { endDate: { gt: from } }], student: { archivedAt: null } },
+    select: { studentId: true },
+  });
+  if (!enrolled.length) return null;
+  const days = await prisma.attendance.findMany({
+    where: { schoolId: user.schoolId, studentId: { in: [...new Set(enrolled.map(e => e.studentId))] }, date: { gte: from, lt: before } },
+    select: { date: true }, distinct: ["date"], orderBy: { date: "desc" },
+  });
+  for (const { date } of days) {
+    const view = await registerView(user, cls.id, date.toISOString().slice(0, 10));
+    if (view.entries.some(entry => entry.status)) return view;
+  }
+  return null;
 }
 
 type EntryInput = { studentId: string; status: Status; knownStatus: Status | null; knownVersion?: number | null; arrivalTime?: string | null; departureTime?: string | null; note?: string | null; reviewedConflict?: boolean };
@@ -276,7 +302,7 @@ export async function entryHistory(user: AuthUser, attendanceId: string) {
   if (user.role === "TEACHER" && row.classId) await assignedClass(prisma, user, row.classId);
   const ids = [...new Set([...row.editHistory.map(h => h.editedBy), row.markedBy].filter((v): v is string => Boolean(v)))];
   const people = new Map((await prisma.user.findMany({ where: { schoolId: user.schoolId, id: { in: ids } }, select: { id: true, fullName: true } })).map(p => [p.id, p.fullName]));
-  return { status: row.status, version: row.version, changes: row.editHistory.map(h => ({ at: h.editedAt, from: h.oldStatus, to: h.newStatus, by: h.editedBy ? people.get(h.editedBy) ?? null : null, reason: h.reason, source: h.source })), explanations: row.explanations.map(e => ({ status: e.status, reason: e.reason, proposedStatus: e.proposedStatus, reviewNote: e.reviewNote, at: e.createdAt })) };
+  return { status: row.status, version: row.version, changes: row.editHistory.map(h => ({ id: h.id, at: h.editedAt, from: h.oldStatus, to: h.newStatus, by: h.editedBy ? people.get(h.editedBy) ?? null : null, reason: h.reason, source: h.source })), explanations: row.explanations.map(e => ({ status: e.status, reason: e.reason, proposedStatus: e.proposedStatus, reviewNote: e.reviewNote, at: e.createdAt })) };
 }
 
 /** A guardian's view of a child's recent absences and their explanations. */

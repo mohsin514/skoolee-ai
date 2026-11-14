@@ -61,3 +61,17 @@ test("year parameter is validated", () => {
   assert.throws(() => parseFunnelYear("abc", now));
   assert.throws(() => parseFunnelYear("2030", now));
 });
+
+// SKAI-1969: the server reads one year; facts from other years arrive as extras and give the same funnel.
+test("extras from other years give the same funnel as the whole history", () => {
+  const history = buildFunnel(enquiries, applications, 2026);
+  const yearOnly = buildFunnel(enquiries.filter(e => e.createdAt.getUTCFullYear() === 2026), applications.filter(a => a.status !== "DRAFT" && a.createdAt.getUTCFullYear() === 2026), 2026, { years: [2025] });
+  assert.deepEqual(yearOnly, history);
+});
+
+test("a converted enquiry with a later-year application is linked, not enrolled directly", () => {
+  const e = [{ id: "c1", source: "PHONE", createdAt: d("2026-12-20"), convertedStudentId: "s1" }];
+  assert.equal(buildFunnel(e, [], 2026).total.enrolled, 1);
+  const linked = buildFunnel(e, [], 2026, { linked: ["c1"] });
+  assert.deepEqual(linked.total, { enquiries: 1, applications: 0, offers: 0, enrolled: 0 });
+});

@@ -3,6 +3,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import { roomCapacity } from "@/lib/academic/room-capacity";
 import { allocateExamRooms, suggestRooms } from "@/lib/academic/exam-rooms";
+import { examCounts, seatsBySchedule } from "@/lib/academic/exam-counts";
 
 async function transaction<T>(db: TxClient | undefined, work: (tx: TxClient) => Promise<T>) { return db ? work(db) : prisma.$transaction(tx => work(tx as TxClient)); }
 
@@ -219,6 +220,7 @@ export async function createExamSession(opts: {
 }
 
 // The exams include both the single-session read and the batched list share, so the two cannot drift.
+// SKAI-1965: marks and seats are counted by `loadExamCounts`, not a relation `_count` over every school's rows.
 const SESSION_EXAMS_INCLUDE = {
   exams: {
     orderBy: [{ class: { name: "asc" } }, { class: { section: "asc" } }],
@@ -238,16 +240,25 @@ const SESSION_EXAMS_INCLUDE = {
         select: {
           id: true,
           date: true,
-          _count: { select: { seats: true } },
         },
       },
-      _count: { select: { marks: true } },
     },
   },
 } satisfies Prisma.ExamSessionInclude;
 
 type SessionWithExams = Prisma.ExamSessionGetPayload<{ include: typeof SESSION_EXAMS_INCLUDE }>;
 type SlotRow = { examSessionId: string; sealedAt: Date | null; paperRecordId: string | null };
+type ExamCounts = { marksFor: (examId: string) => number; seatsFor: (scheduleId: string) => number };
+
+/** Marks per exam and seats per paper for every listed session, two grouped reads scoped to the school. */
+async function loadExamCounts(schoolId: string, sessions: SessionWithExams[]): Promise<ExamCounts> {
+  const exams = sessions.flatMap((s) => s.exams);
+  const [marks, seatsFor] = await Promise.all([
+    examCounts(prisma, schoolId, exams.map((e) => e.id), ["marks"] as const),
+    seatsBySchedule(prisma, schoolId, exams.flatMap((e) => e.schedules.map((s) => s.id))),
+  ]);
+  return { marksFor: (examId) => marks(examId).marks, seatsFor };
+}
 
 /**
  * SKAI-1868: paper requests for many sessions in two queries (slots, then approved papers), still scoped by
@@ -263,7 +274,7 @@ async function loadSlotsBySession(schoolId: string, campusId: string, sessionIds
   return { bySession, approvedPapers };
 }
 
-function buildSessionSummary(session: SessionWithExams, slots: SlotRow[], approvedPapers: Set<string>): SessionSummary {
+function buildSessionSummary(session: SessionWithExams, slots: SlotRow[], approvedPapers: Set<string>, counts: ExamCounts): SessionSummary {
   const classes = session.exams.map((e) => {
     const subjectCount = e.class._count.subjects;
     const studentCount = e.class._count.students;
@@ -276,8 +287,8 @@ function buildSessionSummary(session: SessionWithExams, slots: SlotRow[], approv
       subjectCount,
       studentCount,
       scheduled: e.schedules.length,
-      seated: e.schedules.filter((s) => s._count.seats > 0).length,
-      marksEntered: e._count.marks,
+      seated: e.schedules.filter((s) => counts.seatsFor(s.id) > 0).length,
+      marksEntered: counts.marksFor(e.id),
       marksExpected: subjectCount * studentCount,
       totalMarks: e.totalMarks,
     };
@@ -326,8 +337,8 @@ export async function getSessionSummary(
     include: SESSION_EXAMS_INCLUDE,
   });
   if (!session) return null;
-  const { bySession, approvedPapers } = await loadSlotsBySession(session.schoolId, campusId, [session.id]);
-  return buildSessionSummary(session, bySession.get(session.id) ?? [], approvedPapers);
+  const [{ bySession, approvedPapers }, counts] = await Promise.all([loadSlotsBySession(session.schoolId, campusId, [session.id]), loadExamCounts(session.schoolId, [session])]);
+  return buildSessionSummary(session, bySession.get(session.id) ?? [], approvedPapers, counts);
 }
 
 /**
@@ -344,11 +355,15 @@ export async function listSessions(campusId: string, academicYear?: number) {
   // A campus belongs to one school, so every session here shares it; group defensively all the same.
   const bySchool = new Map<string, string[]>();
   for (const s of sessions) bySchool.set(s.schoolId, [...(bySchool.get(s.schoolId) ?? []), s.id]);
-  const loaded = await Promise.all([...bySchool].map(async ([schoolId, ids]) => [schoolId, await loadSlotsBySession(schoolId, campusId, ids)] as const));
+  const loaded = await Promise.all([...bySchool].map(async ([schoolId, ids]) => {
+    const own = sessions.filter((s) => s.schoolId === schoolId);
+    const [slots, counts] = await Promise.all([loadSlotsBySession(schoolId, campusId, ids), loadExamCounts(schoolId, own)]);
+    return [schoolId, { ...slots, counts }] as const;
+  }));
   const slotsBySchool = new Map(loaded);
   return sessions.map((s) => {
-    const { bySession, approvedPapers } = slotsBySchool.get(s.schoolId)!;
-    return buildSessionSummary(s, bySession.get(s.id) ?? [], approvedPapers);
+    const { bySession, approvedPapers, counts } = slotsBySchool.get(s.schoolId)!;
+    return buildSessionSummary(s, bySession.get(s.id) ?? [], approvedPapers, counts);
   });
 }
 

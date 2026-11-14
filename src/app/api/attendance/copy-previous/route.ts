@@ -1,7 +1,8 @@
 import { writeObservedAttendance } from "@/lib/school-ai/school-operations-register-write";
+import { created, failFrom } from "@/lib/api/envelope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canMarkAttendance, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, canMarkAttendance, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -32,14 +33,13 @@ export async function POST(req: NextRequest) {
 
     const records = await writeObservedAttendance(user, { campusId, classId, date: toDate, copyFrom: fromDate });
 
-    return Response.json({
-      success: true,
+    return created({
       classId,
       copiedRecords: records.length,
       fromDate, toDate,
       message: `Attendance copied from ${fromDate} to ${toDate}`,
-    }, { status: 201 });
+    });
   } catch (error) {
-    return errorResponse(error, "[attendance/copy-previous] POST failed");
+    return failFrom(error, "[attendance/copy-previous] POST failed");
   }
 }

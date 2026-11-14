@@ -1,9 +1,10 @@
 import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { existingMonthlyStudentInvoices, invoiceGenerationTransaction } from "@/lib/fees/invoice-generation";
 import { invoiceEnrollmentContext } from "@/lib/fees/invoice-context";
 import { minorUnits } from "@/lib/locale/package";
-import { activationFor, issueDocument, taxForActivation } from "@/lib/tax/service";
+import { activationFor, issueDocuments, taxForActivation } from "@/lib/tax/service";
 import { classYearKey, loadInvoiceGenerationInputs, memoByKey } from "@/lib/fees/invoice-generation-inputs";
 import { calculateInvoiceAmounts, invoiceMonthDates, MAX_INVOICE_MINOR } from "@/lib/school-ai/fee-invoices";
 import { evaluateFeeCap, feeCapDecision } from "@/lib/fees/regulator-cap";
@@ -20,6 +21,9 @@ import { notify } from "@/lib/notifications/in-app";
 import { feeStructureActiveWhere, invoiceBatchStatus, pickStructureForClass } from "@/lib/fees/structure-year";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+
+// SKAI-1968: rows per bulk insert. All chunks stay inside the one generation transaction, so a batch is still all-or-nothing.
+const INVOICE_CHUNK = 500;
 
 function generateInvoiceNumber(campusId: string, year: number, sequence: number): string {
   const shortId = campusId.split("-").pop()?.slice(0, 4).toUpperCase() ?? "XX";
@@ -107,6 +111,8 @@ export async function POST(req: NextRequest) {
     for (const period of enrollments) { const list = enrollmentsByStudent.get(period.studentId); if (list) list.push(period); else enrollmentsByStudent.set(period.studentId, [period]); }
     const activationOn = memoByKey(day => activationFor(tx, user.schoolId, campusId, new Date(`${day}T00:00:00.000Z`)));
     let localeSnapshot: Awaited<ReturnType<typeof getLocalePackage>> | undefined;
+    // SKAI-1968: validated rows are written in bulk after the loop instead of one insert (and one tax document) per student.
+    const pending: Array<{ data: Prisma.InvoiceCreateManyInput; packageTax: ReturnType<typeof taxForActivation>; studentName: string }> = [];
 
     for (const student of students) {
       const invoiceContext = invoiceEnrollmentContext((enrollmentsByStudent.get(student.id) ?? []).filter(period => period.classId === student.classId && period.academicYear === student.class.academicYear), invoiceDate, dueDate);
@@ -167,7 +173,10 @@ export async function POST(req: NextRequest) {
         const classStructure = feeMap.get(student.classId);
         approvedFee = classStructure?.approvedFee ?? null;
         approvedFeeReference = classStructure?.approvedFeeReference ?? null;
-        const cap = feeCapDecision(evaluateFeeCap({ mode: capMode, fee: monthlyFee, approvedFee }), capMode);
+        // SKAI-1254: monthlyFee only sums MONTHLY_TUITION lines. Without a coded tuition line the cap cannot tell tuition
+        // from other fees, so it checks the whole group charge (fail closed) instead of a zero that always passes.
+        const hasTuitionLine = lines.some(line => line.code === "MONTHLY_TUITION");
+        const cap = feeCapDecision(evaluateFeeCap({ mode: capMode, fee: hasTuitionLine ? monthlyFee : subtotal, approvedFee }), capMode);
         if (cap.error) { results.push({ studentId: student.id, status: "error", error: cap.error }); continue; }
       } else {
         // 2. Legacy fallback: feeStructure per class
@@ -225,7 +234,9 @@ export async function POST(req: NextRequest) {
       if ([monthlyFee, oneTimeTotal, subtotal, discountAmount, lateFeeAmount, taxAmount, totalAmount].some(value => !Number.isSafeInteger(value) || value < 0 || value > MAX_INVOICE_MINOR) || discountAmount > subtotal) { results.push({ studentId: student.id, status: "error", error: "Review fee, discount and tax amounts." }); continue; }
 
       localeSnapshot ??= await getLocalePackage(user.schoolId, campusId, invoiceDate, undefined, tx);
-      const created = await tx.invoice.create({
+      pending.push({
+        packageTax,
+        studentName: student.fullName,
         data: {
           campusId,
           studentId: student.id,
@@ -249,10 +260,21 @@ export async function POST(req: NextRequest) {
           status: "PENDING",
         },
       });
-      if (packageTax) await issueDocument(tx, user.schoolId, { id: created.id, campusId, invoiceNumber: created.invoiceNumber, invoiceDate: created.invoiceDate, studentName: student.fullName }, packageTax);
-
       results.push({ studentId: student.id, status: "generated" });
     }
+
+    const createdByNumber = new Map<string, { id: string; invoiceDate: Date }>();
+    for (let start = 0; start < pending.length; start += INVOICE_CHUNK) {
+      const rows = await tx.invoice.createManyAndReturn({ data: pending.slice(start, start + INVOICE_CHUNK).map(row => row.data), select: { id: true, invoiceNumber: true, invoiceDate: true } });
+      for (const row of rows) if (row.invoiceNumber) createdByNumber.set(row.invoiceNumber, row);
+    }
+    // Tax documents follow student order, so their numbers run in the same order as the invoice numbers.
+    await issueDocuments(tx, user.schoolId, pending.flatMap(({ data, packageTax, studentName }) => {
+      const created = createdByNumber.get(data.invoiceNumber!);
+      if (!packageTax) return [];
+      if (!created) throw new Error(`Invoice ${data.invoiceNumber} was not created`);
+      return [{ invoice: { id: created.id, campusId, invoiceNumber: data.invoiceNumber!, invoiceDate: created.invoiceDate, studentName }, tax: packageTax }];
+    }));
 
     await tx.auditLog.create({
       data: {

@@ -22,6 +22,7 @@ export function guardianRelationshipAuthorityWhere(guardianUserId: string | null
   };
 }
 
+// SKAI-1981: lapsedClassParentCounts in src/lib/chat/membership.ts repeats this predicate in SQL; change both together.
 export function liveGuardianRelationshipWhere(guardianUserId: string | null, permission: GuardianPermission, at = new Date(), schoolId?: string): Prisma.GuardianRelationshipWhereInput {
   const effective = { effectiveFrom: { lte: at }, AND: [{ OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: at } }] }] };
   // The database exclusion constraint permits at most one effective version. This extra negative

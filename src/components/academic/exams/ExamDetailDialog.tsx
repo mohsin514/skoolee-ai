@@ -29,6 +29,7 @@ import { ReportCardsPanel } from "@/components/academic/exams/ReportCardsPanel";
 import { DatesheetBuilder } from "@/components/academic/DatesheetBuilder";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 import { Meter } from "@/components/academic/exams/shared";
+import { buildExpectedMarks } from "@/lib/marks/expected-baseline";
 import { Input as SystemInput } from "@/components/ui/input";
 
 /**
@@ -241,7 +242,7 @@ function MarksEntry({
   const [passPct, setPassPct] = useState<number | null>(null);
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { keepDraft?: boolean }) => {
     setLoading(true);
     try {
       const [res, cfg] = await Promise.all([
@@ -263,7 +264,7 @@ function MarksEntry({
         map[`${m.studentId}:${m.subjectId}`] = m.isAbsent ? ABSENT : m.isExempt ? EXEMPT : m.marksObtained;
       });
       setSaved(map);
-      setDraft({});
+      if (!opts?.keepDraft) setDraft({});
       setSubjectId((cur) => cur || res.subjects?.[0]?.id || "");
       setLoadFailed(false);
     } catch {
@@ -340,12 +341,20 @@ function MarksEntry({
         }));
       if (entries.length === 0) return;
 
+      // SKAI-1616: send the baseline this editor saw for every edited cell, so a stale overlapping
+      // edit is refused (409) instead of silently overwriting a colleague's saved mark.
+      const expectedMarks = buildExpectedMarks(entries, saved, ABSENT, EXEMPT);
       const res = await fetch("/api/marks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ examId: exam.id, entries }),
+        body: JSON.stringify({ examId: exam.id, entries, expectedMarks }),
       });
       const json = await res.json();
+      if (res.status === 409) {
+        // Keep the draft on screen; reload the current server values so the editor can compare and resubmit.
+        await load({ keepDraft: true });
+        throw new Error(json.error || "This marks sheet changed. Review your draft against the current server values before saving.");
+      }
       if (!res.ok) throw new Error(json.error?.message || json.error || "Could not save");
 
       setSaved((prev) => {

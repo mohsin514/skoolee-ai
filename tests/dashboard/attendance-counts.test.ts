@@ -74,12 +74,14 @@ for (const [label, loader, session] of consoles) {
   });
 }
 
-test("SKAI-1813: principal class rosters carry the latest report card only", async () => {
+test("SKAI-1813: principal rosters carry the latest report card only", async () => {
   const dashboard = await loadDashboard();
   h.session = user("PRINCIPAL");
   await dashboard.getPrincipalDashboardData();
-  const classRead = h.calls.find((call) => call.read === "class.findMany" && call.args?.include?.students);
-  assert.equal(classRead?.args.include.students.select.reportCards.take, 1);
+  // SKAI-1964: classes no longer nest a roster at all; the one roster is the top-level students read.
+  assert.ok(!h.calls.some((call) => call.read === "class.findMany" && call.args?.include?.students), "no nested class roster");
+  const rosterRead = h.calls.find((call) => call.read === "student.findMany" && call.args?.select?.reportCards);
+  assert.equal(rosterRead?.args.select.reportCards.take, 1);
 });
 
 test("SKAI-1813: a failing attendance tally degrades only its widgets", async () => {

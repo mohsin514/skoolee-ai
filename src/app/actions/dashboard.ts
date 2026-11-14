@@ -9,6 +9,7 @@ import { studentScope, publishedReportsWhere } from "@/lib/auth/policy";
 import { cache } from "react";
 import { AttendanceStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { marksBySubject, withExamCounts } from "@/lib/academic/exam-counts";
 import { runAsUser } from "@/lib/db/tenant-context";
 import { createWidgetLoader, describeError, loadWidget } from "@/lib/dashboard/widget";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
@@ -900,14 +901,16 @@ async function loadTeacherDashboardData() {
   today.setHours(0, 0, 0, 0);
 
   const [subjects, ledClasses, aiInsights, teacherCampus] = await Promise.all([
-    L.required("subjects", () => prisma.subject.findMany({
-      where: { campusId, teacherId: session.userId, campus: { schoolId: session.schoolId } },
-      include: {
-        class: { select: { id: true, name: true, section: true, academicYear: true } },
-        _count: { select: { marks: true } },
-      },
-      orderBy: { name: "asc" },
-    })),
+    // SKAI-1965: marks are counted for these subjects only, not by a relation `_count` over every school's marks.
+    L.required("subjects", async () => {
+      const rows = await prisma.subject.findMany({
+        where: { campusId, teacherId: session.userId, campus: { schoolId: session.schoolId } },
+        include: { class: { select: { id: true, name: true, section: true, academicYear: true } } },
+        orderBy: { name: "asc" },
+      });
+      const marksFor = await marksBySubject(prisma, session.schoolId, rows.map((row) => row.id));
+      return rows.map((row) => ({ ...row, _count: { marks: marksFor(row.id) } }));
+    }),
     L.required("ledClasses", () => prisma.class.findMany({
       where: { campusId, classTeacherId: session.userId, campus: { schoolId: session.schoolId } },
       include: {
@@ -961,7 +964,7 @@ async function loadTeacherDashboardData() {
         })),
         // Required like the roster it used to be nested in: a pupil's latest card is part of the student row.
         L.required("studentReportCards", () => teacherLatestReportCards(session.schoolId, campusId, classIds)),
-        L.widget("exams", () => prisma.exam.findMany({
+        L.widget("exams", async () => withExamCounts(prisma, session.schoolId, await prisma.exam.findMany({
           where: {
             campusId,
             classId: { in: classIds },
@@ -985,11 +988,10 @@ async function loadTeacherDashboardData() {
               },
             },
             subject: { select: { id: true, name: true } },
-            _count: { select: { marks: true, reportCards: true } },
           },
           orderBy: [{ academicYear: "desc" }, { title: "asc" }],
           take: 24,
-        }), []),
+        }), ["marks", "reportCards"] as const), []),
         L.widget("attendanceToday", () => prisma.attendance.findMany({
           // SKAI-1857: the register stamps classId on every row, so the indexed (classId, date) path replaces the
           // join through students.
@@ -1188,6 +1190,7 @@ async function loadPrincipalDashboardData() {
     operationsStaff,
     attendanceTrend,
     attendanceByStudent,
+    activeAcademicYear,
   ] = await Promise.all([
     L.widget("campus", () => prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, include: { school: true } }), null),
     L.widget("totalStudents", () => prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId }, ...ON_ROLL } }), 0),
@@ -1217,54 +1220,9 @@ async function loadPrincipalDashboardData() {
           },
           orderBy: { name: "asc" },
         },
-        students: {
-          select: {
-            id: true,
-            fullName: true,
-            rollNo: true,
-            gender: true,
-            guardianName: true,
-            guardianPhone: true,
-            guardianWhatsapp: true,
-            guardianEmail: true,
-            profileImageUrl: true,
-            parent: { select: { fullName: true, email: true, phone: true, profileImageUrl: true } },
-            reportCards: {
-              select: {
-                id: true,
-                totalMarks: true,
-                obtainedMarks: true,
-                percentage: true,
-                grade: true,
-                status: true,
-                remarksApproved: true,
-                deliveryStatus: true,
-                isSent: true,
-                pdfUrl: true,
-                generatedAt: true,
-                exam: { select: { id: true, title: true, term: true, status: true } },
-              },
-              orderBy: { generatedAt: "desc" },
-              // SKAI-1813: every view reads the latest card only (`reportCards[0]`).
-              take: 1,
-            },
-          },
-          orderBy: [{ rollNo: "asc" }, { fullName: "asc" }],
-        },
-        exams: {
-          select: {
-            id: true,
-            title: true,
-            term: true,
-            academicYear: true,
-            status: true,
-            isLocked: true,
-            reviewedAt: true,
-            publishedAt: true,
-            _count: { select: { reportCards: true } },
-          },
-          orderBy: [{ academicYear: "desc" }, { title: "asc" }],
-        },
+        // SKAI-1964: no nested roster or exam list. Every view reads a class's pupils from the top-level on-roll
+        // `students` widget (by `student.class.id`) and its size from `_count.students`; nothing reads `cls.exams`.
+        // Both nests repeated per class across every year and made up about 1 MB of the payload at 4 years.
         _count: { select: { students: { where: ON_ROLL }, subjects: true } },
       },
       orderBy: [{ academicYear: "desc" }, { name: "asc" }],
@@ -1407,8 +1365,10 @@ async function loadPrincipalDashboardData() {
       orderBy: { createdAt: "desc" },
       take: 5,
     }), []),
+    // SKAI-1964: the row's own tenant columns, not a join to campuses (the (school_id, campus_id) foreign key makes
+    // them equivalent), so the all-time average is an index-only scan of marks_school_id_campus_id_marks_obtained_idx.
     L.widget("markAverage", () => prisma.mark.aggregate({
-      where: { campusId, campus: { schoolId: session.schoolId } },
+      where: { schoolId: session.schoolId, campusId },
       _avg: { marksObtained: true },
     }), { _avg: { marksObtained: null } }),
     L.widget("attendanceRecords", () => prisma.attendance.findMany({
@@ -1448,6 +1408,8 @@ async function loadPrincipalDashboardData() {
     }), []),
     L.widget("attendanceTrend", () => attendanceTrendCounts(session.schoolId, campusId), []),
     L.widget("attendanceByStudent", () => attendanceCountsByStudent(session.schoolId, campusId), []),
+    // SKAI-1960: Report cards lists the active year's exams by default (each one loads /api/reports).
+    L.widget("activeAcademicYear", () => getActiveAcademicYear(campusId), null),
   ]);
 
   return {
@@ -1477,6 +1439,7 @@ async function loadPrincipalDashboardData() {
     campusAdmins,
     reviewExams,
     recentExams: reviewExams,
+    activeAcademicYear,
     reportCardCounts,
     averageMarks: Math.round(markAverage._avg.marksObtained || 0),
     communicationSummary: communicationSummary.reduce<Record<string, number>>((acc, item) => {
