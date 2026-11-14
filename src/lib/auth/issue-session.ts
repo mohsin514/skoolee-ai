@@ -5,6 +5,7 @@ import { JWT_SECRET } from "./secret";
 import { SESSION_COOKIE_NAME, sessionCookieAttributes } from "./session-cookie";
 import { recordLoginSession, hashToken, logSuperAdminAction } from "@/lib/audit";
 import { prisma } from "@/lib/db/prisma";
+import { withoutAutoAudit } from "@/lib/db/audit-trail";
 import type { User } from "@prisma/client";
 
 /**
@@ -13,13 +14,17 @@ import type { User } from "@prisma/client";
  * a reissue is not a sign-in (the manage audit row records the change).
  */
 export type IssueSessionExtra = { reason: "mfa-change"; body?: Record<string, unknown> };
-export async function issueSession(user: User, days: number, mfaVerified: boolean | "deferred", req: Request, extra?: IssueSessionExtra) {
-  const school = await prisma.school.findUniqueOrThrow({ where: { id: user.schoolId }, select: { name: true, slug: true, status: true } });
+/** SKAI-1973: a caller that already loaded the user's school (password sign-in) passes it to save a read. */
+export type IssueSessionSchool = { name: string; slug: string; status: string };
+export async function issueSession(user: User, days: number, mfaVerified: boolean | "deferred", req: Request, extra?: IssueSessionExtra, loadedSchool?: IssueSessionSchool | null) {
+  const school = loadedSchool ?? await prisma.school.findUniqueOrThrow({ where: { id: user.schoolId }, select: { name: true, slug: true, status: true } });
   const expiresAt = new Date(Date.now() + days * 86400_000);
   const token = await new SignJWT({ userId: user.id, accessVersion: user.accessVersion, email: user.email, fullName: user.fullName, role: user.role, schoolId: user.schoolId, campusId: user.campusId, schoolSlug: school.slug, schoolStatus: school.status, onboardingComplete: user.onboardingComplete, mustChangePassword: user.mustChangePassword, mfaVerified })
     .setJti(randomUUID()).setIssuedAt().setProtectedHeader({ alg: "HS256" }).setExpirationTime(`${days}d`).sign(JWT_SECRET);
   await recordLoginSession({ userId: user.id, schoolId: user.schoolId, tokenHash: hashToken(token), expiresAt, userAgent: req.headers.get("user-agent") || undefined });
-  await prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });
+  // SKAI-1973: no full-row pre-read, no RETURNING of every column (MFA secret included) and no automatic audit row —
+  // the login_sessions row above (and the SUPER_ADMIN login row below) is this sign-in's record.
+  await withoutAutoAudit(() => prisma.user.updateMany({ where: { id: user.id, schoolId: user.schoolId }, data: { lastLogin: new Date() } }));
   if (user.role === "SUPER_ADMIN" && !extra) await logSuperAdminAction({ userId: user.id, action: "login", status: "success", targetType: "user", targetName: user.email });
   const response = NextResponse.json({ ...extra?.body, success: true, user: { id: user.id, email: user.email, fullName: user.fullName, role: user.role, schoolId: user.schoolId, campusId: user.campusId, schoolName: school.name, schoolStatus: school.status, onboardingComplete: user.onboardingComplete, mustChangePassword: user.mustChangePassword } });
   response.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieAttributes(days));

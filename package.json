@@ -220,7 +220,7 @@
     "test:package-status": "node --import tsx --test tests/package-status/package-status.test.ts",
     "test:school-registration": "node --import tsx --test tests/school-registration/*.test.ts",
     "test:qa-harness": "node --test tests/qa/login-capture.test.mjs && node --import ./tests/support/server-only.mjs --import tsx --test tests/qa/curriculum-seed-plan.test.ts",
-    "test:login": "node --import ./tests/support/server-only.mjs --import tsx --test tests/login/*.test.ts",
+    "test:login": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/login/*.test.ts",
     "test:adoption-mode": "node --import ./tests/support/server-only.mjs --import tsx --test tests/readiness/checks.test.ts",
     "test:safepay": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/payments/safepay-webhook.test.ts tests/payments/safepay-simulate-plan.test.ts",
     "test:payment-method-school": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/accounts/payment-method-create.test.ts",
