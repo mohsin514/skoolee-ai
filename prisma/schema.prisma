@@ -1965,6 +1965,7 @@ model AdmissionQuery {
   @@index([schoolId])
   @@index([classInterestedId])
   @@index([assignedToId])
+  @@index([campusId, createdAt]) // SKAI-1969: admissions funnel reads one year
   @@map("admission_queries")
 }
 
@@ -2070,6 +2071,7 @@ model AdmissionApplication {
   @@index([formVersionId])
   @@index([enquiryId])
   @@index([ownerId])
+  @@index([campusId, createdAt]) // SKAI-1969: admissions funnel reads one year
   @@map("admission_applications")
   @@index([schoolId, campusId])
 }
