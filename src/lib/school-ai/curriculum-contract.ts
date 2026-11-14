@@ -71,7 +71,7 @@ export const curriculumContractSchema = z.object({
   term: text(80),
   subject: text(80),
   tier: text(80),
-  language: z.enum(["en", "ar", "ur"]),
+  language: z.enum(["en", "ar", "ur", "hi"]),
   outcomes: z.array(z.object({ code: text(40), statement: text(500), assessed: z.boolean() }).strict()).max(500),
   paper: z.object({
     totalMarks: z.number().positive().optional(),
@@ -170,7 +170,7 @@ export function pinMatches(pin: ContractPin, contract: CurriculumContract): bool
   return pin.packId === contract.packId && pin.version === contract.version && pin.contentSha256 === contractContentSha256(contract);
 }
 
-export type ContractRequest = { board: ContractBoard; schoolGrade: string; subject: string; examYear: string; tier?: string; language: "en" | "ar" | "ur" };
+export type ContractRequest = { board: ContractBoard; schoolGrade: string; subject: string; examYear: string; tier?: string; language: "en" | "ar" | "hi" | "ur" };
 
 /** Exact match only: a request for one board, grade, year, tier or language is never served by another. */
 export function contractMismatches(contract: CurriculumContract, request: ContractRequest): string[] {

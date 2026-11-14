@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { examBriefSentence } from "@/components/exams/exam-brief-text";
+import { inboxLeaveRange } from "@/components/parent/inbox-leave-range";
 import { useParentData } from "@/app/parent/parent-data-context";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/alert";
@@ -169,7 +170,7 @@ export function FamilyInbox({ onTopAction }: { onTopAction?: (action: InboxTopAc
           <p className="text-sm font-semibold text-ink-strong [overflow-wrap:anywhere]">{kindLabel(ui, item)}{item.kind === "PAY_FEE" && item.title ? <> · <bdi>{item.title}</bdi></> : item.kind === "FEEDBACK_RETURNED" || item.kind === "REPORT_PUBLISHED" || item.kind === "RESULT_NOTE" || item.kind === "TRIP_CONSENT" || item.kind === "MEETING_ACTION" ? <> · <bdi>{item.title}</bdi></> : null}</p>
           <p className="text-xs text-ink-muted">
             {item.kind === "EXPLAIN_ABSENCE" || item.kind === "CLARIFY_ABSENCE" ? <><bdi>{item.detail && /^\d{4}-\d{2}-\d{2}$/.test(item.detail) ? date(item.detail) : item.detail}</bdi></> : item.kind === "PAY_FEE" && item.detail ? <bdi>{inboxAmount(money, item.detail) ?? item.detail}</bdi> : null}
-            {item.kind === "LEAVE_REQUEST" || item.kind === "TRIP_CONSENT" ? <bdi>{item.detail}</bdi> : null}
+            {item.kind === "LEAVE_REQUEST" ? <bdi data-inbox-leave-dates>{inboxLeaveRange(date, item.detail)}</bdi> : item.kind === "TRIP_CONSENT" ? <bdi>{item.detail}</bdi> : null}
             {item.kind === "EXAM_CHANGED" ? <span className="font-semibold text-ink" data-exam-change>{examChange(item)}</span> : null}
             {item.dueAt && item.state === "ACTION" ? <> · {item.kind === "PAY_FEE" || item.kind === "MEETING_ACTION" ? ui("Due") : item.kind === "TRIP_CONSENT" ? ui("Answer by") : item.kind === "MEETING_RESCHEDULE" ? ui("Booked for") : ui("Explain by")} <bdi>{item.kind === "TRIP_CONSENT" || item.kind === "MEETING_RESCHEDULE" ? dateTime(item.dueAt) : item.kind === "MEETING_ACTION" && item.detail ? date(item.detail) : date(item.dueAt)}</bdi></> : null}
             {item.state === "EXPIRED" ? <> · <span className="font-bold">{ui("The time to respond has passed")}</span></> : null}

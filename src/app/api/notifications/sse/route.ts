@@ -1,29 +1,38 @@
 import { getAuthUser } from "@/lib/auth";
+import { errorResponse } from "@/lib/api/scope";
 import { prisma } from "@/lib/db/prisma";
 import { resolveRedisUrl, warnRealtimeDisabledOnce } from "@/lib/queue/redis-config";
-import { realtimeDisabledResponse } from "@/lib/queue/sse-fallback";
+import { realtimeOffResponse } from "@/lib/queue/sse-fallback";
 import { sharedSubscriber } from "@/lib/queue/shared-subscriber";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const redisUrl = resolveRedisUrl();
+  if (!redisUrl) {
+    // SKAI-1035 / SKAI-1952: realtime disabled. Nothing to stream; 204 stops EventSource for good, with no
+    // database work. The page refreshes the unread count itself while the stream is closed.
+    warnRealtimeDisabledOnce();
+    return realtimeOffResponse();
+  }
+
   const user = await getAuthUser();
   if (!user) {
     return new Response("Unauthorized", { status: 401 });
   }
 
   const userId = user.userId;
-  const redisUrl = resolveRedisUrl();
-  if (!redisUrl) {
-    // SKAI-1035: realtime disabled. Answer with the unread count from the DB
-    // and close; the long `retry` turns EventSource into a quiet DB poll.
-    warnRealtimeDisabledOnce();
-    const unreadCount = await prisma.notification
-      .count({ where: { userId, isRead: false } })
-      .catch(() => null);
-    return realtimeDisabledResponse(
-      unreadCount === null ? [] : [`event: init\ndata: ${JSON.stringify({ unreadCount })}\n\n`]
-    );
+  // SKAI-1958: read the unread count before opening the stream. A staff member the tenant guard refuses (no campus
+  // yet, SKAI-1895) gets the same 403 as /api/notifications, and EventSource stops reconnecting; an open stream that
+  // never sends its first event would hold a function instance for nothing. Other failures keep the stream, without
+  // the initial count.
+  let unreadCount: number | null = null;
+  try {
+    unreadCount = await prisma.notification.count({ where: { userId, isRead: false } });
+  } catch (error) {
+    const status = (error as { status?: unknown })?.status;
+    if (typeof status === "number" && status < 500) return errorResponse(error, "Notifications are not available");
+    console.error("[SSE] unread count failed", error instanceof Error ? error.name : typeof error);
   }
   // SKAI-1878: this stream's slot on the instance-wide subscriber, not a Redis connection of its own.
   let release: (() => void) | null = null;
@@ -57,12 +66,7 @@ export async function GET(req: Request) {
 
       send("retry: 5000\n\n");
 
-      prisma.notification
-        .count({ where: { userId, isRead: false } })
-        .then((count) => {
-          send(`event: init\ndata: ${JSON.stringify({ unreadCount: count })}\n\n`);
-        })
-        .catch(() => {});
+      if (unreadCount !== null) send(`event: init\ndata: ${JSON.stringify({ unreadCount })}\n\n`);
 
       sharedSubscriber(redisUrl)
         .subscribe(`notif:${userId}`, (message: string) => {

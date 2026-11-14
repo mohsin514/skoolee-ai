@@ -1268,6 +1268,8 @@ const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["{0} added to {1}", "أُضيف {0} إلى {1}", "{0} کو {1} میں شامل کر دیا گیا"],
   ["{0} has no head now", "لم يعد لـ {0} رئيس الآن", "{0} کا اب کوئی سربراہ نہیں"],
   ["Archive student", "أرشفة الطالب", "طالب علم کو محفوظ شدہ میں منتقل کریں"],
+  ["Archive students", "أرشفة الطلاب", "طلبہ کو محفوظ شدہ میں منتقل کریں"],
+  ["{0} will return to the active roster in their existing class.", "سيعود {0} إلى القائمة النشطة في صفوفهم الحالية.", "{0} اپنی موجودہ جماعت میں فعال فہرست پر واپس آ جائیں گے۔"],
   ["Why are you revoking access?", "لماذا تلغي الوصول؟", "آپ رسائی کیوں منسوخ کر رہے ہیں؟"],
   ["{0} for {1} is cancelled and any charge is refunded. This cannot be undone.", "يُلغى {0} لـ {1} ويُسترد أي مبلغ مدفوع. لا يمكن التراجع عن ذلك.", "{1} کے لیے {0} منسوخ ہو جائے گا اور کوئی بھی وصول شدہ رقم واپس ہو جائے گی۔ یہ واپس نہیں ہو سکتا۔"],
   ["Cancel order", "إلغاء الطلب", "آرڈر منسوخ کریں"],
@@ -1393,6 +1395,20 @@ const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Timetables still have lessons in this period. Clear them first, then remove it.", "لا تزال الجداول تحتوي على دروس في هذه الحصة. فرّغها أولًا ثم أزلها.", "ٹائم ٹیبلز میں اب بھی اس پیریڈ میں اسباق ہیں۔ پہلے انہیں خالی کریں، پھر اسے ہٹائیں۔"],
   ["Remove period {0}?", "إزالة الحصة {0}؟", "پیریڈ {0} ہٹائیں؟"],
   ["{0}–{1} is removed from this campus's bell schedule.", "تُزال {0}–{1} من جدول الحصص في هذا الفرع.", "{0}–{1} اس کیمپس کے گھنٹی شیڈول سے ہٹا دیا جاتا ہے۔"],
+  // SKAI-130: staff timeline event titles and labels (stored as EN text, translated at render).
+  ["By", "بواسطة", "بذریعہ"],
+  ["Unknown user", "مستخدم غير معروف", "نامعلوم صارف"],
+  ["Could not load older events. Retry", "تعذّر تحميل الأحداث الأقدم. أعد المحاولة", "پرانے واقعات لوڈ نہیں ہو سکے۔ دوبارہ کوشش کریں"],
+  ["Designation updated", "تم تحديث المسمى الوظيفي", "عہدے کا نام اپ ڈیٹ ہو گیا"],
+  ["Contract type updated", "تم تحديث نوع العقد", "معاہدے کی قسم اپ ڈیٹ ہو گئی"],
+  ["Basic salary updated", "تم تحديث الراتب الأساسي", "بنیادی تنخواہ اپ ڈیٹ ہو گئی"],
+  ["Contract updated", "تم تحديث العقد", "معاہدہ اپ ڈیٹ ہو گیا"],
+  ["Joined the institution", "انضم إلى المؤسسة", "ادارے میں شامل ہوئے"],
+  ["Confirmed after probation", "تم تثبيته بعد فترة التجربة", "پروبیشن کے بعد مستقل کیا گیا"],
+  ["Moved to another post", "نُقل إلى منصب آخر", "دوسرے عہدے پر منتقل ہوئے"],
+  ["Transferred to another department", "نُقل إلى قسم آخر", "دوسرے شعبے میں منتقل ہوئے"],
+  ["Transferred to another campus", "نُقل إلى فرع آخر", "دوسرے کیمپس میں منتقل ہوئے"],
+  ["Service terminated", "أُنهيت الخدمة", "ملازمت ختم کر دی گئی"],
 ];
 
 export const arabicP5Ui: Record<string, string> = Object.fromEntries(P5_COPY.map(([en, ar]) => [en, ar]));

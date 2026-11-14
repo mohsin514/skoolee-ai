@@ -10,7 +10,7 @@ import { runUnscoped } from "@/lib/db/tenant-context";
 import { assertPermission as assertPermissionImpl, moduleFlags, type PermissionAction, type PermissionModule } from "@/lib/permissions";
 import { cookies } from "next/headers";
 import { ZodError } from "zod";
-import { isDatabaseUnavailable, ServiceUnavailableError } from "@/lib/db/availability";
+import { isDatabaseUnavailable, ServiceUnavailableError, unavailableReason } from "@/lib/db/availability";
 
 export class ApiError extends Error {
   status: number;
@@ -66,7 +66,7 @@ export async function requireAuthUser(options: { allowSuspended?: boolean } = {}
   }
   if (!options.allowSuspended) {
     try {
-      await assertSchoolOperational(user.schoolId);
+      await assertSchoolOperational(user.schoolId, undefined, user.schoolOperational);
     } catch (error) {
       // A cookie naming a school that no longer exists is an invalid *session*,
       // not a billing state. Reported as 404 "School not found" it left the
@@ -140,8 +140,9 @@ export function errorResponse(error: unknown, fallback = "Request failed") {
 
   if (error instanceof ServiceUnavailableError || isDatabaseUnavailable(error)) {
     const retryAfter = error instanceof ServiceUnavailableError ? error.retryAfterSeconds : 5;
-    console.warn("[api.unavailable]", { requestId, status: 503, where: fallback });
-    return respond({ error: "The service is busy. Please try again in a moment.", code: "SERVICE_UNAVAILABLE" }, { status: 503, headers: { "Retry-After": String(retryAfter) } });
+    const reason = unavailableReason(error);
+    console.warn("[api.unavailable]", { requestId, status: 503, reason, where: fallback });
+    return respond({ error: "The service is busy. Please try again in a moment.", code: "SERVICE_UNAVAILABLE" }, { status: 503, headers: { "Retry-After": String(retryAfter), "x-db-unavailable": reason } });
   }
 
   if (error instanceof ApiError) {

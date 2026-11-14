@@ -33,6 +33,13 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  // SKAI-1935: retired routes redirect over HTTP, before any page renders. A redirect-only page inside the
+  // student client shell streamed its redirect into the body on a hard load and crashed hydration (React #310).
+  // Temporary (307) so a future page can reuse the path; the proxy still guards the destination.
+  async redirects() {
+    return [{ source: "/student/schedule", destination: "/student/attendance", permanent: false }];
+  },
+
   // Allow subdomain-based multi-tenancy in local dev
   async rewrites() {
     return [];

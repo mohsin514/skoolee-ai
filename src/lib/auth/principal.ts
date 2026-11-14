@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { normalizeUserRole } from "@/lib/roles";
 import type { AuthUser } from "@/lib/auth";
-import { INSTITUTION_KIND_SCHOOL_SELECT, resolveInstitutionKind } from "./institution-server";
+import { resolveInstitutionKind } from "./institution-server";
+import { memoForRequest, prefetchedAccount, queryAccount, type AccountRow } from "./request-auth";
 import { principalCache, type PrincipalClaims } from "./principal-cache";
 
 /**
@@ -12,15 +13,31 @@ import { principalCache, type PrincipalClaims } from "./principal-cache";
  * Served from the principal cache when PRINCIPAL_CACHE=on; every write to the rows it reads invalidates it.
  */
 export function resolveCurrentPrincipal(claims: PrincipalClaims): Promise<AuthUser | null> {
-  return principalCache().resolve(claims, () => loadCurrentPrincipal(claims));
+  // getAuthUser and the tenant context both resolve the same claims in one request; the memo makes that one read.
+  // Memoised per request (request-auth.ts) under one string key; JSON keeps undefined (key absent) apart from null,
+  // which the role/version checks below rely on.
+  const { userId, schoolId, role, accessVersion, mfaVerified } = claims;
+  return resolveMemoised(JSON.stringify({ userId, schoolId, role, accessVersion, mfaVerified }));
+}
+
+function resolveMemoised(key: string): Promise<AuthUser | null> {
+  const claims = JSON.parse(key) as PrincipalClaims;
+  return memoForRequest("principals", key, () => principalCache().resolve(claims, () => loadCurrentPrincipal(claims)));
+}
+
+/** The account read: taken from this request's one-round-trip prefetch when getAuthUser made one (request-auth.ts). */
+async function readAccount(userId: string, schoolId: string): Promise<AccountRow | null> {
+  const prefetched = await prefetchedAccount(userId, schoolId);
+  return prefetched !== undefined ? prefetched : queryAccount(userId, schoolId);
 }
 
 async function loadCurrentPrincipal(claims: PrincipalClaims): Promise<AuthUser | null> {
-  const account = await runUnscoped("authenticate exact signed account and school", () => prisma.user.findFirst({
-    where: { id: claims.userId, schoolId: claims.schoolId, isActive: true },
-    select: { mfaEnabled: true, isInstitutionOwner: true, canPurchaseSubscription: true, canManageMemberships: true, accessVersion: true, id: true, schoolId: true, campusId: true, role: true, email: true, fullName: true, onboardingComplete: true,
-      campus: { select: { schoolId: true } }, school: { select: { slug: true, status: true, ...INSTITUTION_KIND_SCHOOL_SELECT } } },
-  }));
+  const row = await readAccount(claims.userId, claims.schoolId);
+  const account = row && {
+    ...row,
+    campus: row.campusId && row.campusSchoolId !== null ? { schoolId: row.campusSchoolId } : null,
+    school: { slug: row.slug, status: row.status, registrationKind: row.registrationKind, institutionSetup: row.institutionType === null ? null : { institutionType: row.institutionType } },
+  };
   if (!account || (claims.role !== undefined && account.role !== normalizeUserRole(claims.role))) return null;
   if (claims.role !== undefined && account.accessVersion !== (claims.accessVersion ?? 0)) return null;
   // A second factor is a property of a signed *session*. Session claims always
@@ -41,7 +58,8 @@ async function loadCurrentPrincipal(claims: PrincipalClaims): Promise<AuthUser |
   const institutionKind = await resolveInstitutionKind(account.schoolId, account.school);
   return { institutionKind, isInstitutionOwner: account.isInstitutionOwner, canPurchaseSubscription: account.canPurchaseSubscription, canManageMemberships: account.canManageMemberships, accessVersion: account.accessVersion, userId: account.id, schoolId: account.schoolId, campusId: account.campusId,
     role: account.role, email: account.email, fullName: account.fullName,
-    onboardingComplete: account.onboardingComplete, schoolSlug: account.school.slug, schoolStatus: account.school.status };
+    onboardingComplete: account.onboardingComplete, schoolSlug: account.school.slug, schoolStatus: account.school.status,
+    schoolOperational: { status: account.school.status, subscriptionLifecycleState: account.subscriptionLifecycleState, graceEndsAt: account.graceEndsAt ? new Date(account.graceEndsAt).toISOString() : null } };
 }
 
 /** Legacy standalone ADMIN may initialize only the institution it registered. */

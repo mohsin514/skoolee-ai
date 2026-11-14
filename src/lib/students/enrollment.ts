@@ -20,6 +20,25 @@ export async function classSeats(tx: TxClient, cls: { id: string; capacity: numb
   const occupied = await tx.student.count({ where: { classId: cls.id, archivedAt: null, status: "active" } });
   return { occupied, capacity: cls.capacity, free: cls.capacity == null ? null : Math.max(cls.capacity - occupied, 0) };
 }
+/**
+ * SKAI-1927: a new admission takes a seat, so each destination class must have room for every pupil this
+ * request adds to it. Restore and transfer enforce the same rule; without it, an over-capacity admission
+ * could never be restored once archived. Callers hold the campus/class lock so concurrent admissions serialize.
+ */
+export async function assertAdmissionSeats(tx: TxClient, schoolId: string, classIds: string[]) {
+  const incoming = new Map<string, number>();
+  for (const id of classIds) incoming.set(id, (incoming.get(id) ?? 0) + 1);
+  const classes = await tx.class.findMany({ where: { id: { in: [...incoming.keys()] }, schoolId }, select: { id: true, name: true, section: true, capacity: true } });
+  for (const cls of classes) {
+    if (cls.capacity == null) continue;
+    const seats = await classSeats(tx, cls);
+    const adding = incoming.get(cls.id) ?? 0;
+    if (seats.occupied + adding > cls.capacity) {
+      const label = cls.section ? `${cls.name} ${cls.section}` : cls.name;
+      throw new ApiError(`${label} is full (${seats.occupied} of ${cls.capacity} seats${adding > 1 ? `, ${adding} pupils to add` : ""}). Raise its capacity or choose another class.`, 409);
+    }
+  }
+}
 /** Only the institution authority (or super admin) may place a pupil in another campus's class. */
 export function canPlaceAcrossCampuses(user: AuthUser) {
   return user.role === "SUPER_ADMIN" || isInstitutionAuthority(user);

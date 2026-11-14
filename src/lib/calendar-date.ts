@@ -15,6 +15,8 @@
  * converting to a tenant zone would shift them by a day.
  */
 
+import { zonedInstant } from "./meetings/time";
+
 const DEFAULT_TIME_ZONE = "Asia/Karachi";
 
 /** YYYY-MM-DD for `instant` as seen in `timeZone`. */
@@ -36,4 +38,18 @@ export function calendarDateIn(timeZone: string, instant: Date = new Date()): st
       day: "2-digit",
     }).format(instant);
   }
+}
+
+/**
+ * SKAI-1931: the last instant (ISO) of calendar day `day` (YYYY-MM-DD) on the clock of `timeZone`, so a deadline of
+ * "end of today" means midnight at the campus, not midnight UTC. An unknown zone falls back to the end of the UTC day.
+ */
+export function endOfCalendarDayIn(day: string, timeZone: string): string {
+  const next = new Date(`${day}T00:00:00.000Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  try {
+    const midnight = zonedInstant(next.toISOString().slice(0, 10), "00:00", timeZone);
+    if (!Number.isNaN(midnight.getTime())) return new Date(midnight.getTime() - 1).toISOString();
+  } catch { /* unknown zone: fall through */ }
+  return new Date(next.getTime() - 1).toISOString();
 }

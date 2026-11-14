@@ -12,9 +12,18 @@ import { candidateExamUrl } from "@/lib/school-ai/exam-boundary";
 import { loadPermissionMap } from "@/lib/permissions";
 import { draftAuthorizationFingerprint } from "@/lib/drafts/scope";
 import { getDisplayLocale } from "@/lib/locale/display";
-import { isDatabaseUnavailable, ServiceUnavailableError } from "@/lib/db/availability";
+import { createTtlMemo } from "@/lib/cache/ttl-memo";
+
+/** Names of who leads and who pays, shown in the shell: display only, so shared per school for 60 s. */
+const institutionContacts = createTtlMemo({ ttlMs: 60_000 });
+import { isDatabaseUnavailable, ServiceUnavailableError, unavailableReason } from "@/lib/db/availability";
 
 const noStore = { "Cache-Control": "private, no-store" };
+
+type SessionRow = {
+  fullName: string; email: string; phone: string | null; profileImageUrl: string | null; isActive: boolean; schoolId: string; role: string; campusId: string | null;
+  schoolName: string; schoolLogoUrl: string | null; campusSchoolId: string | null; campusName: string | null; campusLogoUrl: string | null; campusArchivedAt: Date | null;
+};
 
 export async function GET() {
   try {
@@ -27,26 +36,34 @@ export async function GET() {
     // SKO-484: the caller's own row, matched on id and school. A standalone owner has no campus until setup
     // activates one, and the campus guard would refuse that read; scoping it to the signed-in identity
     // keeps it as narrow as the guard while serving every valid session.
-    const profile = await runUnscoped("session: the signed-in user's own profile", () => prisma.user.findFirst({
-      where: { id: user.userId, schoolId: user.schoolId },
-      select: { fullName: true, email: true, phone: true, profileImageUrl: true, isActive: true, schoolId: true, role: true, campusId: true },
-    }));
+    // Scale: profile, campus status and the school/campus names in ONE read (was four queries on every page load).
+    // Same rules as before: the caller's own row by id and school, its campus must belong to the school.
+    const [row] = await runUnscoped("session: the signed-in user's own profile", () => prisma.$queryRaw<SessionRow[]>`
+      SELECT u.full_name AS "fullName", u.email, u.phone, u.profile_image_url AS "profileImageUrl", u.is_active AS "isActive",
+             u.school_id AS "schoolId", u.role::text AS role, u.campus_id AS "campusId",
+             s.name AS "schoolName", s.logo_url AS "schoolLogoUrl",
+             c.school_id AS "campusSchoolId", c.name AS "campusName", c.logo_url AS "campusLogoUrl", c.archived_at AS "campusArchivedAt"
+      FROM users u
+      JOIN schools s ON s.id = u.school_id
+      LEFT JOIN campuses c ON c.id = u.campus_id
+      WHERE u.id = ${user.userId} AND u.school_id = ${user.schoolId}
+      LIMIT 1`);
+    const profile = row ?? null;
 
     if (!profile?.isActive || profile.schoolId !== user.schoolId || profile.role !== user.role || profile.campusId !== user.campusId) return NextResponse.json({ user: null, activeExamUrl: null }, { status: 401, headers: noStore });
-    // SKAI-1361: a session bound to an archived campus is no longer usable.
-    if (profile.campusId && !(await prisma.campus.findFirst({ where: { id: profile.campusId, schoolId: user.schoolId, archivedAt: null }, select: { id: true } }))) return NextResponse.json({ user: null, activeExamUrl: null }, { status: 401, headers: noStore });
+    // SKAI-1361: a session bound to an archived campus (or one outside the school) is no longer usable.
+    const campusUsable = profile.campusSchoolId === user.schoolId && profile.campusArchivedAt === null;
+    if (profile.campusId && !campusUsable) return NextResponse.json({ user: null, activeExamUrl: null }, { status: 401, headers: noStore });
 
     // SKO-479: the signed-in scope by name, so every workspace can show which school and campus an action affects.
-    const [school, campus] = await Promise.all([
-      prisma.school.findUnique({ where: { id: user.schoolId }, select: { name: true, logoUrl: true } }),
-      user.campusId ? prisma.campus.findFirst({ where: { id: user.campusId, schoolId: user.schoolId }, select: { name: true, logoUrl: true } }) : null,
-    ]);
+    const school = { name: profile.schoolName, logoUrl: profile.schoolLogoUrl };
+    const campus = user.campusId && profile.campusSchoolId === user.schoolId ? { name: profile.campusName, logoUrl: profile.campusLogoUrl } : null;
     // §1.5: who leads and who pays, by name only (never an email). Families and the platform operator get no names.
     // One user read: the resolved session already carries the kind, so no school lookup runs (about ten client
     // components fetch this route).
     const namesVisible = !["PARENT", "STUDENT", "APP_OWNER"].includes(user.role);
     const { authorities, subscriptionOwners: payers } = namesVisible
-      ? await getInstitutionContacts(user.schoolId, { kind: kindFor(user) ?? undefined }).catch(() => ({ authorities: [], subscriptionOwners: [] }))
+      ? await institutionContacts.get(JSON.stringify([user.schoolId, kindFor(user) ?? null]), () => getInstitutionContacts(user.schoolId, { kind: kindFor(user) ?? undefined })).catch(() => ({ authorities: [], subscriptionOwners: [] }))
       : { authorities: [], subscriptionOwners: [] };
     // §1.5: the label in the viewer's display language (personal → campus → school → en; never throws).
     const { language } = await getDisplayLocale(user);
@@ -89,7 +106,9 @@ export async function GET() {
     }, { headers: noStore });
   } catch (error) {
     if (error instanceof ServiceUnavailableError || isDatabaseUnavailable(error)) {
-      return NextResponse.json({ error: "The service is busy. Please try again in a moment.", code: "SERVICE_UNAVAILABLE" }, { status: 503, headers: { ...noStore, "Retry-After": "5" } });
+      const reason = unavailableReason(error);
+      console.warn("[auth/session] database unavailable", { reason });
+      return NextResponse.json({ error: "The service is busy. Please try again in a moment.", code: "SERVICE_UNAVAILABLE" }, { status: 503, headers: { ...noStore, "Retry-After": "5", "x-db-unavailable": reason } });
     }
     console.error("[auth/session] GET failed", error);
     return NextResponse.json({ error: "Operation failed" }, { status: 500, headers: noStore });

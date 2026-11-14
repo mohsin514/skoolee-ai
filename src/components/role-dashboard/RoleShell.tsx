@@ -44,7 +44,8 @@ function useSidebarTagline(passed: string | undefined, session: ReturnType<typeo
       setRemembered(stored && stored.startsWith(campus) ? stored : null);
     } catch { /* blocked storage: the campus name alone */ }
   }, [campus, passed, schoolWide]);
-  if (!session) return passed;
+  // SKAI-1943: the platform operator's host school is not its workspace; keep the passed (or default) subtitle.
+  if (!session || session.role === "APP_OWNER") return passed;
   if (schoolWide) return session.schoolName ?? passed;
   return passed && campus && passed.startsWith(campus) ? passed : remembered ?? campus ?? passed;
 }

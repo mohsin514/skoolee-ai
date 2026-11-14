@@ -26,14 +26,16 @@ const handoff = (key: string) => entry<HandoffEntry<any>>(key);
 const HOME = { guardianName: "Synthetic Guardian", address: "Street 1", city: "Lahore", medicalNotes: "None" };
 const KEY = () => `wf-test-${randomUUID()}`;
 
-async function fixture(role: "ADMIN" | "CAMPUS_ADMIN" = "CAMPUS_ADMIN") {
+// SKAI-1918: creating a class auto-creates its DRAFT academic year (SKAI-1887), so the academic-year entries are
+// exercised on a campus with no classes (withClasses = false), the only campus where "create the year" still applies.
+async function fixture(role: "ADMIN" | "CAMPUS_ADMIN" = "CAMPUS_ADMIN", withClasses = true) {
   const schoolId = `roster-${randomUUID()}`, campusId = randomUUID(), otherCampusId = randomUUID(), userId = randomUUID(); schools.push(schoolId);
   await db.school.create({ data: { id: schoolId, slug: schoolId, regId: schoolId, name: "Synthetic roster school", contactEmail: `${schoolId}@example.invalid`, city: "Test", status: "ACTIVE", plan: "PRO" } });
   await db.campus.create({ data: { id: campusId, schoolId, regId: campusId, name: "Synthetic campus", city: "Test" } });
   await db.campus.create({ data: { id: otherCampusId, schoolId, regId: otherCampusId, name: "Other campus", city: "Test" } });
   await db.user.create({ data: { id: userId, schoolId, campusId, email: `${userId}@example.invalid`, fullName: "Synthetic operator", role, isActive: true } });
-  const klass = await db.class.create({ data: { schoolId, campusId, name: "5", section: "A", academicYear: 2026, status: "ACTIVE" } });
-  const foreignClass = await db.class.create({ data: { schoolId, campusId: otherCampusId, name: "5", section: "A", academicYear: 2026, status: "ACTIVE" } });
+  const klass = !withClasses ? (null as never) : await db.class.create({ data: { schoolId, campusId, name: "5", section: "A", academicYear: 2026, status: "ACTIVE" } });
+  const foreignClass = !withClasses ? (null as never) : await db.class.create({ data: { schoolId, campusId: otherCampusId, name: "5", section: "A", academicYear: 2026, status: "ACTIVE" } });
   const user: AuthUser = { schoolId, campusId, userId, role, email: `${userId}@example.invalid`, fullName: "Synthetic operator", accessVersion: 0 };
   return { user, schoolId, campusId, otherCampusId, klass, foreignClass };
 }
@@ -123,7 +125,7 @@ test("commit: nothing staged is refused; several staged batches ask which one", 
 });
 
 test("cycle: created as DRAFT only when the campus has none; never ACTIVE; refused once one exists", async () => {
-  const { user, schoolId, campusId } = await fixture();
+  const { user, schoolId, campusId } = await fixture("CAMPUS_ADMIN", false);
   await within(user, async () => {
     const ctx = await ctxFor(user, campusId);
     assert.deepEqual(await runGates(ctx, exec("academic.cycle.create").gates), { ok: true });
@@ -144,7 +146,7 @@ test("cycle: created as DRAFT only when the campus has none; never ACTIVE; refus
     assert.equal(await code(exec("academic.cycle.create").execute(ctx, { academicYear: 2027 }, { idempotencyKey: KEY() })), "DOMAIN_REFUSED:CYCLE_EXISTS");
     assert.equal(await db.academicCycle.count({ where: { schoolId } }), 1);
   });
-  const withActive = await fixture();
+  const withActive = await fixture("CAMPUS_ADMIN", false);
   await db.academicCycle.create({ data: { schoolId: withActive.schoolId, campusId: withActive.campusId, academicYear: 2026, label: "2026", status: "ACTIVE" } });
   await within(withActive.user, async () => {
     const ctx = await ctxFor(withActive.user, withActive.campusId);
@@ -153,7 +155,7 @@ test("cycle: created as DRAFT only when the campus has none; never ACTIVE; refus
 });
 
 test("activation hands off to the PRINCIPAL when that seat is held, else to the campus operator; it never activates", async () => {
-  const { user, schoolId, campusId } = await fixture();
+  const { user, schoolId, campusId } = await fixture("CAMPUS_ADMIN", false);
   await within(user, async () => {
     const ctx = await ctxFor(user, campusId);
     assert.equal(await code(prepare(ctx, "academic.cycle.activate", {})), "DOMAIN_REFUSED:NO_DRAFT_CYCLE");
@@ -200,6 +202,7 @@ test("class teacher: the PRINCIPAL decides while seated, else the operator's Cla
 test("a foreign campus or class gives SCOPE_DENIED and writes nothing", async () => {
   const { user, schoolId, campusId, otherCampusId, klass, foreignClass } = await fixture();
   const otherTeacher = randomUUID();
+  const cyclesBefore = await db.academicCycle.count({ where: { schoolId } }); // each class brought its DRAFT year (SKAI-1887)
   await db.user.create({ data: { id: otherTeacher, schoolId, campusId: otherCampusId, email: `${otherTeacher}@example.invalid`, fullName: "Other teacher", role: "TEACHER", isActive: true } });
   await within(user, async () => {
     const ctx = await ctxFor(user, campusId);
@@ -215,7 +218,7 @@ test("a foreign campus or class gives SCOPE_DENIED and writes nothing", async ()
     assert.equal(await code(exec("imports.stage_batch").execute(foreign, { classId: klass.id, rows }, { idempotencyKey: KEY() })), "SCOPE_DENIED");
   });
   assert.equal(await db.importBatch.count({ where: { schoolId } }), 0);
-  assert.equal(await db.academicCycle.count({ where: { schoolId } }), 0);
+  assert.equal(await db.academicCycle.count({ where: { schoolId } }), cyclesBefore);
   assert.equal(await db.student.count({ where: { schoolId } }), 0);
 });
 

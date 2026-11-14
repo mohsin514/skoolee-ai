@@ -46,7 +46,7 @@ test("the migration creates each new index additively, outside any data change",
 
 test("the notification index matches the inbox order, including NULLS LAST", () => {
   const actions = readFileSync(join(root, "src", "lib", "notifications", "actions.ts"), "utf8");
-  assert.ok(actions.includes(`orderBy: [{ lastRemindedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }]`));
+  assert.ok(actions.includes(`orderBy: [{ lastRemindedAt: { sort: "desc", nulls: "last" } }, { id: "desc" }]`));
   assert.ok(migration.includes(`"notifications"("user_id", "last_reminded_at" DESC NULLS LAST, "created_at" DESC)`));
 });
 

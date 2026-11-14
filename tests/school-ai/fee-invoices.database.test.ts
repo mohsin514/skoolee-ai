@@ -9,6 +9,7 @@ import { previewSchoolAiExecution, executeSchoolAiTool, listSchoolAiExecutions }
 import { getFeeInvoiceOptions } from "../../src/lib/school-ai/fee-invoices-service";
 import { existingMonthlyStudentInvoices, invoiceGenerationTransaction } from "../../src/lib/fees/invoice-generation";
 import type { FeeInvoicePreview, FeeInvoiceProposal } from "../../src/lib/school-ai/fee-invoices";
+import { putAcademicYear } from "../support/academic-year";
 
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated PostgreSQL fixture on port 55438.");
@@ -21,7 +22,7 @@ async function fixture() {
   await db.campus.create({ data: { id: campusId, schoolId, name: "Synthetic campus", regId: campusId, city: "Test" } });
   await db.user.create({ data: { id: userId, schoolId, campusId, fullName: "Fee reviewer", email: `${userId}@example.invalid`, role: "CAMPUS_ADMIN" } });
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Grade 8", section: "A", academicYear: 2026 } });
-  const cycle = await db.academicCycle.create({ data: { schoolId, campusId, academicYear: 2026, label: "2026 cycle", status: "ACTIVE", startDate: new Date("2026-01-01Z"), endDate: new Date("2027-03-31Z") } });
+  const cycle = await putAcademicYear(db, { schoolId, campusId, academicYear: 2026, label: "2026 cycle", status: "ACTIVE", startDate: new Date("2026-01-01Z"), endDate: new Date("2027-03-31Z") });
   const category = await db.studentCategory.create({ data: { schoolId, campusId, name: "Synthetic category" } });
   await db.student.create({ data: { id: studentId, schoolId, campusId, classId, categoryId: category.id, fullName: "Synthetic learner", rollNo: "1", gender: "OTHER", enrollmentDate: new Date("2026-01-01Z") } });
   const group = await db.feeGroup.create({ data: { schoolId, campusId, name: "Reviewed fees", currency: "PKR" } });
@@ -86,7 +87,10 @@ test("price, discount and enrollment changes invalidate the exact preview and cr
   await assert.rejects(() => executeSchoolAiTool(f.user, record.id, input(p)), { code: "STALE_EXECUTION_PREVIEW" });
   p = await preview(f, record); await db.feeDiscount.update({ where: { id: f.percent.id }, data: { value: 20 } });
   await assert.rejects(() => executeSchoolAiTool(f.user, record.id, input(p)), { code: "STALE_EXECUTION_PREVIEW" });
-  p = await preview(f, record); await db.studentEnrollment.update({ where: { id: p.students[0].enrollmentId! }, data: { endDate: new Date("2026-10-31Z"), status: "WITHDRAWN" } });
+  p = await preview(f, record);
+  // SKAI-1924: an active pupil keeps an open enrollment (SKAI-1888), so a withdrawal ends both together.
+  const withdrawn = p.students[0];
+  await db.$transaction(async tx => { await tx.$executeRaw`SELECT set_config('app.enrollment_reviewed', ${withdrawn.studentId}, true)`; await tx.studentEnrollment.update({ where: { id: withdrawn.enrollmentId! }, data: { endDate: new Date("2026-10-31Z"), status: "WITHDRAWN" } }); await tx.student.update({ where: { id: withdrawn.studentId }, data: { status: "withdrawn" } }); });
   await assert.rejects(() => executeSchoolAiTool(f.user, record.id, input(p)), { code: "STALE_EXECUTION_PREVIEW" });
   assert.equal(await db.invoice.count({ where: { schoolId: f.schoolId } }), 0);
 }));
@@ -138,10 +142,14 @@ test("a prior-campus invoice survives transfer and excludes a new-campus monthly
   const oldInvoice = await legacyInvoice(f), oldCampus = f.campusId, movedCampus = randomUUID(), movedClass = randomUUID();
   await db.campus.create({ data: { id: movedCampus, schoolId: f.schoolId, name: "Destination campus", regId: movedCampus, city: "Test" } });
   await db.class.create({ data: { id: movedClass, schoolId: f.schoolId, campusId: movedCampus, name: "Destination grade", academicYear: 2026 } });
-  await db.academicCycle.create({ data: { schoolId: f.schoolId, campusId: movedCampus, label: "2026", academicYear: 2026, status: "ACTIVE" } });
-  await db.studentEnrollment.updateMany({ where: { studentId: f.studentId }, data: { endDate: new Date("2026-10-15Z"), status: "TRANSFERRED" } });
-  await db.studentEnrollment.create({ data: { schoolId: f.schoolId, studentId: f.studentId, campusId: movedCampus, classId: movedClass, campusName: "Destination campus", className: "Destination grade", curriculum: "Synthetic", academicYear: 2026, rollNo: "1", startDate: new Date("2026-10-15Z"), origin: "REVIEWED" } });
-  await db.$transaction(async tx => { await tx.$executeRaw`SELECT set_config('app.enrollment_reviewed', ${f.studentId}, true)`; await tx.student.update({ where: { id: f.studentId }, data: { campusId: movedCampus, classId: movedClass, categoryId: null } }); });
+  await putAcademicYear(db, { schoolId: f.schoolId, campusId: movedCampus, label: "2026", academicYear: 2026, status: "ACTIVE" });
+  // SKAI-1924: a transfer ends the old enrollment, opens the new one and moves the pupil in one transaction (SKAI-1888).
+  await db.$transaction(async tx => {
+    await tx.$executeRaw`SELECT set_config('app.enrollment_reviewed', ${f.studentId}, true)`;
+    await tx.studentEnrollment.updateMany({ where: { studentId: f.studentId }, data: { endDate: new Date("2026-10-15Z"), status: "TRANSFERRED" } });
+    await tx.studentEnrollment.create({ data: { schoolId: f.schoolId, studentId: f.studentId, campusId: movedCampus, classId: movedClass, campusName: "Destination campus", className: "Destination grade", curriculum: "Synthetic", academicYear: 2026, rollNo: "1", startDate: new Date("2026-10-15Z"), origin: "REVIEWED" } });
+    await tx.student.update({ where: { id: f.studentId }, data: { campusId: movedCampus, classId: movedClass, rollNo: "1", categoryId: null } });
+  });
   await db.user.update({ where: { id: f.user.userId }, data: { campusId: movedCampus } });
   const group = await db.feeGroup.create({ data: { schoolId: f.schoolId, campusId: movedCampus, name: "New campus fees", currency: "PKR" } });
   const type = await db.feeType.create({ data: { schoolId: f.schoolId, campusId: movedCampus, name: "New tuition", code: "MONTHLY_TUITION" } });

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, requirePlatformOwner } from "@/lib/api/scope";
 import { failFrom, ok } from "@/lib/api/envelope";
+import { rosterStatusWhere } from "@/lib/students/roster-status";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,8 @@ export async function GET() {
     ] = await Promise.all([
       prisma.school.count(),
       prisma.campus.count(),
-      prisma.student.count(),
+      // SKAI-1926: the platform total and "Roll by school" count on-roll pupils, like the schools list.
+      prisma.student.count({ where: rosterStatusWhere(false) }),
       prisma.user.count({ where: { role: "TEACHER" } }),
       prisma.user.count(),
       prisma.user.count({ where: { isActive: true } }),
@@ -57,7 +59,7 @@ export async function GET() {
         orderBy: { name: "asc" },
       }),
       prisma.user.groupBy({ by: ["role"], _count: true }),
-      prisma.student.groupBy({ by: ["schoolId"], _count: true }),
+      prisma.student.groupBy({ by: ["schoolId"], where: rosterStatusWhere(false), _count: true }),
       prisma.campus.groupBy({ by: ["schoolId"], _count: true }),
       // Prisma cannot group by a truncated date, and pulling a year of rows
       // into the app to bucket them there would grow with the platform.

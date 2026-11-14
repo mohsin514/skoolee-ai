@@ -609,7 +609,7 @@ async function loadCampusDashboardData() {
     L.widget("classes", () => prisma.class.findMany({
       where: { campusId, campus: { schoolId: session.schoolId } },
       include: {
-        _count: { select: { students: true, subjects: true } },
+        _count: { select: { students: { where: ON_ROLL }, subjects: true } },
         classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
         subjects: {
           select: {
@@ -663,7 +663,7 @@ async function loadCampusDashboardData() {
             name: true,
             section: true,
             academicYear: true,
-            _count: { select: { students: true, subjects: true } },
+            _count: { select: { students: { where: ON_ROLL }, subjects: true } },
           },
           orderBy: [{ academicYear: "desc" }, { name: "asc" }],
         },
@@ -706,8 +706,10 @@ async function loadCampusDashboardData() {
     }), []),
     L.widget("school", () => prisma.school.findUnique({ where: { id: session.schoolId } }), null),
     L.widget("campus", () => prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId } }), null),
+    // SKAI-1926: the roster, class strength, Classes and Attendance read this list, so it holds on-roll pupils only
+    // (the same rule as the on-roll KPI and /api/students); archived pupils are listed and restored from the archive.
     L.widget("students", () => prisma.student.findMany({
-      where: { campusId, campus: { schoolId: session.schoolId } },
+      where: { campusId, campus: { schoolId: session.schoolId }, ...ON_ROLL },
       // The directory summary (SKAI-163); the profile reads the sensitive fields from /api/students/<id>.
       select: {
         ...rosterSummarySelect,
@@ -1237,12 +1239,14 @@ async function loadPrincipalDashboardData() {
           },
           orderBy: [{ academicYear: "desc" }, { title: "asc" }],
         },
-        _count: { select: { students: true, subjects: true } },
+        _count: { select: { students: { where: ON_ROLL }, subjects: true } },
       },
       orderBy: [{ academicYear: "desc" }, { name: "asc" }],
     }), []),
+    // SKAI-1926: the roster, class strength, Classes and Attendance read this list, so it holds on-roll pupils only
+    // (the same rule as the on-roll KPI and /api/students); archived pupils are listed and restored from the archive.
     L.widget("students", () => prisma.student.findMany({
-      where: { campusId, campus: { schoolId: session.schoolId } },
+      where: { campusId, campus: { schoolId: session.schoolId }, ...ON_ROLL },
       select: {
         id: true,
         fullName: true,
@@ -1313,7 +1317,7 @@ async function loadPrincipalDashboardData() {
             name: true,
             section: true,
             academicYear: true,
-            _count: { select: { students: true, subjects: true } },
+            _count: { select: { students: { where: ON_ROLL }, subjects: true } },
           },
           orderBy: [{ academicYear: "desc" }, { name: "asc" }],
         },

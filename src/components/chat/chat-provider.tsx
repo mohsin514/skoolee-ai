@@ -20,6 +20,7 @@ import {
   type ReactNode,
 } from "react";
 import { ONLINE_RESTORED_EVENT } from "@/lib/network/connection";
+import { refreshWhileClosed } from "@/lib/network/closed-stream-refresh";
 import type {
   ChatMessageView,
   ConversationDetail,
@@ -614,6 +615,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       disconnectedRef.current = true;
     });
 
+    // Realtime off (204) or a fatal error: the stream will not come back by itself, so re-sync on a slow timer.
+    const stopRefresh = refreshWhileClosed(source, () => void resyncRef.current());
+
     source.addEventListener("chat", (e) => {
       try {
         applyIncomingRef.current(JSON.parse((e as MessageEvent).data) as ChatStreamEvent);
@@ -621,6 +625,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     return () => {
+      stopRefresh();
       source.close();
       eventSourceRef.current = null;
     };

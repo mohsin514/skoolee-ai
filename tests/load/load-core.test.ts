@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertAllowedTarget, checkVirtualUsers, journeyFor, label, percentile, report, shouldAbort, type Sample } from "../../scripts/load/load-core";
+import { assertAllowedTarget, checkVirtualUsers, hasFirstEvent, journeyFor, label, percentile, report, shellBatched, shouldAbort, splitStreams, type Sample } from "../../scripts/load/load-core";
 
 test("only dev and local hosts can be targeted; production is always refused", () => {
   assert.equal(assertAllowedTarget("https://dev.skooleeai.com").hostname, "dev.skooleeai.com");
@@ -16,14 +16,17 @@ test("only dev and local hosts can be targeted; production is always refused", (
 test("virtual users are capped unless high load is explicitly allowed", () => {
   checkVirtualUsers(300, false);
   assert.throws(() => checkVirtualUsers(301, false), /LOAD_ALLOW_HIGH/);
-  checkVirtualUsers(2000, true);
-  assert.throws(() => checkVirtualUsers(2001, true), /capped/);
+  checkVirtualUsers(5000, true);
+  assert.throws(() => checkVirtualUsers(5001, true), /capped/);
   assert.throws(() => checkVirtualUsers(0, false), /positive/);
 });
 
 test("journeys are read-only paths and labels drop ids and queries", () => {
   const teacher = journeyFor("teacher", "2026-11-13");
   assert.ok(teacher.includes("/api/timetable/teacher"));
+  assert.equal(teacher[0], "/teacher", "a page view starts with the role's home page");
+  assert.ok(teacher.every((p) => !p.includes("{date}")), "dates are filled in");
+  for (const role of ["owner", "admin", "principal", "accountant", "guardian", "student", "noaccess", "platform-owner"]) assert.ok(journeyFor(role, "2026-11-13").length > 5, role);
   assert.ok(teacher.every((p) => p.startsWith("/")));
   assert.equal(label("/api/teacher-attendance?userId=self&date=2026-11-13"), "/api/teacher-attendance");
   assert.equal(label("/api/students/32e6d4af-86d1-4a84-8237-11d5bb4e8b10/profile"), "/api/students/:id/profile");
@@ -56,4 +59,21 @@ test("the report passes or fails against the SKO-451 objectives", () => {
   assert.equal(report(meta, samples(100, 2_000, 200)).passed, false);
   assert.equal(report(meta, [...samples(98, 300, 200), ...samples(2, 300, 500)]).passed, false);
   assert.equal(report({ ...meta, aborted: "error rate" }, samples(100, 300, 200)).passed, false);
+});
+
+test("shell GETs in a page view go as one /api/shell request, like the browser (SKAI-1949)", () => {
+  const out = shellBatched(["/api/auth/session", "/api/students?page=1", "/api/notifications?limit=30"]);
+  assert.deepEqual(out, ["/api/shell?p=%2Fapi%2Fauth%2Fsession&p=%2Fapi%2Fnotifications%3Flimit%3D30", "/api/students?page=1"]);
+  assert.equal(label(out[0]), "/api/shell");
+  assert.deepEqual(shellBatched(["/api/profile", "/api/students"]), ["/api/profile", "/api/students"], "a lone shell GET is sent as itself");
+});
+
+test("realtime streams are held open apart from the page requests, and timed to their first event (SKAI-1957)", () => {
+  const { requests, streams } = splitStreams(["/api/auth/session", "/api/notifications/sse", "/api/chat/stream", "/api/profile"]);
+  assert.deepEqual(requests, ["/api/auth/session", "/api/profile"]);
+  assert.deepEqual(streams, ["/api/notifications/sse", "/api/chat/stream"]);
+  assert.equal(hasFirstEvent("retry: 5000\n\n"), false, "a retry hint is not an event");
+  assert.equal(hasFirstEvent("retry: 5000\n\nevent: init\ndata: {}"), false, "an event is complete only at its blank line");
+  assert.equal(hasFirstEvent("retry: 5000\n\nevent: init\ndata: {\"unreadCount\":0}\n\n"), true);
+  assert.equal(hasFirstEvent(": keepalive\n\n"), false, "a comment is not an event");
 });

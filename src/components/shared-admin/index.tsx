@@ -16,6 +16,7 @@ import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/Local
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { InputGroup } from "@/components/ui/input-group";
+import { GUARDIAN_RELATIONSHIP_LABELS, guardianRelationshipLabel, guardianRelationshipValue } from "@/lib/students/guardian-relationship";
 import { checkStudentDocumentFile, cleanStudentDocumentName, studentDocumentContentType, STUDENT_DOCUMENT_ACCEPT, STUDENT_DOCUMENT_KINDS } from "@/lib/students/document-policy";
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -333,17 +334,6 @@ const TIMELINE_KIND_LABELS: Record<string, string> = {
   GRADUATED: "Graduated",
   TRANSFERRED: "Transferred",
   WITHDRAWN: "Withdrawn",
-};
-
-/** Guardian relationships (EN UI keys; translated where shown). */
-const GUARDIAN_RELATIONSHIP_LABELS: Record<string, string> = {
-  FATHER: "Father",
-  MOTHER: "Mother",
-  GUARDIAN: "Guardian",
-  UNCLE: "Uncle",
-  AUNT: "Aunt",
-  GRANDPARENT: "Grandparent",
-  SIBLING: "Sibling",
 };
 
 /** Leave allocations made for a whole role (EN UI keys, plural). */
@@ -1962,10 +1952,12 @@ export function StudentDetailModal({
     return g || "Not recorded";
   };
 
+  // SKAI-1928: admission saves "father"; older edits saved "FATHER". Match either.
   const relationshipLabel = (r: string) => {
-    const map: Record<string, string> = { FATHER: "Father", MOTHER: "Mother", GUARDIAN: "Guardian", UNCLE: "Uncle", AUNT: "Aunt", GRANDPARENT: "Grandparent", SIBLING: "Sibling" };
-    return map[r] || r || "N/A";
+    const label = guardianRelationshipLabel(r);
+    return label ? ui(label) : r || "N/A";
   };
+  const relationshipValue = guardianRelationshipValue(ed("guardianRelationship"));
 
   return (
     <ModalFrame
@@ -2218,9 +2210,10 @@ export function StudentDetailModal({
                 <FormInput label={ui("Name (English)")} value={ed("guardianName")} placeholder={ui("Guardian name")} onChange={(v) => setEd("guardianName", v)} />
                 <FormInput label={ui("Name (Urdu)")} value={ed("guardianNameUr")} placeholder="سرپرست کا نام" onChange={(v) => setEd("guardianNameUr", v)} />
               </div>
-              <FormSelect label={ui("Relationship")} value={ed("guardianRelationship")} onChange={(v) => setEd("guardianRelationship", v)}>
+              <FormSelect label={ui("Relationship")} value={relationshipValue} onChange={(v) => setEd("guardianRelationship", v)}>
                 <option value="">{ui("Select")}</option>
                 {Object.entries(GUARDIAN_RELATIONSHIP_LABELS).map(([r, label]) => <option key={r} value={r}>{ui(label)}</option>)}
+                {relationshipValue && !Object.hasOwn(GUARDIAN_RELATIONSHIP_LABELS, relationshipValue) ? <option value={relationshipValue}>{relationshipValue}</option> : null}
               </FormSelect>
               <FormInput label={ui("Occupation")} value={ed("guardianOccupation")} placeholder={ui("Occupation")} onChange={(v) => setEd("guardianOccupation", v)} />
               <FormInput label={ui("Phone")} value={ed("guardianPhone")} placeholder={ui("Guardian phone")} onChange={(v) => setEd("guardianPhone", v)} />
@@ -3461,7 +3454,7 @@ export function TeacherDetailModal({
                         {event.kind === "SALARY" ? <Banknote className="h-3.5 w-3.5" /> : event.kind === "BANK" ? <CreditCard className="h-3.5 w-3.5" /> : <History className="h-3.5 w-3.5" />}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-ink-strong">{event.title}</p>
+                        <p className="text-xs font-bold text-ink-strong">{ui(event.title)}</p>
                         {event.detail ? <p className="mt-0.5 text-2xs font-semibold text-ink-muted">{event.detail}</p> : null}
                         <p className="mt-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{formatStaffDate(event.createdAt)}</p>
                         <p className="mt-0.5 text-2xs font-semibold text-ink-muted">{ui("By")} {event.actorName || ui("Unknown user")}</p>

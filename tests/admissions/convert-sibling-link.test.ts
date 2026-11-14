@@ -105,3 +105,13 @@ test("a receptionist cannot enrol or link a sibling", async () => {
   assert.equal(students.length, 3);
   assert.equal(students[0].siblingGroupId, null);
 });
+
+test("a sibling whose stored phone is formatted with spaces is still offered and accepted", async () => {
+  reset();
+  students[0].guardianPhone = "+92 300 1234567";
+  const { convertApplication } = await svc();
+  const out = await convertApplication(user, "campus-a", { id: "app-1", rollNo: "11", siblingStudentId: "bilal" });
+  const created = students.find(s => s.id === out.student.id)!;
+  assert.ok(created.siblingGroupId);
+  assert.equal(students.find(s => s.id === "bilal")!.siblingGroupId, created.siblingGroupId);
+});

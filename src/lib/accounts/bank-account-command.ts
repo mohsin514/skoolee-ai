@@ -13,7 +13,8 @@ import { ApiError, resolveCampusId } from "@/lib/api/scope";
  * The caller has already checked accounts.add. Throws ApiError with the route's messages.
  */
 /** Opening balances are stored in a PostgreSQL Int32 column, so anything outside that range is rejected here, not by the database. */
-const MAX_OPENING_BALANCE = 2_147_483_647;
+// SKAI-1902: stored as bigint; the client reads it back as a JS number, so stay within the safe-integer range.
+const MAX_OPENING_BALANCE = Number.MAX_SAFE_INTEGER;
 
 export function parseOpeningBalance(value: unknown): number {
   const amount = Number(value);

@@ -5,7 +5,7 @@ export const pilotEligibilityInputSchema = z.object({
   geography: z.enum(["PAKISTAN_LAHORE", "PAKISTAN_ISLAMABAD_RAWALPINDI", "PAKISTAN_KARACHI", "KSA_RIYADH", "KSA_JEDDAH", "UAE_DUBAI", "OTHER"]),
   board: z.string().trim().min(1), grade: z.string().trim().min(1), subject: z.string().trim().min(1),
   examYear: z.string().trim().min(1), academicYear: z.string().trim().min(1), term: z.string().trim().min(1),
-  tier: z.string().trim().min(1), language: z.enum(["en", "ar", "ur"]),
+  tier: z.string().trim().min(1), language: z.enum(["en", "ar", "ur", "hi"]),
   approvalStatus: z.enum(["DRAFT", "IN_REVIEW", "APPROVED", "SUPERSEDED", "REVOKED"]),
   approvedAt: z.coerce.date().optional(), reviewDueAt: z.coerce.date().optional(),
   localBudgetApprover: z.boolean().default(false),

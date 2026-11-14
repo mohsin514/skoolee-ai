@@ -191,7 +191,7 @@ async function proxyImpl(req: NextRequest, nonce: string) {
 
   if (!token) {
     if (pathname.startsWith("/api")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Unauthorized" } }, { status: 401 });
     }
     const loginUrl = new URL("/login", req.url);
     // Keep the query so a deep link (?view=…, ?invoice=…) survives sign-in (G46).

@@ -7,7 +7,7 @@ import "server-only";
 
 type AllocatorTx = {
   $executeRaw(query: TemplateStringsArray, ...values: unknown[]): Promise<unknown>;
-  student: { findMany(args: { where: { schoolId: string; admissionNo: { startsWith: string } }; select: { admissionNo: true } }): Promise<{ admissionNo: string | null }[]> };
+  $queryRaw<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
 };
 
 export const admissionPrefix = (year: number) => `ADM-${year}-`;
@@ -28,7 +28,10 @@ export function highestAdmissionSeq(year: number, numbers: (string | null)[]): n
 export async function admissionNumberAllocator(tx: AllocatorTx, schoolId: string, year: number) {
   // Serialises every allocation for this school+year until the transaction ends.
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`admission-no:${schoolId}:${year}`}))`;
-  const existing = await tx.student.findMany({ where: { schoolId, admissionNo: { startsWith: admissionPrefix(year) } }, select: { admissionNo: true } });
-  let seq = highestAdmissionSeq(year, existing.map((row) => row.admissionNo));
+  // Raw SQL on purpose: the year-close route runs inside a campus-scoped tenant context, and the Prisma
+  // guard would add the caller's campusId to a delegate read, hiding numbers other campuses issued.
+  // RLS still limits rows to the current school; the explicit school_id filter keeps it fail-closed.
+  const existing = await tx.$queryRaw<{ admission_no: string | null }[]>`SELECT admission_no FROM students WHERE school_id = ${schoolId} AND admission_no LIKE ${`${admissionPrefix(year)}%`}`;
+  let seq = highestAdmissionSeq(year, existing.map((row) => row.admission_no));
   return () => formatAdmissionNo(year, ++seq);
 }

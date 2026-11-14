@@ -16,6 +16,7 @@ import { resolveExamSchedulingCampus, withExamSchedulingWrite } from "../../src/
 import { validateStoredExamSchedules } from "../../src/lib/academic/exam-bookings";
 import { allocateExamRooms } from "../../src/lib/academic/exam-rooms";
 import { runWithTenantContext } from "../../src/lib/db/tenant-context";
+import { putAcademicYear } from "../support/academic-year";
 
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated School AI database.");
@@ -90,7 +91,7 @@ test("calendar holidays, weekends, academic boundaries and invigilator leave are
   await assert.rejects(() => preview(f, record), { code: "EXAM_PLAN_HOLIDAY" }); await db.holiday.delete({ where: { id: holiday.id } });
   const weekend = await db.weekend.create({ data: { schoolId, campusId: f.campusId, dayOfWeek: 3 } });
   await assert.rejects(() => preview(f, record), { code: "EXAM_PLAN_WEEKEND" }); await db.weekend.delete({ where: { id: weekend.id } });
-  const cycle = await db.academicCycle.create({ data: { schoolId, campusId: f.campusId, academicYear: 2026, label: "Closed cycle", status: "ENDED" } });
+  const cycle = await putAcademicYear(db, { schoolId, campusId: f.campusId, academicYear: 2026, label: "Closed cycle", status: "ENDED" });
   await assert.rejects(() => preview(f, record), { code: "EXAM_PLAN_YEAR" }); await db.academicCycle.delete({ where: { id: cycle.id } });
   const leaveType = await db.leaveType.create({ data: { schoolId, campusId: f.campusId, name: "Casual" } });
   const leave = await db.leaveRequest.create({ data: { schoolId, campusId: f.campusId, userId: f.teacherId, fromDate: new Date("2026-10-14"), toDate: new Date("2026-10-14"), leaveTypeId: leaveType.id, reason: "Synthetic leave", status: "APPROVED" } });

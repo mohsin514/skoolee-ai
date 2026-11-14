@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { AlertTriangle, CalendarX2, ClipboardCheck, GitCompareArrows, History, MessageSquareText, Users } from "lucide-react";
+import { copyPreviousIntoDrafts, hasMarks, previousDates } from "@/lib/attendance/copy-previous";
 import { DeskPill, DeskSection, deskRow, type DeskTone } from "@/components/ui/desk";
 
 // SKO-405: the class register. Unmarked is shown as its own state and nothing is assumed from it;
@@ -70,6 +71,26 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
   const locked = submitted && data?.canCorrect === false;
   const setDraft = (id: string, patch: Partial<Draft>) => setDrafts(current => ({ ...current, [id]: { ...current[id], ...patch } }));
   const fillPresent = () => setDrafts(current => Object.fromEntries(Object.entries(current).map(([id, d]) => [id, d.status ? d : { ...d, status: "PRESENT" }])));
+  // SKAI-228: copy the last earlier register that has marks into this draft. Only unmarked pupils are filled and
+  // nothing is saved; the teacher checks the marks and saves through the normal review and conflict checks.
+  const [copying, setCopying] = useState(false);
+  const copyPrevious = async () => {
+    if (!data) return;
+    setCopying(true);
+    try {
+      for (const day of previousDates(data.date)) {
+        const response = await fetch(`/api/attendance/register?${new URLSearchParams({ classId: data.class.id, date: day })}`, { cache: "no-store" });
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok || !json.success) throw new Error("load");
+        if (!hasMarks(json.data.entries as Entry[])) continue;
+        const out = copyPreviousIntoDrafts(drafts, json.data.entries as Entry[]);
+        setDrafts(out.drafts);
+        toast.success(ui("Copied {0} marks from {1}. Check them, then save.", [String(out.copied), formatDate(day)]));
+        return;
+      }
+      toast.error(ui("No earlier register with marks in the last week."));
+    } catch { toast.error(ui("The previous register could not be loaded. Nothing has changed.")); } finally { setCopying(false); }
+  };
   const missingTime = changed.find(entry => { const d = drafts[entry.studentId]; return d.status === "LATE" && !d.arrivalTime || d.status === "PARTIAL" && !d.arrivalTime && !d.departureTime; });
 
   const save = async (options: { submit: boolean; reason?: string; reviewed?: Set<string> }) => {
@@ -120,6 +141,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
           page's scroll area (above the mobile navigation) instead of sitting below the last pupil. */}
       <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap items-center justify-end gap-2 rounded-b-[inherit] border-t border-border-subtle bg-card/95 px-5 py-3 backdrop-blur" data-register-actions>
         {missingTime ? <p className="me-auto text-xs font-semibold text-status-error-text" role="alert">{ui("Add the time for {0}.", [missingTime.name])}</p> : null}
+        {!submitted && counts.UNMARKED ? <Button variant="outline" disabled={copying} onClick={() => void copyPrevious()} data-copy-previous>{ui("Copy previous register")}</Button> : null}
         {!submitted && counts.UNMARKED ? <Button variant="secondary" onClick={fillPresent} data-fill-present>{ui("Mark unmarked present")}</Button> : null}
         {!submitted ? <Button variant="outline" disabled={!changed.length || saving || Boolean(missingTime)} onClick={() => void save({ submit: false })} data-save-register>{ui("Save")}</Button> : null}
         {locked ? <p className="me-auto text-xs font-semibold text-ink-muted" data-register-locked>{ui("Only a school leader can correct a submitted register.")}</p> : null}
@@ -198,7 +220,7 @@ function ConflictDialog({ ui, conflicts, saving, onClose, onKeepMine }: { ui: Ui
   </Modal>;
 }
 
-type QueueData = { unexplainedAbsences: { attendanceId: string; date: string; studentName: string; className: string }[]; explanations: { id: string; status: string; reason: string; proposedStatus: string; arrivalTime: string | null; reviewNote: string | null; date: string; currentStatus: string; version: number; studentName: string; className: string }[]; openRegisters: { id: string; date: string; classId: string }[] };
+type QueueData = { unexplainedAbsences: { attendanceId: string; date: string; studentName: string; className: string }[]; explanations: { id: string; status: string; reason: string; proposedStatus: string; arrivalTime: string | null; reviewNote: string | null; date: string; currentStatus: string; version: number; studentName: string; className: string }[]; openRegisters: { id: string; date: string; classId: string }[]; notStartedRegisters?: { date: string; classId: string }[] };
 
 /** Attendance work waiting for a person. */
 export function AttendanceExceptions() {
@@ -213,6 +235,8 @@ export function AttendanceExceptions() {
     if (!response.ok || !json.success) setError(ui(json.error || "Attendance exceptions could not be loaded.")); else setData(json.data);
   }, [ui]);
   useEffect(() => { void load(); }, [load]);
+  // SKAI-1931: started-but-open registers plus today's classes whose register was never started.
+  const notSubmitted = data ? data.openRegisters.length + (data.notStartedRegisters?.length ?? 0) : 0;
   const decide = async () => {
     if (!deciding) return;
     setBusy(true);
@@ -239,7 +263,7 @@ export function AttendanceExceptions() {
       <DeskSection data-queue-absences icon={CalendarX2} tone={data.unexplainedAbsences.length ? "danger" : "success"} title={ui("Absences with no explanation ({0})", [String(data.unexplainedAbsences.length)])}>
         {data.unexplainedAbsences.length ? <ul className="space-y-2 text-sm">{data.unexplainedAbsences.map(row => <li key={row.attendanceId} data-unexplained={row.attendanceId} data-tone="danger" className={cn(deskRow, "flex flex-wrap items-center gap-x-2 gap-y-1")}><span className="font-semibold"><bdi>{row.studentName}</bdi></span> · <bdi>{row.className}</bdi> · <bdi>{formatDate(row.date)}</bdi></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("Nothing waiting.")}</p>}
       </DeskSection>
-      <DeskSection data-queue-open icon={AlertTriangle} tone={data.openRegisters.length ? "warning" : "success"} title={ui("Registers not submitted ({0})", [String(data.openRegisters.length)])} />
+      <DeskSection data-queue-open icon={AlertTriangle} tone={notSubmitted ? "warning" : "success"} title={ui("Registers not submitted ({0})", [String(notSubmitted)])} />
     </> : null}
     {deciding ? <Modal size="sm" icon={deciding.action === "accept" ? ClipboardCheck : deciding.action === "reject" ? CalendarX2 : MessageSquareText} tone={deciding.action === "accept" ? "emerald" : deciding.action === "reject" ? "rose" : "sky"} title={deciding.action === "accept" ? ui("Accept the explanation") : deciding.action === "reject" ? ui("Do not accept the explanation") : ui("Ask for clarification")} eyebrow={ui("Attendance")} subtitle={deciding.action === "accept" ? ui("The day's mark is corrected and the change is kept in its history.") : ui("The day's mark stays as it is.")} onClose={() => setDeciding(null)}
       footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setDeciding(null)}>{ui("Cancel")}</Button><Button disabled={busy || deciding.action !== "accept" && note.trim().length < 2} onClick={() => void decide()} data-confirm-decision>{ui("Confirm")}</Button></div>}>

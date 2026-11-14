@@ -52,3 +52,10 @@ export function reconcileStatement(invoices: StatementInvoice[], today: string, 
     states,
   };
 }
+
+// SKAI-1513: invoice history for one academic year. The window is calendar-year UTC
+// [Jan 1, next Jan 1). `allYears` returns every invoice explicitly (no date filter).
+export function invoiceYearWindow(year: number, allYears: boolean): { invoiceDate?: { gte: Date; lt: Date } } {
+  if (allYears) return {};
+  return { invoiceDate: { gte: new Date(Date.UTC(year, 0, 1)), lt: new Date(Date.UTC(year + 1, 0, 1)) } };
+}

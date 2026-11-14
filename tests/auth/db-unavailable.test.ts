@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isDatabaseUnavailable, ServiceUnavailableError } from "../../src/lib/db/availability";
+import { isDatabaseUnavailable, ServiceUnavailableError, unavailableReason } from "../../src/lib/db/availability";
 import { errorResponse, ApiError } from "../../src/lib/api/scope";
 
 const prismaError = (code: string, message = "x") => Object.assign(new Error(message), { name: "PrismaClientKnownRequestError", code });
@@ -10,6 +10,9 @@ test("connection failures are classified as the database being unavailable", () 
   assert.equal(isDatabaseUnavailable(Object.assign(new Error("init"), { name: "PrismaClientInitializationError" })), true);
   assert.equal(isDatabaseUnavailable(new Error("FATAL: (EMAXCONN) max client connections reached, limit: 200")), true);
   assert.equal(isDatabaseUnavailable(new Error("Timed out fetching a new connection from the connection pool")), true);
+  // pg driver adapter (SKAI-1910): raw queries fail as P2010 carrying the driver's message.
+  assert.equal(isDatabaseUnavailable(Object.assign(prismaError("P2010", "Raw query failed. Code: `N/A`."), { meta: { code: "N/A", message: "Database not reachable: 127.0.0.1:55699" } })), true);
+  assert.equal(isDatabaseUnavailable(new Error("timeout exceeded when trying to connect")), true);
 });
 
 test("data and query errors are not outages", () => {
@@ -33,4 +36,15 @@ test("other errors keep their existing responses", async () => {
   assert.equal(errorResponse(new ApiError("Unauthorized", 401)).status, 401);
   assert.equal(errorResponse(new Error("boom")).status, 500);
   assert.equal(errorResponse(prismaError("P2002")).status, 500);
+});
+
+test("the outage reason is named for logs and the x-db-unavailable header", () => {
+  assert.equal(unavailableReason(new Error("FATAL: (EMAXCONN) max client connections reached, limit: 200")), "max-clients");
+  assert.equal(unavailableReason(new Error("timeout exceeded when trying to connect")), "connect-timeout");
+  assert.equal(unavailableReason(Object.assign(prismaError("P2010", "Raw query failed"), { meta: { message: "Database not reachable: 1.2.3.4:6543" } })), "unreachable");
+  assert.equal(unavailableReason(new Error("Connection terminated unexpectedly")), "terminated");
+  assert.equal(unavailableReason(new ServiceUnavailableError(5, undefined, "max-clients")), "max-clients");
+  const res = errorResponse(new Error("timeout exceeded when trying to connect"));
+  assert.equal(res.status, 503);
+  assert.equal(res.headers.get("x-db-unavailable"), "connect-timeout");
 });

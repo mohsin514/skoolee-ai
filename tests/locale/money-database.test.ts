@@ -17,7 +17,7 @@ test("real payment ledger preserves KWD minor units and immutable original invoi
  const campus=await db.campus.create({data:{schoolId,name:"Local",city:"Test",regId:schoolId}});
  const bank=await db.bankAccount.create({data:{schoolId,campusId:campus.id,name:"KWD fixture",currency:"KWD",openingBalance:1234567}});
  await assert.rejects(db.bankAccount.update({where:{id:bank.id},data:{currency:"PKR"}}), /currency cannot be changed/);
- assert.equal((await db.bankAccount.findUniqueOrThrow({where:{id:bank.id}})).openingBalance,1234567);
+ assert.equal(Number((await db.bankAccount.findUniqueOrThrow({where:{id:bank.id}})).openingBalance),1234567);
  const cls=await db.class.create({data:{schoolId,campusId:campus.id,name:"Class",academicYear:2027}});
  const student=await db.student.create({data:{schoolId,campusId:campus.id,classId:cls.id,fullName:"Original identity",rollNo:"KW-001",gender:"MALE"}});
  const invoice=await db.invoice.create({data:{schoolId,campusId:campus.id,studentId:student.id,currency:"KWD",invoiceDate:new Date("2027-04-01Z"),dueDate:new Date("2027-04-10Z"),monthlyFee:1234567,subtotal:1234567,totalAmount:1234567,balanceDue:1234567}});
