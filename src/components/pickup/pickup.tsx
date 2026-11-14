@@ -21,6 +21,7 @@ import { usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
+import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 
 // SKO-438: authorized pickup. Families name who collects, how the school checks identity, and a window;
 // the code shown is single-use and holds no child details. At the gate, a valid code is only the start:
@@ -32,8 +33,8 @@ const methodLabel = (ui: Ui, m: string) => ({ PHOTO_ID: ui("Photo ID"), SCHOOL_P
 async function call(url: string, method = "GET", body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw Object.assign(new Error(json.error || "Permission cannot be verified. Keep the student supervised and contact the pickup lead."), { status: response.status });
-  return json.data;
+  if (!response.ok || !isApiOk(json)) throw Object.assign(new Error(readApiError(json, "Permission cannot be verified. Keep the student supervised and contact the pickup lead.")), { status: response.status });
+  return readApiData(json, undefined);
 }
 type Item = { id: string; recipientName: string; recipientRelation: string; idMethod: string; validFrom: string; validUntil: string; status: string; releasedAt: string | null };
 
