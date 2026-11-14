@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
+import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { digestDeliveryState } from "@/lib/notifications/delivery-state";
 import { ApiError, canManageOperations } from "@/lib/api/scope";
 import { publishedReportsWhere } from "@/lib/auth/policy";
@@ -153,8 +154,11 @@ async function sourceStillReleased(tx: TxClient, schoolId: string, s: Statement)
 }
 
 /** Deliver an approved digest. Returns the deliveries created now, for the caller's notifications. */
+// SKAI-473: the send runs as one tenant-bound transaction with the RLS school setting applied, so the
+// row lock, the entry updates and the delivery inserts all see this school (the cron and PATCH send both call it).
 export async function dispatchDigest(schoolId: string, digestId: string, now = new Date()) {
-  return prisma.$transaction(async tx => {
+  return runWithTenantContext({ schoolId, unscoped: false, rlsSession: true }, () => prisma.$transaction(async tx => {
+    await tx.$executeRaw`SELECT set_config('app.current_school_id', ${schoolId}, true)`;
     const [locked] = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM family_digests WHERE id = ${digestId} AND school_id = ${schoolId} FOR UPDATE`;
     const digest = locked ? await tx.familyDigest.findUnique({ where: { id: digestId }, include: { entries: true } }) : null;
     if (!digest) throw new ApiError("Digest not found", 404);
@@ -184,7 +188,7 @@ export async function dispatchDigest(schoolId: string, digestId: string, now = n
       await tx.familyDigest.update({ where: { id: digestId }, data: { status: "SENT", sentAt: now } });
     }
     return { created, blocked };
-  });
+  }));
 }
 
 /** Scheduled digests whose time has come (cron). */

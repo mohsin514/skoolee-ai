@@ -8,8 +8,11 @@ const src = (path: string) => pathToFileURL(join(__dirname, "..", "..", "src", p
 const digestUpdates: Record<string, unknown>[] = [];
 const digest = { id: "d1", status: "APPROVED", weekStart: new Date("2026-10-26T00:00:00Z"), version: 1, approvedVersion: 1, entries: [] as unknown[] };
 
+const gucCalls: unknown[][] = [];
 const tx = {
   $queryRaw: async () => [{ id: "d1" }],
+  // SKAI-473: the send binds the school for row-level security before it reads or writes.
+  $executeRaw: async (...args: unknown[]) => { gucCalls.push(args); return 1; },
   familyDigest: {
     findUnique: async () => digest,
     update: async ({ data }: { data: Record<string, unknown> }) => { digestUpdates.push(data); return data; },
@@ -40,4 +43,13 @@ test("a fully sent digest is still marked sent", async () => {
   const result = await dispatchDigest("school1", "d1", new Date("2026-10-31T00:00:00Z"));
   assert.equal(result.blocked, 0);
   assert.equal(digestUpdates.at(-1)?.status, "SENT");
+});
+
+test("the send applies the school to the transaction before any digest query", async () => {
+  const { dispatchDigest } = await import(src("lib/family/digests.ts"));
+  gucCalls.length = 0;
+  digest.entries = [];
+  await dispatchDigest("school1", "d1", new Date("2026-10-31T00:00:00Z"));
+  assert.ok(gucCalls.length >= 1, "expected set_config before the locked read");
+  assert.ok(gucCalls[0].includes("school1"), "set_config must carry the digest's school");
 });
