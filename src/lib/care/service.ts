@@ -475,7 +475,7 @@ export async function concernDetail(user: AuthUser, concernId: string) {
 }
 
 /** Lead actions change the case under its version so two leads never overwrite each other. */
-async function leadChange(user: AuthUser, body: Record<string, unknown>, change: (tx: TxClient, c: Prisma.SafeguardingConcernGetPayload<object>, m: { campusId: string }) => Promise<{ data: Prisma.SafeguardingConcernUpdateManyMutationInput; kind: string; text: string | null; detail?: Record<string, unknown> }>) {
+async function leadChange(user: AuthUser, body: Record<string, unknown>, change: (tx: TxClient, c: Prisma.SafeguardingConcernGetPayload<object>, m: { campusId: string }) => Promise<{ data: Prisma.SafeguardingConcernUncheckedUpdateManyInput; kind: string; text: string | null; detail?: Record<string, unknown> }>) {
   const m = await member(user, "SAFEGUARDING");
   // The version the lead's screen showed; without it the change cannot be checked against other leads' entries.
   const raw = body.version;

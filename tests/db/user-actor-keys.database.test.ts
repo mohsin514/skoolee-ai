@@ -74,7 +74,7 @@ test("every school-pinned user relation is a validated key, and optional ones cl
       expected.set(`${table}.${column}`, onDelete);
     }
   }
-  assert.ok(expected.size >= 214, `expected at least 214 pinned user relations, found ${expected.size}`);
+  assert.ok(expected.size >= 301, `expected at least 301 pinned user relations, found ${expected.size}`);
   const keys = await db.$queryRaw<{ key: string; deltype: string; setcols: string | null }[]>`
     select c.conrelid::regclass::text || '.' || a.attname as key, c.confdeltype::text as deltype,
       (select string_agg(x.attname, ',') from pg_attribute x where x.attrelid = c.conrelid and x.attnum = any(c.confdelsetcols)) as setcols

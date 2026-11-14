@@ -1305,6 +1305,93 @@ model User {
   rolloverDecisionReviewedBy RolloverDecision[] @relation("RolloverDecisionReviewedBy")
   rolloverPlanApprovedBy RolloverPlan[] @relation("RolloverPlanApprovedBy")
   rolloverPlanCreatedBy RolloverPlan[] @relation("RolloverPlanCreatedBy")
+  rosterBatchAppliedBy RosterBatch[] @relation("RosterBatchAppliedBy")
+  rosterBatchSubmittedBy RosterBatch[] @relation("RosterBatchSubmittedBy")
+  safeguardingConcernOwner SafeguardingConcern[] @relation("SafeguardingConcernOwner")
+  safeguardingConcernReporter SafeguardingConcern[] @relation("SafeguardingConcernReporter")
+  safeguardingDisclosureProposedBy SafeguardingDisclosure[] @relation("SafeguardingDisclosureProposedBy")
+  safeguardingDisclosureRecipientUser SafeguardingDisclosure[] @relation("SafeguardingDisclosureRecipientUser")
+  safeguardingDisclosureReviewedBy SafeguardingDisclosure[] @relation("SafeguardingDisclosureReviewedBy")
+  safeguardingEntryActor SafeguardingEntry[] @relation("SafeguardingEntryActor")
+  schoolAiAssessmentRepairDecidedBy SchoolAiAssessmentRepair[] @relation("SchoolAiAssessmentRepairDecidedBy")
+  schoolAiAssessmentRepairProposedBy SchoolAiAssessmentRepair[] @relation("SchoolAiAssessmentRepairProposedBy")
+  schoolAiConversationActor SchoolAiConversation[] @relation("SchoolAiConversationActor")
+  schoolAiDocumentJobActor SchoolAiDocumentJob[] @relation("SchoolAiDocumentJobActor")
+  schoolAiEvidencePackRequestedBy SchoolAiEvidencePack[] @relation("SchoolAiEvidencePackRequestedBy")
+  schoolAiExamAppealResolvedBy SchoolAiExamAppeal[] @relation("SchoolAiExamAppealResolvedBy")
+  schoolAiExamAppealUser SchoolAiExamAppeal[] @relation("SchoolAiExamAppealUser")
+  schoolAiExamAssignmentCreatedBy SchoolAiExamAssignment[] @relation("SchoolAiExamAssignmentCreatedBy")
+  schoolAiExamAssignmentResultsReleasedBy SchoolAiExamAssignment[] @relation("SchoolAiExamAssignmentResultsReleasedBy")
+  schoolAiExamClarificationIssuedBy SchoolAiExamClarification[] @relation("SchoolAiExamClarificationIssuedBy")
+  schoolAiExamFormAllocationCreatedBy SchoolAiExamFormAllocation[] @relation("SchoolAiExamFormAllocationCreatedBy")
+  schoolAiExamFormReleaseReleasedBy SchoolAiExamFormRelease[] @relation("SchoolAiExamFormReleaseReleasedBy")
+  schoolAiExamFormSetCreatedBy SchoolAiExamFormSet[] @relation("SchoolAiExamFormSetCreatedBy")
+  schoolAiExamPauseEndedBy SchoolAiExamPause[] @relation("SchoolAiExamPauseEndedBy")
+  schoolAiExamPauseStartedBy SchoolAiExamPause[] @relation("SchoolAiExamPauseStartedBy")
+  schoolAiExamRemedyAuthorizedBy SchoolAiExamRemedy[] @relation("SchoolAiExamRemedyAuthorizedBy")
+  schoolAiExamRemedyProposedBy SchoolAiExamRemedy[] @relation("SchoolAiExamRemedyProposedBy")
+  schoolAiExamResultRevisionCreatedBy SchoolAiExamResultRevision[] @relation("SchoolAiExamResultRevisionCreatedBy")
+  schoolAiExecutionRequestedBy SchoolAiExecution[] @relation("SchoolAiExecutionRequestedBy")
+  schoolAiLanguageProposalDecidedBy SchoolAiLanguageProposal[] @relation("SchoolAiLanguageProposalDecidedBy")
+  schoolAiModerationSampleCreatedBy SchoolAiModerationSample[] @relation("SchoolAiModerationSampleCreatedBy")
+  schoolAiModerationSampleReviewer SchoolAiModerationSample[] @relation("SchoolAiModerationSampleReviewer")
+  schoolAiProctorSessionReviewedBy SchoolAiProctorSession[] @relation("SchoolAiProctorSessionReviewedBy")
+  schoolAiProctorSessionUser SchoolAiProctorSession[] @relation("SchoolAiProctorSessionUser")
+  schoolAiRecordApprovedBy SchoolAiRecord[] @relation("SchoolAiRecordApprovedBy")
+  schoolAiRecordCreatedBy SchoolAiRecord[] @relation("SchoolAiRecordCreatedBy")
+  schoolAiRecordUpdatedBy SchoolAiRecord[] @relation("SchoolAiRecordUpdatedBy")
+  schoolAiRehearsalActor SchoolAiRehearsal[] @relation("SchoolAiRehearsalActor")
+  schoolAiResultCorrectionDecidedBy SchoolAiResultCorrection[] @relation("SchoolAiResultCorrectionDecidedBy")
+  schoolAiResultCorrectionProposedBy SchoolAiResultCorrection[] @relation("SchoolAiResultCorrectionProposedBy")
+  schoolAiRevisionActor SchoolAiRevision[] @relation("SchoolAiRevisionActor")
+  schoolAiRunActor SchoolAiRun[] @relation("SchoolAiRunActor")
+  schoolAiSetupTaskAssignee SchoolAiSetupTask[] @relation("SchoolAiSetupTaskAssignee")
+  schoolAiSetupTaskRequestedBy SchoolAiSetupTask[] @relation("SchoolAiSetupTaskRequestedBy")
+  schoolAiSetupTaskRevisionActor SchoolAiSetupTaskRevision[] @relation("SchoolAiSetupTaskRevisionActor")
+  schoolAiSubstituteDutyAssignedBy SchoolAiSubstituteDuty[] @relation("SchoolAiSubstituteDutyAssignedBy")
+  schoolAiSubstituteDutyOriginalTeacher SchoolAiSubstituteDuty[] @relation("SchoolAiSubstituteDutyOriginalTeacher")
+  schoolAiSubstituteDutyTeacher SchoolAiSubstituteDuty[] @relation("SchoolAiSubstituteDutyTeacher")
+  schoolPolicyApprovedBy SchoolPolicy[] @relation("SchoolPolicyApprovedBy")
+  schoolPolicyCreatedBy SchoolPolicy[] @relation("SchoolPolicyCreatedBy")
+  schoolReadinessApprovedBy SchoolReadiness[] @relation("SchoolReadinessApprovedBy")
+  secureBrowserExceptionApprovedBy SecureBrowserException[] @relation("SecureBrowserExceptionApprovedBy")
+  secureBrowserProfileApprovedBy SecureBrowserProfile[] @relation("SecureBrowserProfileApprovedBy")
+  secureBrowserProfileCreatedBy SecureBrowserProfile[] @relation("SecureBrowserProfileCreatedBy")
+  serviceCategoryCreatedBy ServiceCategory[] @relation("ServiceCategoryCreatedBy")
+  serviceCategoryDefaultOwner ServiceCategory[] @relation("ServiceCategoryDefaultOwner")
+  serviceRequestOwner ServiceRequest[] @relation("ServiceRequestOwner")
+  serviceRequestRequester ServiceRequest[] @relation("ServiceRequestRequester")
+  studyPassageCreatedBy StudyPassage[] @relation("StudyPassageCreatedBy")
+  studyTurnReviewedBy StudyTurn[] @relation("StudyTurnReviewedBy")
+  supplierInvoiceRecordedBy SupplierInvoice[] @relation("SupplierInvoiceRecordedBy")
+  supplierInvoiceResolvedBy SupplierInvoice[] @relation("SupplierInvoiceResolvedBy")
+  taxActivationApprovedBy TaxActivation[] @relation("TaxActivationApprovedBy")
+  taxActivationOwner TaxActivation[] @relation("TaxActivationOwner")
+  taxActivationPreparedBy TaxActivation[] @relation("TaxActivationPreparedBy")
+  taxDocumentCorrectedBy TaxDocument[] @relation("TaxDocumentCorrectedBy")
+  taxFixtureRunRunBy TaxFixtureRun[] @relation("TaxFixtureRunRunBy")
+  teacherSupportNoteAuthor TeacherSupportNote[] @relation("TeacherSupportNoteAuthor")
+  teacherSupportNoteTeacher TeacherSupportNote[] @relation("TeacherSupportNoteTeacher")
+  teachingAssignmentCreatedBy TeachingAssignment[] @relation("TeachingAssignmentCreatedBy")
+  teachingAssignmentTeacher TeachingAssignment[] @relation("TeachingAssignmentTeacher")
+  teachingProgressTeacher TeachingProgress[] @relation("TeachingProgressTeacher")
+  timetableVersionPublishedBy TimetableVersion[] @relation("TimetableVersionPublishedBy")
+  transportTripAttendant TransportTrip[] @relation("TransportTripAttendant")
+  transportTripClosedBy TransportTrip[] @relation("TransportTripClosedBy")
+  transportTripCoordinator TransportTrip[] @relation("TransportTripCoordinator")
+  transportTripVehicleCheckBy TransportTrip[] @relation("TransportTripVehicleCheckBy")
+  tripCreatedBy Trip[] @relation("TripCreatedBy")
+  tripConsentGuardianUser TripConsent[] @relation("TripConsentGuardianUser")
+  tripExceptionCreatedBy TripException[] @relation("TripExceptionCreatedBy")
+  tripExceptionOwner TripException[] @relation("TripExceptionOwner")
+  tripExceptionResolvedBy TripException[] @relation("TripExceptionResolvedBy")
+  tripPassengerBoardedBy TripPassenger[] @relation("TripPassengerBoardedBy")
+  tripPassengerHandedOverBy TripPassenger[] @relation("TripPassengerHandedOverBy")
+  tripPassengerReceiverUser TripPassenger[] @relation("TripPassengerReceiverUser")
+  tripVersionPublishedBy TripVersion[] @relation("TripVersionPublishedBy")
+  whatsAppConnectionConnectedBy WhatsAppConnection[] @relation("WhatsAppConnectionConnectedBy")
+  whatsAppManagedSendingUpdatedBy WhatsAppManagedSending[] @relation("WhatsAppManagedSendingUpdatedBy")
+  whatsAppUsageEntryCreatedBy WhatsAppUsageEntry[] @relation("WhatsAppUsageEntryCreatedBy")
 
   @@unique([schoolId, email])
   @@unique([schoolId, username])
@@ -3993,6 +4080,7 @@ model TimetableVersion {
   changes       Json      @default("[]")
   note          String?   @db.Text
   publishedById String?   @map("published_by_id")
+  publishedBy User? @relation("TimetableVersionPublishedBy", fields: [schoolId, publishedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   publishedAt   DateTime  @default(now()) @map("published_at")
   notifiedAt    DateTime? @map("notified_at")
 
@@ -4001,6 +4089,7 @@ model TimetableVersion {
   @@index([schoolId])
   @@map("timetable_versions")
   @@index([schoolId, campusId])
+  @@index([schoolId, publishedById])
 }
 
 /// SKO-421: a guardian's request for a learner's future leave. A school decision is recorded here; the
@@ -4044,6 +4133,7 @@ model Trip {
   status         String    @default("OPEN") // OPEN | CANCELLED
   currentVersion Int       @default(1) @map("current_version")
   createdById    String    @map("created_by_id")
+  createdBy User @relation("TripCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
@@ -4055,6 +4145,7 @@ model Trip {
   @@index([schoolId])
   @@map("trips")
   @@index([schoolId, campusId])
+  @@index([schoolId, createdById])
 }
 
 /// SKO-421: immutable trip terms. A material change publishes a new version that needs fresh answers.
@@ -4079,6 +4170,7 @@ model TripVersion {
   material      Boolean  @default(true)
   changeNote    String?  @db.Text @map("change_note")
   publishedById String   @map("published_by_id")
+  publishedBy User @relation("TripVersionPublishedBy", fields: [schoolId, publishedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   publishedAt   DateTime @default(now()) @map("published_at")
 
   consents TripConsent[]
@@ -4086,6 +4178,7 @@ model TripVersion {
   @@unique([tripId, version])
   @@index([schoolId])
   @@map("trip_versions")
+  @@index([schoolId, publishedById])
 }
 
 model TripInvitee {
@@ -4112,6 +4205,7 @@ model TripConsent {
   tripVersion    TripVersion @relation(fields: [tripVersionId], references: [id], onDelete: Cascade)
   studentId      String      @map("student_id")
   guardianUserId String      @map("guardian_user_id")
+  guardianUser User @relation("TripConsentGuardianUser", fields: [schoolId, guardianUserId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   relationshipId String      @map("relationship_id")
   choice         String // GRANTED | DECLINED | WITHDRAWN
   signatoryRule  String      @map("signatory_rule")
@@ -4124,6 +4218,7 @@ model TripConsent {
   @@index([tripId, studentId])
   @@index([schoolId])
   @@map("trip_consents")
+  @@index([schoolId, guardianUserId])
 }
 
 /// SKO-423: a class's weekly family update. Built only from released evidence, reviewed and approved by a
@@ -4566,6 +4661,7 @@ model ServiceCategory {
   team            String // the team that handles it, e.g. "IT" or "Facilities"
   departmentId    String?  @map("department_id")
   defaultOwnerId  String?  @map("default_owner_id")
+  defaultOwner User? @relation("ServiceCategoryDefaultOwner", fields: [schoolId, defaultOwnerId], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   escalationId    String?  @map("escalation_id")
   responseHours   Int?     @map("response_hours")
   resolveHours    Int?     @map("resolve_hours")
@@ -4573,6 +4669,7 @@ model ServiceCategory {
   safety          Boolean  @default(false)
   active          Boolean  @default(true)
   createdById     String   @map("created_by_id")
+  createdBy User @relation("ServiceCategoryCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt       DateTime @default(now()) @map("created_at")
 
   requests ServiceRequest[]
@@ -4581,6 +4678,8 @@ model ServiceCategory {
   @@index([schoolId])
   @@map("service_categories")
   @@index([schoolId, campusId])
+  @@index([schoolId, createdById])
+  @@index([schoolId, defaultOwnerId])
 }
 
 /// SKO-441: one internal request with a stable school reference (SD-<n>). It always has an owner or sits
@@ -4600,7 +4699,9 @@ model ServiceRequest {
   roomId          String?   @map("room_id")
   itemId          String?   @map("item_id")
   requesterId     String    @map("requester_id")
+  requester User @relation("ServiceRequestRequester", fields: [schoolId, requesterId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   ownerId         String?   @map("owner_id")
+  owner User? @relation("ServiceRequestOwner", fields: [schoolId, ownerId], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   watcherIds      String[]  @default([]) @map("watcher_ids")
   priority        String    @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
   status          String    @default("OPEN") // OPEN | IN_PROGRESS | BLOCKED | RESOLVED | CLOSED
@@ -4626,6 +4727,7 @@ model ServiceRequest {
   @@index([schoolId, ownerId, status])
   @@index([categoryId])
   @@map("service_requests")
+  @@index([schoolId, requesterId])
 }
 
 /// SKO-441: the request timeline. INTERNAL entries (notes, routing, private evidence) never reach the
@@ -4736,12 +4838,14 @@ model StudyPassage {
   section         String
   text            String
   createdById     String   @map("created_by_id")
+  createdBy User @relation("StudyPassageCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   removedAt       DateTime? @map("removed_at")
   createdAt       DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, classId])
   @@index([schoolId, resourceId, resourceVersion])
   @@map("study_passages")
+  @@index([schoolId, createdById])
 }
 
 /// SKO-428: one learner question and what the assistant did with it. Keeps the minimum needed for review:
@@ -4764,12 +4868,14 @@ model StudyTurn {
   helpRequestedAt DateTime? @map("help_requested_at")
   reviewedAt    DateTime? @map("reviewed_at")
   reviewedById  String?   @map("reviewed_by_id")
+  reviewedBy User? @relation("StudyTurnReviewedBy", fields: [schoolId, reviewedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   deletedAt     DateTime? @map("deleted_at")
   createdAt     DateTime  @default(now()) @map("created_at")
 
   @@index([schoolId, studentId, createdAt])
   @@index([schoolId, classId])
   @@map("study_turns")
+  @@index([schoolId, reviewedById])
 }
 
 /// SKO-438: a guardian's permission for a named person to collect one child at one campus within a window.
@@ -5180,7 +5286,9 @@ model SafeguardingConcern {
   observation   String
   eventAt       DateTime  @map("event_at")
   reporterId    String    @map("reporter_id")
+  reporter User @relation("SafeguardingConcernReporter", fields: [schoolId, reporterId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   ownerId       String?   @map("owner_id")
+  owner User? @relation("SafeguardingConcernOwner", fields: [schoolId, ownerId], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   status        String    @default("NEW") // NEW | TRIAGED | ESCALATED | CLOSED
   escalation    String?   // INTERNAL_REVIEW | EXTERNAL_REFERRAL
   implicatedGuardianIds String[] @default([]) @map("implicated_guardian_ids")
@@ -5196,6 +5304,8 @@ model SafeguardingConcern {
   @@unique([reporterId, idempotencyKey])
   @@index([schoolId, campusId, status])
   @@map("safeguarding_concerns")
+  @@index([schoolId, ownerId])
+  @@index([schoolId, reporterId])
 }
 
 model SafeguardingEntry {
@@ -5208,11 +5318,13 @@ model SafeguardingEntry {
   body      String?
   detail    Json     @default("{}")
   actorId   String   @map("actor_id")
+  actor User @relation("SafeguardingEntryActor", fields: [schoolId, actorId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, concernId])
   @@index([concernId])
   @@map("safeguarding_entries")
+  @@index([schoolId, actorId])
 }
 
 model SafeguardingDisclosure {
@@ -5223,13 +5335,16 @@ model SafeguardingDisclosure {
   concern         SafeguardingConcern @relation(fields: [concernId], references: [id], onDelete: Cascade)
   recipientType   String    @map("recipient_type") // GUARDIAN | STAFF | EXTERNAL_AGENCY
   recipientUserId String?   @map("recipient_user_id")
+  recipientUser User? @relation("SafeguardingDisclosureRecipientUser", fields: [schoolId, recipientUserId], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   recipientName   String    @map("recipient_name")
   purpose         String
   content         String
   contentHash     String    @map("content_hash")
   status          String    @default("PROPOSED") // PROPOSED | APPROVED | DECLINED | RELEASED
   proposedById    String    @map("proposed_by_id")
+  proposedBy User @relation("SafeguardingDisclosureProposedBy", fields: [schoolId, proposedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   reviewedById    String?   @map("reviewed_by_id")
+  reviewedBy User? @relation("SafeguardingDisclosureReviewedBy", fields: [schoolId, reviewedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   reviewedAt      DateTime? @map("reviewed_at")
   releasedAt      DateTime? @map("released_at")
   createdAt       DateTime  @default(now()) @map("created_at")
@@ -5237,6 +5352,9 @@ model SafeguardingDisclosure {
   @@index([schoolId, concernId])
   @@index([concernId])
   @@map("safeguarding_disclosures")
+  @@index([schoolId, proposedById])
+  @@index([schoolId, recipientUserId])
+  @@index([schoolId, reviewedById])
 }
 
 /// SKO-437: dated trips with a frozen expected manifest. Route and fleet edits never rewrite a published trip;
@@ -5292,16 +5410,20 @@ model TransportTrip {
   vehicleCapacity Int       @map("vehicle_capacity")
   driverName      String?   @map("driver_name")
   attendantId     String    @map("attendant_id")
+  attendant User @relation("TransportTripAttendant", fields: [schoolId, attendantId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   coordinatorId   String    @map("coordinator_id")
+  coordinator User @relation("TransportTripCoordinator", fields: [schoolId, coordinatorId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   status          String    @default("PUBLISHED") // PUBLISHED | DEPARTED | CLOSED | CLOSED_EMERGENCY
   version         Int       @default(1)
   publishedAt     DateTime  @default(now()) @map("published_at")
   departedAt      DateTime? @map("departed_at")
   vehicleCheckAt  DateTime? @map("vehicle_check_at")
   vehicleCheckById String?  @map("vehicle_check_by_id")
+  vehicleCheckBy User? @relation("TransportTripVehicleCheckBy", fields: [schoolId, vehicleCheckById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   vehicleCheckSignature String? @map("vehicle_check_signature")
   closedAt        DateTime? @map("closed_at")
   closedById      String?   @map("closed_by_id")
+  closedBy User? @relation("TransportTripClosedBy", fields: [schoolId, closedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   emergencyReason String?   @map("emergency_reason")
 
   passengers TripPassenger[]
@@ -5313,6 +5435,9 @@ model TransportTrip {
   @@index([schoolId, attendantId, serviceDate])
   @@index([vehicleId])
   @@map("transport_trips")
+  @@index([schoolId, closedById])
+  @@index([schoolId, coordinatorId])
+  @@index([schoolId, vehicleCheckById])
 }
 
 model TripPassenger {
@@ -5328,17 +5453,23 @@ model TripPassenger {
   status        String        @default("EXPECTED") // EXPECTED | ABSENT | BOARDED | HANDED_OVER | REMOVED | TRANSFERRED
   boardedAt     DateTime?     @map("boarded_at")
   boardedById   String?       @map("boarded_by_id")
+  boardedBy User? @relation("TripPassengerBoardedBy", fields: [schoolId, boardedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   handedOverAt  DateTime?     @map("handed_over_at")
   handedOverById String?      @map("handed_over_by_id")
+  handedOverBy User? @relation("TripPassengerHandedOverBy", fields: [schoolId, handedOverById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   receiverType  String?       @map("receiver_type") // STAFF | GUARDIAN | AUTHORIZED_ADULT
   receiverName  String?       @map("receiver_name")
   receiverUserId String?      @map("receiver_user_id")
+  receiverUser User? @relation("TripPassengerReceiverUser", fields: [schoolId, receiverUserId], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   note          String?
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
   @@unique([tripId, studentId])
   @@index([schoolId, studentId, status])
   @@map("trip_passengers")
+  @@index([schoolId, boardedById])
+  @@index([schoolId, handedOverById])
+  @@index([schoolId, receiverUserId])
 }
 
 model TripEvent {
@@ -5370,16 +5501,22 @@ model TripException {
   kind         String // UNLISTED_PASSENGER | CAPACITY_OVERFLOW | MISSING_CHILD | MISSING_RECIPIENT | DOUBLE_BOARDING | LATE_CHANGE
   note         String
   ownerId      String        @map("owner_id")
+  owner User @relation("TripExceptionOwner", fields: [schoolId, ownerId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   status       String        @default("OPEN") // OPEN | RESOLVED
   resolution   String?
   createdById  String        @map("created_by_id")
+  createdBy User @relation("TripExceptionCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt    DateTime      @default(now()) @map("created_at")
   resolvedById String?       @map("resolved_by_id")
+  resolvedBy User? @relation("TripExceptionResolvedBy", fields: [schoolId, resolvedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   resolvedAt   DateTime?     @map("resolved_at")
 
   @@index([schoolId, tripId, status])
   @@index([tripId])
   @@map("trip_exceptions")
+  @@index([schoolId, createdById])
+  @@index([schoolId, ownerId])
+  @@index([schoolId, resolvedById])
 }
 
 /// SKO-443: school-group policy templates. Published versions never change; a campus's effective value is resolved
@@ -5523,13 +5660,16 @@ model TaxActivation {
   currency        String
   effectiveFrom   DateTime? @map("effective_from")
   ownerId         String?   @map("owner_id")
+  owner User? @relation("TaxActivationOwner", fields: [schoolId, ownerId], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   evidenceReviewer String?  @map("evidence_reviewer")
   evidenceReference String? @map("evidence_reference")
   evidenceReviewedAt DateTime? @map("evidence_reviewed_at")
   configHash      String    @map("config_hash")
   status          String    @default("DRAFT") // DRAFT | SCHEDULED | ACTIVE | SUPERSEDED | WITHDRAWN
   preparedById    String    @map("prepared_by_id")
+  preparedBy User @relation("TaxActivationPreparedBy", fields: [schoolId, preparedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   approvedById    String?   @map("approved_by_id")
+  approvedBy User? @relation("TaxActivationApprovedBy", fields: [schoolId, approvedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   approvedAt      DateTime? @map("approved_at")
   numberSeq       Int       @default(0) @map("number_seq")
   createdAt       DateTime  @default(now()) @map("created_at")
@@ -5539,6 +5679,9 @@ model TaxActivation {
 
   @@index([schoolId, status])
   @@map("tax_activations")
+  @@index([schoolId, approvedById])
+  @@index([schoolId, ownerId])
+  @@index([schoolId, preparedById])
 }
 
 model TaxFixtureRun {
@@ -5552,11 +5695,13 @@ model TaxFixtureRun {
   results      Json
   passed       Boolean
   runById      String        @map("run_by_id")
+  runBy User @relation("TaxFixtureRunRunBy", fields: [schoolId, runById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt    DateTime      @default(now()) @map("created_at")
 
   @@index([schoolId, activationId])
   @@index([activationId])
   @@map("tax_fixture_runs")
+  @@index([schoolId, runById])
 }
 
 model TaxDocument {
@@ -5581,6 +5726,7 @@ model TaxDocument {
   externalId       String?       @map("external_id")
   lastError        String?       @map("last_error")
   correctedById    String?       @map("corrected_by_id")
+  correctedBy User? @relation("TaxDocumentCorrectedBy", fields: [schoolId, correctedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   correctionNote   String?       @map("correction_note")
   createdAt        DateTime      @default(now()) @map("created_at")
 
@@ -5592,6 +5738,7 @@ model TaxDocument {
   @@index([activationId])
   @@map("tax_documents")
   @@index([schoolId, campusId])
+  @@index([schoolId, correctedById])
 }
 
 model TaxSubmissionAttempt {
@@ -5890,7 +6037,9 @@ model RosterBatch {
   status          String             @default("DRY_RUN") // DRY_RUN | APPLIED
   result          Json?
   submittedById   String             @map("submitted_by_id")
+  submittedBy User @relation("RosterBatchSubmittedBy", fields: [schoolId, submittedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   appliedById     String?            @map("applied_by_id")
+  appliedBy User? @relation("RosterBatchAppliedBy", fields: [schoolId, appliedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   appliedAt       DateTime?          @map("applied_at")
   createdAt       DateTime           @default(now()) @map("created_at")
 
@@ -5898,6 +6047,8 @@ model RosterBatch {
   @@index([schoolId])
   @@map("roster_batches")
   @@index([schoolId, campusId])
+  @@index([schoolId, appliedById])
+  @@index([schoolId, submittedById])
 }
 
 model RosterExternalId {
@@ -7722,8 +7873,11 @@ model SchoolAiRecord {
   subjectId      String? @map("subject_id")
   classId        String? @map("class_id")
   createdById    String @map("created_by_id")
+  createdBy User @relation("SchoolAiRecordCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   updatedById    String @map("updated_by_id")
+  updatedBy User @relation("SchoolAiRecordUpdatedBy", fields: [schoolId, updatedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   approvedById   String? @map("approved_by_id")
+  approvedBy User? @relation("SchoolAiRecordApprovedBy", fields: [schoolId, approvedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   approvedAt     DateTime? @map("approved_at")
   idempotencyKey String @map("idempotency_key")
   requestHash    String @map("request_hash")
@@ -7739,6 +7893,8 @@ model SchoolAiRecord {
   @@index([schoolId, campusId, subjectId, status])
   @@index([campusId])
   @@map("school_ai_records")
+  @@index([schoolId, approvedById])
+  @@index([schoolId, updatedById])
 }
 
 model SchoolAiRevision {
@@ -7755,6 +7911,7 @@ model SchoolAiRevision {
   status       String
   data         Json
   actorId      String @map("actor_id")
+  actor User @relation("SchoolAiRevisionActor", fields: [schoolId, actorId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@unique([recordId, version])
@@ -7762,6 +7919,7 @@ model SchoolAiRevision {
   @@index([campusId])
   @@index([recordId, schoolId])
   @@map("school_ai_revisions")
+  @@index([schoolId, actorId])
 }
 
 model SchoolAiExamAssignment {
@@ -7783,6 +7941,7 @@ model SchoolAiExamAssignment {
   formSetId    String? @map("form_set_id")
   formLabel    String @default("A") @map("form_label")
   createdById  String @map("created_by_id")
+  createdBy User @relation("SchoolAiExamAssignmentCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   title        String
   startsAt     DateTime @map("starts_at")
   endsAt       DateTime @map("ends_at")
@@ -7796,6 +7955,7 @@ model SchoolAiExamAssignment {
   rehearsalId          String?   @map("rehearsal_id")
   resultsReleasedAt    DateTime? @map("results_released_at")
   resultsReleasedById  String?   @map("results_released_by_id")
+  resultsReleasedBy User? @relation("SchoolAiExamAssignmentResultsReleasedBy", fields: [schoolId, resultsReleasedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   secureProfileId      String? @map("secure_profile_id")
   secureProfileVersion Int?    @map("secure_profile_version")
   /// SKO-500: the date-sheet row and paper slot this sitting delivers (null for a classroom sitting).
@@ -7815,6 +7975,7 @@ model SchoolAiExamAssignment {
   @@index([campusId])
   @@index([paperId, schoolId])
   @@map("school_ai_exam_assignments")
+  @@index([schoolId, resultsReleasedById])
 }
 
 model SchoolAiExamAttempt {
@@ -7901,6 +8062,7 @@ model SchoolAiExecution {
   operation      String
   previewHash    String @map("preview_hash")
   requestedById  String @map("requested_by_id")
+  requestedBy User @relation("SchoolAiExecutionRequestedBy", fields: [schoolId, requestedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   idempotencyKey String @map("idempotency_key")
   status         String @default("COMPLETED")
   receipt        Json
@@ -7965,6 +8127,7 @@ model SchoolAiConversation {
   campusId String? @map("campus_id")
   campus Campus? @relation(fields: [campusId], references: [id], onDelete: Cascade)
   actorId String @map("actor_id")
+  actor User @relation("SchoolAiConversationActor", fields: [schoolId, actorId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   actorRole String @map("actor_role")
   subjectId String? @map("subject_id")
   classId String? @map("class_id")
@@ -7997,7 +8160,9 @@ model SchoolAiSetupTask {
   question String
   instructions String
   requestedById String @map("requested_by_id")
+  requestedBy User @relation("SchoolAiSetupTaskRequestedBy", fields: [schoolId, requestedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   assigneeId String @map("assignee_id")
+  assignee User @relation("SchoolAiSetupTaskAssignee", fields: [schoolId, assigneeId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   assigneeRole String @map("assignee_role")
   status String @default("OPEN")
   answer String?
@@ -8017,6 +8182,7 @@ model SchoolAiSetupTask {
   @@index([campusId])
   @@index([recordId, schoolId])
   @@map("school_ai_setup_tasks")
+  @@index([schoolId, assigneeId])
 }
 
 model SchoolAiSetupTaskRevision {
@@ -8028,12 +8194,14 @@ model SchoolAiSetupTaskRevision {
   version Int
   action String
   actorId String @map("actor_id")
+  actor User @relation("SchoolAiSetupTaskRevisionActor", fields: [schoolId, actorId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   data Json
   createdAt DateTime @default(now()) @map("created_at")
   @@unique([taskId, version])
   @@index([schoolId, taskId])
   @@index([taskId, schoolId])
   @@map("school_ai_setup_task_revisions")
+  @@index([schoolId, actorId])
 }
 
 model ExamInvigilation {
@@ -8067,11 +8235,14 @@ model SchoolAiSubstituteDuty {
   timetableSlot TimetableSlot @relation(fields: [timetableSlotId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "school_ai_substitute_slot_fk")
   date DateTime @db.Date
   originalTeacherId String @map("original_teacher_id")
+  originalTeacher User @relation("SchoolAiSubstituteDutyOriginalTeacher", fields: [schoolId, originalTeacherId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   teacherId String @map("teacher_id")
+  teacher User @relation("SchoolAiSubstituteDutyTeacher", fields: [schoolId, teacherId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   reason String @db.Text
   status String @default("ASSIGNED")
   version Int @default(1)
   assignedById String @map("assigned_by_id")
+  assignedBy User @relation("SchoolAiSubstituteDutyAssignedBy", fields: [schoolId, assignedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   @@unique([schoolId, timetableSlotId, date])
@@ -8079,6 +8250,9 @@ model SchoolAiSubstituteDuty {
   @@index([campusId])
   @@index([timetableSlotId])
   @@map("school_ai_substitute_duties")
+  @@index([schoolId, assignedById])
+  @@index([schoolId, originalTeacherId])
+  @@index([schoolId, teacherId])
 }
 
 model SchoolAiExamResultRevision {
@@ -8094,12 +8268,14 @@ model SchoolAiExamResultRevision {
   review Json
   reason String @db.Text
   createdById String @map("created_by_id")
+  createdBy User @relation("SchoolAiExamResultRevisionCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt DateTime @default(now()) @map("created_at")
   @@unique([attemptId, version])
   @@index([schoolId, campusId, assignmentId, attemptId])
   @@index([campusId])
   @@index([attemptId, schoolId, campusId])
   @@map("school_ai_exam_result_revisions")
+  @@index([schoolId, createdById])
 }
 
 model SchoolAiExamAppeal {
@@ -8114,6 +8290,7 @@ model SchoolAiExamAppeal {
   resultVersion Int @map("result_version")
   studentId String @map("student_id")
   userId String @map("user_id")
+  user User @relation("SchoolAiExamAppealUser", fields: [schoolId, userId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   reason String @db.Text
   /// SKO-424: the questions the learner disputes and the outcome they ask for.
   disputedQuestionIds Json @default("[]") @map("disputed_question_ids")
@@ -8122,6 +8299,7 @@ model SchoolAiExamAppeal {
   version Int @default(1)
   resolution String? @db.Text
   resolvedById String? @map("resolved_by_id")
+  resolvedBy User? @relation("SchoolAiExamAppealResolvedBy", fields: [schoolId, resolvedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   resolvedAt DateTime? @map("resolved_at")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -8130,6 +8308,8 @@ model SchoolAiExamAppeal {
   @@index([campusId])
   @@index([attemptId, schoolId, campusId])
   @@map("school_ai_exam_appeals")
+  @@index([schoolId, resolvedById])
+  @@index([schoolId, userId])
 }
 
 // Each step references an approved version and exact preview; workers never execute prose.
@@ -8141,6 +8321,7 @@ model SchoolAiRun {
   campus Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
   title String
   actorId String @map("actor_id")
+  actor User @relation("SchoolAiRunActor", fields: [schoolId, actorId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   actorRole String @map("actor_role")
   accessVersion Int @map("access_version")
   policyId String? @map("policy_id")
@@ -8179,6 +8360,7 @@ model SchoolAiDocumentJob {
   status String @default("QUEUED")
   version Int @default(1)
   actorId String @map("actor_id")
+  actor User @relation("SchoolAiDocumentJobActor", fields: [schoolId, actorId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   actorRole String @map("actor_role")
   accessVersion Int @map("access_version")
   scheduledAt DateTime @default(now()) @map("scheduled_at")
@@ -8197,6 +8379,7 @@ model SchoolAiDocumentJob {
   @@index([campusId])
   @@index([recordId, schoolId])
   @@map("school_ai_document_jobs")
+  @@index([schoolId, actorId])
 }
 
 model GuardianChannelPreference {
@@ -8235,6 +8418,7 @@ model SchoolAiProctorSession {
   attemptId String @map("attempt_id")
   attempt SchoolAiExamAttempt @relation(fields: [attemptId, schoolId, campusId], references: [id, schoolId, campusId], onDelete: Restrict)
   userId String @map("user_id")
+  user User @relation("SchoolAiProctorSessionUser", fields: [schoolId, userId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   kind String
   clientKey String @map("client_key")
   status String @default("ACTIVE")
@@ -8246,6 +8430,7 @@ model SchoolAiProctorSession {
   clipCount Int @default(0) @map("clip_count")
   reviewNote String? @map("review_note")
   reviewedById String? @map("reviewed_by_id")
+  reviewedBy User? @relation("SchoolAiProctorSessionReviewedBy", fields: [schoolId, reviewedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   reviewedAt DateTime? @map("reviewed_at")
   clips SchoolAiProctorClip[]
   @@unique([attemptId, kind, clientKey])
@@ -8255,6 +8440,8 @@ model SchoolAiProctorSession {
   @@index([assignmentId, schoolId, campusId])
   @@index([attemptId, schoolId, campusId])
   @@map("school_ai_proctor_sessions")
+  @@index([schoolId, reviewedById])
+  @@index([schoolId, userId])
 }
 model SchoolAiProctorClip {
   id String @id @default(cuid())
@@ -8294,6 +8481,7 @@ model SchoolAiExamFormSet {
   status        String   @default("DRAFT")
   version       Int      @default(1)
   createdById   String   @map("created_by_id")
+  createdBy User @relation("SchoolAiExamFormSetCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
   releases      SchoolAiExamFormRelease[]
@@ -8303,6 +8491,7 @@ model SchoolAiExamFormSet {
   @@index([schoolId, campusId, status, updatedAt], map: "school_ai_exam_form_sets_scope_status_updated_at_idx")
   @@index([campusId])
   @@map("school_ai_exam_form_sets")
+  @@index([schoolId, createdById])
 }
 
 // A Released_Form is sealed: the row records the content hash an independent
@@ -8324,6 +8513,7 @@ model SchoolAiExamFormRelease {
   hashScheme   Int      @default(1) @map("hash_scheme")
   rehearsalId  String   @map("rehearsal_id")
   releasedById String   @map("released_by_id")
+  releasedBy User @relation("SchoolAiExamFormReleaseReleasedBy", fields: [schoolId, releasedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   releasedAt   DateTime @default(now()) @map("released_at")
 
   @@unique([formSetId, formLabel, language], map: "school_ai_exam_form_releases_form_set_label_language_key")
@@ -8332,6 +8522,7 @@ model SchoolAiExamFormRelease {
   @@index([campusId])
   @@index([formSetId, schoolId, campusId])
   @@map("school_ai_exam_form_releases")
+  @@index([schoolId, releasedById])
 }
 
 /// SKO-408 R10.8-R10.10: exactly one form per candidate in a form set, recorded before the attempt starts.
@@ -8346,12 +8537,14 @@ model SchoolAiExamFormAllocation {
   formLabel    String   @map("form_label")
   assignmentId String   @map("assignment_id")
   createdById  String   @map("created_by_id")
+  createdBy User @relation("SchoolAiExamFormAllocationCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@unique([formSetId, studentId])
   @@index([schoolId, campusId, assignmentId])
   @@index([formSetId, schoolId, campusId])
   @@map("school_ai_exam_form_allocations")
+  @@index([schoolId, createdById])
 }
 
 // One row per item placed in front of a cohort, so an author adding an item can
@@ -8485,12 +8678,14 @@ model SchoolReadiness {
   version      Int       @default(0)
   rehearsal    Json      @default("{}")
   approvedById String?   @map("approved_by_id")
+  approvedBy User? @relation("SchoolReadinessApprovedBy", fields: [schoolId, approvedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   approvedAt   DateTime? @map("approved_at")
   evidence     Json?
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   @@map("school_readiness")
+  @@index([schoolId, approvedById])
 }
 
 // Optional setup work that stays visible after go-live, each with an accountable owner.
@@ -8932,13 +9127,17 @@ model SecureBrowserProfile {
   allowedResources String[]  @map("allowed_resources")
   testedDevices    Json      @map("tested_devices")
   createdById      String    @map("created_by_id")
+  createdBy User @relation("SecureBrowserProfileCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   approvedById     String?   @map("approved_by_id")
+  approvedBy User? @relation("SecureBrowserProfileApprovedBy", fields: [schoolId, approvedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   approvedAt       DateTime? @map("approved_at")
   createdAt        DateTime  @default(now()) @map("created_at")
 
   @@unique([schoolId, profileKey, version])
   @@index([schoolId, campusId, status])
   @@map("secure_browser_profiles")
+  @@index([schoolId, approvedById])
+  @@index([schoolId, createdById])
 }
 
 /// An audited, per-learner supervised alternative for a SECURE_BROWSER exam (e.g. unsupported device or assistive tool).
@@ -8952,12 +9151,14 @@ model SecureBrowserException {
   studentId    String   @map("student_id")
   reason       String
   approvedById String   @map("approved_by_id")
+  approvedBy User @relation("SecureBrowserExceptionApprovedBy", fields: [schoolId, approvedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@unique([assignmentId, studentId])
   @@index([schoolId, assignmentId])
   @@map("secure_browser_exceptions")
   @@index([schoolId, campusId])
+  @@index([schoolId, approvedById])
 }
 
 
@@ -8974,11 +9175,13 @@ model SchoolAiRehearsal {
   results      Json
   blocking     Int      @default(0)
   actorId      String   @map("actor_id")
+  actor User @relation("SchoolAiRehearsalActor", fields: [schoolId, actorId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, recordId, paperVersion])
   @@map("school_ai_rehearsals")
   @@index([schoolId, campusId])
+  @@index([schoolId, actorId])
 }
 
 /// SKO-408 R17: an authorized, versioned notice to the candidates sitting an exam. The paper itself never changes.
@@ -8997,11 +9200,13 @@ model SchoolAiExamClarification {
   /// { kind: "SITTING" } or { kind: "ATTEMPTS", attemptIds: string[] }
   audience     Json
   issuedById   String   @map("issued_by_id")
+  issuedBy User @relation("SchoolAiExamClarificationIssuedBy", fields: [schoolId, issuedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@unique([assignmentId, version])
   @@index([schoolId, campusId, assignmentId])
   @@map("school_ai_exam_clarifications")
+  @@index([schoolId, issuedById])
 }
 
 /// SKO-462: effective-dated teaching assignments. A teacher change closes the open row and opens a new
@@ -9017,9 +9222,11 @@ model TeachingAssignment {
   subjectId     String?   @map("subject_id")
   role          String
   teacherId     String?   @map("teacher_id")
+  teacher User? @relation("TeachingAssignmentTeacher", fields: [schoolId, teacherId], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   effectiveFrom DateTime  @map("effective_from") @db.Date
   effectiveTo   DateTime? @map("effective_to") @db.Date
   createdById   String    @map("created_by_id")
+  createdBy User @relation("TeachingAssignmentCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt     DateTime  @default(now()) @map("created_at")
 
   @@index([schoolId, campusId, classId])
@@ -9027,6 +9234,7 @@ model TeachingAssignment {
   // SKAI-1885: a teacher's current assignments (chat policy, teacher scope).
   @@index([schoolId, teacherId])
   @@map("teaching_assignments")
+  @@index([schoolId, createdById])
 }
 
 /// SKO-408 R15.4: a supervised pause of one attempt, its reason, who paused and resumed it, and the time restored.
@@ -9040,14 +9248,18 @@ model SchoolAiExamPause {
   attemptId    String    @map("attempt_id")
   reason       String
   startedById  String    @map("started_by_id")
+  startedBy User @relation("SchoolAiExamPauseStartedBy", fields: [schoolId, startedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   startedAt    DateTime  @default(now()) @map("started_at")
   endedById    String?   @map("ended_by_id")
+  endedBy User? @relation("SchoolAiExamPauseEndedBy", fields: [schoolId, endedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   endedAt      DateTime? @map("ended_at")
   restoredMs   Int?      @map("restored_ms")
 
   @@index([schoolId, campusId, assignmentId])
   @@index([attemptId])
   @@map("school_ai_exam_pauses")
+  @@index([schoolId, endedById])
+  @@index([schoolId, startedById])
 }
 
 /// SKO-408 R17.2: one display acknowledgement per notice per attempt.
@@ -9084,7 +9296,9 @@ model SchoolAiExamRemedy {
   notify         Boolean   @default(true)
   status         String    @default("PROPOSED")
   proposedById   String    @map("proposed_by_id")
+  proposedBy User @relation("SchoolAiExamRemedyProposedBy", fields: [schoolId, proposedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   authorizedById String?   @map("authorized_by_id")
+  authorizedBy User? @relation("SchoolAiExamRemedyAuthorizedBy", fields: [schoolId, authorizedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   appliedAt      DateTime? @map("applied_at")
   /// Per attempt: APPLIED (with the new result version), SKIPPED_CHANGED or FAILED.
   outcomes       Json?
@@ -9092,6 +9306,8 @@ model SchoolAiExamRemedy {
 
   @@index([schoolId, campusId, assignmentId])
   @@map("school_ai_exam_remedies")
+  @@index([schoolId, authorizedById])
+  @@index([schoolId, proposedById])
 }
 
 /// SKO-408 R19: a frozen evidence pack — the files and Integrity_Manifest exactly as produced, so
@@ -9112,11 +9328,13 @@ model SchoolAiEvidencePack {
   includedCapture Boolean   @default(false) @map("included_capture")
   captureReason   String?   @map("capture_reason")
   requestedById   String    @map("requested_by_id")
+  requestedBy User @relation("SchoolAiEvidencePackRequestedBy", fields: [schoolId, requestedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   requestedAt     DateTime  @default(now()) @map("requested_at")
   downloadedAt    DateTime? @map("downloaded_at")
 
   @@index([schoolId, campusId, assignmentId, requestedAt])
   @@map("school_ai_evidence_packs")
+  @@index([schoolId, requestedById])
 }
 
 /// SKO-408 R9.6, R9.7: a model observation over two language versions of one item. The proposal
@@ -9136,12 +9354,14 @@ model SchoolAiLanguageProposal {
   decisionOutcome String?  @map("decision_outcome")
   decisionReason String?   @map("decision_reason")
   decidedById    String?   @map("decided_by_id")
+  decidedBy User? @relation("SchoolAiLanguageProposalDecidedBy", fields: [schoolId, decidedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   decidedAt      DateTime? @map("decided_at")
   createdAt      DateTime  @default(now()) @map("created_at")
 
   @@index([schoolId, formSetId, recordId, recordVersion])
   @@map("school_ai_language_proposals")
   @@index([schoolId, campusId])
+  @@index([schoolId, decidedById])
 }
 
 // ─── SKO-404: year-end rollover plans ──────────────────────
@@ -9267,7 +9487,9 @@ model TeacherSupportNote {
   campusId     String   @map("campus_id")
   campus       Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   teacherId    String   @map("teacher_id")
+  teacher User @relation("TeacherSupportNoteTeacher", fields: [schoolId, teacherId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   authorId     String   @map("author_id")
+  author User @relation("TeacherSupportNoteAuthor", fields: [schoolId, authorId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   academicYear Int      @map("academic_year")
   kind         String   // SUPPORT_ACTION, TEACHER_RESPONSE
   body         String   @db.Text
@@ -9277,6 +9499,8 @@ model TeacherSupportNote {
   @@index([schoolId])
   @@map("teacher_support_notes")
   @@index([schoolId, campusId])
+  @@index([schoolId, authorId])
+  @@index([schoolId, teacherId])
 }
 
 // ─── SKO-414: lesson-plan working state ─────────────────────
@@ -9542,8 +9766,10 @@ model SchoolAiResultCorrection {
   source       String
   appealId     String?   @map("appeal_id")
   proposedById String    @map("proposed_by_id")
+  proposedBy User @relation("SchoolAiResultCorrectionProposedBy", fields: [schoolId, proposedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   status       String    @default("PENDING")
   decidedById  String?   @map("decided_by_id")
+  decidedBy User? @relation("SchoolAiResultCorrectionDecidedBy", fields: [schoolId, decidedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   decidedAt    DateTime? @map("decided_at")
   decisionNote String?   @map("decision_note") @db.Text
   version      Int       @default(1)
@@ -9553,6 +9779,8 @@ model SchoolAiResultCorrection {
   @@index([schoolId, campusId, assignmentId, status])
   @@index([attemptId, fromVersion])
   @@map("school_ai_result_corrections")
+  @@index([schoolId, decidedById])
+  @@index([schoolId, proposedById])
 }
 
 /// A second-marking sample: chosen by a recorded rule, assigned to a reviewer who did not mark the
@@ -9569,7 +9797,9 @@ model SchoolAiModerationSample {
   threshold    Float
   blind        Boolean  @default(true)
   reviewerId   String   @map("reviewer_id")
+  reviewer User @relation("SchoolAiModerationSampleReviewer", fields: [schoolId, reviewerId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdById  String   @map("created_by_id")
+  createdBy User @relation("SchoolAiModerationSampleCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   status       String   @default("OPEN")
   /// [{ attemptId, originalVersion, originalTotal, originalMarkerId, secondMarks, secondTotal, discrepancy, flagged, outcome, note }]
   items        Json
@@ -9580,6 +9810,8 @@ model SchoolAiModerationSample {
   @@index([schoolId, campusId, assignmentId])
   @@index([reviewerId, status])
   @@map("school_ai_moderation_samples")
+  @@index([schoolId, createdById])
+  @@index([schoolId, reviewerId])
 }
 
 // ─── SKO-426: practice sessions with hints and spaced revisits (separate from formal grades)
@@ -9677,7 +9909,9 @@ model SchoolPolicy {
   /// [{ id, heading, text }]
   sections      Json
   createdById   String    @map("created_by_id")
+  createdBy User @relation("SchoolPolicyCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   approvedById  String?   @map("approved_by_id")
+  approvedBy User? @relation("SchoolPolicyApprovedBy", fields: [schoolId, approvedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   approvedAt    DateTime? @map("approved_at")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
@@ -9686,6 +9920,8 @@ model SchoolPolicy {
   @@index([schoolId, topic])
   @@map("school_policies")
   @@index([schoolId, campusId])
+  @@index([schoolId, approvedById])
+  @@index([schoolId, createdById])
 }
 
 /// A question as asked, with the answer exactly as given (status, quoted sections, versions).
@@ -9949,7 +10185,9 @@ model SupplierInvoice {
   status      String
   issues      Json      @default("[]")
   recordedById String   @map("recorded_by_id")
+  recordedBy User @relation("SupplierInvoiceRecordedBy", fields: [schoolId, recordedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   resolvedById String?  @map("resolved_by_id")
+  resolvedBy User? @relation("SupplierInvoiceResolvedBy", fields: [schoolId, resolvedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   resolution  String?
   createdAt   DateTime  @default(now()) @map("created_at")
 
@@ -9957,6 +10195,8 @@ model SupplierInvoice {
   @@index([schoolId, invoiceNo])
   @@map("supplier_invoices")
   @@index([schoolId, campusId])
+  @@index([schoolId, recordedById])
+  @@index([schoolId, resolvedById])
 }
 
 /// A tracked asset with its own tag, custodian/location history and service schedule.
@@ -11052,7 +11292,9 @@ model SchoolAiAssessmentRepair {
   receipt           Json      @default("[]")
   idempotencyKey    String    @map("idempotency_key")
   proposedById      String    @map("proposed_by_id")
+  proposedBy User @relation("SchoolAiAssessmentRepairProposedBy", fields: [schoolId, proposedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   decidedById       String?   @map("decided_by_id")
+  decidedBy User? @relation("SchoolAiAssessmentRepairDecidedBy", fields: [schoolId, decidedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   decidedAt         DateTime? @map("decided_at")
   decisionNote      String?   @map("decision_note") @db.Text
   version           Int       @default(1)
@@ -11062,6 +11304,8 @@ model SchoolAiAssessmentRepair {
   @@unique([schoolId, idempotencyKey])
   @@index([schoolId, campusId, assignmentId, status])
   @@map("school_ai_assessment_repairs")
+  @@index([schoolId, decidedById])
+  @@index([schoolId, proposedById])
 }
 
 // ─── SKO-471: learning transfer bridge. A receiving school imports permissioned evidence from another
@@ -11151,12 +11395,14 @@ model TeachingProgress {
   recordedAt        DateTime @default(now()) @map("recorded_at")
   timetableSlotId   String?  @map("timetable_slot_id")
   teacherId         String   @map("teacher_id")
+  teacher User @relation("TeachingProgressTeacher", fields: [schoolId, teacherId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   note              String?  @db.Text
   evidenceSourceId  String?  @map("evidence_source_id")
 
   @@unique([schoolId, campusId, subjectId, classId, curriculumId, outcomeId])
   @@index([schoolId, campusId, subjectId, classId, taughtOn])
   @@map("teaching_progress")
+  @@index([schoolId, teacherId])
 }
 
 /// One paper for one subject of one grade in one term exam: the office's request and the chain's ledger row.
@@ -11946,12 +12192,14 @@ model WhatsAppConnection {
   accessTokenEnc     String?   @map("access_token_enc") // encrypted; cleared on disconnect
   tokenExpiresAt     DateTime? @map("token_expires_at")
   connectedById      String    @map("connected_by_id")
+  connectedBy User @relation("WhatsAppConnectionConnectedBy", fields: [schoolId, connectedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   connectedAt        DateTime  @default(now()) @map("connected_at")
   disconnectedAt     DateTime? @map("disconnected_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@index([phoneNumberId])
   @@map("whatsapp_connections")
+  @@index([schoolId, connectedById])
 }
 
 /// SKAI-1046 (D3-03): optional Skoolee-managed sending for schools that cannot complete Meta verification.
@@ -11964,10 +12212,12 @@ model WhatsAppManagedSending {
   phoneNumberId   String?  @map("phone_number_id") // provisioned by the platform owner
   balanceMicroUsd BigInt   @default(0) @map("balance_micro_usd")
   updatedById     String   @map("updated_by_id")
+  updatedBy User @relation("WhatsAppManagedSendingUpdatedBy", fields: [schoolId, updatedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@map("whatsapp_managed_sending")
+  @@index([schoolId, updatedById])
 }
 
 /// SKAI-1046: managed-sending ledger. MESSAGE rows charge Meta's rate plus margin; TOP_UP rows add credit.
@@ -11984,10 +12234,12 @@ model WhatsAppUsageEntry {
   providerMessageId String?  @map("provider_message_id")
   reference         String?
   createdById       String?  @map("created_by_id")
+  createdBy User? @relation("WhatsAppUsageEntryCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   createdAt         DateTime @default(now()) @map("created_at")
 
   @@index([schoolId, createdAt])
   @@map("whatsapp_usage_entries")
+  @@index([schoolId, createdById])
 }
 
 /// SKAI-1478: a private object whose metadata was deleted. Written in the same transaction as the

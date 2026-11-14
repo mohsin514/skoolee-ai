@@ -217,7 +217,7 @@ export async function actOnRequest(user: AuthUser, id: string, body: Record<stri
     const needAgent = () => { if (!agent) throw new ApiError("This request is outside your service scope.", 403); };
     const needOpen = () => { if (!OPEN.includes(req.status)) throw new ApiError("Reopen the request before changing it.", 409); };
     const reason = () => { const r = text(body.reason, 500); if (!r) throw new ApiError("Give a reason for the change.", 400); return r; };
-    const save = (data: Prisma.ServiceRequestUpdateInput) => tx.serviceRequest.update({ where: { id: req.id }, data: { ...data, version: v } });
+    const save = (data: Prisma.ServiceRequestUncheckedUpdateInput) => tx.serviceRequest.update({ where: { id: req.id }, data: { ...data, version: v } });
     let notify: { event: string; recipients: string[] } | null = null;
     const audience = [req.requesterId, ...req.watcherIds].filter(x => x !== user.userId);
     switch (action) {
