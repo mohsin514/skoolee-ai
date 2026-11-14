@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { beforeEach, mock, test } from "node:test";
 
 type User = { userId: string; schoolId: string; campusId: string | null; role: string; institutionKind: "GROUP" | "SINGLE" };
-const state = { user: null as User | null, failing: new Set<string>(), wheres: [] as Array<{ model: string; schoolId: unknown }>, queueItems: 0, queueRuns: 0, queueFails: false };
+const state = { user: null as User | null, failing: new Set<string>(), wheres: [] as Array<{ model: string; schoolId: unknown }>, queueItems: 0, queueRuns: 0, queueFails: false, queueFailed: [] as string[] };
 const PENDING: Record<string, Record<string, number>> = {
   supportGrant: { "school-a": 2, "school-b": 5 },
   taxActivation: { "school-a": 1, "school-b": 0 },
@@ -42,7 +42,7 @@ mock.module("@/lib/principal/queue", {
     collectSources: async () => {
       state.queueRuns++;
       if (state.queueFails) throw new Error("synthetic queue outage");
-      return { items: Array.from({ length: state.queueItems }, (_, i) => ({ key: `ITEM:${i}` })) };
+      return { items: Array.from({ length: state.queueItems }, (_, i) => ({ key: `ITEM:${i}` })), failed: state.queueFailed };
     },
   },
 });
@@ -53,7 +53,7 @@ const read = async () => {
   return (await GET()).json();
 };
 
-beforeEach(() => { state.failing = new Set(); state.wheres = []; state.queueItems = 0; state.queueRuns = 0; state.queueFails = false; console.warn = () => undefined; });
+beforeEach(() => { state.failing = new Set(); state.wheres = []; state.queueItems = 0; state.queueRuns = 0; state.queueFails = false; state.queueFailed = []; console.warn = () => undefined; });
 
 test("the group authority gets the breakdown beside unchanged numeric badge counts, per school", async () => {
   for (const [schoolId, support, tax, overrides] of [["school-a", 2, 1, 3], ["school-b", 5, 0, 4]] as const) {
@@ -112,4 +112,15 @@ test("SKAI-1973: the queue badge is memoised per user, and a failed rebuild is s
   assert.equal((await read()).counts.queue, 5, "another user with the same role and access version has their own entry");
   state.user = campusAdmin("admin-1", "school-r");
   assert.equal((await read()).counts.queue, 5, "another school has its own entry");
+});
+
+test("SKAI-1973: a rebuild with a failed queue source shows what loaded but is not remembered", async () => {
+  state.user = campusAdmin("admin-3", "school-p");
+  state.queueItems = 1; state.queueFailed = ["ATTENDANCE_MISSING"];
+  assert.equal((await read()).counts.queue, 1, "the partial count is still shown");
+  await new Promise((resolve) => setImmediate(resolve));
+  state.queueItems = 4; state.queueFailed = [];
+  assert.equal((await read()).counts.queue, 4, "the partial result was not cached");
+  state.queueItems = 6;
+  assert.equal((await read()).counts.queue, 4, "a complete result is cached");
 });

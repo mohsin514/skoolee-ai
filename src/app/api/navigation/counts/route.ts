@@ -66,14 +66,21 @@ async function approvalsFor(user: AuthUser): Promise<{ approvals: number; breakd
   return { approvals: support + tax + overrides, breakdown: { support, tax, overrides, failed } };
 }
 
-/** The open action-queue items on the caller's campus. Throws when a source fails, so the memo never keeps a failure. */
+/** A rebuild in which a queue source failed: its partial count is shown, but rejected so no memo layer keeps it. */
+class PartialQueueCount extends Error {
+  constructor(readonly count: number, readonly failed: string[]) { super("action-queue source failed"); }
+}
+
+/** The open action-queue items on the caller's campus. Rejects when any source fails, so the memo never keeps a failure. */
 async function countQueue(user: AuthUser, campusId: string) {
-  const [{ items }, states] = await Promise.all([
+  const [{ items, failed }, states] = await Promise.all([
     collectSources(user, campusId),
     prisma.queueItemState.findMany({ where: { schoolId: user.schoolId, campusId, snoozedUntil: { gt: new Date() } }, select: { itemKey: true } }),
   ]);
   const snoozed = new Set(states.map((state) => state.itemKey));
-  return items.filter((item) => !snoozed.has(item.key)).length;
+  const open = items.filter((item) => !snoozed.has(item.key)).length;
+  if (failed?.length) throw new PartialQueueCount(open, failed);
+  return open;
 }
 
 async function queueFor(user: AuthUser) {
@@ -81,9 +88,14 @@ async function queueFor(user: AuthUser) {
   const campusId = user.campusId;
   // Scale: the queue badge rebuilds the whole action queue (~35 queries). It is display only — the queue page stays
   // live — so it is shared per user scope for 60 s (per instance, and across instances when Redis is on). A failed
-  // rebuild rejects inside the memo (not remembered) and counts as 0 out here, so the shell does not fail.
+  // rebuild rejects inside the memo (not remembered): a partial one still shows what loaded, as before, and a thrown
+  // one counts as 0 out here, so the shell does not fail.
   const key = JSON.stringify([user.userId, user.schoolId, campusId, user.role, user.accessVersion ?? 0]);
-  return safeCount("action-queue", () => queueBadge.get(key, () => sharedQueueBadge.get(key, () => countQueue(user, campusId))));
+  return safeCount("action-queue", () => queueBadge.get(key, () => sharedQueueBadge.get(key, () => countQueue(user, campusId))).catch((error: unknown) => {
+    if (!(error instanceof PartialQueueCount)) throw error;
+    console.warn("[navigation/counts] action-queue sources unavailable", { sources: error.failed });
+    return error.count;
+  }));
 }
 
 export async function GET() {
