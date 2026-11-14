@@ -79,6 +79,9 @@ export function AdmissionsDesk({ showForms = true, canDecide = true, section, en
   const ui = useUiText();
   const [tabState, setTab] = useState<"applications" | "forms">(section ?? "applications");
   const tab = section ?? (showForms ? tabState : "applications");
+  // SKAI-1969: once the funnel has been shown it stays mounted (hidden on the Forms tab), so switching tabs does not reload it.
+  const [funnelShown, setFunnelShown] = useState(tab === "applications");
+  if (tab === "applications" && !funnelShown) setFunnelShown(true);
   const [forms, setForms] = useState<Form[]>([]), [owners, setOwners] = useState<Person[]>([]), [classes, setClasses] = useState<ClassOption[]>([]);
   const loadForms = useCallback(async () => { const response = await fetch("/api/admissions?forms=1", { cache: "no-store" }); const json = await response.json().catch(() => ({})); if (response.ok && json.success) setForms(json.data); }, []);
   const publishedCount = forms.filter((form) => form.currentVersion > 0).length;
@@ -94,7 +97,7 @@ export function AdmissionsDesk({ showForms = true, canDecide = true, section, en
     {!section && showForms ? <ViewTabs ariaLabel="Admissions" value={tab} onChange={value => setTab(value === "forms" ? "forms" : "applications")} items={[{ id: "applications", label: "Applications" }, { id: "forms", label: "Application forms" }]} /> : null}
     {tab === "applications" ? <Pipeline forms={forms} owners={owners} classes={classes} canDecide={canDecide} entryInHeader={entryInHeader} command={command} /> : <FormsTab forms={forms} onChanged={() => void loadForms()} />}
     {/* SKAI-1260: conversion funnel for the campus admin, who decides offers (not the front desk). */}
-    {tab === "applications" && canDecide ? <FunnelPanel /> : null}
+    {canDecide && funnelShown ? <div hidden={tab !== "applications"}><FunnelPanel /></div> : null}
   </div>;
 }
 
