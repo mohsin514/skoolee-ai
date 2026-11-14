@@ -156,7 +156,7 @@ export function ResourceLibrary({ audience, studentId, adding: addingProp, onAdd
       {adding ? <ResourceForm t={t} language={language} classId={view.classId} busy={busy} onCancel={() => setAdding(false)} onSubmit={async (body, file) => {
         // Once the draft exists the form closes even if the upload fails: retrying here would duplicate it.
         let created = false;
-        await run(async () => { const result = await call("/api/resources", body); created = true; await sendFile(result.resource.id, 1, result.uploadUrl, file); });
+        await run(async () => { const result = await call("/api/resources", body); created = true; await sendFile(result.data.resource.id, 1, result.data.uploadUrl, file); });
         if (created) setAdding(false);
       }} /> : controlledAdding ? null : <Button type="button" onClick={() => setAdding(true)}>{t.add}</Button>}
       {view.resources.length === 0 ? <EmptyState size="sm" icon={FolderOpen} title={t.empty} className="rounded-xl border border-dashed border-border-subtle" action={!adding ? <Button type="button" size="sm" onClick={() => setAdding(true)}>{t.add}</Button> : undefined} />
