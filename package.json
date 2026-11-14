@@ -267,7 +267,7 @@
     "test:admissions-family-messages": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/admissions/family-messages.test.ts",
     "test:session-read": "node --import tsx --test tests/client/session-read.test.ts",
     "test:shell-batch": "node --import tsx --test tests/network/shell-batch.test.ts",
-    "test:prefetch-once": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/auth/prefetch-once.test.ts",
+    "test:prefetch-once": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/auth/prefetch-once.test.ts tests/auth/utc-instant.test.ts",
     "test:policy-self-review": "node --import tsx --test tests/group-policy/self-review-constraint.test.ts",
     "test:policy-plan-limit": "node --import tsx --test tests/group-policy/plan-limit-state.test.ts",
     "test:admissions-funnel": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/admissions/funnel.test.ts tests/admissions/funnel-scope.test.ts",

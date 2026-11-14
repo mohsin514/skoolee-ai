@@ -91,9 +91,13 @@ export async function queryAccount(userId: string, schoolId: string): Promise<Ac
 
 /**
  * Columns are UTC wall-clock `timestamp`s; a raw Date parameter is compared in the session time zone, which is off by
- * hours on a non-UTC database. Pin it to UTC so raw reads match Prisma's typed reads.
+ * hours on a non-UTC database. Pin it to UTC so raw reads match Prisma's typed reads. The instant is sent as an ISO
+ * string with its "Z": the pg driver adapter sends a Date without an offset, which `::timestamptz` would read in the
+ * session time zone (a +5 h session kept learners locked after the deadline and expired sessions live; a negative
+ * offset released them early).
  */
-const utc = (at: Date) => Prisma.sql`(${at}::timestamptz AT TIME ZONE 'UTC')`;
+export const utcInstant = (at: Date) => Prisma.sql`(${at.toISOString()}::timestamptz AT TIME ZONE 'UTC')`;
+const utc = utcInstant;
 
 /** The live session rows for a token hash, as one json column (scoped by the hash; see session-revocation.ts). */
 const sessionsColumn = (tokenHash: string, now: Date) => Prisma.sql`(SELECT coalesce(json_agg(json_build_object('isActive', x.is_active)), '[]'::json)
