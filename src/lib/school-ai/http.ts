@@ -5,6 +5,7 @@ import { AICreditError, AIProviderQuotaError } from "@/lib/ai/openai";
 import { BillingAccessError } from "@/lib/billing/entitlements";
 import { AccessDenied } from "@/lib/auth/policy";
 import { PIILeakError } from "@/lib/ai/pseudonymize";
+import { WorkflowError } from "@/lib/ai-workflows/errors";
 
 export async function readBoundedBytes(request: Request, maxBytes: number) {
   if (Number(request.headers.get("content-length")) > maxBytes) throw new ApiError("Request is too large.", 413);
@@ -48,6 +49,11 @@ export function schoolAiError(error: unknown) {
     // SKAI-1008: a blocked curriculum pack lists every reason; details are server-authored strings only.
     const details = (error as SchoolAiError & { details?: unknown }).details;
     return Response.json({ error: error.message, ...(error.code ? { code: error.code } : {}), ...(Array.isArray(details) && details.every(item => typeof item === "string") ? { details } : {}) }, { status: error.status, headers: { "Cache-Control": "private, no-store" } });
+  }
+  // SKAI-297: access-change and suspension codes (403) fell through to the 503 below, so a denied user saw a generic outage.
+  if (error instanceof WorkflowError) {
+    const denied = error.status === 403;
+    return Response.json({ error: denied ? "You do not have access to this area." : "This request could not be completed. Your saved work is unchanged.", code: error.code, ...(Object.keys(error.params).length ? { params: error.params } : {}) }, { status: error.status, headers: { "Cache-Control": "private, no-store" } });
   }
   if (error instanceof ApiError || error instanceof AICreditError || error instanceof BillingAccessError || error instanceof AccessDenied) return errorResponse(error);
   return Response.json({ error: "This service is unavailable. Your saved work is unchanged; please try again." }, { status: 503 });
