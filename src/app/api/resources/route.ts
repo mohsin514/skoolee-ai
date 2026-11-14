@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
-import { ZodError } from "zod";
-import { errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { requireAuthUser } from "@/lib/api/scope";
 import { failFrom, ok } from "@/lib/api/envelope";
 import { createResource, listResources } from "@/lib/resources/service";
 import { readJsonBody } from "@/lib/api/validate";
@@ -12,9 +11,10 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     const params = Object.fromEntries([...req.nextUrl.searchParams].filter(([, value]) => value));
-    return Response.json({ success: true, ...(await listResources(user, params)) }, { headers: noStore });
+    // SKAI-1984: the list answers on the envelope; a bad filter is a VALIDATION_FAILED with fields.
+    return ok(await listResources(user, params), { headers: noStore });
   } catch (error) {
-    const response = (error instanceof ZodError ? Response.json({ error: "Please check the highlighted information.", details: error.issues.map(issue => ({ path: issue.path.join("."), message: issue.message })) }, { status: 400 }) : errorResponse(error, "[resources] GET failed"));
+    const response = await failFrom(error, "[resources] GET failed");
     response.headers.set("Cache-Control", "private, no-store");
     return response;
   }

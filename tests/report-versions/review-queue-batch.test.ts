@@ -15,6 +15,9 @@ const users = [{ id: "u-qa-01", schoolId: "qa-01", fullName: "Synthetic principa
 let calls: string[] = [];
 let transactions = 0;
 let creates = 0;
+let isolation: unknown[] = [];
+let locks: string[] = [];
+let failNext = 0;
 
 // Two schools, two campuses each, five cards per campus.
 for (const school of ["qa-01", "qa-02"])
@@ -32,7 +35,13 @@ const versionMatches = (v: Version, w: Where) =>
 
 const client = {
   $executeRaw: async () => 1,
-  $transaction: async (fn: (tx: unknown) => Promise<unknown>) => { transactions++; return fn(client); },
+  $queryRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => { locks.push(`${strings.join("?")}|${values.join(",")}`); return [{ id: values[0] }]; },
+  $transaction: async (fn: (tx: unknown) => Promise<unknown>, options?: { isolationLevel?: string }) => {
+    transactions++;
+    isolation.push(options?.isolationLevel);
+    if (failNext > 0) { failNext--; throw Object.assign(new Error("write conflict"), { code: "P2034" }); }
+    return fn(client);
+  },
   reportCard: {
     findMany: async ({ where, select }: { where: Where; select?: Record<string, unknown> }) => {
       calls.push("reportCard.findMany");
@@ -97,7 +106,7 @@ const reviewQueue = async (cardIds: string[]) => (await import("../../src/lib/ac
 const as = async <T>(schoolId: string, fn: () => Promise<T>) =>
   (await import("../../src/lib/db/tenant-context")).runWithTenantContext({ schoolId, role: "PRINCIPAL", userId: `u-${schoolId}` }, fn);
 const ids = (school: string) => cards.filter((c) => c.schoolId === school).map((c) => c.id);
-const reset = () => { calls = []; transactions = 0; creates = 0; };
+const reset = () => { calls = []; transactions = 0; creates = 0; isolation = []; locks = []; failNext = 0; };
 
 test("the first view creates each missing version in its own short transaction", async () => {
   reset();
@@ -107,6 +116,14 @@ test("the first view creates each missing version in its own short transaction",
   assert.equal(transactions, 10, "one transaction per card, never one for the whole exam");
   assert.deepEqual(rows.map((r) => r.reportCardId), ids("qa-01"), "keeps the caller's order");
   for (const r of rows) assert.ok(!("documentBytes" in r));
+  // Concurrent first views of different exams must not abort each other: refresh-on-view is repeatable read with
+  // one row lock on its own card (inside the school), not serializable predicate locks over every source it reads.
+  assert.deepEqual([...new Set(isolation)], ["RepeatableRead"]);
+  assert.equal(locks.length, 10);
+  for (const [i, lock] of locks.entries()) {
+    assert.match(lock, /FROM report_cards WHERE id = \? AND school_id = current_setting\('app\.current_school_id', true\) FOR UPDATE/);
+    assert.ok(lock.endsWith(`|${ids("qa-01")[i]}`));
+  }
 });
 
 test("a second view with unchanged sources writes nothing and batches its lookups", async () => {
@@ -137,6 +154,35 @@ test("a changed remark refreshes only that card and clears its approval, with hi
   assert.deepEqual((changed as unknown as { history: Array<{ number: number }> }).history.map((h) => h.number), [1]);
   assert.ok(changed.priorSnapshot);
   assert.equal(cards.find((c) => c.id === first)!.currentVersionId, changed.id);
+});
+
+test("a refresh that loses a race to another view of the same card retries and returns the stored version", async () => {
+  const [, , third] = ids("qa-01");
+  cards.find((c) => c.id === third)!.remarksEn = "Steady effort";
+  reset();
+  failNext = 2;
+  const [row] = await as("qa-01", () => reviewQueue([third]));
+  assert.equal(transactions, 3, "two conflicts, then the third attempt");
+  assert.equal(creates, 1);
+  assert.equal(row.number, 2);
+  assert.equal(cards.find((c) => c.id === third)!.currentVersionId, row.id);
+  reset();
+  cards.find((c) => c.id === third)!.remarksEn = "Steady effort, well done";
+  failNext = 3;
+  await assert.rejects(as("qa-01", () => reviewQueue([third])), (error: Error & { status?: number }) => error.status === 409, "a lasting conflict is still a 409, never a 500");
+  cards.find((c) => c.id === third)!.remarksEn = "Steady effort";
+});
+
+test("two simultaneous views of one changed card share a single refresh", async () => {
+  const [, , , fourth] = ids("qa-01");
+  cards.find((c) => c.id === fourth)!.remarksEn = "Reads widely";
+  reset();
+  const [a, b] = await Promise.all([as("qa-01", () => reviewQueue([fourth])), as("qa-01", () => reviewQueue([fourth]))]);
+  assert.equal(creates, 1);
+  assert.equal(transactions, 1, "the second view waits for the first refresh, not for the row lock");
+  assert.equal(a[0].id, b[0].id);
+  assert.equal(cards.find((c) => c.id === fourth)!.currentVersionId, a[0].id);
+  cards.find((c) => c.id === fourth)!.remarksEn = "Good work";
 });
 
 test("delivery rows match the published version only", async () => {
