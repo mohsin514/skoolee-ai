@@ -188,8 +188,9 @@ model School {
   planPricing          Json?     @map("plan_pricing") // Owner-defined plan pricing overrides
   commercialContract   Json?     @map("commercial_contract") // Versioned terms retained for this school's current plan
   city                 String
+  country              String?   // SKAI-1170: ISO 3166-1 alpha-2 code (e.g. PK, AE); feeds expansion-trigger metrics
   address              String?
-  regId                String    @unique @map("reg_id") // Unique Institutional Identity
+  regId               String    @unique @map("reg_id") // Unique Institutional Identity
   contactEmail         String    @unique @map("contact_email")
   phone                String? // Primary contact phone
   website              String? // Official institution website
@@ -2522,6 +2523,8 @@ model Mark {
   @@index([subjectId])
   @@index([enteredBy])
   @@index([schoolId, campusId])
+  // SKAI-1964: covers the principal dashboard's campus mark average as an index-only scan.
+  @@index([schoolId, campusId, marksObtained])
   @@map("marks")
 }
 

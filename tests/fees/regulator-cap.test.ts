@@ -52,6 +52,23 @@ describe("eciPermittedFee (KHDA ECI)", () => {
   });
 });
 
+// SKAI-1254: fee-group (layered) invoices are checked against the class's approved fee with each school's own policy.
+describe("fee-group invoice cap decision", () => {
+  const decide = (schoolMode: string, monthlyFee: number, approvedFee: number | null) =>
+    feeCapDecision(evaluateFeeCap({ mode: schoolMode, fee: monthlyFee, approvedFee }), schoolMode);
+  it("blocks an over-cap fee-group invoice only for the school that opted into BLOCK", () => {
+    assert.ok(decide("BLOCK", 6000, 5000).error); // school A
+    assert.deepEqual(decide("OFF", 6000, 5000), {}); // school B has not opted in
+  });
+  it("lets a WARN school through with a warning and an in-cap fee through silently", () => {
+    assert.ok(decide("WARN", 6000, 5000).warning && !decide("WARN", 6000, 5000).error);
+    assert.deepEqual(decide("BLOCK", 5000, 5000), {});
+  });
+  it("refuses a BLOCK school's fee-group invoice when the class has no approved fee recorded", () => {
+    assert.ok(decide("BLOCK", 5000, null).error);
+  });
+});
+
 describe("recomputePendingInvoices copies the approved fee", () => {
   it("snapshots approvedFee and reference onto re-priced PENDING invoices", async () => {
     const invoices: any[] = [{ id: "i-1", schoolId: "school-a", campusId: "campus-a", status: "PENDING", totalAmountPaid: 0, currency: "AED", lateFeeAmount: 0, totalAmount: 1 }];

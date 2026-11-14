@@ -27,6 +27,8 @@ export interface ExamMarkerClient {
   status?: string;
   get(key: string): Promise<string | null>;
   eval(script: string, numKeys: number, ...args: (string | number)[]): Promise<unknown>;
+  /** ioredis pipeline: many marker writes in one round trip (SKAI-1982). Optional so plain stubs still work. */
+  pipeline?(): { eval(script: string, numKeys: number, ...args: (string | number)[]): unknown; exec(): Promise<Array<[Error | null, unknown]> | null> };
 }
 type Options = { env?: Env; client?: ExamMarkerClient; now?: Date; timeoutMs?: number };
 
@@ -64,18 +66,49 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+// A client in one of these states has lost its connection: a command sent now would only wait in the
+// offline queue until the timeout. The first connect ("wait"/"connecting"/"connect") is still tried.
+const DISCONNECTED = new Set(["reconnecting", "close", "end"]);
+
+export type ExamMarkerEntry = { userId: string; deadlineAt: Date };
+
 /**
  * Records that `userId` may be confined until `deadlineAt` (plus grace). Call it inside the
  * transaction that starts, resumes or extends an IN_PROGRESS attempt, before it commits.
  * While the gate is on a failed write throws, rolling that transaction back.
  */
 export async function markCandidateExamActive(userId: string, deadlineAt: Date, options: Options = {}): Promise<void> {
+  return markCandidatesExamActive([{ userId, deadlineAt }], options);
+}
+
+/**
+ * SKAI-1982: the bulk form for a room-wide extend or resume. One pipelined round trip (one extend-only
+ * EVAL per key, so keys in different cluster slots still work) under one timeout, using the latest
+ * deadline per account. A disconnected client fails at once instead of queueing. Failure semantics
+ * match the single write: logged with the gate off; with the gate on any failed key throws.
+ */
+export async function markCandidatesExamActive(entries: ExamMarkerEntry[], options: Options = {}): Promise<void> {
   const env = options.env ?? process.env;
-  if (!examMarkerWritesEnabled(env)) return;
-  const ttlMs = Math.max(0, deadlineAt.getTime() - (options.now ?? new Date()).getTime()) + EXAM_MARKER_GRACE_MS;
+  if (!entries.length || !examMarkerWritesEnabled(env)) return;
+  const nowMs = (options.now ?? new Date()).getTime();
+  const latest = new Map<string, number>();
+  for (const { userId, deadlineAt } of entries) latest.set(userId, Math.max(latest.get(userId) ?? -Infinity, deadlineAt.getTime()));
+  const writes = [...latest].map(([userId, at]) => [examMarkerKey(userId), Math.max(0, at - nowMs) + EXAM_MARKER_GRACE_MS] as const);
   try {
     const client = options.client ?? await defaultClient();
-    await withTimeout(client.eval(EXTEND_SCRIPT, 1, examMarkerKey(userId), ttlMs), options.timeoutMs ?? WRITE_TIMEOUT_MS);
+    if (client.status !== undefined && DISCONNECTED.has(client.status)) throw new Error(`exam marker: Redis ${client.status}`);
+    const sent: Promise<unknown> = client.pipeline
+      ? (() => {
+        const batch = client.pipeline!();
+        for (const [key, ttlMs] of writes) batch.eval(EXTEND_SCRIPT, 1, key, ttlMs);
+        return batch.exec().then(results => {
+          if (!results || results.length !== writes.length) throw new Error("exam marker: pipeline aborted");
+          const failed = results.find(([error]) => error);
+          if (failed) throw failed[0];
+        });
+      })()
+      : Promise.all(writes.map(([key, ttlMs]) => client.eval(EXTEND_SCRIPT, 1, key, ttlMs)));
+    await withTimeout(sent, options.timeoutMs ?? WRITE_TIMEOUT_MS);
   } catch (error) {
     console.error("[exam-marker] could not record an active exam", error instanceof Error ? error.message : error);
     if (!examMarkerGateEnabled(env)) return;

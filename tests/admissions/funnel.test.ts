@@ -25,7 +25,7 @@ test("counts each stage by source for the chosen year", () => {
   const web = funnel.bySource.find(row => row.source === "WEBSITE");
   assert.deepEqual(web, { source: "WEBSITE", enquiries: 2, applications: 2, offers: 2, enrolled: 1 });
   assert.deepEqual(funnel.bySource.find(row => row.source === "DIRECT"), { source: "DIRECT", enquiries: 0, applications: 1, offers: 0, enrolled: 0 });
-  assert.equal(funnel.conversion.applications, 133.3);
+  assert.equal(funnel.conversion.applications, 100); // a3 came in directly; e1, e2 and e3 each became an application
   assert.equal(funnel.conversion.enrolled, 50);
   assert.deepEqual(funnel.years, [2026, 2025]);
 });
@@ -34,6 +34,18 @@ test("another year only sees its own rows", () => {
   const funnel = buildFunnel(enquiries, applications, 2025);
   assert.deepEqual(funnel.total, { enquiries: 1, applications: 1, offers: 1, enrolled: 0 });
   assert.equal(funnel.bySource[0].source, "PHONE");
+});
+
+test("direct applications cannot push the enquiry rate past 100%", () => {
+  const direct = Array.from({ length: 17 }, (_, i) => app(`d${i}`, "SUBMITTED", null));
+  const funnel = buildFunnel([enquiries[0]], direct, 2026);
+  assert.equal(funnel.total.applications, 17);
+  assert.equal(funnel.conversion.applications, 0);
+});
+
+test("two applications from one enquiry count that enquiry once", () => {
+  const funnel = buildFunnel([enquiries[0]], [app("x1", "SUBMITTED", "e1"), app("x2", "SUBMITTED", "e1")], 2026);
+  assert.equal(funnel.conversion.applications, 100);
 });
 
 test("an empty year has no rates", () => {

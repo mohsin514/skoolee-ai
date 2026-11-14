@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dueState, reconcileStatement, schoolToday } from "../../src/lib/fees/statement";
+import { dueState, invoiceYearWindow, reconcileStatement, schoolToday } from "../../src/lib/fees/statement";
 
 // SKO-431: due dates in the school's timezone, future instalments never overdue, cancelled invoices
 // carry no charge, and every statement reconciles.
@@ -40,4 +40,17 @@ test("with an approved plan only past-due instalments count as overdue", () => {
   const ahead = reconcileStatement([{ id: "q", status: "PARTIAL", totalAmount: 600, totalAmountPaid: 400, balanceDue: 200, dueDate: "2026-09-01",
     installments: [{ state: "PAID", remaining: 0 }, { state: "PART_PAID", remaining: 200 }] }], "2026-10-17");
   assert.deepEqual([ahead.overdue, ahead.notYetDue, ahead.states.q], [0, 200, "NOT_YET_DUE"], "the invoice's original due date no longer applies");
+});
+
+// SKAI-1513: an academic-year statement holds only that year's invoices (calendar UTC boundaries).
+test("the invoice window is the selected calendar year, UTC, end-exclusive", () => {
+  const w = invoiceYearWindow(2026, false);
+  assert.deepEqual(w, { invoiceDate: { gte: new Date("2026-01-01T00:00:00Z"), lt: new Date("2027-01-01T00:00:00Z") } });
+  assert.equal(w.invoiceDate!.gte <= new Date("2026-01-01T00:00:00Z") && new Date("2026-01-01T00:00:00Z") < w.invoiceDate!.lt, true, "1 Jan belongs to the year");
+  assert.equal(new Date("2026-12-31T23:59:59Z") < w.invoiceDate!.lt, true, "31 Dec belongs to the year");
+  assert.equal(new Date("2027-01-01T00:00:00Z") < w.invoiceDate!.lt, false, "1 Jan next year is excluded");
+  assert.equal(new Date("2025-12-31T23:59:59Z") >= w.invoiceDate!.gte, false, "31 Dec previous year is excluded");
+});
+test("allYears returns no date filter, explicitly", () => {
+  assert.deepEqual(invoiceYearWindow(2026, true), {});
 });

@@ -1,7 +1,8 @@
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
-import { resolveCurrentPrincipal } from "@/lib/auth/principal";
-import { checkRevocationStrict } from "@/lib/auth/session-revocation";
+import { accountAuthorityHolds, resolveCurrentPrincipal } from "@/lib/auth/principal";
+import { candidateBoundaryRead, type CandidateBoundaryRow } from "@/lib/auth/request-auth";
+import { checkRevocationStrict, decideRevocation, worthRetrying } from "@/lib/auth/session-revocation";
 import { hashSessionToken } from "@/lib/auth/session-cookie";
 import type { AuthUser } from "@/lib/auth";
 import type { CandidateExamBoundary } from "./exam-boundary";
@@ -9,6 +10,11 @@ import { candidateMayBeInExam } from "./exam-active-marker";
 
 type CandidateSessionClaims = Parameters<typeof resolveCurrentPrincipal>[0] & { role: "STUDENT" };
 type CandidateSessionDependencies = {
+  /**
+   * SKAI-1971: when present, session, account and attempt come from this ONE read instead of the three lookups
+   * below; the decisions on the rows are the same. Production uses candidateBoundaryRead.
+   */
+  readAll?: (tokenHash: string, claims: CandidateSessionClaims) => Promise<CandidateBoundaryRow>;
   isRevoked: (tokenHash: string) => Promise<boolean>;
   resolvePrincipal: typeof resolveCurrentPrincipal;
   lookupBoundary: (actor: AuthUser) => Promise<CandidateExamBoundary | null>;
@@ -28,6 +34,7 @@ export async function candidateExamBoundaryForSession(
   token: string,
   claims: CandidateSessionClaims,
   dependencies: CandidateSessionDependencies = {
+    readAll: (tokenHash, claims) => candidateBoundaryRead(tokenHash, claims.userId, claims.schoolId),
     // Strict: an unavailable store must surface as "retry", never as a sign-out (SKAI-1063).
     isRevoked: checkRevocationStrict,
     resolvePrincipal: resolveCurrentPrincipal,
@@ -38,10 +45,29 @@ export async function candidateExamBoundaryForSession(
   // No marker: no attempt can be active (see exam-active-marker.ts), so the proxy stays
   // optimistic here as it is for every other role; getAuthUser still rejects revoked sessions.
   if (dependencies.mayBeInExam && !(await dependencies.mayBeInExam(claims.userId))) return { authenticated: true, active: null };
+  if (dependencies.readAll) return decideCandidateBoundary(await readOnceRetrying(dependencies.readAll, hashSessionToken(token), claims), claims);
   if (await dependencies.isRevoked(hashSessionToken(token))) return { authenticated: false };
   const actor = await dependencies.resolvePrincipal(claims);
   if (!actor || actor.role !== "STUDENT") return { authenticated: false };
   return { authenticated: true, active: await dependencies.lookupBoundary(actor) };
+}
+
+/** Revocation first, then current account authority (STUDENT only); the attempt is looked at only after both pass. */
+export function decideCandidateBoundary(row: CandidateBoundaryRow, claims: CandidateSessionClaims): CandidateSessionBoundary {
+  if (decideRevocation(row.sessions)) return { authenticated: false };
+  if (!accountAuthorityHolds(row.account, claims) || row.account?.role !== "STUDENT") return { authenticated: false };
+  return { authenticated: true, active: row.attempt };
+}
+
+/** checkRevocationStrict semantics (SKAI-1063/1962): one retry for a dropped connection, none when saturated; errors propagate as 503. */
+async function readOnceRetrying(read: NonNullable<CandidateSessionDependencies["readAll"]>, tokenHash: string, claims: CandidateSessionClaims): Promise<CandidateBoundaryRow> {
+  try {
+    return await read(tokenHash, claims);
+  } catch (error) {
+    if (!worthRetrying(error)) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 50 + Math.random() * 100));
+    return read(tokenHash, claims);
+  }
 }
 
 /** Authenticated callers only. No cache: submission or deadline releases the next request. */

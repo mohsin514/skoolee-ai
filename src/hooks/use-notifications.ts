@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ONLINE_RESTORED_EVENT } from "@/lib/network/connection";
+import { refreshWhileClosed } from "@/lib/network/closed-stream-refresh";
 
 export interface AppNotification {
   id: string;
@@ -102,6 +103,8 @@ export function useNotifications() {
     });
 
     es.addEventListener("error", () => setIsConnected(false));
+    // Realtime off (204) or a fatal error: the stream will not come back by itself, so catch up on a slow timer.
+    const stopRefresh = refreshWhileClosed(es, () => void fetchNotifications());
 
     let bc: BroadcastChannel | null = null;
     try {
@@ -126,6 +129,7 @@ export function useNotifications() {
     } catch {}
 
     return () => {
+      stopRefresh();
       es.close();
       eventSourceRef.current = null;
       bc?.close();

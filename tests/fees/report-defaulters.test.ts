@@ -36,6 +36,16 @@ function matches(r: Row, w: any) {
 function fixture(rows: Row[], user: { role: string; schoolId: string } = { role: "ACCOUNTANT", schoolId: "school-a" }) {
   const calls: any[] = [];
   const db = {
+    // The paged total's COUNT(DISTINCT student_id): applies the SQL's school, currency, campus and due-date filters.
+    $queryRaw: async (sql: { sql: string; values: any[] }) => {
+      const [schoolId, currency, ...rest] = sql.values;
+      const cutoff = new Date(`${rest.pop()}Z`);
+      calls.push({ op: "count", schoolId, currency, campusIds: rest, sql: sql.sql });
+      const inclusive = /due_date <= /.test(sql.sql);
+      const hit = rows.filter((r) => r.schoolId === schoolId && r.currency === currency && rest.includes(r.campusId) && r.status !== "CANCELLED"
+        && r.balanceDue > 0 && (inclusive ? r.dueDate <= cutoff : r.dueDate < cutoff));
+      return [{ n: new Set(hit.map((r) => r.studentId)).size }];
+    },
     campus: { findMany: async (args: any) => [{ id: "campus-a", schoolId: "school-a" }, { id: "campus-b", schoolId: "school-b" }].filter((c) => c.schoolId === args.where.schoolId) },
     invoice: {
       groupBy: async (args: any) => {
@@ -99,7 +109,7 @@ test("USD locale with PKR invoices reports pending AND partly paid debts, exclud
   const scope = f.calls.find((c) => c.op === "groupBy" && c.by[0] === "currency").where;
   assert.deepEqual(scope.campus, { schoolId: "school-a" });
   assert.deepEqual(scope.campusId, { in: ["campus-a"] });
-  for (const call of f.calls.filter((c) => c.by?.[0] !== "currency")) assert.equal(call.where.schoolId, "school-a", "every defaulter query carries the school");
+  for (const call of f.calls.filter((c) => c.by?.[0] !== "currency" && c.op !== "count")) assert.equal(call.where.schoolId, "school-a", "every defaulter query carries the school");
 });
 
 test("explicit currency stays authoritative; malformed overdue-day and currency filters are rejected", async () => {
@@ -125,8 +135,14 @@ test("pages are sorted by overdue amount and total counts every defaulting stude
   assert.deepEqual(first.pagination, { page: 1, limit: 2, total: 3, pages: 2 });
   const second = await (await f.get("?currency=PKR&page=2&limit=2")).json();
   assert.deepEqual(second.data.map((d: any) => d.studentId), ["pupil-c"]);
+  const counts = f.calls.filter((c) => c.op === "count");
+  assert.ok(counts.length >= 2 && counts.every((c) => c.schoolId === "school-a" && c.campusIds.join() === "campus-a"), "the SQL count carries the school and campus");
+  assert.equal(f.calls.filter((c) => c.op === "groupBy" && c.by[0] === "studentId" && c.orderBy === undefined).length, 0, "no per-student list is read just to count it");
+  const before = f.calls.length;
   const beyond = await (await f.get("?currency=PKR&page=9&limit=2")).json();
   assert.equal(beyond.pagination.page, 2, "a stale page clamps to the last page");
+  assert.deepEqual(beyond.data.map((d: any) => d.studentId), ["pupil-c"], "the clamped page re-reads the last page's rows");
+  assert.deepEqual(f.calls.slice(before).filter((c) => c.op === "groupBy" && c.by[0] === "studentId").map((c) => c.skip), [16, 2]);
   const all = await (await f.get("?currency=PKR")).json();
   assert.deepEqual(all.data.map((d: any) => d.studentId), ["pupil-b", "pupil-a", "pupil-c"]);
   const a = all.data[1];

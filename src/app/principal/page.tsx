@@ -101,6 +101,7 @@ import { fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/co
 import { cn } from "@/lib/utils";
 import { usePrincipalData } from "./principal-data-context";
 import { currentClassTeacherId, currentSubjectTeacherId } from "@/lib/academic/allocation-version";
+import { reportCardExamsInView } from "@/lib/academic/report-card-exams";
 
 /** The principal's AI workflows (academic only; the group admin no longer has these, M6). */
 const PRINCIPAL_AI_FEATURES = [
@@ -266,6 +267,8 @@ function PrincipalWorkspace({
   // A link to one exam's report cards opens the view with that exam first and in view.
   const examParam = useExamParam();
   const reviewReady = Boolean(data);
+  // SKAI-1960: each listed exam loads its own report versions, so earlier academic years wait behind a toggle.
+  const [showEarlierReportYears, setShowEarlierReportYears] = useState(false);
   useEffect(() => {
     if (view !== "report-cards" || !examParam || !reviewReady) return;
     const node = document.getElementById(`report-exam-${examParam}`);
@@ -391,9 +394,10 @@ function PrincipalWorkspace({
 
   // §4.4b principal · Classes & subjects: Export (secondary) — one row per section with its staffing gaps.
   const exportClasses = () => {
+    // SKAI-1964: the payload no longer nests each class's roster; `_count.students` is the on-roll size the panel shows.
     const rows = (data?.classes ?? []).map((c: any) => {
       const subjects: any[] = c.subjects ?? [];
-      return [c.name ?? "", c.section ?? "", String(c.academicYear ?? ""), c.classTeacher?.fullName ?? "", String(subjects.length), String(subjects.filter((s) => !s.teacher && !s.teacherId).length), String((c.students ?? []).length)];
+      return [c.name ?? "", c.section ?? "", String(c.academicYear ?? ""), c.classTeacher?.fullName ?? "", String(subjects.length), String(subjects.filter((s) => !s.teacher && !s.teacherId).length), String(c._count?.students ?? 0)];
     });
     downloadCSV(`classes-${data?.campusName ?? "campus"}.csv`, [[ui("Class"), ui("Section"), ui("Academic year"), ui("Class teacher"), ui("Subjects"), ui("Subjects without a teacher"), ui("Students")], ...rows]);
   };
@@ -515,9 +519,15 @@ function PrincipalWorkspace({
     /* ── Results ── */
     case "report-cards": {
       const waitingExams: any[] = data.reviewExams ?? [];
-      // `?exam=<id>` (job and notification links): that exam first and outlined; the rest keep their order.
-      const exams = examParam ? [...waitingExams.filter((exam) => exam.id === examParam), ...waitingExams.filter((exam) => exam.id !== examParam)] : waitingExams;
+      // `?exam=<id>` (job and notification links): that exam first and outlined, whatever its year; the rest keep
+      // their order. SKAI-1960: only the active academic year (or later) is listed until "Show earlier years".
+      const { exams, earlierCount } = reportCardExamsInView<any>(waitingExams, { activeYear: data.activeAcademicYear, focusExam: examParam, showEarlier: showEarlierReportYears });
       const linkedGone = Boolean(examParam) && !waitingExams.some((exam) => exam.id === examParam);
+      const earlierToggle = earlierCount > 0 ? (
+        <Button type="button" variant="outline" onClick={() => setShowEarlierReportYears((shown) => !shown)}>
+          {showEarlierReportYears ? ui("Hide earlier years") : ui("Show earlier years ({0})", [earlierCount])}
+        </Button>
+      ) : null;
       // §4.4: "Approve selected" approves the versions ticked in every exam below; "Preview release" opens the
       // first ticked version beside the last approved one (else the first exam's first version).
       const picked = exams.filter((exam) => (selections[exam.id]?.selected ?? 0) > 0);
@@ -543,13 +553,14 @@ function PrincipalWorkspace({
                 />
               </div>
             ))}
+            {earlierToggle ? <div className="flex justify-center">{earlierToggle}</div> : null}
           </div>
         ) : (
           <EmptyState
             icon={ClipboardList}
             title={ui("No exams ready for review")}
             description={ui("An exam appears here once its marks are locked.")}
-            action={access.has("exams") ? <Button variant="outline" type="button" onClick={() => setView("exam-cycles")}>{ui("Open Exams & results")}</Button> : undefined}
+            action={earlierToggle ?? (access.has("exams") ? <Button variant="outline" type="button" onClick={() => setView("exam-cycles")}>{ui("Open Exams & results")}</Button> : undefined)}
           />
         ),
         {

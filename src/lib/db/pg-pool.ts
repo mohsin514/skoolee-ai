@@ -18,6 +18,7 @@
 import { Pool, type PoolConfig } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { attachDatabasePool } from "@vercel/functions";
+import { poolBudget } from "./pool-budget";
 
 type Env = Record<string, string | undefined>;
 
@@ -30,28 +31,13 @@ export function pgAdapterEnabled(env: Env = process.env): boolean {
 
 /** Prisma-only URL parameters that `pg` must not see (it would treat them as session settings). */
 const PRISMA_PARAMS = ["pgbouncer", "connection_limit", "pool_timeout", "connect_timeout", "socket_timeout", "statement_cache_size", "schema", "sslmode", "sslaccept"];
-/** The most connections one serverless instance takes when only the URL sets a limit. */
-export const SERVERLESS_MAX_FROM_URL = 1;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 export function pgPoolConfig(raw: string, env: Env = process.env): { pool: PoolConfig; schema?: string } {
   const url = new URL(raw);
   const params = url.searchParams;
-  // Per-instance budget. On serverless a limit that only comes from the URL is capped: dev's DATABASE_URL carried
-  // connection_limit=20, so each warm instance could hold 20 pooler clients and ten instances filled all 200
-  // (EMAXCONN with no users online, 2026-11-13). Raising the cap to 5 then made it worse under realistic load: many
-  // Fluid instances × 5 used up the pooler's 200 client slots and new connections were refused (503s) while Postgres
-  // sat idle (SKAI-1919 load runs). At 2 per instance with a 10 s idle release, 503s continued while Postgres stayed
-  // idle: on the smallest Supabase compute the shared pooler cannot accept connections fast enough under bursts
-  // (SKAI-1947 runs). So each instance opens ONE connection and keeps it (see idle below): fewer slots, far fewer
-  // handshakes. One in-region connection carries many fast queries.
-  // An explicit PRISMA_CONNECTION_LIMIT is an operator's choice and wins.
-  const fromUrl = Number.parseInt(params.get("connection_limit") ?? "", 10);
-  const fromEnv = Number.parseInt(env.PRISMA_CONNECTION_LIMIT ?? "", 10);
-  const serverless = Boolean(env.VERCEL || env.AWS_LAMBDA_FUNCTION_NAME);
-  const max = fromEnv > 0 ? fromEnv
-    : serverless ? Math.min(fromUrl > 0 ? fromUrl : 1, SERVERLESS_MAX_FROM_URL)
-    : fromUrl > 0 ? fromUrl : 5;
+  // Per-instance budget: pool-budget.ts explains the cap and its history (SKAI-1948, SKAI-1950).
+  const max = poolBudget(raw, env);
   const idle = Number.parseInt(env.PG_IDLE_TIMEOUT_MS ?? "", 10);
   const sslmode = params.get("sslmode");
   const schema = params.get("schema") ?? undefined;

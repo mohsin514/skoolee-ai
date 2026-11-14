@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       case "staff": return ok(await care.disclosureStaff(user));
       case "clinic": return ok(p.get("studentId") ? await care.clinicRecord(user, p.get("studentId")!) : await care.clinicQueue(user));
       case "safeguarding": return ok(p.get("concernId") ? await care.concernDetail(user, p.get("concernId")!) : p.get("studentId") ? await care.concernsForStudent(user, p.get("studentId")!) : await care.safeguardingQueue(user));
-      case "oversight": return ok(await care.oversight(user, p.get("domain")));
+      case "oversight": return ok(await care.oversight(user, p.get("domain"), { logs: p.get("logsCursor"), grants: p.get("grantsCursor") }));
       default: throw new ApiError("Unknown view", 400);
     }
   } catch (error) { return errorResponse(error, "[care] GET failed"); }

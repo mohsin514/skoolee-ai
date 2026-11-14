@@ -12,7 +12,7 @@ import { cachedAccess } from "@/lib/navigation/access-cache";
 export async function GET() {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    const { permissions, capabilities } = await cachedAccess(
+    const access = await cachedAccess(
       JSON.stringify([user.userId, user.schoolId, user.campusId ?? null, user.activeCampusId ?? null, user.role, user.accessVersion ?? 0, user.schoolStatus ?? null]),
       async () => {
         const permissionsPromise = loadPermissionMap(user.schoolId, user.role);
@@ -20,17 +20,15 @@ export async function GET() {
         const plan = user.role === "APP_OWNER" ? null : await schoolPlanFeatures(user.schoolId).catch(() => null);
         const capabilitiesPromise = capabilitiesFor(user, permissionsPromise, plan);
         const [permissions, capabilities] = await Promise.all([permissionsPromise, capabilitiesPromise]);
-        return { permissions, capabilities };
+        // Plain JSON, so the shared (Redis) layer can hold it.
+        return { ...Object.fromEntries([...permissions].map(([module, flags]) => [module, flags.canView === true])), ...capabilities };
       },
     );
     // `scope` names whose access this is (addendum 2026-10-22 §3): the shell keys its per-tab cache on userId + schoolId +
     // role + accessVersion and drops the cache when any of them changes. It drives presentation only — every API and
     // page still enforces its own gate on each request.
     const scope = { userId: user.userId, schoolId: user.schoolId, campusId: user.campusId ?? null, role: user.role, accessVersion: user.accessVersion ?? 0 };
-    return Response.json({ access: {
-      ...Object.fromEntries([...permissions].map(([module, flags]) => [module, flags.canView === true])),
-      ...capabilities,
-    }, scope }, {
+    return Response.json({ access, scope }, {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {

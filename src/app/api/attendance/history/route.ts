@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
+import { ok, failFrom } from "@/lib/api/envelope";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   canMarkAttendance,
-  errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
@@ -70,8 +70,8 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, HISTORY_DAYS);
 
-    return Response.json({ success: true, history, studentCount });
+    return ok({ history, studentCount });
   } catch (error) {
-    return errorResponse(error, "[attendance/history] GET failed");
+    return failFrom(error, "[attendance/history] GET failed");
   }
 }

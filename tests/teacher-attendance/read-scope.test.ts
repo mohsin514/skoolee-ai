@@ -21,6 +21,7 @@ const TEACHERS: Record<string, { id: string; fullName: string; email: string }[]
 
 mock.module(src("lib/api/scope.ts"), {
   namedExports: {
+    ValidationError: class extends Error {},
     ApiError,
     requireAuthUser: async () => state.user,
     resolveCampusId: async (u: U) => u.campusId,
@@ -85,10 +86,10 @@ for (const role of ["CAMPUS_ADMIN", "PRINCIPAL"]) {
   test(`${role} reads only its own campus roster across two schools`, async () => {
     as(role, "a");
     const a = await (await get("date=2026-10-31")).json();
-    assert.deepEqual(a.data.map((t: { id: string }) => t.id), ["ta1", "ta2"]);
+    assert.deepEqual(a.data.items.map((t: { id: string }) => t.id), ["ta1", "ta2"]);
     as(role, "b");
     const b = await (await get("month=2026-10")).json();
-    assert.deepEqual(b.data.map((t: { userId: string }) => t.userId), ["tb1"]);
+    assert.deepEqual(b.data.items.map((t: { userId: string }) => t.userId), ["tb1"]);
     assert.ok(state.calls.every((c) => c.where.campusId));
   });
 }

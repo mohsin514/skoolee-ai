@@ -425,17 +425,43 @@ function SafeguardingWorkspace() {
 
 // ─── Lead oversight ──────────────────────────────────────────────────────
 
-type OversightData = { grants: { id: string; user: string; studentName: string; purpose: string; createdAt: string; expiresAt: string; revokedAt: string | null; live: boolean; uses: number; reviewedAt: string | null; reviewedBy: string | null; reviewNote: string | null }[]; logs: { id: string; actor: string; action: string; recordType: string; emergency: boolean; createdAt: string }[] };
+type OversightGrant = { id: string; user: string; studentName: string; purpose: string; createdAt: string; expiresAt: string; revokedAt: string | null; live: boolean; uses: number; reviewedAt: string | null; reviewedBy: string | null; reviewNote: string | null };
+type OversightLog = { id: string; actor: string; action: string; recordType: string; emergency: boolean; createdAt: string };
+type OversightData = { grants: OversightGrant[]; logs: OversightLog[]; grantsNextCursor?: string | null; logsNextCursor?: string | null };
+type OversightMore = { hasMore: boolean; state: "idle" | "loading" | "failed"; onMore: () => void };
 
 function Oversight({ domain }: { domain: Domain }) {
   const [data, setData] = useState<OversightData | null>(null), [failure, setFailure] = useState<RequestFailure | null>(null);
+  // SKAI-598: rows older than the first page arrive by cursor; a reload drops them and starts again from the newest.
+  const [older, setOlder] = useState<OversightData | null>(null), [moreState, setMoreState] = useState<"idle" | "loading" | "failed">("idle");
   // SKAI-1697: a failed load keeps the last known rows and shows a retryable error instead of hiding the panel.
-  const load = useCallback(() => call(`/api/care?view=oversight&domain=${domain}`).then((next: OversightData) => { setData(next); setFailure(null); }).catch((e: unknown) => setFailure(e instanceof AccessError ? new RequestFailure("denied") : requestFailure(e))), [domain]);
-  useEffect(() => { setData(null); setFailure(null); void load(); }, [load]);
-  return <OversightPanel domain={domain} data={data} failure={failure} reload={load} />;
+  const load = useCallback(() => call(`/api/care?view=oversight&domain=${domain}`).then((next: OversightData) => { setData(next); setOlder(null); setMoreState("idle"); setFailure(null); }).catch((e: unknown) => setFailure(e instanceof AccessError ? new RequestFailure("denied") : requestFailure(e))), [domain]);
+  useEffect(() => { setData(null); setFailure(null); setOlder(null); void load(); }, [load]);
+  const shown: OversightData | null = data && older ? { ...data, grants: [...data.grants, ...older.grants], logs: [...data.logs, ...older.logs], grantsNextCursor: older.grantsNextCursor, logsNextCursor: older.logsNextCursor } : data;
+  const loadOlder = async () => {
+    if (!data || moreState === "loading") return;
+    const base: OversightData = older ?? { grants: [], logs: [], grantsNextCursor: data.grantsNextCursor, logsNextCursor: data.logsNextCursor };
+    const logsCursor = base.logsNextCursor ?? null, grantsCursor = base.grantsNextCursor ?? null;
+    if (!logsCursor && !grantsCursor) return;
+    setMoreState("loading");
+    try {
+      const page: OversightData = await call(`/api/care?view=oversight&domain=${domain}${logsCursor ? `&logsCursor=${encodeURIComponent(logsCursor)}` : ""}${grantsCursor ? `&grantsCursor=${encodeURIComponent(grantsCursor)}` : ""}`);
+      // A list without a cursor was not asked for, so its rows and cursor from this response are ignored.
+      const seenGrants = new Set([...data.grants, ...base.grants].map(g => g.id)), seenLogs = new Set([...data.logs, ...base.logs].map(l => l.id));
+      setOlder({
+        grants: [...base.grants, ...(grantsCursor ? page.grants.filter(g => !seenGrants.has(g.id)) : [])],
+        logs: [...base.logs, ...(logsCursor ? page.logs.filter(l => !seenLogs.has(l.id)) : [])],
+        grantsNextCursor: grantsCursor ? page.grantsNextCursor ?? null : base.grantsNextCursor,
+        logsNextCursor: logsCursor ? page.logsNextCursor ?? null : base.logsNextCursor,
+      });
+      setMoreState("idle");
+    } catch { setMoreState("failed"); }
+  };
+  const more: OversightMore = { hasMore: Boolean(shown?.logsNextCursor || shown?.grantsNextCursor), state: moreState, onMore: () => void loadOlder() };
+  return <OversightPanel domain={domain} data={shown} failure={failure} reload={load} more={more} />;
 }
 
-export function OversightPanel({ domain, data, failure, reload }: { domain: Domain; data: OversightData | null; failure: RequestFailure | null; reload: () => Promise<unknown> }) {
+export function OversightPanel({ domain, data, failure, reload, more }: { domain: Domain; data: OversightData | null; failure: RequestFailure | null; reload: () => Promise<unknown>; more?: OversightMore }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
   const [notes, setNotes] = useState<Record<string, string>>({}), [busy, setBusy] = useState(false);
@@ -454,7 +480,7 @@ export function OversightPanel({ domain, data, failure, reload }: { domain: Doma
       <p className="text-xs text-ink-muted"><bdi>{dateTime(g.createdAt)}</bdi>–<bdi>{dateTime(g.revokedAt ?? g.expiresAt)}</bdi> · {g.live ? ui("Active") : g.revokedAt ? ui("Revoked") : ui("Expired")} · {ui("{0} records opened", [String(g.uses)])}</p>
       {g.reviewedAt ? <p className="text-xs">{ui("Reviewed by {0}", [g.reviewedBy ?? ""])} · <span dir="auto">{g.reviewNote}</span></p> : <div className="mt-1 flex flex-col gap-2 sm:flex-row"><Input value={notes[g.id] ?? ""} onChange={e => setNotes({ ...notes, [g.id]: e.target.value })} dir="auto" placeholder={ui("Review outcome")} aria-label={ui("Review outcome")} data-emergency-note /><Button size="sm" disabled={busy || !(notes[g.id] ?? "").trim()} onClick={() => void review(g.id)} data-emergency-review>{g.live ? ui("Review and end access") : ui("Record review")}</Button></div>}
     </li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No emergency access has been opened.")}</p>}
-    <details className="text-sm"><summary className="cursor-pointer">{ui("Access log")}</summary><ol className={cn(deskTimeline, "mt-3 text-xs")}>{data.logs.map(l => <li key={l.id} data-tone={l.emergency ? "danger" : "neutral"} data-access-log={l.action}><bdi>{dateTime(l.createdAt)}</bdi> · <bdi>{l.actor}</bdi> · {l.action} · {l.recordType}{l.emergency ? ` · ${ui("Emergency access")}` : ""}</li>)}</ol></details>
+    <details className="text-sm"><summary className="cursor-pointer">{ui("Access log")}</summary><ol className={cn(deskTimeline, "mt-3 text-xs")}>{data.logs.map(l => <li key={l.id} data-tone={l.emergency ? "danger" : "neutral"} data-access-log={l.action}><bdi>{dateTime(l.createdAt)}</bdi> · <bdi>{l.actor}</bdi> · {l.action} · {l.recordType}{l.emergency ? ` · ${ui("Emergency access")}` : ""}</li>)}</ol>{more?.hasMore ? <Button className="mt-3" size="sm" variant="outline" loading={more.state === "loading"} onClick={more.onMore} data-oversight-more>{more.state === "failed" ? ui("Try again") : ui("Show older entries")}</Button> : null}</details>
   </section>;
 }
 

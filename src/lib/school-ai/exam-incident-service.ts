@@ -9,7 +9,7 @@ import { paperDataSchema } from "./assessment";
 import { regradeExamAttempt } from "./exam-results";
 import { assertStudioAction } from "./studio-access";
 import { schoolAiTransaction } from "./transaction";
-import { markCandidateExamActive } from "./exam-active-marker";
+import { markCandidatesExamActive } from "./exam-active-marker";
 
 // SKO-408 R17: live incidents. During a sitting the frozen paper never changes; an authorized,
 // versioned notice reaches exactly its audience and each display is acknowledged per attempt.
@@ -241,8 +241,15 @@ export async function superviseAttempts(user: AuthUser, assignmentId: string, ra
     await staffExamAccess(user, assignment, "add", tx, "SUPERVISION");
     const now = new Date();
     const outcomes: Array<{ attemptId: string; outcome: "PAUSED" | "RESUMED" | "NOT_IN_PROGRESS" | "ALREADY_PAUSED" | "NOT_PAUSED"; restoredMs?: number; deadlineAt?: Date }> = [];
-    for (const attemptId of [...new Set(input.attemptIds)]) {
-      const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { id: attemptId, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId } });
+    const attemptIds = [...new Set(input.attemptIds)];
+    // SKAI-1982: one scoped read for the whole room instead of one per candidate.
+    const found = await tx.schoolAiExamAttempt.findMany({ where: { id: { in: attemptIds }, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId } });
+    const byId = new Map(found.map(row => [row.id, row]));
+    const resumedDeadline = (attempt: (typeof found)[number]) => new Date(attempt.deadlineAt.getTime() + Math.max(0, now.getTime() - attempt.pausedAt!.getTime()));
+    // SKAI-1840 markers are written before the resumed deadlines commit; SKAI-1982: all of them in one Redis round trip.
+    if (input.action === "resume") await markCandidatesExamActive(found.filter(row => row.status === "IN_PROGRESS" && row.pausedAt).map(row => ({ userId: row.userId, deadlineAt: resumedDeadline(row) })));
+    for (const attemptId of attemptIds) {
+      const attempt = byId.get(attemptId);
       if (!attempt || attempt.status !== "IN_PROGRESS" || (!attempt.pausedAt && attempt.deadlineAt <= now)) { outcomes.push({ attemptId, outcome: "NOT_IN_PROGRESS" }); continue; }
       if (input.action === "pause") {
         if (attempt.pausedAt) { outcomes.push({ attemptId, outcome: "ALREADY_PAUSED" }); continue; }
@@ -254,8 +261,7 @@ export async function superviseAttempts(user: AuthUser, assignmentId: string, ra
       } else {
         if (!attempt.pausedAt) { outcomes.push({ attemptId, outcome: "NOT_PAUSED" }); continue; }
         const restoredMs = Math.max(0, now.getTime() - attempt.pausedAt.getTime());
-        const deadlineAt = new Date(attempt.deadlineAt.getTime() + restoredMs);
-        await markCandidateExamActive(attempt.userId, deadlineAt); // SKAI-1840: before the resumed deadline commits.
+        const deadlineAt = resumedDeadline(attempt);
         const moved = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", pausedAt: attempt.pausedAt }, data: { pausedAt: null, deadlineAt } });
         if (moved.count !== 1) { outcomes.push({ attemptId, outcome: "NOT_PAUSED" }); continue; }
         await tx.schoolAiExamPause.updateMany({ where: { schoolId: user.schoolId, attemptId: attempt.id, endedAt: null }, data: { endedAt: now, endedById: user.userId, restoredMs } });

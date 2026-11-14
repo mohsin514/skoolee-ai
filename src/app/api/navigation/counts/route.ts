@@ -4,8 +4,11 @@ import { ApiError, errorResponse, requireAuthUser, requirePlatformOwner } from "
 import { isInstitutionAuthority, kindFor } from "@/lib/auth/institution";
 import { collectSources } from "@/lib/principal/queue";
 import { createTtlMemo } from "@/lib/cache/ttl-memo";
+import { createSharedMemo, sharedMemoEnabled } from "@/lib/cache/shared-memo";
 
-const badgeCounts = createTtlMemo({ ttlMs: 60_000 });
+// With Redis on, each layer keeps 30 s so a badge is never more than 60 s old, as before.
+const queueBadge = createTtlMemo({ ttlMs: sharedMemoEnabled() ? 30_000 : 60_000 });
+const sharedQueueBadge = createSharedMemo({ name: "nav-queue", ttlSeconds: 30 });
 
 /**
  * Sidebar badges (§1.4). Never part of /api/navigation/access, which must stay boolean.
@@ -63,31 +66,44 @@ async function approvalsFor(user: AuthUser): Promise<{ approvals: number; breakd
   return { approvals: support + tax + overrides, breakdown: { support, tax, overrides, failed } };
 }
 
+/** A rebuild in which a queue source failed: its partial count is shown, but rejected so no memo layer keeps it. */
+class PartialQueueCount extends Error {
+  constructor(readonly count: number, readonly failed: string[]) { super("action-queue source failed"); }
+}
+
+/** The open action-queue items on the caller's campus. Rejects when any source fails, so the memo never keeps a failure. */
+async function countQueue(user: AuthUser, campusId: string) {
+  const [{ items, failed }, states] = await Promise.all([
+    collectSources(user, campusId),
+    prisma.queueItemState.findMany({ where: { schoolId: user.schoolId, campusId, snoozedUntil: { gt: new Date() } }, select: { itemKey: true } }),
+  ]);
+  const snoozed = new Set(states.map((state) => state.itemKey));
+  const open = items.filter((item) => !snoozed.has(item.key)).length;
+  if (failed?.length) throw new PartialQueueCount(open, failed);
+  return open;
+}
+
 async function queueFor(user: AuthUser) {
   if (!QUEUE_ROLES.has(user.role) || !user.campusId) return 0;
   const campusId = user.campusId;
-  return safeCount("action-queue", async () => {
-    const [{ items }, states] = await Promise.all([
-      collectSources(user, campusId),
-      prisma.queueItemState.findMany({ where: { schoolId: user.schoolId, campusId, snoozedUntil: { gt: new Date() } }, select: { itemKey: true } }),
-    ]);
-    const snoozed = new Set(states.map((state) => state.itemKey));
-    return items.filter((item) => !snoozed.has(item.key)).length;
-  });
+  // Scale: the queue badge rebuilds the whole action queue (~35 queries). It is display only — the queue page stays
+  // live — so it is shared per user scope for 60 s (per instance, and across instances when Redis is on). A failed
+  // rebuild rejects inside the memo (not remembered): a partial one still shows what loaded, as before, and a thrown
+  // one counts as 0 out here, so the shell does not fail.
+  const key = JSON.stringify([user.userId, user.schoolId, campusId, user.role, user.accessVersion ?? 0]);
+  return safeCount("action-queue", () => queueBadge.get(key, () => sharedQueueBadge.get(key, () => countQueue(user, campusId))).catch((error: unknown) => {
+    if (!(error instanceof PartialQueueCount)) throw error;
+    console.warn("[navigation/counts] action-queue sources unavailable", { sources: error.failed });
+    return error.count;
+  }));
 }
 
 export async function GET() {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    // Scale: the badge rebuilds the whole action queue (~35 queries). Badges are display only — the queue page stays
-    // live — so the numbers are shared per user scope for 60 s per instance.
-    const { approvals, breakdown, queue } = await badgeCounts.get(
-      JSON.stringify([user.userId, user.schoolId, user.campusId ?? null, user.role, user.accessVersion ?? 0]),
-      async () => {
-        const [{ approvals, breakdown }, queue] = await Promise.all([approvalsFor(user), queueFor(user)]);
-        return { approvals, breakdown, queue };
-      },
-    );
+    // SKAI-1973: approvals are at most three school-scoped count() reads, so they stay live — the group Today view's
+    // breakdown is current right after an approval, a Refresh or a save. Only the queue badge is memoised.
+    const [{ approvals, breakdown }, queue] = await Promise.all([approvalsFor(user), queueFor(user)]);
     return Response.json({ counts: { approvals, queue }, ...(breakdown ? { approvalBreakdown: breakdown } : {}) }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return errorResponse(error, "Could not load workspace counts.");

@@ -62,6 +62,22 @@ export async function budgetPosition(db: TxClient, budgetId: string) {
 }
 const COMMITTED_REQUEST = ["APPROVED", "PARTIALLY_RECEIVED", "RECEIVED"] as const;
 type CommittedOrder = { total: number; lines: Prisma.JsonValue; received: Prisma.JsonValue };
+/**
+ * SKAI-1970: committed (order totals) and spent (unitPrice × received per line) for each budget, summed in SQL with
+ * the same rule as positionOf, so the overview no longer ships every committed order's lines to Node. $queryRaw
+ * bypasses the tenant guard, so school_id is in the SQL.
+ */
+async function committedByBudget(schoolId: string, budgetIds: string[]) {
+  if (!budgetIds.length) return new Map<string, { committed: number; spent: number }>();
+  const rows = await prisma.$queryRaw<{ budgetId: string; committed: bigint; spent: bigint }[]>(Prisma.sql`
+    SELECT pr.budget_id AS "budgetId", SUM(pr.total)::bigint AS committed,
+      COALESCE(SUM((SELECT SUM((l.value->>'unitPrice')::bigint * COALESCE((pr.received->>(l.ord - 1)::int)::bigint, 0))
+        FROM jsonb_array_elements(pr.lines) WITH ORDINALITY AS l(value, ord))), 0)::bigint AS spent
+    FROM purchase_requests pr
+    WHERE pr.school_id = ${schoolId} AND pr.budget_id IN (${Prisma.join(budgetIds)}) AND pr.status IN (${Prisma.join([...COMMITTED_REQUEST])})
+    GROUP BY pr.budget_id`);
+  return new Map(rows.map((r) => [r.budgetId, { committed: Number(r.committed), spent: Number(r.spent) }]));
+}
 function positionOf<B extends { amount: number }>(budget: B, orders: CommittedOrder[]) {
   const committed = orders.reduce((s, o) => s + o.total, 0);
   const spent = orders.reduce((s, o) => s + (o.lines as Line[]).reduce((t, l, i) => t + l.unitPrice * (((o.received as number[])[i]) ?? 0), 0), 0);
@@ -400,9 +416,9 @@ export async function purchasingOverview(user: AuthUser) {
     prisma.schoolAsset.findMany({ where: { schoolId: user.schoolId, campusId }, select: { id: true, status: true } }),
   ]);
   const activeAssetIds = campusAssets.filter((asset) => asset.status === "ACTIVE").map((asset) => asset.id);
-  // SKAI-1860: every budget's committed orders in one school-scoped read, folded per budget (was 2 queries per budget).
-  const [orders, requests, invoices, assets, services, stores, items, suppliers] = await Promise.all([
-    budgets.length ? prisma.purchaseRequest.findMany({ where: { schoolId: user.schoolId, budgetId: { in: budgets.map((b) => b.id) }, status: { in: [...COMMITTED_REQUEST] } }, select: { budgetId: true, total: true, lines: true, received: true } }) : Promise.resolve([]),
+  // SKAI-1860/1970: every budget's committed and received totals in one school-scoped aggregate (was 2 queries per budget).
+  const [totals, requests, invoices, assets, services, stores, items, suppliers] = await Promise.all([
+    committedByBudget(user.schoolId, budgets.map((b) => b.id)),
     Promise.all([
       prisma.purchaseRequest.findMany({ where: { schoolId: user.schoolId, campusId, status: { notIn: CLOSED_REQUEST } }, orderBy: requestOrder }),
       prisma.purchaseRequest.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: CLOSED_REQUEST } }, orderBy: requestOrder, take: CLOSED_REQUEST_PAGE + 1 }),
@@ -418,12 +434,10 @@ export async function purchasingOverview(user: AuthUser) {
   // and which decisions were such self-approvals (recorded in each request's history by decideRequest).
   const sole = await soleChecker("purchase", user, campusId);
   const [openRequests, closed] = requests;
-  const ordersByBudget = new Map<string, CommittedOrder[]>();
-  for (const o of orders) {
-    const list = ordersByBudget.get(o.budgetId);
-    if (list) list.push(o); else ordersByBudget.set(o.budgetId, [o]);
-  }
-  const positions = budgets.map((b) => positionOf(b, ordersByBudget.get(b.id) ?? []));
+  const positions = budgets.map((b) => {
+    const { committed = 0, spent = 0 } = totals.get(b.id) ?? {};
+    return { budget: b, committed, spent, available: b.amount - committed };
+  });
   const requestsCursor = closedRequestCursor(closed);
   return { userId: user.userId, canApprove: OPS.includes(user.role), soleChecker: sole, budgets: positions.map((p) => ({ ...p.budget, committed: p.committed, spent: p.spent, available: p.available })), requests: [...openRequests, ...closed.slice(0, CLOSED_REQUEST_PAGE)].map((r) => ({ ...r, selfApproved: selfApprovedIn(r.history) })), requestsCursor, invoices, assets, services, stores, items, suppliers };
 }

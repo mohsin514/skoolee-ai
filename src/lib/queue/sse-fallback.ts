@@ -1,25 +1,11 @@
-// SKAI-1035: SSE response used when Redis realtime is disabled.
+// SKAI-1035 / SKAI-1952: the realtime streams' answer when Redis realtime is disabled.
 //
-// Emits the given events plus `event: realtime {enabled:false}` and closes the
-// stream. The long `retry` makes the browser's EventSource reconnect only once
-// a minute, so the stream degrades to a quiet DB poll instead of a hot loop.
+// There is nothing to stream, so the answer is 204: EventSource stops and never reconnects. An open tab used to
+// reconnect every minute, and each reconnect cost a sign-in check and a count query: about two database-touching
+// requests per user per minute for no new information. The page already loaded the same counts through the
+// shell; while the stream is closed the browser refreshes them on a slow timer instead
+// (src/lib/network/closed-stream-refresh.ts). The answer carries no data, so it needs no sign-in.
 
-export const REALTIME_DISABLED_RETRY_MS = 60_000;
-
-export function realtimeDisabledBody(events: string[] = []): string {
-  return (
-    `retry: ${REALTIME_DISABLED_RETRY_MS}\n\n` +
-    events.join("") +
-    `event: realtime\ndata: ${JSON.stringify({ enabled: false })}\n\n`
-  );
-}
-
-export function realtimeDisabledResponse(events: string[] = []): Response {
-  return new Response(realtimeDisabledBody(events), {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      "X-Realtime": "disabled",
-    },
-  });
+export function realtimeOffResponse(): Response {
+  return new Response(null, { status: 204, headers: { "Cache-Control": "no-store", "X-Realtime": "disabled" } });
 }

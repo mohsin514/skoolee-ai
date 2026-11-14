@@ -11,6 +11,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     const user = await requireSchoolAiUser();
+    // SKAI-1980: callers that need only the capabilities (the Scan hub's subject list) skip the record page.
+    if (request.nextUrl.searchParams.get("capabilities") === "1") return Response.json({ capabilities: await getWorkspaceCapabilities(user) }, { headers: { "Cache-Control": "private, no-store" } });
     const kindInput = request.nextUrl.searchParams.get("kind");
     const statusInput = request.nextUrl.searchParams.get("status");
     const kind = kindInput ? workspaceKindSchema.safeParse(kindInput) : null;

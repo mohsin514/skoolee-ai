@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { assertModuleRead, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { assertModuleRead, requireAuthUser } from "@/lib/api/scope";
+import { fail, failFrom, ok } from "@/lib/api/envelope";
 import { calculateWeightedGradeForClass } from "@/lib/academic/grade-calculator";
 
 export const runtime = "nodejs";
 
+// SKAI-1203 (SKAI-1163 follow-up, academic batch D): weighted-result adopts the envelope.
 export async function GET(req: NextRequest) {
   try {
     // getAuthUser() only decodes the cookie; it does not re-check that the
@@ -15,7 +17,7 @@ export async function GET(req: NextRequest) {
     const user = await requireAuthUser();
     await assertModuleRead(user, "exams");
     if (!user.campusId) {
-      return NextResponse.json({ error: "No campus associated with this account" }, { status: 400 });
+      return fail("BAD_REQUEST", "No campus associated with this account");
     }
 
     const { searchParams } = new URL(req.url);
@@ -23,7 +25,7 @@ export async function GET(req: NextRequest) {
     const academicYear = Number(searchParams.get("academicYear")) || new Date().getFullYear();
 
     if (!classId) {
-      return NextResponse.json({ error: "classId is required" }, { status: 400 });
+      return fail("VALIDATION_FAILED", "classId is required", { classId: ["Required"] });
     }
 
     const cls = await prisma.class.findFirst({
@@ -31,7 +33,7 @@ export async function GET(req: NextRequest) {
       select: { id: true },
     });
     if (!cls) {
-      return NextResponse.json({ error: "Class not found in your campus" }, { status: 404 });
+      return fail("NOT_FOUND", "Class not found in your campus");
     }
 
     const grades = await calculateWeightedGradeForClass(classId, user.campusId, academicYear);
@@ -43,19 +45,15 @@ export async function GET(req: NextRequest) {
     const rollMap = new Map(students.map((s) => [s.id, s.rollNo]));
 
     if (!grades.length) {
-      return NextResponse.json(
-        { error: "No grade data available. Ensure exams have marks entered." },
-        { status: 400 }
-      );
+      return fail("BAD_REQUEST", "No grade data available. Ensure exams have marks entered.");
     }
 
-    return NextResponse.json({
-      success: true,
+    return ok({
       grades: grades.map((g) => ({ ...g, rollNo: rollMap.get(g.studentId) || null })),
     });
   } catch (error) {
     // Was a blanket 500 carrying error.message straight to the client, which
     // both mislabelled a 403 as a server fault and echoed raw engine text.
-    return errorResponse(error, "[grade-config/weighted-result] GET failed");
+    return failFrom(error, "[grade-config/weighted-result] GET failed");
   }
 }
