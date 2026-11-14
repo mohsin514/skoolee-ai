@@ -125,7 +125,7 @@
     "test:subject-setup": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/subject-setup.test.ts",
     "test:teacher-allocation": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/teacher-allocation.test.ts",
     "test:class-setup": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/class-setup.test.ts",
-    "test:audit-trail": "node --import ./tests/support/server-only.mjs --import tsx --test tests/audit/audit-trail.test.ts",
+    "test:audit-trail": "node --import ./tests/support/server-only.mjs --import tsx --test tests/audit/audit-trail.test.ts tests/audit/superseded-audit-rows.test.ts",
     "test:educator-eval": "node --import ./tests/support/server-only.mjs --import tsx --test tests/ai-evaluation/*.test.ts",
     "eval:educator": "node --import ./tests/support/server-only.mjs --import tsx scripts/eval-educator.ts",
     "test:guardian-consent": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/family/guardian-consent.test.ts",

@@ -54,6 +54,11 @@ function fields(value: unknown): Record<string, unknown> {
   if (typeof value === "string") { try { value = JSON.parse(value); } catch { return {}; } }
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
+/** SKAI-1194: ids of automatic rows that a later route row names in `newValue.supersedesAuditId`, within the scope. */
+async function supersededAuditIds(db: TxClient, scope: Prisma.AuditLogWhereInput): Promise<string[]> {
+  const rows = await db.auditLog.findMany({ where: { AND: [scope, { newValue: { path: ["supersedesAuditId"], string_contains: "" } }] }, select: { newValue: true } });
+  return [...new Set(rows.map(row => fields(row.newValue).supersedesAuditId).filter((id): id is string => typeof id === "string" && id.length > 0))];
+}
 const consentStates = new Set(["GRANTED", "REVOKED", "WITHDRAWN", "EXPIRED"]);
 const DOMAIN_ACTION = /^[A-Z][A-Z_]{1,31}$/;
 /** SKAI-1592: an event that names its domain action (GRANT, REVOKE …) keeps it instead of reading as a creation. */
@@ -89,8 +94,12 @@ export async function listAuditHistory(user: AuthUser, raw: unknown, db: TxClien
     ...(input.from ? { gte: new Date(`${input.from}T00:00:00Z`) } : {}),
     ...(input.to ? { lt: new Date(Date.parse(`${input.to}T00:00:00Z`) + 86400000) } : {}),
   } } : {};
+  // SKAI-1194: a route's own row supersedes the automatic SKAI-1162 row for the same change (audit_logs is
+  // append-only). Hide the superseded row so each change shows once. Looked up across the scope, not the date
+  // window, so a superseding row outside the window still hides its pair.
+  const superseded = await supersededAuditIds(db, scope);
   // AND, not a spread: the standalone owner's scope carries its own OR (own campus or school-level rows).
-  const where: Prisma.AuditLogWhereInput = { AND: [scope, dates, ...(input.tableName ? [{ tableName: { in: auditTablesFor(input.tableName) } }] : []), { OR: [{ retentionUntil: null }, { retentionUntil: { gt: now } }] }] };
+  const where: Prisma.AuditLogWhereInput = { AND: [scope, dates, ...(input.tableName ? [{ tableName: { in: auditTablesFor(input.tableName) } }] : []), { OR: [{ retentionUntil: null }, { retentionUntil: { gt: now } }] }, ...(superseded.length ? [{ id: { notIn: superseded } }] : [])] };
   const anchor = input.cursor ? await db.auditLog.findFirst({ where: { AND: [where, { id: input.cursor }] }, select: { id: true, createdAt: true } }) : null;
   if (input.cursor && !anchor) throw new ApiError("This history page changed or expired. Refresh the history.", 409);
   const rows = await db.auditLog.findMany({ where: { AND: [where, ...(anchor ? [{ OR: [{ createdAt: { lt: anchor.createdAt } }, { createdAt: anchor.createdAt, id: { lt: anchor.id } }] }] : [])] }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: input.limit + 1 });
