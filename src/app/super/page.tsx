@@ -377,7 +377,8 @@ function OverviewView({ data, onOpenCampus, onNavigate, onAppoint, onPromote, on
   useEffect(() => {
     // SKAI-1866: one request instead of three. GET /api/navigation/counts serves the approval breakdown (same rules
     // the support-grants list and the policy library were filtered by here), so the overview no longer downloads the
-    // whole policy library on every refetch just to count pending overrides. A refetch (Refresh, a save) re-reads it.
+    // whole policy library on every refetch just to count pending overrides. A refetch (Refresh, a save) re-reads the
+    // approval counts live (SKAI-1973); only the action-queue badge in the same response may be up to 60 s old.
     const controller = new AbortController();
     setCounts(null); setCountsFailed(false);
     fetch("/api/navigation/counts", { cache: "no-store", signal: controller.signal })
