@@ -19,6 +19,12 @@ export function fileMatchesAccept(file: { name: string; type: string }, accept: 
   return tokens.some(token => token.startsWith(".") ? name.endsWith(token) : token.endsWith("/*") ? type.startsWith(token.slice(0, -1)) : type === token);
 }
 
+/** SKAI-1980: the computer polls fast while pages arrive, then backs off to at most 5 s (and after a failed poll). */
+export const DROP_POLL_MIN_MS = 1500, DROP_POLL_MAX_MS = 5000;
+export function nextDropPollDelay(previous: number, gotNewItem: boolean): number {
+  return gotNewItem ? DROP_POLL_MIN_MS : Math.min(Math.max(previous, DROP_POLL_MIN_MS) * 2, DROP_POLL_MAX_MS);
+}
+
 /**
  * Scanner "document" look: greyscale with the darkest and lightest 2% stretched to black and white, so pencil
  * marks and faint photocopies read clearly. Returns a JPEG no larger than 2400px on its long side.

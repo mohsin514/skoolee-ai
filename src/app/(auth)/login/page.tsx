@@ -467,9 +467,10 @@ export default function LoginPage() {
     });
     const json = await res.json();
 
-    if (res.status === 429) {
-      // Honour the server's own Retry-After rather than guessing.
-      const retry = Number(res.headers.get("Retry-After")) || 60;
+    if (res.status === 429 || res.status === 503) {
+      // Honour the server's own Retry-After rather than guessing. A 503 (database busy, SKAI-1962) waits
+      // too, so a crowd of users re-submitting does not pile more sign-ins onto a struggling database.
+      const retry = Number(res.headers.get("Retry-After")) || (res.status === 503 ? 5 : 60);
       setCooldownTotal(retry);
       setCooldown(retry);
       throw new Error(json.error || en.tooMany);

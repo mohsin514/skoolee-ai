@@ -172,6 +172,37 @@ export function conversationListInclude(viewerId: string) {
 export type ConversationListRow = Prisma.ConversationGetPayload<{ include: ReturnType<typeof conversationListInclude> }>;
 
 /**
+ * SKAI-1981: per CLASS channel, how many active parent members currentMemberCount would drop (no live
+ * "communication" guardian link to the channel's class; every parent when the class is gone). One correlated query:
+ * a Prisma OR per channel re-evaluates the guardian predicate over the whole school once per channel (SKAI-1981, qa-big). The SQL mirrors
+ * liveGuardianRelationshipWhere(null, "communication", at, schoolId); keep the two in step. Only the shown count uses it.
+ */
+async function lapsedClassParentCounts(schoolId: string, conversationIds: string[], at: Date, db: TxClient): Promise<Array<{ conversationId: string; lapsed: number }>> {
+  // LATERAL ... LIMIT 1 keeps the check per member (an index lookup on the member's own links); a plain NOT EXISTS
+  // lets the planner build every live link in the school first.
+  return db.$queryRaw<Array<{ conversationId: string; lapsed: number }>>(Prisma.sql`
+    SELECT m.conversation_id AS "conversationId", COUNT(*)::int AS lapsed
+    FROM conversation_members m
+    JOIN users u ON u.id = m.user_id
+    JOIN conversations c ON c.id = m.conversation_id AND c.school_id = m.school_id
+    LEFT JOIN LATERAL (
+      SELECT 1 AS live FROM guardian_relationships r
+      JOIN students s ON s.id = r.student_id AND s.school_id = r.school_id
+      JOIN campuses k ON k.id = s.campus_id AND k.school_id = s.school_id
+      WHERE r.school_id = ${schoolId} AND r.guardian_user_id = m.user_id AND u.school_id = ${schoolId} AND s.class_id = c.class_id
+        AND r.status = 'ACTIVE' AND r.verified_at IS NOT NULL AND r.valid_from <= ${at}::timestamptz AND (r.valid_until IS NULL OR r.valid_until > ${at}::timestamptz)
+        AND s.archived_at IS NULL AND s.consolidated_into_id IS NULL AND s.status ILIKE 'active' AND k.archived_at IS NULL
+        AND EXISTS (SELECT 1 FROM guardian_access_versions v WHERE v.relationship_id = r.id AND v.school_id = r.school_id
+          AND v.effective_from <= ${at}::timestamptz AND (v.effective_until IS NULL OR v.effective_until > ${at}::timestamptz) AND v.permissions #> ARRAY['communication'] = 'true'::jsonb)
+        AND NOT EXISTS (SELECT 1 FROM guardian_access_versions v WHERE v.relationship_id = r.id AND v.school_id = r.school_id
+          AND v.effective_from <= ${at}::timestamptz AND (v.effective_until IS NULL OR v.effective_until > ${at}::timestamptz) AND v.permissions #> ARRAY['communication'] = 'false'::jsonb)
+      LIMIT 1) l ON true
+    WHERE m.school_id = ${schoolId} AND m.conversation_id IN (${Prisma.join(conversationIds)}) AND m.left_at IS NULL
+      AND u.is_active = true AND u.role = 'PARENT' AND l.live IS NULL
+    GROUP BY m.conversation_id`);
+}
+
+/**
  * The same decision as assertCurrentConversationAccess for a page of the inbox, with a fixed number of
  * queries instead of several per row. memberCount matches what the full row would report: active members
  * less parents whose class guardianship has lapsed.
@@ -179,23 +210,20 @@ export type ConversationListRow = Prisma.ConversationGetPayload<{ include: Retur
 export async function accessibleConversationList(user: AuthUser, loaded: ConversationListRow[], db: TxClient = prisma): Promise<Array<{ row: ConversationRow; memberCount: number }>> {
   const inScope = loaded.filter((row) => !outsideScope(user, row));
   const classRows = inScope.filter((row) => row.kind === "CLASS");
-  const classParents = classRows.length ? await db.conversationMember.findMany({
-    where: { schoolId: user.schoolId, conversationId: { in: classRows.map((row) => row.id) }, ...conversationInclude.members.where, user: { isActive: true, role: "PARENT" } },
-    select: { conversationId: true, userId: true },
+  const now = new Date();
+  const live = liveGuardianRelationshipWhere(null, "communication", now, user.schoolId);
+  // SKAI-1981: a CLASS row only ever carries the viewer's own membership, so only the viewer's own guardian link
+  // decides access; the parents dropped from memberCount are counted in the database, never loaded.
+  const parentClassRows = classRows.filter((row) => row.members.some((member) => member.userId === user.userId && member.user.role === "PARENT"));
+  const viewerClassIds = [...new Set(parentClassRows.flatMap((row) => row.classId ? [row.classId] : []))];
+  const viewerLinks = viewerClassIds.length ? await db.guardianRelationship.findMany({
+    where: { AND: [live, { guardianUserId: user.userId, student: { classId: { in: viewerClassIds } } }] },
+    select: { student: { select: { classId: true } } },
   }) : [];
-  const classIds = [...new Set(classRows.flatMap((row) => row.classId ? [row.classId] : []))];
-  const parentIds = [...new Set(classParents.map((member) => member.userId))];
-  const links = classIds.length && parentIds.length ? await db.guardianRelationship.findMany({
-    where: { AND: [liveGuardianRelationshipWhere(null, "communication", new Date(), user.schoolId), { guardianUserId: { in: parentIds }, student: { classId: { in: classIds } } }] },
-    select: { guardianUserId: true, student: { select: { classId: true } } },
-  }) : [];
-  const permitted = new Set(links.map((link) => `${link.student.classId}\u0000${link.guardianUserId}`));
-  const lapsed = new Map<string, Set<string>>();
-  const classRowById = new Map(classRows.map((row) => [row.id, row]));
-  for (const member of classParents) {
-    const row = classRowById.get(member.conversationId);
-    if (row && !(row.classId && permitted.has(`${row.classId}\u0000${member.userId}`))) lapsed.set(row.id, (lapsed.get(row.id) ?? new Set()).add(member.userId));
-  }
+  const viewerClasses = new Set(viewerLinks.flatMap((link) => link.student?.classId ? [link.student.classId] : []));
+  const viewerLapsed = new Set(parentClassRows.filter((row) => !(row.classId && viewerClasses.has(row.classId))).map((row) => row.id));
+  const lapsedGroups = classRows.length ? await lapsedClassParentCounts(user.schoolId, classRows.map((row) => row.id), now, db) : [];
+  const lapsedCount = new Map(lapsedGroups.map((group) => [group.conversationId, group.lapsed]));
 
   const directRows = inScope.filter((row) => row.kind === "DIRECT");
   const peerIds = [...new Set(directRows.flatMap((row) => row.members.filter((member) => member.userId !== user.userId).slice(0, 1).map((member) => member.userId)))];
@@ -205,16 +233,15 @@ export async function accessibleConversationList(user: AuthUser, loaded: Convers
   const relations = peers.length ? await prefetchChatRelations(user, peers, db) : undefined;
 
   const checked = await Promise.all(inScope.map(async (row) => {
-    const denied = lapsed.get(row.id);
     const { _count, ...rest } = row;
-    const current: ConversationRow = denied ? { ...rest, members: rest.members.filter((member) => !denied.has(member.userId)) } : rest;
-    if (!current.members.some((member) => member.userId === user.userId)) return null;
+    const current: ConversationRow = rest;
+    if (viewerLapsed.has(row.id) || !current.members.some((member) => member.userId === user.userId)) return null;
     if (row.kind === "DIRECT") {
       const other = current.members.find((member) => member.userId !== user.userId);
       const peer = other && peerById.get(other.userId);
       if (!peer || !settings || !(await canDirectMessage(user, peer, settings, db, relations)).allowed) return null;
     }
-    return { row: current, memberCount: _count.members - (denied?.size ?? 0) };
+    return { row: current, memberCount: _count.members - (lapsedCount.get(row.id) ?? 0) };
   }));
   return checked.filter((entry): entry is { row: ConversationRow; memberCount: number } => entry !== null);
 }
