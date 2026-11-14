@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { ruleRate } from "@/lib/attendance";
+import { rosterStatusWhere } from "@/lib/students/roster-status";
 import { attendanceRuleFor } from "@/lib/attendance/rule";
 import { dayKey, expectedDays, unmarkedPupilDays } from "@/lib/attendance/period-unmarked";
 
@@ -34,14 +35,15 @@ export async function GET(req: NextRequest) {
     endDate.setHours(23, 59, 59, 999);
 
     const [totalStudents, records, classCounts] = await Promise.all([
-      prisma.student.count({ where: { campusId, campus: { schoolId: user.schoolId } } }),
+      // SKAI-1926: on-roll pupils only, the same rule as the roster, home KPI and the monthly summary.
+      prisma.student.count({ where: { campusId, campus: { schoolId: user.schoolId }, ...rosterStatusWhere(false) } }),
       prisma.attendance.findMany({
         where: { campusId, date: { gte: startDate, lte: endDate } },
         select: { status: true, studentId: true, date: true, classId: true },
       }),
       prisma.class.findMany({
         where: { campusId, campus: { schoolId: user.schoolId } },
-        select: { id: true, name: true, section: true, _count: { select: { students: true } } },
+        select: { id: true, name: true, section: true, _count: { select: { students: { where: rosterStatusWhere(false) } } } },
         orderBy: [{ name: "asc" }, { section: "asc" }],
       }),
     ]);

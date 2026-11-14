@@ -13,6 +13,7 @@ import { createWorkspaceRecord, updateWorkspaceRecord } from "../../src/lib/scho
 import { previewSchoolAiExecution, executeSchoolAiTool, listSchoolAiExecutions } from "../../src/lib/school-ai/execution";
 import { getSchoolSetupOptions } from "../../src/lib/school-ai/school-setup-service";
 import type { SchoolSetupProposal, SchoolSetupPreview } from "../../src/lib/school-ai/school-setup";
+import { putAcademicYear } from "../support/academic-year";
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use isolated PG55438 only.");
 const db = new PrismaClient(), schoolIds: string[] = [];
@@ -23,7 +24,7 @@ async function fixture() {
   await db.campus.create({ data: { id: campusId, schoolId, name: "Academic campus", regId: campusId, city: "Test" } });
   await db.user.createMany({ data: [{ id: userId, schoolId, campusId, fullName: "Reviewer", email: `${userId}@example.invalid`, role: "CAMPUS_ADMIN" }, ...[oldTeacherId,newTeacherId].map((id,index) => ({ id, schoolId, campusId, fullName: index ? "New teacher" : "Existing teacher", email: `${id}@example.invalid`, role: "TEACHER" as const, isActive: true }))] });
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Grade 8", academicYear: 2026, teachingMode: "SINGLE", classTeacherId: oldTeacherId } });
-  const cycle = await db.academicCycle.create({ data: { schoolId, campusId, academicYear: 2026, label: "Academic 2026", status: "ACTIVE", startDate: new Date("2026-01-01Z"), endDate: new Date("2026-12-31Z") } });
+  const cycle = await putAcademicYear(db, { schoolId, campusId, academicYear: 2026, label: "Academic 2026", status: "ACTIVE", startDate: new Date("2026-01-01Z"), endDate: new Date("2026-12-31Z") });
   const user: AuthUser = { userId, schoolId, campusId, role: "CAMPUS_ADMIN", email: `${userId}@example.invalid`, accessVersion: 0 };
   return { schoolId, campusId, classId, cycle, oldTeacherId, newTeacherId, user };
 }
@@ -50,7 +51,7 @@ test("manual subject creation and reviewed creation cannot duplicate one normali
   const p = await plan(f,subjects(f)); const results = await Promise.allSettled([executeSchoolAiTool(f.user,p.record.id,p.request),asUser(f,() => createCampusSubjects(f.user,{ classId: f.classId, name: "mathematics", totalMarks:100 }))]); assert.equal(results.filter(row => row.status === "fulfilled").length,1); assert.equal(await db.subject.count({ where: { schoolId:f.schoolId }}),1);
 }));
 test("academic setup rejects inactive scope, foreign teachers and missing cycle bounds", () => school(async f => {
-  await db.academicCycle.update({ where: {id:f.cycle.id}, data:{status:"CLOSED"} }); await assert.rejects(() => plan(f,subjects(f)),{code:"SETUP_ACADEMIC_SCOPE"}); await db.academicCycle.update({where:{id:f.cycle.id},data:{status:"ACTIVE",startDate:null}}); await assert.rejects(() => plan(f,holiday()),{code:"SETUP_ACADEMIC_SCOPE"});
+  await db.academicCycle.update({ where: {id:f.cycle.id}, data:{status:"ENDED"} }); await assert.rejects(() => plan(f,subjects(f)),{code:"SETUP_ACADEMIC_SCOPE"}); await db.academicCycle.update({where:{id:f.cycle.id},data:{status:"ACTIVE",startDate:null}}); await assert.rejects(() => plan(f,holiday()),{code:"SETUP_ACADEMIC_SCOPE"});
   const b=await board(f); await db.user.update({where:{id:f.newTeacherId},data:{isActive:false}}); await assert.rejects(() => plan(f,allocation(f,b.subject.id)),{code:"SETUP_TEACHER_UNAVAILABLE"});
   const campusId=randomUUID(); await db.campus.create({data:{id:campusId,schoolId:f.schoolId,name:"Other",regId:campusId,city:"Test"}}); await db.user.update({where:{id:f.newTeacherId},data:{isActive:true,campusId}}); await assert.rejects(() => plan(f,allocation(f,b.subject.id)),{code:"SETUP_TEACHER_UNAVAILABLE"});
 }));

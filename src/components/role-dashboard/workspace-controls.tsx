@@ -8,6 +8,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { Modal } from "@/components/ui/modal";
 import { useShellSession } from "@/components/role-dashboard/ScopeBadge";
 import { workspacePrefKey } from "@/lib/ui/workspace-pref-storage";
+import { shouldShowBackToTop } from "@/components/role-dashboard/back-to-top";
 
 export type Density = "comfortable" | "compact";
 
@@ -121,7 +122,8 @@ export function ShortcutSheet({ onClose }: { onClose: () => void }) {
 
 /**
  * Watches whichever area inside the workspace scrolls (consoles own their scroll areas): the header slims while
- * reading downwards and returns on the way back up, and a Back to top button appears once you are well down a page.
+ * reading downwards and returns on the way back up, and a Back to top button appears once you are well down a page,
+ * standing aside again at the very end so it never covers the last controls there.
  */
 export function useWorkspaceScroll(ref: RefObject<HTMLElement | null>) {
   const [compactHeader, setCompactHeader] = useState(false);
@@ -139,7 +141,7 @@ export function useWorkspaceScroll(ref: RefObject<HTMLElement | null>) {
       if (top < 48) setCompactHeader(false);
       else if (top - previous > 6) setCompactHeader(true);
       else if (previous - top > 6) setCompactHeader(false);
-      setTarget(top > 640 ? el : null);
+      setTarget(shouldShowBackToTop(el) ? el : null);
     };
     root.addEventListener("scroll", onScroll, { capture: true, passive: true });
     return () => root.removeEventListener("scroll", onScroll, { capture: true });

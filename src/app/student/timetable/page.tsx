@@ -5,7 +5,7 @@ import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/
 import { ErrorState } from "@/components/ui/error-state";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Calendar, Clock } from "lucide-react";
+import { Calendar, Clock, GraduationCap } from "lucide-react";
 import { StudentPage } from "@/components/student/student-page";
 import { TimetableReadOnly } from "@/components/timetable/TimetablePanel";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
@@ -31,6 +31,7 @@ interface ClassTimetableData {
 export default function StudentTimetablePage() {
   const ui = useUiText();
   const [data, setData] = useState<ClassTimetableData | null>(null);
+  const [unlinked, setUnlinked] = useState(false);
   const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<RequestFailure | null>(null);
@@ -49,10 +50,13 @@ export default function StudentTimetablePage() {
       if (version !== loadSequence.current) return;
       if ((json.data !== null && !Array.isArray(json.data?.slots)) || !Array.isArray(calJson.data?.weekends)) throw new RequestFailure("server");
       setData(json.data);
+      // SKAI-1936: no student record is linked to this account yet (the same state Today shows).
+      setUnlinked(json.linked === false);
       setWeekendDays(calJson.data.weekends);
     } catch (err) {
       if (version !== loadSequence.current) return;
       setData(null);
+      setUnlinked(false);
       setWeekendDays([]);
       setError(requestFailure(err));
     } finally {
@@ -75,6 +79,13 @@ export default function StudentTimetablePage() {
       <div className="space-y-3">
         {data ? (
           <TimetableReadOnly slots={data.slots} weekendDays={weekendDays} />
+        ) : unlinked ? (
+          <EmptyState
+            icon={GraduationCap}
+            className="sk-panel"
+            title={ui("Academic profile not linked yet")}
+            description={ui("The account is active, but no central student record is linked to it yet. Ask the school office to link it.")}
+          />
         ) : (
           <EmptyState
             icon={Calendar}

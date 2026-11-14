@@ -68,6 +68,15 @@ export function roleLabel(role: unknown, language: "en" | "ar" | "ur" = "en"): s
 }
 
 /**
+ * SKAI-1943: platform-wide lists (the owner console's role filter, user rows and "Accounts by role" chart) show
+ * ADMIN and CAMPUS_ADMIN side by side, and in English both read "Campus Admin". There ADMIN reads "School Admin",
+ * as it already does in Arabic and Urdu; every other role and language keeps roleLabel().
+ */
+export function platformRoleLabel(role: unknown, language: "en" | "ar" | "ur" = "en"): string {
+  return role === "ADMIN" && language === "en" ? "School Admin" : roleLabel(role, language);
+}
+
+/**
  * Mode-aware role label (§1.5). The same ADMIN role reads "School admin" in a standalone school (one person, both
  * hats) and "Campus admin" in a school group; SUPER_ADMIN is the "Group admin". Returned in English by default —
  * clients translate it through the UI dictionary (role-ux p1 messages) so a language switch needs no refetch.

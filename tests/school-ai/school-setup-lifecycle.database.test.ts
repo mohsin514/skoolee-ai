@@ -8,6 +8,7 @@ import { createWorkspaceRecord, updateWorkspaceRecord } from "../../src/lib/scho
 import { previewSchoolAiExecution, executeSchoolAiTool, listSchoolAiExecutions } from "../../src/lib/school-ai/execution";
 
 import type { SchoolSetupProposal, SchoolSetupPreview } from "../../src/lib/school-ai/school-setup";
+import { putAcademicYear } from "../support/academic-year";
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use isolated PG55438 only.");
 const db = new PrismaClient(), schoolIds: string[] = [];
@@ -18,7 +19,7 @@ async function fixture() {
   await db.campus.create({ data: { id: campusId, schoolId, name: "Setup campus", regId: campusId, city: "Test" } });
   await db.user.create({ data: { id: userId, schoolId, campusId, fullName: "Setup reviewer", email: `${userId}@example.invalid`, role: "CAMPUS_ADMIN", canManageMemberships: true } });
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Grade 8", academicYear: 2026 } });
-  await db.academicCycle.create({ data: { schoolId, campusId, academicYear: 2026, label: "2026", status: "ACTIVE", startDate: new Date("2026-01-01Z"), endDate: new Date("2026-12-31Z") } });
+  await putAcademicYear(db, { schoolId, campusId, academicYear: 2026, label: "2026", status: "ACTIVE", startDate: new Date("2026-01-01Z"), endDate: new Date("2026-12-31Z") });
   await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Synthetic learner", rollNo: "1", gender: "OTHER", enrollmentDate: new Date("2026-01-01Z") } });
   const user: AuthUser = { userId, schoolId, campusId, role: "CAMPUS_ADMIN", email: `${userId}@example.invalid`, accessVersion: 0 };
   return { schoolId, campusId, classId, studentId, user };

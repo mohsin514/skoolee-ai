@@ -55,3 +55,16 @@ test("SKAI-1926: the year list and both platform-owner school views count on-rol
     assert.doesNotMatch(source, /_count: \{ select: \{ students: true/, path);
   }
 });
+
+test("SKAI-1926: the platform overview total and its Roll by school chart count on-roll pupils only", () => {
+  const source = readFileSync("src/app/api/owner/stats/route.ts", "utf8");
+  assert.match(source, /prisma\.student\.count\(\{ where: rosterStatusWhere\(false\) \}\)/);
+  assert.match(source, /prisma\.student\.groupBy\(\{ by: \["schoolId"\], where: rosterStatusWhere\(false\), _count: true \}\)/);
+  assert.doesNotMatch(source, /prisma\.student\.count\(\)/);
+});
+
+test("SKAI-1926: the admin Attendance Today/Week/Month summary counts on-roll pupils only", () => {
+  const source = readFileSync("src/app/api/attendance/school-summary/route.ts", "utf8");
+  assert.match(source, /prisma\.student\.count\(\{ where: \{ campusId, campus: \{ schoolId: user\.schoolId \}, \.\.\.rosterStatusWhere\(false\) \} \}\)/);
+  assert.match(source, /_count: \{ select: \{ students: \{ where: rosterStatusWhere\(false\) \} \} \}/);
+});

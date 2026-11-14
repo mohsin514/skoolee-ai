@@ -27,15 +27,18 @@ export function MyNextPaper({ source, examHref }: { source: string; examHref?: (
   const { language } = useLocale();
   const [timeline, setTimeline] = useState<Timeline | null>(null);
   const [failed, setFailed] = useState<RequestFailure | null>(null);
+  const [unlinked, setUnlinked] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [offset, setOffset] = useState(0);
   const [tick, setTick] = useState(() => Date.now());
   useEffect(() => {
     let live = true;
-    setTimeline(null); setFailed(null);
+    setTimeline(null); setFailed(null); setUnlinked(false);
     void readRequest(source).then(async response => {
       const payload = await checkedJson(response, { envelope: false });
       if (!live) return;
+      // SKAI-1936: no student record is linked yet; the page already shows the not-linked state, so this panel stays out.
+      if (payload.linked === false && payload.timeline === null) { setUnlinked(true); return; }
       if (!payload.timeline || !Array.isArray(payload.timeline.upcoming) || !Array.isArray(payload.timeline.past) || !Number.isFinite(Date.parse(payload.timeline.now))) throw new RequestFailure("server");
       setOffset(new Date(payload.timeline.now).getTime() - Date.now());
       setTimeline(payload.timeline);
@@ -43,6 +46,7 @@ export function MyNextPaper({ source, examHref }: { source: string; examHref?: (
     return () => { live = false; };
   }, [source, attempt]);
   useEffect(() => { const id = window.setInterval(() => setTick(Date.now()), 30_000); return () => window.clearInterval(id); }, []);
+  if (unlinked) return null;
   if (failed) return <section className="sk-panel" data-my-next-paper><ErrorState error={failed} onRetry={() => setAttempt(value => value + 1)} /></section>;
   if (!timeline) return <section className="sk-panel p-4" data-my-next-paper><SkeletonList rows={2} label={ui("My next paper")} /></section>;
   const zone = timeline.timeZone;

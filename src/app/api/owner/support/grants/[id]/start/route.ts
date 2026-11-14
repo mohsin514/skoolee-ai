@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const actor = await requirePlatformOwner();
-    if (actor.mfaVerified !== true) throw new ApiError("Privileged MFA is required", 403);
+    if (actor.mfaVerified !== true) throw new ApiError("Turn on two-step sign-in before you start support access.", 403, "MFA_REQUIRED");
     const { id } = await context.params;
     const grant = await prisma.supportGrant.findUnique({ where: { id } });
     if (!grant || grant.requestedById !== actor.userId) throw new ApiError("Support request not found", 404);

@@ -112,6 +112,15 @@ test("the campus summary matches the row-by-row arithmetic without loading the r
   assert.deepEqual(lookup.args.where, { id: { in: ["legacy"] }, campus: { schoolId: "school-a" } });
 });
 
+test("SKAI-1926: each class counts its on-roll pupils only, inside the school and campus", async () => {
+  calls.length = 0;
+  await get();
+  const { rosterStatusWhere } = await import("../../src/lib/students/roster-status");
+  const classes = calls.find((c) => c.op === "class.findMany")!;
+  assert.deepEqual(classes.args.where, { campusId: "campus-a", campus: { schoolId: "school-a" } });
+  assert.deepEqual(classes.args.select._count, { select: { students: { where: rosterStatusWhere(false) } } });
+});
+
 test("a teacher without a class and a role that cannot mark attendance are refused", async () => {
   role = "TEACHER";
   assert.equal((await get()).status, 400);
