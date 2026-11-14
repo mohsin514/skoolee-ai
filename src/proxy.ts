@@ -17,6 +17,8 @@ import { JWT_SECRET } from "@/lib/auth/secret";
 import { buildCsp } from "@/lib/security/csp-policy";
 import { requiredOnboardingPath } from "@/lib/onboarding/launch-plan";
 import { allowedDuringCandidateExam, candidateExamUrl, isPublicStaticFileRequest } from "@/lib/school-ai/exam-boundary";
+import { examUnavailableHeaders, examUnavailablePage, wantsExamUnavailablePage } from "@/lib/school-ai/exam-boundary-unavailable";
+import { LANGUAGE_COOKIE } from "@/lib/locale/language-cookie";
 // The cookie helper stays dependency-free. The active candidate boundary below
 // is the explicit, narrow exception that reads authoritative database state.
 import {
@@ -163,7 +165,10 @@ async function proxyImpl(req: NextRequest, nonce: string) {
         // and never sign the learner out for it either (SKAI-1063): this is "retry",
         // the cookie stays. Logged so a persistent failure is visible in the platform logs.
         console.error("[proxy] candidate exam boundary unavailable", error);
-        return NextResponse.json({ error: "Exam session status is unavailable. Retry to continue safely.", code: "EXAM_SESSION_UNAVAILABLE" }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+        // SKAI-1962: Retry-After so clients back off, and a document navigation gets a retry page, not raw JSON.
+        const headers = examUnavailableHeaders(error);
+        if (wantsExamUnavailablePage(normalizedPath, req.method)) return new NextResponse(req.method === "HEAD" ? null : examUnavailablePage(req.cookies.get(LANGUAGE_COOKIE)?.value), { status: 503, headers: { ...headers, "Content-Type": "text/html; charset=utf-8" } });
+        return NextResponse.json({ error: "Exam session status is unavailable. Retry to continue safely.", code: "EXAM_SESSION_UNAVAILABLE" }, { status: 503, headers });
       }
     }
   }
