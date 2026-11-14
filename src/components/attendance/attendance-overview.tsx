@@ -1,5 +1,6 @@
 "use client";
 import { InputGroup } from "@/components/ui/input-group";
+import { readApiData } from "@/lib/api/envelope-client";
 
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -372,7 +373,8 @@ export function AttendanceOverview({ campusId, exportRequest }: AttendanceOvervi
         if (campusId) qs.set("campusId", campusId);
         const res = await fetch(`/api/attendance/school-summary?${qs}`);
         if (!res.ok) throw new Error("Failed to load summary");
-        const data: SummaryData = await res.json();
+        const data = readApiData<SummaryData | null>(await res.json(), null);
+        if (!data) throw new Error("Failed to load summary");
         setSummaryData(data);
       } catch {
         setSummaryData(null);
@@ -393,7 +395,8 @@ export function AttendanceOverview({ campusId, exportRequest }: AttendanceOvervi
         if (campusId) qs.set("campusId", campusId);
         const res = await fetch(`/api/attendance/monthly?${qs}`);
         if (!res.ok) throw new Error("Failed to load monthly data");
-        const data: MonthlyData = await res.json();
+        const data = readApiData<MonthlyData | null>(await res.json(), null);
+        if (!data) throw new Error("Failed to load monthly data");
         setMonthlyData(data);
       } catch {
         setMonthlyData(null);
@@ -414,7 +417,8 @@ export function AttendanceOverview({ campusId, exportRequest }: AttendanceOvervi
         if (campusId) qs.set("campusId", campusId);
         const res = await fetch(`/api/attendance/monthly?${qs}`);
         if (!res.ok) throw new Error("Failed to load class detail");
-        const data: ClassDetailData = await res.json();
+        const data = readApiData<ClassDetailData | null>(await res.json(), null);
+        if (!data) throw new Error("Failed to load class detail");
         setClassDetail(data);
       } catch {
         setClassDetail(null);

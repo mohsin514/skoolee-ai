@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { readApiData, readApiError } from "@/lib/api/envelope-client";
 import { Award, CalendarCheck, ChevronLeft, ChevronRight, Clock, Search, Users, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { localToday, shiftDateOnly } from "@/lib/date-only";
@@ -131,9 +132,10 @@ function TeacherCheckIns() {
     try {
       const res = await fetch(`/api/teacher-attendance?date=${teacherDate}`);
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error);
-      setRoster(Array.isArray(json.data) ? json.data : []);
-      setSummary(json.summary || EMPTY_SUMMARY);
+      const body = readApiData<{ items?: typeof roster; summary?: typeof summary } | null>(json, null);
+      if (!res.ok || !body) throw new Error(readApiError(json));
+      setRoster(Array.isArray(body.items) ? body.items : []);
+      setSummary(body.summary || EMPTY_SUMMARY);
     } catch {
       setRosterError(true);
     } finally {
@@ -147,8 +149,9 @@ function TeacherCheckIns() {
     try {
       const res = await fetch(`/api/teacher-attendance?month=${teacherSelectedMonth}`);
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error);
-      setMonthly(json.success && Array.isArray(json.data) ? json.data : []);
+      if (!res.ok) throw new Error(readApiError(json));
+      const items = readApiData<{ items?: typeof monthly } | null>(json, null)?.items;
+      setMonthly(Array.isArray(items) ? items : []);
     } catch {
       setMonthlyError(true);
       setMonthly([]);

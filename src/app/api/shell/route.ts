@@ -11,6 +11,7 @@ import { GET as navigationCounts } from "../navigation/counts/route";
 import { GET as academicCycle } from "../academic-cycle/route";
 import { GET as aiQuestionnaire } from "../ai-workflows/questionnaire/route";
 import { SHELL_BATCH_MAX, SHELL_BATCH_PATHS } from "@/lib/network/shell-batch-paths";
+import { respondShellBatch, type ShellResult } from "@/lib/network/shell-batch-respond";
 
 /**
  * SKAI-1949: the workspace shell's read requests, answered in ONE function invocation.
@@ -25,6 +26,8 @@ import { SHELL_BATCH_MAX, SHELL_BATCH_PATHS } from "@/lib/network/shell-batch-pa
  * the paths below are accepted. This route sits behind the proxy like any API: when the proxy would refuse the batch
  * (signed out, forced password change, suspended school, exam lockdown), the browser falls back to individual
  * requests, so every per-path proxy rule still applies.
+ *
+ * SKAI-1975: a repeated path runs once, and with `f=ndjson` each result is streamed as soon as its handler settles.
  */
 type Handler = (request: NextRequest) => Promise<Response> | Response;
 
@@ -63,8 +66,8 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "A path is not batchable." }, { status: 400, headers: { "Cache-Control": "private, no-store" } });
   }
 
-  const results = await Promise.all(targets.map(async (target) => {
-    const { url, handler } = target!;
+  const run = async (index: number): Promise<ShellResult> => {
+    const { url, handler } = targets[index]!;
     try {
       const response = await handler(new NextRequest(url, { headers: request.headers }));
       const headers: Record<string, string> = {};
@@ -77,7 +80,8 @@ export async function GET(request: NextRequest) {
       console.error("[api/shell] handler failed", { path: url.pathname, error: error instanceof Error ? error.name : typeof error });
       return { s: 500, h: { "content-type": "application/json" }, b: JSON.stringify({ error: "Request failed" }) };
     }
-  }));
+  };
 
-  return Response.json({ r: results }, { headers: { "Cache-Control": "private, no-store" } });
+  const keys = targets.map((target) => target!.url.pathname + target!.url.search);
+  return respondShellBatch(keys, run, request.nextUrl.searchParams.get("f") === "ndjson");
 }
