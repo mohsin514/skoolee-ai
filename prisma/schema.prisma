@@ -2523,6 +2523,8 @@ model Mark {
   @@index([subjectId])
   @@index([enteredBy])
   @@index([schoolId, campusId])
+  // SKAI-1964: covers the principal dashboard's campus mark average as an index-only scan.
+  @@index([schoolId, campusId, marksObtained])
   @@map("marks")
 }
 

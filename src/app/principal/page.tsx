@@ -391,9 +391,10 @@ function PrincipalWorkspace({
 
   // §4.4b principal · Classes & subjects: Export (secondary) — one row per section with its staffing gaps.
   const exportClasses = () => {
+    // SKAI-1964: the payload no longer nests each class's roster; `_count.students` is the on-roll size the panel shows.
     const rows = (data?.classes ?? []).map((c: any) => {
       const subjects: any[] = c.subjects ?? [];
-      return [c.name ?? "", c.section ?? "", String(c.academicYear ?? ""), c.classTeacher?.fullName ?? "", String(subjects.length), String(subjects.filter((s) => !s.teacher && !s.teacherId).length), String((c.students ?? []).length)];
+      return [c.name ?? "", c.section ?? "", String(c.academicYear ?? ""), c.classTeacher?.fullName ?? "", String(subjects.length), String(subjects.filter((s) => !s.teacher && !s.teacherId).length), String(c._count?.students ?? 0)];
     });
     downloadCSV(`classes-${data?.campusName ?? "campus"}.csv`, [[ui("Class"), ui("Section"), ui("Academic year"), ui("Class teacher"), ui("Subjects"), ui("Subjects without a teacher"), ui("Students")], ...rows]);
   };
