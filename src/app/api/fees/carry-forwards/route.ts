@@ -1,6 +1,7 @@
 import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { campusScope } from "@/lib/auth/policy";
 import { CURRENCIES } from "@/lib/locale/package";
+import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
@@ -14,6 +15,9 @@ import { requiredIdBody } from "@/lib/validators/route-bodies";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // SKAI-377 AC3: carry-forward balances are finance data; only finance seats may read them.
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    const scope = campusScope(user);
     const { searchParams } = new URL(req.url);
     const studentId = searchParams.get("studentId");
     const academicYear = searchParams.get("academicYear");
@@ -22,7 +26,7 @@ export async function GET(req: NextRequest) {
       where: {
         ...(studentId ? { studentId } : {}),
         ...(academicYear ? { toAcademicYear: Number(academicYear) } : {}),
-        student: { campus: { schoolId: user.schoolId } },
+        student: { campus: { schoolId: user.schoolId }, ...(scope.campusId ? { campusId: scope.campusId } : {}) },
       },
       include: { student: { select: { id: true, fullName: true, rollNo: true } } },
       orderBy: [{ toAcademicYear: "desc" }],
@@ -43,8 +47,6 @@ export async function POST(req: NextRequest) {
     const fromAcademicYear = Number(body.fromAcademicYear ?? new Date().getFullYear());
     const toAcademicYear = Number(body.toAcademicYear ?? fromAcademicYear + 1);
     const balance = Number(body.balance);
-    const currency = body.currency || "PKR";
-    if (!CURRENCIES.includes(currency)) throw new ApiError("Invalid currency", 400);
 
     if (!Number.isInteger(fromAcademicYear) || !Number.isInteger(toAcademicYear) || toAcademicYear <= fromAcademicYear) {
       throw new ApiError("invalid academic years", 400);
@@ -56,6 +58,9 @@ export async function POST(req: NextRequest) {
       select: { id: true, campusId: true },
     });
     if (!student) throw new ApiError("Student not found", 404);
+    // SKAI-377: default to the student's campus currency, not a hard-coded PKR.
+    const currency = body.currency || (await getLocalePackage(user.schoolId, student.campusId)).currency;
+    if (!CURRENCIES.includes(currency)) throw new ApiError("Invalid currency", 400);
 
     const existing = await prisma.feeCarryForward.findUnique({
       where: { studentId_toAcademicYear: { studentId: body.studentId, toAcademicYear } },
