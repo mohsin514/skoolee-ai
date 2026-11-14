@@ -1,20 +1,25 @@
 import { requireAutomaticUser } from "@/lib/ai-workflows/auth";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
-import { readBoundedJson } from "@/lib/school-ai/http";
 import { workflowErrorResponse, workflowJson } from "@/lib/ai-workflows/http";
-import { advanceJob, getJob } from "@/lib/ai-workflows/jobs/job-service";
-import { startQuestionnaireJob } from "@/lib/ai-workflows/jobs/questionnaire";
-import { toRunView } from "@/lib/ai-workflows/view";
-import { setupStatus } from "@/lib/ai-workflows/questionnaire/service";
+import { setupStatus } from "@/lib/ai-workflows/questionnaire/status";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+
+// SKAI-1977: GET is the first-login status read on every landing page, so this module statically loads
+// only the lean status path. POST pulls the job runtime (registry, planner, OpenAI SDK) on demand.
 
 /** Start (or reopen) the AI Workflows job for a confirmed campus questionnaire version. */
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const user = await requireAutomaticUser();
+    const [{ readBoundedJson }, { advanceJob, getJob }, { startQuestionnaireJob }, { toRunView }] = await Promise.all([
+      import("@/lib/school-ai/http"),
+      import("@/lib/ai-workflows/jobs/job-service"),
+      import("@/lib/ai-workflows/jobs/questionnaire"),
+      import("@/lib/ai-workflows/view"),
+    ]);
     const job = await startQuestionnaireJob(user, await readBoundedJson(request, 4_000));
     if (job.status === "PLANNING") await advanceJob(user, job.id).catch(() => undefined);
     return workflowJson({ run: toRunView(await getJob(user, job.id)) });
