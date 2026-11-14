@@ -13,6 +13,7 @@ import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { CheckCheck, ClipboardCheck, Eye, FileDown, FileText, Send, ShieldAlert, Upload } from "lucide-react";
 import { DeskPill, DeskStats, StatTile, deskRow } from "@/components/ui/desk";
 import { cn } from "@/lib/utils";
+import { BULK_REQUEST_CONCURRENCY, requestLimiter } from "@/lib/http/request-pool";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
@@ -147,6 +148,8 @@ type PipelineProps = {
    */
   deferUntilVisible?: boolean;
 };
+/** SKAI-1961: a page of many pipelines (the principal's Report cards) loads at most this many exams at once. */
+const reportLoads = requestLimiter(BULK_REQUEST_CONCURRENCY);
 export type ReportSelectionState = { examId: string; selected: number; canApprove: boolean; reason: string | null };
 type Pending = "publish" | "send" | null;
 export function ReportCardPipeline({ deferUntilVisible = false, ...props }: PipelineProps) {
@@ -221,8 +224,10 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
     try {
       const q = new URLSearchParams({ examId: exam.id });
       if (campusId) q.set("campusId", campusId);
-      const r = await fetch(`/api/reports?${q}`, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]) });
-      const d = await r.json();
+      const { r, d } = await reportLoads(async () => {
+        const r = await fetch(`/api/reports?${q}`, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]) });
+        return { r, d: await r.json() };
+      }, controller.signal);
       if (!alive.current || request.current !== controller || controller.signal.aborted) return;
       if (r.status === 409) {
         setReopened(true);
