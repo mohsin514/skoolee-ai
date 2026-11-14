@@ -116,8 +116,10 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // Ignore build-time errors for BullMQ / ioredis (server-only)
-  serverExternalPackages: ["bullmq", "ioredis"],
+  // Ignore build-time errors for BullMQ / ioredis (server-only).
+  // bcryptjs stays a plain node_modules package so the password-hash worker
+  // (SKAI-1972) can require it at runtime and output tracing ships it.
+  serverExternalPackages: ["bullmq", "ioredis", "bcryptjs"],
 };
 
 export default nextConfig;

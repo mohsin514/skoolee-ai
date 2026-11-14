@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import type bcrypt from "bcryptjs";
 import type { Prisma, User } from "@prisma/client";
 import type { prisma } from "@/lib/db/prisma";
 import {
@@ -28,7 +27,7 @@ import type { ChangeGrant, MfaChangeMode } from "@/lib/auth/mfa-change-grant";
  * - mandatory roles can't turn 2FA off (same `requiresMfa` as login/principal).
  */
 type Db = Pick<typeof prisma, "user" | "loginSession" | "auditLog" | "$transaction">;
-export type MfaManageDeps = { db: Db; now: () => Date; compare: typeof bcrypt.compare };
+export type MfaManageDeps = { db: Db; now: () => Date; compare: (password: string, hash: string) => Promise<boolean> };
 export type ReauthInput = { password: string; code?: string; recovery?: boolean };
 export type MfaStatus = {
   enabled: boolean;

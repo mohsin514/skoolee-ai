@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import bcrypt from "bcryptjs";
+import { hashPassword, verifyPassword } from "@/lib/auth/password-hash";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -30,12 +30,12 @@ export async function PUT(req: NextRequest) {
       throw new ApiError("Cannot change password for this account", 400);
     }
 
-    const valid = await bcrypt.compare(currentPassword, dbUser.password);
+    const valid = await verifyPassword(currentPassword, dbUser.password);
     if (!valid) {
       throw new ApiError("Current password is incorrect", 403);
     }
 
-    const sameAsCurrent = await bcrypt.compare(newPassword, dbUser.password);
+    const sameAsCurrent = await verifyPassword(newPassword, dbUser.password);
     if (sameAsCurrent) {
       throw new ApiError("New password must be different from current password", 400);
     }
@@ -48,13 +48,13 @@ export async function PUT(req: NextRequest) {
     });
 
     for (const entry of recentPasswords) {
-      const matches = await bcrypt.compare(newPassword, entry.oldPasswordHash);
+      const matches = await verifyPassword(newPassword, entry.oldPasswordHash);
       if (matches) {
         throw new ApiError("Cannot reuse one of the last 5 passwords", 400);
       }
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
+    const hashedPassword = await hashPassword(newPassword, 12);
 
     await prisma.$transaction([
       prisma.loginSession.updateMany({ where: { userId: user.userId }, data: { isActive: false, logoutAt: new Date() } }),

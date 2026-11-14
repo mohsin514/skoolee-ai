@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { createHash, randomBytes } from "crypto";
 import { sendPasswordResetEmail } from "@/lib/email";
-import bcrypt from "bcryptjs";
+import { hashPassword, verifyPassword } from "@/lib/auth/password-hash";
 import { authRateLimit } from "@/lib/auth/rate-limit";
 import { headers } from "next/headers";
 import { runUnscoped } from "@/lib/db/tenant-context";
@@ -58,7 +58,7 @@ export async function resetPassword(token: string, newPassword: string): Promise
     // SKAI-1318: a reset must not reuse the current password or any of the last five, the same rule as change-password.
     const userId = request.userId;
     const current = await prisma.user.findUnique({ where: { id: userId }, select: { password: true } });
-    if (current?.password && await bcrypt.compare(newPassword, current.password)) {
+    if (current?.password && await verifyPassword(newPassword, current.password)) {
       return { success: false, error: "New password must be different from current password" };
     }
     const recentPasswords = await prisma.passwordHistory.findMany({
@@ -68,11 +68,11 @@ export async function resetPassword(token: string, newPassword: string): Promise
       select: { oldPasswordHash: true },
     });
     for (const entry of recentPasswords) {
-      if (await bcrypt.compare(newPassword, entry.oldPasswordHash)) {
+      if (await verifyPassword(newPassword, entry.oldPasswordHash)) {
         return { success: false, error: "Cannot reuse one of the last 5 passwords" };
       }
     }
-    const password = await bcrypt.hash(newPassword, 12);
+    const password = await hashPassword(newPassword, 12);
     const claimed = await prisma.$transaction(async tx => {
       const claim = await tx.passwordReset.deleteMany({ where: { token: hashed, expiresAt: { gt: new Date() } } });
       if (claim.count !== 1) return false;

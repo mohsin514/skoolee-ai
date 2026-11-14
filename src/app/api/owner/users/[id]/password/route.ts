@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import bcrypt from "bcryptjs";
+import { hashPassword, verifyPassword } from "@/lib/auth/password-hash";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { logSuperAdminAction } from "@/lib/audit";
 import { parseBody } from "@/lib/api/validate";
@@ -30,7 +30,7 @@ export async function PUT(
 
     if (!targetUser) throw new ApiError("User not found", 404);
 
-    if (targetUser.password && await bcrypt.compare(newPassword, targetUser.password)) {
+    if (targetUser.password && await verifyPassword(newPassword, targetUser.password)) {
       throw new ApiError("New password must be different from current password", 400);
     }
 
@@ -42,13 +42,13 @@ export async function PUT(
     });
 
     for (const entry of recentPasswords) {
-      const matches = await bcrypt.compare(newPassword, entry.oldPasswordHash);
+      const matches = await verifyPassword(newPassword, entry.oldPasswordHash);
       if (matches) {
         throw new ApiError("Cannot reuse one of the last 5 passwords", 400);
       }
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
+    const hashedPassword = await hashPassword(newPassword, 12);
 
     await prisma.$transaction([
       prisma.loginSession.updateMany({
