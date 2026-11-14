@@ -13,6 +13,7 @@ import { consumeAICreditAndLog } from "../../src/lib/ai/openai";
 import { getPlanLimits } from "../../src/config/plans";
 import { beginSchoolAiRequest, completeSchoolAiRequest, failSchoolAiRequest } from "../../src/lib/school-ai/requests";
 import type { AcademicSetupProposal } from "../../src/lib/school-ai/academic-setup";
+import { putAcademicYear } from "../support/academic-year";
 
 // Fail before any connection: these tests must never use the application's configured school database.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
@@ -38,7 +39,7 @@ before(async () => {
   await raw.subject.create({ data: { id: anotherSubjectId, schoolId, campusId, classId, name: "Science", teacherId: otherTeacher.userId } });
   await raw.rolePermission.create({ data: { schoolId, role: "ACCOUNTANT", module: "ai", canView: true, canAdd: true, canEdit: false, canDelete: false } });
   await raw.rolePermission.create({ data: { schoolId, role: "ACCOUNTANT", module: "fees", canView: false, canAdd: false, canEdit: false, canDelete: false } });
-  await raw.academicCycle.create({ data: { schoolId, campusId, label: "Synthetic 2026", academicYear: 2026, status: "ACTIVE", startDate: new Date("2026-08-01"), endDate: new Date("2027-06-30") } });
+  await putAcademicYear(raw, { schoolId, campusId, label: "Synthetic 2026", academicYear: 2026, status: "ACTIVE", startDate: new Date("2026-08-01"), endDate: new Date("2027-06-30") });
 });
 after(async () => {
   await raw.schoolAiExecution.deleteMany({ where: { schoolId: { in: [schoolId, foreignSchoolId] } } });
@@ -532,7 +533,7 @@ test("reviewed academic setup creates a real draft cycle and classes with one re
 test("academic setup preserves an existing active cycle, class assignment and teaching mode", async () => {
   const fixture = await setupFixture();
   const proposal = setupProposal();
-  const cycle = await raw.academicCycle.create({ data: { schoolId, campusId: fixture.campusId, academicYear: proposal.academicYear, label: proposal.label, startDate: new Date(proposal.startDate!), endDate: new Date(proposal.endDate!), status: "ACTIVE" } });
+  const cycle = await putAcademicYear(raw, { schoolId, campusId: fixture.campusId, academicYear: proposal.academicYear, label: proposal.label, startDate: new Date(proposal.startDate!), endDate: new Date(proposal.endDate!), status: "ACTIVE" });
   const teacherId = randomUUID();
   await raw.user.create({ data: { id: teacherId, schoolId, campusId: fixture.campusId, email: `${teacherId}@example.invalid`, role: "TEACHER", fullName: "Synthetic existing teacher" } });
   const existing = await raw.class.create({ data: { schoolId, campusId: fixture.campusId, academicYear: proposal.academicYear, name: "Grade 4", section: "A", teachingMode: "SINGLE", classTeacherId: teacherId } });
@@ -551,7 +552,7 @@ test("academic setup preserves an existing active cycle, class assignment and te
 
 test("academic setup respects active and unclosed prior cycle guards without lifecycle changes", async () => {
   const fixture = await setupFixture();
-  const prior = await raw.academicCycle.create({ data: { schoolId, campusId: fixture.campusId, academicYear: 2026, label: "Unfinished synthetic year", status: "ACTIVE" } });
+  const prior = await putAcademicYear(raw, { schoolId, campusId: fixture.campusId, academicYear: 2026, label: "Unfinished synthetic year", status: "ACTIVE" });
   const record = await approvedSetup(fixture.user);
   await assert.rejects(() => previewSchoolAiExecution(fixture.user, record.id, "academics.setup_year", record.version), { status: 409, code: "ACTIVE_CYCLE_CONFLICT" });
   await raw.academicCycle.update({ where: { id: prior.id }, data: { status: "PAUSED" } });
@@ -574,10 +575,12 @@ test("academic setup rejects invalid dates, duplicate normalized class identitie
 test("academic setup refuses conflicting cycle details, ambiguous classes and archived or changed modes", async () => {
   const fixture = await setupFixture();
   const record = await approvedSetup(fixture.user);
-  const cycle = await raw.academicCycle.create({ data: { schoolId, campusId: fixture.campusId, academicYear: 2027, label: "Different existing label", status: "DRAFT" } });
+  const cycle = await putAcademicYear(raw, { schoolId, campusId: fixture.campusId, academicYear: 2027, label: "Different existing label", status: "DRAFT" });
   await assert.rejects(() => previewSchoolAiExecution(fixture.user, record.id, "academics.setup_year", record.version), { code: "CYCLE_DETAILS_CONFLICT" });
   await raw.academicCycle.delete({ where: { id: cycle.id } });
   const existing = await raw.class.create({ data: { schoolId, campusId: fixture.campusId, academicYear: 2027, name: "Grade 4", section: "A", teachingMode: "SUBJECT" } });
+  // SKAI-1924: the class brought its year as a DRAFT (SKAI-1887); give it the plan's details so the class checks run.
+  await putAcademicYear(raw, { schoolId, campusId: fixture.campusId, academicYear: 2027, label: "Synthetic 2027", startDate: new Date("2026-08-01"), endDate: new Date("2027-06-30"), status: "DRAFT" });
   await assert.rejects(() => previewSchoolAiExecution(fixture.user, record.id, "academics.setup_year", record.version), { code: "CLASS_DETAILS_CONFLICT" });
   await raw.class.update({ where: { id: existing.id }, data: { teachingMode: "SINGLE", archivedAt: new Date() } });
   await assert.rejects(() => previewSchoolAiExecution(fixture.user, record.id, "academics.setup_year", record.version), { code: "CLASS_DETAILS_CONFLICT" });
@@ -589,6 +592,9 @@ test("academic setup refuses conflicting cycle details, ambiguous classes and ar
 test("a changed class assignment or workspace version invalidates an academic setup preview", async () => {
   const fixture = await setupFixture();
   const existing = await raw.class.create({ data: { schoolId, campusId: fixture.campusId, academicYear: 2027, name: "Grade 4", section: "A" } });
+  // SKAI-1924: the class brought its year as a DRAFT (SKAI-1887); give it the plan's details so the class checks run.
+  await putAcademicYear(raw, { schoolId, campusId: fixture.campusId, academicYear: 2027, label: "Synthetic 2027", startDate: new Date("2026-08-01"), endDate: new Date("2027-06-30"), status: "DRAFT" });
+  const cyclesBefore = await raw.academicCycle.count({ where: { campusId: fixture.campusId } });
   const record = await approvedSetup(fixture.user);
   const preview = await previewSchoolAiExecution(fixture.user, record.id, "academics.setup_year", record.version);
   const assigned = randomUUID();
@@ -596,7 +602,7 @@ test("a changed class assignment or workspace version invalidates an academic se
   await raw.class.update({ where: { id: existing.id }, data: { classTeacherId: assigned } });
   const input = { operation: "academics.setup_year" as const, version: record.version, previewHash: preview.previewHash, idempotencyKey: randomUUID() };
   await assert.rejects(() => executeSchoolAiTool(fixture.user, record.id, input), { status: 409, code: "STALE_EXECUTION_PREVIEW" });
-  assert.equal(await raw.academicCycle.count({ where: { campusId: fixture.campusId } }), 0);
+  assert.equal(await raw.academicCycle.count({ where: { campusId: fixture.campusId } }), cyclesBefore);
   assert.equal(await raw.class.count({ where: { campusId: fixture.campusId } }), 1);
   await updateWorkspaceRecord(fixture.user, record.id, { version: record.version, title: "Revised draft" });
   await assert.rejects(() => executeSchoolAiTool(fixture.user, record.id, input), { status: 409, code: "STALE_WORKSPACE_VERSION" });

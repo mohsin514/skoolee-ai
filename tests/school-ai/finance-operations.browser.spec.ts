@@ -6,6 +6,7 @@ import { schoolAICopy } from "../../src/lib/school-ai/copy";
 import { financeOperationsCopy } from "../../src/components/school-ai/finance-operations-copy";
 import type { Language } from "../../src/lib/locale/package";
 import { SCHOOL_AI_TEST_SECRET } from "./test-secret";
+import { putAcademicYear } from "../support/academic-year";
 const SCHOOL_AI_ORIGIN = (process.env.SCHOOL_AI_TEST_ORIGIN || "http://localhost:3106").replace(/\/+$/, "");
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use isolated finance browser PG55438.");
@@ -23,7 +24,7 @@ test.beforeEach(async ({ context }) => {
   await db.campus.create({ data: { id: campusId, schoolId, name: "Finance campus", city: "Test", regId: campusId } });
   await db.user.create({ data: { id: adminId, schoolId, campusId, email: `${adminId}@example.invalid`, role: "ADMIN", fullName: "Finance reviewer", isActive: true, onboardingComplete: true, mfaEnabled: true } });
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Finance Grade 8", section: "A", academicYear: 2026 } });
-  await db.academicCycle.create({ data: { schoolId, campusId, label: "2026 cycle", academicYear: 2026, status: "ACTIVE", startDate: new Date("2026-01-01Z"), endDate: new Date("2026-12-31Z") } });
+  await putAcademicYear(db, { schoolId, campusId, label: "2026 cycle", academicYear: 2026, status: "ACTIVE", startDate: new Date("2026-01-01Z"), endDate: new Date("2026-12-31Z") });
   await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Reviewed learner", rollNo: "1", gender: "OTHER", enrollmentDate: new Date("2026-01-01Z") } });
   invoiceId = (await db.invoice.create({ data: { schoolId, campusId, studentId, invoiceNumber: `FIN-${randomUUID()}`, invoiceDate: new Date("2026-10-01Z"), dueDate: new Date("2026-10-31Z"), monthlyFee: 10000, subtotal: 10000, totalAmount: 10000, balanceDue: 10000, currency: "PKR" } })).id;
   await signIn(context);

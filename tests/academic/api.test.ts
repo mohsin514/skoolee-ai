@@ -7,6 +7,7 @@ import { chromium } from "playwright";
 import { hashSessionToken } from "../../src/lib/auth/session-cookie";
 import { getLiveReportCardPayload } from "../../src/lib/academic/report-cards";
 import { runWithTenantContext } from "../../src/lib/db/tenant-context";
+import { putAcademicYear } from "../support/academic-year";
 
 const dbUrl = new URL(process.env.DATABASE_URL || "http://invalid");
 const appUrl = new URL(process.env.ACADEMIC_MODEL_TEST_APP || "http://127.0.0.1:3216");
@@ -42,7 +43,7 @@ before(async () => {
   ] } } });
   await db.class.create({ data: { id: foreignClassId, schoolId, campusId: otherCampusId, name: "Grade 6", section: "B", academicYear: 2026, subjects: { create: [{ id: foreignSubjectId, schoolId, campusId: otherCampusId, name: "Mathematics", totalMarks: 100 }] } } });
   // SKAI-117: terms activate only inside the campus academic year, so the fixture creates that year.
-  await db.academicCycle.create({ data: { schoolId, campusId, label: "Synthetic 2026", academicYear: 2026, status: "ACTIVE", startDate: new Date("2026-01-01"), endDate: new Date("2026-12-31") } });
+  await putAcademicYear(db, { schoolId, campusId, label: "Synthetic 2026", academicYear: 2026, status: "ACTIVE", startDate: new Date("2026-01-01"), endDate: new Date("2026-12-31") });
   for (const role of ["SUPER_ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "TEACHER", "STUDENT"]) {
     const userId = randomUUID();
     const email = `${userId}@example.invalid`;
