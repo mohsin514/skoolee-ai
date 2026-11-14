@@ -31,7 +31,7 @@ mock.module(src("lib/school-ai/transaction.ts"), { namedExports: { schoolAiTrans
 mock.module(src("lib/api/scope.ts"), { namedExports: { ApiError } });
 mock.module(src("lib/audit-events.ts"), { namedExports: { writeAuditEvent: async () => undefined } });
 mock.module(src("lib/school-ai/access.ts"), { namedExports: { isSchoolAiManager: (user: User) => user.role === "CAMPUS_ADMIN" } });
-mock.module(src("lib/school-ai/exam-active-marker.ts"), { namedExports: { markCandidateExamActive: async () => undefined } });
+mock.module(src("lib/school-ai/exam-active-marker.ts"), { namedExports: { markCandidateExamActive: async () => undefined, markCandidatesExamActive: async () => undefined } });
 mock.module(src("lib/school-ai/exam-service.ts"), { namedExports: {
   scopedAssignment: async (user: User, id: string) => {
     const assignment = assignments.find(a => a.id === id && a.schoolId === user.schoolId && (user.role === "SUPER_ADMIN" || a.campusId === user.campusId));
