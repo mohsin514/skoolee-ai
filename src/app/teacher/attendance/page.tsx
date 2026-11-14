@@ -21,7 +21,7 @@ import { AttendanceExceptions, ClassRegister } from "@/components/attendance/cla
 import { OfflineRegister } from "@/components/offline/offline-register";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
-import { apiErrorMessage } from "@/lib/errors";
+import { readApiData, readApiError } from "@/lib/api/envelope-client";
 import { cn } from "@/lib/utils";
 
 // SKO-405: marking is the dated class register (unmarked state, review before submit, conflict review and
@@ -73,8 +73,8 @@ export default function AttendancePage() {
     try {
       const res = await fetch(`/api/attendance/monthly?classId=${classId}&month=${month}`);
       const result = await res.json();
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to load monthly report"));
-      setMonthlyData(result);
+      if (!res.ok) throw new Error(readApiError(result, "Failed to load monthly report"));
+      setMonthlyData(readApiData(result, null));
     } catch { setMonthlyData(null); setMonthlyFailed(true); }
     finally { setMonthlyLoading(false); }
   }, []);

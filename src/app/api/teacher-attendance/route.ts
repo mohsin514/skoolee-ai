@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
+import { ok, failFrom } from "@/lib/api/envelope";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
-  errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
         leave: records.filter((r) => r.status === "LEAVE").length,
       };
 
-      return Response.json({ success: true, data: records, summary });
+      return ok({ items: records, summary });
     }
 
     if (date) {
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
         unmarked: teachers.length - attendance.length,
       };
 
-      return Response.json({ success: true, data: roster, summary });
+      return ok({ items: roster, summary });
     }
 
     if (month) {
@@ -159,12 +159,12 @@ export async function GET(req: NextRequest) {
         leave: data.reduce((s, d) => s + d.leaveDays, 0),
       };
 
-      return Response.json({ success: true, data, summary });
+      return ok({ items: data, summary });
     }
 
     throw new ApiError("Provide date or userId parameter", 400);
   } catch (error) {
-    return errorResponse(error, "[teacher-attendance] GET failed");
+    return failFrom(error, "[teacher-attendance] GET failed");
   }
 }
 
@@ -233,8 +233,8 @@ export async function POST(req: NextRequest) {
       count: results.length,
     });
 
-    return Response.json({ success: true, data: results, message: `Marked ${results.length} records` });
+    return ok({ items: results, message: `Marked ${results.length} records` });
   } catch (error) {
-    return errorResponse(error, "[teacher-attendance] POST failed");
+    return failFrom(error, "[teacher-attendance] POST failed");
   }
 }
