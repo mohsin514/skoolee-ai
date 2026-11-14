@@ -1191,54 +1191,9 @@ async function loadPrincipalDashboardData() {
           },
           orderBy: { name: "asc" },
         },
-        students: {
-          select: {
-            id: true,
-            fullName: true,
-            rollNo: true,
-            gender: true,
-            guardianName: true,
-            guardianPhone: true,
-            guardianWhatsapp: true,
-            guardianEmail: true,
-            profileImageUrl: true,
-            parent: { select: { fullName: true, email: true, phone: true, profileImageUrl: true } },
-            reportCards: {
-              select: {
-                id: true,
-                totalMarks: true,
-                obtainedMarks: true,
-                percentage: true,
-                grade: true,
-                status: true,
-                remarksApproved: true,
-                deliveryStatus: true,
-                isSent: true,
-                pdfUrl: true,
-                generatedAt: true,
-                exam: { select: { id: true, title: true, term: true, status: true } },
-              },
-              orderBy: { generatedAt: "desc" },
-              // SKAI-1813: every view reads the latest card only (`reportCards[0]`).
-              take: 1,
-            },
-          },
-          orderBy: [{ rollNo: "asc" }, { fullName: "asc" }],
-        },
-        exams: {
-          select: {
-            id: true,
-            title: true,
-            term: true,
-            academicYear: true,
-            status: true,
-            isLocked: true,
-            reviewedAt: true,
-            publishedAt: true,
-            _count: { select: { reportCards: true } },
-          },
-          orderBy: [{ academicYear: "desc" }, { title: "asc" }],
-        },
+        // SKAI-1964: no nested roster or exam list. Every view reads a class's pupils from the top-level on-roll
+        // `students` widget (by `student.class.id`) and its size from `_count.students`; nothing reads `cls.exams`.
+        // Both nests repeated per class across every year and made up about 1 MB of the payload at 4 years.
         _count: { select: { students: { where: ON_ROLL }, subjects: true } },
       },
       orderBy: [{ academicYear: "desc" }, { name: "asc" }],
@@ -1381,8 +1336,10 @@ async function loadPrincipalDashboardData() {
       orderBy: { createdAt: "desc" },
       take: 5,
     }), []),
+    // SKAI-1964: the row's own tenant columns, not a join to campuses (the (school_id, campus_id) foreign key makes
+    // them equivalent), so the all-time average is an index-only scan of marks_school_id_campus_id_marks_obtained_idx.
     L.widget("markAverage", () => prisma.mark.aggregate({
-      where: { campusId, campus: { schoolId: session.schoolId } },
+      where: { schoolId: session.schoolId, campusId },
       _avg: { marksObtained: true },
     }), { _avg: { marksObtained: null } }),
     L.widget("attendanceRecords", () => prisma.attendance.findMany({

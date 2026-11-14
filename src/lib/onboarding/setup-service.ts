@@ -8,7 +8,7 @@
 // transaction that is safe to retry — a retry after a partial failure or a
 // duplicate click never creates a second campus or academic cycle.
 // ─────────────────────────────────────────────────────────────────
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@/lib/auth/password-hash";
 import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma, tenantTransaction, type TxClient } from "@/lib/db/prisma";
@@ -528,7 +528,7 @@ export async function assignSetupDelegate(user: AuthUser, input: DelegateInput) 
   if (email === actor.school.contactEmail.toLowerCase()) throw new SetupValidationError({ delegateEmail: "delegate.self" });
 
   const password = temporaryPassword();
-  const hash = await bcrypt.hash(password, 12);
+  const hash = await hashPassword(password, 12);
   const role = actor.setup.institutionType === "GROUP" ? "SUPER_ADMIN" : "ADMIN";
   const schoolId = actor.school.id;
   const owner = await prisma.user.findFirst({ where: { id: user.userId, schoolId }, select: { preferredLanguage: true } });

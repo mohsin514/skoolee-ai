@@ -17,8 +17,8 @@ test("history and the audit row take the school from the user, never from input"
 
 test("the current password and the last five are still refused before the claim", () => {
   const claim = redeem.indexOf("$transaction");
-  const currentCheck = redeem.indexOf("bcrypt.compare(newPassword, current.password)");
-  const historyCheck = redeem.indexOf("bcrypt.compare(newPassword, entry.oldPasswordHash)");
+  const currentCheck = redeem.indexOf("verifyPassword(newPassword, current.password)");
+  const historyCheck = redeem.indexOf("verifyPassword(newPassword, entry.oldPasswordHash)");
   assert.ok(currentCheck > 0 && currentCheck < claim);
   assert.ok(historyCheck > 0 && historyCheck < claim);
   assert.match(redeem, /passwordHistory\.findMany\(\{\s*where: \{ userId \},[\s\S]*take: 5/);

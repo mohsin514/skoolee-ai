@@ -1,3 +1,4 @@
+import { fail, ok } from "@/lib/api/envelope";
 import { Prisma } from "@prisma/client";
 import { retryDatabaseTransaction } from "@/lib/school-ai/transaction";
 import { NextRequest } from "next/server";
@@ -14,12 +15,12 @@ const CRON_SECRET = process.env.CRON_SECRET || "";
 // SKO-460: daily retention sweep for private School AI conversations. The period comes from
 // SCHOOL_AI_CONVERSATION_RETENTION_DAYS (default 365, minimum 30); at most 500 per run.
 export async function POST(req: NextRequest) {
-  if (process.env.NODE_ENV === "production" && !CRON_SECRET) return Response.json({ error: "Cron not configured" }, { status: 503 });
-  if (CRON_SECRET && req.headers.get("authorization") !== `Bearer ${CRON_SECRET}`) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (process.env.NODE_ENV === "production" && !CRON_SECRET) return fail("INTERNAL", "Cron not configured", undefined, 503);
+  if (CRON_SECRET && req.headers.get("authorization") !== `Bearer ${CRON_SECRET}`) return fail("UNAUTHORIZED", "Unauthorized");
   const days = Number.parseInt(process.env.SCHOOL_AI_CONVERSATION_RETENTION_DAYS ?? "365", 10);
   const result = await runUnscoped("conversation retention sweep across schools", () => retryDatabaseTransaction(() => prisma.$transaction(
     tx => sweepConversationRetention(tx, new Date(), Number.isInteger(days) ? days : 365),
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 },
   )));
-  return Response.json(result);
+  return ok(result);
 }

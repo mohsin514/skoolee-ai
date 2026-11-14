@@ -1,4 +1,4 @@
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@/lib/auth/password-hash";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
@@ -143,7 +143,7 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
   // is told by email instead, so the signup screen never confirms which addresses have accounts.
   if (existingSchoolByEmail) return existingAddressOutcome(valid);
 
-  const hashedPassword = await bcrypt.hash(valid.password, 10);
+  const hashedPassword = await hashPassword(valid.password, 10);
   const role = pending.registrationType === "school_group" ? "SUPER_ADMIN" : "ADMIN";
 
   // SKAI-81: one batched transaction (a single round trip) instead of an interactive
@@ -235,7 +235,7 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
 /** The "new address" outcome for an address that already owns a school, plus a notice to its owner. */
 async function existingAddressOutcome(valid: SignupStep2Input): Promise<SignupResult> {
   // Comparable work to a real signup: hash the password and attempt one delivery.
-  await bcrypt.hash(valid.password, 10);
+  await hashPassword(valid.password, 10);
   await prisma.pendingRegistration.deleteMany({ where: { email: valid.email } });
   if ((await authRateLimit(`signup-existing:${valid.email.toLowerCase()}`, { limit: 3, windowMs: 3_600_000 })).ok) {
     try {

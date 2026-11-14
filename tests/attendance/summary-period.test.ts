@@ -28,6 +28,7 @@ function fixture(given?: Rec[], classes = oneClass) {
     };
     if (id === "@/lib/attendance") return { ruleRate: (rows: unknown[]) => rows.length ? 100 : 0 };
     if (id === "@/lib/attendance/rule") return { attendanceRuleFor: async () => ({}) };
+    if (id === "@/lib/api/envelope") return require("../../src/lib/api/envelope");
     return require(id);
   });
   return (period: string) => mod.exports.GET(new Request(`http://qa.test/api/attendance/school-summary?period=${period}`));
@@ -37,14 +38,14 @@ test("class counts follow Today versus Week and use the attendance's historical 
   const get = fixture();
   const today = await (await get("today")).json();
   const week = await (await get("week")).json();
-  assert.equal(today.classBreakdown[0].present, 1);
-  assert.equal(week.classBreakdown[0].present, 2);
-  assert.equal(week.classBreakdown[0].percentage, 100);
+  assert.equal(today.data.classBreakdown[0].present, 1);
+  assert.equal(week.data.classBreakdown[0].present, 2);
+  assert.equal(week.data.classBreakdown[0].percentage, 100);
   // SKAI-1537: unmarked counts pupil-days over the week's expected school days, so it depends on the
   // weekday the suite runs; one pupil, two marked days. Of those two days, count the ones that are school days.
-  const markedSchoolDays = week.daysTracked;
-  assert.equal(week.classBreakdown[0].unmarked, Math.max(0, week.schoolDays - markedSchoolDays));
-  assert.equal(week.present, week.classBreakdown[0].present);
+  const markedSchoolDays = week.data.daysTracked;
+  assert.equal(week.data.classBreakdown[0].unmarked, Math.max(0, week.data.schoolDays - markedSchoolDays));
+  assert.equal(week.data.present, week.data.classBreakdown[0].present);
 });
 
 test("invalid attendance periods are rejected", async () => {
@@ -57,9 +58,9 @@ test("each class gets only its own rows; rows without a class count campus-wide 
   const records = [rec("class-a", "a1", "PRESENT"), rec("class-b", "b1", "ABSENT"), rec("class-b", "b2", "PRESENT"), rec(null, "x", "LEAVE")];
   const classes = ["class-a", "class-b", "class-c"].map((id) => ({ id, name: id, section: null, _count: { students: 2 } }));
   const body = await (await fixture(records, classes)("today")).json();
-  assert.deepEqual(body.classBreakdown.map((c: any) => [c.classId, c.present, c.absent, c.leave, c.marked]), [
+  assert.deepEqual(body.data.classBreakdown.map((c: any) => [c.classId, c.present, c.absent, c.leave, c.marked]), [
     ["class-a", 1, 0, 0, 1], ["class-b", 1, 1, 0, 2], ["class-c", 0, 0, 0, 0],
   ]);
-  assert.equal(body.totalRecords, 4);
-  assert.equal(body.leave, 1);
+  assert.equal(body.data.totalRecords, 4);
+  assert.equal(body.data.leave, 1);
 });

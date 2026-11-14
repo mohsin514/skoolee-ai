@@ -76,10 +76,22 @@ export async function readPupil(user: AuthUser, id: string) {
     profileImageUrl: true, category: { select: { name: true } }, group: { select: { name: true } },
     consolidatedIntoId: true,
     // SKAI-171: same-day placements (corrections, readmission) need a fixed order: open placement first, then latest end, then id.
-    enrollments: { orderBy: [{ startDate: "desc" }, { endDate: { sort: "desc", nulls: "first" } }, { id: "desc" }], include: { _count: { select: { attendance: { where: history.attendance }, invoices: { where: history.invoices }, reports: { where: history.reports } } } } },
+    enrollments: { orderBy: [{ startDate: "desc" }, { endDate: { sort: "desc", nulls: "first" } }, { id: "desc" }] },
   } });
   if (!pupil) throw new ApiError("Pupil not found", 404);
-  return pupil;
+  // SKAI-1967: a filtered relation _count makes Prisma aggregate the whole campus's history before joining,
+  // so count only this pupil's enrollments (enrollment_id is indexed on all three tables), same filters as before.
+  const ids = pupil.enrollments.map((e) => e.id);
+  const [attendance, invoices, reports] = ids.length ? await Promise.all([
+    prisma.attendance.groupBy({ by: ["enrollmentId"], where: { enrollmentId: { in: ids }, ...history.attendance }, _count: { _all: true } }),
+    prisma.invoice.groupBy({ by: ["enrollmentId"], where: { enrollmentId: { in: ids }, ...history.invoices }, _count: { _all: true } }),
+    prisma.reportCard.groupBy({ by: ["enrollmentId"], where: { enrollmentId: { in: ids }, ...history.reports }, _count: { _all: true } }),
+  ]) : [[], [], []];
+  const byEnrollment = (rows: { enrollmentId: string | null; _count: { _all: number } }[]) => new Map(rows.map((r) => [r.enrollmentId, r._count._all]));
+  const counts = { attendance: byEnrollment(attendance), invoices: byEnrollment(invoices), reports: byEnrollment(reports) };
+  return { ...pupil, enrollments: pupil.enrollments.map((e) => ({ ...e, _count: {
+    attendance: counts.attendance.get(e.id) ?? 0, invoices: counts.invoices.get(e.id) ?? 0, reports: counts.reports.get(e.id) ?? 0,
+  } })) };
 }
 export async function enrollmentImpact(tx: TxClient, studentId: string, fromId: string, targetClassId: string, effectiveDate: Date, allowFuture = false) {
   const [pupil, from, target] = await Promise.all([
