@@ -22,6 +22,21 @@ const marks = [
 ];
 const reportCards = [{ schoolId: "school-a", examId: "ex-a1" }, { schoolId: "school-b", examId: "ex-b1" }];
 const schedules = [{ schoolId: "school-a", examId: "ex-a1" }, { schoolId: "school-a", examId: "ex-a1" }, { schoolId: "school-a", examId: "ex-a2" }];
+// Date-sheet rooms and seats; school B reuses school A's ids so a missing school filter would show up in the counts.
+const examRooms = [
+  { id: "r-a1", schoolId: "school-a", examScheduleId: "sch-a1" },
+  { id: "r-a2", schoolId: "school-a", examScheduleId: "sch-a1" },
+  { id: "r-b", schoolId: "school-b", examScheduleId: "sch-a2" },
+];
+const seats = [
+  ...Array.from({ length: 4 }, () => ({ schoolId: "school-a", examRoomId: "r-a1", examScheduleId: "sch-a1" })),
+  { schoolId: "school-a", examRoomId: "r-a2", examScheduleId: "sch-a1" },
+  { schoolId: "school-b", examRoomId: "r-a2", examScheduleId: "sch-a1" },
+];
+const sessionSchedules = [
+  { id: "sch-a1", date: new Date("2026-03-02T00:00:00Z"), periodDefinitionId: "p1", subject: { name: "Maths" }, exam: { classId: "c-a1", class: { name: "Grade 6", section: "A" } } },
+  { id: "sch-a2", date: new Date("2026-03-03T00:00:00Z"), periodDefinitionId: null, subject: { name: "Science" }, exam: { classId: "c-a1", class: { name: "Grade 6", section: "A" } } },
+];
 
 const queries: { model: string; args: Record<string, unknown> }[] = [];
 const hit = (value: unknown, cond: unknown) => (cond && typeof cond === "object" && "in" in cond ? (cond as { in: unknown[] }).in.includes(value) : value === cond);
@@ -54,8 +69,15 @@ const db = {
     },
   },
   reportCard: { groupBy: groupBy("reportCard", reportCards) },
-  examSchedule: { groupBy: groupBy("examSchedule", schedules) },
-  examSeat: { groupBy: groupBy("examSeat", []) },
+  examSchedule: {
+    groupBy: groupBy("examSchedule", schedules),
+    findMany: async (args: { where: Where; select: Record<string, unknown> }) => {
+      queries.push({ model: "examSchedule.findMany", args });
+      return sessionSchedules;
+    },
+  },
+  examSeat: { groupBy: groupBy("examSeat", seats) },
+  examRoom: { groupBy: groupBy("examRoom", examRooms) },
   academicCycle: { findFirst: async () => null },
 };
 
@@ -132,4 +154,41 @@ test("PATCH keeps the draft guard: an exam with marks cannot return to draft", a
   assert.match((await res.json()).error, /marks cannot return to draft/);
   assert.equal("include" in (queries.find((q) => q.model === "exam.findUnique")!.args), false, "no relation _count on the lookup");
   assert.deepEqual(queries.find((q) => q.model === "mark.findFirst")!.args.where, { schoolId: "school-a", examId: "ex-a1" });
+});
+
+test("date-sheet counts: seats per exam room and marks per exam, only in the caller's school", async () => {
+  const { withScheduleCounts, roomsBySchedule } = await import("@/lib/academic/exam-counts");
+  reset(user);
+  const rows = [
+    { id: "sch-a1", rooms: [{ id: "r-a1", isPrimary: true }, { id: "r-a2", isPrimary: false }], exam: { id: "ex-a1", title: "Mid" } },
+    { id: "sch-a2", rooms: [], exam: { id: "ex-a2", title: "Quiz" } },
+  ];
+  const counted = await withScheduleCounts(db as never, "school-a", rows);
+  assert.deepEqual(counted, [
+    { id: "sch-a1", rooms: [{ id: "r-a1", isPrimary: true, _count: { seats: 4 } }, { id: "r-a2", isPrimary: false, _count: { seats: 1 } }], exam: { id: "ex-a1", title: "Mid", _count: { marks: 3 } } },
+    { id: "sch-a2", rooms: [], exam: { id: "ex-a2", title: "Quiz", _count: { marks: 0 } } },
+  ], "same shape as the relation _count; school B's seat and mark on colliding ids are not counted");
+  assert.deepEqual(queries.map((q) => [q.model, q.args.where]), [
+    ["examSeat.groupBy", { schoolId: "school-a", examRoomId: { in: ["r-a1", "r-a2"] } }],
+    ["mark.groupBy", { schoolId: "school-a", examId: { in: ["ex-a1", "ex-a2"] } }],
+  ]);
+
+  reset(user);
+  const roomsB = await roomsBySchedule(db as never, "school-b", ["sch-a1", "sch-a2"]);
+  assert.deepEqual([roomsB("sch-a1"), roomsB("sch-a2")], [0, 1]);
+  assert.deepEqual(await withScheduleCounts(db as never, "school-b", []), []);
+  assert.equal(queries.length, 1, "no rows, no count queries");
+});
+
+test("auto-seating skips papers that already have rooms using a school-scoped room count", async () => {
+  const { autoSeatSession } = await import("@/lib/academic/exam-sessions");
+  reset(user);
+  const result = await autoSeatSession({ db: db as never, schoolId: "school-a", campusId: "campus-a1", sessionId: "sess-1" });
+  assert.deepEqual(result.results.map((r) => [r.scheduleId, r.ok, r.skipped ?? false]), [
+    ["sch-a1", true, true],
+    ["sch-a2", false, false],
+  ], "school A's paper with rooms is left alone; school B's room on sch-a2 does not count");
+  const list = queries.find((q) => q.model === "examSchedule.findMany")!;
+  assert.equal("_count" in (list.args.select as object), false, "no relation _count on the schedule read");
+  assert.deepEqual(queries.find((q) => q.model === "examRoom.groupBy")!.args.where, { schoolId: "school-a", examScheduleId: { in: ["sch-a1", "sch-a2"] } });
 });

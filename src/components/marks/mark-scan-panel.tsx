@@ -14,6 +14,7 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { scanQuality } from "@/lib/school-ai/scan";
 import { cn } from "@/lib/utils";
 import { SmartUpload } from "@/components/ui/smart-upload";
+import { readApiError } from "@/lib/api/envelope-client";
 
 // SKO-412: print a marks sheet, photograph its pages, review every mark beside its crop, approve, import.
 // Capture, review and import are separate steps; nothing reaches the gradebook before an explicit import
@@ -27,7 +28,7 @@ type Sheet = { id: string; version: number; maxMarks: number; examTitle: string;
 async function call(url: string, method: string, body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) { const error = new Error(json.error || "The change was not saved.") as Error & { status?: number }; error.status = response.status; throw error; }
+  if (!response.ok) { const error = new Error(readApiError(json, "The change was not saved.")) as Error & { status?: number }; error.status = response.status; throw error; }
   return json.data;
 }
 const markText = (ui: Ui, m: { marksObtained: number; isAbsent: boolean } | null) => !m ? ui("No mark") : m.isAbsent ? ui("Absent") : String(m.marksObtained);
