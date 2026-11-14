@@ -18,3 +18,10 @@ test("a missing key, too few options and a short section are blocking", () => {
   assert.deepEqual(results.map(result => [result.check, result.severity]), [["KEY_MISSING", "BLOCKING"], ["OPTIONS_TOO_FEW", "BLOCKING"], ["SECTION_COUNT", "BLOCKING"], ["MARKS_DO_NOT_ADD_UP", "BLOCKING"]]);
   assert.deepEqual(results[0].questionIds, ["q1"]);
 });
+
+// SKAI-281: a receptionist with no campus scope is denied with 403 before any database work, never a 503 retry.
+test("a staff account without a campus is denied results release with 403", async () => {
+  const { releaseResults } = await import("../../src/lib/school-ai/exam-release-service");
+  const user = { userId: "u-noaccess", schoolId: "school-alpha", role: "RECEPTIONIST", campusId: undefined } as unknown as Parameters<typeof releaseResults>[0];
+  await assert.rejects(releaseResults(user, "assignment-1"), (error: unknown) => (error as { status?: number }).status === 403);
+});
