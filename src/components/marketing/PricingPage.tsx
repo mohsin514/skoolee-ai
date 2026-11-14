@@ -244,7 +244,7 @@ export function PricingPage({ initialLanguage = "en" }: { initialLanguage?: Lang
                 {PLAN_MATRIX_GROUPS.map((group) => (
                   <Fragment key={group.key}>
                     <tr className="bg-brand-50">
-                      <th scope="rowgroup" colSpan={PLAN_ORDER.length + 1} className="px-3 py-2 text-start text-xs font-bold uppercase tracking-wide text-ink-muted">{t.matrixGroups[group.key]}</th>
+                      <th scope="rowgroup" colSpan={PLAN_ORDER.length + 1} className="px-3 py-2 text-start text-xs font-semibold uppercase tracking-wide text-ink-muted">{t.matrixGroups[group.key]}</th>
                     </tr>
                     {group.features.map((feature) => (
                       <tr key={feature} className="border-b border-border-subtle last:border-b-0">
