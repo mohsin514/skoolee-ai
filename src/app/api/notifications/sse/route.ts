@@ -1,30 +1,26 @@
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { resolveRedisUrl, warnRealtimeDisabledOnce } from "@/lib/queue/redis-config";
-import { realtimeDisabledResponse } from "@/lib/queue/sse-fallback";
+import { realtimeOffResponse } from "@/lib/queue/sse-fallback";
 import { sharedSubscriber } from "@/lib/queue/shared-subscriber";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const redisUrl = resolveRedisUrl();
+  if (!redisUrl) {
+    // SKAI-1035 / SKAI-1952: realtime disabled. Nothing to stream; 204 stops EventSource for good, with no
+    // database work. The page refreshes the unread count itself while the stream is closed.
+    warnRealtimeDisabledOnce();
+    return realtimeOffResponse();
+  }
+
   const user = await getAuthUser();
   if (!user) {
     return new Response("Unauthorized", { status: 401 });
   }
 
   const userId = user.userId;
-  const redisUrl = resolveRedisUrl();
-  if (!redisUrl) {
-    // SKAI-1035: realtime disabled. Answer with the unread count from the DB
-    // and close; the long `retry` turns EventSource into a quiet DB poll.
-    warnRealtimeDisabledOnce();
-    const unreadCount = await prisma.notification
-      .count({ where: { userId, isRead: false } })
-      .catch(() => null);
-    return realtimeDisabledResponse(
-      unreadCount === null ? [] : [`event: init\ndata: ${JSON.stringify({ unreadCount })}\n\n`]
-    );
-  }
   // SKAI-1878: this stream's slot on the instance-wide subscriber, not a Redis connection of its own.
   let release: (() => void) | null = null;
   let closed = false;
