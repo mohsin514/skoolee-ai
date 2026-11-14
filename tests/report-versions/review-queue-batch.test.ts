@@ -18,6 +18,7 @@ let creates = 0;
 let isolation: unknown[] = [];
 let locks: string[] = [];
 let failNext = 0;
+let batches: Array<{ sql: string; values: unknown[] }> = [];
 
 // Two schools, two campuses each, five cards per campus.
 for (const school of ["qa-01", "qa-02"])
@@ -34,7 +35,23 @@ const versionMatches = (v: Version, w: Where) =>
   (!("id" in w) || inList(v.id, w.id)) && (!("reportCardId" in w) || inList(v.reportCardId, w.reportCardId)) && (!("schoolId" in w) || v.schoolId === w.schoolId) && (!("approvedAt" in w) || v.approvedAt !== null) && (!("number" in w) || v.number < (w.number as { lt: number }).lt);
 
 const client = {
-  $executeRaw: async () => 1,
+  // The first-view statement (createFirstVersions): insert version 1 for each listed card of the bound school that
+  // still has no current version and no version 1, and link it, all in one statement.
+  $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const sql = strings.join("?");
+    if (!sql.includes("INSERT INTO report_versions")) return 1;
+    batches.push({ sql, values });
+    const [json, changed, schoolId] = values as [string, string, string];
+    let linked = 0;
+    for (const row of JSON.parse(json) as Array<{ id: string; card: string; hash: string; language: string; identity: string; snapshot: unknown; blockers: string[] }>) {
+      const card = cards.find((c) => c.id === row.card && c.schoolId === schoolId && c.currentVersionId === null);
+      if (!card || versions.some((v) => v.reportCardId === card.id && v.number === 1)) continue;
+      versions.push({ id: row.id, schoolId: card.schoolId, reportCardId: card.id, number: 1, contentHash: row.hash, blockers: row.blockers, approvedAt: null, approvedBy: null, publishedAt: null, snapshot: row.snapshot, documentBytes: null, predecessorId: card.publishedVersionId, correctionReason: null, changedSections: JSON.parse(changed), language: row.language, documentIdentity: row.identity } as Version);
+      card.currentVersionId = row.id;
+      linked++;
+    }
+    return linked;
+  },
   $queryRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => { locks.push(`${strings.join("?")}|${values.join(",")}`); return [{ id: values[0] }]; },
   $transaction: async (fn: (tx: unknown) => Promise<unknown>, options?: { isolationLevel?: string }) => {
     transactions++;
@@ -45,7 +62,7 @@ const client = {
   reportCard: {
     findMany: async ({ where, select }: { where: Where; select?: Record<string, unknown> }) => {
       calls.push("reportCard.findMany");
-      return cards.filter((c) => inList(c.id, where.id) && c.schoolId === where.schoolId).map((c) => pick(c, select));
+      return cards.filter((c) => inList(c.id, where.id) && c.schoolId === where.schoolId && (!("currentVersionId" in where) || c.currentVersionId !== null)).map((c) => pick(c, select));
     },
     findUniqueOrThrow: async ({ where }: { where: { id: string } }) => {
       calls.push("reportCard.findUniqueOrThrow");
@@ -106,23 +123,32 @@ const reviewQueue = async (cardIds: string[]) => (await import("../../src/lib/ac
 const as = async <T>(schoolId: string, fn: () => Promise<T>) =>
   (await import("../../src/lib/db/tenant-context")).runWithTenantContext({ schoolId, role: "PRINCIPAL", userId: `u-${schoolId}` }, fn);
 const ids = (school: string) => cards.filter((c) => c.schoolId === school).map((c) => c.id);
-const reset = () => { calls = []; transactions = 0; creates = 0; isolation = []; locks = []; failNext = 0; };
+const reset = () => { calls = []; transactions = 0; creates = 0; isolation = []; locks = []; failNext = 0; batches = []; };
 
-test("the first view creates each missing version in its own short transaction", async () => {
+test("the first view creates every missing version in one statement, never one transaction per card", async () => {
   reset();
   const rows = await as("qa-01", () => reviewQueue(ids("qa-01")));
   assert.equal(rows.length, 10);
-  assert.equal(creates, 10);
-  assert.equal(transactions, 10, "one transaction per card, never one for the whole exam");
+  assert.equal(creates, 0, "no per-card create");
+  assert.equal(batches.length, 1, "one insert-and-link statement for the whole exam");
+  assert.equal(transactions, 1);
+  // Read committed: an overlapping first view's rows are skipped on the unique key instead of aborting the batch.
+  assert.deepEqual(isolation, ["ReadCommitted"]);
+  assert.equal(locks.length, 0, "no per-card row lock");
+  const [{ sql, values }] = batches;
+  assert.match(sql, /ON CONFLICT \(report_card_id, number\) DO NOTHING/);
+  assert.equal((sql.match(/current_version_id IS NULL/g) ?? []).length, 2, "insert and link only cards still without a version");
+  assert.equal((sql.match(/rc\.school_id = \?/g) ?? []).length, 2);
+  assert.deepEqual(values.slice(2), ["qa-01", "qa-01"], "scoped to the school in context");
+  assert.deepEqual((JSON.parse(values[0] as string) as Array<{ card: string }>).map((r) => r.card), [...ids("qa-01")].sort(), "id order, so overlapping batches never deadlock");
   assert.deepEqual(rows.map((r) => r.reportCardId), ids("qa-01"), "keeps the caller's order");
-  for (const r of rows) assert.ok(!("documentBytes" in r));
-  // Concurrent first views of different exams must not abort each other: refresh-on-view is repeatable read with
-  // one row lock on its own card (inside the school), not serializable predicate locks over every source it reads.
-  assert.deepEqual([...new Set(isolation)], ["RepeatableRead"]);
-  assert.equal(locks.length, 10);
-  for (const [i, lock] of locks.entries()) {
-    assert.match(lock, /FROM report_cards WHERE id = \? AND school_id = current_setting\('app\.current_school_id', true\) FOR UPDATE/);
-    assert.ok(lock.endsWith(`|${ids("qa-01")[i]}`));
+  for (const r of rows) {
+    assert.ok(!("documentBytes" in r));
+    assert.equal(r.number, 1);
+    assert.equal(r.approvedAt, null);
+    assert.deepEqual(r.changedSections, ["Marks", "Grading rules and weighted results", "Remarks", "Language"], "what refreshVersion records with no prior approval");
+    assert.deepEqual(r.blockers, []);
+    assert.equal(cards.find((c) => c.id === r.reportCardId)!.currentVersionId, r.id);
   }
 });
 
@@ -197,11 +223,24 @@ test("delivery rows match the published version only", async () => {
   assert.equal(row.publishedVersionId, card.currentVersionId);
 });
 
+test("a first-view batch that a deadlock rolls back falls back to the per-card refresh", async () => {
+  const campusOne = ids("qa-02").filter((id) => id.includes("-c1-"));
+  reset();
+  failNext = 1;
+  const rows = await as("qa-02", () => reviewQueue(campusOne));
+  assert.equal(batches.length, 0, "the rolled-back statement linked nothing");
+  assert.equal(creates, 5);
+  assert.deepEqual(isolation, ["ReadCommitted", ...campusOne.map(() => "RepeatableRead")]);
+  assert.deepEqual(rows.map((r) => r.number), [1, 1, 1, 1, 1]);
+  for (const r of rows) assert.equal(cards.find((c) => c.id === r.reportCardId)!.currentVersionId, r.id);
+});
+
 test("another school's cards never load under QA-01's scope, across both campuses", async () => {
   await assert.rejects(as("qa-01", () => reviewQueue([ids("qa-01")[0], ids("qa-02")[0]])));
   reset();
   const qa02 = await as("qa-02", () => reviewQueue(ids("qa-02")));
   assert.equal(qa02.length, 10);
+  assert.deepEqual(batches.map((b) => b.values.slice(2)), [["qa-02", "qa-02"]], "the second campus's first view, scoped to QA-02");
   assert.ok(qa02.every((r) => r.schoolId === "qa-02"));
   assert.deepEqual([...new Set(cards.filter((c) => c.schoolId === "qa-02").map((c) => c.campusId))], ["qa-02-c1", "qa-02-c2"]);
   assert.ok(versions.filter((v) => v.schoolId === "qa-01").every((v) => v.reportCardId.startsWith("card-qa-01")));
