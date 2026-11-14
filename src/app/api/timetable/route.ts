@@ -25,9 +25,27 @@ export async function GET(req: NextRequest) {
 
     const where: any = { campusId };
     if (classId) where.classId = classId;
-    if (academicYear) where.academicYear = parseInt(academicYear);
+    if (academicYear) {
+      const year = Number(academicYear);
+      if (!Number.isInteger(year)) return Response.json({ error: "academicYear must be a whole year" }, { status: 400 });
+      where.academicYear = year;
+    }
     // SKAI-444: staff who cannot edit the timetable (teachers, viewers) see published versions, never drafts.
     if (!canManageOperations(user)) where.status = "PUBLISHED";
+
+    // SKAI-1966: ?view=index lists every year's timetables without slots, so editors can fill the
+    // Year and Term pickers and then load slots for one year (?academicYear=). Same where clause.
+    if (req.nextUrl.searchParams.get("view") === "index") {
+      const index = await prisma.timetable.findMany({
+        where,
+        select: {
+          id: true, classId: true, academicYear: true, term: true, status: true, publishedAt: true, draftRevision: true, createdAt: true,
+          class: { select: { id: true, name: true, section: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      return Response.json({ success: true, data: index });
+    }
 
     const timetables = await prisma.timetable.findMany({
       where,
