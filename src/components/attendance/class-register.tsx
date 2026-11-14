@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,7 +56,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
       const params = new URLSearchParams({ classId }); if (date) params.set("date", date);
       const response = await fetch(`/api/attendance/register?${params}`, { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(json.error || "The register could not be loaded.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The register could not be loaded."));
       setData(json.data); if (!date) setDate(json.data.date);
       setDrafts(Object.fromEntries((json.data.entries as Entry[]).map(entry => [entry.studentId, { status: entry.status, arrivalTime: entry.arrivalTime ?? "", departureTime: entry.departureTime ?? "" }])));
     } catch (failure) { setLoadError(ui(failure instanceof Error ? failure.message : "The register could not be loaded.")); } finally { setLoading(false); }
@@ -80,7 +81,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
       for (const day of previousDates(data.date)) {
         const response = await fetch(`/api/attendance/register?${new URLSearchParams({ classId: data.class.id, date: day })}`, { cache: "no-store" });
         const json = await response.json().catch(() => ({}));
-        if (!response.ok || !json.success) throw new Error("load");
+        if (!response.ok || !isApiOk(json)) throw new Error("load");
         if (!hasMarks(json.data.entries as Entry[])) continue;
         const out = copyPreviousIntoDrafts(drafts, json.data.entries as Entry[]);
         setDrafts(out.drafts);
@@ -100,7 +101,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
       const response = await fetch("/api/attendance/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classId: data.class.id, date: data.date, submit: options.submit, reason: options.reason || undefined, entries: rows.map(entry => { const d = drafts[entry.studentId]; return { studentId: entry.studentId, status: d.status, knownStatus: entry.status, knownVersion: entry.version, arrivalTime: d.arrivalTime || null, departureTime: d.departureTime || null, reviewedConflict: options.reviewed?.has(entry.studentId) || undefined }; }) }) });
       const json = await response.json().catch(() => ({}));
       if (response.status === 409 && json.data?.conflicts?.length) { setConflicts(json.data.conflicts); setReviewOpen(false); return; }
-      if (!response.ok || !json.success) throw new Error(json.error || "The register was not saved.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The register was not saved."));
       setReviewOpen(false); setConflicts([]);
       if (options.submit && json.data.unmarked.length) toast.error(ui("{0} pupils are still unmarked.", [String(json.data.unmarked.length)]));
       else toast.success(json.data.submitted && options.submit ? ui("Register submitted") : ui("Register saved"));
@@ -194,7 +195,7 @@ export function AttendanceExceptions() {
     setError("");
     const response = await fetch("/api/attendance/register?queue=1", { cache: "no-store" });
     const json = await response.json().catch(() => ({}));
-    if (!response.ok || !json.success) setError(ui(json.error || "Attendance exceptions could not be loaded.")); else setData(json.data);
+    if (!response.ok || !isApiOk(json)) setError(ui(readApiError(json, "Attendance exceptions could not be loaded."))); else setData(json.data);
   }, [ui]);
   useEffect(() => { void load(); }, [load]);
   // SKAI-1931: started-but-open registers plus today's classes whose register was never started.
@@ -205,7 +206,7 @@ export function AttendanceExceptions() {
     try {
       const response = await fetch("/api/attendance/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ review: { id: deciding.id, action: deciding.action, note: note.trim() || undefined, knownVersion: deciding.version } }) });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(json.error || "The decision was not saved.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The decision was not saved."));
       toast.success(ui("Decision recorded")); setDeciding(null); setNote(""); await load();
     } catch (failure) { toast.error(ui(failure instanceof Error ? failure.message : "The decision was not saved.")); } finally { setBusy(false); }
   };
@@ -250,7 +251,7 @@ export function GuardianAttendanceExplanations({ studentId }: { studentId: strin
     try {
       const response = await fetch(`/api/parent/attendance?studentId=${encodeURIComponent(studentId)}`, { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) { setLoadFailed(true); return; }
+      if (!response.ok || !isApiOk(json)) { setLoadFailed(true); return; }
       setRows(json.data); setLoadFailed(false);
     } catch { setLoadFailed(true); }
   }, [studentId]);
@@ -262,7 +263,7 @@ export function GuardianAttendanceExplanations({ studentId }: { studentId: strin
     try {
       const response = await fetch("/api/parent/attendance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ attendanceId: open.attendanceId, reason: form.reason, proposedStatus: form.proposedStatus, arrivalTime: form.proposedStatus === "LATE" ? form.arrivalTime : undefined }) });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(json.error || "The explanation was not sent.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The explanation was not sent."));
       toast.success(ui("Explanation sent to the school")); setOpen(null); setForm({ reason: "", proposedStatus: "EXCUSED", arrivalTime: "" }); await load();
     } catch (failure) { setError(ui(failure instanceof Error ? failure.message : "The explanation was not sent.")); } finally { setBusy(false); }
   };
@@ -300,7 +301,7 @@ export function AttendanceRulePanel() {
   const [choice, setChoice] = useState<Record<string, RuleChoice>>({}), [note, setNote] = useState(""), [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     const json = await fetch("/api/attendance/register?rule=1", { cache: "no-store" }).then(r => r.json()).catch(() => ({}));
-    if (json.success) { setRule(json.data); setChoice(Object.fromEntries(RULE_STATUSES.map(status => [status, json.data.attended.includes(status) ? "attended" : json.data.excluded.includes(status) ? "excluded" : "against"]))); }
+    if (isApiOk(json)) { setRule(json.data); setChoice(Object.fromEntries(RULE_STATUSES.map(status => [status, json.data.attended.includes(status) ? "attended" : json.data.excluded.includes(status) ? "excluded" : "against"]))); }
   }, []);
   useEffect(() => { void load(); }, [load]);
   if (!rule) return null;
@@ -310,7 +311,7 @@ export function AttendanceRulePanel() {
       const attended = ["PRESENT", ...RULE_STATUSES.filter(status => choice[status] === "attended")], excluded = RULE_STATUSES.filter(status => choice[status] === "excluded");
       const response = await fetch("/api/attendance/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rule: { attended, excluded, note } }) });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) throw new Error(json.error || "The rule was not published.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The rule was not published."));
       toast.success(ui("Attendance rule published")); setNote(""); await load();
     } catch (failure) { toast.error(ui(failure instanceof Error ? failure.message : "The rule was not published.")); } finally { setBusy(false); }
   };
