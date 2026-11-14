@@ -76,6 +76,8 @@ test("SKAI-1032: the widget loader runs reads within the pool budget and degrade
   assert.equal(dashboardConcurrency({ DATABASE_URL: "postgresql://u:p@h:6543/db?connection_limit=3" }), 3);
   assert.equal(dashboardConcurrency({ PRISMA_CONNECTION_LIMIT: "2" }), 2);
   assert.equal(dashboardConcurrency({ VERCEL: "1" }), 1);
+  assert.equal(dashboardConcurrency({ VERCEL: "1", DATABASE_URL: "postgresql://u:p@h:6543/db?connection_limit=20" }), 1, "reads never outnumber the capped pool");
+  assert.equal(dashboardConcurrency({ VERCEL: "1", PRISMA_CONNECTION_LIMIT: "2" }), 2, "an operator limit wins");
   assert.equal(dashboardConcurrency({}), 5);
 });
 

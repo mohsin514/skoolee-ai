@@ -1,3 +1,5 @@
+import { poolBudget } from "@/lib/db/pool-budget";
+
 /**
  * SKAI-1038: one failing dashboard query must not blank the whole console. A widget read that fails is logged with
  * its cause (message and Prisma code only — never row data) and answers its fallback; the widget name is recorded in
@@ -73,17 +75,9 @@ export function createWidgetLoader(scope: string, concurrency = dashboardConcurr
 }
 
 /**
- * How many dashboard reads may be in flight per request: the per-instance Prisma pool size (`connection_limit` on the
- * runtime URL, else `PRISMA_CONNECTION_LIMIT`, else the `pool-url.ts` default of 1 on serverless and 5 elsewhere).
+ * How many dashboard reads may be in flight per request: the instance's database pool size (pool-budget.ts), so a page
+ * never starts more parallel reads than its instance has connections.
  */
 export function dashboardConcurrency(env: Record<string, string | undefined> = process.env): number {
-  try {
-    const fromUrl = Number.parseInt(new URL(env.DATABASE_URL ?? "").searchParams.get("connection_limit") ?? "", 10);
-    if (Number.isInteger(fromUrl) && fromUrl > 0) return fromUrl;
-  } catch {
-    // Not a URL: fall through to the configured budget.
-  }
-  const configured = Number.parseInt(env.PRISMA_CONNECTION_LIMIT ?? "", 10);
-  if (Number.isInteger(configured) && configured > 0) return configured;
-  return env.VERCEL || env.AWS_LAMBDA_FUNCTION_NAME ? 1 : 5;
+  return poolBudget(env.DATABASE_URL, env);
 }

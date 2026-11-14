@@ -1,7 +1,7 @@
 import { getAuthUser } from "@/lib/auth";
 import { chatChannel, clearPresence, markPresent } from "@/lib/chat/realtime";
 import { resolveRedisUrl, warnRealtimeDisabledOnce } from "@/lib/queue/redis-config";
-import { realtimeDisabledResponse } from "@/lib/queue/sse-fallback";
+import { realtimeOffResponse } from "@/lib/queue/sse-fallback";
 import { sharedSubscriber } from "@/lib/queue/shared-subscriber";
 
 export const runtime = "nodejs";
@@ -20,6 +20,15 @@ export const dynamic = "force-dynamic";
  * what tells the send path whether to fall back to a notification.
  */
 export async function GET(req: Request) {
+  const redisUrl = resolveRedisUrl();
+  if (!redisUrl) {
+    // SKAI-1035 / SKAI-1952: realtime disabled. Nothing to stream; 204 stops EventSource for good, with no
+    // database work. Threads still load and sends still work over ordinary requests, and the chat provider
+    // re-syncs on its own while the stream is closed.
+    warnRealtimeDisabledOnce();
+    return realtimeOffResponse();
+  }
+
   const user = await getAuthUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
 
@@ -29,13 +38,6 @@ export async function GET(req: Request) {
   if (user.role === "APP_OWNER") return new Response("Forbidden", { status: 403 });
 
   const userId = user.userId;
-  const redisUrl = resolveRedisUrl();
-  if (!redisUrl) {
-    // SKAI-1035: realtime disabled. Tell the client and close; threads still
-    // load and sends still work over ordinary requests.
-    warnRealtimeDisabledOnce();
-    return realtimeDisabledResponse([`event: ready\ndata: ${JSON.stringify({ userId, realtime: false })}\n\n`]);
-  }
 
   // SKAI-1878: this stream's slot on the instance-wide subscriber, not a Redis connection of its own.
   let release: (() => void) | null = null;

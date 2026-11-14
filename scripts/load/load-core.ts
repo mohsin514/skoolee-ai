@@ -1,6 +1,7 @@
 // SKAI-1898: the pure parts of the dev load runner — target safety, journeys, statistics, the abort rule and the
 // report. Kept free of I/O so they are unit-tested (tests/load/load-core.test.ts).
 import { ROLE_JOURNEYS } from "./role-journeys";
+import { SHELL_BATCH_MAX, SHELL_BATCH_PATHS } from "../../src/lib/network/shell-batch-paths";
 
 /** Hosts a load run may target. Production is never on this list and there is no flag that adds it. */
 const ALLOWED_HOSTS = [/^dev\.skooleeai\.com$/, /^localhost$/, /^127\.0\.0\.1$/, /^skoolee-ai-dev[a-z0-9-]*\.vercel\.app$/];
@@ -30,6 +31,36 @@ export function checkVirtualUsers(vus: number, allowHigh: boolean) {
 export function pageViewFor(role: string, today: string): { home: string; apis: string[] } {
   const journey = ROLE_JOURNEYS[role] ?? ROLE_JOURNEYS.teacher;
   return { home: journey.home, apis: journey.apis.map((p) => p.replaceAll("{date}", today)) };
+}
+
+/**
+ * SKAI-1949: split a page view's APIs the way the browser's fetch interceptor does: the shell GETs on the allowlist go
+ * as ONE `/api/shell?p=…` request when there are two or more; everything else is sent on its own.
+ */
+export function shellBatched(apis: string[]): string[] {
+  const shell = apis.filter((p) => SHELL_BATCH_PATHS.includes(p.split("?")[0]));
+  if (shell.length < 2) return apis;
+  const rest = apis.filter((p) => !shell.includes(p));
+  const groups: string[][] = [];
+  for (let i = 0; i < shell.length; i += SHELL_BATCH_MAX) groups.push(shell.slice(i, i + SHELL_BATCH_MAX));
+  return [...groups.map((g) => `/api/shell?${g.map((p) => `p=${encodeURIComponent(p)}`).join("&")}`), ...rest];
+}
+
+/**
+ * SKAI-1957: the realtime event streams. A browser tab opens each one once and keeps it open; it never "finishes",
+ * so it cannot be timed like a page request. The runner holds them open per virtual user and times the first event.
+ */
+export const STREAM_PATHS = ["/api/notifications/sse", "/api/chat/stream"];
+
+export function splitStreams(apis: string[]): { requests: string[]; streams: string[] } {
+  const isStream = (p: string) => STREAM_PATHS.includes(p.split("?")[0]);
+  return { requests: apis.filter((p) => !isStream(p)), streams: apis.filter(isStream) };
+}
+
+/** True once the text read from an event stream holds a complete first event (an `event:` or `data:` block). */
+export function hasFirstEvent(text: string): boolean {
+  const start = text.search(/(^|\n)(event|data):/);
+  return start >= 0 && text.indexOf("\n\n", start) >= 0;
 }
 
 /** Back-compatible flat list: the home page followed by its APIs. */

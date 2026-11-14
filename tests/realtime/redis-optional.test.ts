@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isRealtimeEnabled, LOCAL_REDIS_URL, resolveRedisUrl } from "../../src/lib/queue/redis-config";
-import { realtimeDisabledBody, realtimeDisabledResponse } from "../../src/lib/queue/sse-fallback";
+import { realtimeOffResponse } from "../../src/lib/queue/sse-fallback";
 
 test("explicit REDIS_URL is used everywhere", () => {
   assert.equal(
@@ -26,15 +26,12 @@ test("REDIS_ENABLED=false force-disables", () => {
   assert.equal(resolveRedisUrl({ REDIS_URL: "redis://r:6379", REDIS_ENABLED: "false" }), null);
 });
 
-test("disabled SSE body announces realtime off with a slow retry", async () => {
-  const body = realtimeDisabledBody(['event: init\ndata: {"unreadCount":2}\n\n']);
-  assert.match(body, /^retry: 60000\n\n/);
-  assert.match(body, /event: init/);
-  assert.match(body, /event: realtime\ndata: {"enabled":false}/);
-  const res = realtimeDisabledResponse();
-  assert.equal(res.headers.get("Content-Type"), "text/event-stream");
+test("with realtime off the streams answer 204, which stops EventSource reconnecting (SKAI-1952)", async () => {
+  const res = realtimeOffResponse();
+  assert.equal(res.status, 204);
   assert.equal(res.headers.get("X-Realtime"), "disabled");
-  assert.match(await res.text(), /"enabled":false/);
+  assert.equal(res.headers.get("Cache-Control"), "no-store");
+  assert.equal(await res.text(), "");
 });
 
 test("disabled shared client rejects fast and never dials localhost", async () => {
