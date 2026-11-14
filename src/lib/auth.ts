@@ -2,7 +2,7 @@
 // Auth helper — decode JWT from cookie
 // ─────────────────────────────────────────────────────────────────
 import { resolveCurrentPrincipal } from "@/lib/auth/principal";
-import { jwtVerify } from "jose";
+import { errors as joseErrors, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { normalizeUserRole, type UserRole } from "@/lib/roles";
 import type { InstitutionKind } from "@/lib/auth/institution";
@@ -67,18 +67,43 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     const tokenHash = hashSessionToken(token);
     // Scale: session rows and account in one round trip; the checks below read them from this request's store.
     // With the Redis principal cache on, the principal usually comes from Redis, so only the session is read.
-    if (!principalCacheEnabled()) await prefetchAuth(tokenHash, userId, schoolId);
-    if (await isSessionRevokedStrict(tokenHash)) return null;
-
-    const principal = await resolveCurrentPrincipal({ userId, schoolId, role, accessVersion: payload.accessVersion, mfaVerified: payload.mfaVerified });
+    const principal = await engineFailureIsOutage(async () => {
+      if (!principalCacheEnabled()) await prefetchAuth(tokenHash, userId, schoolId);
+      if (await isSessionRevokedStrict(tokenHash)) return null;
+      return resolveCurrentPrincipal({ userId, schoolId, role, accessVersion: payload.accessVersion, mfaVerified: payload.mfaVerified });
+    });
     if (!principal) return null;
     const activeCampusId = await resolveActiveCampusId(principal, cookieStore.get(ACTIVE_CAMPUS_COOKIE)?.value, lookupSchoolCampus);
     return { ...principal, ...(activeCampusId ? { activeCampusId } : {}), mfaVerified: payload.mfaVerified === "deferred" ? "deferred" : payload.mfaVerified === true };
   } catch (error) {
     // An unreachable database is an outage, not a sign-out: answering null here made every request 401 and
     // the browser dropped its session (SKAI-1898 load run). Still fail-closed — nothing is authorized.
+    if (error instanceof ServiceUnavailableError) throw error;
     if (isDatabaseUnavailable(error)) throw new ServiceUnavailableError(5, undefined, unavailableReason(error));
+    // Invalid, expired or tampered tokens are an ordinary sign-out; anything else is worth seeing in the logs.
+    // Next's own control-flow errors carry a `digest` and are not failures.
+    if (!(error instanceof joseErrors.JOSEError) && !(error && typeof error === "object" && "digest" in error)) {
+      console.error("[auth.getAuthUser]", { name: (error as { name?: unknown })?.name, code: (error as { code?: unknown })?.code });
+    }
     return null;
+  }
+}
+
+/** Prisma engine failures that carry no request-level meaning; from the session/principal reads they are an outage. */
+const ENGINE_FAILURES = new Set(["PrismaClientUnknownRequestError", "PrismaClientRustPanicError", "PrismaClientInitializationError"]);
+
+/**
+ * SKAI-1962: runs the session and principal reads so an engine-level failure there (a statement cancelled by the
+ * database, a panicked engine) answers 503 "try again" rather than reading as "signed out". Still fail-closed.
+ * Other errors (a tenant-guard violation, a bug) pass through unchanged and keep their fail-closed null.
+ */
+export async function engineFailureIsOutage<T>(read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    const name = (error as { name?: unknown } | null)?.name;
+    if (typeof name === "string" && ENGINE_FAILURES.has(name)) throw new ServiceUnavailableError(5, undefined, unavailableReason(error));
+    throw error;
   }
 }
 
