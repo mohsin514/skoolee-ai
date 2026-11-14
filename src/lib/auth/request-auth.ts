@@ -10,6 +10,7 @@
 // the Redis principal cache is on). The decisions made on the rows are unchanged.
 // ─────────────────────────────────────────────────────────────────
 import { cookies } from "next/headers";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import type { UserRole } from "@/lib/roles";
@@ -88,6 +89,36 @@ export async function queryAccount(userId: string, schoolId: string): Promise<Ac
   return rows[0] ? normalise(rows[0]) : null;
 }
 
+/**
+ * Columns are UTC wall-clock `timestamp`s; a raw Date parameter is compared in the session time zone, which is off by
+ * hours on a non-UTC database. Pin it to UTC so raw reads match Prisma's typed reads. The instant is sent as an ISO
+ * string with its "Z": the pg driver adapter sends a Date without an offset, which `::timestamptz` would read in the
+ * session time zone (a +5 h session kept learners locked after the deadline and expired sessions live; a negative
+ * offset released them early).
+ */
+export const utcInstant = (at: Date) => Prisma.sql`(${at.toISOString()}::timestamptz AT TIME ZONE 'UTC')`;
+const utc = utcInstant;
+
+/** The live session rows for a token hash, as one json column (scoped by the hash; see session-revocation.ts). */
+const sessionsColumn = (tokenHash: string, now: Date) => Prisma.sql`(SELECT coalesce(json_agg(json_build_object('isActive', x.is_active)), '[]'::json)
+         FROM (SELECT is_active FROM login_sessions WHERE token_hash = ${tokenHash} AND expires_at > ${utc(now)} LIMIT 10) x) AS sessions`;
+
+/** The exact signed account (same columns and filters as queryAccount), as a lateral join named acct. */
+const accountLateral = (userId: string, schoolId: string) => Prisma.sql`LEFT JOIN LATERAL (
+      SELECT u.id, u.school_id AS "schoolId", u.campus_id AS "campusId", u.role::text AS role, u.email, u.full_name AS "fullName",
+             u.onboarding_complete AS "onboardingComplete", u.mfa_enabled AS "mfaEnabled", u.is_institution_owner AS "isInstitutionOwner",
+             u.can_purchase_subscription AS "canPurchaseSubscription", u.can_manage_memberships AS "canManageMemberships",
+             u.access_version AS "accessVersion", c.school_id AS "campusSchoolId", s.slug, s.status,
+             s.registration_kind AS "registrationKind", isu.institution_type AS "institutionType",
+             s.subscription_lifecycle_state AS "subscriptionLifecycleState", s.grace_ends_at AS "graceEndsAt"
+      FROM users u
+      JOIN schools s ON s.id = u.school_id
+      LEFT JOIN campuses c ON c.id = u.campus_id
+      LEFT JOIN institution_setups isu ON isu.school_id = u.school_id
+      WHERE u.id = ${userId} AND u.school_id = ${schoolId} AND u.is_active = true
+      LIMIT 1
+    ) acct ON true`;
+
 type PrefetchRow = Partial<AccountRow> & { sessions: SessionActivity[] | string | null };
 
 /**
@@ -110,24 +141,10 @@ async function readAuth(tokenHash: string, userId: string, schoolId: string, s: 
   const now = new Date();
   const rows = await runUnscoped("authenticate session and account in one read", () => prisma.$queryRaw<PrefetchRow[]>`
     SELECT
-      (SELECT coalesce(json_agg(json_build_object('isActive', x.is_active)), '[]'::json)
-         FROM (SELECT is_active FROM login_sessions WHERE token_hash = ${tokenHash} AND expires_at > ${now} LIMIT 10) x) AS sessions,
+      ${sessionsColumn(tokenHash, now)},
       acct.*
     FROM (SELECT 1) AS one
-    LEFT JOIN LATERAL (
-      SELECT u.id, u.school_id AS "schoolId", u.campus_id AS "campusId", u.role::text AS role, u.email, u.full_name AS "fullName",
-             u.onboarding_complete AS "onboardingComplete", u.mfa_enabled AS "mfaEnabled", u.is_institution_owner AS "isInstitutionOwner",
-             u.can_purchase_subscription AS "canPurchaseSubscription", u.can_manage_memberships AS "canManageMemberships",
-             u.access_version AS "accessVersion", c.school_id AS "campusSchoolId", s.slug, s.status,
-             s.registration_kind AS "registrationKind", isu.institution_type AS "institutionType",
-             s.subscription_lifecycle_state AS "subscriptionLifecycleState", s.grace_ends_at AS "graceEndsAt"
-      FROM users u
-      JOIN schools s ON s.id = u.school_id
-      LEFT JOIN campuses c ON c.id = u.campus_id
-      LEFT JOIN institution_setups isu ON isu.school_id = u.school_id
-      WHERE u.id = ${userId} AND u.school_id = ${schoolId} AND u.is_active = true
-      LIMIT 1
-    ) acct ON true`);
+    ${accountLateral(userId, schoolId)}`);
   const row = rows[0];
   const raw = row?.sessions ?? [];
   const sessions = (typeof raw === "string" ? JSON.parse(raw) : raw) as SessionActivity[];
@@ -142,4 +159,46 @@ export async function prefetchedAccount(userId: string, schoolId: string): Promi
   const s = await requestStore();
   const key = accountKey(userId, schoolId);
   return s && s.accounts.has(key) ? s.accounts.get(key)! : undefined;
+}
+
+export type CandidateBoundaryRow = { sessions: SessionActivity[]; account: AccountRow | null; attempt: { attemptId: string; assignmentId: string; deadlineAt: Date } | null };
+type CandidateBoundaryRaw = PrefetchRow & { attemptId: string | null; assignmentId: string | null; deadlineAt: Date | null };
+
+/**
+ * SKAI-1971: the proxy's student exam-boundary inputs in ONE round trip — the token's session rows, the exact signed
+ * account, and the learner's current in-progress attempt (same predicates as candidateExamBoundary). Never cached or
+ * memoised: lockdown must reflect current state. The caller decides revocation and authority before using the attempt.
+ */
+export async function candidateBoundaryRead(tokenHash: string, userId: string, schoolId: string, now = new Date()): Promise<CandidateBoundaryRow> {
+  const rows = await runUnscoped("check a signed student session for an active exam in one read", () => prisma.$queryRaw<CandidateBoundaryRaw[]>`
+    SELECT
+      ${sessionsColumn(tokenHash, now)},
+      att.id AS "attemptId", att.assignment_id AS "assignmentId", att.deadline_at AS "deadlineAt",
+      acct.*
+    FROM (SELECT 1) AS one
+    ${accountLateral(userId, schoolId)}
+    LEFT JOIN LATERAL (
+      SELECT st.id, st.campus_id, st.class_id FROM students st
+      WHERE st.school_id = ${schoolId} AND st.student_user_id = ${userId} AND st.status = 'active' AND st.archived_at IS NULL
+      LIMIT 1
+    ) learner ON true
+    LEFT JOIN LATERAL (
+      SELECT a.id, a.assignment_id, a.deadline_at FROM school_ai_exam_attempts a
+      JOIN school_ai_exam_assignments x ON x.id = a.assignment_id
+      WHERE a.school_id = ${schoolId} AND a.user_id = ${userId} AND a.student_id = learner.id
+        AND a.campus_id IS NOT DISTINCT FROM learner.campus_id AND a.status = 'IN_PROGRESS' AND a.deadline_at > ${utc(now)}
+        AND x.school_id = ${schoolId} AND x.status = 'ACTIVE' AND x.mode IN ('STANDARD', 'SECURE_BROWSER')
+        AND x.class_id IS NOT DISTINCT FROM learner.class_id AND x.student_ids @> jsonb_build_array(learner.id)
+      ORDER BY a.started_at ASC, a.id ASC
+      LIMIT 1
+    ) att ON true`);
+  const row = rows[0];
+  const raw = row?.sessions ?? [];
+  const sessions = ((typeof raw === "string" ? JSON.parse(raw) : raw) as SessionActivity[]).map((x) => ({ isActive: x.isActive === true }));
+  const { sessions: _s, attemptId, assignmentId, deadlineAt, ...account } = row ?? { sessions: null, attemptId: null, assignmentId: null, deadlineAt: null };
+  return {
+    sessions,
+    account: account.id ? normalise(account as AccountRow) : null,
+    attempt: attemptId && assignmentId && deadlineAt ? { attemptId, assignmentId, deadlineAt: new Date(deadlineAt) } : null,
+  };
 }

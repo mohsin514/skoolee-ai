@@ -20,6 +20,7 @@
 // faster but never makes them fail. Only resolved principals are cached;
 // a denial is always read fresh.
 // ─────────────────────────────────────────────────────────────────
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import type { AuthUser } from "@/lib/auth";
 import { createRedisGuard, type RedisGuard } from "@/lib/redis/guard";
@@ -164,4 +165,40 @@ export function principalCache() {
     client: async () => (await import("@/lib/queue/connection")).redis as unknown as CacheClient,
   });
   return shared;
+}
+
+// SKAI-1982: inside an interactive transaction the epoch bump waits for the commit. Bumping before commit held the
+// transaction open for a Redis round trip per write, and let a concurrent reader cache the pre-change row under the
+// new epoch for the TTL. After commit, one combined bump makes the next read miss and load the committed row.
+type PendingBumps = { targets: InvalidationTargets[]; flushed: boolean };
+declare global { var __skooleePrincipalBumps: AsyncLocalStorage<PendingBumps> | undefined; }
+const pendingBumps = globalThis.__skooleePrincipalBumps ??= new AsyncLocalStorage<PendingBumps>();
+type Invalidate = (targets: InvalidationTargets) => Promise<void>;
+const sharedInvalidate: Invalidate = targets => principalCache().invalidate(targets);
+
+/** Pure: one set of targets covering every collected write. */
+export function mergeInvalidationTargets(all: InvalidationTargets[]): InvalidationTargets {
+  return { global: all.some(t => t.global), schools: [...new Set(all.flatMap(t => t.schools))], users: [...new Set(all.flatMap(t => t.users))] };
+}
+
+/** Called after each write: deferred to the commit inside `afterCommitInvalidation`, otherwise awaited now (read-your-writes). */
+export async function invalidateAfterWrite(targets: InvalidationTargets, invalidate: Invalidate = sharedInvalidate) {
+  const pending = pendingBumps.getStore();
+  if (pending && !pending.flushed) pending.targets.push(targets);
+  else await invalidate(targets);
+}
+
+/**
+ * Runs a whole interactive transaction (begin to commit). Writes inside it only collect their targets; once it
+ * settles they are bumped in one awaited call. A rollback still bumps what was collected: a write made with the
+ * top-level client inside the callback committed on its own, and a needless miss is cheap where a stale principal is not.
+ */
+export async function afterCommitInvalidation<T>(transaction: () => Promise<T>, invalidate: Invalidate = sharedInvalidate): Promise<T> {
+  const pending: PendingBumps = { targets: [], flushed: false };
+  try {
+    return await pendingBumps.run(pending, transaction);
+  } finally {
+    pending.flushed = true; // a write that outlives the transaction bumps for itself
+    if (pending.targets.length) await invalidate(mergeInvalidationTargets(pending.targets));
+  }
 }

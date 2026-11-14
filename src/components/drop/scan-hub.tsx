@@ -46,12 +46,16 @@ export function ScanHub() {
   useEffect(() => { void fetch("/api/students?fields=picker&limit=1", { cache: "no-store" }).then(r => setCanStudents(r.ok)).catch(() => setCanStudents(false)); }, []);
   useEffect(() => {
     if (kind !== "student" || query.trim().length < 2) { setPupils([]); return; }
-    const timer = setTimeout(() => void json<Pupil[]>(`/api/students?fields=picker&limit=20&search=${encodeURIComponent(query.trim())}`).then(list => { setPupils(list); setPupilId(list.length === 1 ? list[0].id : ""); }).catch(() => setPupils([])), 300);
-    return () => clearTimeout(timer);
+    // SKAI-1980: a newer search aborts the older one, so a late answer can never pick the wrong pupil.
+    const controller = new AbortController();
+    const timer = setTimeout(() => void json<Pupil[]>(`/api/students?fields=picker&limit=20&search=${encodeURIComponent(query.trim())}`, { signal: controller.signal })
+      .then(list => { if (controller.signal.aborted) return; setPupils(list); setPupilId(list.length === 1 ? list[0].id : ""); })
+      .catch(() => { if (!controller.signal.aborted) setPupils([]); }), 300);
+    return () => { clearTimeout(timer); controller.abort(); };
   }, [kind, query]);
 
   useEffect(() => {
-    void json<{ capabilities?: { subjects?: Subject[] } }>("/api/school-ai/workspace").then(data => {
+    void json<{ capabilities?: { subjects?: Subject[] } }>("/api/school-ai/workspace?capabilities=1").then(data => {
       const list = data.capabilities?.subjects ?? [];
       setSubjects(list); if (list.length === 1) setSubjectId(list[0].id);
     }).catch(() => setSubjects([]));

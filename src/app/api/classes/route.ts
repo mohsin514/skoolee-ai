@@ -68,8 +68,34 @@ export async function GET(req: NextRequest) {
           }
         : {};
 
+    // SKAI-1966: opt-in narrowing. scope=current keeps ACTIVE classes (closed years are COMPLETED; next-year
+    // planning classes stay); academicYear=<n> serves one year. With neither, every year is listed as before.
+    const yearFilter: { status?: string; academicYear?: number } = {};
+    if (searchParams.get("scope") === "current") yearFilter.status = "ACTIVE";
+    const requestedYear = searchParams.get("academicYear");
+    if (requestedYear) {
+      const year = Number(requestedYear);
+      if (!Number.isInteger(year)) throw new ApiError("academicYear must be a whole year", 400);
+      yearFilter.academicYear = year;
+    }
+    const where = { ...scopedCampusWhere(user, campusId), ...teacherScope, ...yearFilter, ...(searchParams.get("includeArchived") === "true" ? {} : { archivedAt: null }) };
+    const orderBy = [{ academicYear: "desc" as const }, { name: "asc" as const }, { section: "asc" as const }, { id: "asc" as const }];
+
+    // view=picker: the fields class pickers read, without nested teacher profiles or counts.
+    if (searchParams.get("view") === "picker") {
+      const classes = await prisma.class.findMany({
+        where,
+        select: {
+          id: true, name: true, section: true, academicYear: true, status: true, campusId: true, classTeacherId: true, teachingMode: true,
+          subjects: { select: { id: true, name: true, teacherId: true }, orderBy: { name: "asc" } },
+        },
+        orderBy,
+      });
+      return Response.json({ success: true, data: classes });
+    }
+
     const classes = await prisma.class.findMany({
-      where: { ...scopedCampusWhere(user, campusId), ...teacherScope, ...(searchParams.get("includeArchived") === "true" ? {} : { archivedAt: null }) },
+      where,
       include: {
         campus: { select: { id: true, name: true } },
         classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
@@ -79,7 +105,7 @@ export async function GET(req: NextRequest) {
         },
         _count: { select: { students: true, subjects: true } },
       },
-      orderBy: [{ academicYear: "desc" }, { name: "asc" }, { section: "asc" }, { id: "asc" }],
+      orderBy,
     });
 
     return Response.json({ success: true, data: classes });

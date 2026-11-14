@@ -44,6 +44,8 @@ const conversations = [
   { id: "d-cross-school-peer", kind: "DIRECT", schoolId: "school-a", campusId: "campus-a", classId: null, memberIds: ["teacher-a", "parent-x"] },
   { id: "c-class-a", kind: "CLASS", schoolId: "school-a", campusId: "campus-a", classId: "class-a", memberIds: ["teacher-a", "parent-a", "parent-gone", "student-s1"] },
   { id: "g-other-campus", kind: "GROUP", schoolId: "school-a", campusId: "campus-b", classId: null, memberIds: ["teacher-a", "teacher-c"] },
+  // A class channel whose class was removed: every parent in it counts as lapsed, as in currentClassMembers.
+  { id: "c-no-class", kind: "CLASS", schoolId: "school-a", campusId: "campus-a", classId: null, memberIds: ["teacher-a", "parent-a", "parent-b"] },
   { id: "c-school-b", kind: "CLASS", schoolId: "school-b", campusId: "campus-x", classId: "class-x", memberIds: ["teacher-x", "parent-x", "teacher-a"] },
   ...Array.from({ length: 12 }, (_, i) => ({ id: `d-many-${i}`, kind: "DIRECT", schoolId: "school-a", campusId: "campus-a", classId: null, memberIds: ["teacher-a", `parent-many-${i}`] })),
 ];
@@ -65,6 +67,14 @@ let calls = 0;
 const tick = <A extends unknown[], R>(fn: (...args: A) => R) => (...args: A) => { calls += 1; return fn(...args); };
 type W = { where: Record<string, unknown> };
 const db = {
+  // lapsedClassParentCounts: the SQL's bound values carry the school and the channel ids; each channel's class comes from the fixture.
+  $queryRaw: tick(async (sql: { values: unknown[] }) => {
+    const schoolId = sql.values[0];
+    return conversations.filter((c) => c.kind === "CLASS" && c.schoolId === schoolId && sql.values.includes(c.id)).flatMap((c) => {
+      const lapsed = c.memberIds.filter((id) => userById.get(id)?.role === "PARENT" && !(c.classId && students.some((s) => s.schoolId === schoolId && s.classId === c.classId && live([id], s.id).length > 0))).length;
+      return lapsed ? [{ conversationId: c.id, lapsed }] : [];
+    });
+  }),
   user: {
     findFirst: tick(async ({ where }: W) => users.find((u) => u.id === where.id && u.schoolId === where.schoolId) ?? null),
     findMany: tick(async ({ where }: W) => users.filter((u) => collect({ id: where.id }, "id").includes(u.id) && u.schoolId === where.schoolId)),
@@ -75,8 +85,13 @@ const db = {
   timetableSlot: { findMany: tick(async () => []) },
   teachingAssignment: { findMany: tick(async () => []) },
   conversationMember: {
-    findMany: tick(async ({ where }: W) => conversations.filter((c) => collect(where, "conversationId").includes(c.id) && c.schoolId === where.schoolId)
-      .flatMap((c) => c.memberIds.filter((id) => userById.get(id)?.role === "PARENT").map((userId) => ({ conversationId: c.id, userId })))),
+    // currentMemberCount: non-parents plus parents live-linked to the class.
+    count: tick(async ({ where }: W) => {
+      const c = conversations.find((row) => row.id === where.conversationId && row.schoolId === where.schoolId);
+      const classId = collect(where.user, "classId")[0];
+      const isClass = !!(where.user as { OR?: unknown }).OR;
+      return c ? c.memberIds.filter((id) => !isClass || userById.get(id)?.role !== "PARENT" || (!!classId && students.some((s) => s.classId === classId && live([id], s.id).length > 0))).length : 0;
+    }),
   },
   guardianRelationship: {
     findMany: tick(async ({ where }: W) => {
@@ -159,4 +174,26 @@ test("the query count does not grow with the number of threads", async () => {
   assert.ok(large.out.length > small.out.length + 5);
   assert.equal(large.queries, small.queries);
   assert.ok(large.queries <= 10, `queries ${large.queries}`);
+});
+
+test("memberCount matches currentMemberCount, and the inbox never loads a class roster", async () => {
+  const { currentMemberCount } = await import("../../src/lib/chat/membership");
+  const { out } = await batched(viewer("teacher-a"));
+  for (const id of ["c-class-a", "c-no-class"]) {
+    const c = conversations.find((row) => row.id === id)!;
+    assert.equal(out.find((row) => row.id === id)?.memberCount, await currentMemberCount(c, db as never), id);
+  }
+  assert.equal(out.find((row) => row.id === "c-no-class")?.memberCount, 1);
+  // SKAI-1981: no class roster is loaded, and only the viewer's own guardian link is read, only for a parent viewer.
+  assert.equal("findMany" in db.conversationMember, false);
+  const seen: unknown[] = [];
+  const findMany = db.guardianRelationship.findMany;
+  db.guardianRelationship.findMany = (async (args: W) => { seen.push(args.where); return findMany(args); }) as typeof findMany;
+  try {
+    await batched(viewer("teacher-a"));
+    assert.equal(seen.length, 0, "a teacher viewer reads no guardian links");
+    assert.deepEqual((await batched(viewer("parent-a"))).out.map((row) => row.id), ["d-teacher-parent", "d-guardian-pupil", "c-class-a"]);
+    assert.equal(seen.length, 1);
+    assert.deepEqual(collect(seen[0], "guardianUserId"), ["parent-a"]);
+  } finally { db.guardianRelationship.findMany = findMany; }
 });

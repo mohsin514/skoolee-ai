@@ -14,6 +14,7 @@ class ApiError extends Error {
 
 mock.module(src("lib/api/scope.ts"), {
   namedExports: {
+    ValidationError: class extends Error {},
     ApiError,
     requireAuthUser: async () => state.user,
     resolveCampusId: async () => "campus-a",

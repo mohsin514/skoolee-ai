@@ -20,6 +20,7 @@ import { Alert } from "@/components/ui/alert";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { resultGradeLabel } from "@/lib/locale/result-grade";
+import { readApiData, readApiError } from "@/lib/api/envelope-client";
 
 
 interface ClassSummary {
@@ -208,10 +209,10 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`/api/grade-config/weighted-result?classId=${classId}&academicYear=${academicYear}`);
       const json = await res.json();
       if (!res.ok) {
-        setGradeError(json.error || "Could not load grades");
+        setGradeError(readApiError(json, "Could not load grades"));
         await loadStudentsFallback(classId);
       } else {
-        const grades: GradeResult[] = (json.grades || []).map((g: any) => ({
+        const grades: GradeResult[] = (readApiData<{ grades?: any[] }>(json, {}).grades || []).map((g: any) => ({
           studentId: g.studentId,
           studentName: g.studentName,
           rollNo: g.rollNo,

@@ -37,7 +37,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     // Lock generates this exam's own result cards (per exam, never a term aggregate), which is what the
     // academic lead reviews and publishes next; a class test therefore needs no separate SUBMITTED state.
     const { locked, generated } = await withExamSchedulingWrite(user, campusId, "edit", async tx => {
-      const exam = await tx.exam.findFirst({ where: { id, schoolId: user.schoolId, campusId }, include: { class: { include: { students: { select: { id: true } }, subjects: { select: { id: true } } } } } });
+      const exam = await tx.exam.findFirst({ where: { id, schoolId: user.schoolId, campusId }, include: { class: { include: { students: { where: { archivedAt: null }, select: { id: true } }, subjects: { select: { id: true } } } } } });
       if (!exam) throw new ApiError("Exam not found", 404);
       if (exam.isLocked) throw new ApiError("Exam already locked", 400);
       if (!["DRAFT", "ACTIVE", "MARKS_ENTRY"].includes(exam.status)) throw new ApiError("This exam cannot be locked from its current state.", 409);

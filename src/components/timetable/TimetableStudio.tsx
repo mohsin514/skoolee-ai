@@ -49,6 +49,7 @@ import { PublicationReview, PublicationStatus } from "./PublicationReview";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { TimetableScopeControls, timetableScopeCopy, useTimetableScope } from "./TimetableScopeControls";
 import { timetablePeriods } from "@/lib/timetable/view-scope";
+import { fetchTimetableYear, indexRows, mergeTimetableYear, timetableListUrl, timetableLoadYear } from "@/lib/timetable/year-load";
 import { AddPeriodDialog, addPeriodCopy } from "./AddPeriodDialog";
 import { PeriodChangeReview } from "./PeriodChangeReview";
 import { planPeriodChanges, type PeriodConfiguration } from "@/lib/timetable/period-changes";
@@ -730,13 +731,16 @@ export function TimetableStudio({ campusId, periodsHref, hideActions = false, co
 
   // R4: a failed load is an inline ErrorState with retry, never a toast over an empty studio.
   const [loadFailed, setLoadFailed] = useState(false);
+  // SKAI-1966: the year whose slots are loaded; other years hold index rows (no slots) for the pickers.
+  const [slotsYear, setSlotsYear] = useState<number | null>(null);
+  const slotsYearRef = useRef<{ campusId?: string; year: number } | null>(null);
   const loadData = useCallback(async () => {
     setLoading(true);
     setLoadFailed(false);
     try {
       const [ttRes, classRes, teacherRes, periodRes, roomRes, calRes] = await Promise.all([
-        fetch(`/api/timetable${qp}`),
-        fetch(`/api/classes${qp}`),
+        fetch(timetableListUrl(campusId, { view: "index" })),
+        fetch(`/api/classes?${new URLSearchParams({ ...(campusId ? { campusId } : {}), view: "picker", scope: "current" })}`),
         fetch(`/api/staff${qp}`),
         fetch(`/api/academic/periods?timeType=CLASS${campusId ? `&campusId=${encodeURIComponent(campusId)}` : ""}`),
         fetch(`/api/academic/rooms${qp}`),
@@ -749,14 +753,17 @@ export function TimetableStudio({ campusId, periodsHref, hideActions = false, co
       // SKAI-1423/1647: an error response or unsuccessful body is a failed load, not empty setup; keep prior data and show Retry.
       if (![ttRes, classRes, teacherRes, periodRes, roomRes, calRes].every(res => res.ok)) throw new Error("timetable load failed");
       if (![ttJson, periodJson, roomJson, calJson].every(json => json?.success)) throw new Error("timetable setup source failed");
-      if (ttJson.success) setTimetables(ttJson.data);
+      const classList = (() => { const cls = classJson.data || classJson; return Array.isArray(cls) ? cls : []; })();
+      const shown = slotsYearRef.current, previousYear = shown && shown.campusId === campusId ? shown.year : null;
+      const year = timetableLoadYear(ttJson.data, classList, previousYear);
+      const full = await fetchTimetableYear<TimetableData>(campusId, year, ttJson.data);
+      setTimetables(mergeTimetableYear(indexRows<TimetableData>(ttJson.data), year, full));
+      slotsYearRef.current = { campusId, year };
+      setSlotsYear(year);
       if (periodJson.success) setPeriodDefs(periodJson.data || []);
       if (roomJson.success) setRooms(roomJson.data || []);
       if (calJson.success) setWeekendDays(calJson.data.weekends || []);
-      if (classJson.success || Array.isArray(classJson.data)) {
-        const cls = classJson.data || classJson;
-        setClasses(Array.isArray(cls) ? cls : []);
-      }
+      if (classJson.success || Array.isArray(classJson.data)) setClasses(classList);
       if (isApiOk(teacherJson)) {
         const staffList = readApiData<{ staff?: TeacherOption[] }>(teacherJson, {}).staff || [];
         const teacherList = (Array.isArray(staffList) ? staffList : []).filter(
@@ -774,6 +781,20 @@ export function TimetableStudio({ campusId, periodsHref, hideActions = false, co
   useEffect(() => { loadData(); }, [loadData]);
 
   const scope = useTimetableScope(timetables, classes, campusId);
+  const yearPending = slotsYear !== null && scope.year !== slotsYear;
+  useEffect(() => {
+    if (loading || slotsYear === null || scope.year === slotsYear) return;
+    const controller = new AbortController(), year = scope.year;
+    fetchTimetableYear<TimetableData>(campusId, year, timetables, controller.signal)
+      .then(full => {
+        if (controller.signal.aborted) return;
+        setTimetables(previous => mergeTimetableYear(previous, year, full));
+        slotsYearRef.current = { campusId, year };
+        setSlotsYear(year);
+      })
+      .catch(() => { if (!controller.signal.aborted) setLoadFailed(true); });
+    return () => controller.abort();
+  }, [loading, slotsYear, scope.year, campusId, timetables]);
   const scopeClasses = useMemo(() => {
     const options = classes.filter(cls => cls.academicYear === scope.year || timetables.some(timetable => timetable.classId === cls.id && timetable.academicYear === scope.year));
     for (const timetable of timetables) if (timetable.academicYear === scope.year && !options.some(cls => cls.id === timetable.classId)) options.push({ ...timetable.class, academicYear: scope.year });
@@ -1061,7 +1082,7 @@ export function TimetableStudio({ campusId, periodsHref, hideActions = false, co
   if (loadFailed && !loading) {
     return <ErrorState title={ui("The timetable could not be loaded")} description={ui("Could not load timetables, classes or teachers. Check your connection and try again.")} onRetry={() => void loadData()} />;
   }
-  if (loading) {
+  if (loading || yearPending) {
     return <FullSkeleton periods={gridSkeletonPeriods} visibleDays={visibleDays} />;
   }
 

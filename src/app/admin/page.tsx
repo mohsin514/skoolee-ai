@@ -13,6 +13,7 @@
 
 import { readSession } from "@/lib/client/session-read";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   Activity,
   Archive,
@@ -86,73 +87,21 @@ import { DegradedNotice } from "@/components/role-dashboard/DegradedNotice";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Modal } from "@/components/ui/modal";
 import { FlagshipCard } from "@/components/ui/flagship";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { ActionQueue } from "@/components/principal/action-queue";
 import { CampusOverview } from "@/components/insights";
-import { PurchasingPanel } from "@/components/purchasing/purchasing-panel";
-import { LearningActions } from "@/components/learning/learning-actions";
-import { PolicyManager } from "@/components/policies/policy-manager";
-import { AdmissionsDesk } from "@/components/admissions/admissions-desk";
-import { GuardianAccessManager } from "@/components/GuardianAccessManager";
-import { ConsentStatusPanel } from "@/components/family/guardian-consent";
-import { AnalyticsCharts } from "@/components/analytics/analytics-charts";
-import { CampusPackagesPanel, CanteenPanel, HostelBoarding } from "@/components/campus-packages/campus-packages";
-import { AdmissionForm } from "@/components/students/admission-form";
-import { BulkImportDialog } from "@/components/students/bulk-import-dialog";
-import { QuickCreateClass } from "@/components/shared-admin/quick-create-class";
-import { ClassManager } from "@/components/shared-admin/class-manager";
-import { ArchivedClassesPanel } from "@/components/shared-admin/archived-classes-panel";
-import { ClassSyncPanel } from "@/components/offline/class-sync-panel";
 import { classArchiveText, studentArchiveText, fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
-import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
-import { AddStaffForm } from "@/components/staff/add-staff-form";
 import { StaffHierarchyPanel, STAFF_STRUCTURE_TABS, type StaffStructureTab } from "@/components/staff/hierarchy-panel";
-import { AuditHistoryModal } from "@/components/audit/audit-history-modal";
-import { UnifiedAttendancePanel, type AttendanceTab } from "@/components/attendance/unified-attendance-panel";
+import type { AttendanceTab } from "@/components/attendance/unified-attendance-panel";
 import { FeesPanel, feeTabItems } from "@/components/fees/FeesPanel";
 import type { FeeTab } from "@/components/fees/fee-types";
-import { TimetableStudio, type TimetableCommand, type TimetableDraftState } from "@/components/timetable/TimetableStudio";
+import type { TimetableCommand, TimetableDraftState } from "@/components/timetable/TimetableStudio";
 import type { YearCloseCommand, YearClosureState } from "@/components/academic/YearClosureChecklist";
-import { AcademicHub } from "@/components/academic/AcademicHub";
-import { YearSetupWizard } from "@/components/academic/YearSetupWizard";
-import { ExamsWorkspace } from "@/components/academic/exams/ExamsWorkspace";
-import { GradingRulesPanel } from "@/components/academic/GradingRulesPanel";
-import { AcademicModelPanel } from "@/components/academic/AcademicModelPanel";
-import { RoomsManager } from "@/components/academic/RoomsManager";
-import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
-import { YearEndPanel } from "@/components/academic/YearEndPanel";
-import { RolloverReview } from "@/components/academic/rollover-review";
-import { ReportCardPipeline, type ReportSelectionState } from "@/components/academic/ReportCardPipeline";
+import type { ReportSelectionState } from "@/components/academic/ReportCardPipeline";
 import { reportCardExamsInView } from "@/lib/academic/report-card-exams";
-import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
-import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
-import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
-import { QuestionNetwork } from "@/components/question-network/question-network";
-import { EngagementPanel, type EngagementCommand } from "@/components/communications/engagement-panel";
-import { TransportPanel, DormitoryPanel, InventoryPanel, LibraryPanel } from "@/components/operations";
-import { ComplaintsDesk } from "@/components/operations/complaints-desk";
-import { CertificatesDesk } from "@/components/operations/certificates-desk";
-import { VisitorRegister } from "@/components/operations/visitor-register";
-import { PhoneCallLog } from "@/components/operations/phone-call-log";
-import { PostalRegister } from "@/components/operations/postal-register";
-import { LendingDesk } from "@/components/library/lending-desk";
-import { PickupGate } from "@/components/pickup/pickup";
-import { PayrollRunsPanel } from "@/components/payroll/payroll-runs-panel";
-import { TaxPackages } from "@/components/tax/tax-packages";
-import { CampusPolicy } from "@/components/group-policy/group-policy";
-import { SubscriptionWorkspace } from "@/components/billing/SubscriptionWorkspace";
-import { SupportApprovalsPanel } from "@/components/institution/support-approvals";
-import { MembershipsPanel } from "@/components/memberships/memberships-panel";
-import { AuditHistoryPanel } from "@/components/audit/audit-history-panel";
-import { IdentityAdmin } from "@/components/identity/identity-admin";
-import { Integrations } from "@/components/integrations/integrations";
-import { WhatsAppConnectionPanel } from "@/components/whatsapp/whatsapp-connection-panel";
-import { ManagedSendingPanel } from "@/components/whatsapp/managed-sending-panel";
-import { DataLifecyclePanel } from "@/components/settings/DataLifecyclePanel";
-import { ReadinessHome } from "@/components/readiness/ReadinessHome";
-import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
-import { InstitutionSettingsPanel } from "@/components/settings/InstitutionSettingsPanel";
+import type { EngagementCommand } from "@/components/communications/engagement-panel";
 import {
   AcademicPanel,
   AdmissionQueriesPanel,
@@ -174,9 +123,80 @@ import {
   TeacherDetailModal,
   classLabel,
 } from "@/components/shared-admin";
-import { AI_COMPOSER_INPUT_ID } from "@/components/ai-workflows/AiWorkflowsHome";
+import { AI_COMPOSER_INPUT_ID } from "@/components/ai-workflows/ai-composer-id";
 import { readApiError } from "@/lib/api/envelope-client";
 import { currentClassTeacherId, currentSubjectTeacherId } from "@/lib/academic/allocation-version";
+
+/*
+ * SKAI-1978: only Today, the shared-admin panels and the views whose tab rows the header reads (fees, staff
+ * structure) are bundled with the page. Every other workspace panel loads its own chunk when first shown, so a cold
+ * instance no longer evaluates ~60 panels to render Today. SSR stays on, so a deep-linked ?view= still
+ * server-renders. The view's PageHeader is already drawn, so a panel's fallback is a body-only list; modals open on
+ * a click and render nothing while their chunk loads.
+ */
+const panelLoading = () => <SkeletonList />;
+const PurchasingPanel = dynamic(() => import("@/components/purchasing/purchasing-panel").then((m) => m.PurchasingPanel), { loading: panelLoading });
+const LearningActions = dynamic(() => import("@/components/learning/learning-actions").then((m) => m.LearningActions), { loading: panelLoading });
+const PolicyManager = dynamic(() => import("@/components/policies/policy-manager").then((m) => m.PolicyManager), { loading: panelLoading });
+const AdmissionsDesk = dynamic(() => import("@/components/admissions/admissions-desk").then((m) => m.AdmissionsDesk), { loading: panelLoading });
+const GuardianAccessManager = dynamic(() => import("@/components/GuardianAccessManager").then((m) => m.GuardianAccessManager), { loading: panelLoading });
+const ConsentStatusPanel = dynamic(() => import("@/components/family/guardian-consent").then((m) => m.ConsentStatusPanel), { loading: panelLoading });
+const AnalyticsCharts = dynamic(() => import("@/components/analytics/analytics-charts").then((m) => m.AnalyticsCharts), { loading: panelLoading });
+const CampusPackagesPanel = dynamic(() => import("@/components/campus-packages/campus-packages").then((m) => m.CampusPackagesPanel), { loading: panelLoading });
+const CanteenPanel = dynamic(() => import("@/components/campus-packages/campus-packages").then((m) => m.CanteenPanel), { loading: panelLoading });
+const HostelBoarding = dynamic(() => import("@/components/campus-packages/campus-packages").then((m) => m.HostelBoarding), { loading: panelLoading });
+const AdmissionForm = dynamic(() => import("@/components/students/admission-form").then((m) => m.AdmissionForm));
+const BulkImportDialog = dynamic(() => import("@/components/students/bulk-import-dialog").then((m) => m.BulkImportDialog));
+const QuickCreateClass = dynamic(() => import("@/components/shared-admin/quick-create-class").then((m) => m.QuickCreateClass));
+const ClassManager = dynamic(() => import("@/components/shared-admin/class-manager").then((m) => m.ClassManager), { loading: panelLoading });
+const ArchivedClassesPanel = dynamic(() => import("@/components/shared-admin/archived-classes-panel").then((m) => m.ArchivedClassesPanel), { loading: panelLoading });
+const ClassSyncPanel = dynamic(() => import("@/components/offline/class-sync-panel").then((m) => m.ClassSyncPanel), { loading: panelLoading });
+const AddTeacherForm = dynamic(() => import("@/components/teacher/add-teacher-form").then((m) => m.AddTeacherForm));
+const AddStaffForm = dynamic(() => import("@/components/staff/add-staff-form").then((m) => m.AddStaffForm));
+const AuditHistoryModal = dynamic(() => import("@/components/audit/audit-history-modal").then((m) => m.AuditHistoryModal));
+const UnifiedAttendancePanel = dynamic(() => import("@/components/attendance/unified-attendance-panel").then((m) => m.UnifiedAttendancePanel), { loading: panelLoading });
+const TimetableStudio = dynamic(() => import("@/components/timetable/TimetableStudio").then((m) => m.TimetableStudio), { loading: panelLoading });
+const AcademicHub = dynamic(() => import("@/components/academic/AcademicHub").then((m) => m.AcademicHub), { loading: panelLoading });
+const YearSetupWizard = dynamic(() => import("@/components/academic/YearSetupWizard").then((m) => m.YearSetupWizard), { loading: panelLoading });
+const ExamsWorkspace = dynamic(() => import("@/components/academic/exams/ExamsWorkspace").then((m) => m.ExamsWorkspace), { loading: panelLoading });
+const GradingRulesPanel = dynamic(() => import("@/components/academic/GradingRulesPanel").then((m) => m.GradingRulesPanel), { loading: panelLoading });
+const AcademicModelPanel = dynamic(() => import("@/components/academic/AcademicModelPanel").then((m) => m.AcademicModelPanel), { loading: panelLoading });
+const RoomsManager = dynamic(() => import("@/components/academic/RoomsManager").then((m) => m.RoomsManager), { loading: panelLoading });
+const AcademicCalendar = dynamic(() => import("@/components/academic/AcademicCalendar").then((m) => m.AcademicCalendar), { loading: panelLoading });
+const YearEndPanel = dynamic(() => import("@/components/academic/YearEndPanel").then((m) => m.YearEndPanel), { loading: panelLoading });
+const RolloverReview = dynamic(() => import("@/components/academic/rollover-review").then((m) => m.RolloverReview), { loading: panelLoading });
+const ReportCardPipeline = dynamic(() => import("@/components/academic/ReportCardPipeline").then((m) => m.ReportCardPipeline), { loading: panelLoading });
+const AcademicYearPanel = dynamic(() => import("@/components/academic-year/AcademicYearPanel").then((m) => m.AcademicYearPanel), { loading: panelLoading });
+const TeacherPerformancePanel = dynamic(() => import("@/components/academic-year/TeacherPerformancePanel").then((m) => m.TeacherPerformancePanel), { loading: panelLoading });
+const CycleManagementPanel = dynamic(() => import("@/components/academic-year/CycleManagementPanel").then((m) => m.CycleManagementPanel), { loading: panelLoading });
+const QuestionNetwork = dynamic(() => import("@/components/question-network/question-network").then((m) => m.QuestionNetwork), { loading: panelLoading });
+const EngagementPanel = dynamic(() => import("@/components/communications/engagement-panel").then((m) => m.EngagementPanel), { loading: panelLoading });
+const TransportPanel = dynamic(() => import("@/components/operations").then((m) => m.TransportPanel), { loading: panelLoading });
+const DormitoryPanel = dynamic(() => import("@/components/operations").then((m) => m.DormitoryPanel), { loading: panelLoading });
+const InventoryPanel = dynamic(() => import("@/components/operations").then((m) => m.InventoryPanel), { loading: panelLoading });
+const LibraryPanel = dynamic(() => import("@/components/operations").then((m) => m.LibraryPanel), { loading: panelLoading });
+const ComplaintsDesk = dynamic(() => import("@/components/operations/complaints-desk").then((m) => m.ComplaintsDesk), { loading: panelLoading });
+const CertificatesDesk = dynamic(() => import("@/components/operations/certificates-desk").then((m) => m.CertificatesDesk), { loading: panelLoading });
+const VisitorRegister = dynamic(() => import("@/components/operations/visitor-register").then((m) => m.VisitorRegister), { loading: panelLoading });
+const PhoneCallLog = dynamic(() => import("@/components/operations/phone-call-log").then((m) => m.PhoneCallLog), { loading: panelLoading });
+const PostalRegister = dynamic(() => import("@/components/operations/postal-register").then((m) => m.PostalRegister), { loading: panelLoading });
+const LendingDesk = dynamic(() => import("@/components/library/lending-desk").then((m) => m.LendingDesk), { loading: panelLoading });
+const PickupGate = dynamic(() => import("@/components/pickup/pickup").then((m) => m.PickupGate), { loading: panelLoading });
+const PayrollRunsPanel = dynamic(() => import("@/components/payroll/payroll-runs-panel").then((m) => m.PayrollRunsPanel), { loading: panelLoading });
+const TaxPackages = dynamic(() => import("@/components/tax/tax-packages").then((m) => m.TaxPackages), { loading: panelLoading });
+const CampusPolicy = dynamic(() => import("@/components/group-policy/group-policy").then((m) => m.CampusPolicy), { loading: panelLoading });
+const SubscriptionWorkspace = dynamic(() => import("@/components/billing/SubscriptionWorkspace").then((m) => m.SubscriptionWorkspace), { loading: panelLoading });
+const SupportApprovalsPanel = dynamic(() => import("@/components/institution/support-approvals").then((m) => m.SupportApprovalsPanel), { loading: panelLoading });
+const MembershipsPanel = dynamic(() => import("@/components/memberships/memberships-panel").then((m) => m.MembershipsPanel), { loading: panelLoading });
+const AuditHistoryPanel = dynamic(() => import("@/components/audit/audit-history-panel").then((m) => m.AuditHistoryPanel), { loading: panelLoading });
+const IdentityAdmin = dynamic(() => import("@/components/identity/identity-admin").then((m) => m.IdentityAdmin), { loading: panelLoading });
+const Integrations = dynamic(() => import("@/components/integrations/integrations").then((m) => m.Integrations), { loading: panelLoading });
+const WhatsAppConnectionPanel = dynamic(() => import("@/components/whatsapp/whatsapp-connection-panel").then((m) => m.WhatsAppConnectionPanel), { loading: panelLoading });
+const ManagedSendingPanel = dynamic(() => import("@/components/whatsapp/managed-sending-panel").then((m) => m.ManagedSendingPanel), { loading: panelLoading });
+const DataLifecyclePanel = dynamic(() => import("@/components/settings/DataLifecyclePanel").then((m) => m.DataLifecyclePanel), { loading: panelLoading });
+const ReadinessHome = dynamic(() => import("@/components/readiness/ReadinessHome").then((m) => m.ReadinessHome), { loading: panelLoading });
+const LocaleSettingsPanel = dynamic(() => import("@/components/settings/LocaleSettingsPanel").then((m) => m.LocaleSettingsPanel), { loading: panelLoading });
+const InstitutionSettingsPanel = dynamic(() => import("@/components/settings/InstitutionSettingsPanel").then((m) => m.InstitutionSettingsPanel), { loading: panelLoading });
 
 /* ────────────────────────── Session (names for "Managed by" copy) ────────────────────────── */
 

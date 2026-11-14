@@ -1,5 +1,6 @@
 "use client";
 import { DepartmentAppeals } from "@/components/school-ai/exam-studio/department-appeals";
+import { readApiData } from "@/lib/api/envelope-client";
 
 import { schoolClock } from "@/lib/timetable/school-clock";
 import { Badge } from "@/components/ui/badge";
@@ -73,10 +74,11 @@ export default function TeacherToday() {
         const res = await fetch(`/api/teacher-attendance?userId=self&date=${today}`);
         const json = await res.json();
         if (!active) return;
-        if (!res.ok || !json.success || !Array.isArray(json.data)) throw new Error("Attendance unavailable");
-        if (json.data.length > 0) {
+        const items = readApiData<{ items?: { checkInTime: string }[] } | null>(json, null)?.items;
+        if (!res.ok || !Array.isArray(items)) throw new Error("Attendance unavailable");
+        if (items.length > 0) {
           setSelfAttendanceStatus("marked");
-          setSelfAttendanceTime(json.data[0].checkInTime);
+          setSelfAttendanceTime(items[0].checkInTime);
         } else {
           setSelfAttendanceStatus("unmarked");
         }

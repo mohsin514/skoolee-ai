@@ -74,6 +74,13 @@ test("requests are never silently mapped across board, grade, year or language",
   assert.equal(contractMismatches(synthetic(), { ...request, examYear: "2028", schoolGrade: "10", language: "ur" }).length, 3);
 });
 
+test("Hindi (hi) is a supported curriculum language and is never matched to an English or Urdu contract", () => {
+  const hindi = { ...synthetic(), language: "hi" as const, status: "APPROVED" as const };
+  assert.deepEqual(contractMismatches(hindi, { board: "BISE_LAHORE", schoolGrade: "9", subject: "Mathematics", examYear: "2027", language: "hi" }), []);
+  assert.equal(contractMismatches(synthetic(), { board: "BISE_LAHORE", schoolGrade: "9", subject: "Mathematics", examYear: "2027", language: "hi" }).length, 1);
+  assert.deepEqual(contractPilotEligibility(hindi, "PAKISTAN_LAHORE", false, now), { eligible: true });
+});
+
 test("eligibility is evaluated per school/campus geography and stays off for unverified evidence", () => {
   const approved = { ...synthetic(), status: "APPROVED" as const };
   assert.deepEqual(contractPilotEligibility(approved, "PAKISTAN_LAHORE", false, now), { eligible: true });

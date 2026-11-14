@@ -220,25 +220,51 @@ export function taxForActivation(a: Awaited<ReturnType<typeof activationFor>>, c
   return { activation: a, version: found.v, pkg: found.pkg, calc: calculate(found.v, lines, discount, a.exemptFeeCodes) };
 }
 
+type IssueInvoice = { id: string; campusId: string; invoiceNumber: string | null; invoiceDate: Date; studentName: string };
+type IssueTax = NonNullable<Awaited<ReturnType<typeof taxFor>>>;
+const DOCUMENT_CHUNK = 500;
+
 /** Writes the immutable tax document beside a new invoice, with the next number for that activation. */
-export async function issueDocument(db: TxClient, schoolId: string, invoice: { id: string; campusId: string; invoiceNumber: string | null; invoiceDate: Date; studentName: string }, t: NonNullable<Awaited<ReturnType<typeof taxFor>>>) {
+export async function issueDocument(db: TxClient, schoolId: string, invoice: IssueInvoice, t: IssueTax) {
+  await issueDocuments(db, schoolId, [{ invoice, tax: t }]);
+}
+
+/** SKAI-1968: tax documents for a batch of new invoices, numbered in the order given. Each package prefix is locked
+ * and read once, each activation's counter moves once by its count, campus names are read once, and the rows are
+ * inserted in chunks, instead of about eight statements per invoice. */
+export async function issueDocuments(db: TxClient, schoolId: string, items: Array<{ invoice: IssueInvoice; tax: IssueTax }>) {
+  if (!items.length) return 0;
   // One unbroken sequence per package prefix for the school, across activations and versions.
-  const prefix = t.version.numbering.prefix;
-  await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`taxnum:${schoolId}:${prefix}`}))`;
-  const last = await db.taxDocument.findFirst({ where: { schoolId, documentNumber: { startsWith: prefix } }, orderBy: { documentNumber: "desc" }, select: { documentNumber: true } });
-  const next = (last ? Number(last.documentNumber.slice(prefix.length)) : 0) + 1;
-  await db.taxActivation.update({ where: { id: t.activation.id }, data: { numberSeq: { increment: 1 } } });
-  const documentNumber = `${prefix}${String(next).padStart(t.version.numbering.pad, "0")}`;
-  const campus = await db.campus.findFirst({ where: { id: invoice.campusId }, select: { name: true } });
-  const snapshot = {
-    package: { code: t.pkg.code, name: t.pkg.name, version: t.version.version, country: t.version.country, rounding: t.version.rounding, standardRatePercent: t.version.standardRatePercent, verifiedScope: t.version.verifiedScope, limitations: t.version.limitations, ruleReviewDate: t.version.ruleReviewDate, invoiceLanguage: t.version.invoiceLanguage },
-    seller: { legalName: t.activation.legalName, taxId: t.activation.taxId, campus: campus?.name ?? "" },
-    buyer: { name: invoice.studentName },
-    invoice: { id: invoice.id, number: invoice.invoiceNumber, date: invoice.invoiceDate },
-    currency: t.activation.currency, lines: t.calc.lines, subtotal: t.calc.subtotal, discount: t.calc.discount, tax: t.calc.tax, total: t.calc.total,
-    approval: { activationId: t.activation.id, approvedById: t.activation.approvedById, approvedAt: t.activation.approvedAt, evidenceReference: t.activation.evidenceReference },
-  };
-  return db.taxDocument.create({ data: { schoolId, invoiceId: invoice.id, activationId: t.activation.id, campusId: invoice.campusId, packageCode: t.pkg.code, packageVersion: t.version.version, documentNumber, snapshot: snapshot as unknown as Prisma.InputJsonValue, currency: t.activation.currency, taxAmount: t.calc.tax, totalAmount: t.calc.total, issuedAt: new Date(), submissionStatus: t.version.electronic.adapter ? "NONE" : "NOT_SUPPORTED" } });
+  const byPrefix = new Map<string, typeof items>();
+  for (const item of items) { const prefix = item.tax.version.numbering.prefix; const list = byPrefix.get(prefix); if (list) list.push(item); else byPrefix.set(prefix, [item]); }
+  const numbers = new Map<(typeof items)[number], string>();
+  for (const prefix of [...byPrefix.keys()].sort()) {
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`taxnum:${schoolId}:${prefix}`}))`;
+    const last = await db.taxDocument.findFirst({ where: { schoolId, documentNumber: { startsWith: prefix } }, orderBy: { documentNumber: "desc" }, select: { documentNumber: true } });
+    let next = (last ? Number(last.documentNumber.slice(prefix.length)) : 0) + 1;
+    for (const item of byPrefix.get(prefix)!) numbers.set(item, `${prefix}${String(next++).padStart(item.tax.version.numbering.pad, "0")}`);
+  }
+  const perActivation = new Map<string, number>();
+  for (const { tax } of items) perActivation.set(tax.activation.id, (perActivation.get(tax.activation.id) ?? 0) + 1);
+  for (const [id, count] of perActivation) await db.taxActivation.update({ where: { id }, data: { numberSeq: { increment: count } } });
+  const campusIds = [...new Set(items.map(item => item.invoice.campusId))];
+  const campuses = await db.campus.findMany({ where: { id: { in: campusIds } }, select: { id: true, name: true } });
+  const campusName = new Map(campuses.map(c => [c.id, c.name]));
+  const issuedAt = new Date();
+  const rows = items.map(item => {
+    const { invoice, tax: t } = item;
+    const snapshot = {
+      package: { code: t.pkg.code, name: t.pkg.name, version: t.version.version, country: t.version.country, rounding: t.version.rounding, standardRatePercent: t.version.standardRatePercent, verifiedScope: t.version.verifiedScope, limitations: t.version.limitations, ruleReviewDate: t.version.ruleReviewDate, invoiceLanguage: t.version.invoiceLanguage },
+      seller: { legalName: t.activation.legalName, taxId: t.activation.taxId, campus: campusName.get(invoice.campusId) ?? "" },
+      buyer: { name: invoice.studentName },
+      invoice: { id: invoice.id, number: invoice.invoiceNumber, date: invoice.invoiceDate },
+      currency: t.activation.currency, lines: t.calc.lines, subtotal: t.calc.subtotal, discount: t.calc.discount, tax: t.calc.tax, total: t.calc.total,
+      approval: { activationId: t.activation.id, approvedById: t.activation.approvedById, approvedAt: t.activation.approvedAt, evidenceReference: t.activation.evidenceReference },
+    };
+    return { schoolId, invoiceId: invoice.id, activationId: t.activation.id, campusId: invoice.campusId, packageCode: t.pkg.code, packageVersion: t.version.version, documentNumber: numbers.get(item)!, snapshot: snapshot as unknown as Prisma.InputJsonValue, currency: t.activation.currency, taxAmount: t.calc.tax, totalAmount: t.calc.total, issuedAt, submissionStatus: t.version.electronic.adapter ? "NONE" : "NOT_SUPPORTED" };
+  });
+  for (let start = 0; start < rows.length; start += DOCUMENT_CHUNK) await db.taxDocument.createMany({ data: rows.slice(start, start + DOCUMENT_CHUNK) });
+  return rows.length;
 }
 
 // ─── Documents and electronic submission ─────────────────────────────────
@@ -291,7 +317,15 @@ export async function reconcile(user: AuthUser, id: string) {
   if (d.submissionStatus !== "QUEUED") return { id, status: d.submissionStatus, repeated: true };
   const received = d.attempts[0]?.outcome === "TIMEOUT"; // the sandbox kept what it received
   const attempt = (await prisma.taxSubmissionAttempt.count({ where: { documentId: id } })) + 1;
-  await prisma.taxSubmissionAttempt.create({ data: { schoolId: user.schoolId, documentId: id, attempt, revision: d.revision, outcome: received ? "RECONCILED_ACCEPTED" : "RECONCILED_MISSING", detail: received ? "The sandbox already holds this external id as accepted." : "The sandbox has no record; it can be sent again with the same id.", actorId: user.userId } });
+  try {
+    await prisma.taxSubmissionAttempt.create({ data: { schoolId: user.schoolId, documentId: id, attempt, revision: d.revision, outcome: received ? "RECONCILED_ACCEPTED" : "RECONCILED_MISSING", detail: received ? "The sandbox already holds this external id as accepted." : "The sandbox has no record; it can be sent again with the same id.", actorId: user.userId } });
+  } catch (error) {
+    // A concurrent retry claimed this attempt number first: return its committed result, never a raw constraint error.
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+    const current = await prisma.taxDocument.findFirst({ where: { id, schoolId: user.schoolId }, select: { submissionStatus: true } });
+    if (current && current.submissionStatus !== "QUEUED") return { id, status: current.submissionStatus, repeated: true };
+    throw new ApiError("Another reconciliation of this document is already running. Reload to see its status.", 409);
+  }
   if (received) await prisma.taxDocument.update({ where: { id }, data: { submissionStatus: "ACCEPTED", lastError: null } });
   return { id, status: received ? "ACCEPTED" : "QUEUED", externalId: d.externalId };
 }
@@ -305,6 +339,8 @@ export async function correct(user: AuthUser, body: Record<string, unknown>) {
   const note = text(body.note, 500), buyerName = text(body.buyerName, 200);
   if (note.length < 5 || !buyerName) throw new ApiError("Record what was corrected and why.", 400);
   const snapshot = { ...(d.snapshot as Record<string, unknown>), correction: { revision: d.revision + 1, buyerName, note, by: user.userId, at: new Date().toISOString() } };
-  await prisma.taxDocument.update({ where: { id: d.id }, data: { snapshot: snapshot as Prisma.InputJsonValue, revision: { increment: 1 }, submissionStatus: "CORRECTED", correctedById: user.userId, correctionNote: note } });
+  // Claim the rejected revision atomically: a concurrent correction that already moved it on loses with a 409.
+  const { count } = await prisma.taxDocument.updateMany({ where: { id: d.id, schoolId: user.schoolId, submissionStatus: "REJECTED", revision: d.revision }, data: { snapshot: snapshot as Prisma.InputJsonValue, revision: { increment: 1 }, submissionStatus: "CORRECTED", correctedById: user.userId, correctionNote: note } });
+  if (!count) throw new ApiError("This document was corrected by someone else. Reload to see its latest revision.", 409);
   return { id: d.id, revision: d.revision + 1 };
 }

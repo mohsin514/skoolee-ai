@@ -27,6 +27,7 @@ import { InfoTip } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input as SystemInput } from "@/components/ui/input";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { readApiData } from "@/lib/api/envelope-client";
 
 type CalendarRole = "ADMIN" | "PRINCIPAL" | "TEACHER" | "STUDENT" | "PARENT";
 
@@ -97,19 +98,24 @@ export function YearEndPanel({ campusId, role = "ADMIN", archiveRequest, hideArc
     const run = async () => {
       const classes = yearGroups.find((y) => y.year === activeYear)?.classes || [];
       const completed = classes.filter((c) => c.status === "COMPLETED" || c._count.exams > 0);
-      const results = await Promise.all(
-        completed.map(async (c) => {
-          try {
-            const res = await fetch(`/api/grade-config/weighted-result?classId=${c.id}&academicYear=${activeYear}`);
-            const json = await res.json();
-            const grades = (json.grades || []) as { overallPercentage: number }[];
-            const avg = grades.length ? grades.reduce((s, g) => s + (g.overallPercentage || 0), 0) / grades.length : null;
-            return { classId: c.id, label: c.section ? `${c.name} - ${c.section}` : c.name, avg, students: c._count.students };
-          } catch {
-            return { classId: c.id, label: c.section ? `${c.name} - ${c.section}` : c.name, avg: null, students: c._count.students };
-          }
-        })
-      );
+      // SKAI-1983: one request returns every class average instead of one full grade sheet per class.
+      let avgByClass = new Map<string, number | null>();
+      if (completed.length) {
+        try {
+          const res = await fetch(`/api/grade-config/weighted-result/class-averages?academicYear=${activeYear}&classIds=${completed.map((c) => encodeURIComponent(c.id)).join(",")}`);
+          const json = await res.json();
+          const averages = readApiData<{ averages?: { classId: string; avg: number | null }[] }>(json, {}).averages || [];
+          avgByClass = new Map(averages.map((a) => [a.classId, a.avg]));
+        } catch {
+          avgByClass = new Map();
+        }
+      }
+      const results = completed.map((c) => ({
+        classId: c.id,
+        label: c.section ? `${c.name} - ${c.section}` : c.name,
+        avg: avgByClass.get(c.id) ?? null,
+        students: c._count.students,
+      }));
       if (!cancelled) setClassAvgs(results);
     };
     run();

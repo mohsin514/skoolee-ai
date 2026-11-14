@@ -78,3 +78,52 @@ test("SKAI-1063: an unavailable session store is a retryable error, never a lear
     lookupBoundary: async () => { assert.fail("unknown session state cannot query attempts"); },
   }), /unavailable/);
 });
+
+// SKAI-1971: production reads session, account and attempt in one statement; the decisions on the rows are unchanged.
+const account = { id: "learner", schoolId: "school", campusId: "current-campus", role: "STUDENT" as const, email: "synthetic@example.invalid", fullName: "Synthetic learner", onboardingComplete: true,
+  mfaEnabled: false, isInstitutionOwner: false, canPurchaseSubscription: false, canManageMemberships: false, accessVersion: 7, campusSchoolId: "school", slug: "school", status: "ACTIVE",
+  registrationKind: null, institutionType: null, subscriptionLifecycleState: "ACTIVE", graceEndsAt: null };
+const live = { sessions: [{ isActive: true }], account, attempt: active };
+const noLegacy = {
+  isRevoked: async () => assert.fail("the one-read path makes no separate session read"),
+  resolvePrincipal: async () => assert.fail("the one-read path makes no separate account read"),
+  lookupBoundary: async () => assert.fail("the one-read path makes no separate attempt read"),
+};
+
+test("SKAI-1971: one read returns the active attempt only after session and account authority pass", async () => {
+  let reads = 0;
+  const result = await candidateExamBoundaryForSession("signed-cookie", claims, { ...noLegacy, readAll: async (hash, received) => { reads += 1; assert.equal(hash, hashSessionToken("signed-cookie")); assert.deepEqual(received, claims); return live; } });
+  assert.equal(reads, 1);
+  assert.deepEqual(result, { authenticated: true, active });
+  assert.deepEqual(await candidateExamBoundaryForSession("signed-cookie", claims, { ...noLegacy, readAll: async () => ({ ...live, attempt: null }) }), { authenticated: true, active: null });
+});
+
+test("SKAI-1971: a revoked session or stale authority never reveals the attempt read in the same statement", async () => {
+  const denied = [
+    { ...live, sessions: [] },
+    { ...live, sessions: [{ isActive: false }] },
+    { ...live, account: null },
+    { ...live, account: { ...account, role: "TEACHER" as const } },
+    { ...live, account: { ...account, accessVersion: 8 } },
+    { ...live, account: { ...account, status: "DELETED" } },
+    { ...live, account: { ...account, campusSchoolId: "other-school" } },
+    { ...live, account: { ...account, mfaEnabled: true } }, // an enrolled factor is challenged; claims.mfaVerified must be true
+  ];
+  for (const row of denied.slice(0, -1)) assert.deepEqual(await candidateExamBoundaryForSession("signed-cookie", claims, { ...noLegacy, readAll: async () => row }), { authenticated: false });
+  const unverified = { ...claims, mfaVerified: false };
+  assert.deepEqual(await candidateExamBoundaryForSession("signed-cookie", unverified, { ...noLegacy, readAll: async () => denied.at(-1)! }), { authenticated: false });
+});
+
+test("SKAI-1971: one retry for a dropped connection, none when the database is saturated; failures stay retryable", async () => {
+  let reads = 0;
+  const flaky = async () => { reads += 1; if (reads === 1) throw new Error("Connection terminated unexpectedly"); return live; };
+  assert.deepEqual(await candidateExamBoundaryForSession("signed-cookie", claims, { ...noLegacy, readAll: flaky }), { authenticated: true, active });
+  assert.equal(reads, 2);
+  reads = 0;
+  await assert.rejects(candidateExamBoundaryForSession("signed-cookie", claims, { ...noLegacy, readAll: async () => { reads += 1; throw Object.assign(new Error("Timed out fetching a new connection from the connection pool"), { code: "P2024" }); } }), /connection pool/);
+  assert.equal(reads, 1);
+});
+
+test("SKAI-1971: an absent Redis marker still skips the read entirely when the gate says so", async () => {
+  assert.deepEqual(await candidateExamBoundaryForSession("signed-cookie", claims, { ...noLegacy, readAll: async () => assert.fail("no read without a marker"), mayBeInExam: async () => false }), { authenticated: true, active: null });
+});

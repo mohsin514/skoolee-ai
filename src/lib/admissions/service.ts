@@ -334,7 +334,9 @@ async function siblingsFor(db: TxClient, application: AdmissionApplication & { f
   const identity = identityValues(asDefinition(application.formVersion.definition), application.answers as Answers);
   const phone = identity.guardianPhone?.replace(/\D/g, "").slice(-9);
   if (!phone || phone.length < 6) return [];
-  const rows = await db.student.findMany({ where: { schoolId: application.schoolId, campusId: application.campusId, consolidatedIntoId: null, archivedAt: null, guardianPhone: { contains: phone } }, select: { id: true, fullName: true, rollNo: true, siblingGroupId: true, class: { select: { name: true, section: true } } }, take: 20 });
+  // Stored phones keep the format staff typed ("+92 300 1234567"), so compare the trailing digits, not the raw string.
+  const candidates = await db.student.findMany({ where: { schoolId: application.schoolId, campusId: application.campusId, consolidatedIntoId: null, archivedAt: null, guardianPhone: { not: null } }, select: { id: true, fullName: true, rollNo: true, siblingGroupId: true, guardianPhone: true, class: { select: { name: true, section: true } } }, take: 2000 });
+  const rows = candidates.filter(student => student.guardianPhone?.replace(/\D/g, "").endsWith(phone)).slice(0, 20);
   const name = foldName(identity.childName ?? application.childName);
   return rows.filter(student => foldName(student.fullName) !== name).map(student => ({ id: student.id, fullName: student.fullName, rollNo: student.rollNo, className: [student.class.name, student.class.section].filter(Boolean).join(" "), grouped: Boolean(student.siblingGroupId) }));
 }

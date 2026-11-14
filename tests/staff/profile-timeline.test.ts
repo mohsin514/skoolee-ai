@@ -61,3 +61,20 @@ test("cursor page skips the cursor row; last page has no cursor; unknown actor i
   assert.equal(body.data.staffTimelineEvents[0].actorName, null);
   assert.equal(body.data.staffTimelineEvents[1].actorName, null);
 });
+
+test("SKAI-1983: an older page reads only the timeline, under the same campus scope and role filter", async () => {
+  const { res, calls } = load([ev(50)], "&timelineCursor=e-49");
+  const body = await (await res).json();
+  const { select, where } = calls.findFirst;
+  assert.deepEqual(Object.keys(select).sort(), ["id", "staffTimelineEvents"]);
+  for (const heavy of ["staffDocuments", "ledClasses", "taughtSubjects", "staffProfile"]) assert.equal(heavy in select, false, heavy);
+  assert.deepEqual(where, { id: "t-1", role: { notIn: ["PARENT", "STUDENT", "APP_OWNER", "SUPER_ADMIN"] }, schoolId: "school-a", campusId: "campus-a" });
+  assert.deepEqual(Object.keys(body.data).sort(), ["id", "staffTimelineEvents", "staffTimelineNextCursor"]);
+  assert.equal((await res).headers.get("Cache-Control"), "private, no-store");
+});
+
+test("SKAI-1983: the first page still carries documents, classes and subjects", async () => {
+  const { res, calls: c } = load([ev(1)]);
+  await res;
+  for (const field of ["staffProfile", "staffDocuments", "ledClasses", "taughtSubjects", "staffTimelineEvents"]) assert.ok(field in c.findFirst.select, field);
+});

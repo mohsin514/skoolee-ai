@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { EmptyState } from "@/components/ui/empty-state";
 import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
+import { readApiError } from "@/lib/api/envelope-client";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { FolderOpen } from "lucide-react";
@@ -38,7 +39,7 @@ const ACCEPT = ".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.txt";
 async function call(path: string, body?: unknown) {
   const response = await fetch(path, { cache: "no-store", ...(body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Request failed");
+  if (!response.ok) throw new Error(readApiError(data));
   return data;
 }
 /** Reserve → PUT the bytes with the exact type → confirm. A failed upload leaves the version as an unready draft. */
@@ -81,7 +82,7 @@ export function ResourceLibrary({ audience, studentId, adding: addingProp, onAdd
     setLoadFailed(null);
     try {
       const params = new URLSearchParams(Object.entries({ classId, viewAs, q, studentId }).filter(([, value]) => value) as [string, string][]);
-      const data = await checkedJson(await readRequest(`/api/resources?${params}`));
+      const data = (await checkedJson(await readRequest(`/api/resources?${params}`))).data;
       if (version !== sequence.current) return;
       setView(data);
       if (data.classId && !classId) setClassId(data.classId);
@@ -155,7 +156,7 @@ export function ResourceLibrary({ audience, studentId, adding: addingProp, onAdd
       {adding ? <ResourceForm t={t} language={language} classId={view.classId} busy={busy} onCancel={() => setAdding(false)} onSubmit={async (body, file) => {
         // Once the draft exists the form closes even if the upload fails: retrying here would duplicate it.
         let created = false;
-        await run(async () => { const result = await call("/api/resources", body); created = true; await sendFile(result.resource.id, 1, result.uploadUrl, file); });
+        await run(async () => { const result = await call("/api/resources", body); created = true; await sendFile(result.data.resource.id, 1, result.data.uploadUrl, file); });
         if (created) setAdding(false);
       }} /> : controlledAdding ? null : <Button type="button" onClick={() => setAdding(true)}>{t.add}</Button>}
       {view.resources.length === 0 ? <EmptyState size="sm" icon={FolderOpen} title={t.empty} className="rounded-xl border border-dashed border-border-subtle" action={!adding ? <Button type="button" size="sm" onClick={() => setAdding(true)}>{t.add}</Button> : undefined} />
@@ -200,7 +201,7 @@ export function ResourceLibrary({ audience, studentId, adding: addingProp, onAdd
           {replacing === item.id && <VersionForm t={t} busy={busy} onCancel={() => setReplacing(null)} onSubmit={async (description, file, link) => {
             const ok = await run(async () => {
               const added = await call(`/api/resources/${item.id}`, { op: "version", description, content: contentOf(file, link), expectedLatest: item.latestVersion });
-              await sendFile(item.id, added.result.version, added.result.uploadUrl, file);
+              await sendFile(item.id, added.data.version, added.data.uploadUrl, file);
             });
             if (ok) setReplacing(null);
           }} />}

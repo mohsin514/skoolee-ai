@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { requireAuthUser } from "@/lib/api/scope";
+import { failFrom } from "@/lib/api/envelope";
 import { resolveDownload } from "@/lib/resources/service";
 import { privateDownloadResponse } from "@/lib/storage/private-download";
 
@@ -16,7 +17,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (target.link) return Response.redirect(target.link, 302);
     return privateDownloadResponse(target.storageKey!, target.fileName, { contentType: target.contentType });
   } catch (error) {
-    const response = errorResponse(error, "[resources] download failed");
+    // SKAI-1984: a failed download answers on the envelope (the success path streams the file itself).
+    const response = await failFrom(error, "[resources] download failed");
     response.headers.set("Cache-Control", "private, no-store");
     return response;
   }

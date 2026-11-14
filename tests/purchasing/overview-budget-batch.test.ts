@@ -13,7 +13,22 @@ const model = (name: string, rows: () => Row[]) => ({
   findMany: async (args: Row = {}) => { calls.push({ name, op: "findMany", where: args.where }); return rows().filter(r => matches(r, args.where)); },
   findUnique: async ({ where }: Row) => { calls.push({ name, op: "findUnique", where }); return rows().find(r => r.id === where.id) ?? null; },
 });
+// SKAI-1970: the overview's per-budget committed/spent aggregate. Applies the SQL's school, budget and status filters
+// and sums unitPrice × received per line in BigInt, as Postgres returns it.
+const aggregate = async (sql: { sql: string; values: string[] }) => {
+  const [schoolId, ...rest] = sql.values, statuses = rest.slice(-3), budgetIds = rest.slice(0, -3);
+  calls.push({ name: "purchaseRequest", op: "$queryRaw", schoolId, budgetIds, statuses, sql: sql.sql });
+  const out = new Map<string, { budgetId: string; committed: bigint; spent: bigint }>();
+  for (const r of requests.filter(r => r.schoolId === schoolId && budgetIds.includes(r.budgetId) && statuses.includes(r.status))) {
+    const row = out.get(r.budgetId) ?? { budgetId: r.budgetId, committed: BigInt(0), spent: BigInt(0) };
+    row.committed += BigInt(r.total);
+    r.lines.forEach((l: Row, i: number) => { row.spent += BigInt(l.unitPrice) * BigInt(r.received[i] ?? 0); });
+    out.set(r.budgetId, row);
+  }
+  return [...out.values()];
+};
 const prisma = {
+  $queryRaw: aggregate,
   purchaseBudget: model("purchaseBudget", () => budgets),
   purchaseRequest: model("purchaseRequest", () => requests),
   schoolAsset: model("schoolAsset", () => []),
@@ -49,14 +64,17 @@ for (const perCampus of [2, 25]) {
     const { purchasingOverview, budgetPosition } = await svc();
     const overview = await purchasingOverview(admin("a"));
     assert.equal(calls.filter(c => c.name === "purchaseBudget" && c.op === "findUnique").length, 0);
-    assert.equal(calls.filter(c => c.name === "purchaseRequest").length, 3, "committed orders + open + first closed page");
+    assert.equal(calls.filter(c => c.name === "purchaseRequest").length, 3, "committed aggregate + open + first closed page");
+    assert.equal(calls.filter(c => c.name === "purchaseRequest" && c.op === "findMany" && c.where?.budgetId).length, 0, "no committed order rows are shipped to Node");
     assert.deepEqual(overview.budgets.map((b: Row) => b.id), budgets.filter(b => b.campusId === "campus-a").map(b => b.id));
     for (const b of overview.budgets) {
       const expected = await budgetPosition(prisma as never, b.id);
       assert.deepEqual({ committed: b.committed, spent: b.spent, available: b.available }, { committed: expected.committed, spent: expected.spent, available: expected.available });
     }
-    const committedRead = calls.find(c => c.name === "purchaseRequest" && c.where?.budgetId);
-    assert.equal(committedRead!.where.schoolId, "school-a");
+    const committedRead = calls.find(c => c.op === "$queryRaw");
+    assert.equal(committedRead!.schoolId, "school-a");
+    assert.match(committedRead!.sql, /pr\.school_id = \?/);
+    assert.deepEqual(committedRead!.statuses, ["APPROVED", "PARTIALLY_RECEIVED", "RECEIVED"]);
   });
 }
 
@@ -70,6 +88,24 @@ test("SKAI-1860: another campus and another school see only their own budgets an
   // Committed = APPROVED + PARTIALLY_RECEIVED + RECEIVED totals only (300 + 400 + 500 + 3 × index).
   assert.deepEqual(b.budgets.map((x: Row) => x.committed), [1200, 1203, 1206]);
   await assert.rejects(purchasingOverview(admin("a", "campus-a", "PARENT")), /Only school staff/);
+});
+
+test("SKAI-1970: partial receipts, a return to supplier and an empty received array match budgetPosition", async () => {
+  seed(1);
+  const id = "campus-a-b0";
+  requests = requests.filter(r => r.budgetId !== id);
+  const line = (unitPrice: number) => ({ description: "x", quantity: 5, unitPrice });
+  requests.push(
+    { id: "partial", schoolId: "school-a", campusId: "campus-a", budgetId: id, status: "PARTIALLY_RECEIVED", total: 75, lines: [line(10), line(5)], received: [2], history: [], createdAt: new Date() },
+    { id: "returned", schoolId: "school-a", campusId: "campus-a", budgetId: id, status: "PARTIALLY_RECEIVED", total: 40, lines: [line(8)], received: [0], history: [], createdAt: new Date() },
+    { id: "approved", schoolId: "school-a", campusId: "campus-a", budgetId: id, status: "APPROVED", total: 30, lines: [line(6)], received: [], history: [], createdAt: new Date() },
+    { id: "received", schoolId: "school-a", campusId: "campus-a", budgetId: id, status: "RECEIVED", total: 50, lines: [line(4), line(6)], received: [5, 5], history: [], createdAt: new Date() },
+  );
+  const { purchasingOverview, budgetPosition } = await svc();
+  const [b] = (await purchasingOverview(admin("a"))).budgets;
+  const expected = await budgetPosition(prisma as never, id);
+  assert.deepEqual({ committed: b.committed, spent: b.spent, available: b.available }, { committed: expected.committed, spent: expected.spent, available: expected.available });
+  assert.deepEqual([b.committed, b.spent], [195, 70]);
 });
 
 test("SKAI-1860: a campus with no budgets skips the committed-orders read", async () => {
