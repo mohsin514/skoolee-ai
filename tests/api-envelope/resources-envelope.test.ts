@@ -46,3 +46,17 @@ test("resources create client caller reads { data: { resource, uploadUrl } }", (
   assert.match(source, /result\.data\.uploadUrl/);
   assert.doesNotMatch(source, /result\.resource\./);
 });
+
+// SKAI-1984: the resources list answers on the envelope; its client reads { data } (the view itself).
+test("resources list route GET emits only the envelope", () => {
+  const source = readFileSync("src/app/api/resources/route.ts", "utf8");
+  const get = source.slice(source.indexOf("export async function GET"), source.indexOf("export async function POST"));
+  assert.doesNotMatch(get, /Response\.json\(/, "list still builds a raw response");
+  assert.doesNotMatch(get, /errorResponse\(/, "list still uses the legacy error shape");
+  assert.match(get, /ok\(await listResources/);
+});
+
+test("resources list client reads the view from { data }", () => {
+  const source = readFileSync("src/components/resources/ResourceLibrary.tsx", "utf8");
+  assert.match(source, /checkedJson\(await readRequest\(`\/api\/resources\?\$\{params\}`\)\)\)\.data/);
+});
