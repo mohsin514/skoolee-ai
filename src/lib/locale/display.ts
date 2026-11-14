@@ -5,6 +5,7 @@ import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { defaultLocale, resolvePackage, type LocalePackage } from "./package";
 import { getLocalePackage } from "./store";
 import { LANGUAGE_COOKIE, parseLanguage } from "./language-cookie";
+import { memoForRequest } from "@/lib/auth/request-auth";
 
 export type DisplayPrincipal = { userId: string; schoolId: string; campusId: string | null; role: string };
 
@@ -21,7 +22,9 @@ export async function getDisplayLocale(principal: DisplayPrincipal): Promise<Loc
   const { userId, schoolId, campusId, role } = principal;
   try {
     return await runWithTenantContext({ schoolId, userId, campusId, role }, async () => {
-      const user = await prisma.user.findFirst({ where: { id: userId, schoolId, isActive: true }, select: { preferredLanguage: true } });
+      // Read once per request: the handlers of one /api/shell call each resolved it (SKAI-1951).
+      const user = await memoForRequest("principals", `display-language\u0000${userId}\u0000${schoolId}`, () =>
+        prisma.user.findFirst({ where: { id: userId, schoolId, isActive: true }, select: { preferredLanguage: true } }));
       const personal = parseLanguage(user?.preferredLanguage);
       if (role === "APP_OWNER") return resolvePackage(defaultLocale, {}, personal);
       // Scale: the school/campus timeline (weekends, locale policy, timezone: 3 queries) is configuration, shared

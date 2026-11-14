@@ -22,7 +22,7 @@ export type AccountRow = {
 };
 export type SessionActivity = { isActive: boolean };
 
-type Store = { sessions: Map<string, Promise<SessionActivity[]>>; accounts: Map<string, AccountRow | null>; principals: Map<string, Promise<unknown>> };
+type Store = { sessions: Map<string, Promise<SessionActivity[]>>; accounts: Map<string, AccountRow | null>; principals: Map<string, Promise<unknown>>; prefetches: Map<string, Promise<void>> };
 
 /**
  * Per-request store, keyed by the request's cookie object (one object per request in production, in pages and route
@@ -34,7 +34,7 @@ async function requestStore(): Promise<Store | null> {
   try {
     const jar = (await cookies()) as unknown as object;
     let s = stores.get(jar);
-    if (!s) { s = { sessions: new Map(), accounts: new Map(), principals: new Map() }; stores.set(jar, s); }
+    if (!s) { s = { sessions: new Map(), accounts: new Map(), principals: new Map(), prefetches: new Map() }; stores.set(jar, s); }
     return s;
   } catch {
     return null;
@@ -90,8 +90,23 @@ export async function queryAccount(userId: string, schoolId: string): Promise<Ac
 
 type PrefetchRow = Partial<AccountRow> & { sessions: SessionActivity[] | string | null };
 
-/** Session rows for the token and the account, in one round trip, kept for this request. */
+/**
+ * Session rows for the token and the account, in one round trip, kept for this request. Read once per request: every
+ * getAuthUser() call used to repeat it, so the 10 handlers of one /api/shell call ran it 11 times (SKAI-1951).
+ */
 export async function prefetchAuth(tokenHash: string, userId: string, schoolId: string): Promise<void> {
+  const s = await requestStore();
+  if (!s) return readAuth(tokenHash, userId, schoolId, null);
+  const key = `${tokenHash}\u0000${accountKey(userId, schoolId)}`;
+  const hit = s.prefetches.get(key);
+  if (hit) return hit;
+  const value = readAuth(tokenHash, userId, schoolId, s);
+  s.prefetches.set(key, value);
+  value.catch(() => s.prefetches.delete(key));
+  return value;
+}
+
+async function readAuth(tokenHash: string, userId: string, schoolId: string, s: Store | null): Promise<void> {
   const now = new Date();
   const rows = await runUnscoped("authenticate session and account in one read", () => prisma.$queryRaw<PrefetchRow[]>`
     SELECT
@@ -117,7 +132,6 @@ export async function prefetchAuth(tokenHash: string, userId: string, schoolId: 
   const raw = row?.sessions ?? [];
   const sessions = (typeof raw === "string" ? JSON.parse(raw) : raw) as SessionActivity[];
   const { sessions: _ignored, ...account } = row ?? { sessions: null };
-  const s = await requestStore();
   if (!s) return;
   s.sessions.set(tokenHash, Promise.resolve(sessions.map((x) => ({ isActive: x.isActive === true }))));
   s.accounts.set(accountKey(userId, schoolId), account.id ? normalise(account as AccountRow) : null);
