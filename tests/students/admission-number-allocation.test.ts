@@ -13,8 +13,8 @@ function fakeDb(seed: { schoolId: string; admissionNo: string | null }[] = []) {
         while (locks.has(key)) await locks.get(key);
         let release!: () => void; locks.set(key, new Promise<void>((r) => { release = () => { locks.delete(key); r(); }; })); held.push(release);
       },
+      async $queryRaw(_q: TemplateStringsArray, schoolId: string, like: string) { await new Promise((r) => setTimeout(r, 1)); const prefix = like.slice(0, -1); return rows.filter((r) => r.schoolId === schoolId && r.admissionNo?.startsWith(prefix)).map((r) => ({ admission_no: r.admissionNo })); },
       student: {
-        async findMany({ where }: any) { await new Promise((r) => setTimeout(r, 1)); return rows.filter((r) => r.schoolId === where.schoolId && r.admissionNo?.startsWith(where.admissionNo.startsWith)); },
         async create(data: { schoolId: string; admissionNo: string }) { await new Promise((r) => setTimeout(r, 1)); rows.push(data); },
       },
     };

@@ -68,6 +68,7 @@
     "test:tenant-rls-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/tenant-rls.database.test.ts",
     "test:placement-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/placement-consistency.database.test.ts",
     "test:academic-year-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/academic-year-spine.database.test.ts",
+    "test:admission-number-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/students/admission-number-cross-campus.database.test.ts",
     "test:enrollment-placement-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/enrollment-placement.database.test.ts",
     "test:status-values": "node --import tsx --test tests/db/status-values.test.ts",
     "test:dashboard-aggregates-db": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/insights/aggregate-charts.database.test.ts",
