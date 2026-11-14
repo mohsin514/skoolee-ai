@@ -4,6 +4,16 @@ import { ApiError, resolveCampusId } from "@/lib/api/scope";
 import { daysToTenths } from "@/lib/leave";
 
 /**
+ * SKAI-447: a supplied allocation amount must be a finite positive number of days. daysToTenths() clamps anything
+ * below 0.1 up to 0.1, so without this check a negative or non-numeric value was stored silently.
+ */
+function allocationDaysToTenths(value: unknown): number {
+  const days = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isFinite(days) || days <= 0) throw new ApiError("days must be a positive number of days", 400);
+  return daysToTenths(days);
+}
+
+/**
  * Create a leave allocation (POST /api/leave/allocations), extracted so the route and the AI Workflows
  * `leave.create_allocation` capability run the same command. Body: { campusId?, leaveTypeId, role? | userId?,
  * days?, academicYear? } — a role-wide row (role set, userId null) or a per-user override (userId set, role null).
@@ -32,7 +42,7 @@ export async function createLeaveAllocation(user: AuthUser, body: Record<string,
     if (!target) throw new ApiError("User not found on this campus", 404);
   }
 
-  const days = daysToTenths(Number(body.days ?? 0));
+  const days = body.days === undefined || body.days === null ? daysToTenths(0) : allocationDaysToTenths(body.days);
   // SKAI-1672: the duplicate check and the insert run under the campus row lock, so two identical POSTs cannot both
   // see "no row". The loser reads the committed allocation and gets a deterministic 409.
   return prisma.$transaction(async (tx) => {
@@ -53,7 +63,7 @@ export async function updateLeaveAllocation(user: AuthUser, body: Record<string,
   const allocation = await prisma.leaveAllocation.findFirst({ where: { id, campus: { schoolId: user.schoolId } } });
   if (!allocation) throw new ApiError("Allocation not found", 404);
 
-  const days = body.days !== undefined ? daysToTenths(Number(body.days)) : allocation.days;
+  const days = body.days !== undefined ? allocationDaysToTenths(body.days) : allocation.days;
   const academicYear = body.academicYear !== undefined ? Number(body.academicYear) : allocation.academicYear;
   let role = body.role !== undefined ? (body.role ? String(body.role).toUpperCase() : null) : allocation.role;
   let userId = body.userId !== undefined ? (body.userId ? String(body.userId) : null) : allocation.userId;

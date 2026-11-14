@@ -158,3 +158,31 @@ test("PATCH days only keeps identity, and another school's allocation is not fou
   await assert.rejects(() => updateLeaveAllocation(user, { id: foreign.id, days: 1 }), (e: { status?: number }) => e.status === 404);
   assert.equal(foreign.days, 100);
 });
+
+// SKAI-447: invalid day amounts are refused before any write, on create and on PATCH.
+const badDays = (e: { status?: number; message?: string }) => e.status === 400 && e.message === "days must be a positive number of days";
+
+test("SKAI-447: a negative, zero or non-numeric days value is refused with 400 and nothing is created", async () => {
+  allocs = []; seq = 0;
+  const { createLeaveAllocation } = await loadCommand();
+  for (const days of [-3, 0, "abc", NaN, {}]) {
+    await assert.rejects(() => createLeaveAllocation(user, body({ days, role: "PRINCIPAL" })), badDays);
+  }
+  assert.equal(allocs.length, 0);
+});
+
+test("SKAI-447: a valid fractional days value is stored in tenths", async () => {
+  allocs = []; seq = 0;
+  const { createLeaveAllocation } = await loadCommand();
+  await createLeaveAllocation(user, body({ days: "0.5", role: "PRINCIPAL" }));
+  assert.equal(allocs[0].days, 5);
+});
+
+test("SKAI-447: PATCH with negative days is refused and the stored allocation is unchanged", async () => {
+  allocs = []; seq = 0;
+  const { updateLeaveAllocation } = await loadCommand();
+  const row = seed({ days: 100 });
+  await assert.rejects(() => updateLeaveAllocation(user, { id: row.id, days: -2 }), badDays);
+  await assert.rejects(() => updateLeaveAllocation(user, { id: row.id, days: "x" }), badDays);
+  assert.equal(row.days, 100);
+});
