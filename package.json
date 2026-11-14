@@ -76,6 +76,7 @@
     "test:school-fks-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/school-foreign-keys.database.test.ts",
     "test:campus-pinning-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/campus-school-pinning.database.test.ts",
     "test:campus-fks-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/campus-foreign-keys.database.test.ts",
+    "test:user-actor-keys-db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/db/user-actor-keys.database.test.ts",
     "test:composer-send-gate": "node --import ./tests/support/server-only.mjs --import tsx --test tests/chat/composer-send-gate.test.ts",
     "test:inventory-movements": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/inventory/transaction-list-paging.test.ts",
     "test:inventory-names": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/inventory/name-validation.test.ts",
