@@ -34,7 +34,7 @@ async function call(url: string, method = "GET", body?: Record<string, unknown>)
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
   if (!response.ok || !isApiOk(json)) throw Object.assign(new Error(readApiError(json, "Permission cannot be verified. Keep the student supervised and contact the pickup lead.")), { status: response.status });
-  return readApiData(json, undefined);
+  return readApiData<any>(json, undefined);
 }
 type Item = { id: string; recipientName: string; recipientRelation: string; idMethod: string; validFrom: string; validUntil: string; status: string; releasedAt: string | null };
 
