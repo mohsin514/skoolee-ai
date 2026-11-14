@@ -13,6 +13,8 @@ import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // SKAI-374 AC3: discount codes and assignments are finance data; only finance seats may read them.
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     const { searchParams } = new URL(req.url);
     const campusId = user.role === "SUPER_ADMIN" ? searchParams.get("campusId") : user.campusId;
 
