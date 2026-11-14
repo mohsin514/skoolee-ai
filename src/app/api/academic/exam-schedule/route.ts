@@ -7,6 +7,7 @@ import { studentScope } from "@/lib/auth/policy";
 import { ApiError, assertPermission, canManageOperations, errorResponse, isFamilyRole, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { syncPrimaryExamRoom } from "@/lib/academic/exam-rooms";
 import { roomCapacity } from "@/lib/academic/room-capacity";
+import { withScheduleCounts } from "@/lib/academic/exam-counts";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 import { assertPlanFeature } from "@/lib/billing/entitlements";
@@ -60,7 +61,6 @@ const scheduleInclude = {
       id: true,
       isPrimary: true,
       room: { select: roomSelect },
-      _count: { select: { seats: true } },
     },
   },
   exam: {
@@ -73,10 +73,11 @@ const scheduleInclude = {
       examType: true,
       academicYear: true,
       class: { select: { name: true, section: true } },
-      _count: { select: { marks: true } },
     },
   },
 } as const;
+// SKAI-1965: `rooms[]._count.seats` and `exam._count.marks` come from `withScheduleCounts` (school-scoped groupBy
+// over the listed ids), not a relation `_count`, which Prisma runs as an aggregate over every school's rows.
 
 export async function GET(req: NextRequest) {
   try {
@@ -109,7 +110,7 @@ export async function GET(req: NextRequest) {
       familyClassIds = classIds;
     }
 
-    const schedules = await prisma.examSchedule.findMany({
+    const schedules = await withScheduleCounts(prisma, user.schoolId, await prisma.examSchedule.findMany({
       where: {
         campusId,
         ...(examId ? { examId } : {}),
@@ -122,7 +123,7 @@ export async function GET(req: NextRequest) {
       },
       include: scheduleInclude,
       orderBy: [{ date: "asc" }, { periodDefinition: { periodNumber: "asc" } }],
-    });
+    }));
 
     if (familyClassIds.length) {
       const published = (await publishedPapersForClasses(user.schoolId, familyClassIds))
@@ -274,20 +275,20 @@ async function createOrUpdate(
   };
 
   if (excludeId) {
-    const updated = await db.examSchedule.update({
+    const [updated] = await withScheduleCounts(db, schoolId, [await db.examSchedule.update({
       where: { id: excludeId },
       data,
       include: scheduleInclude,
-    });
+    })]);
     await syncPrimaryExamRoom({ db, campusId, scheduleId: updated.id, roomId });
     await validateStoredExamSchedules(db, { schoolId, campusId }, [updated.id]);
     return Response.json({ success: true, data: updated });
   }
 
-  const created = await db.examSchedule.create({
+  const [created] = await withScheduleCounts(db, schoolId, [await db.examSchedule.create({
     data: { ...data, campusId, examId: exam.id, subjectId },
     include: scheduleInclude,
-  });
+  })]);
   await syncPrimaryExamRoom({ db, campusId, scheduleId: created.id, roomId });
   await validateStoredExamSchedules(db, { schoolId, campusId }, [created.id]);
   return Response.json({ success: true, data: created }, { status: 201 });

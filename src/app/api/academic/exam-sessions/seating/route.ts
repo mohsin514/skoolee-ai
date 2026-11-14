@@ -65,7 +65,9 @@ export async function POST(req: NextRequest) {
     return await withExamSchedulingWrite(user, campusId, "edit", async (prisma) => {
 
     const result = await autoSeatSession({
-      db: prisma,      campusId,
+      db: prisma,
+      schoolId: user.schoolId,
+      campusId,
       sessionId,
       includeSeated: Boolean(body.includeSeated),
     });
