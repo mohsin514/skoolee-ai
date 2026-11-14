@@ -33,9 +33,11 @@ export function contentHash(value: unknown): string {
     .digest("hex");
 }
 
-/** Serializable source reads and approval write reject concurrent edits, including marks and grading rules. */
+/** Serializable source reads and approval write reject concurrent edits, including marks and grading rules.
+ *  Refresh-on-view alone passes "RepeatableRead" (see refreshOne). */
 export async function versionTransaction<T>(
   fn: (tx: TxClient) => Promise<T>,
+  isolationLevel: "Serializable" | "RepeatableRead" = "Serializable",
 ): Promise<T> {
   const context = getTenantContext() ?? (await resolveTenantFromRequest());
   const schoolId = context?.schoolId;
@@ -50,7 +52,7 @@ export async function versionTransaction<T>(
             await tx.$executeRaw`SELECT set_config('app.current_school_id', ${schoolId}, true)`;
             return fn(tx as TxClient);
           },
-          { isolationLevel: "Serializable", timeout: 30000 },
+          { isolationLevel, timeout: 30000 },
         ),
     );
   } catch (error) {
@@ -229,22 +231,44 @@ export async function refreshVersion(tx: TxClient, id: string) {
 
 type ReviewVersion = Omit<Awaited<ReturnType<typeof refreshVersion>>, "documentBytes">;
 const CAPTURE_CONCURRENCY = 4;
+const REFRESH_ATTEMPTS = 3;
 
-/** Refreshes one card in its own short serializable transaction (retried once on a conflict). */
-async function refreshOne(id: string, retry = true): Promise<ReviewVersion> {
+/**
+ * Refreshes one card on view in its own short transaction. SKAI-1961: a serializable refresh tracks predicate locks
+ * on every source it reads, so concurrent first views of different cards and exams (the principal's Report cards
+ * fan-out) aborted each other with write conflicts. Refresh-on-view needs only a consistent snapshot (repeatable
+ * read) and one writer per card (the row lock); approval, review and publication stay serializable and re-check the
+ * live sources, so they still reject any version that no longer matches. A conflict on the same card means another
+ * view just wrote its version: the next attempt reads it.
+ */
+async function refreshOne(id: string, attempt = 1): Promise<ReviewVersion> {
   try {
-    const { documentBytes: _bytes, ...version } = await versionTransaction((tx) => refreshVersion(tx, id));
+    const { documentBytes: _bytes, ...version } = await versionTransaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM report_cards WHERE id = ${id} AND school_id = current_setting('app.current_school_id', true) FOR UPDATE`;
+      return refreshVersion(tx, id);
+    }, "RepeatableRead");
     return version;
   } catch (error) {
-    if (retry && error instanceof ReportConflict) return refreshOne(id, false);
+    if (attempt < REFRESH_ATTEMPTS && error instanceof ReportConflict) return refreshOne(id, attempt + 1);
     throw error;
   }
+}
+
+/** Two views of one card on this instance share one refresh instead of queueing on its row lock and retrying. */
+const refreshing = new Map<string, Promise<ReviewVersion>>();
+function refreshShared(schoolId: string, id: string): Promise<ReviewVersion> {
+  const key = `${schoolId}:${id}`;
+  const running = refreshing.get(key);
+  if (running) return running;
+  const started = refreshOne(id).finally(() => refreshing.delete(key));
+  refreshing.set(key, started);
+  return started;
 }
 
 /**
  * SKAI-1961: refresh-on-view without one exam-wide write transaction. The snapshot of every card is
  * compared with its current version outside any transaction; only cards that changed (or have no
- * version yet) are refreshed, each in its own short serializable transaction, so an unchanged exam
+ * version yet) are refreshed, each in its own short transaction (see refreshOne), so an unchanged exam
  * is read with no writes. The remaining per-card lookups are batched by reportCardId.
  */
 export async function reviewQueue(ids: string[]): Promise<
@@ -295,8 +319,8 @@ export async function reviewQueue(ids: string[]): Promise<
         }),
       );
     }
-    // Write phase: refreshVersion re-reads the sources inside the serializable transaction.
-    for (const id of unique.filter((x) => stale.has(x))) current.set(id, await refreshOne(id));
+    // Write phase: refreshVersion re-reads the sources inside the refresh transaction.
+    for (const id of unique.filter((x) => stale.has(x))) current.set(id, await refreshShared(schoolId, id));
 
     const approved = await prisma.reportVersion.findMany({
       where: { reportCardId: { in: unique }, schoolId, approvedAt: { not: null } },
