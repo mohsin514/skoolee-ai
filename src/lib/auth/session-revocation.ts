@@ -18,6 +18,7 @@ import { sessionRowsForRequest } from "@/lib/auth/request-auth";
 
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
+import { isDatabaseUnavailable, unavailableReason } from "@/lib/db/availability";
 import { SESSION_COOKIE_NAME, hashSessionToken } from "@/lib/auth/session-cookie";
 
 /** The only column the decision needs. */
@@ -81,13 +82,25 @@ export async function checkRevocation(
  */
 export async function checkRevocationStrict(
   tokenHash: string,
-  lookup: SessionLookup = lookupSessionRows
+  lookup: SessionLookup = lookupSessionRows,
+  retryLookup: SessionLookup = lookup
 ): Promise<boolean> {
   try {
     return decideRevocation(await lookup(tokenHash));
-  } catch {
-    return decideRevocation(await lookup(tokenHash));
+  } catch (error) {
+    if (!worthRetrying(error)) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 50 + Math.random() * 100));
+    return decideRevocation(await retryLookup(tokenHash));
   }
+}
+
+/**
+ * SKAI-1962: the retry is for a dropped or cold connection. A saturated database (pool or pooler full, connect
+ * timeout, statement timeout, server unreachable) gets no second query: retrying there doubles the load on the
+ * thing that is already failing, and the caller answers 503 "try again" anyway.
+ */
+export function worthRetrying(error: unknown): boolean {
+  return !isDatabaseUnavailable(error) || unavailableReason(error) === "terminated";
 }
 
 /**
@@ -111,14 +124,9 @@ export const isSessionRevoked = cache(
  * (checkRevocationStrict). getAuthUser uses it so a database outage answers 503, not "signed out".
  */
 export const isSessionRevokedStrict = cache(
-  async (tokenHash: string): Promise<boolean> => {
-    try {
-      return decideRevocation(await lookupSessionRowsOnce(tokenHash));
-    } catch {
-      // The shared read failed; one fresh retry absorbs a cold connection (checkRevocationStrict semantics).
-      return decideRevocation(await lookupSessionRows(tokenHash));
-    }
-  }
+  async (tokenHash: string): Promise<boolean> =>
+    // The shared read; if it fails, one fresh read absorbs a cold connection (checkRevocationStrict semantics).
+    checkRevocationStrict(tokenHash, lookupSessionRowsOnce, lookupSessionRows)
 );
 
 /**

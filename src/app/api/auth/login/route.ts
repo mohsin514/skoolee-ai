@@ -44,7 +44,7 @@ import {
 import { endSession } from "@/lib/auth/session-revocation";
 import { clientIp } from "@/lib/http/client-ip";
 import { ApiError, errorResponse } from "@/lib/api/scope";
-import { isDatabaseUnavailable } from "@/lib/db/availability";
+import { isDatabaseUnavailable, sqlState } from "@/lib/db/availability";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -201,7 +201,9 @@ async function handleLogin(req: NextRequest) {
     if (error instanceof ApiError) return errorResponse(error);
     // A database outage is "try again", not a failed sign-in.
     if (isDatabaseUnavailable(error)) return errorResponse(error, "Login failed");
-    console.error("[auth/login]", error);
+    // Name the cause (no message text: it can echo the query) so a load test reads the real failure (SKAI-1962).
+    const { name, code } = (error ?? {}) as { name?: unknown; code?: unknown };
+    console.error("[auth/login]", { name, code, sqlState: sqlState(error) }, error);
     return Response.json({ error: "Login failed" }, { status: 500 });
   }
 }

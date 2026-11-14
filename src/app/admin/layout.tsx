@@ -3,7 +3,6 @@ import OperationalLayout from "@/app/operational-layout";
 import { getAuthUser } from "@/lib/auth";
 import { isStandaloneOwner } from "@/lib/auth/institution";
 import { getDisplayLocale } from "@/lib/locale/display";
-import { translateUi } from "@/lib/locale/ui-messages";
 
 /**
  * §7.3: every route needs a distinct <title>; the root layout supplies the "%s | SkooleeAI" template.
@@ -17,6 +16,9 @@ export async function generateMetadata(): Promise<Metadata> {
   if (!user) return { title: name };
   const locale = await getDisplayLocale({ userId: user.userId, schoolId: user.schoolId, campusId: user.campusId ?? null, role: user.role }).catch(() => null);
   const language = locale?.language === "ar" || locale?.language === "ur" ? locale.language : "en";
+  if (language === "en") return { title: name };
+  // Loaded only for ar/ur: the catalogs are several MB and English needs none of them.
+  const { translateUi } = await import("@/lib/locale/ui-messages");
   return { title: translateUi(name, language) };
 }
 
