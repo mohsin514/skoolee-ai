@@ -483,8 +483,20 @@ const prismaClientSingleton = () => {
     // SKAI-1162: one audit row per create/update/delete, written through the guarded client.
     .$extends(auditTrail())
     // Scale §3.2: a write to the rows a principal is built from invalidates the principal cache.
-    .$extends(principalCacheInvalidation());
+    .$extends(principalCacheInvalidation())
+    // SKAI-1902: 64-bit money columns come back as JS numbers, so callers and JSON responses never see a bigint.
+    .$extends(bigintMoneyAsNumber());
 };
+
+function bigintMoneyAsNumber() {
+  return Prisma.defineExtension({
+    name: "bigint-money-as-number",
+    result: {
+      bankAccount: { openingBalance: { needs: { openingBalance: true }, compute: (row) => Number(row.openingBalance) } },
+      payrollCalculation: { totalNet: { needs: { totalNet: true }, compute: (row) => Number(row.totalNet) } },
+    },
+  });
+}
 
 function principalCacheInvalidation() {
   return Prisma.defineExtension({

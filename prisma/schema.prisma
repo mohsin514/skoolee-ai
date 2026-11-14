@@ -2937,7 +2937,8 @@ model BankAccount {
   name           String
   bankName       String?       @map("bank_name")
   accountNumber  String?       @map("account_number")
-  openingBalance Int           @default(0) @map("opening_balance")
+  /// SKAI-1902: 64-bit minor units (a school account can exceed 21.4M PKR). The client returns a number.
+  openingBalance BigInt        @default(0) @map("opening_balance")
   isActive       Boolean       @default(true) @map("is_active")
   entries        LedgerEntry[]
 
@@ -9374,7 +9375,8 @@ model PayrollCalculation {
   inputHash       String    @map("input_hash")
   lines           Json
   exceptions      Json      @default("[]")
-  totalNet        Int       @map("total_net")
+  /// SKAI-1902: 64-bit minor units (500 staff × 100k PKR overflows 32 bits). The client returns a number.
+  totalNet        BigInt    @map("total_net")
   preparedById    String    @map("prepared_by_id")
   approvedById    String?   @map("approved_by_id")
   approvedAt      DateTime? @map("approved_at")
