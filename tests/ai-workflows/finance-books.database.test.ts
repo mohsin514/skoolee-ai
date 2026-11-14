@@ -111,7 +111,7 @@ test("each create works once and a replay reconciles without a second row", asyn
     assert.equal((await confirmRun(ctx, "accounts.create_account", { name: "stationery", type: "EXPENSE" })).receipt.counts.created, 0);
     assert.equal(await code(exec("accounts.create_account").resolve!(ctx, { name: "Stationery", type: "INCOME" })), "DOMAIN_REFUSED");
     const bank = await db.bankAccount.findFirstOrThrow({ where: { campusId } });
-    assert.deepEqual([bank.accountNumber, bank.openingBalance, bank.currency], [null, 0, "PKR"], "no number, no balance from the AI");
+    assert.deepEqual([bank.accountNumber, Number(bank.openingBalance), bank.currency], [null, 0, "PKR"], "no number, no balance from the AI");
     const bankRun = await confirmRun(ctx, "accounts.create_bank_account", { name: "HBL Fees" });
     assert.equal(bankRun.receipt.link, "/accountant?view=accounts&tab=banks");
     assert.ok(bankRun.preview.lines.some(line => /Accounts screen/.test(line.value)), "the preview says where the number goes");
