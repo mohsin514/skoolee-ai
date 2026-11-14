@@ -64,7 +64,11 @@ test('role/campus version change and missing session rows deny prior tokens', as
  const user = accounts.get('LIBRARIAN')!; const token = await new SignJWT({ userId: user.id, schoolId, role: 'LIBRARIAN', accessVersion: 0 }).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode(process.env.AUTH_SECRET)); assert.equal((await sessionCheck(`skoolee_token=${token}`)).status, 401);
 });
 test('SKAI-1290: deactivating an account rejects its existing cookie on the session API and protected APIs', async () => {
- const user = accounts.get('TEACHER')!; const c = cookie(await login('TEACHER'), 'skoolee_token'); assert.equal((await sessionCheck(c)).status, 200);
+ // Its own active teacher: the shared TEACHER account was already removed through /api/staff above.
+ const user = { id: randomUUID(), email: `${randomUUID()}@example.invalid` };
+ await raw.user.create({ data: { ...user, password: await bcrypt.hash(password, 12), schoolId, campusId, fullName: 'Synthetic tester', role: 'TEACHER', isActive: true, onboardingComplete: true } });
+ const signIn = await post('/api/auth/login', { email: user.email, password }); assert.equal(signIn.status, 200, await signIn.clone().text());
+ const c = cookie(signIn, 'skoolee_token'); assert.equal((await sessionCheck(c)).status, 200);
  await raw.user.update({ where: { id: user.id }, data: { isActive: false } });
  try {
   const after = await sessionCheck(c); assert.equal(after.status, 401); assert.equal((await after.json()).user, null);
@@ -146,7 +150,7 @@ test('forced password change rotates to a recorded session and revokes the prior
  assert.equal(response.status, 200, await response.clone().text()); assert.equal((await sessionCheck(session)).status, 401); assert.equal((await sessionCheck(cookie(response, 'skoolee_token'))).status, 200);
 });
 test('SKAI-87 forced change refuses the temporary password and a replayed submit', async () => {
- await raw.user.update({ where: { id: accounts.get('STUDENT')!.id }, data: { mustChangePassword: true } });
+ await raw.user.update({ where: { id: accounts.get('ACCOUNTANT')!.id }, data: { mustChangePassword: true } });
  const session = cookie(await login('ACCOUNTANT'), 'skoolee_token');
  const put = (cookieHeader: string, newPassword: string) => fetch(base + '/api/auth/first-password', { method: 'PUT', headers: { cookie: cookieHeader, 'content-type': 'application/json' }, body: JSON.stringify({ newPassword }) });
  const reused = await put(session, password); assert.equal(reused.status, 400); assert.equal((await reused.json()).code, 'reused');
