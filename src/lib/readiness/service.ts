@@ -229,7 +229,7 @@ export async function updateReadinessTask(user: AuthUser, raw: unknown, now = ne
     // Only the lead plans the work; the owner moves their own task along but cannot put it off.
     if (!lead && (input.action !== "status" || task.ownerId !== user.userId || input.status === "DEFERRED")) throw new ApiError("You can only update follow-ups assigned to you.", 403);
     if (input.expectedVersion !== undefined && input.expectedVersion !== task.version) throw new ApiError("This task changed since you opened it. Review the latest and try again.", 409);
-    let data: Prisma.ReadinessTaskUpdateManyMutationInput & { ownerId?: string | null };
+    let data: Prisma.ReadinessTaskUncheckedUpdateManyInput;
     if (input.action === "assign") {
       await assertOwner(input.ownerId);
       if (input.ownerId === task.ownerId) return task;

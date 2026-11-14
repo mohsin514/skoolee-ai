@@ -12,13 +12,14 @@ const url = new URL(process.env.DATABASE_URL || "http://invalid");
 if (!["127.0.0.1", "localhost"].includes(url.hostname)) throw Error("Only a local throwaway database is allowed");
 
 const raw = new PrismaClient();
-const schoolId = `bm1902-${randomUUID()}`, campusId = randomUUID();
+const schoolId = `bm1902-${randomUUID()}`, campusId = randomUUID(), preparerId = randomUUID();
 const FIFTY_MILLION_PKR = 5_000_000_000; // minor units (paisa); above the 32-bit ceiling of 2,147,483,647
 const inSchool = <T>(fn: () => Promise<T>) => runWithTenantContext({ schoolId }, fn);
 
 before(async () => {
   await raw.school.create({ data: { id: schoolId, name: "Synthetic Money School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } });
   await raw.campus.create({ data: { id: campusId, schoolId, name: "Money Main", regId: campusId, city: "Lahore" } });
+  await raw.user.create({ data: { id: preparerId, schoolId, campusId, email: `${preparerId}@example.invalid`, password: "not-a-real-hash", fullName: "Synthetic Accountant", role: "ACCOUNTANT" } });
 });
 after(async () => {
   await raw.school.delete({ where: { id: schoolId } }).catch(() => undefined);
@@ -38,7 +39,7 @@ test("a 50M PKR opening balance saves and reads back as an exact number", async 
 });
 
 test("a 50M PKR payroll run total saves and reads back as an exact number", async () => {
-  const run = await inSchool(() => prisma.payrollCalculation.create({ data: { schoolId, campusId, year: 2026, month: 11, version: 1, policyId: randomUUID(), policyVersion: 1, currency: "PKR", entityName: "Synthetic", providerId: "synthetic", scopeUserIds: [], inputs: {}, inputHash: "h", lines: [], totalNet: FIFTY_MILLION_PKR, preparedById: randomUUID() } }));
+  const run = await inSchool(() => prisma.payrollCalculation.create({ data: { schoolId, campusId, year: 2026, month: 11, version: 1, policyId: randomUUID(), policyVersion: 1, currency: "PKR", entityName: "Synthetic", providerId: "synthetic", scopeUserIds: [], inputs: {}, inputHash: "h", lines: [], totalNet: FIFTY_MILLION_PKR, preparedById: preparerId } }));
   assert.equal(typeof run.totalNet, "number");
   const read = await inSchool(() => prisma.payrollCalculation.findUniqueOrThrow({ where: { id: run.id } }));
   assert.equal(read.totalNet, FIFTY_MILLION_PKR);
