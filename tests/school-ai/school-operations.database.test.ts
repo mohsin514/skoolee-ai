@@ -30,6 +30,8 @@ async function fixture() {
   await db.campus.create({ data: { id: campusId, schoolId, name: "Synthetic operations campus", regId: campusId, city: "Test" } });
   await db.user.createMany({ data: [[actorId, "CAMPUS_ADMIN", "Manager"], [teacherId, "TEACHER", "Original teacher"], [coverId, "TEACHER", "Available substitute"]].map(([id, role, fullName]) => ({ id, role: role as "CAMPUS_ADMIN" | "TEACHER", fullName, schoolId, campusId, email: `${id}@example.invalid`, isActive: true })) });
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Grade 7", section: "A", academicYear: 2026, teachingMode: "SUBJECT" } });
+  // SKAI-1924: the class brings its year as a DRAFT (SKAI-1887); a working campus runs an ACTIVE year, as before the year existed only implicitly.
+  await putAcademicYear(db, { schoolId, campusId, academicYear: 2026, label: "2026-27", status: "ACTIVE" });
   await db.subject.create({ data: { id: subjectId, schoolId, campusId, classId, name: "Mathematics", teacherId } });
   await db.classRoom.create({ data: { id: roomId, schoolId, campusId, roomNumber: "Room 1", capacity: 40 } });
   await db.periodDefinition.createMany({ data: [{ periodNumber: 1, startTime: "08:00", endTime: "08:40" }, { periodNumber: 2, startTime: "08:40", endTime: "09:20" }].map(item => ({ ...item, schoolId, campusId, timeType: "CLASS" })) });
