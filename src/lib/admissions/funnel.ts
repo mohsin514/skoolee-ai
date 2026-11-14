@@ -27,18 +27,24 @@ export function buildFunnel(enquiries: FunnelEnquiry[], applications: FunnelAppl
   const rows = new Map<string, FunnelCounts>();
   const bump = (source: string, stage: FunnelStage) => { const row = rows.get(source) ?? empty(); row[stage] += 1; rows.set(source, row); };
   const years = new Set<number>([year]);
+  // Enquiries of this year that became an application (or went straight to a pupil). Counting distinct
+  // enquiries keeps the enquiry → application rate at or below 100%, even when DIRECT applications exist.
+  const inYear = new Set<string>();
+  const converted = new Set<string>();
   for (const enquiry of enquiries) {
     years.add(yearOf(enquiry.createdAt));
     if (yearOf(enquiry.createdAt) !== year) continue;
+    inYear.add(enquiry.id);
     bump(enquiry.source, "enquiries");
     // An enquiry converted straight to a pupil (no application) still ends the funnel as enrolled.
-    if (enquiry.convertedStudentId && !linked.has(enquiry.id)) { bump(enquiry.source, "applications"); bump(enquiry.source, "offers"); bump(enquiry.source, "enrolled"); }
+    if (enquiry.convertedStudentId && !linked.has(enquiry.id)) { converted.add(enquiry.id); bump(enquiry.source, "applications"); bump(enquiry.source, "offers"); bump(enquiry.source, "enrolled"); }
   }
   for (const application of applications) {
     years.add(yearOf(application.createdAt));
     if (application.status === "DRAFT" || yearOf(application.createdAt) !== year) continue;
     const source = (application.enquiryId && sourceOf.get(application.enquiryId)) || "DIRECT";
     bump(source, "applications");
+    if (application.enquiryId && inYear.has(application.enquiryId)) converted.add(application.enquiryId);
     if (application.reachedOffer || AFTER_OFFER.has(application.status)) bump(source, "offers");
     if (application.status === "ENROLLED") bump(source, "enrolled");
   }
@@ -49,7 +55,7 @@ export function buildFunnel(enquiries: FunnelEnquiry[], applications: FunnelAppl
     years: [...years].sort((a, b) => b - a),
     total,
     bySource,
-    conversion: { applications: rate(total.applications, total.enquiries), offers: rate(total.offers, total.applications), enrolled: rate(total.enrolled, total.applications) },
+    conversion: { applications: rate(converted.size, total.enquiries), offers: rate(total.offers, total.applications), enrolled: rate(total.enrolled, total.applications) },
   };
 }
 
