@@ -1162,6 +1162,7 @@ async function loadPrincipalDashboardData() {
     operationsStaff,
     attendanceTrend,
     attendanceByStudent,
+    activeAcademicYear,
   ] = await Promise.all([
     L.widget("campus", () => prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, include: { school: true } }), null),
     L.widget("totalStudents", () => prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId }, ...ON_ROLL } }), 0),
@@ -1379,6 +1380,8 @@ async function loadPrincipalDashboardData() {
     }), []),
     L.widget("attendanceTrend", () => attendanceTrendCounts(session.schoolId, campusId), []),
     L.widget("attendanceByStudent", () => attendanceCountsByStudent(session.schoolId, campusId), []),
+    // SKAI-1960: Report cards lists the active year's exams by default (each one loads /api/reports).
+    L.widget("activeAcademicYear", () => getActiveAcademicYear(campusId), null),
   ]);
 
   return {
@@ -1408,6 +1411,7 @@ async function loadPrincipalDashboardData() {
     campusAdmins,
     reviewExams,
     recentExams: reviewExams,
+    activeAcademicYear,
     reportCardCounts,
     averageMarks: Math.round(markAverage._avg.marksObtained || 0),
     communicationSummary: communicationSummary.reduce<Record<string, number>>((acc, item) => {
