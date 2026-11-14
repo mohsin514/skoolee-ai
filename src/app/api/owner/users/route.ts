@@ -4,7 +4,7 @@ import { ownerPagination } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@/lib/auth/password-hash";
 import { logSuperAdminAction } from "@/lib/audit";
 import { isUserRole, roleLabel, type UserRole } from "@/lib/roles";
 import { sendAccountSetupEmail } from "@/lib/owner/account-setup-email";
@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
     if (tempPassword.length < 8) {
       throw new ApiError("Password must be at least 8 characters", 400);
     }
-    const hashed = await bcrypt.hash(tempPassword, 12);
+    const hashed = await hashPassword(tempPassword, 12);
 
     // Teachers land in their own onboarding flow after the password
     // change; everyone else goes straight to their dashboard.

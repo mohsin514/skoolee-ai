@@ -20,7 +20,7 @@ test("temporary and the last five passwords are refused", () => {
 
 test("attempts are rate limited per account before any bcrypt work", () => {
   const limit = route.indexOf("authRateLimit(`first-password:${auth.userId}`");
-  assert.ok(limit > 0 && limit < route.indexOf("bcrypt.compare"));
+  assert.ok(limit > 0 && limit < route.indexOf("verifyPassword("));
 });
 
 test("completion is a single conditional claim that revokes sessions and audits", () => {
