@@ -41,6 +41,9 @@ export async function GET(req: NextRequest) {
       // SKO-413: seating names pupils and rooms; the exam office and teachers (invigilators) print it,
       // not every staff role.
       if (!canManageOperations(user) && user.role !== "TEACHER") throw new ApiError("Only the examination office and teachers can print seating plans", 403);
+      // SKAI-279: a session or exam from another campus (or a missing one) is denied before any roster is rendered.
+      if (sessionId && !(await prisma.examSession.findFirst({ where: { id: sessionId, campusId }, select: { id: true } }))) throw new ApiError("Exam session not found", 404);
+      if (examId && !(await prisma.exam.findFirst({ where: { id: examId, campusId }, select: { id: true } }))) throw new ApiError("Exam not found", 404);
       const { buffer, filename } = await renderSeatingPdf({
         campusId,
         sessionId,
