@@ -48,7 +48,10 @@ for (const [label, loader, session] of consoles) {
     };
     const tallies = groupBys.filter((call) => call.args.by.includes("studentId"));
     assert.equal(tallies.length, 1, "one per-pupil tally");
-    assert.deepEqual(tallies[0].args.where, scope);
+    // SKAI-1963: the per-pupil tally counts this academic year only (no active cycle in this fake: the last 12 months).
+    const { date: rateWindow, ...tallyScope } = tallies[0].args.where;
+    assert.deepEqual(tallyScope, scope);
+    assert.ok(rateWindow.gte instanceof Date, "the per-pupil tally is bounded by date");
     // SKAI-1963: the trend reads a recent window first; one marked day cannot fill it, so it re-reads unbounded.
     const trendReads = groupBys.filter((call) => call.args.by.includes("date"));
     assert.equal(trendReads.length, 2, "a windowed trend read, then the unbounded fallback");
@@ -160,4 +163,36 @@ test("SKAI-1963: after a break longer than the window the trend still shows the 
   const trend = attendanceTrend(data.attendanceTrend, 21);
   assert.equal(trend.length, 21, "the two recent days plus 19 days from before the break");
   assert.equal(trend[trend.length - 1].key, attendanceTrend([{ date: day("2026-11-13"), status: "PRESENT", count: 1 }], 1)[0].key);
+});
+
+for (const [label, loader, session] of consoles) {
+  test(`SKAI-1963: ${label} per-pupil rate counts marks from its own campus's active cycle start`, async () => {
+    const dashboard = await loadDashboard();
+    h.session = session;
+    h.answers.set("academicCycle.findFirst", (args) =>
+      args.where.schoolId === session.schoolId && args.where.campusId === session.campusId && args.where.status === "ACTIVE"
+        ? { startDate: day("2026-08-01") }
+        : null);
+    await (dashboard as any)[loader]();
+    const cycleRead = h.calls.find((call) => call.read === "academicCycle.findFirst" && call.args?.select?.startDate);
+    assert.deepEqual(cycleRead?.args.where, { schoolId: session.schoolId, campusId: session.campusId, status: "ACTIVE" });
+    const tally = h.calls.find((call) => call.read === "attendance.groupBy" && call.args.by.includes("studentId"))!;
+    assert.deepEqual(tally.args.where, {
+      schoolId: session.schoolId,
+      campusId: session.campusId,
+      student: { campusId: session.campusId, campus: { schoolId: session.schoolId } },
+      date: { gte: day("2026-08-01") },
+    });
+  });
+}
+
+test("SKAI-1963: with no dated active cycle the per-pupil rate falls back to the last 12 months, never all history", async () => {
+  const dashboard = await loadDashboard();
+  h.session = user("PRINCIPAL");
+  h.answers.set("academicCycle.findFirst", () => ({ startDate: null }));
+  const before = Date.now();
+  await dashboard.getPrincipalDashboardData();
+  const tally = h.calls.find((call) => call.read === "attendance.groupBy" && call.args.by.includes("studentId"))!;
+  const ageDays = (before - tally.args.where.date.gte.getTime()) / 86_400_000;
+  assert.ok(ageDays >= 364 && ageDays <= 367, `window starts about a year back (was ${ageDays.toFixed(1)})`);
 });

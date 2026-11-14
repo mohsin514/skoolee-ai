@@ -566,8 +566,23 @@ async function attendanceTrendCounts(schoolId: string, campusId: string, now = n
   return rows.map((row) => ({ date: row.date, status: row.status, count: row._count._all }));
 }
 
-function attendanceCountsByStudent(schoolId: string, campusId: string) {
-  return prisma.attendance.groupBy({ by: ["studentId", "status"], where: campusAttendanceWhere(schoolId, campusId), _count: { _all: true } });
+/**
+ * SKAI-1963: the per-pupil rate counts this academic year's marks, from the campus's ACTIVE cycle start (or the last
+ * 12 months when no active cycle has a start date). Grouping every mark the campus ever recorded grew by ~190k rows a
+ * year, and earlier years' absences should not pull down this year's rate or flag a pupil as at risk.
+ */
+async function attendanceRateSince(schoolId: string, campusId: string, now = new Date()) {
+  const cycle = await prisma.academicCycle.findFirst({ where: { schoolId, campusId, status: "ACTIVE" }, select: { startDate: true } });
+  return cycle?.startDate ?? new Date(Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth(), now.getUTCDate()));
+}
+
+async function attendanceCountsByStudent(schoolId: string, campusId: string) {
+  const since = await attendanceRateSince(schoolId, campusId);
+  return prisma.attendance.groupBy({
+    by: ["studentId", "status"],
+    where: { ...campusAttendanceWhere(schoolId, campusId), date: { gte: since } },
+    _count: { _all: true },
+  });
 }
 
 /** Folds the per-student counts onto each pupil as `attendanceMarks` ({ present, total }), what the rate reads. */
