@@ -545,14 +545,25 @@ function campusAttendanceWhere(schoolId: string, campusId: string) {
 
 /** Marks per day and status for the most recent marked days the trend draws (each day has at most one row per status). */
 const ATTENDANCE_TREND_DAYS = 21;
-function attendanceTrendCounts(schoolId: string, campusId: string) {
-  return prisma.attendance.groupBy({
+/** SKAI-1963: how far back the trend looks first; ~6 school weeks normally holds the last 21 marked days. */
+const ATTENDANCE_TREND_WINDOW_DAYS = 45;
+async function attendanceTrendCounts(schoolId: string, campusId: string, now = new Date()) {
+  const take = ATTENDANCE_TREND_DAYS * Object.keys(AttendanceStatus).length;
+  const read = (since?: Date) => prisma.attendance.groupBy({
     by: ["date", "status"],
-    where: campusAttendanceWhere(schoolId, campusId),
+    where: since ? { ...campusAttendanceWhere(schoolId, campusId), date: { gte: since } } : campusAttendanceWhere(schoolId, campusId),
     _count: { _all: true },
     orderBy: { date: "desc" },
-    take: ATTENDANCE_TREND_DAYS * Object.keys(AttendanceStatus).length,
-  }).then((rows) => rows.map((row) => ({ date: row.date, status: row.status, count: row._count._all })));
+    take,
+  });
+  // SKAI-1963: the unbounded read grouped every mark the campus ever recorded before keeping `take` rows. The rows in
+  // a recent window are the newest rows of that same ordering, so the windowed read returns the same last marked days
+  // whenever it fills `take` or already holds ATTENDANCE_TREND_DAYS dates. After a long break (or for a new campus)
+  // it does not, and the unbounded read runs as before, so the chart still shows the last 21 marked days.
+  const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - ATTENDANCE_TREND_WINDOW_DAYS));
+  let rows = await read(since);
+  if (rows.length < take && new Set(rows.map((row) => row.date.getTime())).size < ATTENDANCE_TREND_DAYS) rows = await read();
+  return rows.map((row) => ({ date: row.date, status: row.status, count: row._count._all }));
 }
 
 function attendanceCountsByStudent(schoolId: string, campusId: string) {
