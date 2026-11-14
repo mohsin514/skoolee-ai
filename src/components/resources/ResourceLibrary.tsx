@@ -82,7 +82,7 @@ export function ResourceLibrary({ audience, studentId, adding: addingProp, onAdd
     setLoadFailed(null);
     try {
       const params = new URLSearchParams(Object.entries({ classId, viewAs, q, studentId }).filter(([, value]) => value) as [string, string][]);
-      const data = await checkedJson(await readRequest(`/api/resources?${params}`));
+      const data = (await checkedJson(await readRequest(`/api/resources?${params}`))).data;
       if (version !== sequence.current) return;
       setView(data);
       if (data.classId && !classId) setClassId(data.classId);
