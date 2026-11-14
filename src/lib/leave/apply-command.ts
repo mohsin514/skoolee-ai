@@ -1,7 +1,7 @@
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, resolveCampusId } from "@/lib/api/scope";
-import { rangeTenths, utcDay } from "@/lib/leave";
+import { getLeaveBalances, rangeTenths, tenthsToDays, utcDay } from "@/lib/leave";
 import { notify } from "@/lib/notifications/in-app";
 import { isStaffRole } from "@/lib/roles";
 
@@ -65,6 +65,19 @@ export async function applyLeave(user: AuthUser, body: Record<string, unknown>) 
         `This overlaps your existing ${overlap.status.toLowerCase()} ${overlap.leaveType.name} leave (${overlap.fromDate.toISOString().slice(0, 10)} → ${overlap.toDate.toISOString().slice(0, 10)})`,
         409
       );
+    }
+    // SKAI-452: an application may not exceed the entitlement left after approved and pending requests.
+    // Refused at submission so a 500-day request cannot be filed against a 1-day balance. With no allocation
+    // configured the rule does not apply (the review route still requires an override for that case).
+    const balance = (await getLeaveBalances(campusId, user.userId, user.role, start.getUTCFullYear(), tx)).find(b => b.leaveTypeId === leaveTypeId);
+    if (balance && balance.allocated > 0) {
+      const available = balance.allocated - balance.approved - balance.pending;
+      if (days > available) {
+        throw new ApiError(
+          `This application is ${tenthsToDays(days)} day(s) but only ${tenthsToDays(Math.max(0, available))} ${leaveType.name} day(s) remain for ${start.getUTCFullYear()}.`,
+          409
+        );
+      }
     }
     return tx.leaveRequest.create({
       data: {

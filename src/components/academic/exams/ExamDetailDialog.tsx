@@ -353,7 +353,7 @@ function MarksEntry({
       if (res.status === 409) {
         // Keep the draft on screen; reload the current server values so the editor can compare and resubmit.
         await load({ keepDraft: true });
-        throw new Error(json.error || "This marks sheet changed. Review your draft against the current server values before saving.");
+        throw new Error(tr("This marks sheet changed. Review your draft against the current server values before saving."));
       }
       if (!res.ok) throw new Error(json.error?.message || json.error || "Could not save");
 

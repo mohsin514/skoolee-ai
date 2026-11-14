@@ -107,3 +107,28 @@ test("a parent role is refused with 403", async () => {
   );
   assert.equal(await requestsFor(parent.userId), 0);
 });
+
+// SKAI-452: an application may not exceed the entitlement left after approved and pending requests (2027 allocation: 1 day).
+test("an application larger than the remaining entitlement is refused with 409 and nothing is written", async () => {
+  const user = { ...teacher, userId: randomUUID(), email: `${randomUUID()}@example.invalid` };
+  await raw.user.create({ data: { id: user.userId, schoolId: user.schoolId, campusId: user.campusId, email: user.email, role: user.role, fullName: user.fullName!, onboardingComplete: true } });
+  await raw.leaveAllocation.create({ data: { schoolId: schoolA, campusId: campusA, leaveTypeId: typeA, userId: user.userId, days: 10, academicYear: 2027 } });
+  await assert.rejects(
+    as(user, () => applyLeave(user, body(typeA, "2027-04-01", "2027-04-01", { days: 500 }))),
+    (error: { status?: number }) => error.status === 409
+  );
+  assert.equal(await requestsFor(user.userId), 0);
+});
+
+test("an application within the remaining entitlement succeeds, and a second one beyond it is refused", async () => {
+  const user = { ...teacher, userId: randomUUID(), email: `${randomUUID()}@example.invalid` };
+  await raw.user.create({ data: { id: user.userId, schoolId: user.schoolId, campusId: user.campusId, email: user.email, role: user.role, fullName: user.fullName!, onboardingComplete: true } });
+  await raw.leaveAllocation.create({ data: { schoolId: schoolA, campusId: campusA, leaveTypeId: typeA, userId: user.userId, days: 10, academicYear: 2027 } });
+  const request = await as(user, () => applyLeave(user, body(typeA, "2027-04-02", "2027-04-02")));
+  assert.equal(request.days, 10);
+  await assert.rejects(
+    as(user, () => applyLeave(user, body(typeA, "2027-04-03", "2027-04-03"))),
+    (error: { status?: number }) => error.status === 409
+  );
+  assert.equal(await requestsFor(user.userId), 1);
+});

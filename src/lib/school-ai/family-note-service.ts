@@ -6,6 +6,7 @@ import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
 import { ApiError } from "@/lib/api/scope";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { examReviewSchema, responsesSchema } from "./exam";
+import { isSchoolAiManager } from "./access";
 import { scopedAssignment, staffExamAccess } from "./exam-service";
 import { familyNoteLanguage, familySentence } from "./family-note";
 import { outcomeTitles } from "./improve-service";
@@ -66,12 +67,22 @@ async function view(user: AuthUser, assignmentId: string, tx: TxClient) {
   return notes.map(note => ({ id: note.id, studentId: note.studentId, name: names.get(note.studentId) ?? null, language: note.language, sentence: note.sentence, status: note.status, version: note.version, resultVersion: note.resultVersion, sentAt: note.sentAt, gate: gate.get(note.studentId) ?? "WAITING_FOR_REPORT_CARD", hasGuardian: guardians.has(note.studentId) }));
 }
 
+/**
+ * SKAI-283: roles outside the exam-staff set (receptionists, accountants, librarians, students and parents) are refused
+ * before any transaction opens. Previously they reached the sitting lookup and a non-SchoolAi failure surfaced as 503.
+ */
+function assertFamilyNoteStaff(user: AuthUser) {
+  if (!isSchoolAiManager(user) && user.role !== "TEACHER") throw new ApiError("Exam access is restricted to authorized teaching staff.", 403);
+}
+
 export async function listFamilyNotes(user: AuthUser, assignmentId: string) {
+  assertFamilyNoteStaff(user);
   return schoolAiTransaction(user, tx => view(user, assignmentId, tx));
 }
 
 /** Drafts (or refreshes an unsent draft of) one note per reviewed result. A sent note is never rewritten. */
 export async function draftFamilyNotes(user: AuthUser, assignmentId: string) {
+  assertFamilyNoteStaff(user);
   return schoolAiTransaction(user, async tx => {
     const { assignment, paper } = await released(user, assignmentId, tx, "add");
     const attempts = await tx.schoolAiExamAttempt.findMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, status: "REVIEWED" }, select: { id: true, studentId: true, review: true, responses: true, reviewVersion: true } });

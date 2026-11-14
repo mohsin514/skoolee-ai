@@ -60,6 +60,7 @@ const entries: ReadonlyArray<readonly [string, string, string]> = [
   ["Staff & invites", "الموظفون والدعوات", "عملہ اور دعوت نامے"],
   ["Staff & leaders", "الموظفون والقادة", "عملہ اور سربراہان"],
   ["Leave approvals", "الموافقة على الإجازات", "رخصت کی منظوریاں"],
+  ["Decide staff leave, set leave types and allowances, and see what everyone has left.", "اتخذ قرارات إجازات الموظفين، وحدد أنواع الإجازات والمخصصات، واطلع على ما تبقى لدى الجميع.", "عملے کی چھٹیوں کا فیصلہ کریں، رخصت کی اقسام اور الاؤنس مقرر کریں، اور دیکھیں کہ ہر ایک کے پاس کتنی چھٹیاں باقی ہیں۔"],
   ["Staff structure", "الهيكل الوظيفي", "عملے کا ڈھانچہ"],
   ["Teacher performance", "أداء المعلمين", "اساتذہ کی کارکردگی"],
   ["Academic overview", "نظرة أكاديمية عامة", "تعلیمی جائزہ"],

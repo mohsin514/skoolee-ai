@@ -23,8 +23,8 @@ test("a network failure is classified as a failure, not as an empty queue", () =
 test("the queue never maps a failed read to an empty list or hides itself on failure", () => {
   assert.doesNotMatch(queue, /\?\s*payload\s*:\s*\[\]/u, "no empty-list fallback on failure");
   assert.doesNotMatch(queue, /\.catch\(\(\) => null\)/u, "no null fallback on failure");
-  assert.match(queue, /if \(failure\?\.kind === "denied"\) return null;/u, "a denied role sees no queue");
-  assert.match(queue, /if \(!slots\.length && !failure\) return null;/u, "only a successful empty list hides the queue");
+  assert.match(queue, /queueView\(\{ slots, failure \}\)/u, "the queue decides its view from the pure state");
+  assert.match(queue, /view === "denied" \|\| view === "hidden"\) return null;/u, "a denied role or a valid empty list sees no queue");
 });
 
 test("a refresh failure keeps the last loaded papers and offers an accessible retry", () => {

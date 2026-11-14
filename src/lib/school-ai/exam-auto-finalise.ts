@@ -4,6 +4,7 @@ import { ApiError } from "@/lib/api/scope";
 import type { PaperData } from "./assessment";
 import { responsesSchema, scoreObjectiveResponses, type ExamResponses, type ExamReview } from "./exam";
 import { reviewSchoolAiAttempt, scopedAssignment, staffMarkingAccess } from "./exam-service";
+import { assertSchoolAiRole, assertWorkspacePermission, type WorkspacePermissionSnapshot } from "./access";
 
 const FEEDBACK = "Auto-scored objective answer.";
 const NOTE = "Finalised automatically: every answered question is auto-scored.";
@@ -21,11 +22,21 @@ export function objectiveOnlyReview(paper: PaperData, responses: ExamResponses):
 }
 
 /**
+ * SKAI-785 (QA FAIL, denied role): a role without marking rights is refused with a 403 before any exam lookup,
+ * instead of falling through to the generic 503 response.
+ */
+export async function assertObjectiveFinaliseAccess(user: AuthUser, permissions?: WorkspacePermissionSnapshot) {
+  assertSchoolAiRole(user);
+  await assertWorkspacePermission(user, "exams", "edit", permissions);
+}
+
+/**
  * Finalises every submitted, unreviewed attempt whose answers are all objective. Each one goes through the
  * normal review path, so access, validation, the result revision and the audit event are unchanged.
  * Attempts with any written answer stay in the marking queue.
  */
 export async function finaliseObjectiveOnlyAttempts(user: AuthUser, assignmentId: string, now = new Date()) {
+  await assertObjectiveFinaliseAccess(user);
   const { assignment, paper } = await scopedAssignment(user, assignmentId);
   await staffMarkingAccess(user, assignment);
   const attempts = await prisma.schoolAiExamAttempt.findMany({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, status: "SUBMITTED", reviewVersion: 0 }, select: { id: true, responses: true }, orderBy: { startedAt: "asc" }, take: 2000 });
