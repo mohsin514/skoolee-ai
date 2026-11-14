@@ -167,7 +167,10 @@ export async function POST(req: NextRequest) {
         const classStructure = feeMap.get(student.classId);
         approvedFee = classStructure?.approvedFee ?? null;
         approvedFeeReference = classStructure?.approvedFeeReference ?? null;
-        const cap = feeCapDecision(evaluateFeeCap({ mode: capMode, fee: monthlyFee, approvedFee }), capMode);
+        // SKAI-1254: monthlyFee only sums MONTHLY_TUITION lines. Without a coded tuition line the cap cannot tell tuition
+        // from other fees, so it checks the whole group charge (fail closed) instead of a zero that always passes.
+        const hasTuitionLine = lines.some(line => line.code === "MONTHLY_TUITION");
+        const cap = feeCapDecision(evaluateFeeCap({ mode: capMode, fee: hasTuitionLine ? monthlyFee : subtotal, approvedFee }), capMode);
         if (cap.error) { results.push({ studentId: student.id, status: "error", error: cap.error }); continue; }
       } else {
         // 2. Legacy fallback: feeStructure per class
