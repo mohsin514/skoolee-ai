@@ -699,8 +699,12 @@ export async function revokeEmergency(user: AuthUser, id: string) {
   return { id };
 }
 
+// SKAI-598: oversight is newest first, a page at a time; each cursor is the last id of the previous page of that list.
+export const OVERSIGHT_LOG_PAGE = 100;
+export const OVERSIGHT_GRANT_PAGE = 50;
+
 /** The domain lead reviews every emergency grant, and sees what it was used for. */
-export async function oversight(user: AuthUser, domainParam: string | null) {
+export async function oversight(user: AuthUser, domainParam: string | null, cursors: { logs?: string | null; grants?: string | null } = {}) {
   const domain = domainOf(domainParam);
   const m = await member(user, domain, ["LEAD"]);
   // Access logs carry no campus: a row belongs to this campus when it is about one of its students, or,
@@ -709,10 +713,12 @@ export async function oversight(user: AuthUser, domainParam: string | null) {
     prisma.student.findMany({ where: { schoolId: user.schoolId, campusId: m.campusId }, select: { id: true } }),
     prisma.confidentialMember.findMany({ where: { schoolId: user.schoolId, campusId: m.campusId, domain }, select: { userId: true } }),
   ]);
-  const [grants, logs] = await Promise.all([
-    prisma.emergencyAccess.findMany({ where: { schoolId: user.schoolId, campusId: m.campusId, domain }, orderBy: { createdAt: "desc" }, take: 50 }),
-    prisma.confidentialAccessLog.findMany({ where: { schoolId: user.schoolId, domain, OR: [{ studentId: { in: campusStudents.map(s => s.id) } }, { studentId: null, actorId: { in: [...new Set(campusMembers.map(c => c.userId))] } }] }, orderBy: { createdAt: "desc" }, take: 100 }),
+  const [grantRows, logRows] = await Promise.all([
+    prisma.emergencyAccess.findMany({ where: { schoolId: user.schoolId, campusId: m.campusId, domain }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: OVERSIGHT_GRANT_PAGE + 1, ...(cursors.grants ? { cursor: { id: cursors.grants }, skip: 1 } : {}) }),
+    prisma.confidentialAccessLog.findMany({ where: { schoolId: user.schoolId, domain, OR: [{ studentId: { in: campusStudents.map(s => s.id) } }, { studentId: null, actorId: { in: [...new Set(campusMembers.map(c => c.userId))] } }] }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: OVERSIGHT_LOG_PAGE + 1, ...(cursors.logs ? { cursor: { id: cursors.logs }, skip: 1 } : {}) }),
   ]);
+  // A cursor from another school or campus matches no row inside this scope, so it returns an empty page.
+  const grants = grantRows.slice(0, OVERSIGHT_GRANT_PAGE), logs = logRows.slice(0, OVERSIGHT_LOG_PAGE);
   const people = await names(user.schoolId, [...grants.flatMap(g => [g.userId, g.reviewedById]), ...logs.map(l => l.actorId)]);
   const students = await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: [...new Set(grants.map(g => g.studentId))] } }, select: { id: true, fullName: true } });
   const used = await prisma.confidentialAccessLog.groupBy({ by: ["emergencyAccessId"], where: { schoolId: user.schoolId, emergencyAccessId: { in: grants.map(g => g.id) }, action: { in: ["VIEW", "EXPORT"] } }, _count: { _all: true } });
@@ -721,6 +727,8 @@ export async function oversight(user: AuthUser, domainParam: string | null) {
   return {
     grants: grants.map(g => ({ id: g.id, user: people.get(g.userId) ?? "", studentName: students.find(s => s.id === g.studentId)?.fullName ?? "", purpose: g.purpose, createdAt: g.createdAt, expiresAt: g.expiresAt, revokedAt: g.revokedAt, live: !g.revokedAt && g.expiresAt > now, uses: used.find(u => u.emergencyAccessId === g.id)?._count._all ?? 0, reviewedAt: g.reviewedAt, reviewedBy: g.reviewedById ? people.get(g.reviewedById) ?? "" : null, reviewNote: g.reviewNote })),
     logs: logs.map(l => ({ id: l.id, actor: people.get(l.actorId) ?? "", action: l.action, recordType: l.recordType, emergency: !!l.emergencyAccessId, createdAt: l.createdAt })),
+    grantsNextCursor: grantRows.length > OVERSIGHT_GRANT_PAGE ? grants[grants.length - 1].id : null,
+    logsNextCursor: logRows.length > OVERSIGHT_LOG_PAGE ? logs[logs.length - 1].id : null,
   };
 }
 

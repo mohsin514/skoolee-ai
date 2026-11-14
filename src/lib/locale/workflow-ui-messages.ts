@@ -808,6 +808,7 @@ const entries: [string, string, string][] = [
   ["Older pickup authorizations could not be loaded.", "تعذّر تحميل تصاريح الاستلام الأقدم.", "پرانی پک اپ اجازتیں لوڈ نہیں ہو سکیں۔"],
   ["Earlier weekly updates could not be loaded. Try again.", "تعذّر تحميل التحديثات الأسبوعية الأقدم. حاول مرة أخرى.", "پرانی ہفتہ وار اپڈیٹس لوڈ نہیں ہو سکیں۔ دوبارہ کوشش کریں۔"],
   ["Show older concerns", "عرض المخاوف الأقدم", "پرانے خدشات دکھائیں"],
+  ["Show older entries", "عرض الإدخالات الأقدم", "پرانی انٹریاں دکھائیں"],
   ["Older concerns could not be loaded.", "تعذّر تحميل المخاوف الأقدم.", "پرانے خدشات لوڈ نہیں ہو سکے۔"],
   ["That's every concern you recorded.", "هذه كل المخاوف التي سجّلتها.", "یہ آپ کے درج کردہ تمام خدشات ہیں۔"],
   ["Showing {0} of {1} open items", "عرض {0} من {1} من الأعمال المفتوحة", "{1} میں سے {0} کھلے کام دکھائے جا رہے ہیں"],
