@@ -10,8 +10,12 @@ import { isFamily, studentScope } from "@/lib/auth/policy";
 // paged by a keyset cursor, so a page never repeats or skips an event when new
 // ones are appended between requests.
 
-/** Life-cycle milestones a guardian or the pupil may see. Everything else (staff notes, document uploads) is staff-only. */
-export const FAMILY_TIMELINE_KINDS = ["ADMITTED", "PROMOTED", "ENROLLMENT_TRANSITION", "ARCHIVED"] as const;
+/**
+ * Life-cycle milestones a guardian or the pupil may see. Everything else (staff notes, document uploads) is staff-only.
+ * SKAI-1499: the workflow-written status milestones (withdrawal, transfer, graduation, re-admission) describe the
+ * pupil's current enrolment status, so families see them too; their detail and actor stay redacted below.
+ */
+export const FAMILY_TIMELINE_KINDS = ["ADMITTED", "PROMOTED", "ENROLLMENT_TRANSITION", "ARCHIVED", "WITHDRAWN", "GRADUATED", "TRANSFERRED", "READMITTED"] as const;
 /** Kinds staff may append by hand; the rest are written by the workflows that own them. */
 export const MANUAL_TIMELINE_KINDS = ["NOTE"] as const;
 export const TIMELINE_PAGE_SIZE = 20;

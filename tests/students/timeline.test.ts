@@ -122,6 +122,29 @@ test("guardians see milestones only, no detail or staff names, and how many entr
   await assert.rejects(readStudentTimeline(user("PARENT", "school-a", null, "parent-2"), "stu-1"), { status: 404 });
 });
 
+// SKAI-1499: workflow-written status milestones reach families with detail and actor redacted.
+test("guardians see withdrawal, transfer, graduation and re-admission milestones, redacted, in pages", async () => {
+  const { readStudentTimeline } = await svc();
+  h.events.push(
+    { id: "e6", studentId: "stu-1", kind: "WITHDRAWN", title: "Enrollment withdrawn", detail: "{\"reason\":\"family move\"}", actorId: "u-admin", createdAt: at(10) },
+    { id: "e7", studentId: "stu-1", kind: "TRANSFERRED", title: "Transferred out", detail: "{\"reason\":\"fees\"}", actorId: "u-admin", createdAt: at(11) },
+    { id: "e8", studentId: "stu-1", kind: "READMITTED", title: "Re-admitted", detail: "{\"reason\":\"returned\"}", actorId: "u-admin", createdAt: at(12) },
+    { id: "e10", studentId: "stu-1", kind: "GRADUATED", title: "Graduated", detail: "{\"reason\":\"completed\"}", actorId: "u-admin", createdAt: at(13) },
+  );
+  const reader = user("PARENT", "school-a", null, "parent-1");
+  const first = await readStudentTimeline(reader, "stu-1", { limit: 3 });
+  assert.deepEqual(first.events.map(e => e.kind), ["GRADUATED", "READMITTED", "TRANSFERRED"]);
+  assert.ok(first.events.every(e => e.detail === null && e.actor === null), "reason, detail and actor stay redacted");
+  assert.equal(first.restrictedCount, 1, "only the staff-only NOTE is withheld; status milestones are visible, not counted as restricted");
+  const second = await readStudentTimeline(reader, "stu-1", { limit: 3, cursor: first.nextCursor });
+  assert.deepEqual(second.events.map(e => e.kind), ["WITHDRAWN", "PROMOTED", "ENROLLMENT_TRANSITION"]);
+  assert.equal(second.restrictedCount, 1);
+  const staff = await readStudentTimeline(user("ADMIN"), "stu-1", { limit: 50 });
+  assert.equal(staff.restrictedCount, 0);
+  assert.equal(staff.events.find(e => e.id === "e6")?.detail, "{\"reason\":\"family move\"}");
+  await assert.rejects(readStudentTimeline(user("PARENT", "school-a", null, "parent-2"), "stu-1"), { status: 404 });
+});
+
 test("rejects a malformed cursor or kind and clamps the page size", async () => {
   const { readStudentTimeline } = await svc();
   await assert.rejects(readStudentTimeline(user("ADMIN"), "stu-1", { cursor: "bm9wZQ" }), { status: 400 });
