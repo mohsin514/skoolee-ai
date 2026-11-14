@@ -14,7 +14,7 @@ import { GLOBAL_MODELS, TENANT_MODELS } from "./tenant-models";
 import { pooledDatabaseUrl } from "./pool-url";
 import { createPgAdapter } from "./pg-pool";
 import { auditTrail, withTransactionAudit } from "./audit-trail";
-import { invalidationTargets, principalCache } from "@/lib/auth/principal-cache";
+import { afterCommitInvalidation, invalidateAfterWrite, invalidationTargets } from "@/lib/auth/principal-cache";
 
 // ─────────────────────────────────────────────────────────────────
 // Tenant guard
@@ -506,7 +506,7 @@ function principalCacheInvalidation() {
         async $allOperations({ model, operation, args, query }) {
           const result = await query(args);
           const targets = invalidationTargets(model, operation, args as Parameters<typeof invalidationTargets>[2], getTenantContext()?.schoolId || undefined);
-          if (targets) await principalCache().invalidate(targets);
+          if (targets) await invalidateAfterWrite(targets); // SKAI-1982: deferred to the commit inside a transaction.
           return result;
         },
       },
@@ -526,13 +526,13 @@ export const prisma = new Proxy(guardedClient, {
     return (first: unknown, options?: unknown) => {
       const transact = target.$transaction.bind(target) as (arg: unknown, options?: unknown) => unknown;
       if (typeof first !== "function") return transact(first, options);
-      return transact(async (tx: ReferenceClient) => {
+      return afterCommitInvalidation(async () => await transact(async (tx: ReferenceClient) => {
         // RLS reads inside this transaction must reuse it: a nested rlsClient
         // transaction waits on the rows this one locked and times out (SKAI-1303).
         const context = getTenantContext();
         if (RLS_ENABLED && context?.schoolId) await applySchoolGuc(tx as unknown as { $executeRawUnsafe: (q: string, ...v: unknown[]) => Promise<unknown> }, context.schoolId);
         return referenceTransaction.run(tx, () => withTransactionAudit(tx, async () => await first(tx)));
-      }, options);
+      }, options));
     };
   },
 });
