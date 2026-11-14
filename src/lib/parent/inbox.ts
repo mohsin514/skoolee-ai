@@ -159,7 +159,7 @@ export async function familyInbox(input: { guardianUserId: string | null; school
     const locales = new Map<string, Locale>();
     await Promise.all(campusIds.map(campusId => getLocalePackage(input.schoolId, campusId, now).then(locale => { locales.set(campusId, locale); }, error => {
       console.error("[family-inbox] a campus's locale could not be read", error);
-      for (const c of children) if (c.campusId === campusId) failed.add(c.id);
+      for (const c of children) if (c.campusId === campusId && grants.has(c.id)) failed.add(c.id);
     })));
     const granted = children.filter(c => grants.has(c.id) && !failed.has(c.id)).map(child => ({ child, permissions: grants.get(child.id)! }));
     const sourcesFor = granted.length ? await readSources(input.guardianUserId ?? "", input.schoolId, granted, locales, now, failed) : null;
