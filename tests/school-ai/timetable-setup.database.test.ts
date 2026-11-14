@@ -13,6 +13,7 @@ import type { TimetableSetupProposal } from "../../src/lib/school-ai/timetable-s
 import { createDraftTimetableSlot } from "../../src/lib/timetable/draft-slot";
 import { getAvailableRooms, getAvailableTeachers } from "../../src/lib/academic/availability";
 import { createManualTimetable, saveManualTimetable, changeManualTimetableStatus, deleteManualTimetable, applyManualTimetableSuggestion } from "../../src/lib/timetable/manual";
+import { putAcademicYear } from "../support/academic-year";
 
 const local = `postgresql://${process.env.QA_DB_USER || "angular_dev_15"}@127.0.0.1:${process.env.QA_DB_PORT || "55438"}/${process.env.QA_DB_NAME || "postgres"}`;
 if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated school AI PostgreSQL fixture.");
@@ -144,7 +145,7 @@ test("blank-cell creation enforces current calendar, period windows and class li
   await db.class.update({ where: { id: f.classId }, data: { archivedAt: new Date() } });
   await assert.rejects(() => createDraftTimetableSlot(f.user, receipt.timetableId, emptyTuesday), { code: "TIMETABLE_SCOPE" });
   await db.class.update({ where: { id: f.classId }, data: { archivedAt: null } });
-  await db.academicCycle.create({ data: { schoolId, campusId: f.campusId, academicYear: 2026, label: "Ended synthetic year", status: "ENDED" } });
+  await putAcademicYear(db, { schoolId, campusId: f.campusId, academicYear: 2026, label: "Ended synthetic year", status: "ENDED" });
   await assert.rejects(() => createDraftTimetableSlot(f.user, receipt.timetableId, emptyTuesday), { code: "TIMETABLE_SCOPE" });
   assert.equal(await db.timetableSlot.count({ where: { timetableId: receipt.timetableId } }), 1);
 });
@@ -239,7 +240,7 @@ test("single-teacher classes use their assigned class teacher and archived class
   await db.class.update({ where: { id: f.classId }, data: { archivedAt: new Date() } });
   await assert.rejects(() => preview(f, record), { code: "TIMETABLE_SCOPE" });
   await db.class.update({ where: { id: f.classId }, data: { archivedAt: null } });
-  await db.academicCycle.create({ data: { schoolId, campusId: f.campusId, academicYear: 2026, label: "Closed synthetic year", status: "ENDED" } });
+  await putAcademicYear(db, { schoolId, campusId: f.campusId, academicYear: 2026, label: "Closed synthetic year", status: "ENDED" });
   await assert.rejects(() => preview(f, record), { code: "TIMETABLE_SCOPE" });
 });
 test("period definitions and invalid existing times fail visibly rather than claiming a valid timetable", async () => {
