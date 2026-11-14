@@ -11,13 +11,16 @@ if (database.hostname !== "127.0.0.1" || database.port !== (process.env.QA_DB_PO
 const db = new PrismaClient();
 after(() => db.$disconnect());
 const paper = assessmentFixture().paper;
+// SKAI-1954: actor columns must name a real user of the same school.
+const author = (schoolId: string) => `author-${schoolId}`;
 
 async function withSchool(run: (scope: { schoolId: string; campusId: string; paperId: string }) => Promise<void>) {
   const schoolId = `expiry-${randomUUID()}`, campusId = randomUUID();
   await db.school.create({ data: { id: schoolId, name: "Synthetic expiry school", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Synthetic", status: "ACTIVE" } });
   try {
     await db.campus.create({ data: { id: campusId, schoolId, name: "Synthetic campus", regId: campusId, city: "Synthetic" } });
-    const record = await db.schoolAiRecord.create({ data: { schoolId, campusId, kind: "PAPER", title: "Synthetic immutable paper", status: "APPROVED", data: paper, createdById: "fixture", updatedById: "fixture", approvedById: "fixture", approvedAt: new Date(), idempotencyKey: randomUUID(), requestHash: "fixture" } });
+    await db.user.create({ data: { id: author(schoolId), schoolId, campusId, email: `${randomUUID()}@example.invalid`, password: "not-a-real-hash", fullName: "Synthetic paper author", role: "TEACHER" } });
+    const record = await db.schoolAiRecord.create({ data: { schoolId, campusId, kind: "PAPER", title: "Synthetic immutable paper", status: "APPROVED", data: paper, createdById: author(schoolId), updatedById: author(schoolId), approvedById: author(schoolId), approvedAt: new Date(), idempotencyKey: randomUUID(), requestHash: "fixture" } });
     await run({ schoolId, campusId, paperId: record.id });
   } finally { await db.school.deleteMany({ where: { id: schoolId } }); }
 }
@@ -26,7 +29,7 @@ async function attempt(scope: { schoolId: string; campusId: string; paperId: str
   const studentId = randomUUID(), userId = randomUUID();
   const deadlineAt = new Date(Date.now() + (changes.due === false ? 3600000 : -(changes.age ?? 60_000)));
   const startedAt = new Date(deadlineAt.getTime() - 30 * 60_000);
-  const assignment = await db.schoolAiExamAssignment.create({ data: { ...scope, classId: "synthetic-class", paperVersion: 1, paperSnapshot: changes.snapshot ?? paper, createdById: "fixture", title: "Synthetic expiry exam", startsAt: startedAt, endsAt: deadlineAt, studentIds: [studentId], status: "ACTIVE", mode: changes.mode ?? "STANDARD" } });
+  const assignment = await db.schoolAiExamAssignment.create({ data: { ...scope, classId: "synthetic-class", paperVersion: 1, paperSnapshot: changes.snapshot ?? paper, createdById: author(scope.schoolId), title: "Synthetic expiry exam", startsAt: startedAt, endsAt: deadlineAt, studentIds: [studentId], status: "ACTIVE", mode: changes.mode ?? "STANDARD" } });
   return db.schoolAiExamAttempt.create({ data: { schoolId: scope.schoolId, campusId: scope.campusId, assignmentId: assignment.id, studentId, userId, startedAt, deadlineAt, sequence: 7, responses: changes.responses ?? { q1: "a1", q3: "My saved written work" }, status: changes.status ?? "IN_PROGRESS" } });
 }
 
