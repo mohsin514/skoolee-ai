@@ -114,7 +114,9 @@ async function main() {
         if (!res.ok || !res.body || res.status === 204) {
           await res.arrayBuffer().catch(() => undefined);
           record(res.status);
-          if (res.status === 204) return; // realtime is off: the browser stops reconnecting too
+          // EventSource fails for good on any answer other than a 200 event stream (204 = realtime off, 403 =
+          // refused, 5xx); it reconnects only after a dropped or closed stream, which the loop below models.
+          return;
         } else {
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
