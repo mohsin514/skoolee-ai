@@ -9,7 +9,8 @@ const digestUpdates: Record<string, unknown>[] = [];
 const digest = { id: "d1", status: "APPROVED", weekStart: new Date("2026-10-26T00:00:00Z"), version: 1, approvedVersion: 1, entries: [] as unknown[] };
 
 const tx = {
-  $queryRaw: async () => [{ id: "d1" }],
+  // The digest row is only visible to its own school (school_id is part of the lock query).
+  $queryRaw: async (_strings: unknown, ...values: unknown[]) => (values.includes("school1") ? [{ id: "d1" }] : []),
   familyDigest: {
     findUnique: async () => digest,
     update: async ({ data }: { data: Record<string, unknown> }) => { digestUpdates.push(data); return data; },
@@ -20,7 +21,16 @@ const tx = {
   familyDigestDelivery: { findUnique: async () => null, create: async () => ({ id: "del1" }) },
 };
 
-mock.module(src("lib/db/prisma.ts"), { namedExports: { prisma: { $transaction: async (fn: (t: unknown) => unknown) => fn(tx) } } });
+mock.module(src("lib/db/prisma.ts"), { namedExports: { prisma: { $transaction: async (fn: (t: unknown) => unknown) => fn(tx) }, tenantTransaction: async (fn: (t: unknown) => unknown) => fn(tx) } });
+
+// SKAI-475: a digest sent from another school is not found, and nothing is delivered or changed.
+test("another school cannot dispatch this digest", async () => {
+  const { dispatchDigest } = await import(src("lib/family/digests.ts"));
+  digestUpdates.length = 0;
+  digest.entries = [{ id: "e3", studentId: "s3", skipped: false, content: { statements: [] } }];
+  await assert.rejects(dispatchDigest("school2", "d1", new Date("2026-10-31T00:00:00Z")), { status: 404 });
+  assert.equal(digestUpdates.length, 0);
+});
 
 test("a digest with a blocked entry reopens for review and is not marked sent", async () => {
   const { dispatchDigest } = await import(src("lib/family/digests.ts"));
