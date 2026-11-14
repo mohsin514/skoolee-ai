@@ -27,6 +27,7 @@ import { InfoTip } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input as SystemInput } from "@/components/ui/input";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { readApiData } from "@/lib/api/envelope-client";
 
 type CalendarRole = "ADMIN" | "PRINCIPAL" | "TEACHER" | "STUDENT" | "PARENT";
 
@@ -102,7 +103,7 @@ export function YearEndPanel({ campusId, role = "ADMIN", archiveRequest, hideArc
           try {
             const res = await fetch(`/api/grade-config/weighted-result?classId=${c.id}&academicYear=${activeYear}`);
             const json = await res.json();
-            const grades = (json.grades || []) as { overallPercentage: number }[];
+            const grades = (readApiData<{ grades?: { overallPercentage: number }[] }>(json, {}).grades || []);
             const avg = grades.length ? grades.reduce((s, g) => s + (g.overallPercentage || 0), 0) / grades.length : null;
             return { classId: c.id, label: c.section ? `${c.name} - ${c.section}` : c.name, avg, students: c._count.students };
           } catch {

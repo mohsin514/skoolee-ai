@@ -1395,6 +1395,20 @@ const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Timetables still have lessons in this period. Clear them first, then remove it.", "لا تزال الجداول تحتوي على دروس في هذه الحصة. فرّغها أولًا ثم أزلها.", "ٹائم ٹیبلز میں اب بھی اس پیریڈ میں اسباق ہیں۔ پہلے انہیں خالی کریں، پھر اسے ہٹائیں۔"],
   ["Remove period {0}?", "إزالة الحصة {0}؟", "پیریڈ {0} ہٹائیں؟"],
   ["{0}–{1} is removed from this campus's bell schedule.", "تُزال {0}–{1} من جدول الحصص في هذا الفرع.", "{0}–{1} اس کیمپس کے گھنٹی شیڈول سے ہٹا دیا جاتا ہے۔"],
+  // SKAI-130: staff timeline event titles and labels (stored as EN text, translated at render).
+  ["By", "بواسطة", "بذریعہ"],
+  ["Unknown user", "مستخدم غير معروف", "نامعلوم صارف"],
+  ["Could not load older events. Retry", "تعذّر تحميل الأحداث الأقدم. أعد المحاولة", "پرانے واقعات لوڈ نہیں ہو سکے۔ دوبارہ کوشش کریں"],
+  ["Designation updated", "تم تحديث المسمى الوظيفي", "عہدے کا نام اپ ڈیٹ ہو گیا"],
+  ["Contract type updated", "تم تحديث نوع العقد", "معاہدے کی قسم اپ ڈیٹ ہو گئی"],
+  ["Basic salary updated", "تم تحديث الراتب الأساسي", "بنیادی تنخواہ اپ ڈیٹ ہو گئی"],
+  ["Contract updated", "تم تحديث العقد", "معاہدہ اپ ڈیٹ ہو گیا"],
+  ["Joined the institution", "انضم إلى المؤسسة", "ادارے میں شامل ہوئے"],
+  ["Confirmed after probation", "تم تثبيته بعد فترة التجربة", "پروبیشن کے بعد مستقل کیا گیا"],
+  ["Moved to another post", "نُقل إلى منصب آخر", "دوسرے عہدے پر منتقل ہوئے"],
+  ["Transferred to another department", "نُقل إلى قسم آخر", "دوسرے شعبے میں منتقل ہوئے"],
+  ["Transferred to another campus", "نُقل إلى فرع آخر", "دوسرے کیمپس میں منتقل ہوئے"],
+  ["Service terminated", "أُنهيت الخدمة", "ملازمت ختم کر دی گئی"],
 ];
 
 export const arabicP5Ui: Record<string, string> = Object.fromEntries(P5_COPY.map(([en, ar]) => [en, ar]));

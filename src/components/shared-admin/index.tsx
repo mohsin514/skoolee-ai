@@ -3454,7 +3454,7 @@ export function TeacherDetailModal({
                         {event.kind === "SALARY" ? <Banknote className="h-3.5 w-3.5" /> : event.kind === "BANK" ? <CreditCard className="h-3.5 w-3.5" /> : <History className="h-3.5 w-3.5" />}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-ink-strong">{event.title}</p>
+                        <p className="text-xs font-bold text-ink-strong">{ui(event.title)}</p>
                         {event.detail ? <p className="mt-0.5 text-2xs font-semibold text-ink-muted">{event.detail}</p> : null}
                         <p className="mt-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{formatStaffDate(event.createdAt)}</p>
                         <p className="mt-0.5 text-2xs font-semibold text-ink-muted">{ui("By")} {event.actorName || ui("Unknown user")}</p>

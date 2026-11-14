@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/scope";
 import { resolveStudentFees } from "@/lib/fees/compute";
 import { studentScope } from "@/lib/auth/policy";
+import { invoiceYearWindow } from "@/lib/fees/statement";
 
 // GET /api/fees/statement?studentId=&academicYear=
 // Full fee statement for a student: resolved lines + discounts + carry-forward,
@@ -89,9 +90,11 @@ export async function GET(req: NextRequest) {
       resolved = resolveStudentFees(lines, discounts, carry?.balance ?? 0);
     }
 
-    // Invoice history
+    // Invoice history for the selected academic year (calendar boundaries, UTC). `allYears=true` returns every year.
+    const allYears = searchParams.get("allYears") === "true";
+    const yearWindow = invoiceYearWindow(year, allYears);
     const invoices = await prisma.invoice.findMany({
-      where: { studentId: student.id, currency },
+      where: { studentId: student.id, currency, ...yearWindow },
       orderBy: { invoiceDate: "desc" },
       include: {
         payments: { orderBy: { paymentDate: "desc" } },
