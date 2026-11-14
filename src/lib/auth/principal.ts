@@ -31,15 +31,13 @@ async function readAccount(userId: string, schoolId: string): Promise<AccountRow
   return prefetched !== undefined ? prefetched : queryAccount(userId, schoolId);
 }
 
-async function loadCurrentPrincipal(claims: PrincipalClaims): Promise<AuthUser | null> {
-  const row = await readAccount(claims.userId, claims.schoolId);
-  const account = row && {
-    ...row,
-    campus: row.campusId && row.campusSchoolId !== null ? { schoolId: row.campusSchoolId } : null,
-    school: { slug: row.slug, status: row.status, registrationKind: row.registrationKind, institutionSetup: row.institutionType === null ? null : { institutionType: row.institutionType } },
-  };
-  if (!account || (claims.role !== undefined && account.role !== normalizeUserRole(claims.role))) return null;
-  if (claims.role !== undefined && account.accessVersion !== (claims.accessVersion ?? 0)) return null;
+/**
+ * The current-authority decision on an account row, with no I/O: role, access version, the MFA and deferred rules,
+ * campus-school mismatch and a deleted school. Shared by the principal path and the proxy's exam boundary (SKAI-1971).
+ */
+export function accountAuthorityHolds(row: AccountRow | null, claims: PrincipalClaims): boolean {
+  if (!row || (claims.role !== undefined && row.role !== normalizeUserRole(claims.role))) return false;
+  if (claims.role !== undefined && row.accessVersion !== (claims.accessVersion ?? 0)) return false;
   // A second factor is a property of a signed *session*. Session claims always
   // carry the account's access version, so `getAuthUser`, the tenant guard and
   // `proxy` keep challenging exactly as before, including the requirement that a
@@ -49,10 +47,19 @@ async function loadCurrentPrincipal(claims: PrincipalClaims): Promise<AuthUser |
   // and denied freshly invited administrators before they could enrol.
   // A privileged role without a factor may defer setup ("Do it later"), which signs
   // a session with mfaVerified "deferred". An enrolled factor is never skippable.
-  const deferred = claims.mfaVerified === "deferred" && requiresMfa(account) && !account.mfaEnabled;
-  if (claims.role !== undefined && claims.accessVersion !== undefined && !deferred && ((requiresMfa(account) && !account.mfaEnabled) || (needsMfaChallenge(account) && claims.mfaVerified !== true))) return null;
-  if (account.campus && account.campus.schoolId !== account.schoolId) return null;
-  if (account.school.status === "DELETED") return null;
+  const deferred = claims.mfaVerified === "deferred" && requiresMfa(row) && !row.mfaEnabled;
+  if (claims.role !== undefined && claims.accessVersion !== undefined && !deferred && ((requiresMfa(row) && !row.mfaEnabled) || (needsMfaChallenge(row) && claims.mfaVerified !== true))) return false;
+  if (row.campusId && row.campusSchoolId !== null && row.campusSchoolId !== row.schoolId) return false;
+  return row.status !== "DELETED";
+}
+
+async function loadCurrentPrincipal(claims: PrincipalClaims): Promise<AuthUser | null> {
+  const row = await readAccount(claims.userId, claims.schoolId);
+  if (!row || !accountAuthorityHolds(row, claims)) return null;
+  const account = {
+    ...row,
+    school: { slug: row.slug, status: row.status, registrationKind: row.registrationKind, institutionSetup: row.institutionType === null ? null : { institutionType: row.institutionType } },
+  };
   // GROUP vs STANDALONE (§1.1): registrationKind → setup type → owner role. The owner-role query runs only for
   // schools where both stored signals are unresolved, so ordinary sessions pay for no extra round trip.
   const institutionKind = await resolveInstitutionKind(account.schoolId, account.school);
