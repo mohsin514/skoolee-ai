@@ -60,3 +60,10 @@ test("resources list client reads the view from { data }", () => {
   const source = readFileSync("src/components/resources/ResourceLibrary.tsx", "utf8");
   assert.match(source, /checkedJson\(await readRequest\(`\/api\/resources\?\$\{params\}`\)\)\)\.data/);
 });
+
+// SKAI-1984: the file route's failures use the envelope; the success path still streams the file.
+test("resources file route emits no legacy error shape", () => {
+  const source = readFileSync("src/app/api/resources/[id]/file/route.ts", "utf8");
+  assert.doesNotMatch(source, /errorResponse\(/, "file route still uses the legacy error shape");
+  assert.match(source, /failFrom\(error/);
+});
