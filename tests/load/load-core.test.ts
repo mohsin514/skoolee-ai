@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertAllowedTarget, checkVirtualUsers, journeyFor, label, percentile, report, shellBatched, shouldAbort, type Sample } from "../../scripts/load/load-core";
+import { assertAllowedTarget, checkVirtualUsers, hasFirstEvent, journeyFor, label, percentile, report, shellBatched, shouldAbort, splitStreams, type Sample } from "../../scripts/load/load-core";
 
 test("only dev and local hosts can be targeted; production is always refused", () => {
   assert.equal(assertAllowedTarget("https://dev.skooleeai.com").hostname, "dev.skooleeai.com");
@@ -66,4 +66,14 @@ test("shell GETs in a page view go as one /api/shell request, like the browser (
   assert.deepEqual(out, ["/api/shell?p=%2Fapi%2Fauth%2Fsession&p=%2Fapi%2Fnotifications%3Flimit%3D30", "/api/students?page=1"]);
   assert.equal(label(out[0]), "/api/shell");
   assert.deepEqual(shellBatched(["/api/profile", "/api/students"]), ["/api/profile", "/api/students"], "a lone shell GET is sent as itself");
+});
+
+test("realtime streams are held open apart from the page requests, and timed to their first event (SKAI-1957)", () => {
+  const { requests, streams } = splitStreams(["/api/auth/session", "/api/notifications/sse", "/api/chat/stream", "/api/profile"]);
+  assert.deepEqual(requests, ["/api/auth/session", "/api/profile"]);
+  assert.deepEqual(streams, ["/api/notifications/sse", "/api/chat/stream"]);
+  assert.equal(hasFirstEvent("retry: 5000\n\n"), false, "a retry hint is not an event");
+  assert.equal(hasFirstEvent("retry: 5000\n\nevent: init\ndata: {}"), false, "an event is complete only at its blank line");
+  assert.equal(hasFirstEvent("retry: 5000\n\nevent: init\ndata: {\"unreadCount\":0}\n\n"), true);
+  assert.equal(hasFirstEvent(": keepalive\n\n"), false, "a comment is not an event");
 });
