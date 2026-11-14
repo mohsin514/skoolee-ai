@@ -25,14 +25,16 @@ const UNAVAILABLE_CODES = new Set([
   "P2028", // transaction API error: could not start a transaction in time
 ]);
 
-const UNAVAILABLE_MESSAGE = /EMAXCONN|max client connections|too many (clients|connections)|remaining connection slots|can't reach database server|connection pool|database not reachable|timeout exceeded when trying to connect|connection terminated|terminating connection|statement timeout|canceling statement due to|Tenant or user not found|denied access on the database|Unable to start a transaction in the given time|Transaction already closed|ECHECKOUTTIMEOUT|ECONNREFUSED|ECONNRESET|ETIMEDOUT/i;
+const UNAVAILABLE_MESSAGE = /EMAXCONN|max client connections|too many (clients|connections)|remaining connection slots|can't reach database server|connection pool|database not reachable|timeout exceeded when trying to connect|connection terminated|terminating connection|statement timeout|canceling statement due to|Tenant or user not found|denied access on the database|is not permitted to log in|password authentication failed|Unable to start a transaction in the given time|Transaction already closed|ECHECKOUTTIMEOUT|ECONNREFUSED|ECONNRESET|ETIMEDOUT/i;
 
 /**
  * SQLSTATEs that mean "the server cannot serve this right now", not "this query is wrong": class 08 (connection),
  * class 53 (insufficient resources, e.g. 53300 too_many_connections), 57P01-03 (shutdown, cannot connect now) and
- * 57014 (query_canceled, which is what statement_timeout raises). Constraint and syntax classes stay errors.
+ * 57014 (query_canceled, which is what statement_timeout raises). Class 28 (invalid authorization: the app's own
+ * database role refused, e.g. "role ... is not permitted to log in") is the server refusing the app, never the
+ * signed-in user's fault, so it is an outage too (SKAI-1962). Constraint and syntax classes stay errors.
  */
-const UNAVAILABLE_SQLSTATE = /^(08[0-9A-Z]{3}|53[0-9A-Z]{3}|57P0[123]|57014)$/;
+const UNAVAILABLE_SQLSTATE = /^(08[0-9A-Z]{3}|28[0-9A-Z]{3}|53[0-9A-Z]{3}|57P0[123]|57014)$/;
 
 /**
  * The Postgres SQLSTATE, wherever this error carries it: the pg driver's `code`, P2010's `meta.code`, the driver
@@ -76,7 +78,7 @@ export function unavailableReason(error: unknown): UnavailableReason {
   if (/EMAXCONN|max client connections|too many (clients|connections)|remaining connection slots|\b53300\b/i.test(text)) return "max-clients";
   if (/statement timeout|canceling statement due to|\b57014\b/i.test(text)) return "statement-timeout";
   if (/timeout exceeded when trying to connect|timed out fetching a new connection|Unable to start a transaction in the given time|ECHECKOUTTIMEOUT|P2024|P2028|ETIMEDOUT|P1002|P1008/i.test(text)) return "connect-timeout";
-  if (/Tenant or user not found|denied access on the database|P1010/i.test(text)) return "refused";
+  if (/Tenant or user not found|denied access on the database|is not permitted to log in|password authentication failed|P1010|\b28(000|P01)\b/i.test(text)) return "refused";
   if (/database not reachable|can't reach database server|ECONNREFUSED|P1001/i.test(text)) return "unreachable";
   if (/connection terminated|terminating connection|ECONNRESET|P1017|\b57P0[123]\b|\b08\d{3}\b/i.test(text)) return "terminated";
   return "other";
