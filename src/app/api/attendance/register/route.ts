@@ -3,12 +3,13 @@ import { ok, failFrom } from "@/lib/api/envelope";
 import { ApiError, canMarkAttendance, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
 import { schoolToday } from "@/lib/datetime";
-import { attendanceRuleFor, entryHistory, exceptionQueue, publishRule, registerView, reviewExplanation, saveRegister } from "@/lib/attendance/register";
+import { attendanceRuleFor, entryHistory, exceptionQueue, previousMarkedRegisterView, publishRule, registerView, reviewExplanation, saveRegister } from "@/lib/attendance/register";
 import { requestSchool } from "@/lib/capacity/identity";
 import { measured } from "@/lib/capacity/admission";
 
 // SKO-405 class register.
 // GET  ?classId=&date=          → dated roster, marks (unmarked is null), register status, counts, rule
+// GET  ?classId=&before=&withMarks=1 → the newest register with marks in the 7 days before `before`, or null
 // GET  ?queue=1&campusId=       → unexplained absences, explanations to decide, open registers
 // GET  ?history=<attendanceId>  → one pupil-day's marks, corrections and explanations
 // GET  ?rule=1                  → the published counting rule
@@ -26,6 +27,12 @@ export async function GET(request: NextRequest) {
     const history = params.get("history");
     if (history) return ok(await entryHistory(user, history));
     const campusId = await resolveCampusId(user, user.role === "SUPER_ADMIN" ? params.get("campusId") : user.campusId);
+    const before = params.get("before");
+    if (before && params.get("withMarks")) {
+      const classId = params.get("classId");
+      if (!classId) throw new ApiError("classId is required", 400);
+      return ok(await previousMarkedRegisterView(user, classId, before));
+    }
     const today = await schoolToday(user.schoolId, campusId);
     if (params.get("queue")) return ok(await exceptionQueue(user, campusId, today));
     const classId = params.get("classId");
