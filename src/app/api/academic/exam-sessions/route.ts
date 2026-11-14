@@ -12,6 +12,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { createExamSession, listSessions } from "@/lib/academic/exam-sessions";
+import { examCounts } from "@/lib/academic/exam-counts";
 import { notify } from "@/lib/notifications/in-app";
 import { normaliseExamTerm } from "@/lib/academic/exam-terms";
 import { parseBody } from "@/lib/api/validate";
@@ -159,10 +160,12 @@ export async function DELETE(req: NextRequest) {
       select: {
         id: true,
         title: true,
-        exams: { select: { id: true, status: true, _count: { select: { marks: true, reportCards: true } } } },
+        exams: { select: { id: true, status: true } },
       },
     });
     if (!session) throw new ApiError("Exam session not found", 404);
+    // SKAI-1965: counted per listed exam inside this transaction, not by a relation `_count` over every school's marks.
+    const countFor = await examCounts(prisma, user.schoolId, session.exams.map((e) => e.id), ["marks", "reportCards"] as const);
 
     // Deleting the announcement must never delete a term's marks. Exams that
     // have real work in them are released from the session and left standing;
@@ -171,9 +174,9 @@ export async function DELETE(req: NextRequest) {
       session.exams
         .filter(
           (e) =>
-            e._count.marks > 0 ||
+            countFor(e.id).marks > 0 ||
             // SKAI-1805: report cards hold a foreign key to the exam that refuses the delete.
-            e._count.reportCards > 0 ||
+            countFor(e.id).reportCards > 0 ||
             e.status === "PUBLISHED" ||
             e.status === "PRINCIPAL_REVIEWED" ||
             e.status === "LOCKED",
