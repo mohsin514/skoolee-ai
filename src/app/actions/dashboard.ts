@@ -762,7 +762,8 @@ async function loadCampusDashboardData() {
       },
       orderBy: [{ rollNo: "asc" }, { fullName: "asc" }],
     }), []),
-    L.widget("recentExams", () => prisma.exam.findMany({
+    // SKAI-1965: report cards counted for the listed exams in this school, not by a relation `_count` over every school's.
+    L.widget("recentExams", async () => withExamCounts(prisma, session.schoolId, await prisma.exam.findMany({
       where: { campusId, campus: { schoolId: session.schoolId } },
       select: {
         id: true,
@@ -774,10 +775,9 @@ async function loadCampusDashboardData() {
         reviewedAt: true,
         publishedAt: true,
         class: { select: { name: true, section: true } },
-        _count: { select: { reportCards: true } },
       },
       orderBy: [{ academicYear: "desc" }, { title: "asc" }],
-    }), []),
+    }), ["reportCards"] as const), []),
     L.widget("reportCardCounts", () => reportCardStatusCounts(session.schoolId, campusId, false), [] as ReportCardStatusCount[]),
     L.widget("studentCount", () => prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId }, ...ON_ROLL } }), 0),
     L.widget("aiInsights", () => prisma.aIInsight.findMany({
@@ -1329,7 +1329,7 @@ async function loadPrincipalDashboardData() {
       },
       orderBy: { fullName: "asc" },
     }), []),
-    L.widget("reviewExams", () => prisma.exam.findMany({
+    L.widget("reviewExams", async () => withExamCounts(prisma, session.schoolId, await prisma.exam.findMany({
       where: {
         campusId,
         campus: { schoolId: session.schoolId },
@@ -1340,10 +1340,9 @@ async function loadPrincipalDashboardData() {
       },
       include: {
         class: { select: { id: true, name: true, section: true, academicYear: true } },
-        _count: { select: { reportCards: true } },
       },
       orderBy: [{ academicYear: "desc" }, { title: "asc" }],
-    }), []),
+    }), ["reportCards"] as const), []),
     L.widget("reportCardCounts", () => reportCardStatusCounts(session.schoolId, campusId, true), [] as ReportCardStatusCount[]),
     L.widget("communicationSummary", () => prisma.parentCommunication.groupBy({
       by: ["status"],

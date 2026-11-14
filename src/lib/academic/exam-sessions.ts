@@ -3,7 +3,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import { roomCapacity } from "@/lib/academic/room-capacity";
 import { allocateExamRooms, suggestRooms } from "@/lib/academic/exam-rooms";
-import { examCounts, seatsBySchedule } from "@/lib/academic/exam-counts";
+import { examCounts, roomsBySchedule, seatsBySchedule } from "@/lib/academic/exam-counts";
 
 async function transaction<T>(db: TxClient | undefined, work: (tx: TxClient) => Promise<T>) { return db ? work(db) : prisma.$transaction(tx => work(tx as TxClient)); }
 
@@ -377,6 +377,7 @@ export async function listSessions(campusId: string, academicYear?: number) {
  */
 export async function autoSeatSession(opts: {
   db?: TxClient;
+  schoolId: string;
   campusId: string;
   sessionId: string;
   /** Re-seat papers that already have rooms. Off by default: a plan an admin
@@ -384,7 +385,7 @@ export async function autoSeatSession(opts: {
   includeSeated?: boolean;
 }) {
   const db = opts.db ?? prisma;
-  const { campusId, sessionId } = opts;
+  const { schoolId, campusId, sessionId } = opts;
 
   const schedules = await db.examSchedule.findMany({
     where: { campusId, exam: { sessionId } },
@@ -395,9 +396,11 @@ export async function autoSeatSession(opts: {
       periodDefinitionId: true,
       subject: { select: { name: true } },
       exam: { select: { classId: true, class: { select: { name: true, section: true } } } },
-      _count: { select: { seats: true, rooms: true } },
     },
   });
+  // SKAI-1965: rooms counted for these schedules in this school, not by a relation `_count` over every school's
+  // rooms (the seat count it also selected was never read).
+  const roomsFor = await roomsBySchedule(db, schoolId, schedules.map((s) => s.id));
 
   const results: {
     scheduleId: string;
@@ -411,7 +414,7 @@ export async function autoSeatSession(opts: {
   for (const s of schedules) {
     const label = `${s.exam.class.name}${s.exam.class.section ? ` ${s.exam.class.section}` : ""} — ${s.subject.name}`;
 
-    if (!opts.includeSeated && s._count.rooms > 0) {
+    if (!opts.includeSeated && roomsFor(s.id) > 0) {
       results.push({
         scheduleId: s.id,
         label,
