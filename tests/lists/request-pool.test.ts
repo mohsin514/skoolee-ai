@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { BULK_REQUEST_CONCURRENCY, latestRequest, mapWithLimit } from "../../src/lib/http/request-pool";
+import { BULK_REQUEST_CONCURRENCY, latestRequest, mapWithLimit, requestLimiter } from "../../src/lib/http/request-pool";
 
 const tick = (ms = 2) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -76,4 +76,46 @@ test("the admin panels use the bounded and latest-wins helpers", () => {
   assert.match(admin, /if \(q\.length < 2\)/);
   assert.match(admin, /signal: request\.signal/);
   assert.doesNotMatch(admin, /const balRes = await read\(/);
+});
+
+test("SKAI-1961: 40 report pipelines on one page keep at most four loads in flight, started in order", async () => {
+  const run = requestLimiter(BULK_REQUEST_CONCURRENCY);
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const started: number[] = [];
+  const results = await Promise.all(Array.from({ length: 40 }, (_, i) => run(async () => {
+    started.push(i);
+    inFlight += 1;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    await tick(i % 3);
+    inFlight -= 1;
+    return i;
+  })));
+  assert.equal(maxInFlight, BULK_REQUEST_CONCURRENCY);
+  assert.deepEqual(started, results);
+  assert.deepEqual(results, Array.from({ length: 40 }, (_, i) => i));
+});
+
+test("SKAI-1961: a queued load whose pipeline unmounts never starts, and a failed load frees its slot", async () => {
+  const run = requestLimiter(1);
+  const started: string[] = [];
+  const first = run(async () => { started.push("first"); await tick(5); throw new Error("timed out"); });
+  const controller = new AbortController();
+  const dropped = run(async () => { started.push("dropped"); }, controller.signal);
+  const third = run(async () => { started.push("third"); return "ok"; });
+  controller.abort();
+  await assert.rejects(dropped);
+  await assert.rejects(first, /timed out/);
+  assert.equal(await third, "ok");
+  assert.deepEqual(started, ["first", "third"]);
+  const late = new AbortController();
+  late.abort();
+  await assert.rejects(run(async () => started.push("late"), late.signal));
+  assert.deepEqual(started, ["first", "third"]);
+});
+
+test("SKAI-1961: the report pipeline sends its reads through the page-wide limiter, timed from the send", () => {
+  const pipeline = readFileSync("src/components/academic/ReportCardPipeline.tsx", "utf8");
+  assert.match(pipeline, /const reportLoads = requestLimiter\(BULK_REQUEST_CONCURRENCY\)/);
+  assert.match(pipeline, /await reportLoads\(async \(\) => \{\s*const r = await fetch\(`\/api\/reports\?\$\{q\}`, \{[^}]*AbortSignal\.timeout\(20000\)/);
 });

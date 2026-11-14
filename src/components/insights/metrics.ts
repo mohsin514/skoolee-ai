@@ -104,7 +104,7 @@ export function attendanceRate(summary: { present?: number; absent?: number; lea
   return Math.round(((s.present ?? 0) / marked) * 100);
 }
 
-/** Per-student attendance rate across their whole marked history, from the payload's `attendanceMarks` tally. */
+/** Per-student attendance rate for this academic year (SKAI-1963), from the payload's `attendanceMarks` tally. */
 export function studentAttendanceRate(student: any): number | null {
   const total = Number(student?.attendanceMarks?.total) || 0;
   if (total === 0) return null;

@@ -9,7 +9,7 @@ import type { TxClient } from "@/lib/db/prisma";
  * caller's school and the listed ids, so each count reads only the rows it reports (all four relations
  * have an index that leads with the grouped id). The result keeps the `_count` shape callers read.
  */
-export type CountDb = Pick<TxClient, "mark" | "reportCard" | "examSchedule" | "examSeat">;
+export type CountDb = Pick<TxClient, "mark" | "reportCard" | "examSchedule" | "examSeat" | "examRoom">;
 export type ExamCountKey = "marks" | "reportCards" | "schedules";
 type CountRow = { _count: { _all: number } } & Record<string, unknown>;
 
@@ -52,4 +52,31 @@ export async function seatsBySchedule(db: CountDb, schoolId: string, scheduleIds
   const ids = unique(scheduleIds);
   const map = ids.length ? tally(await db.examSeat.groupBy({ by: ["examScheduleId"], where: { schoolId, examScheduleId: { in: ids } }, _count: { _all: true } }), "examScheduleId") : new Map<string, number>();
   return (scheduleId: string) => map.get(scheduleId) ?? 0;
+}
+
+/** Rooms assigned per exam schedule id; 0 when a schedule has none. */
+export async function roomsBySchedule(db: CountDb, schoolId: string, scheduleIds: string[]) {
+  const ids = unique(scheduleIds);
+  const map = ids.length ? tally(await db.examRoom.groupBy({ by: ["examScheduleId"], where: { schoolId, examScheduleId: { in: ids } }, _count: { _all: true } }), "examScheduleId") : new Map<string, number>();
+  return (scheduleId: string) => map.get(scheduleId) ?? 0;
+}
+
+/** Seats booked per exam room id (one room of a split paper); 0 when a room has none. */
+export async function seatsByExamRoom(db: CountDb, schoolId: string, examRoomIds: string[]) {
+  const ids = unique(examRoomIds);
+  const map = ids.length ? tally(await db.examSeat.groupBy({ by: ["examRoomId"], where: { schoolId, examRoomId: { in: ids } }, _count: { _all: true } }), "examRoomId") : new Map<string, number>();
+  return (examRoomId: string) => map.get(examRoomId) ?? 0;
+}
+
+/** Attaches `rooms[]._count.seats` and `exam._count.marks` to date-sheet rows, the shape the relation `_count` returned. */
+export async function withScheduleCounts<R extends { id: string }, E extends { id: string }, T extends { rooms: R[]; exam: E }>(db: CountDb, schoolId: string, rows: T[]) {
+  const [seatsFor, countFor] = await Promise.all([
+    seatsByExamRoom(db, schoolId, rows.flatMap((row) => row.rooms.map((room) => room.id))),
+    examCounts(db, schoolId, rows.map((row) => row.exam.id), ["marks"] as const),
+  ]);
+  return rows.map((row) => ({
+    ...row,
+    rooms: row.rooms.map((room) => ({ ...room, _count: { seats: seatsFor(room.id) } })),
+    exam: { ...row.exam, _count: countFor(row.exam.id) },
+  }));
 }

@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       // and set up from Account security. Never available once a factor exists.
       if (action === "defer" && !user.mfaEnabled && !resumable(user)) {
         await audit(user, "mfa.setup.deferred");
-        const response = await issueSession(user, claims.days, "deferred", req);
+        const response = await issueSession(user, claims.days, "deferred", req, undefined, user.school); // SKAI-1973: school already loaded by context()
         await applySignInLanguage(user, body, response);
         response.cookies.set(MFA_COOKIE, "", { path: "/", maxAge: 0 });
         return response;
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       const current = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
       const expectedVersion = user.accessVersion + (recoveryUsed ? 1 : 0);
       if (!current.isActive || !current.mfaEnabled || current.accessVersion !== expectedVersion) throw new MfaFailure("session_expired", undefined, "Access changed. Sign in again.");
-      const response = await issueSession(current, claims.days, true, req);
+      const response = await issueSession(current, claims.days, true, req, undefined, user.school);
       await applySignInLanguage(current, body, response);
       response.cookies.set(MFA_COOKIE, "", { path: "/", maxAge: 0 });
       return response;

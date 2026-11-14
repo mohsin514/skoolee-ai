@@ -170,6 +170,15 @@ export function createFakePrisma(initial?: Partial<FakeState>) {
         return { count: before - state.authAttempts.length };
       },
     },
+    /** Only the sign-in's scoped last_login UPDATE (issue-session.ts) is supported. */
+    async $executeRaw(strings: TemplateStringsArray, ...values: unknown[]) {
+      const sql = strings.join("?").replace(/\s+/g, " ").trim();
+      if (sql !== 'UPDATE "users" SET "last_login" = ?::timestamp(3) WHERE "id" = ? AND "school_id" = ?') throw new Error(`fake-prisma: unsupported raw SQL ${sql}`);
+      const [at, id, schoolId] = values as [string, string, string];
+      const rows = state.users.filter(row => row.id === id && row.schoolId === schoolId);
+      for (const row of rows) row.lastLogin = new Date(at);
+      return rows.length;
+    },
     async $transaction(first: unknown) {
       if (typeof first === "function") return (first as (tx: unknown) => unknown)(client);
       return Promise.all(first as Promise<unknown>[]);

@@ -43,3 +43,41 @@ export function latestRequest() {
     },
   };
 }
+
+/**
+ * Page-wide cap for one kind of read: at most `limit` calls of the returned `run` are in flight at once and the
+ * rest start in call order as slots free up. A call whose signal aborts while it waits never starts. Start any
+ * timeout inside `fn`, so a request is timed from when it is sent, not from when it was queued.
+ */
+export function requestLimiter(limit: number) {
+  let active = 0;
+  const waiting: Array<() => void> = [];
+  // A finished call hands its slot straight to the next waiter, so a new caller can never jump the queue.
+  const release = () => {
+    const next = waiting.shift();
+    if (next) next();
+    else active -= 1;
+  };
+  return async function run<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+    if (signal?.aborted) throw signal.reason;
+    if (active < limit) active += 1;
+    else
+      await new Promise<void>((resolve, reject) => {
+        const start = () => {
+          signal?.removeEventListener("abort", cancel);
+          resolve();
+        };
+        const cancel = () => {
+          waiting.splice(waiting.indexOf(start), 1);
+          reject(signal?.reason);
+        };
+        waiting.push(start);
+        signal?.addEventListener("abort", cancel, { once: true });
+      });
+    try {
+      return await fn();
+    } finally {
+      release();
+    }
+  };
+}

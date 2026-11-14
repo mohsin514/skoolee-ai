@@ -30,3 +30,40 @@ test("resources client caller reads the envelope, not the legacy result key", ()
   assert.match(source, /added\.data\.uploadUrl/);
   assert.match(source, /readApiError\(data\)/);
 });
+
+// SKAI-1212 slice: resource create answers on the envelope; its client caller unwraps { data }.
+test("resources create route POST emits only the envelope", () => {
+  const source = readFileSync("src/app/api/resources/route.ts", "utf8");
+  const post = source.slice(source.indexOf("export async function POST"));
+  assert.doesNotMatch(post, /Response\.json\(/, "create still builds a raw response");
+  assert.doesNotMatch(post, /errorResponse\(/, "create still uses the legacy error shape");
+  assert.match(post, /ok\(await createResource/);
+});
+
+test("resources create client caller reads { data: { resource, uploadUrl } }", () => {
+  const source = readFileSync("src/components/resources/ResourceLibrary.tsx", "utf8");
+  assert.match(source, /result\.data\.resource\.id/);
+  assert.match(source, /result\.data\.uploadUrl/);
+  assert.doesNotMatch(source, /result\.resource\./);
+});
+
+// SKAI-1984: the resources list answers on the envelope; its client reads { data } (the view itself).
+test("resources list route GET emits only the envelope", () => {
+  const source = readFileSync("src/app/api/resources/route.ts", "utf8");
+  const get = source.slice(source.indexOf("export async function GET"), source.indexOf("export async function POST"));
+  assert.doesNotMatch(get, /Response\.json\(/, "list still builds a raw response");
+  assert.doesNotMatch(get, /errorResponse\(/, "list still uses the legacy error shape");
+  assert.match(get, /ok\(await listResources/);
+});
+
+test("resources list client reads the view from { data }", () => {
+  const source = readFileSync("src/components/resources/ResourceLibrary.tsx", "utf8");
+  assert.match(source, /checkedJson\(await readRequest\(`\/api\/resources\?\$\{params\}`\)\)\)\.data/);
+});
+
+// SKAI-1984: the file route's failures use the envelope; the success path still streams the file.
+test("resources file route emits no legacy error shape", () => {
+  const source = readFileSync("src/app/api/resources/[id]/file/route.ts", "utf8");
+  assert.doesNotMatch(source, /errorResponse\(/, "file route still uses the legacy error shape");
+  assert.match(source, /failFrom\(error/);
+});

@@ -6,6 +6,7 @@ import { Alert } from "@/components/ui/alert";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 import { BookOpenCheck, ChevronRight, Clock3, MonitorCheck, NotebookPen, PartyPopper, type LucideIcon } from "lucide-react";
 import { DeskPill, DeskRowIcon, RelativeTime, deskRow, type DeskTone } from "@/components/ui/desk";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -71,7 +72,7 @@ export function StudentToday({ onNextAction }: { onNextAction?: (action: Student
         cachedToday.current = null; setExamUrl(json.examUrl); setData(null); setStale(false); return;
       }
       mayUseCache = response.status >= 500;
-      if (!response.ok || !json.success) throw new Error(json.error || "Today could not be refreshed.");
+      if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "Today could not be refreshed."));
       setExamUrl(null); setData(json.data); setStale(false);
       if (!requested) cachedToday.current = json.data;
       loadedAt.current = Date.now();

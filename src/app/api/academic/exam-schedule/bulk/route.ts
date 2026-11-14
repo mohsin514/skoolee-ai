@@ -15,6 +15,7 @@ import {
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 import { assertPlanFeature } from "@/lib/billing/entitlements";
+import { roomsBySchedule, seatsBySchedule } from "@/lib/academic/exam-counts";
 
 /**
  * Master date sheet: one subject, every class, one action (§80).
@@ -110,11 +111,18 @@ export async function GET(req: NextRequest) {
             date: true,
             periodDefinitionId: true,
             roomId: true,
-            _count: { select: { seats: true, rooms: true } },
           },
         },
       },
     });
+
+    // SKAI-1965: seats and rooms per paper are counted in this school for the listed schedules, not by a
+    // relation `_count`, which Prisma runs as an aggregate over every school's exam_seats and exam_rooms.
+    const scheduleIds = exams.flatMap((exam) => exam.schedules.map((s) => s.id));
+    const [seatsFor, roomsFor] = await Promise.all([
+      seatsBySchedule(prisma, user.schoolId, scheduleIds),
+      roomsBySchedule(prisma, user.schoolId, scheduleIds),
+    ]);
 
     // Subjects are per class, but a date sheet is built per subject NAME —
     // "Mathematics" is one paper slot even though every class owns its own
@@ -147,8 +155,8 @@ export async function GET(req: NextRequest) {
             scheduleId: sched?.id ?? null,
             date: sched ? sched.date.toISOString().slice(0, 10) : null,
             periodDefinitionId: sched?.periodDefinitionId ?? null,
-            roomCount: sched?._count.rooms ?? 0,
-            seatCount: sched?._count.seats ?? 0,
+            roomCount: sched ? roomsFor(sched.id) : 0,
+            seatCount: sched ? seatsFor(sched.id) : 0,
           };
         }),
       };

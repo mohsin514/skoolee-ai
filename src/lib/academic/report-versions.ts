@@ -10,6 +10,7 @@ import {
 } from "@/lib/db/tenant-context";
 import { getLiveReportCardPayload, isLockedStatus } from "./report-cards";
 import { appendEvent } from "@/lib/queue/outbox";
+import { mapWithLimit } from "@/lib/http/request-pool";
 
 export class ReportConflict extends Error {
   status = 409;
@@ -33,9 +34,12 @@ export function contentHash(value: unknown): string {
     .digest("hex");
 }
 
-/** Serializable source reads and approval write reject concurrent edits, including marks and grading rules. */
+/** Serializable source reads and approval write reject concurrent edits, including marks and grading rules.
+ *  Refresh-on-view alone passes "RepeatableRead" (see refreshOne), and its first-version insert "ReadCommitted"
+ *  (see createFirstVersions). */
 export async function versionTransaction<T>(
   fn: (tx: TxClient) => Promise<T>,
+  isolationLevel: "Serializable" | "RepeatableRead" | "ReadCommitted" = "Serializable",
 ): Promise<T> {
   const context = getTenantContext() ?? (await resolveTenantFromRequest());
   const schoolId = context?.schoolId;
@@ -50,7 +54,7 @@ export async function versionTransaction<T>(
             await tx.$executeRaw`SELECT set_config('app.current_school_id', ${schoolId}, true)`;
             return fn(tx as TxClient);
           },
-          { isolationLevel: "Serializable", timeout: 30000 },
+          { isolationLevel, timeout: 30000 },
         ),
     );
   } catch (error) {
@@ -229,22 +233,108 @@ export async function refreshVersion(tx: TxClient, id: string) {
 
 type ReviewVersion = Omit<Awaited<ReturnType<typeof refreshVersion>>, "documentBytes">;
 const CAPTURE_CONCURRENCY = 4;
+const REFRESH_ATTEMPTS = 3;
 
-/** Refreshes one card in its own short serializable transaction (retried once on a conflict). */
-async function refreshOne(id: string, retry = true): Promise<ReviewVersion> {
+/**
+ * Refreshes one card on view in its own short transaction. SKAI-1961: a serializable refresh tracks predicate locks
+ * on every source it reads, so concurrent first views of different cards and exams (the principal's Report cards
+ * fan-out) aborted each other with write conflicts. Refresh-on-view needs only a consistent snapshot (repeatable
+ * read) and one writer per card (the row lock); approval, review and publication stay serializable and re-check the
+ * live sources, so they still reject any version that no longer matches. A conflict on the same card means another
+ * view just wrote its version: the next attempt reads it.
+ */
+async function refreshOne(id: string, attempt = 1): Promise<ReviewVersion> {
   try {
-    const { documentBytes: _bytes, ...version } = await versionTransaction((tx) => refreshVersion(tx, id));
+    const { documentBytes: _bytes, ...version } = await versionTransaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM report_cards WHERE id = ${id} AND school_id = current_setting('app.current_school_id', true) FOR UPDATE`;
+      return refreshVersion(tx, id);
+    }, "RepeatableRead");
     return version;
   } catch (error) {
-    if (retry && error instanceof ReportConflict) return refreshOne(id, false);
+    if (attempt < REFRESH_ATTEMPTS && error instanceof ReportConflict) return refreshOne(id, attempt + 1);
     throw error;
   }
+}
+
+/** Two views of one card on this instance share one refresh instead of queueing on its row lock and retrying. */
+const refreshing = new Map<string, Promise<ReviewVersion>>();
+function refreshShared(schoolId: string, id: string): Promise<ReviewVersion> {
+  const key = `${schoolId}:${id}`;
+  const running = refreshing.get(key);
+  if (running) return running;
+  const started = refreshOne(id).finally(() => refreshing.delete(key));
+  refreshing.set(key, started);
+  return started;
+}
+
+/** What refreshVersion records for a card's first version: with no approved version to compare, every section is new. */
+const FIRST_VERSION_CHANGES = ["Marks", "Grading rules and weighted results", "Remarks", "Language"];
+
+/**
+ * SKAI-1961: the first view of an exam creates version 1 for every card that has no version yet in ONE statement,
+ * instead of one transaction per card. The snapshots are captured a few at a time beforehand (like the stale check
+ * in reviewQueue); the insert and the cards' currentVersionId then commit together or not at all, so an aborted
+ * request never leaves a half-created batch. A card that gained a version meanwhile (another view) is skipped by the
+ * (report_card_id, number) unique key and `current_version_id IS NULL`. Cards are inserted in id order so two
+ * overlapping batches wait for each other instead of deadlocking. Returns only the cards now linked to a version;
+ * the caller refreshes any other card one at a time, exactly as before (including a card that already has
+ * versions but no current one, whose change list compares against its approvals).
+ */
+async function createFirstVersions(schoolId: string, ids: string[]): Promise<Map<string, ReviewVersion>> {
+  const created = new Map<string, ReviewVersion>();
+  if (!ids.length) return created;
+  const withHistory = new Set(
+    (await prisma.reportVersion.findMany({ where: { reportCardId: { in: ids }, schoolId }, select: { reportCardId: true } })).map((v) => v.reportCardId),
+  );
+  const fresh = ids.filter((id) => !withHistory.has(id)).sort();
+  if (!fresh.length) return created;
+  const rows = await mapWithLimit(fresh, CAPTURE_CONCURRENCY, async (id) => {
+    const captured = await capture(prisma, id);
+    return { id: randomUUID(), card: id, hash: captured.hash, language: captured.language, identity: `report-${randomUUID()}`, snapshot: captured.snapshot, blockers: captured.blockers };
+  });
+  try {
+    await versionTransaction(
+      (tx) => tx.$executeRaw`
+        WITH input AS (
+          SELECT * FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb)
+            AS x(id text, card text, hash text, language text, identity text, snapshot jsonb, blockers jsonb)
+        ), ins AS (
+          INSERT INTO report_versions (id, school_id, report_card_id, number, content_hash, language, document_identity, snapshot, blockers, changed_sections, predecessor_id)
+          SELECT i.id, rc.school_id, rc.id, 1, i.hash, i.language, i.identity, i.snapshot, i.blockers, ${JSON.stringify(FIRST_VERSION_CHANGES)}::jsonb, rc.published_version_id
+          FROM input i JOIN report_cards rc ON rc.id = i.card AND rc.school_id = ${schoolId} AND rc.current_version_id IS NULL
+          ORDER BY rc.id
+          ON CONFLICT (report_card_id, number) DO NOTHING
+          RETURNING id, report_card_id
+        )
+        UPDATE report_cards rc
+        SET current_version_id = ins.id, remarks_approved = false, approved_by = NULL, approved_at = NULL, pdf_url = NULL
+        FROM ins
+        WHERE rc.id = ins.report_card_id AND rc.school_id = ${schoolId} AND rc.current_version_id IS NULL`,
+      "ReadCommitted",
+    );
+  } catch (error) {
+    // A deadlock with another writer rolled the whole statement back: the per-card path takes over.
+    if (!(error instanceof ReportConflict)) throw error;
+  }
+  const linked = await prisma.reportCard.findMany({
+    where: { id: { in: fresh }, schoolId, currentVersionId: { not: null } },
+    select: { id: true, currentVersionId: true },
+  });
+  const versions = linked.length
+    ? await prisma.reportVersion.findMany({
+        where: { id: { in: linked.map((c) => c.currentVersionId as string) }, schoolId },
+        omit: { documentBytes: true },
+      })
+    : [];
+  const currentByCard = new Map(linked.map((c) => [c.id, c.currentVersionId]));
+  for (const v of versions) if (currentByCard.get(v.reportCardId) === v.id) created.set(v.reportCardId, v);
+  return created;
 }
 
 /**
  * SKAI-1961: refresh-on-view without one exam-wide write transaction. The snapshot of every card is
  * compared with its current version outside any transaction; only cards that changed (or have no
- * version yet) are refreshed, each in its own short serializable transaction, so an unchanged exam
+ * version yet) are refreshed, each in its own short transaction (see refreshOne), so an unchanged exam
  * is read with no writes. The remaining per-card lookups are batched by reportCardId.
  */
 export async function reviewQueue(ids: string[]): Promise<
@@ -295,8 +385,13 @@ export async function reviewQueue(ids: string[]): Promise<
         }),
       );
     }
-    // Write phase: refreshVersion re-reads the sources inside the serializable transaction.
-    for (const id of unique.filter((x) => stale.has(x))) current.set(id, await refreshOne(id));
+    // Write phase: cards without any version get version 1 in one statement (createFirstVersions); every other
+    // stale card is refreshed on its own, where refreshVersion re-reads the sources inside the refresh transaction.
+    for (const [id, v] of await createFirstVersions(schoolId, unique.filter((id) => !current.has(id)))) {
+      current.set(id, v);
+      stale.delete(id);
+    }
+    for (const id of unique.filter((x) => stale.has(x))) current.set(id, await refreshShared(schoolId, id));
 
     const approved = await prisma.reportVersion.findMany({
       where: { reportCardId: { in: unique }, schoolId, approvedAt: { not: null } },

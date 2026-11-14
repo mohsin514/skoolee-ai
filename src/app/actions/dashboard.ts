@@ -546,18 +546,50 @@ function campusAttendanceWhere(schoolId: string, campusId: string) {
 
 /** Marks per day and status for the most recent marked days the trend draws (each day has at most one row per status). */
 const ATTENDANCE_TREND_DAYS = 21;
-function attendanceTrendCounts(schoolId: string, campusId: string) {
-  return prisma.attendance.groupBy({
+/** SKAI-1963: how far back the trend looks first; ~6 school weeks normally holds the last 21 marked days. */
+const ATTENDANCE_TREND_WINDOW_DAYS = 45;
+async function attendanceTrendCounts(schoolId: string, campusId: string, now = new Date()) {
+  const take = ATTENDANCE_TREND_DAYS * Object.keys(AttendanceStatus).length;
+  const read = (since?: Date) => prisma.attendance.groupBy({
     by: ["date", "status"],
-    where: campusAttendanceWhere(schoolId, campusId),
+    where: since ? { ...campusAttendanceWhere(schoolId, campusId), date: { gte: since } } : campusAttendanceWhere(schoolId, campusId),
     _count: { _all: true },
     orderBy: { date: "desc" },
-    take: ATTENDANCE_TREND_DAYS * Object.keys(AttendanceStatus).length,
-  }).then((rows) => rows.map((row) => ({ date: row.date, status: row.status, count: row._count._all })));
+    take,
+  });
+  // SKAI-1963: the unbounded read grouped every mark the campus ever recorded before keeping `take` rows. The rows in
+  // a recent window are the newest rows of that same ordering, so the windowed read returns the same last marked days
+  // whenever it fills `take` or already holds ATTENDANCE_TREND_DAYS dates. After a long break (or for a new campus)
+  // it does not, and the unbounded read runs as before, so the chart still shows the last 21 marked days.
+  const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - ATTENDANCE_TREND_WINDOW_DAYS));
+  let rows = await read(since);
+  if (rows.length < take && new Set(rows.map((row) => row.date.getTime())).size < ATTENDANCE_TREND_DAYS) rows = await read();
+  return rows.map((row) => ({ date: row.date, status: row.status, count: row._count._all }));
 }
 
-function attendanceCountsByStudent(schoolId: string, campusId: string) {
-  return prisma.attendance.groupBy({ by: ["studentId", "status"], where: campusAttendanceWhere(schoolId, campusId), _count: { _all: true } });
+/**
+ * SKAI-1963: the per-pupil rate counts this academic year's marks, from the campus's ACTIVE cycle start (or the last
+ * 12 months when no active cycle has a start date). Grouping every mark the campus ever recorded grew by ~190k rows a
+ * year, and earlier years' absences should not pull down this year's rate or flag a pupil as at risk.
+ */
+async function attendanceRateSince(schoolId: string, campusId: string, now = new Date()) {
+  // The latest ACTIVE cycle that has already started: a campus can briefly hold two ACTIVE cycles during rollover, and
+  // a cycle starting in the future would otherwise show no rate at all.
+  const cycle = await prisma.academicCycle.findFirst({
+    where: { schoolId, campusId, status: "ACTIVE", startDate: { lte: now } },
+    orderBy: { startDate: "desc" },
+    select: { startDate: true },
+  });
+  return cycle?.startDate ?? new Date(Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth(), now.getUTCDate()));
+}
+
+async function attendanceCountsByStudent(schoolId: string, campusId: string) {
+  const since = await attendanceRateSince(schoolId, campusId);
+  return prisma.attendance.groupBy({
+    by: ["studentId", "status"],
+    where: { ...campusAttendanceWhere(schoolId, campusId), date: { gte: since } },
+    _count: { _all: true },
+  });
 }
 
 /** Folds the per-student counts onto each pupil as `attendanceMarks` ({ present, total }), what the rate reads. */
@@ -730,7 +762,8 @@ async function loadCampusDashboardData() {
       },
       orderBy: [{ rollNo: "asc" }, { fullName: "asc" }],
     }), []),
-    L.widget("recentExams", () => prisma.exam.findMany({
+    // SKAI-1965: report cards counted for the listed exams in this school, not by a relation `_count` over every school's.
+    L.widget("recentExams", async () => withExamCounts(prisma, session.schoolId, await prisma.exam.findMany({
       where: { campusId, campus: { schoolId: session.schoolId } },
       select: {
         id: true,
@@ -742,10 +775,9 @@ async function loadCampusDashboardData() {
         reviewedAt: true,
         publishedAt: true,
         class: { select: { name: true, section: true } },
-        _count: { select: { reportCards: true } },
       },
       orderBy: [{ academicYear: "desc" }, { title: "asc" }],
-    }), []),
+    }), ["reportCards"] as const), []),
     L.widget("reportCardCounts", () => reportCardStatusCounts(session.schoolId, campusId, false), [] as ReportCardStatusCount[]),
     L.widget("studentCount", () => prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId }, ...ON_ROLL } }), 0),
     L.widget("aiInsights", () => prisma.aIInsight.findMany({
@@ -1297,7 +1329,7 @@ async function loadPrincipalDashboardData() {
       },
       orderBy: { fullName: "asc" },
     }), []),
-    L.widget("reviewExams", () => prisma.exam.findMany({
+    L.widget("reviewExams", async () => withExamCounts(prisma, session.schoolId, await prisma.exam.findMany({
       where: {
         campusId,
         campus: { schoolId: session.schoolId },
@@ -1308,10 +1340,9 @@ async function loadPrincipalDashboardData() {
       },
       include: {
         class: { select: { id: true, name: true, section: true, academicYear: true } },
-        _count: { select: { reportCards: true } },
       },
       orderBy: [{ academicYear: "desc" }, { title: "asc" }],
-    }), []),
+    }), ["reportCards"] as const), []),
     L.widget("reportCardCounts", () => reportCardStatusCounts(session.schoolId, campusId, true), [] as ReportCardStatusCount[]),
     L.widget("communicationSummary", () => prisma.parentCommunication.groupBy({
       by: ["status"],
