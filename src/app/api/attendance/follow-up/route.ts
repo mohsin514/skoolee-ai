@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
+import { ok, failFrom } from "@/lib/api/envelope";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageAcademics, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, canManageAcademics, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { alertKeyFragment, followUpLane } from "@/lib/attendance/follow-up";
 
 // SKAI-823: unexplained absences from the last `days` days, split by why the family has not answered.
@@ -40,9 +41,9 @@ export async function GET(req: NextRequest) {
       };
     });
     const count = (lane: string) => items.filter(item => item.lane === lane).length;
-    return Response.json({
+    return ok({
       days, truncated: absences.length === 500, items,
       counts: { notSent: count("NOT_SENT"), deliveryFailed: count("DELIVERY_FAILED"), awaitingResponse: count("AWAITING_RESPONSE") },
     }, { headers: { "Cache-Control": "private, no-store" } });
-  } catch (error) { return errorResponse(error); }
+  } catch (error) { return failFrom(error); }
 }

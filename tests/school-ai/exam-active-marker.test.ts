@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { test } from "node:test";
-import { candidateMayBeInExam, examMarkerKey, markCandidateExamActive, EXAM_MARKER_GRACE_MS, type ExamMarkerClient } from "../../src/lib/school-ai/exam-active-marker";
+import { candidateMayBeInExam, examMarkerKey, markCandidateExamActive, markCandidatesExamActive, EXAM_MARKER_GRACE_MS, type ExamMarkerClient } from "../../src/lib/school-ai/exam-active-marker";
 import { candidateExamBoundaryForSession } from "../../src/lib/school-ai/exam-boundary-service";
 import { PUBLIC_STATIC_FILES, isPublicStaticFileRequest } from "../../src/lib/school-ai/exam-boundary";
 import type { AuthUser } from "../../src/lib/auth";
@@ -106,4 +106,51 @@ test("only real public/ files skip the boundary, and only for reads", () => {
   assert.equal(isPublicStaticFileRequest("/login.svg", "GET"), true);
   assert.equal(isPublicStaticFileRequest("/fonts/NotoNaskhArabic-Bold.ttf", "HEAD"), true);
   for (const [path, method] of [["/login.svg", "POST"], ["/api/ai/insights.json", "GET"], ["/api/reports/download/report.pdf", "GET"], ["/student", "GET"], ["/fonts/other.ttf", "GET"]]) assert.equal(isPublicStaticFileRequest(path, method), false, `${method} ${path}`);
+});
+
+// SKAI-1982: a room-wide extend or resume writes every marker in one pipelined round trip, inside the transaction.
+function pipelinedRedis(results?: (writes: number) => Array<[Error | null, unknown]> | null) {
+  const { client, calls, expiry } = fakeRedis();
+  let roundTrips = 0;
+  const pipelined: ExamMarkerClient = { ...client, status: "ready", pipeline() {
+    const queued: Array<[string, number]> = [];
+    return {
+      eval(_script, _n, key, ttl) { queued.push([String(key), Number(ttl)]); return this; },
+      async exec() {
+        roundTrips++;
+        if (results) return results(queued.length);
+        return Promise.all(queued.map(async ([key, ttl]) => [null, await client.eval("", 1, key, ttl)] as [null, unknown]));
+      },
+    };
+  } };
+  return { client: pipelined, calls, expiry, roundTrips: () => roundTrips };
+}
+
+test("500 markers cost one Redis round trip, keep the latest deadline per account, and confine every candidate", async () => {
+  const now = new Date("2026-11-13T09:00:00Z");
+  const redis = pipelinedRedis();
+  const entries = Array.from({ length: 500 }, (_, i) => ({ userId: `student-user-${i}`, deadlineAt: new Date(now.getTime() + 30 * 60_000) }));
+  entries.push({ userId: "student-user-0", deadlineAt: new Date(now.getTime() + 90 * 60_000) });
+  await markCandidatesExamActive(entries, { env: gateOn, client: redis.client, now });
+  assert.equal(redis.roundTrips(), 1);
+  assert.equal(redis.calls.length, 500, "one write per account");
+  assert.ok(redis.calls.includes(`eval ${examMarkerKey("student-user-0")} ${90 * 60_000 + EXAM_MARKER_GRACE_MS}`));
+  assert.equal(await candidateMayBeInExam("student-user-499", { env: gateOn, client: redis.client }), true);
+  await markCandidatesExamActive([], { env: gateOn, client: { ...redis.client, pipeline: () => assert.fail("no round trip for nothing") } });
+});
+
+test("a disconnected client fails the batch at once: logged with the gate off, aborting with the gate on", async () => {
+  const deadline = new Date(Date.now() + 60_000);
+  const entries = [{ userId: "student-user-a", deadlineAt: deadline }, { userId: "student-user-b", deadlineAt: deadline }];
+  const offline = { ...pipelinedRedis().client, status: "reconnecting", pipeline: () => assert.fail("never queue commands while disconnected") };
+  const started = Date.now();
+  await markCandidatesExamActive(entries, { env: writesOnly, client: offline });
+  assert.ok(Date.now() - started < 200, "gate off returns without waiting for a timeout");
+  await assert.rejects(markCandidatesExamActive(entries, { env: gateOn, client: offline }), (error: Error & { code?: string }) => error.code === "EXAM_SESSION_UNAVAILABLE");
+  // One failed key in the pipeline, or a pipeline that hangs, still aborts the transaction while the gate is on.
+  const oneFailed = pipelinedRedis(writes => Array.from({ length: writes }, (_, i) => [i === 1 ? new Error("OOM") : null, 1] as [Error | null, unknown]));
+  await assert.rejects(markCandidatesExamActive(entries, { env: gateOn, client: oneFailed.client }), /unavailable/);
+  const stuck: ExamMarkerClient = { ...hanging, pipeline: () => ({ eval() { return this; }, exec: () => new Promise(() => {}) }) };
+  await assert.rejects(markCandidatesExamActive(entries, { env: gateOn, client: stuck, timeoutMs: 5 }), /unavailable/);
+  await markCandidatesExamActive(entries, { env: writesOnly, client: stuck, timeoutMs: 5 });
 });

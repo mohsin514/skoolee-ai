@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
+import { ok, fail, failFrom } from "@/lib/api/envelope";
 import { prisma } from "@/lib/db/prisma";
 import { attendanceSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
   assertPermission,
   canMarkAttendance,
-  errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
@@ -85,9 +85,9 @@ export async function GET(req: NextRequest) {
       repeatedAbsenceWarnings: roster.filter((student) => student.absenceWarning).length,
     };
 
-    return Response.json({ success: true, date: dateParam, students: roster, summary });
+    return ok({ date: dateParam, students: roster, summary });
   } catch (error) {
-    return errorResponse(error, "[attendance] GET failed");
+    return failFrom(error, "[attendance] GET failed");
   }
 }
 
@@ -99,12 +99,12 @@ export async function POST(req: NextRequest) {
 
     const body = await parseBody(req, jsonObjectBody);
     const parsed = attendanceSchema.safeParse(body);
-    if (!parsed.success) return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+    if (!parsed.success) return fail("VALIDATION_FAILED", "Invalid attendance", parsed.error.flatten().fieldErrors as Record<string, string[]>);
 
     const { records, summary, absenceAlerts } = await saveAttendanceRegister(user, parsed.data);
 
-    return Response.json({ success: true, records, summary, absenceAlerts: absenceAlerts.length });
+    return ok({ records, summary, absenceAlerts: absenceAlerts.length });
   } catch (error) {
-    return errorResponse(error, "[attendance] POST failed");
+    return failFrom(error, "[attendance] POST failed");
   }
 }

@@ -13,7 +13,7 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { SignJWT } from "jose";
-import bcrypt from "bcryptjs";
+import { hashPassword, verifyPassword } from "@/lib/auth/password-hash";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
 import { rotateLoginSession } from "@/lib/audit";
@@ -67,12 +67,12 @@ export async function PUT(req: NextRequest) {
       select: { oldPasswordHash: true },
     });
     for (const hash of [temporaryHash, ...history.map((entry) => entry.oldPasswordHash)]) {
-      if (await bcrypt.compare(newPassword, hash)) {
+      if (await verifyPassword(newPassword, hash)) {
         return fail("reused", "Choose a password you have not used before", 400);
       }
     }
 
-    const hashed = await bcrypt.hash(newPassword, 12);
+    const hashed = await hashPassword(newPassword, 12);
     const now = new Date();
 
     // The pending flag is the claim: a replayed or concurrent submit matches no row and

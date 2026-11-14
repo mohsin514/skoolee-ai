@@ -8,7 +8,13 @@ export function createTtlMemo({ ttlMs, maxEntries = 5_000, enabled = true }: { t
       if (!enabled) return compute();
       const hit = entries.get(key);
       if (hit && now - hit.at < ttlMs) return hit.value as Promise<T>;
-      if (entries.size >= maxEntries) entries.delete(entries.keys().next().value!);
+      // SKAI-1970: a refreshed key is re-inserted at the end (the map stays ordered by `at`) and evicts nothing else.
+      // A new key first sweeps expired entries from the front, and only then drops the oldest live one.
+      if (hit) entries.delete(key);
+      else if (entries.size >= maxEntries) {
+        for (const [k, e] of entries) { if (now - e.at < ttlMs) break; entries.delete(k); }
+        if (entries.size >= maxEntries) entries.delete(entries.keys().next().value!);
+      }
       const value = compute();
       entries.set(key, { at: now, value });
       value.catch(() => { if (entries.get(key)?.value === value) entries.delete(key); });

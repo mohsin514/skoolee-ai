@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import bcrypt from "bcryptjs";
+import { verifyPassword } from "@/lib/auth/password-hash";
 import { z } from "zod";
 import type { User } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
@@ -36,7 +36,7 @@ const bodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("disable"), password, code, recovery: z.boolean().optional() }),
 ]);
 
-const coreDeps = (): MfaManageDeps => ({ db: prisma, now: () => new Date(), compare: bcrypt.compare });
+const coreDeps = (): MfaManageDeps => ({ db: prisma, now: () => new Date(), compare: verifyPassword });
 
 /** A revoked/missing session is `session_expired`; other status-carrying errors keep their status. */
 function normalize(error: unknown) {

@@ -107,7 +107,7 @@ test("attendance lookup errors offer retry, not a false check-in action, using t
   const page = await ctx.newPage(); let fail = true; let requestedDay = "";
   await page.route("**/api/teacher-attendance?*", async route => {
     requestedDay = new URL(route.request().url()).searchParams.get("date") || "";
-    await route.fulfill({ status: fail ? 503 : 200, json: fail ? { success: false } : { success: true, data: [{ checkInTime: "08:15" }] } });
+    await route.fulfill({ status: fail ? 503 : 200, json: fail ? { error: { code: "INTERNAL", message: "Unavailable" } } : { data: { items: [{ checkInTime: "08:15" }] } } });
   });
   await page.goto(`${base}/teacher`);
   const check = page.locator('[data-tour="teacher.today.checkin"]');

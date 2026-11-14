@@ -6,7 +6,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { rosterStatusWhere } from "@/lib/students/roster-status";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@/lib/auth/password-hash";
 import { PLANS } from "@/config/plans";
 import { createPlanContract } from "@/config/commercial-contract";
 import { logSuperAdminAction } from "@/lib/audit";
@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
     if (tempPassword.length < 8) {
       throw new ApiError("Password must be at least 8 characters", 400);
     }
-    const hashed = await bcrypt.hash(tempPassword, 12);
+    const hashed = await hashPassword(tempPassword, 12);
 
     const result = await prisma.$transaction(async (tx) => {
       const handoff = await bindProvisionHandoff(tx, actor, body.workflowHandoffId);

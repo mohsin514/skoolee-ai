@@ -8,7 +8,7 @@ import { ApiError } from "@/lib/api/scope";
 import { authRateLimit } from "@/lib/auth/rate-limit";
 import { z } from "zod";
 import { randomUUID } from "crypto";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@/lib/auth/password-hash";
 import { headers } from "next/headers";
 import { emailProviderReadiness, sendInviteEmail } from "@/lib/email";
 import { assertPlanCapacity, assertSchoolOperational } from "@/lib/billing/entitlements";
@@ -289,7 +289,7 @@ async function acceptInvitation(token: string, password: string, fullName?: stri
     throw new ApiError("An account already exists for this email", 409);
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  const passwordHash = await hashPassword(password, 12);
   // The invite's captured profile. Values are whatever InviteProfileSchema
   // accepted at invite time, so this is deliberately loose rather than lying
   // about being all-strings.

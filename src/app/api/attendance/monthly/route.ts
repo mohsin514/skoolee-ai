@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
+import { ok, failFrom } from "@/lib/api/envelope";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canMarkAttendance, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, canMarkAttendance, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { countedRuleRate, ruleRate } from "@/lib/attendance";
 import { attendanceRuleFor } from "@/lib/attendance/rule";
 import { rosterStatusWhere } from "@/lib/students/roster-status";
@@ -59,7 +60,7 @@ export async function GET(req: NextRequest) {
       const total = records.length;
       const percentage = ruleRate(records, rule);
 
-      return Response.json({
+      return ok({
         type: "student",
         studentId: student.id,
         studentName: student.fullName,
@@ -143,7 +144,7 @@ export async function GET(req: NextRequest) {
         : 0;
       const atRisk = studentStats.filter(s => s.percentage < 75 && s.total > 0);
 
-      return Response.json({
+      return ok({
         type: "class",
         classId: cls.id,
         className: [cls.name, cls.section].filter(Boolean).join(" "),
@@ -231,7 +232,7 @@ export async function GET(req: NextRequest) {
       return total > 0 && (present / total) * 100 < 75;
     }).length;
 
-    return Response.json({
+    return ok({
       type: "campus",
       month,
       overallPercentage,
@@ -241,6 +242,6 @@ export async function GET(req: NextRequest) {
       classes: classSummaries,
     });
   } catch (error) {
-    return errorResponse(error, "[attendance/monthly] GET failed");
+    return failFrom(error, "[attendance/monthly] GET failed");
   }
 }

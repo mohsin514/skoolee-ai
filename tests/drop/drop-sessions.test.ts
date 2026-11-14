@@ -11,10 +11,12 @@ const src = (path: string) => pathToFileURL(join(__dirname, "..", "..", "src", p
 type Row = Record<string, unknown> & { id: string };
 const tables: Record<"dropSession" | "dropItem", Row[]> = { dropSession: [], dropItem: [] };
 const stored = new Map<string, Uint8Array>();
+const deletes: string[] = [], failingKeys = new Set<string>();
 let nextId = 0;
 const uuid = () => `00000000-0000-4000-8000-${String(++nextId).padStart(12, "0")}`;
 const matches = (row: Row, where: Record<string, unknown> = {}) => Object.entries(where).every(([key, value]) =>
-  value && typeof value === "object" && !(value instanceof Date) && "lt" in value ? (row[key] as Date) < (value as { lt: Date }).lt : row[key] === value);
+  value && typeof value === "object" && !(value instanceof Date) && "in" in value ? (value as { in: unknown[] }).in.includes(row[key])
+    : value && typeof value === "object" && !(value instanceof Date) && "lt" in value ? (row[key] as Date) < (value as { lt: Date }).lt : row[key] === value);
 const model = (name: keyof typeof tables) => ({
   create: async ({ data }: { data: Omit<Row, "id"> }) => { const row: Row = { status: "OPEN", createdAt: new Date(), ...data, id: uuid() }; tables[name].push(row); return row; },
   findFirst: async ({ where }: { where: Record<string, unknown> }) => tables[name].find(row => matches(row, where)) ?? null,
@@ -29,7 +31,7 @@ const prisma = { dropSession: model("dropSession"), dropItem: model("dropItem"),
 mock.module(src("lib/db/prisma.ts"), { namedExports: { prisma } });
 mock.module(src("lib/storage/s3.ts"), { namedExports: {
   uploadPrivateObject: async (key: string, bytes: Uint8Array) => { stored.set(key, bytes); },
-  deleteFile: async (key: string) => { stored.delete(key); },
+  deleteFile: async (key: string) => { deletes.push(key); if (failingKeys.has(key)) throw new Error("S3 unavailable"); stored.delete(key); },
 } });
 
 const user = (userId: string, schoolId = "school-a", role = "TEACHER"): AuthUser => ({ userId, schoolId, campusId: `campus-${schoolId}`, role, email: "synthetic@example.invalid", accessVersion: 1 } as AuthUser);
@@ -105,5 +107,28 @@ test("drop sessions", async t => {
     assert.equal(result.failed, 0);
     assert.equal(tables.dropSession.some(s => s.id === fresh.session.id), false);
     assert.equal([...stored.keys()].some(key => key.includes(fresh.session.id)), false);
+  });
+
+  await t.test("SKAI-1970: purge deletes in parallel and keeps a session whose objects could not all be removed", async () => {
+    const make = async (label: string, files: number) => {
+      const s = await drop.createDropSession(teacher, { label, accept: ["application/pdf"], maxFiles: Math.max(files, 1) });
+      for (let i = 0; i < files; i++) await drop.withPhoneSession(s.ticket, p => drop.addPhoneItem(p, { fileName: `${i}.pdf`, contentType: "application/pdf", bytes: new TextEncoder().encode(`%PDF-1.7 ${label} ${i}`) }));
+      tables.dropSession.find(r => r.id === s.session.id)!.expiresAt = new Date(Date.now() - 2 * 3600_000);
+      return s.session.id;
+    };
+    const ok = await make("ok", 3), broken = await make("broken", 2), empty = await make("empty", 0);
+    failingKeys.add(String(tables.dropItem.find(item => item.sessionId === broken)!.storageKey));
+    deletes.length = 0;
+    const result = await drop.purgeExpiredDrops();
+    assert.deepEqual(result, { removed: 2, failed: 1 });
+    assert.equal(deletes.length, 5, "every staged key is attempted once");
+    assert.deepEqual(tables.dropSession.filter(r => [ok, broken, empty].includes(r.id)).map(r => r.id), [broken], "the failed session stays for the next run");
+    failingKeys.clear();
+    assert.deepEqual(await drop.purgeExpiredDrops(), { removed: 1, failed: 0 });
+    // A spent time budget leaves the rest, row and objects, for the next run.
+    const late = await make("late", 1);
+    assert.deepEqual(await drop.purgeExpiredDrops(new Date(), 200, -1), { removed: 0, failed: 0 });
+    assert.ok(tables.dropSession.some(r => r.id === late));
+    assert.deepEqual(await drop.purgeExpiredDrops(), { removed: 1, failed: 0 });
   });
 });

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
+import { ok, failFrom } from "@/lib/api/envelope";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, canManageOperations, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { ruleRate } from "@/lib/attendance";
 import { rosterStatusWhere } from "@/lib/students/roster-status";
 import { attendanceRuleFor } from "@/lib/attendance/rule";
@@ -84,7 +85,7 @@ export async function GET(req: NextRequest) {
     // SKO-405: the school's published counting rule.
     const attendanceRate = ruleRate(records, rule);
 
-    return Response.json({
+    return ok({
       period,
       totalStudents,
       present, absent, leave,
@@ -95,6 +96,6 @@ export async function GET(req: NextRequest) {
       classBreakdown,
     });
   } catch (error) {
-    return errorResponse(error, "[attendance/school-summary] GET failed");
+    return failFrom(error, "[attendance/school-summary] GET failed");
   }
 }

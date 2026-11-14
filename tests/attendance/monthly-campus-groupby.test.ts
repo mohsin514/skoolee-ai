@@ -55,6 +55,7 @@ mock.module("@/lib/db/prisma", {
 });
 mock.module("@/lib/api/scope", {
   namedExports: {
+    ValidationError: class extends Error {},
     ApiError: class extends Error { constructor(message: string, public status: number) { super(message); } },
     canMarkAttendance: () => allowed,
     errorResponse: (error: any) => Response.json({ error: error.message }, { status: error.status ?? 500 }),
@@ -102,8 +103,8 @@ const get = async () => {
 test("the campus summary matches the row-by-row arithmetic without loading the rows", async () => {
   calls.length = 0;
   const body = await (await get()).json();
-  assert.deepEqual(body, reference());
-  assert.ok(body.atRiskCount > 0 && body.classes[1].total > 0, "the fixture exercises at-risk pupils and the legacy fallback");
+  assert.deepEqual(body.data, reference());
+  assert.ok(body.data.atRiskCount > 0 && body.data.classes[1].total > 0, "the fixture exercises at-risk pupils and the legacy fallback");
   assert.equal(calls.filter((c) => c.op === "attendance.findMany").length, 0);
   const groupBy = calls.find((c) => c.op === "attendance.groupBy")!;
   assert.deepEqual(groupBy.args.where, { schoolId: "school-a", campusId: "campus-a", date: { gte: day(1), lte: day(30) } });
