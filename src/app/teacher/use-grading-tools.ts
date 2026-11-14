@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useAcademicYear } from "@/components/academic-year/CycleGate";
-import { apiErrorMessage } from "@/lib/errors";
+import { readApiData, readApiError } from "@/lib/api/envelope-client";
 
 /**
  * The teacher's weighted final-grades preview (read only).
@@ -44,8 +44,8 @@ export function useGradingTools() {
           `/api/grade-config/weighted-result?classId=${encodeURIComponent(classId)}&academicYear=${encodeURIComponent(String(academicYear))}`,
         );
         const result = await readJson(res);
-        if (!res.ok) throw new Error(apiErrorMessage(result.error, "No grades are available for this class yet."));
-        setWeightedGradeResult(result.grades || []);
+        if (!res.ok) throw new Error(readApiError(result, "No grades are available for this class yet."));
+        setWeightedGradeResult(readApiData<{ grades?: any[] }>(result, {}).grades || []);
       } catch (error) {
         setWeightedGradeError(error instanceof Error && error.message ? error.message : "No grades are available for this class yet.");
       } finally {
