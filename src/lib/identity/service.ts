@@ -218,19 +218,25 @@ export async function decideLink(user: AuthUser, body: Record<string, unknown>) 
   groupAdmin(user);
   const r = await prisma.identityLinkRequest.findFirst({ where: { id: String(body.id ?? ""), schoolId: user.schoolId, status: "PENDING" } });
   if (!r) throw new ApiError("Request not found", 404);
+  // Claim PENDING atomically: only the decision that flips the row commits, and it alone emits the audit event.
+  const claimed = (status: "REJECTED" | "LINKED") => ({ where: { id: r.id, status: "PENDING" as const }, data: { status, decidedById: user.userId, decidedAt: new Date() } });
+  const conflict = () => new ApiError("This request was already decided. Reload to see its current state.", 409);
   if (body.decision === "REJECT") {
-    await prisma.identityLinkRequest.update({ where: { id: r.id }, data: { status: "REJECTED", decidedById: user.userId, decidedAt: new Date() } });
+    const { count } = await prisma.identityLinkRequest.updateMany(claimed("REJECTED"));
+    if (!count) throw conflict();
     await event(user.schoolId, "LINK_REJECTED", user.userId, r.connectionId, { subject: r.subject });
     return { id: r.id, status: "REJECTED" };
   }
   const target = await prisma.user.findFirst({ where: { id: String(body.userId ?? ""), schoolId: user.schoolId, isActive: true, role: { notIn: ["APP_OWNER"] } }, select: { id: true } });
   if (!target) throw new ApiError("Choose an active account in this school.", 400);
   try {
-    await prisma.$transaction([
-      prisma.identityLink.create({ data: { schoolId: user.schoolId, connectionId: r.connectionId, subject: r.subject, userId: target.id, method: "ADMIN_DECISION", linkedById: user.userId } }),
-      prisma.identityLinkRequest.update({ where: { id: r.id }, data: { status: "LINKED", decidedById: user.userId, decidedAt: new Date() } }),
-    ]);
+    await prisma.$transaction(async tx => {
+      const { count } = await tx.identityLinkRequest.updateMany(claimed("LINKED"));
+      if (!count) throw conflict();
+      await tx.identityLink.create({ data: { schoolId: user.schoolId, connectionId: r.connectionId, subject: r.subject, userId: target.id, method: "ADMIN_DECISION", linkedById: user.userId } });
+    });
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ApiError("That account is already linked to another identity for this provider.", 409);
     throw error;
   }
