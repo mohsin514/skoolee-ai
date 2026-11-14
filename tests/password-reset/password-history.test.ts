@@ -20,8 +20,8 @@ for (const [name, path] of Object.entries(PATHS)) {
   test(`${name}: checks the last five history verifiers before hashing`, () => {
     assert.match(source, /passwordHistory\.findMany\(\{[\s\S]*?orderBy: \{ createdAt: "desc" \}[\s\S]*?take: 5/);
     const lookup = source.indexOf("passwordHistory.findMany");
-    const compare = source.indexOf("bcrypt.compare(newPassword", lookup);
-    const hash = source.indexOf("bcrypt.hash(newPassword");
+    const compare = source.indexOf("verifyPassword(newPassword", lookup);
+    const hash = source.indexOf("hashPassword(newPassword");
     assert.ok(lookup > 0 && compare > lookup && hash > compare, "history check must run before the new hash is written");
   });
 
