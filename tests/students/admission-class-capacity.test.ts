@@ -14,6 +14,7 @@ const CLASSES: Cls[] = [
 ];
 function fakeTx(active: Record<string, number>) {
   const classWheres: unknown[] = [];
+  const seatReads: { schoolId: string; classId: { in: string[] } }[] = [];
   const tx = {
     class: {
       findMany: async ({ where }: { where: { id: { in: string[] }; schoolId: string } }) => {
@@ -21,13 +22,16 @@ function fakeTx(active: Record<string, number>) {
         return CLASSES.filter((c) => where.id.in.includes(c.id) && c.schoolId === where.schoolId);
       },
     },
-    student: { count: async ({ where }: { where: { classId: string; archivedAt: null; status: string } }) => {
+    // SKAI-1970: one grouped count for all capped classes, scoped to the school.
+    student: { groupBy: async ({ by, where }: { by: string[]; where: { schoolId: string; classId: { in: string[] }; archivedAt: null; status: string } }) => {
+      seatReads.push(where);
+      assert.deepEqual(by, ["classId"]);
       assert.equal(where.archivedAt, null);
       assert.equal(where.status, "active");
-      return active[where.classId] ?? 0;
+      return where.classId.in.filter((id) => active[id]).map((classId) => ({ classId, _count: { _all: active[classId] } }));
     } },
   } as unknown as TxClient;
-  return { tx, classWheres };
+  return { tx, classWheres, seatReads };
 }
 const outcome = async (fn: () => Promise<unknown>) => {
   try { await fn(); return { status: 200, message: "" }; } catch (e) { return { status: (e as { status?: number }).status, message: (e as Error).message }; }
@@ -57,6 +61,17 @@ test("SKAI-1927: a bulk request counts every pupil it adds to the same class", a
   const over = await outcome(() => assertAdmissionSeats(tx, "s1", ["g8", "g8", "g8"]));
   assert.equal(over.status, 409);
   assert.match(over.message, /Grade 8 B is full \(28 of 30 seats, 3 pupils to add\)/);
+});
+
+test("SKAI-1970: a bulk import across several capped classes counts seats in one school-scoped query", async () => {
+  const { tx, seatReads } = fakeTx({ g7: 10, g8: 29 });
+  const over = await outcome(() => assertAdmissionSeats(tx, "s1", ["g7", "g8", "g8", "open"]));
+  assert.equal(over.status, 409);
+  assert.match(over.message, /Grade 8 B is full \(29 of 30 seats, 2 pupils to add\)/);
+  assert.deepEqual(seatReads, [{ schoolId: "s1", classId: { in: ["g7", "g8"] }, archivedAt: null, status: "active" }], "uncapped classes are not counted");
+  const { tx: openOnly, seatReads: none } = fakeTx({ open: 900 });
+  assert.equal((await outcome(() => assertAdmissionSeats(openOnly, "s1", ["open"]))).status, 200);
+  assert.equal(none.length, 0, "no seat read when no destination class has a capacity");
 });
 
 test("SKAI-1927: capacity is read only inside the caller's school", async () => {

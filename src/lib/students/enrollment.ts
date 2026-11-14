@@ -29,13 +29,18 @@ export async function assertAdmissionSeats(tx: TxClient, schoolId: string, class
   const incoming = new Map<string, number>();
   for (const id of classIds) incoming.set(id, (incoming.get(id) ?? 0) + 1);
   const classes = await tx.class.findMany({ where: { id: { in: [...incoming.keys()] }, schoolId }, select: { id: true, name: true, section: true, capacity: true } });
-  for (const cls of classes) {
-    if (cls.capacity == null) continue;
-    const seats = await classSeats(tx, cls);
+  const capped = classes.filter((cls) => cls.capacity != null);
+  if (!capped.length) return;
+  // SKAI-1970: one grouped count for every capped class (was one count per class while the campus lock is held).
+  const counts = await tx.student.groupBy({ by: ["classId"], where: { schoolId, classId: { in: capped.map((cls) => cls.id) }, archivedAt: null, status: "active" }, _count: { _all: true } });
+  const occupiedBy = new Map(counts.map((row) => [row.classId, row._count._all]));
+  for (const cls of capped) {
+    const capacity = cls.capacity!;
+    const occupied = occupiedBy.get(cls.id) ?? 0;
     const adding = incoming.get(cls.id) ?? 0;
-    if (seats.occupied + adding > cls.capacity) {
+    if (occupied + adding > capacity) {
       const label = cls.section ? `${cls.name} ${cls.section}` : cls.name;
-      throw new ApiError(`${label} is full (${seats.occupied} of ${cls.capacity} seats${adding > 1 ? `, ${adding} pupils to add` : ""}). Raise its capacity or choose another class.`, 409);
+      throw new ApiError(`${label} is full (${occupied} of ${capacity} seats${adding > 1 ? `, ${adding} pupils to add` : ""}). Raise its capacity or choose another class.`, 409);
     }
   }
 }

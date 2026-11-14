@@ -86,6 +86,14 @@ const TYPE_FAMILIES: Record<QueueType, Family[]> = {
  * on purpose: QueueItemState is per campus, not per viewer, so "the source condition is gone" must be decided from the
  * whole campus, never from one viewer's slice (G39). Errors per source are reported, not hidden.
  */
+/** SKAI-1973: names for a list of user ids in this school. An empty list is not a round trip (Prisma would still send
+ *  an `IN ()` / `1=0` query for it). */
+async function userNames(db: TxClient, schoolId: string, ids: Array<string | null | undefined>) {
+  const wanted = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  if (wanted.length === 0) return new Map<string, string>();
+  return new Map((await db.user.findMany({ where: { schoolId, id: { in: wanted } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
+}
+
 async function collectCampusSources(user: AuthUser, campusId: string, db: TxClient = prisma) {
   const link = linkFor(user, campusId);
   const policy = await getLocalePackage(user.schoolId, campusId, undefined, undefined, db);
@@ -171,7 +179,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
   // SKO-425: a missed learning-action check-in stays here until it is recorded or rescheduled.
   run("SUPPORT_CHECKIN", async items => {
     const overdue = await db.interventionPlan.findMany({ where: { ...scope, status: "ACTIVE", nextCheckInDate: { lt: new Date(`${today}T00:00:00.000Z`) } }, select: { id: true, title: true, nextCheckInDate: true, ownerId: true } });
-    const owners = new Map((await db.user.findMany({ where: { id: { in: overdue.map(o => o.ownerId).filter((x): x is string => Boolean(x)) } }, select: { id: true, fullName: true } })).map(u => [u.id, u.fullName]));
+    const owners = await userNames(db, user.schoolId, overdue.map(o => o.ownerId));
     for (const plan of overdue) {
       const due = plan.nextCheckInDate!.toISOString().slice(0, 10);
       items.push({ family: "academic", key: `SUPPORT_CHECKIN:${plan.id}:${due}`, type: "SUPPORT_CHECKIN", sourceId: plan.id, title: `Learning-action check-in missed: ${plan.title}`, titleMessage: { key: "Learning-action check-in missed: {0}", values: [plan.title] }, triggerMessage: { key: "The check-in due on {0} is not recorded or rescheduled.", values: [due] }, trigger: `The check-in due on ${due} is not recorded or rescheduled.`, nextAction: "Ask the responsible adult to record or reschedule the check-in", sourceOwner: plan.ownerId ? { id: plan.ownerId, name: owners.get(plan.ownerId) ?? "" } : null, dueAt: endOfDay(due), link: link("learning-actions", { plan: plan.id }) });
@@ -182,7 +190,7 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
   // PAPER_SEAL has no source until the seal lands (slice 2).
   run("SYLLABUS_APPROVAL", async items => {
     const waiting = await db.schoolAiRecord.findMany({ where: { ...scope, kind: "CURRICULUM", status: "IN_REVIEW" }, select: { id: true, title: true, updatedAt: true, createdById: true }, orderBy: { updatedAt: "asc" } });
-    const authors = new Map((await db.user.findMany({ where: { schoolId: user.schoolId, id: { in: waiting.map(row => row.createdById) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
+    const authors = await userNames(db, user.schoolId, waiting.map(row => row.createdById));
     for (const row of waiting) {
       const sent = row.updatedAt.toISOString().slice(0, 10);
       items.push({ family: "academic", key: `SYLLABUS_APPROVAL:${row.id}`, type: "SYLLABUS_APPROVAL", sourceId: row.id, title: `Syllabus to approve: ${row.title}`, titleMessage: { key: "Syllabus to approve: {0}", values: [row.title] }, triggerMessage: { key: "{0} sent it for approval on {1}.", values: [authors.get(row.createdById) ?? "", sent] }, trigger: `${authors.get(row.createdById) ?? ""} sent it for approval on ${sent}.`, nextAction: "Approve the syllabus or ask its head of department", sourceOwner: { id: row.createdById, name: authors.get(row.createdById) ?? "" }, dueAt: new Date(row.updatedAt.getTime() + 2 * 86_400_000).toISOString(), link: link("exam-cycles") });
@@ -191,8 +199,9 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
   run("PAPER_DUE", async items => {
     const soon = new Date(new Date(`${today}T00:00:00.000Z`).getTime() + 3 * 86_400_000);
     const slots = await db.examPaperSlot.findMany({ where: { ...scope, cancelledAt: null, sealedAt: null, dueOn: { lte: soon } }, select: { id: true, dueOn: true, subjectName: true, gradeName: true, authorUserId: true, paperRecordId: true, schedules: { take: 1, select: { subject: { select: { name: true } }, exam: { select: { class: { select: { name: true } } } } } } } });
-    const papers = new Map((await db.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, id: { in: slots.map(slot => slot.paperRecordId).filter((x): x is string => Boolean(x)) } }, select: { id: true, status: true } })).map(row => [row.id, row.status]));
-    const authors = new Map((await db.user.findMany({ where: { schoolId: user.schoolId, id: { in: slots.map(slot => slot.authorUserId).filter((x): x is string => Boolean(x)) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
+    const paperIds = slots.map(slot => slot.paperRecordId).filter((x): x is string => Boolean(x));
+    const papers = new Map(paperIds.length ? (await db.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, id: { in: paperIds } }, select: { id: true, status: true } })).map(row => [row.id, row.status]) : []);
+    const authors = await userNames(db, user.schoolId, slots.map(slot => slot.authorUserId));
     for (const slot of slots) {
       const status = slot.paperRecordId ? papers.get(slot.paperRecordId) : undefined;
       if (status === "IN_REVIEW" || status === "APPROVED") continue;
@@ -203,8 +212,8 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
   });
   run("PAPER_MODERATION", async items => {
     const slots = await db.examPaperSlot.findMany({ where: { ...scope, cancelledAt: null, sealedAt: null, paperRecordId: { not: null } }, select: { id: true, subjectName: true, gradeName: true, moderatorUserId: true, paperRecordId: true, schedules: { take: 1, select: { subject: { select: { name: true } }, exam: { select: { class: { select: { name: true } } } } } } } });
-    const inReview = new Map((await db.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, status: "IN_REVIEW", id: { in: slots.map(slot => slot.paperRecordId!) } }, select: { id: true, updatedAt: true } })).map(row => [row.id, row.updatedAt]));
-    const moderators = new Map((await db.user.findMany({ where: { schoolId: user.schoolId, id: { in: slots.map(slot => slot.moderatorUserId).filter((x): x is string => Boolean(x)) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
+    const inReview = new Map(slots.length ? (await db.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, status: "IN_REVIEW", id: { in: slots.map(slot => slot.paperRecordId!) } }, select: { id: true, updatedAt: true } })).map(row => [row.id, row.updatedAt]) : []);
+    const moderators = await userNames(db, user.schoolId, slots.map(slot => slot.moderatorUserId));
     for (const slot of slots) {
       const sentAt = inReview.get(slot.paperRecordId!);
       if (!sentAt) continue;
@@ -286,7 +295,7 @@ export async function loadQueue(user: AuthUser, campusId: string) {
   const reopened = states.filter(state => state.resolvedAt && campusActive.has(state.itemKey));
   if (reopened.length) await prisma.queueItemState.updateMany({ where: { id: { in: reopened.map(s => s.id) } }, data: { resolvedAt: null } });
   const byKey = new Map(states.map(state => [state.itemKey, state]));
-  const people = new Map((await prisma.user.findMany({ where: { schoolId: user.schoolId, id: { in: states.flatMap(s => s.assigneeId ? [s.assigneeId] : []) } }, select: { id: true, fullName: true } })).map(p => [p.id, p.fullName]));
+  const people = await userNames(prisma, user.schoolId, states.map(s => s.assigneeId));
   const now = Date.now();
   const queue: QueueItem[] = items.map(item => {
     const state = byKey.get(item.key);

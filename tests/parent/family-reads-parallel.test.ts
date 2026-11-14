@@ -16,8 +16,11 @@ async function read<T>(model: string, where: Record<string, unknown>, rows: T[])
   inFlight--;
   return rows;
 }
-type Where = { schoolId: string; studentId?: string; submissionVersion?: { studentId: string } };
-const own = <T extends { schoolId: string; studentId: string }>(rows: T[], where: Where) => rows.filter(r => r.schoolId === where.schoolId && r.studentId === (where.studentId ?? where.submissionVersion?.studentId));
+type Where = { schoolId: string; studentId?: string | { in: string[] }; submissionVersion?: { studentId: string | { in: string[] } } };
+// SKAI-1976: siblings are read together (studentId IN ...); one child is still read by its own id.
+type Ids = string | { in: string[] };
+const matches = (ids: Ids | undefined, id: string) => typeof ids === "string" ? ids === id : Boolean(ids?.in.includes(id));
+const own = <T extends { schoolId: string; studentId: string }>(rows: T[], where: Where) => rows.filter(r => r.schoolId === where.schoolId && matches(where.studentId ?? where.submissionVersion?.studentId, r.studentId));
 
 const students = [
   { id: "kid-1", schoolId: "school-a", fullName: "Amal", campusId: "north", classId: "class-1", campus: { name: "North", school: { name: "School A" } } },
@@ -37,7 +40,7 @@ const invoices = [
   { id: "inv-b", schoolId: "school-b", studentId: "kid-b", invoiceNumber: "INV-B", dueDate: day(3), balanceDue: 900, currency: "PKR", status: "UNPAID", generatedAt: day(20) },
 ];
 const reports = [{ id: "rc-1", schoolId: "school-a", studentId: "kid-1", generatedAt: day(7), exam: { title: "Mid-term" } }];
-const feedback = [{ id: "fb-1", schoolId: "school-a", studentId: "kid-1", returnedAt: day(3), submissionVersion: { assignmentId: "as-1", submission: { assignment: { title: "Essay" } } } }];
+const feedback = [{ id: "fb-1", schoolId: "school-a", studentId: "kid-1", returnedAt: day(3), submissionVersion: { studentId: "kid-1", assignmentId: "as-1", submission: { assignment: { title: "Essay" } } } }];
 const notes = [{ id: "note-1", schoolId: "school-a", studentId: "kid-1", sentence: "Great progress.", sentAt: day(2) }];
 const grants: Record<string, Record<string, boolean> | null> = {
   "kid-1": { learningRecords: true, attendance: true, finances: true, communication: true, pickup: false },
@@ -64,9 +67,9 @@ const prisma = {
 };
 mock.module("@/lib/db/prisma", { namedExports: { prisma } });
 mock.module("@/lib/locale/store", { namedExports: { getLocalePackage: async () => ({ timezone: "UTC", weekend: [6, 0] }) } });
-mock.module("@/lib/parent/guardian-access", { namedExports: { currentGuardianRelationship: async ({ studentId }: { studentId: string }) => grants[studentId] ? { id: `rel-${studentId}`, permissions: grants[studentId] } : null } });
-mock.module("@/lib/family/trips", { namedExports: { guardianTrips: (_guardian: string, schoolId: string, ids: string[]) => read("trips", { schoolId, studentId: ids[0] }, schoolId === "school-a" && ids[0] === "kid-1" ? [{ tripId: "trip-1", canSign: true, myAnswer: null, status: "PENDING", deadlinePassed: false, earlierAnswer: false, answeredByOther: false, version: { title: "Museum", version: 1, respondBy: day(-4), publishedAt: day(2) } }] : []) } });
-mock.module("@/lib/academic/exam-brief", { namedExports: { familyExamBrief: (schoolId: string, child: { id: string }) => read("examBrief", { schoolId, studentId: child.id }, child.id === "kid-1" && schoolId === "school-a" ? [{ versionId: "ds-2", acknowledgedAt: null, publishedAt: day(1), items: [{ kind: "MOVED", subject: "Maths", date: "2026-11-20", previousDate: "2026-11-18" }] }] : []) } });
+mock.module("@/lib/parent/guardian-access", { namedExports: { currentGuardianPermissionsByStudent: async ({ studentIds }: { studentIds: string[] }) => new Map(studentIds.filter(id => grants[id]).map(id => [id, grants[id]])) } });
+mock.module("@/lib/family/trips", { namedExports: { guardianTrips: (_guardian: string, schoolId: string, ids: string[]) => read("trips", { schoolId, studentId: ids.length === 1 ? ids[0] : { in: ids } }, schoolId === "school-a" && ids.includes("kid-1") ? [{ tripId: "trip-1", studentId: "kid-1", canSign: true, myAnswer: null, status: "PENDING", deadlinePassed: false, earlierAnswer: false, answeredByOther: false, version: { title: "Museum", version: 1, respondBy: day(-4), publishedAt: day(2) } }] : []) } });
+mock.module("@/lib/academic/exam-brief", { namedExports: { familyExamBriefs: (schoolId: string, kids: { id: string }[]) => read("examBrief", { schoolId, studentId: kids.length === 1 ? kids[0].id : { in: kids.map(k => k.id) } }, []).then(() => new Map(kids.map(k => [k.id, k.id === "kid-1" && schoolId === "school-a" ? [{ versionId: "ds-2", acknowledgedAt: null, publishedAt: day(1), items: [{ kind: "MOVED", subject: "Maths", date: "2026-11-20", previousDate: "2026-11-18" }] }] : []]))) } });
 // Today's sources other than prisma.
 let examsFail = false;
 mock.module("@/lib/timetable/versions", { namedExports: { versionsFor: (id: string) => read("versions", { schoolId: "via-timetable", id }, []).then(() => ({ inForce: { version: 3, slots: [{ id: "slot-1", dayOfWeek: 2, startTime: "08:00", endTime: "08:45", slotType: "CLASS", subjectName: "Maths", teacherName: "Ms Noor", roomNumber: "1" }] } })), slotsOf: (v: { slots: unknown[] } | null) => v?.slots ?? [] } });

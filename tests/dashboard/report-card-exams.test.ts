@@ -69,3 +69,38 @@ test("SKAI-1821: the admin console stays denied to a teacher", async () => {
   h.session = user("TEACHER");
   await assert.rejects(() => dashboard.getCampusDashboardData(), /Permission Denied/);
 });
+
+/**
+ * SKAI-1960: the principal Report cards view had the same fan-out (400 /api/reports calls on a 4-year school). The
+ * principal console now carries the active academic year so the view can apply reportCardExamsInView; the exam read
+ * keeps its campus and school scope.
+ */
+for (const [label, principal] of [["standalone", () => user("PRINCIPAL")], ["group", () => groupUser("PRINCIPAL")]] as const) {
+  test(`SKAI-1960: the ${label} principal console carries the active academic year and keeps reviewExams campus-scoped`, async () => {
+    const dashboard = await loadDashboard();
+    h.session = principal();
+    const data = await dashboard.getPrincipalDashboardData();
+    assert.equal(data.activeAcademicYear, 2026);
+    const read = h.calls.find((call) => call.read === "exam.findMany");
+    assert.ok(read, "reviewExams is read");
+    assert.equal(read.args.where.campusId, h.session.campusId);
+    assert.deepEqual(read.args.where.campus, { schoolId: h.session.schoolId });
+  });
+}
+
+test("SKAI-1960: the principal view of a big school's history lists the active year only, plus a linked earlier exam", () => {
+  // Mirrors the qa-big shape: 4 years of released exams (published, locked and principal-reviewed).
+  const history = [2026, 2025, 2024, 2023].flatMap((year) => [exam(`${year}-pub`, year), exam(`${year}-locked`, year, "LOCKED"), exam(`${year}-rev`, year, "PRINCIPAL_REVIEWED")]);
+  const view = reportCardExamsInView(history, { activeYear: 2026, focusExam: null, showEarlier: false });
+  assert.deepEqual(ids(view.exams), ["2026-pub", "2026-locked", "2026-rev"]);
+  assert.equal(view.earlierCount, 9);
+  const linked = reportCardExamsInView(history, { activeYear: 2026, focusExam: "2023-rev", showEarlier: false });
+  assert.deepEqual(ids(linked.exams), ["2023-rev", "2026-pub", "2026-locked", "2026-rev"]);
+  assert.equal(reportCardExamsInView(history, { activeYear: 2026, focusExam: null, showEarlier: true }).exams.length, 12);
+});
+
+test("SKAI-1960: the principal console stays denied to an admin", async () => {
+  const dashboard = await loadDashboard();
+  h.session = user("ADMIN");
+  await assert.rejects(() => dashboard.getPrincipalDashboardData(), /Unauthorized/);
+});

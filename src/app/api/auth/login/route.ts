@@ -193,7 +193,7 @@ async function handleLogin(req: NextRequest) {
 
     // MFA users get their language applied only after the second factor (AC7).
     if (needsMfaChallenge(user)) return startMfa(user, sessionDays);
-    const res = await issueSession(user, sessionDays, false, req);
+    const res = await issueSession(user, sessionDays, false, req, undefined, user.school);
     await applySignInLanguage(user, body, res);
     return res;
   } catch (error) {
