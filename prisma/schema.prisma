@@ -188,8 +188,9 @@ model School {
   planPricing          Json?     @map("plan_pricing") // Owner-defined plan pricing overrides
   commercialContract   Json?     @map("commercial_contract") // Versioned terms retained for this school's current plan
   city                 String
+  country              String?   // SKAI-1170: ISO 3166-1 alpha-2 code (e.g. PK, AE); feeds expansion-trigger metrics
   address              String?
-  regId                String    @unique @map("reg_id") // Unique Institutional Identity
+  regId               String    @unique @map("reg_id") // Unique Institutional Identity
   contactEmail         String    @unique @map("contact_email")
   phone                String? // Primary contact phone
   website              String? // Official institution website
