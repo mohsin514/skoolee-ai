@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Alert } from "@/components/ui/alert";
 import SkooleeLogo from "@/components/SkooleeLogo";
-import { Building2, Coins, Crown, GraduationCap, Rocket, Sparkles, Sprout, Users, type LucideIcon } from "lucide-react";
+import { Building2, Check, Coins, Crown, GraduationCap, Minus, Rocket, Sparkles, Sprout, Users, type LucideIcon } from "lucide-react";
 import { COMMERCIAL_CONTRACT } from "@/config/commercial-contract";
 import { ANNUAL_DISCOUNT, PLAN_ORDER, PLANS, annualMonthlyPrice, type BillingPeriod } from "@/config/plans";
+import { PLAN_MATRIX_GROUPS, type PlanMatrixFeature, type PlanMatrixGroup } from "@/config/plan-matrix";
 import { isPerStudent, periodUnitPrice } from "@/lib/billing/plan-pricing";
 import { COUNTRIES, currencyForCountry, type Country } from "@/lib/locale/country";
 import type { PlanType } from "@/types";
@@ -24,6 +25,8 @@ type PricingCopy = {
   perStudentMonth: string; perStudentYear: string; minimum: string; creditsPerStudent: string;
   regional: string; trial: string; sales: string; version: string; example: string; unlimited: string;
   countryNames: Record<Country, string>; planNames: Record<PlanType, string>;
+  matrixTitle: string; matrixFeature: string; included: string; notIncluded: string;
+  matrixGroups: Record<PlanMatrixGroup["key"], string>; matrixLabels: Record<PlanMatrixFeature, string>;
 };
 
 const copy = {
@@ -56,6 +59,14 @@ const copy = {
     countryNames: { PK: "Pakistan", SA: "Saudi Arabia", AE: "United Arab Emirates", KW: "Kuwait", OTHER: "Other" },
     planNames: { FREE: "Core", BASIC: "Plus", PRO: "Flagship", ENTERPRISE: "Network" },
     unlimited: "Unlimited",
+    matrixTitle: "Plan comparison", matrixFeature: "Capability", included: "Included", notIncluded: "Not included",
+    matrixGroups: { modules: "Modules", whatsapp: "Messaging", ai: "AI" },
+    matrixLabels: {
+      timetableEnabled: "Timetable and date sheets", examPlanningEnabled: "Exam planning and seating", analyticsEnabled: "Analytics and at-risk insights",
+      pdfBulkExport: "Branded bulk PDF export", groupConsoleEnabled: "Group console across campuses", apiAccessEnabled: "API access",
+      whatsappEnabled: "WhatsApp report cards and family messages",
+      aiWorkflowsEnabled: "AI Workflows", examStudioEnabled: "AI Exam Studio", markSheetScanEnabled: "Mark-sheet photo scan", aiRemarksEnabled: "AI report-card remarks",
+    },
   },
   ar: {
     title: "مجاني لكل مدرسة. ادفع فقط مقابل الميزات الرائدة.",
@@ -86,6 +97,14 @@ const copy = {
     countryNames: { PK: "باكستان", SA: "السعودية", AE: "الإمارات العربية المتحدة", KW: "الكويت", OTHER: "أخرى" },
     planNames: { FREE: "أساسية", BASIC: "بلس", PRO: "رائدة", ENTERPRISE: "شبكة" },
     unlimited: "غير محدود",
+    matrixTitle: "مقارنة الخطط", matrixFeature: "الميزة", included: "متضمن", notIncluded: "غير متضمن",
+    matrixGroups: { modules: "الوحدات", whatsapp: "المراسلة", ai: "الذكاء الاصطناعي" },
+    matrixLabels: {
+      timetableEnabled: "الجدول الزمني وجداول الامتحانات", examPlanningEnabled: "تخطيط الامتحانات والجلوس", analyticsEnabled: "التحليلات ومؤشرات المخاطر المبكرة",
+      pdfBulkExport: "تصدير PDF جماعي بعلامة المدرسة", groupConsoleEnabled: "لوحة المجموعة عبر الفروع", apiAccessEnabled: "الوصول عبر API",
+      whatsappEnabled: "بطاقات التقارير ورسائل الأسرة عبر واتساب",
+      aiWorkflowsEnabled: "مسارات عمل الذكاء الاصطناعي", examStudioEnabled: "استوديو الامتحانات بالذكاء الاصطناعي", markSheetScanEnabled: "مسح صور كشوف الدرجات", aiRemarksEnabled: "ملاحظات الذكاء الاصطناعي على بطاقات التقرير",
+    },
   },
   ur: {
     title: "ہر اسکول کے لیے مفت۔ صرف فلیگ شپ سہولتوں کی ادائیگی۔",
@@ -116,6 +135,14 @@ const copy = {
     countryNames: { PK: "پاکستان", SA: "سعودی عرب", AE: "متحدہ عرب امارات", KW: "کویت", OTHER: "دیگر" },
     planNames: { FREE: "کور", BASIC: "پلس", PRO: "فلیگ شپ", ENTERPRISE: "نیٹ ورک" },
     unlimited: "لامحدود",
+    matrixTitle: "پلانز کا موازنہ", matrixFeature: "سہولت", included: "شامل", notIncluded: "شامل نہیں",
+    matrixGroups: { modules: "ماڈیولز", whatsapp: "پیغام رسانی", ai: "AI" },
+    matrixLabels: {
+      timetableEnabled: "ٹائم ٹیبل اور ڈیٹ شیٹ", examPlanningEnabled: "امتحانی منصوبہ بندی اور نشستیں", analyticsEnabled: "تجزیات اور خطرے کی بصیرت",
+      pdfBulkExport: "برانڈڈ بلک PDF ایکسپورٹ", groupConsoleEnabled: "کیمپسز کا گروپ کنسول", apiAccessEnabled: "API رسائی",
+      whatsappEnabled: "واٹس ایپ رپورٹ کارڈز اور فیملی پیغامات",
+      aiWorkflowsEnabled: "AI ورک فلوز", examStudioEnabled: "AI امتحانی اسٹوڈیو", markSheetScanEnabled: "مارک شیٹ کی تصویر اسکین", aiRemarksEnabled: "AI رپورٹ کارڈ ریمارکس",
+    },
   },
 } satisfies Record<Language, PricingCopy>;
 // salesEmail is sourced from @/lib/config/contact (SKAI-948 / COM-08).
@@ -201,6 +228,44 @@ export function PricingPage({ initialLanguage = "en" }: { initialLanguage?: Lang
               </article>
             );
           })}
+        </section>
+
+        <section aria-labelledby="plan-matrix-title" className="mt-10">
+          <h2 id="plan-matrix-title" className="text-xl font-bold text-ink-strong">{t.matrixTitle}</h2>
+          <div className="mt-4 overflow-x-auto rounded-2xl border border-border-subtle bg-white">
+            <table className="w-full min-w-[40rem] border-collapse text-start text-sm">
+              <thead>
+                <tr className="border-b border-border-subtle">
+                  <th scope="col" className="p-3 text-start font-semibold text-ink-strong">{t.matrixFeature}</th>
+                  {PLAN_ORDER.map((key) => <th key={key} scope="col" className="p-3 text-center font-semibold text-primary">{t.planNames[key]}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {PLAN_MATRIX_GROUPS.map((group) => (
+                  <Fragment key={group.key}>
+                    <tr className="bg-brand-50">
+                      <th scope="rowgroup" colSpan={PLAN_ORDER.length + 1} className="px-3 py-2 text-start text-xs font-bold uppercase tracking-wide text-ink-muted">{t.matrixGroups[group.key]}</th>
+                    </tr>
+                    {group.features.map((feature) => (
+                      <tr key={feature} className="border-b border-border-subtle last:border-b-0">
+                        <th scope="row" className="p-3 text-start font-medium text-ink-strong">{t.matrixLabels[feature]}</th>
+                        {PLAN_ORDER.map((key) => {
+                          const enabled = PLANS[key][feature];
+                          return (
+                            <td key={key} className="p-3 text-center">
+                              {enabled
+                                ? <><Check aria-hidden="true" className="mx-auto size-4 text-primary" /><span className="sr-only">{t.included}</span></>
+                                : <><Minus aria-hidden="true" className="mx-auto size-4 text-ink-subtle" /><span className="sr-only">{t.notIncluded}</span></>}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <p className="mt-6 text-sm leading-6 text-ink-muted">{t.example}</p>
