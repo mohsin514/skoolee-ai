@@ -58,7 +58,7 @@ async function fixture() {
   async function returned(assignmentId: string, studentId: string) {
     const submission = await db.assignmentSubmission.create({ data: { schoolId, assignmentId, studentId, status: "RETURNED", latestVersion: 1 } });
     const at = new Date(Date.now() - DAY);
-    const version = await db.assignmentSubmissionVersion.create({ data: { schoolId, submissionId: submission.id, assignmentId, studentId, version: 1, assignmentVersion: 1, rubricVersion: 1, mode: "ONLINE", idempotencyKey: `idem-${randomUUID()}`, receiptCode: `R-${randomUUID().slice(0, 8)}`, text: "First attempt.", artifactSha256: createHash("sha256").update(randomUUID()).digest("hex"), receivedAt: at, submittedAt: at, effectiveDueAt: new Date(), late: false, recordedById: studentId } as never });
+    const version = await db.assignmentSubmissionVersion.create({ data: { schoolId, submissionId: submission.id, assignmentId, studentId, version: 1, assignmentVersion: 1, rubricVersion: 1, mode: "ONLINE", idempotencyKey: `idem-${randomUUID()}`, receiptCode: `R-${randomUUID().slice(0, 8)}`, text: "First attempt.", artifactSha256: createHash("sha256").update(randomUUID()).digest("hex"), receivedAt: at, submittedAt: at, effectiveDueAt: new Date(), late: false, recordedById: ids.teacher } as never });
     await db.assignmentFeedback.create({ data: { schoolId, submissionVersionId: version.id, rubricVersion: 1, criteria: [], comment: "Check each step.", totalPoints: 6, status: "RETURNED", markerId: ids.teacher, returnedAt: new Date(Date.now() - DAY / 2) } });
     return version.id;
   }

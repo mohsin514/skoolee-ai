@@ -42,7 +42,7 @@ async function fixture() {
   await db.user.createMany({ data: [{ id: userId, schoolId, campusId, fullName: "Planner", email: `${userId}@example.invalid`, role: "CAMPUS_ADMIN" }, { id: parentId, schoolId, campusId, fullName: "Guardian", email: `${parentId}@example.invalid`, role: "PARENT", preferredLanguage: "ur" }] });
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Grade 8", section: "A", academicYear: 2026 } });
   await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Synthetic learner", rollNo: "1", gender: "OTHER" } });
-  const relation = await db.guardianRelationship.create({ data: { schoolId, campusId, studentId, guardianUserId: parentId, createdByUserId: userId, fullName: "Guardian", email: `${parentId}@example.invalid`, relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(Date.now() - 3600000), validFrom: new Date(Date.now() - 3600000), accessVersions: { create: { school: { connect: { id: schoolId } }, permissions: { communication: true }, reason: "Synthetic verified right", createdByUserId: userId, effectiveFrom: new Date(Date.now() - 3600000) } } }, include: { accessVersions: true } });
+  const relation = await db.guardianRelationship.create({ data: { schoolId, campusId, studentId, guardianUserId: parentId, createdByUserId: userId, fullName: "Guardian", email: `${parentId}@example.invalid`, relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(Date.now() - 3600000), validFrom: new Date(Date.now() - 3600000), accessVersions: { create: { permissions: { communication: true }, reason: "Synthetic verified right", createdByUserId: userId, effectiveFrom: new Date(Date.now() - 3600000) } } }, include: { accessVersions: true } });
   const user: AuthUser = { userId, schoolId, campusId, role: "CAMPUS_ADMIN", email: `${userId}@example.invalid` };
   const proposal: AnnouncementProposal = { operation: "communications.queue_announcement", classIds: [classId], channel: "EMAIL", messages: { en: { subject: "School notice", body: "Exact English text <b>literal</b>" }, ur: { subject: "اسکول کی اطلاع", body: "جائزہ لیا گیا درست متن" } }, fallbackLanguage: null };
   return { schoolId, campusId, classId, user, parentId, studentId, relation, proposal };
@@ -79,7 +79,7 @@ test("announcement preview binds language and verified audience; atomic queue re
 }));
 test("siblings sharing one guardian receive one email; ambiguous contacts and missing translations block", () => school(async f => {
   const sibling = await db.student.create({ data: { schoolId: f.schoolId, campusId: f.campusId, classId: f.classId, fullName: "Synthetic sibling", rollNo: "2", gender: "OTHER" } });
-  const siblingLink = await db.guardianRelationship.create({ data: { schoolId: f.schoolId, campusId: f.campusId, studentId: sibling.id, guardianUserId: f.parentId, createdByUserId: f.user.userId, fullName: "Guardian", email: f.relation.email, relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { school: { connect: { id: f.schoolId } }, permissions: { communication: true }, reason: "Test", createdByUserId: f.user.userId } } } });
+  const siblingLink = await db.guardianRelationship.create({ data: { schoolId: f.schoolId, campusId: f.campusId, studentId: sibling.id, guardianUserId: f.parentId, createdByUserId: f.user.userId, fullName: "Guardian", email: f.relation.email, relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { permissions: { communication: true }, reason: "Test", createdByUserId: f.user.userId } } } });
   const record = await approved(f);
   const preview = await previewSchoolAiExecution(f.user, record.id, "communications.queue_announcement", record.version);
   assert.equal(preview.recipients.length, 1); assert.equal(preview.recipients[0].studentNames.length, 2);
@@ -91,7 +91,7 @@ test("siblings sharing one guardian receive one email; ambiguous contacts and mi
 test("student exclusions are unique and do not include students with an eligible guardian", () => school(async f => {
   const secondParent = randomUUID();
   await db.user.create({ data: { id: secondParent, schoolId: f.schoolId, campusId: f.campusId, fullName: "Second guardian", email: `${secondParent}@example.invalid`, role: "PARENT", preferredLanguage: "ur" } });
-  await db.guardianRelationship.create({ data: { schoolId: f.schoolId, campusId: f.campusId, studentId: f.studentId, guardianUserId: secondParent, createdByUserId: f.user.userId, fullName: "Second guardian", email: `${secondParent}@example.invalid`, relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { school: { connect: { id: f.schoolId } }, permissions: { communication: false }, reason: "Synthetic denied right", createdByUserId: f.user.userId } } } });
+  await db.guardianRelationship.create({ data: { schoolId: f.schoolId, campusId: f.campusId, studentId: f.studentId, guardianUserId: secondParent, createdByUserId: f.user.userId, fullName: "Second guardian", email: `${secondParent}@example.invalid`, relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { permissions: { communication: false }, reason: "Synthetic denied right", createdByUserId: f.user.userId } } } });
   const record = await approved(f);
   const included = await previewSchoolAiExecution(f.user, record.id, "communications.queue_announcement", record.version);
   assert.equal(included.recipients.length, 1);
@@ -240,7 +240,7 @@ test("WhatsApp inbound uses exact consented contact and never guesses across mul
   assert.equal(await resolveInboundGuardian("923001234567"), null, "Shared guardian contacts cannot reveal an arbitrarily chosen pupil");
   await db.guardianChannelPreference.delete({ where: { id: duplicateContact.id } });
   const sibling = await db.student.create({ data: { schoolId: f.schoolId, campusId: f.campusId, classId: f.classId, fullName: "Second eligible learner", rollNo: "2", gender: "OTHER" } });
-  await db.guardianRelationship.create({ data: { schoolId: f.schoolId, campusId: f.campusId, studentId: sibling.id, guardianUserId: f.parentId, createdByUserId: f.user.userId, fullName: "Guardian", email: f.relation.email, phone: "+923001234567", relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { school: { connect: { id: f.schoolId } }, permissions: { communication: true, learningRecords: true }, reason: "Synthetic sibling scope", createdByUserId: f.user.userId } } } });
+  await db.guardianRelationship.create({ data: { schoolId: f.schoolId, campusId: f.campusId, studentId: sibling.id, guardianUserId: f.parentId, createdByUserId: f.user.userId, fullName: "Guardian", email: f.relation.email, phone: "+923001234567", relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { permissions: { communication: true, learningRecords: true }, reason: "Synthetic sibling scope", createdByUserId: f.user.userId } } } });
   assert.equal(await resolveInboundGuardian("923001234567"), null, "Multiple pupils require portal selection");
 })));
 
