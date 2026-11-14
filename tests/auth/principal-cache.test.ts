@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createPrincipalCache, invalidationTargets, principalCacheEnabled, type CacheClient } from "../../src/lib/auth/principal-cache";
+import { afterCommitInvalidation, createPrincipalCache, invalidateAfterWrite, invalidationTargets, mergeInvalidationTargets, principalCacheEnabled, type CacheClient, type InvalidationTargets } from "../../src/lib/auth/principal-cache";
 import { createRedisGuard } from "../../src/lib/redis/guard";
 import type { AuthUser } from "../../src/lib/auth";
 
@@ -131,4 +131,36 @@ test("invalidation targets cover every way the principal's rows change", () => {
   assert.deepEqual(invalidationTargets("Campus", "update", { where: { id: "c" }, data: { name: "x" } }, "s"), { global: false, schools: ["s"], users: [] });
   assert.deepEqual(invalidationTargets("Campus", "update", { where: { id: "c" }, data: { name: "x" } }), { global: true, schools: [], users: [] });
   assert.deepEqual(invalidationTargets("InstitutionSetup", "upsert", { where: { schoolId: "s" }, create: {}, update: {} }), { global: false, schools: ["s"], users: [] });
+});
+
+// SKAI-1982: inside an interactive transaction the epoch bump waits for the commit, once, with every target.
+
+test("writes inside a transaction bump once after it commits, for both schools; outside one they bump before returning", async () => {
+  const bumps: InvalidationTargets[] = [];
+  const invalidate = async (targets: InvalidationTargets) => { bumps.push(targets); };
+  const result = await afterCommitInvalidation(async () => {
+    await invalidateAfterWrite({ global: false, schools: [], users: ["user-a"] }, invalidate);
+    await invalidateAfterWrite({ global: false, schools: ["school-a"], users: ["user-a"] }, invalidate);
+    await invalidateAfterWrite({ global: false, schools: ["school-b"], users: ["user-b"] }, invalidate);
+    assert.deepEqual(bumps, [], "nothing is bumped before the commit");
+    return "committed";
+  }, invalidate);
+  assert.equal(result, "committed");
+  assert.deepEqual(bumps, [{ global: false, schools: ["school-a", "school-b"], users: ["user-a", "user-b"] }]);
+  bumps.length = 0;
+  await invalidateAfterWrite({ global: false, schools: [], users: ["user-a"] }, invalidate);
+  assert.equal(bumps.length, 1, "a write outside a transaction is bumped before it returns");
+});
+
+test("a transaction with no principal writes bumps nothing; a failed one still bumps what it collected", async () => {
+  const bumps: InvalidationTargets[] = [];
+  const invalidate = async (targets: InvalidationTargets) => { bumps.push(targets); };
+  await afterCommitInvalidation(async () => "no writes", invalidate);
+  assert.deepEqual(bumps, []);
+  await assert.rejects(afterCommitInvalidation(async () => {
+    await invalidateAfterWrite({ global: false, schools: ["school-a"], users: [] }, invalidate);
+    throw new Error("rolled back");
+  }, invalidate), /rolled back/);
+  assert.deepEqual(bumps, [{ global: false, schools: ["school-a"], users: [] }]);
+  assert.deepEqual(mergeInvalidationTargets([{ global: false, schools: [], users: [] }, { global: true, schools: [], users: [] }]).global, true);
 });

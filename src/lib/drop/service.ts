@@ -6,6 +6,7 @@ import { JWT_SECRET } from "@/lib/auth/secret";
 import { ApiError } from "@/lib/api/scope";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped, runWithTenantContext } from "@/lib/db/tenant-context";
+import { runBounded } from "@/lib/bounded-pool";
 import { matchesFileSignature } from "@/lib/storage/file-signature";
 import { deleteFile, uploadPrivateObject } from "@/lib/storage/s3";
 
@@ -139,17 +140,30 @@ export async function addPhoneItem(session: Awaited<ReturnType<typeof loadPhoneS
 }
 
 /** Removes sessions an hour after they expire, staged objects first. Bounded per run; spans schools (cron only). */
-export function purgeExpiredDrops(now = new Date(), limit = 200) {
-  return runUnscoped("Skoolee Drop staging purge across schools", () => purge(now, limit));
+export function purgeExpiredDrops(now = new Date(), limit = 200, budgetMs = PURGE_BUDGET_MS) {
+  return runUnscoped("Skoolee Drop staging purge across schools", () => purge(now, limit, budgetMs));
 }
-async function purge(now: Date, limit: number) {
-  const sessions = await prisma.dropSession.findMany({ where: { expiresAt: { lt: new Date(now.getTime() - 3600_000) } }, take: limit, select: { id: true, items: { select: { id: true, storageKey: true } } } });
-  let removed = 0, failed = 0;
-  for (const session of sessions) {
+// SKAI-1970: staged objects are deleted a few at a time in parallel (was one awaited S3 call after another), within a
+// time budget under the cron's 60 s limit. A session row goes only once every one of its objects is gone, so a failed
+// or unreached session stays for the next hourly run, oldest first.
+const PURGE_LANES = 16;
+const PURGE_BUDGET_MS = 45_000;
+async function purge(now: Date, limit: number, budgetMs: number) {
+  const started = Date.now();
+  const sessions = await prisma.dropSession.findMany({ where: { expiresAt: { lt: new Date(now.getTime() - 3600_000) } }, orderBy: { expiresAt: "asc" }, take: limit, select: { id: true, items: { select: { id: true, storageKey: true } } } });
+  const pending = new Map(sessions.map(session => [session.id, session.items.length]));
+  const failedIds = new Set<string>();
+  const keys = sessions.flatMap(session => session.items.map(item => ({ sessionId: session.id, storageKey: item.storageKey })));
+  await runBounded(keys, PURGE_LANES, async ({ sessionId, storageKey }) => {
+    if (failedIds.has(sessionId) || Date.now() - started > budgetMs) return;
     try {
-      for (const item of session.items) await deleteFile(item.storageKey);
-      await prisma.dropSession.delete({ where: { id: session.id } }); removed++;
-    } catch { failed++; }
-  }
-  return { removed, failed };
+      await deleteFile(storageKey);
+      pending.set(sessionId, pending.get(sessionId)! - 1);
+    } catch { failedIds.add(sessionId); }
+  });
+  const done = [...pending].filter(([id, left]) => left === 0 && !failedIds.has(id)).map(([id]) => id);
+  if (!done.length) return { removed: 0, failed: failedIds.size };
+  // The objects are already gone, so a failed row delete is only retried (re-deleting a missing key succeeds).
+  try { await prisma.dropSession.deleteMany({ where: { id: { in: done } } }); } catch { return { removed: 0, failed: failedIds.size + done.length }; }
+  return { removed: done.length, failed: failedIds.size };
 }

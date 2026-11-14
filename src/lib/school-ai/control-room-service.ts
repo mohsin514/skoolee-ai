@@ -15,7 +15,7 @@ import { writeAuditEvent } from "@/lib/audit-events";
 import { isSchoolAiManager } from "./access";
 import { scopedAssignment, staffExamAccess } from "./exam-service";
 import { schoolAiTransaction } from "./transaction";
-import { markCandidateExamActive } from "./exam-active-marker";
+import { markCandidatesExamActive } from "./exam-active-marker";
 
 export const BOARD_UNSAVED_SECONDS = 120;
 export const TEACHER_EXTEND_LIMIT_MINUTES = 15;
@@ -71,12 +71,15 @@ export async function extendAttempts(user: AuthUser, assignmentId: string, raw: 
     const byId = new Map(found.map(row => [row.id, row]));
     const appliedRows = found.length ? await tx.auditLog.findMany({ where: { schoolId: user.schoolId, tableName: "school_ai_exam_attempts", recordId: { in: found.map(row => row.id) }, newValue: { path: ["extensionKey"], equals: input.idempotencyKey } }, select: { recordId: true } }) : [];
     const applied = new Set(appliedRows.map(row => row.recordId));
+    const movable = (attempt: (typeof found)[number] | undefined): attempt is (typeof found)[number] => !!attempt && attempt.status === "IN_PROGRESS" && !(!attempt.pausedAt && attempt.deadlineAt <= now) && !applied.has(attempt.id);
+    const extended = (attempt: (typeof found)[number]) => new Date(attempt.deadlineAt.getTime() + input.minutes * 60_000);
+    // SKAI-1840 markers are written before the extensions commit; SKAI-1982: all of them in one Redis round trip.
+    await markCandidatesExamActive(attemptIds.map(id => byId.get(id)).filter(movable).map(attempt => ({ userId: attempt.userId, deadlineAt: extended(attempt) })));
     for (const attemptId of attemptIds) {
       const attempt = byId.get(attemptId);
       if (!attempt || attempt.status !== "IN_PROGRESS" || (!attempt.pausedAt && attempt.deadlineAt <= now)) { outcomes.push({ attemptId, outcome: "NOT_IN_PROGRESS" }); continue; }
       if (applied.has(attempt.id)) { outcomes.push({ attemptId, outcome: "ALREADY_APPLIED", deadlineAt: attempt.deadlineAt.toISOString() }); continue; }
-      const deadlineAt = new Date(attempt.deadlineAt.getTime() + input.minutes * 60_000);
-      await markCandidateExamActive(attempt.userId, deadlineAt); // SKAI-1840: before the extension commits.
+      const deadlineAt = extended(attempt);
       const moved = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", deadlineAt: attempt.deadlineAt }, data: { deadlineAt } });
       if (moved.count !== 1) { outcomes.push({ attemptId, outcome: "NOT_IN_PROGRESS" }); continue; }
       await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: attempt.id, action: "UPDATE", campusId: assignment.campusId, before: { deadlineAt: attempt.deadlineAt.toISOString() }, after: { deadlineAt: deadlineAt.toISOString(), extendedMinutes: input.minutes, extensionKey: input.idempotencyKey, reason: input.reason } });
