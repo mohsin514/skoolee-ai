@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useEffect, useState, useSyncExternalStore, type ComponentProps, type ComponentType } from "react";
+import dynamic from "next/dynamic";
 import {
   AlertTriangle,
   ArrowRightLeft,
@@ -65,39 +66,51 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { downloadCSV } from "@/lib/csv";
 import { CommandCentreSkeleton, PageSkeleton, PAGE_CARD_BODY } from "@/components/role-dashboard/RoleShellSkeleton";
 import { FlagshipCard } from "@/components/ui/flagship";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 import { ActionQueue } from "@/components/principal/action-queue";
 import { AcademicOverview } from "@/components/insights/AcademicOverview";
-import { ReportCardPipeline, type ReportSelectionState } from "@/components/academic/ReportCardPipeline";
-import { ExamsWorkspace } from "@/components/academic/exams/ExamsWorkspace";
-import { QuestionNetwork } from "@/components/question-network/question-network";
-import { TimetableStudio, type TimetableCommand, type TimetableDraftState } from "@/components/timetable/TimetableStudio";
-import { AcademicModelPanel, type AcademicModelActionState, type AcademicModelCommand } from "@/components/academic/AcademicModelPanel";
-import { GradingRulesPanel } from "@/components/academic/GradingRulesPanel";
-import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
-import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
-import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
+import type { ReportSelectionState } from "@/components/academic/ReportCardPipeline";
+import type { TimetableCommand, TimetableDraftState } from "@/components/timetable/TimetableStudio";
+import type { AcademicModelActionState, AcademicModelCommand } from "@/components/academic/AcademicModelPanel";
 import type { YearCloseCommand, YearClosureState } from "@/components/academic/YearClosureChecklist";
-import { RolloverReview, type RolloverApprovalState } from "@/components/academic/rollover-review";
-import { ScenarioPlanner } from "@/components/planning/scenario-planner";
-import { UnifiedAttendancePanel } from "@/components/attendance/unified-attendance-panel";
-import { LearningActions } from "@/components/learning/learning-actions";
-import { EngagementPanel, type EngagementCommand } from "@/components/communications/engagement-panel";
-import { AiWorkflowsHome, AI_COMPOSER_INPUT_ID } from "@/components/ai-workflows/AiWorkflowsHome";
-import { PathwayPanel } from "@/components/pathways/pathway-panel";
-import { MyLeavePanel } from "@/components/leave/my-leave";
-import {
-  AcademicPanel,
-  ClassDetailModal,
-  FacultyPanel,
-  LeaveManagementPanel,
-  StudentDetailModal,
-  StudentsPanel,
-  TeacherConflictsBanner,
-  TeacherDetailModal,
-  exportStudentsToCSV,
-} from "@/components/shared-admin";
+import type { RolloverApprovalState } from "@/components/academic/rollover-review";
+import type { EngagementCommand } from "@/components/communications/engagement-panel";
+import { AI_COMPOSER_INPUT_ID } from "@/components/ai-workflows/ai-composer-id";
 import { fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
+
+/*
+ * SKAI-1978: only Today (above) is bundled with the page. Every other workspace view and the detail modals load
+ * their own chunk when first shown, so a cold instance no longer evaluates ~20 panels to render Today. SSR stays on,
+ * so a deep-linked ?view= still server-renders. The view's PageHeader is already drawn, so the fallback is a body-only list.
+ */
+const panelLoading = () => <SkeletonList />;
+const ReportCardPipeline = dynamic(() => import("@/components/academic/ReportCardPipeline").then((m) => m.ReportCardPipeline), { loading: panelLoading });
+const ExamsWorkspace = dynamic(() => import("@/components/academic/exams/ExamsWorkspace").then((m) => m.ExamsWorkspace), { loading: panelLoading });
+const QuestionNetwork = dynamic(() => import("@/components/question-network/question-network").then((m) => m.QuestionNetwork), { loading: panelLoading });
+const TimetableStudio = dynamic(() => import("@/components/timetable/TimetableStudio").then((m) => m.TimetableStudio), { loading: panelLoading });
+const AcademicModelPanel = dynamic(() => import("@/components/academic/AcademicModelPanel").then((m) => m.AcademicModelPanel), { loading: panelLoading });
+const GradingRulesPanel = dynamic(() => import("@/components/academic/GradingRulesPanel").then((m) => m.GradingRulesPanel), { loading: panelLoading });
+const AcademicCalendar = dynamic(() => import("@/components/academic/AcademicCalendar").then((m) => m.AcademicCalendar), { loading: panelLoading });
+const TeacherPerformancePanel = dynamic(() => import("@/components/academic-year/TeacherPerformancePanel").then((m) => m.TeacherPerformancePanel), { loading: panelLoading });
+const CycleManagementPanel = dynamic(() => import("@/components/academic-year/CycleManagementPanel").then((m) => m.CycleManagementPanel), { loading: panelLoading });
+const RolloverReview = dynamic(() => import("@/components/academic/rollover-review").then((m) => m.RolloverReview), { loading: panelLoading });
+const ScenarioPlanner = dynamic(() => import("@/components/planning/scenario-planner").then((m) => m.ScenarioPlanner), { loading: panelLoading });
+const UnifiedAttendancePanel = dynamic(() => import("@/components/attendance/unified-attendance-panel").then((m) => m.UnifiedAttendancePanel), { loading: panelLoading });
+const LearningActions = dynamic(() => import("@/components/learning/learning-actions").then((m) => m.LearningActions), { loading: panelLoading });
+const EngagementPanel = dynamic(() => import("@/components/communications/engagement-panel").then((m) => m.EngagementPanel), { loading: panelLoading });
+const AiWorkflowsHome = dynamic(() => import("@/components/ai-workflows/AiWorkflowsHome").then((m) => m.AiWorkflowsHome), { loading: panelLoading });
+const PathwayPanel = dynamic(() => import("@/components/pathways/pathway-panel").then((m) => m.PathwayPanel), { loading: panelLoading });
+const MyLeavePanel = dynamic(() => import("@/components/leave/my-leave").then((m) => m.MyLeavePanel), { loading: panelLoading });
+const StudentsPanel = dynamic(() => import("@/components/shared-admin/students-panel").then((m) => m.StudentsPanel), { loading: panelLoading });
+const TeacherConflictsBanner = dynamic(() => import("@/components/shared-admin/teacher-conflicts-banner").then((m) => m.TeacherConflictsBanner));
+const AcademicPanel = dynamic(() => import("@/components/shared-admin").then((m) => m.AcademicPanel), { loading: panelLoading });
+const FacultyPanel = dynamic(() => import("@/components/shared-admin").then((m) => m.FacultyPanel), { loading: panelLoading });
+const LeaveManagementPanel = dynamic(() => import("@/components/shared-admin").then((m) => m.LeaveManagementPanel), { loading: panelLoading });
+// Modals open on a click; they render nothing while their chunk loads.
+const StudentDetailModal = dynamic(() => import("@/components/shared-admin").then((m) => m.StudentDetailModal));
+const TeacherDetailModal = dynamic(() => import("@/components/shared-admin").then((m) => m.TeacherDetailModal));
+const ClassDetailModal = dynamic(() => import("@/components/shared-admin").then((m) => m.ClassDetailModal));
 import { cn } from "@/lib/utils";
 import { usePrincipalData } from "./principal-data-context";
 import { currentClassTeacherId, currentSubjectTeacherId } from "@/lib/academic/allocation-version";
@@ -738,7 +751,7 @@ function PrincipalWorkspace({
             students={data.students ?? []}
             classes={data.classes ?? []}
             onViewStudent={(student, visible) => { setSelectedStudent(student); setStudentSequence(visible || []); }}
-            onExport={(visible) => exportStudentsToCSV(visible ?? data.students ?? [], data.campusName)}
+            onExport={(visible) => { void import("@/components/shared-admin").then((m) => m.exportStudentsToCSV(visible ?? data.students ?? [], data.campusName)); }}
             onRefresh={reload}
           />
           <PathwayPanel />
