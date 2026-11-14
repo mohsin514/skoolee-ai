@@ -6,7 +6,7 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
-import { dropTypesFor, fileMatchesAccept } from "@/lib/drop/client";
+import { DROP_POLL_MIN_MS, dropTypesFor, fileMatchesAccept, nextDropPollDelay } from "@/lib/drop/client";
 
 /**
  * SKAI-1848: the one file well for the product. Drag and drop, paste, browse, take a photo (phones), or
@@ -112,23 +112,41 @@ export function PhoneDrop({ label, accept, limit, onClose, onFiles }: { label: s
 
   useEffect(() => {
     if (!session) return;
-    let alive = true, timer: ReturnType<typeof setTimeout>;
+    // SKAI-1980: one poll at a time, none while the tab is hidden (an immediate one on return), backing off
+    // while nothing new arrives, and none after the code expires. Unmount aborts in-flight fetches.
+    let alive = true, polling = false, delay = DROP_POLL_MIN_MS, timer: ReturnType<typeof setTimeout> | undefined;
+    const controller = new AbortController(), { signal } = controller, expiresAt = Date.parse(session.expiresAt);
+    const schedule = () => {
+      clearTimeout(timer); timer = undefined;
+      if (!alive) return;
+      if (Date.now() >= expiresAt) return setExpired(true);
+      if (document.visibilityState !== "hidden") timer = setTimeout(() => void poll(), delay);
+    };
     const poll = async () => {
+      if (polling || !alive) return;
+      polling = true;
+      let gotNew = false;
       try {
-        const data = await call<{ status: string; items: Item[] }>(`/api/drop/sessions/${session.id}`);
+        const data = await call<{ status: string; items: Item[] }>(`/api/drop/sessions/${session.id}`, { signal });
         for (const item of data.items) if (!loaded.current.has(item.id)) {
-          const blob = await fetch(`/api/drop/sessions/${session.id}/items/${item.id}`, { cache: "no-store" }).then(r => { if (!r.ok) throw new Error("FETCH"); return r.blob(); });
+          const blob = await fetch(`/api/drop/sessions/${session.id}/items/${item.id}`, { cache: "no-store", signal }).then(r => { if (!r.ok) throw new Error("FETCH"); return r.blob(); });
+          if (!alive) return;
           const file = new File([blob], item.fileName, { type: item.contentType });
           loaded.current.set(item.id, { ...item, file, preview: item.contentType.startsWith("image/") ? URL.createObjectURL(file) : undefined });
+          gotNew = true;
         }
         if (!alive) return;
         setItems(data.items.map(item => loaded.current.get(item.id)!).filter(Boolean));
-        if (data.status !== "OPEN") return setExpired(true);
-      } catch { /* A missed poll is retried. */ }
-      if (alive) timer = setTimeout(() => void poll(), 1500);
+        if (data.status !== "OPEN") { alive = false; return setExpired(true); }
+      } catch { /* A missed poll is retried, after a longer wait. */ }
+      finally { polling = false; }
+      delay = nextDropPollDelay(delay, gotNew);
+      schedule();
     };
+    const onVisible = () => { if (document.visibilityState === "visible" && alive && !polling) { clearTimeout(timer); void poll(); } };
+    document.addEventListener("visibilitychange", onVisible);
     void poll();
-    return () => { alive = false; clearTimeout(timer); };
+    return () => { alive = false; clearTimeout(timer); controller.abort(); document.removeEventListener("visibilitychange", onVisible); };
   }, [session]);
 
   const discard = async (item: Item) => {
