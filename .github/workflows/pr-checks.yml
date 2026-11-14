@@ -84,6 +84,8 @@ jobs:
         run: pnpm run lint
       - name: Every foreign key has an index (SKAI-1806)
         run: pnpm run check:fk-indexes
+      - name: Every …Id column without a relation is classified (SKAI-1906)
+        run: pnpm run check:id-columns
       - name: Type check (0 errors)
         run: pnpm run typecheck
       - name: Unit and integration tests (coverage thresholds live in your test config)

@@ -2,7 +2,7 @@
  * SKAI-1898: realistic concurrent-user load against the deployed dev site (or a local app).
  *
  *   npx tsx scripts/load/dev-load.ts --target https://dev.skooleeai.com --vus 25 --duration 120 [--ramp 30]
- *     [--think 1000-4000] [--roles teacher,guardian,student] [--credentials qa-credentials.json] [--shell-batch off]
+ *     [--think 1000-4000] [--roles teacher,guardian,student] [--credentials qa-credentials.json] [--shell-batch off] [--streams off]
  *
  * Read-only by construction: after one sign-in per synthetic QA-01 account it only sends GET requests along the
  * journeys a role's browser makes (scripts/load/load-core.ts). Sessions are shared by virtual users, so the run never
@@ -10,7 +10,7 @@
  * the target degrades. Credentials are never printed. Report: test-results/load/<run>.{json,md}; exit 1 on FAIL.
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { assertAllowedTarget, checkVirtualUsers, label, pageViewFor, report, shellBatched, shouldAbort, type Sample } from "./load-core";
+import { assertAllowedTarget, checkVirtualUsers, hasFirstEvent, label, pageViewFor, report, shellBatched, shouldAbort, splitStreams, type Sample } from "./load-core";
 import { ROLE_JOURNEYS } from "./role-journeys";
 
 // Node 24's bundled undici can throw `setTypeOfService EINVAL` from inside its socket handling on macOS when a socket is
@@ -36,6 +36,8 @@ const roles = arg("roles", Object.keys(ROLE_JOURNEYS).join(",")).split(",").map(
 const credentialsFile = arg("credentials", process.env.LOAD_CREDENTIALS_FILE ?? "qa-credentials.json");
 /** Send the shell GETs as one /api/shell request, like the browser (SKAI-1949). `--shell-batch off` sends them one by one. */
 const shellBatch = arg("shell-batch", "on") !== "off";
+const holdStreams = arg("streams", "on") !== "off";
+const STREAM_RETRY_MS = 5_000;
 const REQUEST_TIMEOUT_MS = 30_000;
 
 type Account = { email: string; password: string; role: string; school: string };
@@ -91,11 +93,57 @@ async function main() {
   const deadline = Date.now() + durationSec * 1000;
   let aborted: string | null = null;
 
+  const streamTasks: Promise<void>[] = [];
+  const streamControllers = new Set<AbortController>();
+
+  /** One realtime stream held open until the run ends. Each connection is one sample: the time to its first event. */
+  async function holdStream(cookie: string, path: string) {
+    while (Date.now() < deadline && !aborted) {
+      const controller = new AbortController();
+      streamControllers.add(controller);
+      const started = performance.now();
+      let recorded = false;
+      const record = (status: number) => {
+        if (recorded) return;
+        recorded = true;
+        samples.push({ at: Date.now(), endpoint: label(path), ms: Math.round(performance.now() - started), status });
+      };
+      const noEvent = setTimeout(() => record(0), REQUEST_TIMEOUT_MS);
+      try {
+        const res = await fetch(`${target}${path}`, { headers: { cookie, accept: "text/event-stream" }, signal: controller.signal });
+        if (!res.ok || !res.body || res.status === 204) {
+          await res.arrayBuffer().catch(() => undefined);
+          record(res.status);
+          if (res.status === 204) return; // realtime is off: the browser stops reconnecting too
+        } else {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let text = "";
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            if (recorded) continue;
+            text += decoder.decode(value, { stream: true });
+            if (hasFirstEvent(text)) record(res.status);
+          }
+        }
+      } catch {
+        // Aborted at the end of the run, or the connection dropped.
+      } finally {
+        clearTimeout(noEvent);
+        streamControllers.delete(controller);
+        if (!recorded && Date.now() < deadline && !aborted) record(0);
+      }
+      await sleep(STREAM_RETRY_MS);
+    }
+  }
+
   async function virtualUser(index: number) {
     await sleep((rampSec * 1000 * index) / vus);
     const session = sessions[index % sessions.length];
     const view = pageViewFor(session.role, today);
-    const apis = shellBatch ? shellBatched(view.apis) : view.apis;
+    const { requests, streams } = splitStreams(view.apis);
+    const apis = shellBatch ? shellBatched(requests) : requests;
     const hit = async (path: string) => {
       const started = performance.now();
       let status = 0;
@@ -107,6 +155,8 @@ async function main() {
       } catch { status = 0; }
       samples.push({ at: Date.now(), endpoint: label(path), ms: Math.round(performance.now() - started), status });
     };
+    // SKAI-1957: like a browser tab, open each realtime stream once and keep it open (reconnecting as EventSource does).
+    if (holdStreams) for (const path of streams) streamTasks.push(holdStream(session.cookie, path));
     // A page view as a browser makes it: the page, then the dashboard's requests together; then the person reads.
     while (Date.now() < deadline && !aborted) {
       await hit(view.home);
@@ -124,6 +174,8 @@ async function main() {
   }, 10_000);
 
   await Promise.all(Array.from({ length: vus }, (_, i) => virtualUser(i)));
+  for (const controller of streamControllers) controller.abort();
+  await Promise.all(streamTasks);
   clearInterval(watchdog);
 
   const meta = { target, vus, durationSec, rampSec, thinkMs: [thinkMin, thinkMax] as [number, number], startedAt, finishedAt: new Date().toISOString(), aborted,

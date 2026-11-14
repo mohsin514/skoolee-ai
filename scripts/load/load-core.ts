@@ -46,6 +46,23 @@ export function shellBatched(apis: string[]): string[] {
   return [...groups.map((g) => `/api/shell?${g.map((p) => `p=${encodeURIComponent(p)}`).join("&")}`), ...rest];
 }
 
+/**
+ * SKAI-1957: the realtime event streams. A browser tab opens each one once and keeps it open; it never "finishes",
+ * so it cannot be timed like a page request. The runner holds them open per virtual user and times the first event.
+ */
+export const STREAM_PATHS = ["/api/notifications/sse", "/api/chat/stream"];
+
+export function splitStreams(apis: string[]): { requests: string[]; streams: string[] } {
+  const isStream = (p: string) => STREAM_PATHS.includes(p.split("?")[0]);
+  return { requests: apis.filter((p) => !isStream(p)), streams: apis.filter(isStream) };
+}
+
+/** True once the text read from an event stream holds a complete first event (an `event:` or `data:` block). */
+export function hasFirstEvent(text: string): boolean {
+  const start = text.search(/(^|\n)(event|data):/);
+  return start >= 0 && text.indexOf("\n\n", start) >= 0;
+}
+
 /** Back-compatible flat list: the home page followed by its APIs. */
 export function journeyFor(role: string, today: string): string[] {
   const view = pageViewFor(role, today);
