@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { TxClient } from "@/lib/db/prisma";
 import { versionTransaction } from "@/lib/academic/report-versions";
-import { renderLocaleReceipt } from "@/lib/locale/invoice-pdf";
+import type { renderLocaleReceipt } from "@/lib/locale/invoice-pdf";
 /** Capture at collection, or before correcting a legacy payment. Existing
  * external receipt URLs remain intact. Never regenerate from a changed invoice. */
 export async function capturePaymentReceipt(tx: TxClient, paymentId: string) {
@@ -21,6 +21,9 @@ export async function capturePaymentReceipt(tx: TxClient, paymentId: string) {
     return tx.paymentReceipt.create({ data: { schoolId: payment.schoolId, campusId: payment.campusId, paymentId, snapshot: JSON.parse(JSON.stringify({ ...payment, invoice: { ...payment.invoice, currency: payment.currency } })) as Prisma.InputJsonValue } });
 }
 export async function immutablePaymentPdf(paymentId: string) {
+    // The PDF engine (react-pdf, pdfkit, fontkit) loads only here, so collecting a payment never pays for it. It loads
+    // before the transaction opens so a first, slow module load never holds the interactive transaction.
+    const { renderLocaleReceipt } = await import("@/lib/locale/invoice-pdf");
     return versionTransaction(async (tx) => {
         const receipt = await capturePaymentReceipt(tx, paymentId);
         if (receipt.documentBytes)

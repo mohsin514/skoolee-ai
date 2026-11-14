@@ -156,14 +156,16 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
     return new Date(y, m - 1).toLocaleDateString(localeTag(locale), { month: "long", year: "numeric" });
   })();
   const students: any[] = useMemo(() => monthlyData?.students || [], [monthlyData]);
+  // SKAI-223: only pupils with marks this month can be at risk, matching the server's at-risk list.
+  const isAtRisk = (student: any) => student.marked !== false && student.percentage < 75;
   // The At-risk tile filters the list; the lowest rates come first so the pupils to follow up lead.
   const [riskOnly, setRiskOnly] = useState(false);
   const [query, setQuery] = useState("");
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = students.filter((student) => (!riskOnly || student.percentage < 75)
+    const list = students.filter((student) => (!riskOnly || isAtRisk(student))
       && (!q || `${student.name || ""} ${student.rollNo || ""}`.toLowerCase().includes(q)));
-    return urgencyFirst(list, (student) => (student.percentage < 75 ? 0 : 1));
+    return urgencyFirst(list, (student) => (isAtRisk(student) ? 0 : 1));
   }, [students, riskOnly, query]);
   const clearFilters = () => { setRiskOnly(false); setQuery(""); };
   const atRiskCount = monthlyData?.atRiskStudents?.length || 0;
@@ -285,7 +287,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
               </div>
               <div className="divide-y divide-muted">
                 {shown.map((student: any) => (
-                  <div key={student.studentId} data-tone={student.percentage < 75 ? "danger" : undefined} className={cn(
+                  <div key={student.studentId} data-tone={isAtRisk(student) ? "danger" : undefined} className={cn(
                     deskRow,
                     "grid grid-cols-4 gap-x-3 gap-y-2.5 rounded-none border-0 shadow-none px-5 py-3.5 sm:grid-cols-[1fr_80px_80px_80px_100px] sm:items-center",
                   )}>
@@ -295,7 +297,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
                       </div>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-ink-strong">{student.name}</p>
-                        <p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-subtle">{student.rollNo || ui("No roll")}{student.percentage < 75 ? <DeskPill tone="danger">{ui("At risk")}</DeskPill> : null}</p>
+                        <p className="flex flex-wrap items-center gap-1.5 text-xs text-ink-subtle">{student.rollNo || ui("No roll")}{isAtRisk(student) ? <DeskPill tone="danger">{ui("At risk")}</DeskPill> : null}</p>
                       </div>
                     </div>
                     <p className="text-center text-sm font-bold tabular-nums text-status-success-text">
