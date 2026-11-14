@@ -177,7 +177,11 @@ for (const [label, loader, session] of consoles) {
         : null);
     await (dashboard as any)[loader]();
     const cycleRead = h.calls.find((call) => call.read === "academicCycle.findFirst" && call.args?.select?.startDate);
-    assert.deepEqual(cycleRead?.args.where, { schoolId: session.schoolId, campusId: session.campusId, status: "ACTIVE" });
+    const { startDate, ...scope } = cycleRead?.args.where ?? {};
+    assert.deepEqual(scope, { schoolId: session.schoolId, campusId: session.campusId, status: "ACTIVE" });
+    // Only a cycle that has already started, the latest first (two ACTIVE cycles can overlap during rollover).
+    assert.ok(startDate?.lte instanceof Date && startDate.lte.getTime() <= Date.now());
+    assert.deepEqual(cycleRead?.args.orderBy, { startDate: "desc" });
     const tally = h.calls.find((call) => call.read === "attendance.groupBy" && call.args.by.includes("studentId"))!;
     assert.deepEqual(tally.args.where, {
       schoolId: session.schoolId,

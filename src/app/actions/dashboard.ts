@@ -573,7 +573,13 @@ async function attendanceTrendCounts(schoolId: string, campusId: string, now = n
  * year, and earlier years' absences should not pull down this year's rate or flag a pupil as at risk.
  */
 async function attendanceRateSince(schoolId: string, campusId: string, now = new Date()) {
-  const cycle = await prisma.academicCycle.findFirst({ where: { schoolId, campusId, status: "ACTIVE" }, select: { startDate: true } });
+  // The latest ACTIVE cycle that has already started: a campus can briefly hold two ACTIVE cycles during rollover, and
+  // a cycle starting in the future would otherwise show no rate at all.
+  const cycle = await prisma.academicCycle.findFirst({
+    where: { schoolId, campusId, status: "ACTIVE", startDate: { lte: now } },
+    orderBy: { startDate: "desc" },
+    select: { startDate: true },
+  });
   return cycle?.startDate ?? new Date(Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth(), now.getUTCDate()));
 }
 
