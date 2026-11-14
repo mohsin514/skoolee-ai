@@ -12,6 +12,7 @@ import {
 import { created, failFrom, ok } from "@/lib/api/envelope";
 import { daysToTenths, tenthsToDays } from "@/lib/leave";
 import { createLeaveType } from "@/lib/leave/create-type-command";
+import { isLeaveTypeNameClash, leaveTypeNameTaken, parseLeaveTypeDefaultDays } from "@/lib/leave/type-input";
 import { parseBody } from "@/lib/api/validate";
 import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -77,12 +78,18 @@ export async function PATCH(req: NextRequest) {
       const clash = await prisma.leaveType.findFirst({
         where: { campusId: type.campusId, name, NOT: { id: type.id } },
       });
-      if (clash) throw new ApiError(`Leave type "${name}" already exists`, 409);
+      if (clash) throw leaveTypeNameTaken(name);
       data.name = name;
     }
-    if (body.defaultDays !== undefined) data.defaultDays = daysToTenths(Number(body.defaultDays));
+    if (body.defaultDays !== undefined) data.defaultDays = daysToTenths(parseLeaveTypeDefaultDays(body.defaultDays));
 
-    const updated = await prisma.leaveType.update({ where: { id: type.id }, data });
+    let updated;
+    try {
+      updated = await prisma.leaveType.update({ where: { id: type.id }, data });
+    } catch (error) {
+      if (isLeaveTypeNameClash(error)) throw leaveTypeNameTaken(String(data.name ?? type.name));
+      throw error;
+    }
     return ok(updated);
   } catch (error) {
     return failFrom(error, "[leave/types] PATCH failed");
