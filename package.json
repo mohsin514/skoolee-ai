@@ -64,7 +64,7 @@
     "test:exam-board-progress": "node --import ./tests/support/server-only.mjs --import tsx --test tests/exams/exam-board-server-progress.test.ts tests/exams/exam-board-progress-unavailable.test.ts",
     "test:datesheet-latest-snapshot": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/exams/datesheet-latest-snapshot.test.ts",
     "test:exam-session-list-batch": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/academic/exam-session-list-batch.test.ts",
-    "test:exam-counts-scoped": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/exams/exam-counts-scoped.test.ts",
+    "test:exam-counts-scoped": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/exams/exam-counts-scoped.test.ts tests/exams/bulk-schedule-counts.test.ts",
     "test:exam-list-year-scope": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/exams/exam-list-year-scope.test.ts",
     "test:timetable-read-authz": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/timetable/read-authz.test.ts tests/timetable/list-read-authz.test.ts tests/timetable/class-read-unlinked.test.ts tests/timetable/exam-timeline-unlinked.test.ts tests/timetable/list-index-view.test.ts",
     "test:timetable-default-year": "tsx --test tests/timetable/default-year.test.ts tests/timetable/year-load.test.ts",
