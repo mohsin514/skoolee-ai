@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
 
     if (availability.mode === "PROVIDER" && merchantId && apiKey && secretKey) {
       const result = await resolvePaymentProvider("PKR")!.createCheckout({
-        amountMinor: Math.round(invoice.balanceDue * 100),
+        amountMinor: invoice.balanceDue, // already minor units (paisa); the adapter converts to PKR
         currency: "PKR",
         orderRef,
         description: `Fee payment — ${invoice.student.fullName}`,
