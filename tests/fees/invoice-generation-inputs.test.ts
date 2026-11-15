@@ -88,6 +88,14 @@ describe("loadInvoiceGenerationInputs", () => {
     assert.equal(inputs.latestOpenInvoiceByStudent.get("s3")?.balanceDue, 99);
   });
 
+  it("SKAI-2099: carry-forwards are read for students on a legacy per-class structure too", async () => {
+    const data = seed();
+    data.feeCarryForward.push({ id: "cf-old", ...A, studentId: "s3", toAcademicYear: 2026, balance: 120000, currency: "PKR" });
+    const { tx } = fakeTx(data);
+    const inputs = await loadInvoiceGenerationInputs(tx, A, [student("s3", "class-old")], false);
+    assert.equal(inputs.carryForwardByStudentYear.get(classYearKey("s3", 2026))?.balance, 120000);
+  });
+
   it("SKAI-2056: a PARTIAL invoice with an overdue balance is picked up for late fees", async () => {
     const data = seed();
     data.invoice.push({ schoolId: A.schoolId, studentId: "s4", status: "PARTIAL", currency: "PKR", dueDate: new Date("2026-09-30Z"), balanceDue: 450000 });

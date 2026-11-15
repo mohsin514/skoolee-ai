@@ -20,6 +20,7 @@ const state = {
   lastDocNumber: null as string | null,
   oneTime: {} as Record<string, number>,
   billedEnrollments: new Set<string>(),
+  carry: new Map<string, { balance: number }>(),
 };
 const activation = {
   id: "act-1", schoolId: "school-a", packageCode: "SA-DEMO", packageVersion: 1, currency: "SAR", exemptFeeCodes: [] as string[],
@@ -98,7 +99,7 @@ mock.module("@/lib/locale/store", { namedExports: { getLocalePackage: async () =
 mock.module("@/lib/fees/invoice-generation-inputs", {
   namedExports: {
     classYearKey: (a: string, b: string) => `${a}|${b}`,
-    loadInvoiceGenerationInputs: async () => ({ assignmentByClassYear: new Map(), categoryDiscountsByCategory: new Map(), explicitDiscountsByStudent: new Map(), carryForwardByStudentYear: new Map(), latestOpenInvoiceByStudent: new Map() }),
+    loadInvoiceGenerationInputs: async () => ({ assignmentByClassYear: new Map(), categoryDiscountsByCategory: new Map(), explicitDiscountsByStudent: new Map(), carryForwardByStudentYear: state.carry, latestOpenInvoiceByStudent: new Map() }),
     memoByKey: <T>(load: (k: string) => Promise<T>) => { const cache = new Map<string, Promise<T>>(); return (k: string) => { if (!cache.has(k)) cache.set(k, load(k)); return cache.get(k)!; }; },
   },
 });
@@ -127,7 +128,7 @@ beforeEach(() => {
   state.user = { userId: "acc-a", role: "ACCOUNTANT", schoolId: "school-a", campusId: "campus-a1", fullName: "QA Accountant" };
   state.ops = []; state.invoices = []; state.docs = []; state.seqIncrements = []; state.campusReads = []; state.locks = [];
   state.lastDocNumber = "SAD-000041";
-  state.oneTime = {}; state.billedEnrollments = new Set();
+  state.oneTime = {}; state.billedEnrollments = new Set(); state.carry = new Map();
   state.students = roster(5, "campus-a1");
 });
 
@@ -208,4 +209,12 @@ test("SKAI-2061: a legacy one-time fee is billed on the first invoice only, not 
   assert.equal(byStudent.get("stu-0000")!.subtotal, 200000);
   assert.equal(byStudent.get("stu-0001")!.oneTimeFees, 0);
   assert.equal(byStudent.get("stu-0001")!.subtotal, 100000);
+});
+
+test("SKAI-2099: a per-class student with a carry-forward balance (owed or credit) is refused, not billed without it", async () => {
+  state.carry = new Map([["stu-0000|2026-2027", { balance: 120000 }], ["stu-0001|2026-2027", { balance: -80000 }], ["stu-0003|2026-2027", { balance: 0 }]]);
+  const r = await generate();
+  const refused = r.body.errors.filter((e: Row) => e.error === "Review carry-forward allocation before generating another invoice.").map((e: Row) => e.studentId);
+  assert.deepEqual(refused, ["stu-0000", "stu-0001"]);
+  assert.deepEqual(state.invoices.map(i => i.studentId), ["stu-0003", "stu-0004"]);
 });
