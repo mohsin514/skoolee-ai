@@ -151,3 +151,15 @@ test("a correction is a reviewed new version; adopters keep theirs until they ac
   await assert.rejects(() => ctx(teacherB2, () => adoptQuestion(teacherB2, v2.id)), /Only a published, reviewed version/);
   assert.equal(await raw.schoolAiRevision.count({ where: { schoolId: A.id } }), papersBefore, "no paper or delivered assessment was changed");
 });
+
+test("SKAI-2214: a leader of another campus in the same school neither sees nor withdraws the contribution", async () => {
+  const campus2 = randomUUID();
+  await raw.campus.create({ data: { id: campus2, schoolId: A.id, name: "Synthetic 2", regId: campus2, city: "Synthetic" } });
+  const principal2: AuthUser = { userId: randomUUID(), schoolId: A.id, campusId: campus2, role: "PRINCIPAL", email: `${randomUUID()}@example.invalid` };
+  await raw.user.create({ data: { id: principal2.userId, schoolId: A.id, campusId: campus2, role: "PRINCIPAL", email: principal2.email, fullName: "Other campus principal" } });
+  const item = await raw.questionNetworkItem.findFirstOrThrow({ where: { contributorSchoolId: A.id, contributorCampusId: A.campusId } });
+  const overview = await ctx(principal2, () => networkOverview(principal2));
+  assert.equal(overview.contributions.some((i) => i.contributorCampusId === A.campusId), false);
+  await assert.rejects(() => ctx(principal2, () => withdrawQuestion(principal2, item.id, { reason: "Not my campus at all." })), { status: 404 });
+  assert.ok((await ctx(principalA, () => networkOverview(principalA))).contributions.length > 0, "own campus still sees it");
+});

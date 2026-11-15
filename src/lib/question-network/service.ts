@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, assertPermission } from "@/lib/api/scope";
+import { campusScope } from "@/lib/auth/policy";
 import { approvedQuestionForSharing } from "@/lib/school-ai/question-bank-service";
 
 /**
@@ -58,7 +59,8 @@ type Item = Awaited<ReturnType<typeof prisma.questionNetworkItem.findFirstOrThro
 /** Who may see an item: its own school always; others only once it is in review or published, within
  * its audience and network, and never before its embargo ends. */
 function visible(user: AuthUser, item: Item, networks: Set<string>, now = new Date()) {
-  if (item.contributorSchoolId === user.schoolId) return true;
+  // SKAI-2214: inside the school, a campus-scoped user sees only their own campus's contributions, as with the source paper.
+  if (item.contributorSchoolId === user.schoolId) { const scope = campusScope(user); return !scope.campusId || !item.contributorCampusId || item.contributorCampusId === scope.campusId; }
   if (!["IN_REVIEW", "PUBLISHED", "SUPERSEDED", "WITHDRAWN"].includes(item.status)) return false;
   if (item.embargoUntil && item.embargoUntil > now) return false;
   if (item.audience === "PUBLIC") return true;
