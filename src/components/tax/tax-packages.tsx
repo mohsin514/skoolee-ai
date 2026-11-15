@@ -100,7 +100,13 @@ export function TaxPackages({ mode = "draft", hideHeader = false, command }: { m
   const startEdit = (a: Activation) => { setEditing(a.id); setRunResult(null); setForm({ packageCode: a.packageCode, packageVersion: String(a.packageVersion), campusIds: a.campusIds, legalName: a.legalName, taxId: a.taxId ?? "", exemptFeeCodes: a.exemptFeeCodes, effectiveFrom: a.effectiveFrom ? a.effectiveFrom.slice(0, 10) : "", ownerId: a.ownerId ?? "", evidenceReviewer: a.evidenceReviewer ?? "", evidenceReference: a.evidenceReference ?? "", evidenceReviewedAt: a.evidenceReviewedAt ? a.evidenceReviewedAt.slice(0, 10) : "" }); };
   const drafting = mode === "draft" && data.canManage;
   const approving = mode === "approve" && data.canApprove === true;
-  const payload = () => ({ ...form, packageVersion: Number(form.packageVersion), effectiveFrom: form.effectiveFrom ? new Date(`${form.effectiveFrom}T00:00:00Z`).toISOString() : null, evidenceReviewedAt: form.evidenceReviewedAt ? new Date(`${form.evidenceReviewedAt}T00:00:00Z`).toISOString() : null, ...(editing ? { id: editing } : {}) });
+  // SKAI-2145: a 5- or 6-digit year from the date input becomes a field message, not "Invalid time value".
+  const isoDay = (day: string, message: string) => {
+    if (!day) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(`${day}T00:00:00Z`))) throw new Error(message);
+    return new Date(`${day}T00:00:00Z`).toISOString();
+  };
+  const payload = () => ({ ...form, packageVersion: Number(form.packageVersion), effectiveFrom: isoDay(form.effectiveFrom, ui("Choose a valid effective date.")), evidenceReviewedAt: isoDay(form.evidenceReviewedAt, ui("Choose a valid evidence review date.")), ...(editing ? { id: editing } : {}) });
   return <div className="min-w-0 space-y-6" data-tax-packages>
     <ConfirmAction
       open={Boolean(signing)}
