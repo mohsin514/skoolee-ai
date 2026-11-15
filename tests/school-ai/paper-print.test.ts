@@ -41,3 +41,11 @@ test("long prompts remain flowable and all supported languages have candidate-on
     assert.match(html, /@bottom-center/);
   }
 });
+
+test("SKAI-2079: each section heading is kept with its first question", () => {
+  const { paper } = assessmentFixture();
+  const html = buildCandidatePaperHtml(paper, 1);
+  const starts = html.match(/<div class="section-start"><header class="section-heading">[\s\S]*?<\/header><article class="question/g) ?? [];
+  assert.equal(starts.length, paper.blueprint.sections.filter(section => paper.questions.some(question => question.sectionId === section.id)).length);
+  assert.match(html, /\.section-heading \{[^}]*break-inside: avoid/);
+});
