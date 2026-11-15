@@ -24,3 +24,9 @@ test("SKAI-1443: the advisory lock is taken before the replay check", () => {
   const tx = core.slice(core.indexOf("prisma.$transaction(async (tx) => {"));
   assert.ok(tx.indexOf("pg_advisory_xact_lock") < tx.indexOf("replay(tx)"));
 });
+
+test("SKAI-2053: a duplicate payment reference is a 409 and the form no longer pre-fills the invoice number", () => {
+  assert.match(core, /\/reference\/i\.test\(target\)\) throw conflict\(.*DUPLICATE_PAYMENT_REFERENCE/);
+  const ui = readFileSync("src/components/fees/FeePaymentsTab.tsx", "utf8");
+  assert.doesNotMatch(ui, /setReferenceNumber\([^)]*invoiceNumber/);
+});

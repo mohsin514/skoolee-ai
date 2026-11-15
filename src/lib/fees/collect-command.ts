@@ -204,6 +204,8 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
         const winner = await replay();
         if (winner) return winner;
       }
+      // SKAI-2053: the same reference twice on one campus-day is a clear 409 naming the reference, not a 500.
+      if (/reference/i.test(target)) throw conflict(`A payment with reference "${referenceNumber}" was already recorded today. Use a different reference, or leave it blank.`, "DUPLICATE_PAYMENT_REFERENCE");
       if (/workflow_?handoff/i.test(target)) throw conflict("This prepared collection was already recorded. Check its receipt before recording again.", "HANDOFF_ALREADY_POSTED");
     }
     throw error;
