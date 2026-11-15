@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
-import { createCategory, createRequest, listCategories, myRequests, queue, suggestCategory } from "@/lib/service-desk/service";
+import { assertHasCampus, createCategory, createRequest, listCategories, myRequests, queue, suggestCategory } from "@/lib/service-desk/service";
 import { tell } from "@/lib/service-desk/notify";
 
 export const runtime = "nodejs";
@@ -10,6 +10,7 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
+    assertHasCampus(user);
     const params = request.nextUrl.searchParams, view = params.get("view") ?? "mine";
     const headers = { "Cache-Control": "private, no-store" };
     if (view === "mine") { const page = await myRequests(user, params.get("cursor")); return Response.json({ success: true, data: page.requests, nextCursor: page.nextCursor }, { headers }); }
