@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { campusBillingCurrency } from "@/app/api/fees/reports/invoice-currency";
 import { ApiError, resolveCampusId } from "@/lib/api/scope";
+import { MAX_INVOICE_MINOR } from "@/lib/school-ai/fee-invoices";
 
 /** The route's code normalisation: trimmed, upper case, spaces as underscores ("sibling 10" → "SIBLING_10"). */
 export const discountCode = (value: unknown) => String(value ?? "").trim().toUpperCase().replace(/\s+/g, "_");
@@ -19,6 +20,13 @@ export function sameDiscount(row: { name: string; type: string; value: number; c
   return row.name === input.name && row.type === input.type && row.value === input.value && (row.categoryId ?? null) === (input.categoryId ?? null);
 }
 
+/** Shared by create and PATCH: the column is INT4, so an oversized value must be a 400, never a DB 500. */
+export function assertDiscountValue(type: string, value: number) {
+  if (!Number.isInteger(value) || value < 0) throw new ApiError("value must be a non-negative integer", 400);
+  if (type === "PERCENT" && value > 100) throw new ApiError("percent discount cannot exceed 100", 400);
+  if (value > MAX_INVOICE_MINOR) throw new ApiError("Amount is too large", 400);
+}
+
 export async function createDiscount(user: AuthUser, body: Record<string, unknown>) {
   const campusId = await resolveCampusId(user, body.campusId as string | null | undefined);
   const name = String(body.name ?? "").trim();
@@ -29,8 +37,7 @@ export async function createDiscount(user: AuthUser, body: Record<string, unknow
   if (type !== "PERCENT" && type !== "FLAT") throw new ApiError("type must be PERCENT or FLAT", 400);
 
   const value = Number(body.value);
-  if (!Number.isInteger(value) || value < 0) throw new ApiError("value must be a non-negative integer", 400);
-  if (type === "PERCENT" && value > 100) throw new ApiError("percent discount cannot exceed 100", 400);
+  assertDiscountValue(type, value);
 
   if (body.categoryId) {
     const category = await prisma.studentCategory.findFirst({ where: { id: String(body.categoryId), campusId } });
