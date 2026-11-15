@@ -16,20 +16,26 @@ function cleanOptionalText(value: unknown) {
   return trimmed.length ? trimmed : null;
 }
 
-function cleanProfileImage(value: unknown) {
+/** SKAI-2192: a stored photo key must sit under this user's own upload prefix (what /api/uploads/presign issues). */
+const ownImagePrefix = (owner: { schoolId: string; userId: string }) => `profile-images/${owner.schoolId}/${owner.userId}/`;
+function cleanProfileImage(value: unknown, owner: { schoolId: string; userId: string }) {
   if (value === null) return null;
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  if (/^profile-images\/\S+$/i.test(trimmed)) return trimmed;
+  if (/^profile-images\//i.test(trimmed)) {
+    if (!trimmed.startsWith(ownImagePrefix(owner)) || trimmed.includes("..") || /\s/.test(trimmed)) throw new ApiError("That photo upload does not belong to your account.", 400);
+    return trimmed;
+  }
   if (trimmed.length > 5_000_000) throw new ApiError("Profile image is too large", 413);
   if (/^https?:\/\/\S+$/i.test(trimmed)) return trimmed;
   if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(trimmed)) return trimmed;
   throw new ApiError("Use an image upload, data image, or a valid image URL", 400);
 }
 
-function isS3Key(value: string | null): value is string {
-  return !!value && value.startsWith("profile-images/");
+/** Only this user's own uploads are ever deleted on replace; a key stored before SKAI-2192 elsewhere is left alone. */
+function isOwnS3Key(value: string | null, owner: { schoolId: string; userId: string }): value is string {
+  return !!value && value.startsWith(ownImagePrefix(owner)) && !value.includes("..");
 }
 
 /**
@@ -144,12 +150,12 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (body.profileImageUrl !== undefined) {
-      data.profileImageUrl = cleanProfileImage(body.profileImageUrl);
+      data.profileImageUrl = cleanProfileImage(body.profileImageUrl, session);
     }
 
     // SKAI-1655: the replaced photo is removed only after the profile update commits, so a failed save keeps it.
     const prevImage = currentUser?.profileImageUrl ?? null;
-    const replacedImage = data.profileImageUrl !== undefined && isS3Key(prevImage) && prevImage !== data.profileImageUrl ? prevImage : null;
+    const replacedImage = data.profileImageUrl !== undefined && isOwnS3Key(prevImage, session) && prevImage !== data.profileImageUrl ? prevImage : null;
 
     const user = await prisma.user.update({
       where: { id: session.userId },
