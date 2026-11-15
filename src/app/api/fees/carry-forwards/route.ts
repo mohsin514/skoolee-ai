@@ -4,7 +4,7 @@ import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
+import { ApiError, assertFeesRead, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { requiredIdBody } from "@/lib/validators/route-bodies";
 
@@ -14,15 +14,18 @@ import { requiredIdBody } from "@/lib/validators/route-bodies";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // SKAI-2033: fee setup is finance data; staff without fees.view (and every family) are refused.
+    await assertFeesRead(user);
     const { searchParams } = new URL(req.url);
     const studentId = searchParams.get("studentId");
     const academicYear = searchParams.get("academicYear");
+    const campusId = user.role === "SUPER_ADMIN" ? searchParams.get("campusId") : user.campusId;
 
     const forwards = await prisma.feeCarryForward.findMany({
       where: {
         ...(studentId ? { studentId } : {}),
         ...(academicYear ? { toAcademicYear: Number(academicYear) } : {}),
-        student: { campus: { schoolId: user.schoolId } },
+        ...scopedCampusWhere(user, campusId),
       },
       include: { student: { select: { id: true, fullName: true, rollNo: true } } },
       orderBy: [{ toAcademicYear: "desc" }],

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { feeStructureSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
+  assertFeesRead,
   assertPermission,
   canManageFinance,
   errorResponse,
@@ -19,6 +20,8 @@ import { jsonObjectBody } from "@/lib/validators/route-bodies";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // SKAI-2033: fee setup is finance data; staff without fees.view (and every family) are refused.
+    await assertFeesRead(user);
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
     const classId = searchParams.get("classId");
