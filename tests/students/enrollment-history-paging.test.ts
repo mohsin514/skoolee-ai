@@ -37,7 +37,7 @@ mock.module("@/lib/validators/route-bodies", { namedExports: { jsonObjectBody: {
 mock.module("@/lib/students/enrollment", {
   namedExports: {
     applyEnrollment: async () => ({}), applyReadmission: async () => ({}), assertPlacementTarget: async () => ({}),
-    assertRegistrar: async () => {}, canPlaceAcrossCampuses: () => false, dateOnly: (v: unknown) => v,
+    assertRegistrar: async () => {}, canPlaceAcrossCampuses: () => false, canReadPupilFees: async () => true, dateOnly: (v: unknown) => v,
     enrollmentHistoryWhere: () => ({ attendance: {}, invoices: {}, reports: {} }),
     enrollmentImpact: async () => ({}),
     readPupil: async () => ({ enrollments: [{ id: "enr-1" }] }),
@@ -94,4 +94,15 @@ test("following the cursor reaches every historical row once", async () => {
 test("class history orders same-day placements deterministically", () => {
   const source = readFileSync("src/lib/students/enrollment.ts", "utf8");
   assert.match(source, /enrollments: \{ orderBy: \[\{ startDate: "desc" \}, \{ endDate: \{ sort: "desc", nulls: "first" \} \}, \{ id: "desc" \}\]/);
+});
+
+// SKAI-2011: staff without fees.view get no invoice rows or totals from the enrollment history.
+test("invoices are withheld from staff without fees.view", () => {
+  const route = readFileSync("src/app/api/students/enrollments/route.ts", "utf8");
+  const lib = readFileSync("src/lib/students/enrollment.ts", "utf8");
+  assert.match(route, /const feesVisible = await canReadPupilFees\(user\)/);
+  assert.match(route, /!feesVisible \? Promise\.resolve\(\[\]\) : prisma\.invoice\.findMany/);
+  assert.match(route, /!feesVisible \? Promise\.resolve\(0\) : prisma\.invoice\.count/);
+  assert.match(lib, /try \{ await assertFeesRead\(user\); return true; \}/);
+  assert.match(lib, /feesVisible \? prisma\.invoice\.groupBy/);
 });
