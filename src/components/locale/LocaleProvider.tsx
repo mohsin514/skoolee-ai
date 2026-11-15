@@ -34,7 +34,7 @@ export function useLocaleFormat() {
  const locale = useLocale();
  return useMemo(() => ({
   money: (minor: number, currency = "PKR") => formatMoney({ minor, currency }, locale),
-  date: (value: string | Date | null | undefined) => value ? formatDateOnly((value instanceof Date ? value.toISOString() : value).slice(0, 10), locale) : "—",
+  date: (value: string | Date | null | undefined) => { if (!value) return "—"; const raw = (value instanceof Date ? value.toISOString() : value).slice(0, 10); try { return formatDateOnly(raw, locale); } catch { return raw; } }, // SKAI-2112: a bad stored date degrades instead of crashing the page
   // Date and time in the school's timezone and language (SKO-466 visitor arrivals and departures).
   dateTime: (value: string | Date | null | undefined) => value ? formatInstant(value, locale) : "—",
   // Plain numbers in the school's numbering system (SKO-461 evidence values).
