@@ -78,7 +78,7 @@ export async function updateClassWithTeacherAssignmentTx(tx: TxClient, user: Aut
   if (body.section !== undefined) data.section = body.section ? String(body.section).trim() : null;
   if (body.academicYear !== undefined) {
     const academicYear = Number(body.academicYear);
-    if (!Number.isInteger(academicYear)) throw new ApiError("A valid academic year is required", 400);
+    if (!Number.isInteger(academicYear) || academicYear < 2000 || academicYear > 2100) throw new ApiError("Academic year must be a whole year between 2000 and 2100", 400);
     if (academicYear !== existing.academicYear && await tx.timetable.count({ where: { schoolId: user.schoolId, campusId: existing.campusId, classId: id } })) throw new ApiError("A class with timetables cannot move to another academic year. Create the new year's class instead.", 409);
     data.academicYear = academicYear;
   }
