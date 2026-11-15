@@ -67,6 +67,7 @@ import {
 } from "lucide-react";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { apiErrorMessage } from "@/lib/errors";
+import { apiFieldErrors, type StudentEditFieldErrors } from "@/lib/students/profile-update";
 import { downloadCSV } from "@/lib/csv";
 import { getCampusDashboardData } from "@/app/actions/dashboard";
 import { createLatestOnlyLoader, mergeStudentEdit, mergeSubjectEdit, mergeTeacherEdit } from "@/lib/dashboard/console-data-merge";
@@ -822,13 +823,18 @@ export default function CampusConsolePage() {
     }
   };
 
-  const handleUpdateStudent = async (studentId: string, updates: Record<string, any>) => {
+  const handleUpdateStudent = async (studentId: string, updates: Record<string, any>): Promise<void | StudentEditFieldErrors> => {
     setSavingStudentUpdate(true);
     const failed = ui("Could not save the student's changes. Please try again.");
     try {
       const res = await fetch("/api/students", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: studentId, ...updates }) });
       const result = await res.json();
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      if (!res.ok) {
+        // SKAI-2094: a 400 that names fields is shown on those fields, not only as a generic toast.
+        const fields = res.status === 400 ? apiFieldErrors(result.details) : {};
+        if (Object.keys(fields).length) { toast.error(ui("Please correct the highlighted fields.")); return fields; }
+        throw new Error(apiErrorMessage(result.error, failed));
+      }
       toast.success(ui("Student updated"));
       setSelectedStudent((current: any) => (current?.id === studentId ? { ...current, ...result.data } : current));
       await applyLocalEdit((current) => mergeStudentEdit(current, studentId, result.data));

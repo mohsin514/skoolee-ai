@@ -100,6 +100,7 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { RestoreStudentDialog } from "./restore-student-dialog";
 import { TeacherPicker, useTeacherAvailability } from "@/components/shared-admin/teacher-picker";
 import { Input as SystemInput } from "@/components/ui/input";
+import { studentEditFieldErrors, type StudentEditFieldErrors } from "@/lib/students/profile-update";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
@@ -1827,7 +1828,7 @@ export function StudentDetailModal({
   onClose: () => void;
   onMove: () => void;
   onDelete: (student: any) => void;
-  onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void>;
+  onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void | StudentEditFieldErrors>;
   /** M34: opens Guardians & access for this child (replaces the retired "Parent Portal Link", D14). */
   onOpenGuardians?: () => void;
   /** Read-only profile (principal): no Move, Archive, status change or Edit controls. */
@@ -1912,7 +1913,12 @@ export function StudentDetailModal({
   useEffect(() => { setEdits(studentDraftValues(student)); }, [student.id, full]);
 
   const ed = (field: string) => edits[field] || "";
-  const setEd = (field: string, value: string) => setEdits((p) => ({ ...p, [field]: value }));
+  const [fieldErrors, setFieldErrors] = useState<StudentEditFieldErrors>({});
+  const setEd = (field: string, value: string) => {
+    setEdits((p) => ({ ...p, [field]: value }));
+    setFieldErrors((p) => (p[field] ? { ...p, [field]: undefined } : p));
+  };
+  const fieldError = (field: string) => (fieldErrors[field] ? ui(fieldErrors[field] as string) : undefined);
 
   const saveEdits = async () => {
     // SKAI-1149: normalise regulator IDs first, so a typed "784199..." matches the dashed value the server stores.
@@ -1920,6 +1926,10 @@ export function StudentDetailModal({
     try { next = { ...edits, emiratesId: parseEmiratesId(edits.emiratesId) ?? "", regulatorId: parseRegulatorId(edits.regulatorId) ?? "" }; }
     catch (error) { toast.error(ui((error as Error).message)); return; }
     setEdits(next);
+    // SKAI-2094: a blank name or roll, a bad guardian email or a future birth date is stopped here and marked on its field.
+    const invalid = studentEditFieldErrors(next);
+    setFieldErrors(invalid);
+    if (Object.keys(invalid).length) { toast.error(ui("Please correct the highlighted fields.")); return; }
     const updates: Record<string, any> = {};
     const strFields = [
       "fullName", "nameUr", "gender", "bloodType", "nationality", "emiratesId", "regulatorId", "phone",
@@ -1935,7 +1945,8 @@ export function StudentDetailModal({
     updates.groupId = next.groupId || null;
     updates.expectedValues = pupilDraft.baseline;
     try {
-      await onUpdate(student.id, updates);
+      const rejected = await onUpdate(student.id, updates);
+      if (rejected && Object.keys(rejected).length) { setFieldErrors(rejected); return; }
       // Some legacy callers catch their own request failure. Verify durability
       // before deleting the only recoverable copy of the input.
       const response = await fetch(`/api/students/${student.id}`, { cache: "no-store" });
@@ -2114,7 +2125,7 @@ export function StudentDetailModal({
       {editing ? (
         <div className="mb-5 space-y-3 rounded-[24px] border border-edge/25 bg-surface-subtle p-5">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormInput label={ui("Full name (English)")} value={ed("fullName")} placeholder={ui("Student name")} onChange={(v) => setEd("fullName", v)} />
+            <FormInput label={ui("Full name (English)")} value={ed("fullName")} placeholder={ui("Student name")} onChange={(v) => setEd("fullName", v)} error={fieldError("fullName")} />
             <FormInput label={ui("Full name (Urdu)")} value={ed("nameUr")} placeholder="اردو نام" onChange={(v) => setEd("nameUr", v)} />
           </div>
           <div>
@@ -2150,7 +2161,7 @@ export function StudentDetailModal({
             <div className="mt-4 space-y-3">
               {/* A real date picker — this used to be a free-text box that
                   silently dropped anything not typed as YYYY-MM-DD. */}
-              <FormInput label={ui("Date of Birth")} type="date" value={ed("dateOfBirth")} placeholder={ui("YYYY-MM-DD")} onChange={(v) => setEd("dateOfBirth", v)} />
+              <FormInput label={ui("Date of Birth")} type="date" value={ed("dateOfBirth")} placeholder={ui("YYYY-MM-DD")} onChange={(v) => setEd("dateOfBirth", v)} error={fieldError("dateOfBirth")} />
               {/* SKAI-164: gender is required on the record, so there is no blank option the server could not save. */}
               <FormSelect label={ui("Gender")} value={ed("gender")} onChange={(v) => setEd("gender", v)}>
                 <option value="MALE">{ui("Male")}</option>
@@ -2226,7 +2237,7 @@ export function StudentDetailModal({
               </FormSelect>
               <FormInput label={ui("Occupation")} value={ed("guardianOccupation")} placeholder={ui("Occupation")} onChange={(v) => setEd("guardianOccupation", v)} />
               <FormInput label={ui("Phone")} value={ed("guardianPhone")} placeholder={ui("Guardian phone")} onChange={(v) => setEd("guardianPhone", v)} />
-              <FormInput label={ui("Email")} value={ed("guardianEmail")} placeholder={ui("Guardian email")} onChange={(v) => setEd("guardianEmail", v)} />
+              <FormInput label={ui("Email")} value={ed("guardianEmail")} placeholder={ui("Guardian email")} onChange={(v) => setEd("guardianEmail", v)} error={fieldError("guardianEmail")} />
             </div>
           ) : (
             <div className="mt-4 space-y-3">
@@ -2349,7 +2360,7 @@ export function StudentAdmissionsPanel({
 }: {
   student: any;
   tab: "siblings" | "documents" | "timeline";
-  onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void>;
+  onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void | StudentEditFieldErrors>;
   version: number;
   onVersionBump: () => void;
 }) {
@@ -3668,12 +3679,15 @@ export function FormInput({
   placeholder,
   type = "text",
   onChange,
+  error,
 }: {
   label: string;
   value: string;
   placeholder: string;
   type?: string;
   onChange: (value: string) => void;
+  /** SKAI-2094: the message for this field, shown beside it and announced. */
+  error?: string;
 }) {
   return (
     <label className="block group/input">
@@ -3683,8 +3697,10 @@ export function FormInput({
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
+        aria-invalid={error ? true : undefined}
         className="h-14 w-full px-4 transition-all duration-250"
       />
+      {error ? <span role="alert" className="mt-1 block text-xs font-semibold text-status-danger-text">{error}</span> : null}
     </label>
   );
 }
