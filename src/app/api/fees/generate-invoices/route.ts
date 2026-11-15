@@ -261,7 +261,8 @@ export async function POST(req: NextRequest) {
           totalAmount,
           totalAmountPaid: 0,
           balanceDue: totalAmount,
-          status: "PENDING",
+          // SKAI-2024: a fully discounted charge owes nothing, so it is settled like an adjustment that brings the balance to 0.
+          status: totalAmount === 0 ? "PAID" : "PENDING",
         },
       });
       results.push({ studentId: student.id, status: "generated" });

@@ -19,6 +19,7 @@ const state = {
   locks: [] as unknown[],
   lastDocNumber: null as string | null,
   oneTime: {} as Record<string, number>,
+  discountRules: {} as Record<string, number>,
   billedEnrollments: new Set<string>(),
   carry: new Map<string, { balance: number }>(),
 };
@@ -28,7 +29,7 @@ const activation = {
 };
 const tx = {
   student: { findMany: async ({ where }: { where: Row }) => { state.ops.push("student.findMany"); assert.equal(where.schoolId, state.user.schoolId); return state.students; } },
-  feeStructure: { findMany: async () => { state.ops.push("feeStructure.findMany"); return [{ classId: "class-1", currency: "SAR", monthlyFee: 100000, oneTimeFeesJson: state.oneTime, discountRulesJson: {}, taxPercentage: 0, approvedFee: null, approvedFeeReference: null }]; } },
+  feeStructure: { findMany: async () => { state.ops.push("feeStructure.findMany"); return [{ classId: "class-1", currency: "SAR", monthlyFee: 100000, oneTimeFeesJson: state.oneTime, discountRulesJson: state.discountRules, taxPercentage: 0, approvedFee: null, approvedFeeReference: null }]; } },
   school: { findUnique: async () => { state.ops.push("school.findUnique"); return { feeCapMode: "OFF" }; } },
   studentEnrollment: {
     findMany: async ({ where }: { where: { schoolId: string; campusId: string } }) => {
@@ -128,7 +129,7 @@ beforeEach(() => {
   state.user = { userId: "acc-a", role: "ACCOUNTANT", schoolId: "school-a", campusId: "campus-a1", fullName: "QA Accountant" };
   state.ops = []; state.invoices = []; state.docs = []; state.seqIncrements = []; state.campusReads = []; state.locks = [];
   state.lastDocNumber = "SAD-000041";
-  state.oneTime = {}; state.billedEnrollments = new Set(); state.carry = new Map();
+  state.oneTime = {}; state.discountRules = {}; state.billedEnrollments = new Set(); state.carry = new Map();
   state.students = roster(5, "campus-a1");
 });
 
@@ -217,4 +218,16 @@ test("SKAI-2099: a per-class student with a carry-forward balance (owed or credi
   const refused = r.body.errors.filter((e: Row) => e.error === "Review carry-forward allocation before generating another invoice.").map((e: Row) => e.studentId);
   assert.deepEqual(refused, ["stu-0000", "stu-0001"]);
   assert.deepEqual(state.invoices.map(i => i.studentId), ["stu-0003", "stu-0004"]);
+});
+
+test("SKAI-2024: a fully discounted pupil gets a PAID zero invoice, others stay PENDING", async () => {
+  state.students = roster(2, "campus-a1");
+  state.discountRules = { scholarship: 100 };
+  const full = await generate();
+  assert.equal(full.status, 201);
+  assert.deepEqual(state.invoices.map(i => [i.totalAmount, i.balanceDue, i.status]), [[0, 0, "PAID"], [0, 0, "PAID"]]);
+  state.invoices = [];
+  state.discountRules = { scholarship: 50 };
+  await generate();
+  assert.deepEqual(state.invoices.map(i => [i.totalAmount, i.status]), [[57500, "PENDING"], [57500, "PENDING"]]);
 });
