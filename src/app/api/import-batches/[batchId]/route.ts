@@ -296,6 +296,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
           if (!claimed.count) throw new ApiError("This batch was already reversed", 409);
           const changed = await tx.bankReconciliation.updateMany({ where: { id: reconciliation.id, schoolId: user.schoolId, campusId: batch.campusId, status: "pending" }, data: { status: "reversed" } });
           if (!changed.count) throw new ApiError("Reconciliation changed during reversal; recheck its dependencies", 409);
+          // SKAI-2125: release the transaction keys nothing was posted against, so a corrected statement can import them again.
+          await tx.bankTransactionKey.deleteMany({ where: { reconciliationId: reconciliation.id, schoolId: user.schoolId, campusId: batch.campusId, paymentId: null } });
           const newReceipt = { ...(receipt || {}), reversal: { state: "REVERSED", reversedAt: reversedAt.toISOString(), actorId: user.userId, reconciliationId: reconciliation.id } };
           const result = await tx.importBatch.update({ where: { id: batch.id }, data: { state: "REVERSED", reversedAt, receipt: newReceipt as Prisma.InputJsonValue } });
           await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "import_batch", recordId: batch.id, oldValue: { state: "COMMITTED" }, newValue: { action: "REVERSED", reconciliationId: reconciliation.id }, userId: user.userId } });
