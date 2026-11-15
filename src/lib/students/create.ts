@@ -156,7 +156,9 @@ export async function createStudentRecords(user: AuthUser, req: NextRequest, opt
       where: {
         id: { in: classIds },
         campus: { schoolId: user.schoolId },
-        ...(importBatch ? { status: "ACTIVE", archivedAt: null } : {}),
+        // An archived or inactive class never takes a new admission, on every path (import and single add).
+        status: "ACTIVE",
+        archivedAt: null,
         ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId || "" }),
       },
       select: { id: true, campusId: true, name: true, section: true, campus: { select: { name: true } } },
