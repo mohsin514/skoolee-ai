@@ -371,14 +371,16 @@ function PrincipalWorkspace({
     }
   };
 
-  const handleUpdateSubject = async (_classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => {
+  const handleUpdateSubject = async (_classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }): Promise<boolean> => {
     setSavingSubjectUpdateId(subjectId);
     try {
       await patchJson("/api/subjects", { id: subjectId, ...updates });
       toast.success(ui("Subject updated"));
       await reload();
+      return true;
     } catch (e) {
       toast.error(friendlyErrorMessage(e, ui("Could not save the subject. Please try again.")));
+      return false;
     } finally {
       setSavingSubjectUpdateId(null);
     }

@@ -169,7 +169,7 @@ export async function updateSubjectWithTeacherAssignmentTx(tx: TxClient, user: A
   }
   if (data.name !== undefined || data.classId !== undefined) {
     const duplicate = await findDuplicateSubject(tx, (data.classId as string | undefined) ?? existing.classId, (data.name as string | undefined) ?? existing.name, id);
-    if (duplicate) throw new ApiError(`${duplicate.name} already exists in that class (subject ${duplicate.id}).`, 409);
+    if (duplicate) throw new ApiError(`${duplicate.name} already exists in this class. Choose a different name.`, 409);
   }
   if (teacherProvided) await requireScheduleEdit(tx, user, existing.campusId, [id], grants);
   const subject = await tx.subject.update({ where: { id }, data, include: { class: { select: { id: true, name: true, section: true } }, teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } } } });

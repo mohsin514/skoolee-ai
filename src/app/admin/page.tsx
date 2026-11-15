@@ -873,7 +873,7 @@ export default function CampusConsolePage() {
     }
   };
 
-  const handleUpdateSubject = async (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number; code?: string; isElective?: boolean; archived?: boolean }) => {
+  const handleUpdateSubject = async (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number; code?: string; isElective?: boolean; archived?: boolean }): Promise<boolean> => {
     setSavingSubjectUpdateId(subjectId);
     const failed = ui("Could not save the subject changes. Please try again.");
     try {
@@ -883,8 +883,10 @@ export default function CampusConsolePage() {
       toast.success(ui("Subject updated"));
       const nextData = await applyLocalEdit((current) => mergeSubjectEdit(current, classId, subjectId, updates, result.data));
       syncSelectedClass(nextData, classId);
+      return true;
     } catch (error) {
       toast.error(friendlyErrorMessage(error, failed));
+      return false;
     } finally {
       setSavingSubjectUpdateId(null);
     }
