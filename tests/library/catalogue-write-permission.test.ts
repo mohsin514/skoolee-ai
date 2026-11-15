@@ -23,9 +23,10 @@ mock.module("@/lib/db/prisma", { namedExports: { prisma: {
 mock.module("@/lib/school-ai/transaction", { namedExports: { schoolAiTransaction: async () => { writes.push("rename"); return {}; } } });
 
 const user = { userId: "u1", role: "PRINCIPAL", schoolId: "s1", campusId: "campus-1" } as never;
-const cmd = await import("@/lib/library/catalogue-command");
+const load = () => import("@/lib/library/catalogue-command");
 
 test("matrix denial blocks every catalogue write before touching the database", async () => {
+  const cmd = await load();
   denied = true; writes.length = 0;
   const calls = [
     () => cmd.createCategory(user, { name: "x" }),
@@ -39,6 +40,7 @@ test("matrix denial blocks every catalogue write before touching the database", 
 });
 
 test("writes check library.add for creates and library.edit for edits", async () => {
+  const cmd = await load();
   denied = false; checks.length = 0;
   await cmd.createCategory(user, { name: "x" });
   await cmd.createMember(user, { userId: "u2", memberNo: "M1" });
