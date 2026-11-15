@@ -100,8 +100,10 @@ const shown = (condition: Condition | undefined, answers: Answers) => !condition
 export const visibleFields = (definition: FormDefinition, answers: Answers) => definition.fields.filter(field => shown(field.showIf, answers));
 export const visibleDocuments = (definition: FormDefinition, answers: Answers) => definition.documents.filter(document => shown(document.showIf, answers));
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE = /^\+?[\d\s()-]{6,30}$/;
+export const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const PHONE = /^\+?[\d\s()-]{6,30}$/;
+export const PHONE_MESSAGE = "Enter a valid phone number, with the country code if outside the school's country.";
+export const EMAIL_MESSAGE = "Enter a valid email address.";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Problems with the answers. A draft only checks what was typed; a submission also needs everything required. */

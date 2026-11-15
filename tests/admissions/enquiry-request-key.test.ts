@@ -21,3 +21,14 @@ test("the key is recorded on the CREATE audit and sent once per opened form", ()
   assert.match(ui, /const \[requestKey\] = useState\(\(\) => crypto\.randomUUID\(\)\);/);
   assert.match(ui, /classInterestedId: form\.classInterestedId \|\| null, requestKey \}/);
 });
+
+// SKAI-2117: enquiry contact details use the same phone/email rules as the public application form.
+test("assertEnquiryContact refuses bad phone, bad email and over-long fields", async () => {
+  const { assertEnquiryContact } = await import("../../src/lib/admissions/enquiries.ts");
+  assert.throws(() => assertEnquiryContact({ name: "A", phone: "hello phone" }), /valid phone number/);
+  assert.throws(() => assertEnquiryContact({ name: "A", phone: "+92 300 1234567", email: "nope" }), /valid email address/);
+  assert.throws(() => assertEnquiryContact({ name: "x".repeat(121), phone: "+92 300 1234567" }), /name must be at most/);
+  assert.throws(() => assertEnquiryContact({ phone: "1".repeat(31) }), /valid phone number/);
+  assert.doesNotThrow(() => assertEnquiryContact({ name: "A", phone: "+92 300 1234567", email: "a@b.co" }));
+  assert.doesNotThrow(() => assertEnquiryContact({ name: "A", phone: "0300-1234567", email: null }));
+});
