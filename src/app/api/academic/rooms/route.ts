@@ -2,7 +2,7 @@ import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { withSchedulingResourceWrite, resourceScope } from "@/lib/academic/resource-write";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, assertStaffRole, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { roomCapacity, roomLocation } from "@/lib/academic/room-capacity";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -91,6 +91,7 @@ function decorate<T extends Parameters<typeof roomCapacity>[0] & { building?: st
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    assertStaffRole(user); // SKAI-2063: campus structure is staff data
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
     const includeArchived = searchParams.get("includeArchived") === "1";
