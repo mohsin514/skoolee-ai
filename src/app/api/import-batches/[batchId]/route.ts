@@ -173,6 +173,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           row.errors = [];
           continue;
         }
+        // SKAI-2121: a row the validator rejected (period, date, amount) cannot be revived by choosing or clearing an invoice match.
+        if (row.state === "REJECTED" && (typeof change.matchedInvoiceId === "string" || change.matchedInvoiceId === null)) throw new ApiError("Row " + row.rowNumber + " failed validation and cannot be matched or accepted. Skip it or fix the statement and upload it again.", 409);
         if (typeof change.matchedInvoiceId === "string") {
           const candidates = Array.isArray(row.proposal?.candidates) ? row.proposal.candidates as Array<Record<string, unknown>> : [];
           if (!candidates.some((candidate) => candidate.id === change.matchedInvoiceId)) throw new ApiError("Choose an invoice from this row's scoped candidates", 400);
