@@ -109,6 +109,8 @@ test("rules: back-to-back periods are fine, overlaps and bad input are reported"
   assert.equal(findPeriodOverlap(rows, "08:30", "09:00")?.periodNumber, 1);
   assert.equal(findPeriodOverlap(rows, "08:30", "09:00", "1"), undefined);
   assert.equal(periodInputProblem(0, "08:00", "08:40"), "periodNumber must be >= 1");
+  assert.equal(periodInputProblem(31, "08:00", "08:40"), "periodNumber must be <= 30");
+  assert.equal(periodInputProblem(30, "08:00", "08:40"), null);
   assert.equal(periodInputProblem(1, "8:00", "08:40"), "startTime/endTime must be HH:mm");
   assert.equal(periodInputProblem(1, "09:00", "09:00"), "endTime must be after startTime");
   assert.equal(periodInputProblem(1, "09:00", "09:40"), null);
