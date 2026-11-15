@@ -117,6 +117,23 @@ export async function recordGuardianConsent(user: AuthUser, body: Record<string,
   }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 }
 
+/** SKAI-2151: true when a guardian's latest answer for this child is an explicit "No" to the purpose. No answer yet (or an older notice) is not a refusal. */
+export function purposeDeclined(rows: Array<{ guardianUserId: string; choices: unknown }>, purpose: ConsentPurpose) {
+  const seen = new Set<string>();
+  for (const row of rows) { // newest first: only each guardian's latest answer counts
+    if (seen.has(row.guardianUserId)) continue;
+    seen.add(row.guardianUserId);
+    if ((row.choices as Record<string, unknown> | null)?.[purpose] === false) return true;
+  }
+  return false;
+}
+
+/** SKAI-2151: enforcement point for a processing purpose. Re-read on every call so a refusal made after queuing applies. */
+export async function guardianDeclinedPurpose(schoolId: string, studentId: string, purpose: ConsentPurpose, db: Pick<TxClient, "guardianConsent"> = prisma) {
+  const rows = await db.guardianConsent.findMany({ where: { schoolId, studentId }, orderBy: [{ createdAt: "desc" }], select: { guardianUserId: true, choices: true }, take: CONSENT_HISTORY_LIMIT });
+  return purposeDeclined(rows, purpose);
+}
+
 /** Staff view: every active pupil on the campus with each current guardian's latest answer. */
 export async function campusConsentStatus(user: AuthUser, params: { campusId?: string | null; classId?: string | null }) {
   if (!canManageCampusOps(user)) throw new ApiError("Only campus administrators can view consent records.", 403);
