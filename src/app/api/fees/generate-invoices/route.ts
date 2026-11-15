@@ -191,6 +191,9 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
+        // SKAI-2099: a per-class invoice cannot bill or apply a carry-forward, so refuse it like the fee-group path.
+        if (inputs.carryForwardByStudentYear.get(classYearKey(student.id, student.class.academicYear))?.balance) { results.push({ studentId: student.id, status: "error", error: "Review carry-forward allocation before generating another invoice." }); continue; }
+
         currency = feeStructure.currency;
         // SKAI-2061: a one-time fee is billed once per enrolment, on its first invoice.
         let oneTimeFees: Record<string, number> = (feeStructure.oneTimeFeesJson as Record<string, number>) ?? {};
