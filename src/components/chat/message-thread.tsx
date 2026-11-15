@@ -677,7 +677,7 @@ function MessageBubble({
           ) : (
             <>
               {message.body && (
-                <p className="whitespace-pre-wrap wrap-anywhere text-sm font-normal leading-relaxed">
+                <p dir="auto" className="whitespace-pre-wrap wrap-anywhere text-sm font-normal leading-relaxed">
                   {message.body}
                 </p>
               )}
