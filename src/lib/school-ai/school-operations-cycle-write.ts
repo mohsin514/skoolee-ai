@@ -1,11 +1,17 @@
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, canLeadAcademics, canManageCampusOps } from "@/lib/api/scope";
+import { getCampusSeats } from "@/lib/auth/seats";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { getYearClosureReport } from "@/lib/academic/year-closure";
 import { assertWorkspacePermission, loadWorkspacePermissionSnapshot } from "./access";
 import { schoolAiTransaction } from "./transaction";
 import { assertNoOverlap, assertYearCurrent, holidaysOutside, nextYearDraft, parseYearRange } from "@/lib/academic/year-dates";
+
+async function campusHasNoAcademicLead(schoolId: string, campusId: string) {
+  const seats = await getCampusSeats(schoolId, campusId);
+  return !seats.principal && !seats.campusAdmin;
+}
 
 /** Existing academic-year controls coordinate with AI/exam/timetable writes. */
 export async function writeAcademicCycle(user: AuthUser, campusId: string, body: { action?: unknown; cycleId?: unknown; label?: unknown; academicYear?: unknown; force?: unknown; reason?: unknown; startDate?: unknown; endDate?: unknown; expectedUpdatedAt?: unknown; confirm?: unknown }) {
@@ -17,7 +23,9 @@ export async function writeAcademicCycle(user: AuthUser, campusId: string, body:
   if (user.role !== "SUPER_ADMIN" && user.campusId !== campusId) throw new ApiError("Forbidden", 403);
   const action = String(body.action || "");
   const campusOps = canManageCampusOps(user);
-  const leadsAcademics = await canLeadAcademics(user, campusId);
+  // A campus with no principal and no campus admin has no academic lead. The group owner who may open a year there
+  //  (canManageCampusOps) must be able to force-close it, or a mistaken ACTIVE year blocks the calendar for good (SKAI-1992).
+  const leadsAcademics = await canLeadAcademics(user, campusId) || user.role === "SUPER_ADMIN" && await campusHasNoAcademicLead(user.schoolId, campusId);
   if (action === "end" ? !campusOps && !leadsAcademics : !campusOps) throw new ApiError(action === "end" ? "Forbidden" : "Your campus admin manages the academic year's dates and status.", 403);
   return schoolAiTransaction(user, async tx => {
     await lockTimetableCampus(tx, user.schoolId, campusId);
