@@ -17,6 +17,15 @@ import { assertEmail, assertPhone, assertWebsite, optionalText, parseLogo, requi
 /** Trimmed, or null when the field was left blank. */
 const optional = (value?: string) => optionalText(value);
 
+/** Length caps for campus text fields (SKAI-2001); the name prints on report cards, invoices and PDFs. */
+export const CAMPUS_NAME_MAX = 120;
+export const CAMPUS_CITY_MAX = 100;
+export const CAMPUS_TEXT_MAX = 300;
+function capped(value: string | null, field: string, max: number) {
+  if (value && value.length > max) throw new Error(`${field} must be ${max} characters or fewer.`);
+  return value;
+}
+
 export function recordRevision(record: unknown) { return createHash("sha256").update(JSON.stringify(record)).digest("hex"); }
 
 /**
@@ -77,12 +86,12 @@ export type ValidCampusFields = ReturnType<typeof validateCampusInput>;
 
 /** SKO-402: the same validators as editing a campus, so a campus can always be saved as it was created. */
 export function validateCampusInput(input: CampusCreateFields) {
-  const name = requiredText(input.name, "Campus name");
-  const city = requiredText(input.city, "City");
+  const name = requiredText(input.name, "Campus name", CAMPUS_NAME_MAX);
+  const city = requiredText(input.city, "City", CAMPUS_CITY_MAX);
   const email = assertEmail(optional(input.email), "campus email address");
   const phone = assertPhone(optional(input.phone), "Phone number");
   const website = assertWebsite(optional(input.website), "website");
-  return { name, city, email, phone, website, address: optional(input.address), principalName: optional(input.principalName), board: optional(input.board), regId: normalizeCampusRegId(input.regId) };
+  return { name, city, email, phone, website, address: capped(optional(input.address), "Address", CAMPUS_TEXT_MAX), principalName: capped(optional(input.principalName), "Principal name", CAMPUS_NAME_MAX), board: optional(input.board), regId: normalizeCampusRegId(input.regId) };
 }
 
 /**
@@ -235,8 +244,8 @@ export async function updateCampusDetailsCommand(session: AuthUser, input: Campu
   const campusId = requiredText(input.campusId, "Campus");
   await assertCanEditCampus(session, campusId);
 
-  const name = input.name === undefined ? undefined : requiredText(input.name, "Campus name");
-  const city = input.city === undefined ? undefined : requiredText(input.city, "City");
+  const name = input.name === undefined ? undefined : requiredText(input.name, "Campus name", CAMPUS_NAME_MAX);
+  const city = input.city === undefined ? undefined : requiredText(input.city, "City", CAMPUS_CITY_MAX);
   const email = input.email === undefined ? undefined : assertEmail(optionalText(input.email), "campus email address");
   const phone = input.phone === undefined ? undefined : assertPhone(optionalText(input.phone), "Phone number");
   const website = input.website === undefined ? undefined : assertWebsite(optionalText(input.website), "website");
@@ -253,8 +262,8 @@ export async function updateCampusDetailsCommand(session: AuthUser, input: Campu
     }
     const data = {
       name, city, phone, email, website,
-      address: patchText(input.address),
-      principalName: patchText(input.principalName),
+      address: capped(patchText(input.address) ?? null, "Address", CAMPUS_TEXT_MAX) ?? patchText(input.address),
+      principalName: capped(patchText(input.principalName) ?? null, "Principal name", CAMPUS_NAME_MAX) ?? patchText(input.principalName),
       board,
       logoUrl: newLogoUrl,
     };

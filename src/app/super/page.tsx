@@ -1136,7 +1136,7 @@ function AddCampusModal({ onClose, onCreated }: { onClose: () => void; onCreated
 
   const field = (key: keyof typeof EMPTY_CAMPUS, label: string, options: { required?: boolean; type?: "text" | "email" | "tel"; hint?: string; placeholder?: string; span?: boolean } = {}) => (
     <FormField name={`campus-${key}`} label={label} required={options.required} hint={options.hint} error={errors[key]} className={options.span ? "md:col-span-2" : undefined}>
-      <Input type={options.type ?? "text"} dir={options.type && options.type !== "text" ? "ltr" : "auto"} value={String(form[key])} placeholder={options.placeholder} onChange={(event) => set(key, event.target.value)} className="w-full" />
+      <Input type={options.type ?? "text"} dir={options.type && options.type !== "text" ? "ltr" : "auto"} maxLength={key === "address" ? 300 : key === "city" ? 100 : 120} value={String(form[key])} placeholder={options.placeholder} onChange={(event) => set(key, event.target.value)} className="w-full" />
     </FormField>
   );
 
