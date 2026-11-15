@@ -1,4 +1,5 @@
 import type { AuthUser } from "@/lib/auth";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError } from "@/lib/api/scope";
@@ -44,6 +45,7 @@ export async function assignDiscount(user: AuthUser, body: Record<string, unknow
   });
   if (existing) throw new ApiError("Discount already assigned to this student", 409);
 
+  // SKAI-2034: a concurrent identical request can pass the check above; its lost race is the same 409.
   return prisma.$transaction(async (tx) => {
     const created = await tx.feeDiscountAssignment.create({
       data: { discountId, studentId },
@@ -54,5 +56,8 @@ export async function assignDiscount(user: AuthUser, body: Record<string, unknow
     });
     await writeAuditEvent(tx, user, { table: "fee_discount_assignments", recordId: created.id, action: "CREATE", campusId: discount.campusId, after: { discountId: created.discountId, studentId: created.studentId } });
     return created;
+  }).catch((error) => {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ApiError("Discount already assigned to this student", 409);
+    throw error;
   });
 }
