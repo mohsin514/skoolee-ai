@@ -148,7 +148,7 @@ function ConcernIntake() {
       <StudentPicker value={student} onChange={setStudent} label={ui("Which student is this about?")} />
       <FormField name="care-source" label={ui("How did this come to your attention?")}><Select value={form.source} onChange={e => setForm({ ...form, source: e.target.value })} data-care-source>{["STAFF_OBSERVATION", "DISCLOSURE_BY_PUPIL", "THIRD_PARTY", "OTHER"].map(s => <option key={s} value={s}>{sourceLabel(ui, s)}</option>)}</Select></FormField>
       <FormField name="care-observation" label={ui("Record what you observed")} hint={ui("Facts only: what you saw or heard, who was present, the words used.")}><Textarea value={form.observation} onChange={e => setForm({ ...form, observation: e.target.value })} rows={6} maxLength={6000} dir="auto" data-care-observation /></FormField>
-      <FormField name="care-event" label={ui("When did it happen?")}><Input type="datetime-local" value={form.eventAt} onChange={e => setForm({ ...form, eventAt: e.target.value })} dir="ltr" data-care-event /></FormField>
+      <FormField name="care-event" label={ui("When did it happen?")}><Input type="datetime-local" min={CARE_MIN_LOCAL} value={form.eventAt} onChange={e => setForm({ ...form, eventAt: e.target.value })} dir="ltr" data-care-event /></FormField>
       <label className="flex items-start gap-2 text-sm"><Checkbox checked={form.guardianInvolved} onChange={e => setForm({ ...form, guardianInvolved: e.target.checked })} data-care-guardian-involved /><span>{ui("A parent or carer may be involved. Nothing will be shared with the family.")}</span></label>
       {error ? <Alert tone="danger" compact live="assertive" data-care-error>{ui(error)}</Alert> : null}
       <div className="flex justify-end"><Button loading={busy} disabled={busy || !student || !form.observation.trim()} onClick={() => void submit()} data-care-submit>{ui("Submit to the designated lead")}</Button></div>
@@ -240,7 +240,7 @@ function ClinicRecord({ studentId, onClose }: { studentId: string; onClose: () =
     {!data.access.emergency ? <>
       <div className="space-y-2" data-clinic-doses><h4 className="text-sm font-bold text-ink-strong">{ui("Doses given")}</h4>{data.doses.length ? <ol className={cn(deskTimeline, "text-sm")}>{data.doses.map(d => <li key={d.id} data-tone="success" data-clinic-dose-row={d.id}><bdi>{dateTime(d.givenAt)}</bdi> · <span dir="auto">{d.dose}</span> · <bdi>{d.actor}</bdi></li>)}</ol> : <p className="text-sm text-ink-muted">{ui("No doses recorded.")}</p>}</div>
       <DeskSection title={ui("Record visit")} icon={Stethoscope} data-clinic-visit-form>
-        <FormField name="cv-time" label={ui("Arrived at")}><Input type="datetime-local" value={visit.arrivedAt} onChange={e => setVisit({ ...visit, arrivedAt: e.target.value })} dir="ltr" /></FormField>
+        <FormField name="cv-time" label={ui("Arrived at")}><Input type="datetime-local" min={CARE_MIN_LOCAL} value={visit.arrivedAt} onChange={e => setVisit({ ...visit, arrivedAt: e.target.value })} dir="ltr" /></FormField>
         <FormField name="cv-obs" label={ui("Record what you observed")}><Textarea value={visit.observation} onChange={e => setVisit({ ...visit, observation: e.target.value })} rows={3} dir="auto" data-clinic-visit-observation /></FormField>
         <FormField name="cv-action" label={ui("What was done")}><Textarea value={visit.actionTaken} onChange={e => setVisit({ ...visit, actionTaken: e.target.value })} rows={2} dir="auto" data-clinic-visit-action /></FormField>
         <FormField name="cv-outcome" label={ui("Outcome")}><Select value={visit.outcome} onChange={e => setVisit({ ...visit, outcome: e.target.value })} data-clinic-visit-outcome>{["RETURNED_TO_CLASS", "SENT_HOME", "EMERGENCY_SERVICES", "STAYED_IN_CLINIC"].map(o => <option key={o} value={o}>{outcomeLabel(ui, o)}</option>)}</Select></FormField>
@@ -251,7 +251,7 @@ function ClinicRecord({ studentId, onClose }: { studentId: string; onClose: () =
     {ins ? <Modal title={ui("Add approved instruction")} subtitle={ui("Copy the instruction exactly as signed. The clinic does not prescribe.")} icon={Pill} tone="sky" onClose={() => setIns(null)} footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setIns(null)}>{ui("Back")}</Button><Button loading={busy} disabled={busy || !ins.validUntil} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "instruction", studentId, ...ins, validFrom: new Date(ins.validFrom).toISOString(), validUntil: new Date(ins.validUntil).toISOString() }); setIns(null); }, "Instruction recorded.")} data-clinic-instruction-save>{ui("Save instruction")}</Button></div>}>
       <div className="space-y-2" data-clinic-instruction-form>
         {[["medicine", "Medicine"], ["dose", "Dose"], ["schedule", "When it may be given"], ["authorizedBy", "Authorized by"], ["authorizationRef", "Authorization reference"]].map(([k, l]) => <FormField key={k} name={`ci-${k}`} label={ui(l)}><Input value={ins[k]} onChange={e => setIns({ ...ins, [k]: e.target.value })} dir="auto" data-clinic-field={k} /></FormField>)}
-        <div className="grid gap-2 sm:grid-cols-2"><FormField name="ci-from" label={ui("Valid from")}><Input type="datetime-local" value={ins.validFrom} onChange={e => setIns({ ...ins, validFrom: e.target.value })} dir="ltr" data-clinic-field="validFrom" /></FormField><FormField name="ci-until" label={ui("Valid until")}><Input type="datetime-local" value={ins.validUntil} onChange={e => setIns({ ...ins, validUntil: e.target.value })} dir="ltr" data-clinic-field="validUntil" /></FormField></div>
+        <div className="grid gap-2 sm:grid-cols-2"><FormField name="ci-from" label={ui("Valid from")}><Input type="datetime-local" min={CARE_MIN_LOCAL} value={ins.validFrom} onChange={e => setIns({ ...ins, validFrom: e.target.value })} dir="ltr" data-clinic-field="validFrom" /></FormField><FormField name="ci-until" label={ui("Valid until")}><Input type="datetime-local" min={CARE_MIN_LOCAL} value={ins.validUntil} onChange={e => setIns({ ...ins, validUntil: e.target.value })} dir="ltr" data-clinic-field="validUntil" /></FormField></div>
       </div>
     </Modal> : null}
   </section>;
@@ -631,6 +631,8 @@ function MessagesToMe({ family = false }: { family?: boolean }) {
 /** Family card: messages a safeguarding lead approved for this guardian. Renders nothing when there are none. */
 export function FamilyCareMessages() { return <MessagesToMe family />; }
 
+// SKAI-2199: the server refuses care times more than 20 years old.
+const CARE_MIN_LOCAL = `${new Date().getFullYear() - 20}-01-01T00:00`;
 export function CareDesk() {
   const ui = useUiText();
   const hidden = useHidden();

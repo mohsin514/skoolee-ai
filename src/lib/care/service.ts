@@ -53,8 +53,12 @@ const when = (v: unknown, fallback?: Date) => {
   if (v == null || v === "") { if (fallback) return fallback; throw new ApiError("Give the date and time.", 400); }
   const d = new Date(String(v));
   if (Number.isNaN(d.getTime())) throw new ApiError("Give a valid date and time.", 400);
+  if (d.getTime() < earliestCareTime()) throw new ApiError("That date is too far in the past. Check the year.", 400);
   return d;
 };
+// SKAI-2199: care records are legal chronology. A disclosure can describe events years back, but never before a
+// pupil could have been born, so anything over 20 years old is a mistyped year (0099, 1001).
+const earliestCareTime = () => { const d = new Date(); d.setUTCFullYear(d.getUTCFullYear() - 20); return d.getTime(); };
 export const contentHash = (content: string) => createHash("sha256").update(content).digest("hex");
 const userCampus = (user: AuthUser, requested?: unknown) => {
   const campusId = user.role === "SUPER_ADMIN" ? String(requested || user.campusId || "") : user.campusId ?? "";
