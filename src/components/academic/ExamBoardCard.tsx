@@ -153,7 +153,7 @@ export function ExamBoardCard({
       />
 
       <div className="mb-2 flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-start gap-2">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
           <span
             aria-hidden
             className="mt-0.5 cursor-grab text-edge opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
@@ -173,9 +173,9 @@ export function ExamBoardCard({
           <Button variant="ghost"
             type="button"
             onClick={() => onOpen()}
-            className="min-w-0 text-start text-sm font-semibold leading-tight text-ink-strong"
+            className="h-auto min-w-0 flex-1 justify-start whitespace-normal p-0 text-start text-sm font-semibold leading-tight text-ink-strong"
           >
-            <bdi>{exam.title}</bdi>
+            <bdi className="line-clamp-2 break-words">{exam.title}</bdi>
           </Button>
         </div>
         <div className="flex shrink-0 items-center gap-1">
