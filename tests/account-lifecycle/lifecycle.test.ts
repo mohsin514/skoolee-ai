@@ -77,7 +77,7 @@ test('SKAI-1290: deactivating an account rejects its existing cookie on the sess
 });
 test('own sessions can be revoked; another user cannot revoke them', async () => {
  const one = cookie(await login('RECEPTIONIST'), 'skoolee_token'), other = cookie(await login('PARENT'), 'skoolee_token');
- const list = await fetch(base + '/api/auth/sessions', { headers: { cookie: one } }).then(r => r.json()); assert.ok(list.sessions.length); assert.equal(list.sessions[0].tokenHash, undefined); const id = list.sessions[0].id;
+ const list = await fetch(base + '/api/auth/sessions', { headers: { cookie: one } }).then(r => r.json()).then(b => b.data); assert.ok(list.sessions.length); assert.equal(list.sessions[0].tokenHash, undefined); const id = list.sessions[0].id;
  const revoke = (c: string) => fetch(base + '/api/auth/sessions', { method: 'DELETE', headers: { cookie: c, 'content-type': 'application/json' }, body: JSON.stringify({ id }) }); assert.equal((await revoke(other)).status, 404); assert.equal((await revoke(one)).status, 200);
  const ended = await raw.loginSession.findUniqueOrThrow({ where: { id } }); assert.equal(ended.isActive, false);
 });

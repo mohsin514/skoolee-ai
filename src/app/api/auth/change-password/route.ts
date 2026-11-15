@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { hashPassword, verifyPassword } from "@/lib/auth/password-hash";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, requireAuthUser } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 import { resetPasswordProblem } from "@/lib/auth/reset-password-policy";
@@ -73,8 +74,8 @@ export async function PUT(req: NextRequest) {
       }),
     ]);
 
-    return Response.json({ success: true, message: "Password changed. Sign in again on each device." });
+    return ok({ message: "Password changed. Sign in again on each device." });
   } catch (error) {
-    return errorResponse(error, "[auth/change-password] PUT failed");
+    return failFrom(error, "[auth/change-password] PUT failed");
   }
 }
