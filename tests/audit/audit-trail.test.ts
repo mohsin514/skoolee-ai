@@ -234,3 +234,8 @@ test("SKAI-2215: another person's audit row on the same record does not supersed
   assert.equal(audits.length, 2);
   assert.deepEqual(audits[1].newValue, { decision: "approve" });
 });
+test("SKAI-2218: the automatic row is filed under the record's campus", async () => {
+  const { audits, client } = fakeClient();
+  await asUser(() => auditedOperation({ delegate: "student", operation: "create", args: { data: {} }, query: async () => ({ id: "s1", schoolId: "school-a", campusId: "campus-1" }), client }));
+  assert.equal(audits[0].campusId, "campus-1");
+});
