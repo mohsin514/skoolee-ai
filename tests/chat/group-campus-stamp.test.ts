@@ -50,3 +50,11 @@ test("the unread badge counts only conversations the inbox would show", async ()
   assert.deepEqual(visibleConversationWhere(parent), { schoolId: "school-a" });
   assert.deepEqual(visibleConversationWhere(actor("student-a", "STUDENT", "campus-a")), { schoolId: "school-a" });
 });
+
+test("SKAI-2167: staff on another campus, or with no campus, cannot be put in a campus-stamped group", async () => {
+  const { assertMembersInCampusScope } = await import("../../src/lib/chat/membership");
+  assert.doesNotThrow(() => assertMembersInCampusScope("campus-a", [{ role: "TEACHER", campusId: "campus-a" }, { role: "PARENT", campusId: null }, { role: "SUPER_ADMIN", campusId: null }]));
+  assert.throws(() => assertMembersInCampusScope("campus-a", [{ role: "ADMIN", campusId: "campus-b" }]), /different campuses/);
+  assert.throws(() => assertMembersInCampusScope("campus-a", [{ role: "RECEPTIONIST", campusId: null }]), /different campuses/);
+  assert.doesNotThrow(() => assertMembersInCampusScope(null, [{ role: "PARENT", campusId: null }]));
+});
