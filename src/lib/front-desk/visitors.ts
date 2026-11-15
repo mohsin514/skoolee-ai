@@ -24,11 +24,15 @@ const phoneOf = (value: unknown) => {
   if (phone && !/^\+?[\d\s()-]{6,30}$/.test(phone)) throw new ApiError("Enter a valid phone number or leave it empty.", 400);
   return phone;
 };
+// SKAI-2134: register entries are recorded at the desk, so times older than 30 days are typos (1990, year 1000).
+// shortcut: fixed 30-day window; tie it to the academic year if schools need to back-fill older visits.
+const VISIT_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
 const instant = (value: unknown, label: string, fallback?: Date) => {
   if (value === undefined || value === null || value === "") { if (fallback) return fallback; throw new ApiError(`${label} is required.`, 400); }
   const date = new Date(String(value));
   if (Number.isNaN(date.getTime())) throw new ApiError(`${label} is not a valid time.`, 400);
   if (date.getTime() > Date.now() + SKEW_MS) throw new ApiError(`${label} cannot be in the future.`, 400);
+  if (date.getTime() < Date.now() - VISIT_LOOKBACK_MS) throw new ApiError(`${label} cannot be more than 30 days ago.`, 400);
   return date;
 };
 export const normalName = (name: string) => name.toLocaleLowerCase().replace(/\s+/g, " ").trim();
