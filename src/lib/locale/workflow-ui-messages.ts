@@ -1,5 +1,7 @@
 /** Static interface copy only. Authored names, comments and identifiers bypass this catalog. */
 const entries: [string, string, string][] = [
+// SKAI-2199: care times floor.
+["That date is too far in the past. Check the year.", "هذا التاريخ بعيد جدًا في الماضي. تحقّق من السنة.", "یہ تاریخ بہت پرانی ہے۔ سال چیک کریں۔"],
 // SKAI-2176: owner publishing without a campus.
 ["Choose a campus for this activity.", "اختر فرعًا لهذا النشاط.", "اس سرگرمی کے لیے کیمپس منتخب کریں۔"], ["Choose a campus for this trip.", "اختر فرعًا لهذه الرحلة.", "اس دورے کے لیے کیمپس منتخب کریں۔"],
 // SKAI-2136: pickup history event labels.
