@@ -436,17 +436,33 @@ function InvoiceDetailModal({
   const [confirmOverdue, setConfirmOverdue] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingReceipt, setDownloadingReceipt] = useState(false);
 
   const handleDownloadPdf = async () => {
     if (!inv?.id) return;
     setDownloadingPdf(true);
     try {
-      await downloadPdfFile(`/api/fees/invoice-pdf?id=${encodeURIComponent(inv.id)}`, `invoice-${inv.invoiceNumber || "receipt"}.pdf`);
+      await downloadPdfFile(`/api/fees/invoice-pdf?id=${encodeURIComponent(inv.id)}`, `invoice-${inv.invoiceNumber || "invoice"}.pdf`);
       toast.success(tr("Invoice PDF downloaded"));
     } catch (error: any) {
       toast.error(tr(error?.message || "Failed to download PDF"));
     } finally {
       setDownloadingPdf(false);
+    }
+  };
+
+  // A receipt is a payment document (payment-pdf), not the fee invoice: offer it for the latest recorded payment (the API returns payments newest first).
+  const latestPayment = inv?.payments?.length ? inv.payments[0] : null;
+  const handleDownloadReceipt = async () => {
+    if (!latestPayment?.id) return;
+    setDownloadingReceipt(true);
+    try {
+      await downloadPdfFile(`/api/fees/payment-pdf?id=${encodeURIComponent(latestPayment.id)}`, `receipt-${latestPayment.receiptNo || "payment"}.pdf`);
+      toast.success(tr("Receipt PDF downloaded"));
+    } catch (error: any) {
+      toast.error(tr(error?.message || "Failed to download PDF"));
+    } finally {
+      setDownloadingReceipt(false);
     }
   };
 
@@ -586,10 +602,16 @@ function InvoiceDetailModal({
               </div>
             )}
 
-            {inv.status === "PAID" && (
+            {inv.status !== "CANCELLED" && (
               <BrandButton variant="soft" className="w-full h-12" onClick={handleDownloadPdf} disabled={downloadingPdf}>
-                {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
-                {downloadingPdf ? tr("Preparing PDF...") : tr("Download receipt")}
+                {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                {downloadingPdf ? tr("Preparing PDF...") : tr("Download invoice")}
+              </BrandButton>
+            )}
+            {inv.status === "PAID" && latestPayment?.id && (
+              <BrandButton variant="soft" className="w-full h-12" onClick={handleDownloadReceipt} disabled={downloadingReceipt}>
+                {downloadingReceipt ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
+                {downloadingReceipt ? tr("Preparing PDF...") : tr("Download receipt")}
               </BrandButton>
             )}
           </div>
