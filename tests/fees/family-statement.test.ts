@@ -141,7 +141,7 @@ describe("SKAI-1653 family fee statement covers the whole ledger", () => {
     await ledger(f.schoolA, f.campusA1, kid, 2);
     assert.deepEqual((await statement(parent, kid)).credit, { total: 0, items: [] });
     await db.feeCarryForward.create({ data: { schoolId: f.schoolA, campusId: f.campusA1, studentId: kid, fromAcademicYear: 2026, toAcademicYear: 2027, balance: -135000, currency: "PKR" } as never });
-    // A positive carry (a debt) and a credit in another currency are not shown as credit.
+    // A positive carry (a debt) is not shown as credit.
     await db.feeCarryForward.create({ data: { schoolId: f.schoolA, campusId: f.campusA1, studentId: kid, fromAcademicYear: 2027, toAcademicYear: 2028, balance: 5000, currency: "PKR" } as never });
     const out = await statement(parent, kid);
     assert.deepEqual(out.credit, { total: 135000, items: [{ fromAcademicYear: 2026, toAcademicYear: 2027, amount: 135000 }] });
