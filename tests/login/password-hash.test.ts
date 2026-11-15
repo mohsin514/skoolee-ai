@@ -63,3 +63,13 @@ test("no server code calls bcryptjs on the request thread any more", () => {
     assert.doesNotMatch(source, /bcryptjs|bcrypt\.(compare|hash)/, file);
   }
 });
+
+// SKAI-2016: self-serve signup must hash at the same cost as every other password writer and the login
+// timing digest (12), or an unknown email answers measurably faster or slower than a real one.
+test("SKAI-2016: signup hashes at cost 12, matching the login timing digest", async () => {
+  const { readFileSync } = await import("node:fs");
+  const register = readFileSync(new URL("../../src/lib/auth/register.ts", import.meta.url), "utf8");
+  const login = readFileSync(new URL("../../src/app/api/auth/login/route.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(register, /hashPassword\([^)]*,\s*10\)/);
+  assert.match(login, /TIMING_HASH = "\$2a\$12\$/);
+});
