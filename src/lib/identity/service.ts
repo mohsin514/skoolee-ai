@@ -311,6 +311,8 @@ async function computePreview(schoolId: string, c: Prisma.IdentityConnectionGetP
     const withdrawn = r.status === "withdrawn";
     if (kind === "STUDENT") {
       let local = map ? await prisma.student.findFirst({ where: { id: map.localId, schoolId }, select: { id: true, fullName: true, admissionNo: true, campusId: true, archivedAt: true, class: { select: { name: true, section: true } } } }) : null;
+      // SKAI-2116: a mapped pupil the campus guard hides lives at another campus; never fall through to ADD and re-use the mapping.
+      if (map && !local && await runUnscoped("identity: mapped pupil visibility", () => prisma.student.findFirst({ where: { id: map.localId, schoolId }, select: { id: true } }))) { changes.push({ key, kind, externalId: r.externalId, action: "ERROR", localId: null, changes: [], note: "This pupil belongs to another campus.", destructive: false }); continue; }
       let note: string | null = null;
       // An unmapped row can match only a stable identifier (admission number), never a name.
       if (!local && r.admissionNo) {
@@ -347,6 +349,7 @@ async function computePreview(schoolId: string, c: Prisma.IdentityConnectionGetP
     } else {
       const local = map ? await prisma.user.findFirst({ where: { id: map.localId, schoolId }, select: { id: true, fullName: true, email: true, role: true, isActive: true } }) : null;
       const role = r.group ? roleMap[r.group] : undefined;
+      if (map && !local && await runUnscoped("identity: mapped staff visibility", () => prisma.user.findFirst({ where: { id: map.localId, schoolId }, select: { id: true } }))) { changes.push({ key, kind, externalId: r.externalId, action: "ERROR", localId: null, changes: [], note: "This staff member belongs to another campus.", destructive: false }); continue; }
       if (r.group && !role) { changes.push({ key, kind, externalId: r.externalId, action: "ERROR", localId: local?.id ?? null, changes: [], note: `The directory group "${r.group}" has no role mapping.`, destructive: false }); continue; }
       if (!local) {
         if (withdrawn) { changes.push({ key, kind, externalId: r.externalId, action: "UNCHANGED", localId: null, changes: [], note: "Withdrawn upstream and not present here.", destructive: false }); continue; }
