@@ -441,7 +441,8 @@ function SchoolDialog({
     setSaving(true);
     try {
       const payload = Object.fromEntries(changes.map(key => [key, (form as unknown as Record<string, unknown>)[key] ?? ""]));
-      await updateSchoolDetails({ expectedRevision: form.revision, ...payload });
+      const result = await updateSchoolDetails({ expectedRevision: form.revision, ...payload });
+      if (!result.success) throw new Error(result.error);
       toast.success(tr("School details updated. Current screens now use the new information."));
       draft.markSaved();
       await onSaved();
