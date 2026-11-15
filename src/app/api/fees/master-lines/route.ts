@@ -2,7 +2,7 @@ import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { createMasterLine } from "@/lib/fees/master-line-command";
+import { createMasterLine, masterLineAmount, masterLineDueDate } from "@/lib/fees/master-line-command";
 import { assertFeesRead, ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -57,17 +57,15 @@ export async function PATCH(req: NextRequest) {
     const existing = await prisma.feesMasterLine.findFirst({ where: { id: body.id, ...scopedCampusWhere(user) } });
     if (!existing) throw new ApiError("Master line not found", 404);
 
-    const amount = body.amount !== undefined ? Number(body.amount) : undefined;
-    if (amount !== undefined && (!Number.isInteger(amount) || amount < 0 || amount > 2147483647)) { // SKAI-2182: Int4 minor units
-      throw new ApiError("amount must be a whole number of paisa between 0 and 2147483647", 400);
-    }
+    const amount = body.amount !== undefined ? masterLineAmount(body.amount) : undefined;
+    const dueDate = body.dueDate !== undefined ? masterLineDueDate(body.dueDate) : undefined;
 
     const line = await prisma.$transaction(async (tx) => {
       const next = await tx.feesMasterLine.update({
         where: { id: body.id },
         data: {
           amount,
-          dueDate: body.dueDate !== undefined ? (body.dueDate ? new Date(body.dueDate) : null) : undefined,
+          dueDate,
         },
         include: { feeType: { select: { id: true, name: true, code: true } } },
       });
