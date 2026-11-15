@@ -74,8 +74,14 @@ export async function updateClassWithTeacherAssignmentTx(tx: TxClient, user: Aut
   if (existing.archivedAt) throw new ApiError("Restore this class before editing it.", 409);
   const from = effectiveDate(body.effectiveFrom);
   const data: Prisma.ClassUncheckedUpdateInput = {};
-  if (body.name !== undefined) data.name = String(body.name).trim();
-  if (body.section !== undefined) data.section = body.section ? String(body.section).trim() : null;
+  if (body.name !== undefined) {
+    data.name = String(body.name).trim();
+    if (!data.name || data.name.length > 80) throw new ApiError("A class name of up to 80 characters is required", 400);
+  }
+  if (body.section !== undefined) {
+    data.section = body.section ? String(body.section).trim() : null;
+    if (data.section && data.section.length > 40) throw new ApiError("Section must be 40 characters or fewer", 400);
+  }
   if (body.academicYear !== undefined) {
     const academicYear = Number(body.academicYear);
     if (!Number.isInteger(academicYear) || academicYear < 2000 || academicYear > 2100) throw new ApiError("Academic year must be a whole year between 2000 and 2100", 400);

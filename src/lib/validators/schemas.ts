@@ -277,8 +277,9 @@ export const bulkStudentSchema = z.object({
 });
 
 export const classSchema = z.object({
-  name: z.string().min(1, "Class name is required"),
-  section: optionalText,
+  // SKAI-2007: class name and section are length-capped (80 and 40, as on PATCH).
+  name: z.string().trim().min(1, "Class name is required").max(80, "Class name must be 80 characters or fewer"),
+  section: optionalText.refine((v) => v == null || String(v).length <= 40, "Section must be 40 characters or fewer"),
   gradeLevel: z.coerce.number().int().min(1).max(12).default(1),
   academicYear: z.coerce.number().int().min(2000).max(2100),
   teacherId: z.string().optional(),
