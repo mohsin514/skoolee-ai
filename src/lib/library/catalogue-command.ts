@@ -2,7 +2,7 @@ import { z } from "zod";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { prisma } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { ApiError, canManageLibrary, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageLibrary, resolveCampusId } from "@/lib/api/scope";
 
 /**
  * Catalogue writes extracted from the library routes (categories POST, books POST/PATCH, members POST) so
@@ -11,13 +11,15 @@ import { ApiError, canManageLibrary, resolveCampusId } from "@/lib/api/scope";
  */
 type Body = Record<string, unknown>;
 
-function assertLibrary(user: AuthUser) {
+// SKAI-2150: the role predicate is not enough; the school's permission matrix (library.add / library.edit) must also allow the write.
+async function assertLibrary(user: AuthUser, action: "add" | "edit") {
   if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
+  await assertPermission(user, "library", action);
 }
 
 /** POST /api/library/categories. */
 export async function createCategory(user: AuthUser, body: Body) {
-  assertLibrary(user);
+  await assertLibrary(user, "add");
   const campusId = await resolveCampusId(user, body.campusId as string | null | undefined);
   const name = String(body.name || "").trim();
   if (!name) throw new ApiError("name is required", 400);
@@ -32,7 +34,7 @@ export async function createCategory(user: AuthUser, body: Body) {
 
 /** POST /api/library/books. */
 export async function createBook(user: AuthUser, body: Body) {
-  assertLibrary(user);
+  await assertLibrary(user, "add");
   const campusId = await resolveCampusId(user, body.campusId as string | null | undefined);
   const { title, author, isbn, subject, categoryId } = body as Record<string, string | undefined>;
   const copiesTotal = Number(body.copiesTotal);
@@ -58,7 +60,7 @@ export async function createBook(user: AuthUser, body: Body) {
 
 /** PATCH /api/library/books. */
 export async function updateBook(user: AuthUser, body: Body) {
-  assertLibrary(user);
+  await assertLibrary(user, "edit");
   const { id, title, author, isbn, subject, categoryId } = body as Record<string, string | undefined>;
   if (!id) throw new ApiError("id is required", 400);
 
@@ -101,7 +103,7 @@ export async function updateBook(user: AuthUser, body: Body) {
 
 /** POST /api/library/members. */
 export async function createMember(user: AuthUser, body: Body) {
-  assertLibrary(user);
+  await assertLibrary(user, "add");
   const campusId = await resolveCampusId(user, body.campusId as string | null | undefined);
   const { userId, memberNo } = body as Record<string, string | undefined>;
 
@@ -128,7 +130,7 @@ export const categoryRenameSchema = z.strictObject({
 
 /** Rename within the current campus; a stale preview cannot overwrite a colleague's edit. */
 export async function renameCategory(user: AuthUser, input: unknown) {
-  assertLibrary(user);
+  await assertLibrary(user, "edit");
   const data = categoryRenameSchema.parse(input);
   return schoolAiTransaction(user, async tx => {
     const existing = await tx.bookCategory.findFirst({ where: {
