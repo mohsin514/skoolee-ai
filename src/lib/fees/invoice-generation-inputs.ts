@@ -64,7 +64,7 @@ export async function loadInvoiceGenerationInputs(tx: InputsTx, scope: { schoolI
   const legacyIds = includeLateFees ? studentIds.filter(id => !newModelIdSet.has(id)) : [];
   const openInvoices = legacyIds.length
     ? await tx.invoice.findMany({
-        where: { schoolId, studentId: { in: legacyIds }, status: { in: ["PENDING", "OVERDUE"] } },
+        where: { schoolId, studentId: { in: legacyIds }, status: { in: ["PENDING", "PARTIAL", "OVERDUE"] } },
         orderBy: { dueDate: "desc" },
         select: { studentId: true, currency: true, dueDate: true, balanceDue: true },
       })

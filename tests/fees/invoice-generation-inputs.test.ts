@@ -88,6 +88,14 @@ describe("loadInvoiceGenerationInputs", () => {
     assert.equal(inputs.latestOpenInvoiceByStudent.get("s3")?.balanceDue, 99);
   });
 
+  it("SKAI-2056: a PARTIAL invoice with an overdue balance is picked up for late fees", async () => {
+    const data = seed();
+    data.invoice.push({ schoolId: A.schoolId, studentId: "s4", status: "PARTIAL", currency: "PKR", dueDate: new Date("2026-09-30Z"), balanceDue: 450000 });
+    const { tx } = fakeTx(data);
+    const inputs = await loadInvoiceGenerationInputs(tx, A, [student("s4", "class-old")], true);
+    assert.equal(inputs.latestOpenInvoiceByStudent.get("s4")?.balanceDue, 450000);
+  });
+
   it("looks up late fees only when asked, and only for students on a legacy fee structure", async () => {
     const off = fakeTx(seed());
     await loadInvoiceGenerationInputs(off.tx, A, [student("s1", "class-new"), student("s3", "class-old")], false);
