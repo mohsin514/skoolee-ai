@@ -2,6 +2,9 @@
 
 export const PERIOD_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/** Timetables hold period numbers 1..30 (src/lib/timetable/manual.ts, draft-slot.ts); keep the bell schedule within it. */
+export const MAX_PERIOD_NUMBER = 30;
+
 export type PeriodRow = { id: string; periodNumber: number; startTime: string; endTime: string };
 
 export function periodMinutes(time: string): number {
@@ -21,6 +24,7 @@ export function findPeriodOverlap(rows: PeriodRow[], start: string, end: string,
 /** Returns an error message for an invalid period, or null when it is valid. */
 export function periodInputProblem(periodNumber: number, startTime: string, endTime: string): string | null {
   if (!Number.isInteger(periodNumber) || periodNumber < 1) return "periodNumber must be >= 1";
+  if (periodNumber > MAX_PERIOD_NUMBER) return `periodNumber must be <= ${MAX_PERIOD_NUMBER}`;
   if (!PERIOD_TIME_RE.test(startTime) || !PERIOD_TIME_RE.test(endTime)) return "startTime/endTime must be HH:mm";
   if (periodMinutes(startTime) >= periodMinutes(endTime)) return "endTime must be after startTime";
   return null;

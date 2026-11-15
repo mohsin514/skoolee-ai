@@ -7059,6 +7059,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             <SystemInput
               type="number"
               min={1}
+              max={30}
               className="w-20 px-3"
               value={form.periodNumber}
               onChange={(e) => setForm((f) => ({ ...f, periodNumber: e.target.value }))}
