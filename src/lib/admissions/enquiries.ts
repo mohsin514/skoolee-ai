@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, resolveCampusId } from "@/lib/api/scope";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
+import { EMAIL, EMAIL_MESSAGE, PHONE, PHONE_MESSAGE } from "@/lib/admissions/form-rules";
 
 // Admission enquiries (Lead CRM), extracted from POST/PATCH /api/admission-queries so the route and the AI
 // Workflows adapter run the same rules. The route keeps its guards (assertStaffRole + admissions.add/edit)
@@ -14,6 +15,15 @@ export const QUERY_SOURCES = ["WALK_IN", "PHONE", "WEBSITE", "REFERRAL", "ADVERT
 export const QUERY_STATUSES = ["ACTIVE", "FOLLOW_UP", "CONVERTED", "LOST"];
 export const ENQUIRY_TABLE = "admission_queries";
 
+// SKAI-2117: the same phone/email rules as the public application form, plus length caps, so a lead can be contacted.
+const MAX_NAME = 120;
+const MAX_EMAIL = 254;
+export function assertEnquiryContact(c: { name?: string; phone?: string; email?: string | null }) {
+  if (c.name !== undefined && c.name.length > MAX_NAME) throw new ApiError(`name must be at most ${MAX_NAME} characters`, 400);
+  if (c.phone !== undefined && !PHONE.test(c.phone)) throw new ApiError(PHONE_MESSAGE, 400);
+  if (c.email && (c.email.length > MAX_EMAIL || !EMAIL.test(c.email))) throw new ApiError(EMAIL_MESSAGE, 400);
+}
+
 export async function createEnquiry(user: AuthUser, body: Record<string, any>) {
   const name = String(body.name ?? "").trim();
   const phone = String(body.phone ?? "").trim();
@@ -24,6 +34,7 @@ export async function createEnquiry(user: AuthUser, body: Record<string, any>) {
   const assignedToId = body.assignedToId ? String(body.assignedToId) : null;
 
   if (!name || !phone) throw new ApiError("name and phone are required", 400);
+  assertEnquiryContact({ name, phone, email });
   if (!QUERY_SOURCES.includes(source)) {
     throw new ApiError(`source must be one of: ${QUERY_SOURCES.join(", ")}`, 400);
   }
@@ -86,6 +97,7 @@ export async function updateEnquiry(user: AuthUser, body: Record<string, any>) {
   if (typeof body.name === "string" && body.name.trim()) updates.name = body.name.trim();
   if (typeof body.phone === "string" && body.phone.trim()) updates.phone = body.phone.trim();
   if (typeof body.email === "string") updates.email = body.email.trim() || null;
+  assertEnquiryContact({ name: updates.name, phone: updates.phone, email: updates.email });
   if (typeof body.note === "string") updates.note = body.note.slice(0, 2000);
   if (body.classInterestedId !== undefined) updates.classInterestedId = body.classInterestedId ? String(body.classInterestedId) : null;
   if (body.source) {
