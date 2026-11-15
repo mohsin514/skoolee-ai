@@ -33,7 +33,18 @@ export async function GET(req: NextRequest) {
 
     const sessions = await prisma.loginSession.findMany({
       where,
-      include: {
+      // Display fields only: the session token digest must never reach the caller.
+      select: {
+        id: true,
+        schoolId: true,
+        userId: true,
+        ipAddress: true,
+        userAgent: true,
+        loginAt: true,
+        lastActivityAt: true,
+        expiresAt: true,
+        isActive: true,
+        logoutAt: true,
         user: { select: { id: true, fullName: true, email: true, role: true } },
       },
       orderBy: [{ loginAt: "desc" }, { id: "desc" }],
