@@ -12,7 +12,8 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
-import { parseBody } from "@/lib/api/validate";
+import { parseBody, parseWith } from "@/lib/api/validate";
+import { itemTransactionSchema } from "@/lib/validators/operations";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
@@ -66,7 +67,9 @@ export async function POST(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { itemId, storeId, kind, quantity, unitPrice, supplierId, issuedToUserId, note, idempotencyKey } = body;
+    const { itemId, storeId, kind, quantity, unitPrice, supplierId, idempotencyKey } = body;
+    // SKAI-1466: the note is bounded and the recipient is a real person in this campus, checked before any stock change.
+    const { note, issuedToUserId } = parseWith(itemTransactionSchema.pick({ note: true, issuedToUserId: true }), body);
 
     if (!itemId || !storeId || !kind) throw new ApiError("itemId, storeId and kind required", 400);
     if (!VALID_KINDS.includes(kind)) throw new ApiError("Invalid kind", 400);
@@ -93,6 +96,10 @@ export async function POST(req: NextRequest) {
     if (!item) throw new ApiError("Item not found", 404);
     if (!store) throw new ApiError("Store not found", 404);
     if (supplierId && !supplier) throw new ApiError("Supplier not found", 404);
+    if (issuedToUserId) {
+      const recipient = await prisma.user.findFirst({ where: { id: issuedToUserId, schoolId: user.schoolId, campusId }, select: { id: true } });
+      if (!recipient) throw new ApiError("Recipient not found", 404);
+    }
 
     let transaction;
     try {

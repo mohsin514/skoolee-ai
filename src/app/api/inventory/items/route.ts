@@ -12,13 +12,8 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { parseBody, parseWith } from "@/lib/api/validate";
+import { itemSchema } from "@/lib/validators/operations";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
-import { requiredText } from "@/lib/validators/fields";
-import { z } from "zod";
-
-// Names are trimmed, bounded text; a number, object or blank name is a 400 before any database call.
-const itemName = z.object({ name: requiredText("Name", { max: 120 }) });
-const optionalItemName = z.object({ name: requiredText("Name", { max: 120 }).optional() });
 
 export const runtime = "nodejs";
 
@@ -51,8 +46,7 @@ export async function POST(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { unit, categoryId } = body;
-    const { name } = parseWith(itemName, body);
+    const { name, unit, categoryId } = parseWith(itemSchema, body);
 
     if (categoryId) {
       const category = await prisma.itemCategory.findFirst({ where: { id: categoryId, campusId } });
@@ -77,8 +71,8 @@ export async function PATCH(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { id, unit, categoryId } = body;
-    const { name } = parseWith(optionalItemName, body);
+    const { id } = body;
+    const { name, unit, categoryId } = parseWith(itemSchema.partial(), body);
     if (!id) throw new ApiError("id required", 400);
 
     const item = await prisma.item.findFirst({ where: { id, campusId } });
@@ -93,8 +87,8 @@ export async function PATCH(req: NextRequest) {
       where: { id },
       data: {
         ...(name !== undefined ? { name } : {}),
-        ...(unit !== undefined ? { unit } : {}),
-        ...(categoryId !== undefined ? { categoryId } : {}),
+        ...(unit !== undefined || body.unit === null ? { unit: unit ?? null } : {}),
+        ...(categoryId !== undefined || body.categoryId === null ? { categoryId: categoryId ?? null } : {}),
       },
       include: { category: true, stock: { include: { store: { select: { id: true, name: true } } } } },
     });
