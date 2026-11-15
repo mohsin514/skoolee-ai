@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { nextDueInvoice } from "@/lib/fees/next-due";
+import { nextDueInvoice, payableInvoices } from "@/lib/fees/next-due";
 
 // SKAI-1292: the student fee summary's nextDue must include PARTIAL installment balances.
 const inv = (id: string, status: string, dueDate: string, balanceDue: number) => ({ id, status, dueDate: new Date(dueDate), balanceDue });
@@ -21,5 +21,13 @@ describe("nextDueInvoice", () => {
   });
   it("returns null when nothing is outstanding", () => {
     assert.equal(nextDueInvoice([]), null);
+  });
+});
+
+describe("payableInvoices", () => {
+  const row = (id: string, status: string, dueDate: string, balance: number) => ({ id, status, dueDate, balance });
+  it("drops cancelled/paid/zero-balance and orders earliest due first (SKAI-2065)", () => {
+    const history = [row("c", "CANCELLED", "2026-09-30", 6400), row("pen", "PENDING", "2026-10-31", 100), row("par", "PARTIAL", "2026-08-31", 3200), row("paid", "PAID", "2026-07-31", 0)];
+    assert.deepEqual(payableInvoices(history).map((i) => i.id), ["par", "pen"]);
   });
 });

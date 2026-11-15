@@ -12,3 +12,11 @@ export function nextDueInvoice<T extends DueInvoice>(invoices: readonly T[]): T 
   }
   return next;
 }
+
+/** Invoices a payment can be recorded against: outstanding status with a balance, earliest due first (SKAI-2065). */
+export function payableInvoices<T extends { status: string; dueDate: string | Date; balance: number }>(invoices: readonly T[]): T[] {
+  const time = (d: string | Date) => new Date(d).getTime();
+  return invoices
+    .filter((i) => (OUTSTANDING_INVOICE_STATUSES as readonly string[]).includes(i.status) && i.balance > 0)
+    .sort((a, b) => time(a.dueDate) - time(b.dueDate));
+}
