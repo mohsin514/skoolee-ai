@@ -49,3 +49,13 @@ test("SKAI-2069: an omitted paymentDate defaults to schoolToday and the form pre
   assert.match(modal, /useState\(todayInSchool\)/);
   assert.doesNotMatch(modal, /new Date\(\)\.toISOString\(\)\.split/);
 });
+
+// SKAI-2089: /api/fees/payment follows the same concurrency pattern as /collect (no Serializable, advisory lock, in-tx replay).
+test("SKAI-2089: /api/fees/payment serialises same-key retries and does not use Serializable isolation", () => {
+  const route = readFileSync("src/app/api/fees/payment/route.ts", "utf8");
+  const tx = route.slice(route.indexOf("prisma.$transaction(async tx => {"), route.indexOf("{ timeout: 20000 }"));
+  assert.doesNotMatch(route, /Serializable/);
+  assert.ok(tx.indexOf("pg_advisory_xact_lock") < tx.indexOf("replay(tx)"));
+  assert.match(tx, /await recordPayment\(tx, \{/);
+  assert.match(route, /error\.code === "P2002"/);
+});

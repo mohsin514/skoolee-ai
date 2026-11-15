@@ -1,5 +1,6 @@
 import { recordPayment } from "@/lib/fees/payment";
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { LEGACY_PAYMENT_METHOD_STORED, paymentSchema } from "@/lib/validators/schemas";
 import {
@@ -47,28 +48,48 @@ async function confirmPayment(req: NextRequest) {
     const idempotencyKey = typeof (body as { idempotencyKey?: unknown }).idempotencyKey === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(body.idempotencyKey) ? body.idempotencyKey : null;
     if (!idempotencyKey) throw new ApiError("idempotencyKey is required for a payment", 400);
     const requestHash = createHash("sha256").update(JSON.stringify({ invoiceId: invoice.id, studentId: invoice.studentId, amount: parsed.data.amount, paymentDate: parsed.data.paymentDate, paymentMethod: parsed.data.paymentMethod, referenceNumber: parsed.data.referenceNumber ?? null })).digest("hex");
-    const previous = await prisma.payment.findFirst({ where: { schoolId: user.schoolId, recordedBy: user.userId, idempotencyKey } });
-    if (previous) {
+    // SKAI-2089: same pattern as /api/fees/collect (SKAI-1443). Default isolation, an advisory lock on the key, and the
+    // replay read inside the transaction, so concurrent payments on one campus no longer abort with 40001.
+    const replay = async (db: Pick<typeof prisma, "payment"> = prisma) => {
+      const previous = await db.payment.findFirst({ where: { schoolId: user.schoolId, recordedBy: user.userId, idempotencyKey } });
+      if (!previous) return null;
       if (previous.requestHash !== requestHash) throw new ApiError("This payment key was already used for a different payment.", 409);
-      return Response.json({ success: true, data: { id: previous.id, invoiceId: previous.invoiceId, amount: previous.amount, status: "recorded", receiptNumber: previous.receiptNo, invoiceNumber: invoice.invoiceNumber, studentName: invoice.student.fullName, message: "Payment already recorded" } }, { status: 200 });
-    }
+      return previous;
+    };
+    const replayed = (previous: NonNullable<Awaited<ReturnType<typeof replay>>>) => Response.json({ success: true, data: { id: previous.id, invoiceId: previous.invoiceId, amount: previous.amount, status: "recorded", receiptNumber: previous.receiptNo, invoiceNumber: invoice.invoiceNumber, studentName: invoice.student.fullName, message: "Payment already recorded" } }, { status: 200 });
+    const earlier = await replay();
+    if (earlier) return replayed(earlier);
 
-    const { payment } = await prisma.$transaction(async tx => {
-      const result = await recordPayment(tx, {
-      campusId, invoiceId: invoice.id, studentId: invoice.studentId,
-      amount: parsed.data.amount, paymentDate: new Date(`${parsed.data.paymentDate}T00:00:00Z`),
-      paymentMethod: LEGACY_PAYMENT_METHOD_STORED[parsed.data.paymentMethod], referenceNumber: parsed.data.referenceNumber,
-      recordedBy: user.userId, idempotencyKey, requestHash,
-      });
-      await tx.auditLog.create({
-      data: {
-          tableName: "payment", recordId: result.payment.id,
-          newValue: { invoiceId: invoice.id, amount: parsed.data.amount, receiptNo: result.payment.receiptNo },
-        userId: user.userId,
-      },
-      });
-      return result;
-    }, { isolationLevel: "Serializable", timeout: 20000 });
+    let payment;
+    try {
+      const outcome = await prisma.$transaction(async tx => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${user.schoolId}:${user.userId}:${idempotencyKey}`}))`;
+        const winner = await replay(tx);
+        if (winner) return { winner };
+        const result = await recordPayment(tx, {
+          campusId, invoiceId: invoice.id, studentId: invoice.studentId,
+          amount: parsed.data.amount, paymentDate: new Date(`${parsed.data.paymentDate}T00:00:00Z`),
+          paymentMethod: LEGACY_PAYMENT_METHOD_STORED[parsed.data.paymentMethod], referenceNumber: parsed.data.referenceNumber,
+          recordedBy: user.userId, idempotencyKey, requestHash,
+        });
+        await tx.auditLog.create({
+          data: {
+            tableName: "payment", recordId: result.payment.id,
+            newValue: { invoiceId: invoice.id, amount: parsed.data.amount, receiptNo: result.payment.receiptNo },
+            userId: user.userId,
+          },
+        });
+        return { payment: result.payment };
+      }, { timeout: 20000 });
+      if (outcome.winner) return replayed(outcome.winner);
+      payment = outcome.payment;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" && JSON.stringify(error.meta ?? {}).includes("idempotency")) {
+        const winner = await replay();
+        if (winner) return replayed(winner);
+      }
+      throw error;
+    }
 
     notify("PAYMENT_RECORDED", {
       schoolId: user.schoolId,
