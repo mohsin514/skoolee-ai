@@ -181,7 +181,7 @@ function learnerView(user: AuthUser, access: LearnerAccess, now: Date, { rubrics
 }
 
 // ─── Reading ──────────────────────────────────────────────────────
-export const listInput = z.object({ classId: z.string().min(1).optional(), cursor: z.string().min(1).max(200).optional() }).strict();
+export const listInput = z.object({ classId: z.string().min(1).optional(), cursor: z.string().min(1).max(200).optional(), studentId: z.string().min(1).max(64).optional() }).strict();
 export const ASSIGNMENT_PAGE_SIZE = 200;
 
 /** SKAI-1699: stable keyset page over (updatedAt desc, id desc); the cursor is the last row returned. */
@@ -204,7 +204,8 @@ export async function listAssignments(user: AuthUser, raw: unknown, now = new Da
   const input = listInput.parse(raw);
   return schoolAiTransaction(user, async tx => {
     if (user.role === "STUDENT" || user.role === "PARENT") {
-      const students = await learnerStudents(tx, user);
+      // SKAI-2171: a guardian's page follows the chosen child; the filter only narrows their own linked children.
+      const students = (await learnerStudents(tx, user)).filter(s => user.role !== "PARENT" || !input.studentId || s.id === input.studentId);
       const subs = await tx.assignmentSubmission.findMany({ where: { schoolId: user.schoolId, studentId: { in: students.map(s => s.id) }, latestVersion: { gt: 0 } }, select: { assignmentId: true, studentId: true } });
       const { page: rows, nextCursor } = assignmentPage(await tx.assignment.findMany({ where: { schoolId: user.schoolId, status: { not: "DRAFT" }, AND: [{ OR: [{ classId: { in: students.map(s => s.classId) } }, { id: { in: subs.map(s => s.assignmentId) } }] }, assignmentPageWhere(input.cursor)] }, orderBy: pageOrder, take: ASSIGNMENT_PAGE_SIZE + 1 }));
       // SKAI-1816: one query for the current releases and four for the learner data, never one per row.
