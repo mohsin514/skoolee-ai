@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { assertModuleRead, requireAuthUser } from "@/lib/api/scope";
 import { fail, failFrom, ok } from "@/lib/api/envelope";
+import { weightedGradeSubjectScope } from "@/lib/academic/weighted-grade-scope";
 import { calculateWeightedGrade, calculateWeightedGradeForClass } from "@/lib/academic/grade-calculator";
 
 export async function GET(request: NextRequest) {
@@ -32,14 +33,15 @@ export async function GET(request: NextRequest) {
     // otherwise a pupil id from another campus returned that pupil's name and calculation.
     const cls = await prisma.class.findFirst({ where: { id: classId, campusId: session.campusId }, select: { id: true } });
     if (!cls) return fail("NOT_FOUND", "Class not found in your campus");
+    const subjectIds = await weightedGradeSubjectScope(session, classId, session.campusId);
     if (studentId) {
       const pupil = await prisma.student.findFirst({ where: { id: studentId, campusId: session.campusId }, select: { id: true } });
       if (!pupil) return fail("NOT_FOUND", "Student not found in your campus");
-      const result = await calculateWeightedGrade(studentId, session.campusId, classId, academicYear);
+      const result = await calculateWeightedGrade(studentId, session.campusId, classId, academicYear, undefined, undefined, undefined, undefined, subjectIds);
       return ok({ grade: result });
     }
 
-    const results = await calculateWeightedGradeForClass(classId, session.campusId, academicYear);
+    const results = await calculateWeightedGradeForClass(classId, session.campusId, academicYear, subjectIds);
     return ok({ grades: results });
   } catch (error) {
     return failFrom(error, "Calculation failed");
