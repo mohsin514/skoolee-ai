@@ -12,3 +12,11 @@ test("announcement subject cannot inject mail headers and delivery does not need
   const literal = { ...proposal, messages: { en: { subject: "Exact text", body: "<strong>Literal markup</strong> {{not-a-template}}" } } };
   assert.deepEqual(announcementProposalSchema.parse(literal), literal);
 });
+
+// SKAI-2186: class ids with an inner space ("<campus>-Grade 1-A-2026") are valid targets; edge or double spaces are not.
+test("announcement class ids allow single inner spaces only", async () => {
+  const { announcementProposalSchema } = await import("@/lib/school-ai/announcements");
+  const classIds = announcementProposalSchema.shape.classIds;
+  assert.equal(classIds.safeParse(["campus-Grade 1-A-2026"]).success, true);
+  for (const bad of [" lead", "trail ", "two  spaces", "semi;colon"]) assert.equal(classIds.safeParse([bad]).success, false, bad);
+});
