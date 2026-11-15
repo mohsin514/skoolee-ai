@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError, assertStaffRole, canManageOperations } from "@/lib/api/scope";
+import { ApiError, assertStaffRole, canManageCampusOps } from "@/lib/api/scope";
 import { calendarDateIn } from "@/lib/datetime";
 import { getLocalePackage } from "@/lib/locale/store";
 import { guardianHasAccess } from "@/lib/parent/guardian-access";
@@ -30,7 +30,9 @@ const required = (v: unknown, max: number, message: string) => {
   if (!s) throw new ApiError(message, 400);
   return s.slice(0, max);
 };
-const isCoordinator = canManageOperations;
+// SKAI-2148: a coordinator is a campus operator, never PRINCIPAL (who is academic, not campus logistics). The routes
+// add assertPermission("transport", ...) so a role override in the permissions editor is obeyed too.
+const isCoordinator = canManageCampusOps;
 const campusOf = (user: AuthUser, requested?: unknown) => {
   const campusId = user.role === "SUPER_ADMIN" ? String(requested || user.campusId || "") : user.campusId ?? "";
   if (!campusId) throw new ApiError("Choose a campus.", 400);
