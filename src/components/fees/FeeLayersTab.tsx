@@ -15,6 +15,7 @@ import { ErrorState as SharedErrorState } from "@/components/ui/error-state";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ReviewedDelete, ReviewedDeleteDialog } from "@/components/ui/reviewed-delete";
 import { FormInput, FormSelect } from "@/components/shared-admin";
+import { parseFineRuleForm } from "@/lib/fees/fine-rule-form";
 import { Modal, ModalActions as DialogActions } from "@/components/ui/modal";
 import { Menu, type MenuItem } from "@/components/ui/menu";
 import type {
@@ -1131,7 +1132,6 @@ export function FineRulesPanel({ campusId, command, hideCreate = false }: FeeSet
   const [graceDays, setGraceDays] = useState("");
   const [type, setType] = useState<"PERCENT" | "FLAT" | "PER_DAY">("PERCENT");
   const [value, setValue] = useState("");
-  const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<FineRuleRow | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -1164,13 +1164,17 @@ export function FineRulesPanel({ campusId, command, hideCreate = false }: FeeSet
     setGraceDays(row ? String(row.graceDays) : "0");
     setType(row?.type ?? "PERCENT");
     setValue(row ? String(row.value) : "");
-    setDescription(row?.description ?? "");
     setShowModal(true);
   };
 
   const handleSave = async () => {
     if (!name.trim() || !value) {
       toast.error(tr("Name and value required"));
+      return;
+    }
+    const parsed = parseFineRuleForm(type, value, graceDays);
+    if (!parsed.ok) {
+      toast.error(tr(parsed.error));
       return;
     }
     setSaving(true);
@@ -1181,10 +1185,9 @@ export function FineRulesPanel({ campusId, command, hideCreate = false }: FeeSet
         body: JSON.stringify({
           ...(editing ? { id: editing.id } : { campusId: campusId || undefined }),
           name: name.trim(),
-          graceDays: Math.max(0, parseInt(graceDays) || 0),
+          graceDays: parsed.graceDays,
           type,
-          value: Math.round(parseFloat(value) * (type === "PERCENT" ? 1 : 100)),
-          description: description.trim() || null,
+          value: parsed.value,
         }),
       });
       const json = await res.json();
@@ -1299,14 +1302,13 @@ export function FineRulesPanel({ campusId, command, hideCreate = false }: FeeSet
               </label>
               <label>
                 <span className={labelClass}>{type === "PERCENT" ? tr("Percent of balance") : `${tr("Amount")} (${currency})`}</span>
-                <SystemInput type="number" min="0" value={value} onChange={(e) => setValue(e.target.value)} placeholder={type === "PERCENT" ? tr("e.g. 5") : tr("e.g. 200")} className="w-full" />
+                <SystemInput type="number" min="0" step={type === "PERCENT" ? "1" : "0.01"} value={value} onChange={(e) => setValue(e.target.value)} placeholder={type === "PERCENT" ? tr("e.g. 5") : tr("e.g. 200")} className="w-full" />
               </label>
             </div>
             <label>
               <span className={labelClass}><UiText>{"Grace days (0 = none)"}</UiText></span>
-              <SystemInput type="number" min="0" value={graceDays} onChange={(e) => setGraceDays(e.target.value)} placeholder="0" className="w-full" />
+              <SystemInput type="number" min="0" step="1" value={graceDays} onChange={(e) => setGraceDays(e.target.value)} placeholder="0" className="w-full" />
             </label>
-            <FormInput label={tr("Description (optional)")} value={description} placeholder={tr("Shown in reports")} onChange={setDescription} />
           </div>
         </Modal>
       )}
