@@ -2,16 +2,13 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { billingAccessResponse } from "@/lib/billing/response";
-import { isCampusAdminRole } from "@/lib/roles";
+import { canViewReportCards } from "@/lib/academic/report-card-access";
 import { teachesExamClass } from "@/lib/academic/teaches-exam-class";
 import { roundConfigured } from "@/lib/academic/model-config";
 import { calculateWeightedGrade, getOrCreateGradeWeightConfig, buildSubjectDistribution, gradeForMark, gradeForPercentage, type WeightConfig } from "@/lib/academic/grade-calculator";
 
 export const runtime = "nodejs";
 
-function canViewReportCards(role: string) {
-  return role === "TEACHER" || role === "PRINCIPAL" || role === "SUPER_ADMIN" || isCampusAdminRole(role);
-}
 
 export async function GET(
   _req: NextRequest,

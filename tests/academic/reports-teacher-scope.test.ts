@@ -30,3 +30,20 @@ test("detail GET denies an unassigned teacher before marks or grades are read", 
   assert.match(src, /classTeacherId: true/);
   assert.match(src, /subjects: \{ select: \{ teacherId: true \} \}/);
 });
+
+test("SKAI-2087: only report-card seats read report cards (list, detail and staff PDF download)", async () => {
+  const { canViewReportCards } = await import("../../src/lib/academic/report-card-access");
+  for (const role of ["TEACHER", "PRINCIPAL", "SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN"]) assert.equal(canViewReportCards(role), true, role);
+  for (const role of ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST", "PARENT", "STUDENT"]) assert.equal(canViewReportCards(role), false, role);
+
+  const list = readFileSync("src/app/api/reports/route.ts", "utf8");
+  const get = list.slice(list.indexOf("export async function GET"));
+  const gate = get.indexOf("!canViewReportCards(user.role)");
+  assert.ok(gate > 0 && gate < get.indexOf("prisma.reportCard.findMany"));
+  assert.match(get.slice(gate, gate + 150), /status: 403/);
+
+  const dl = readFileSync("src/app/api/reports/download/route.ts", "utf8");
+  const dget = dl.slice(dl.indexOf("export async function GET"));
+  assert.ok(dget.indexOf("!canViewReportCards(user.role)") > dget.indexOf("assertSharedModuleRead"));
+  assert.ok(dget.indexOf("!canViewReportCards(user.role)") < dget.indexOf("return await download("));
+});

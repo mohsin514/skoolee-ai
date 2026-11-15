@@ -7,6 +7,7 @@ import { AccessDenied, publishedReportsWhere, reportScope } from "@/lib/auth/pol
 import { assertSharedModuleRead, errorResponse } from "@/lib/api/scope";
 import { withParentScope } from "@/lib/parent/resolve-child";
 import { renderReportCardPdfBuffer } from "@/lib/academic/pdf";
+import { canViewReportCards } from "@/lib/academic/report-card-access";
 
 export const runtime = "nodejs";
 
@@ -48,6 +49,8 @@ export async function GET(req: NextRequest) {
     const user = await getAuthUser();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     await assertSharedModuleRead(user, "reports");
+    // SKAI-2087: non-family staff outside the report-card seats (accountant, librarian, receptionist) get nothing.
+    if (!["PARENT", "STUDENT"].includes(user.role) && !canViewReportCards(user.role)) throw new AccessDenied("report");
     return await download(req, reportScope(user), !["PARENT", "STUDENT"].includes(user.role));
   } catch (error) { return errorResponse(error, "Failed to generate PDF"); }
 }
