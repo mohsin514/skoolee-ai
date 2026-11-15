@@ -26,8 +26,8 @@ import { assertCategoryCurrent, parseCategoryInput } from "@/lib/students/catego
 const TX_OPTIONS = { maxWait: 20_000, timeout: 60_000 };
 const DUPLICATE = "A category with this name already exists in this campus";
 
-async function lockCampusNames(tx: Pick<typeof prisma, "$queryRaw">, campusId: string) {
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${campusId}, 0))`;
+async function lockCampusNames(tx: Pick<typeof prisma, "$executeRaw">, campusId: string) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${campusId}, 0))`;
 }
 
 async function assertNameFree(db: Pick<typeof prisma, "studentCategory">, campusId: string, name: string, exceptId?: string) {

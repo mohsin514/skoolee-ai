@@ -52,3 +52,9 @@ test("SKAI-168: inactive categories cannot be newly applied on admission or edit
   assert.match(readFileSync("src/lib/students/create.ts", "utf8"), /if \(!category\.isActive\)/);
   assert.match(readFileSync("src/app/api/students/route.ts", "utf8"), /!category\.isActive && categoryId !== existing\.categoryId/);
 });
+
+test("SKAI-2010: the campus-name advisory lock runs through $executeRaw (pg_advisory_xact_lock returns void, which $queryRaw cannot deserialize)", () => {
+  const route = readFileSync("src/app/api/student-categories/route.ts", "utf8");
+  assert.match(route, /\$executeRaw`SELECT pg_advisory_xact_lock\(/);
+  assert.doesNotMatch(route, /\$queryRaw`SELECT pg_advisory/);
+});
