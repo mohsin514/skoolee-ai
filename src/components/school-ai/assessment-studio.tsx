@@ -1,5 +1,6 @@
 "use client";
 
+import { localizePaperIssue, localizePaperIssues } from "@/lib/school-ai/paper-issue-copy";
 import { PaperFigureEditor } from "./paper-figure-editor";
 import { useEffect, useRef, useState } from "react";
 import { BookOpen, FileText, Plus, Printer, Save, Sparkles } from "lucide-react";
@@ -210,9 +211,9 @@ export function AssessmentStudio({ records, locale, onRefresh, subjects = [], ca
   return <section dir={locale === "en" ? "ltr" : "rtl"} className="space-y-5" aria-label={t.title}>
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-bold">{t.title}</h2><p className="mt-1 max-w-3xl text-sm text-ink-subtle">{t.intro}</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy || !canCreate} onClick={newCurriculum}><BookOpen />{t.newCurriculum}</Button><Button variant="outline" disabled={busy || !canCreate} onClick={() => newPaper()}><FileText />{t.newPaper}</Button></div></div>
     <FormField name="assessment-record" label={t.select}><Select value={selected?.id ?? ""} disabled={busy} onChange={(event) => { const record = records.find((item) => item.id === event.target.value); if (record) loadRecord(record); }}><option value="">{t.select}</option>{records.filter((record) => ["CURRICULUM", "PAPER"].includes(record.kind)).map((record) => <option key={record.id} value={record.id}>{record.title} · v{record.version} · {record.status}</option>)}</Select></FormField>
-    {message && <p ref={messageRef} role="status" className="sk-panel p-3 text-sm">{message}</p>}
+    {message && <p ref={messageRef} role="status" className="sk-panel p-3 text-sm">{localizePaperIssues(message, locale)}</p>}
     {busy && cancellable && <Button variant="outline" onClick={() => generationAbort.current?.abort()} data-cancel-generation>{t.cancelGeneration}</Button>}
-    {issues.length > 0 && <div ref={issuesRef} role="alert" tabIndex={-1} className="rounded-xl border border-status-error-border bg-status-error-surface p-4 text-sm text-status-error-text"><p className="font-semibold">{t.invalid}</p><ul className="mt-2 list-disc space-y-1 ps-5">{issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></div>}
+    {issues.length > 0 && <div ref={issuesRef} role="alert" tabIndex={-1} className="rounded-xl border border-status-error-border bg-status-error-surface p-4 text-sm text-status-error-text"><p className="font-semibold">{t.invalid}</p><ul className="mt-2 list-disc space-y-1 ps-5">{issues.map((issue, index) => <li key={index}>{localizePaperIssue(issue, locale)}</li>)}</ul></div>}
     {!curriculum && !paper && <p className="sk-panel p-8 text-center text-ink-subtle">{records.some(record => ["CURRICULUM", "PAPER"].includes(record.kind)) ? prototypeCopy(locale).selectSaved : t.empty}</p>}
     {(curriculum || paper) && <>
       {readonly && <div className="sk-panel flex flex-wrap items-center justify-between gap-3 p-4"><p className="text-sm">{t.readonly}</p><Button variant="outline" disabled={!canCreate || busy} onClick={() => { if (paper) setPaper(revisedDraftFrom(paper)); setSelected(null); setDirty(true); idempotencyKey.current = uid(); }}>{t.clone}</Button></div>}

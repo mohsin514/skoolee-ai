@@ -335,12 +335,14 @@ export function validateBlueprint(blueprint: Blueprint, curriculum?: CurriculumD
  * approvable without a migration. The moment any item of the paper carries a review state, the paper
  * is under the workbench and every item must carry one and be approved — so a half-reviewed paper
  * cannot be approved on the strength of its unreviewed items. */
+/** SKAI-2048: issues name a question by its position on the paper, never by its internal id. */
+const questionName = (paper: PaperData, question: { id: string }) => `Question ${paper.questions.findIndex((item) => item.id === question.id) + 1}`;
 function itemReviewIssues(paper: PaperData): string[] {
   if (!paper.questions.some((question) => question.review)) return [];
   const errors: string[] = [];
   const unapproved = paper.questions.filter((question) => question.review?.state !== "APPROVED");
   if (unapproved.length) {
-    const named = unapproved.slice(0, 10).map((question) => question.id).join(", ");
+    const named = unapproved.slice(0, 10).map((question) => questionName(paper, question)).join(", ");
     errors.push(`Approve every item before approving the paper. Not approved: ${named}${unapproved.length > 10 ? ` and ${unapproved.length - 10} more` : ""}.`);
   }
   for (const question of paper.questions) {
@@ -350,9 +352,9 @@ function itemReviewIssues(paper: PaperData): string[] {
     // own `approved` flag cannot express this: a re-cropped figure keeps it, so the recorded
     // invalidation is the only evidence that the reviewed check belongs to an earlier item revision.
     const staleFigure = review.invalidated.find((entry) => entry.artifact === "FIGURE_CHECK" || entry.trigger === "FIGURES");
-    if (staleFigure) errors.push(`Question ${question.id}: a ${staleFigure.trigger.toLocaleLowerCase()} change invalidated the figure check at ${staleFigure.at}. Review the figure again before approval.`);
+    if (staleFigure) errors.push(`${questionName(paper, question)}: a ${staleFigure.trigger.toLocaleLowerCase()} change invalidated the figure check at ${staleFigure.at}. Review the figure again before approval.`);
     // An approval recorded against an earlier item revision is not an approval of this item.
-    if (review.state === "APPROVED" && review.approvedBy?.itemRevision !== review.itemRevision) errors.push(`Question ${question.id}: the recorded approval belongs to an earlier item revision.`);
+    if (review.state === "APPROVED" && review.approvedBy?.itemRevision !== review.itemRevision) errors.push(`${questionName(paper, question)}: the recorded approval belongs to an earlier item revision.`);
   }
   return errors;
 }
@@ -379,26 +381,26 @@ export function validatePaperApproval(paper: PaperData, curriculum: CurriculumDa
   }
   for (const question of paper.questions) {
     const section = paper.blueprint.sections.find((item) => item.id === question.sectionId);
-    if (!section) errors.push(`Question ${question.id} refers to an unknown section.`);
-    if (!question.prompt.trim()) errors.push(`Question ${question.id} has no prompt.`);
-    if (!question.outcomeIds.length || !unique(question.outcomeIds) || question.outcomeIds.some((outcomeId) => !section?.outcomeIds.includes(outcomeId))) errors.push(`Question ${question.id} needs valid section outcomes.`);
-    if (!question.sourceRefs.length || question.sourceRefs.some((ref) => !ref.page.trim() || !ref.excerpt.trim() || !curriculum.sources.some((source) => source.id === ref.sourceId && source.approved && source.excerpt.includes(ref.excerpt)))) errors.push(`Question ${question.id} needs source evidence quoted from the approved material.`);
-    if (question.sourceRefs.some((ref) => !curriculum.outcomes.some((outcome) => question.outcomeIds.includes(outcome.id) && outcome.sourceId === ref.sourceId && outcome.sourcePage === ref.page))) errors.push(`Question ${question.id} cites a page outside its mapped curriculum outcomes.`);
+    if (!section) errors.push(`${questionName(paper, question)} refers to an unknown section.`);
+    if (!question.prompt.trim()) errors.push(`${questionName(paper, question)} has no prompt.`);
+    if (!question.outcomeIds.length || !unique(question.outcomeIds) || question.outcomeIds.some((outcomeId) => !section?.outcomeIds.includes(outcomeId))) errors.push(`${questionName(paper, question)} needs valid section outcomes.`);
+    if (!question.sourceRefs.length || question.sourceRefs.some((ref) => !ref.page.trim() || !ref.excerpt.trim() || !curriculum.sources.some((source) => source.id === ref.sourceId && source.approved && source.excerpt.includes(ref.excerpt)))) errors.push(`${questionName(paper, question)} needs source evidence quoted from the approved material.`);
+    if (question.sourceRefs.some((ref) => !curriculum.outcomes.some((outcome) => question.outcomeIds.includes(outcome.id) && outcome.sourceId === ref.sourceId && outcome.sourcePage === ref.page))) errors.push(`${questionName(paper, question)} cites a page outside its mapped curriculum outcomes.`);
     if (question.outcomeIds.some((outcomeId) => {
       const outcome = curriculum.outcomes.find((item) => item.id === outcomeId);
       return !outcome || !question.sourceRefs.some((ref) => ref.sourceId === outcome.sourceId && ref.page === outcome.sourcePage);
-    })) errors.push(`Question ${question.id} evidence must support its learning outcomes.`);
+    })) errors.push(`${questionName(paper, question)} evidence must support its learning outcomes.`);
     if (question.type === "SINGLE_CHOICE" || question.type === "MULTIPLE_CHOICE") {
-      if (question.options.length < 2 || !unique(question.options.map((option) => option.id)) || !unique(question.options.map((option) => option.text.trim().toLocaleLowerCase())) || question.options.some((option) => !option.text.trim()) || (question.type === "SINGLE_CHOICE" && !question.options.some((option) => option.id === question.correctOptionId))) errors.push(`Question ${question.id} needs distinct options and a valid answer key.`);
+      if (question.options.length < 2 || !unique(question.options.map((option) => option.id)) || !unique(question.options.map((option) => option.text.trim().toLocaleLowerCase())) || question.options.some((option) => !option.text.trim()) || (question.type === "SINGLE_CHOICE" && !question.options.some((option) => option.id === question.correctOptionId))) errors.push(`${questionName(paper, question)} needs distinct options and a valid answer key.`);
     } else if (question.options.length || question.correctOptionId !== null) {
-      errors.push(`Question ${question.id}: written questions cannot contain a choice answer key.`);
+      errors.push(`${questionName(paper, question)}: written questions cannot contain a choice answer key.`);
     }
-    if (question.type === "MULTIPLE_CHOICE" && (question.correctOptionId !== null || !question.correctOptionIds?.length || !unique(question.correctOptionIds) || question.correctOptionIds.some(optionId => !question.options.some(option => option.id === optionId)))) errors.push(`Question ${question.id} needs distinct valid correct choices.`);
-    if (question.type !== "MULTIPLE_CHOICE" && question.correctOptionIds?.length) errors.push(`Question ${question.id}: multiple-choice keys belong only to multiple-choice questions.`);
-    if (question.type === "NUMERIC" && !question.numericKey) errors.push(`Question ${question.id} needs a numeric answer and tolerance.`);
-    if (question.type !== "NUMERIC" && question.numericKey) errors.push(`Question ${question.id}: numeric keys belong only to numeric questions.`);
-    if (!question.modelAnswer.trim()) errors.push(`Question ${question.id} needs a model answer.`);
-    if (!question.rubric.length || !unique(question.rubric.map((criterion) => criterion.id)) || question.rubric.some((criterion) => !criterion.criterion.trim()) || !equalMarks(question.rubric.reduce((sum, criterion) => sum + criterion.marks, 0), question.marks)) errors.push(`Question ${question.id}: rubric criteria must total the question marks.`);
+    if (question.type === "MULTIPLE_CHOICE" && (question.correctOptionId !== null || !question.correctOptionIds?.length || !unique(question.correctOptionIds) || question.correctOptionIds.some(optionId => !question.options.some(option => option.id === optionId)))) errors.push(`${questionName(paper, question)} needs distinct valid correct choices.`);
+    if (question.type !== "MULTIPLE_CHOICE" && question.correctOptionIds?.length) errors.push(`${questionName(paper, question)}: multiple-choice keys belong only to multiple-choice questions.`);
+    if (question.type === "NUMERIC" && !question.numericKey) errors.push(`${questionName(paper, question)} needs a numeric answer and tolerance.`);
+    if (question.type !== "NUMERIC" && question.numericKey) errors.push(`${questionName(paper, question)}: numeric keys belong only to numeric questions.`);
+    if (!question.modelAnswer.trim()) errors.push(`${questionName(paper, question)} needs a model answer.`);
+    if (!question.rubric.length || !unique(question.rubric.map((criterion) => criterion.id)) || question.rubric.some((criterion) => !criterion.criterion.trim()) || !equalMarks(question.rubric.reduce((sum, criterion) => sum + criterion.marks, 0), question.marks)) errors.push(`${questionName(paper, question)}: rubric criteria must total the question marks.`);
   }
   return [...new Set(errors)];
 }
