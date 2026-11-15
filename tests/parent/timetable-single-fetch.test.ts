@@ -33,3 +33,9 @@ test("the student timetable hands its calendar off days to the date sheet instea
   const sheet = read("src/components/timetable/ExamDateSheet.tsx");
   assert.match(sheet, /ownCalendar \? fetch\(`\/api\/academic\/calendar\$\{qp\}`\)/);
 });
+
+test("the parent date sheet is scoped to the selected child (SKAI-2170)", () => {
+  const page = read("src/app/parent/timetable/page.tsx");
+  assert.match(page, /<ExamDateSheet key=\{selectedStudentId \?\? "all"\} studentId=\{selectedStudentId \?\? undefined\} \/>/);
+  assert.doesNotMatch(page, /<ExamDateSheet \/>/);
+});

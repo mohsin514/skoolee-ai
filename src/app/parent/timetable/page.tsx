@@ -192,9 +192,10 @@ export default function ParentTimetablePage() {
           <>
             <FamilyExamBrief studentId={selectedStudentId} />
             <MyNextPaper source={`/api/parent/exam-timeline${selectedStudentId ? `?studentId=${encodeURIComponent(selectedStudentId)}` : ""}`} />
+            {/* SKAI-2170: the date sheet follows the selected child; keyed so a switch drops the previous child's chosen exam. */}
+            <ExamDateSheet key={selectedStudentId ?? "all"} studentId={selectedStudentId ?? undefined} />
           </>
         ) : null}
-        <ExamDateSheet />
         {/* M96: the school calendar moved here from Home. Meetings moved to Meet a teacher (M92). */}
         <AcademicCalendar readOnly role="PARENT" />
       </div>
