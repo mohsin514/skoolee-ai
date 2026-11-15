@@ -177,6 +177,11 @@ function rowSchool(row: unknown, context: TenantContext, delegate: string, opera
   return context.unscoped ? null : context.schoolId || null;
 }
 
+function noRowsAffected(result: unknown): boolean {
+  if (Array.isArray(result)) return result.length === 0;
+  return (result as { count?: unknown } | null)?.count === 0;
+}
+
 function whereId(args: Record<string, unknown>): string | null {
   const id = (args.where as { id?: unknown } | undefined)?.id;
   return typeof id === "string" ? id : null;
@@ -228,6 +233,12 @@ export async function auditedOperation({ delegate, operation, args, query, clien
 
   const result = await inFlight.run(true, () => query(args));
   const pending = referenceTransaction.getStore() ? pendingRows.getStore() : undefined;
+
+  // SKAI-2043: a write that changed nothing is not a change to record. A bulk write that touched no rows (a
+  // skipDuplicates createMany of rows that already exist) and an upsert that found its row and left it as it was
+  // (`update: {}`) would otherwise log a phantom row, attributed to the viewer, on every read that seeds data.
+  if (BULK_OPERATIONS.has(operation) && noRowsAffected(result)) return result;
+  if (operation === "upsert" && before && JSON.stringify(redact(before)) === JSON.stringify(redact(result))) return result;
 
   try {
     const schoolId = rowSchool(single ? result ?? before : null, context, delegate, operation);
