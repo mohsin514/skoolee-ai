@@ -221,3 +221,16 @@ test("a bulk write that touched no rows and an upsert that changed nothing write
   });
   assert.equal(audits.length, 2);
 });
+test("SKAI-2215: another person's audit row on the same record does not supersede the maker's automatic row", async () => {
+  const { audits, client } = fakeClient();
+  await asUser(() => auditedOperation({ delegate: "student", operation: "create", args: { data: {} }, query: async () => ({ id: "s1", schoolId: "school-a" }), client }));
+  await runWithTenantContext({ schoolId: "school-a", userId: "user-2" }, () => auditedOperation({
+    delegate: "auditLog",
+    operation: "create",
+    args: { data: { tableName: "student", recordId: "s1", newValue: { decision: "approve" }, userId: "user-2" } },
+    query: async (args) => (client as unknown as { auditLog: { create: (a: unknown) => Promise<unknown> } }).auditLog.create(args),
+    client,
+  }));
+  assert.equal(audits.length, 2);
+  assert.deepEqual(audits[1].newValue, { decision: "approve" });
+});
