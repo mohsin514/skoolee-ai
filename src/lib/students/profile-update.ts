@@ -22,7 +22,7 @@ export const studentProfileUpdateSchema = z.object({
   id: z.string().min(1, "Student id is required"),
   campusId: optionalText,
   classId: z.string().optional(),
-  fullName: z.string().min(1, "Student name is required").optional(),
+  fullName: z.string().trim().min(1, "Student name is required").optional(),
   rollNo: z.string().min(1, "Roll number is required").optional(),
   nameUr: optionalText,
   phone: optionalText,
