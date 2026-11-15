@@ -1922,7 +1922,7 @@ export function StudentDetailModal({
     setEdits(next);
     const updates: Record<string, any> = {};
     const strFields = [
-      "fullName", "nameUr", "rollNo", "gender", "bloodType", "nationality", "emiratesId", "regulatorId", "phone",
+      "fullName", "nameUr", "gender", "bloodType", "nationality", "emiratesId", "regulatorId", "phone",
       "guardianName", "guardianNameUr", "guardianPhone", "guardianEmail",
       "guardianRelationship", "guardianOccupation",
       "city", "province", "postalCode", "address",
@@ -1930,7 +1930,6 @@ export function StudentDetailModal({
     ];
     for (const f of strFields) updates[f] = next[f] || null;
     if (next.fullName) updates.fullName = next.fullName;
-    if (next.rollNo) updates.rollNo = next.rollNo;
     if (next.dateOfBirth) updates.dateOfBirth = next.dateOfBirth;
     updates.categoryId = next.categoryId || null;
     updates.groupId = next.groupId || null;
@@ -2118,7 +2117,11 @@ export function StudentDetailModal({
             <FormInput label={ui("Full name (English)")} value={ed("fullName")} placeholder={ui("Student name")} onChange={(v) => setEd("fullName", v)} />
             <FormInput label={ui("Full name (Urdu)")} value={ed("nameUr")} placeholder="اردو نام" onChange={(v) => setEd("nameUr", v)} />
           </div>
-          <FormInput label={ui("Roll number")} value={ed("rollNo")} placeholder={ui("Roll number")} onChange={(v) => setEd("rollNo", v)} />
+          <div>
+            <p className="text-xs font-semibold text-ink-muted">{ui("Roll number")}</p>
+            <p className="mt-1 text-sm font-bold text-ink-strong"><bdi>{student.rollNo || "—"}</bdi></p>
+            <a className="mt-1 block text-xs text-primary underline" href={`/pupils/${student.id}`}>{ui("Roll and class changes are made in the enrolment history")}</a>
+          </div>
         </div>
       ) : null}
 
