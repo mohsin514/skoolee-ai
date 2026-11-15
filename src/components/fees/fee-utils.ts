@@ -51,6 +51,15 @@ export function rupeesToPaisa(rupees: number | string, currency = "PKR"): number
   return parseMoney(String(rupees), currency).minor;
 }
 
+/** SKAI-2029: non-throwing variant for render paths and validation; returns null for input parseMoney rejects (e.g. "1e5"). */
+export function tryRupeesToPaisa(rupees: number | string, currency = "PKR"): number | null {
+  try {
+    return rupeesToPaisa(rupees, currency);
+  } catch {
+    return null;
+  }
+}
+
 export function statusBadgeClass(status: InvoiceStatus | string): string {
   switch (status) {
     case "PAID":

@@ -30,7 +30,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { SectionPicker, UiSentence } from "@/components/operations/console-page";
 import { TypesPanel, GroupsPanel, MasterPanel, AssignPanel, DiscountsPanel, CarryPanel, FineRulesPanel } from "./FeeLayersTab";
 import type { ClassOption, FeeStructure, PanelCommand } from "./fee-types";
-import { API, classLabel, formatPKR, forwardCommand, paisaToRupees, rupeesToPaisa, usePanelCommand } from "./fee-utils";
+import { API, classLabel, formatPKR, forwardCommand, paisaToRupees, rupeesToPaisa, tryRupeesToPaisa, usePanelCommand } from "./fee-utils";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 import { evaluateFeeCap, type FeeCapMode } from "@/lib/fees/regulator-cap";
@@ -471,13 +471,22 @@ function StructureModal({
   const [saving, setSaving] = useState(false);
   const formCap = evaluateFeeCap({
     mode: capMode,
-    fee: monthlyFee ? rupeesToPaisa(monthlyFee, currency) : 0,
-    approvedFee: approvedFee ? rupeesToPaisa(approvedFee, currency) : null,
+    fee: monthlyFee ? (tryRupeesToPaisa(monthlyFee, currency) ?? 0) : 0,
+    approvedFee: approvedFee ? tryRupeesToPaisa(approvedFee, currency) : null,
   });
 
   const handleSave = async () => {
     if (!classId || !monthlyFee || !currency) {
       toast.error(tr("Class and monthly fee required"));
+      return;
+    }
+    // SKAI-2029: exponent / non-decimal input (e.g. "1e5") must show a message, not throw.
+    if (
+      tryRupeesToPaisa(monthlyFee, currency) === null ||
+      (approvedFee && tryRupeesToPaisa(approvedFee, currency) === null) ||
+      oneTimeFees.some((r) => r.name.trim() && r.amount && tryRupeesToPaisa(r.amount, currency) === null)
+    ) {
+      toast.error(tr("Enter amounts as plain numbers, for example 5000 or 5000.50"));
       return;
     }
     setSaving(true);
