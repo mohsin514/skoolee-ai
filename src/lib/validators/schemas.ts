@@ -283,12 +283,26 @@ export const examStatusSchema = z.object({
   status: z.enum(["DRAFT", "ACTIVE", "MARKS_ENTRY", "PRINCIPAL_REVIEWED", "PUBLISHED"]),
 });
 
+// Marks arrive from API callers as JSON or form strings. z.coerce.boolean()
+// reads "false" as true, and z.coerce.number() reads null and "" as 0, so a
+// pupil could be recorded absent or given a fail score by accident. These
+// accept only a real boolean / "true" / "false", and a real finite number.
+const strictBoolean = z.preprocess(
+  (value) => (value === "true" ? true : value === "false" ? false : value),
+  z.boolean(),
+);
+
+const strictMark = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() !== "" ? Number(value) : value),
+  z.number().finite().min(0),
+);
+
 // Single mark entry
 export const markEntrySchema = z.object({
   studentId: z.string().min(1),
   subjectId: z.string().min(1),
   examId: z.string().min(1),
-  marksObtained: z.coerce.number().min(0),
+  marksObtained: strictMark,
 });
 
 // Bulk marks (teacher enters entire class)
@@ -298,11 +312,11 @@ export const bulkMarksSchema = z.object({
   entries: z.array(z.object({
     studentId: z.string(),
     subjectId: z.string(),
-    marksObtained: z.coerce.number().min(0),
+    marksObtained: strictMark,
     // An absent pupil still gets a row — the paper was set, they did not sit
     // it — so absence travels alongside the mark rather than instead of it.
-    isAbsent: z.coerce.boolean().optional().default(false),
-    isExempt: z.coerce.boolean().optional().default(false),
+    isAbsent: strictBoolean.optional().default(false),
+    isExempt: strictBoolean.optional().default(false),
   })).min(1),
 });
 
