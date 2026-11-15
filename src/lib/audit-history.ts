@@ -49,7 +49,7 @@ export interface AuditHistoryPage {
   schoolWide: boolean; campuses: Array<{ id: string; name: string }>;
 }
 
-const safeStates = new Set(["DRAFT", "IN_REVIEW", "APPROVED", "REJECTED", "PUBLISHED", "ARCHIVED", "ACTIVE", "INACTIVE", "PENDING", "NOTED", "DISMISSED", "FOLLOW_UP", "SUBMITTED", "REVIEWED", "CANCELED", "CANCELLED", "COMPLETED", "FAILED", "DELETED", "active", "inactive", "archived"]);
+const safeStates = new Set(["DRAFT", "IN_REVIEW", "APPROVED", "REJECTED", "PUBLISHED", "ARCHIVED", "ACTIVE", "INACTIVE", "PENDING", "APPLIED", "NOTED", "DISMISSED", "FOLLOW_UP", "SUBMITTED", "REVIEWED", "CANCELED", "CANCELLED", "COMPLETED", "FAILED", "DELETED", "active", "inactive", "archived"]);
 function fields(value: unknown): Record<string, unknown> {
   if (typeof value === "string") { try { value = JSON.parse(value); } catch { return {}; } }
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
