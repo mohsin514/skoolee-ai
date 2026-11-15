@@ -36,6 +36,8 @@ type Ui = ReturnType<typeof useUiText>;
 
 type LeaveType = { id: string; name: string; defaultDays?: number | null };
 type Balance = { leaveTypeId: string; name: string; allocated: number; approved: number; pending: number; remaining: number };
+// SKAI-2264: the server counts pending requests against the balance, so the form shows the same "available".
+const availableOf = (b: Balance) => Math.max(0, b.remaining - b.pending);
 type LeaveRequest = {
   id: string;
   status: string;
@@ -134,7 +136,7 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
   })();
 
   const selectedBalance = balances.find((b) => b.leaveTypeId === applyForm.leaveTypeId);
-  const remainingDays = selectedBalance ? selectedBalance.remaining / 10 : null;
+  const remainingDays = selectedBalance ? availableOf(selectedBalance) / 10 : null;
   const overBalance = Boolean(computedDays && remainingDays !== null && computedDays > remainingDays);
 
   const applyBlockedReason = !applyForm.leaveTypeId
@@ -143,7 +145,9 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
       ? ui("Pick both a from and a to date.")
       : datesReversed
         ? ui("The end date is before the start date.")
-        : null;
+        : overBalance
+          ? ui("This is more than your available balance. Pending requests count against it.")
+          : null;
 
   const openApply = () => {
     setApplyError(null);
@@ -308,8 +312,8 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
                 <div key={b.leaveTypeId} className="sk-panel min-w-0 p-4">
                   <div className="flex items-center justify-between gap-2">
                     <h2 className="min-w-0 truncate text-sm font-semibold text-ink-strong"><bdi>{b.name}</bdi></h2>
-                    <Badge size="sm" dot data-numeric variant={b.remaining > 0 ? "success" : "danger"} className="shrink-0">
-                      {ui("{0} left", [days(b.remaining)])}
+                    <Badge size="sm" dot data-numeric variant={availableOf(b) > 0 ? "success" : "danger"} className="shrink-0">
+                      {ui("{0} left", [days(availableOf(b))])}
                     </Badge>
                   </div>
                   <Progress className="mt-3" value={pct} label={ui("{0}: approved leave out of the allocation", [b.name])} />
@@ -477,7 +481,7 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
                   const b = balances.find((x) => x.leaveTypeId === type.id);
                   return (
                     <option key={type.id} value={type.id}>
-                      {type.name} ({b ? ui("{0} left", [days(b.remaining)]) : ui("{0} by default", [days((type.defaultDays || 0) * 10)])})
+                      {type.name} ({b ? ui("{0} left", [days(availableOf(b))]) : ui("{0} by default", [days((type.defaultDays || 0) * 10)])})
                     </option>
                   );
                 })}
@@ -517,14 +521,14 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
                   <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
                     <span className="font-semibold tabular-nums text-ink-strong">{ui("{0} requested", [days(computedDays * 10)])}</span>
                     {selectedBalance ? (
-                      <span className="text-xs tabular-nums text-ink-muted">{ui("{0} available", [days(selectedBalance.remaining)])}</span>
+                      <span className="text-xs tabular-nums text-ink-muted">{ui("{0} available", [days(availableOf(selectedBalance))])}</span>
                     ) : null}
                   </span>
                 </Alert>
                 {/* Requesting more than the balance is the approver's call, not a hard block. */}
                 {overBalance && remainingDays !== null ? (
                   <Alert tone="warning" compact>
-                    {ui("That is {0} more than your remaining balance — it can still be sent, but may be declined.", [days((computedDays - remainingDays) * 10)])}
+                    {ui("That is {0} more than your available balance, so it cannot be sent. Shorten the dates or withdraw a pending request.", [days((computedDays - remainingDays) * 10)])}
                   </Alert>
                 ) : null}
               </div>
