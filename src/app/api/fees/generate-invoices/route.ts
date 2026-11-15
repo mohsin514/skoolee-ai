@@ -8,6 +8,7 @@ import { activationFor, issueDocuments, taxForActivation } from "@/lib/tax/servi
 import { classYearKey, loadInvoiceGenerationInputs, memoByKey } from "@/lib/fees/invoice-generation-inputs";
 import { calculateInvoiceAmounts, invoiceMonthDates, MAX_INVOICE_MINOR } from "@/lib/school-ai/fee-invoices";
 import { evaluateFeeCap, feeCapDecision } from "@/lib/fees/regulator-cap";
+import { daysOverdue, lateFeeFor } from "@/lib/fees/late-fee";
 import { generateInvoicesSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
@@ -107,6 +108,8 @@ export async function POST(req: NextRequest) {
     const results: Array<{ studentId: string; status: string; error?: string }> = [];
     // SKAI-1814: read every per-student input once for the batch instead of once per student.
     const inputs = await loadInvoiceGenerationInputs(tx, { schoolId: user.schoolId, campusId }, students, Boolean(parsed.data.includeLateFees));
+    // SKAI-2022: the campus's active fine rule (oldest first when several) decides late fees.
+    const fineRule = parsed.data.includeLateFees ? await tx.feeFineRule.findFirst({ where: { schoolId: user.schoolId, campusId, isActive: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { type: true, value: true, graceDays: true } }) : null;
     const enrollmentsByStudent = new Map<string, typeof enrollments>();
     for (const period of enrollments) { const list = enrollmentsByStudent.get(period.studentId); if (list) list.push(period); else enrollmentsByStudent.set(period.studentId, [period]); }
     const activationOn = memoByKey(day => activationFor(tx, user.schoolId, campusId, new Date(`${day}T00:00:00.000Z`)));
@@ -209,16 +212,7 @@ export async function POST(req: NextRequest) {
           const prevInvoice = inputs.latestOpenInvoiceByStudent.get(student.id);
           if (prevInvoice && prevInvoice.currency !== currency) { results.push({ studentId: student.id, status: "error", error: "Cannot combine late fees across currencies" }); continue; }
           if (prevInvoice) {
-            const daysOverdue = Math.floor((invoiceDate.getTime() - prevInvoice.dueDate.getTime()) / (1000 * 60 * 60 * 24));
-            if (daysOverdue > 0) {
-              const monthsOverdue = Math.ceil(daysOverdue / 30);
-              let lateBase = prevInvoice.balanceDue;
-              for (let i = 0; i < monthsOverdue; i++) {
-                const fee = Math.round(lateBase * (feeStructure.lateFeePercentage ?? 2.0) / 100);
-                lateFeeAmount += fee;
-                if (feeStructure.compoundLateFee) lateBase += fee;
-              }
-            }
+            lateFeeAmount = lateFeeFor(daysOverdue(invoiceDate, prevInvoice.dueDate), prevInvoice.balanceDue, fineRule, { percentage: feeStructure.lateFeePercentage ?? 2.0, compound: Boolean(feeStructure.compoundLateFee) });
           }
         }
       }
