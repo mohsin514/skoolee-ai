@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import { studentScope } from "@/lib/auth/policy";
 import { reconcileStatement, schoolToday } from "@/lib/fees/statement";
-import { installmentStates, type Installment } from "@/lib/fees/installments";
+import { installmentStates, settledTowardPlan, type Installment } from "@/lib/fees/installments";
 import { familyAdjustment } from "@/lib/fees/adjustments-service";
 
 /** Largest ledger one statement will show; above this the request fails explicitly rather than truncating. */
@@ -40,7 +40,7 @@ export async function familyStatement(user: AuthUser, studentId: string | null, 
   const rows = inCurrency.map(invoice => {
     const plan = schedule.get(invoice.id);
     return { id: invoice.id, status: invoice.status, totalAmount: invoice.totalAmount, totalAmountPaid: invoice.totalAmountPaid, balanceDue: invoice.balanceDue, dueDate: invoice.dueDate.toISOString().slice(0, 10),
-      ...(plan ? { installments: installmentStates(plan.installmentsJson as Installment[], invoice.totalAmountPaid - plan.paidAtCreation, today) } : {}) };
+      ...(plan ? { installments: installmentStates(plan.installmentsJson as Installment[], settledTowardPlan(plan.installmentsJson as Installment[], invoice.balanceDue), today) } : {}) };
   });
   const summary = reconcileStatement(rows, today);
   // SKAI-2100: an overpayment sits in a carry-forward record (negative balance = credit). Show it so receipts reconcile.

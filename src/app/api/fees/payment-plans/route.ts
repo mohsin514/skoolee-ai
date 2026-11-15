@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, assertSharedModuleRead, assertStaffRole, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 import { studentScope } from "@/lib/auth/policy";
-import { installmentStates, validatePlan, type Installment } from "@/lib/fees/installments";
+import { installmentStates, settledTowardPlan, validatePlan, type Installment } from "@/lib/fees/installments";
 import { schoolToday } from "@/lib/fees/statement";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -12,12 +12,12 @@ import { jsonObjectBody } from "@/lib/validators/route-bodies";
 // to what is still owed; a different staff member approves it; families see the approved schedule.
 
 type PlanRow = { id: string; status: string; currency: string | null; installmentsJson: Prisma.JsonValue; paidAtCreation: number; createdById: string | null; approvedById: string | null; approvedAt: Date | null; version: number; createdAt: Date };
-function present(plan: PlanRow, invoice: { totalAmountPaid: number }, today: string, viewerId: string) {
+function present(plan: PlanRow, invoice: { totalAmountPaid: number; balanceDue: number }, today: string, viewerId: string) {
   const installments = plan.installmentsJson as Installment[];
   return {
     id: plan.id, status: plan.status, currency: plan.currency, version: plan.version, createdAt: plan.createdAt.toISOString(), approvedAt: plan.approvedAt?.toISOString() ?? null,
     proposedByYou: plan.createdById === viewerId,
-    installments: installmentStates(installments, invoice.totalAmountPaid - plan.paidAtCreation, today),
+    installments: installmentStates(installments, settledTowardPlan(installments, invoice.balanceDue), today),
   };
 }
 
