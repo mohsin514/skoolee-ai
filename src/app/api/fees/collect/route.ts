@@ -2,11 +2,13 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
+  assertFeesRead,
   assertPermission,
   assertStaffRole,
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
+import { campusScope } from "@/lib/auth/policy";
 import { collectPaymentCore, collectReceipt } from "@/lib/fees/collect-command";
 import { notify } from "@/lib/notifications/in-app";
 import { parseBody } from "@/lib/api/validate";
@@ -59,11 +61,13 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Families and staff without fees.view are refused; campus-pinned staff only see their own campus's invoices.
+    await assertFeesRead(user);
     const invoiceId = req.nextUrl.searchParams.get("invoiceId");
     if (!invoiceId) throw new ApiError("invoiceId required", 400);
 
     const invoice = await prisma.invoice.findFirst({
-      where: { id: invoiceId, student: { campus: { schoolId: user.schoolId } } },
+      where: { id: invoiceId, student: campusScope(user) },
       include: {
         payments: { orderBy: { createdAt: "desc" } },
         student: { select: { id: true, fullName: true, rollNo: true } },
