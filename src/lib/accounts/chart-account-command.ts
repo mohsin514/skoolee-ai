@@ -4,6 +4,9 @@ import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, resolveCampusId } from "@/lib/api/scope";
 
 export const ACCOUNT_TYPES = ["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"];
+/** SKAI-2233: names the automatic fee and payroll postings use; only their system accounts carry them. */
+export const RESERVED_ACCOUNT_NAMES = ["fee income", "salaries expense"];
+export const isReservedAccountName = (name: string) => RESERVED_ACCOUNT_NAMES.includes(name.trim().toLowerCase());
 
 /**
  * Create a chart-of-accounts entry (POST /api/accounts/chart), extracted so the route and the AI Workflows
@@ -16,6 +19,7 @@ export async function createChartAccount(user: AuthUser, body: Record<string, un
   const type = String(body.type ?? "").toUpperCase();
 
   if (!name) throw new ApiError("name is required", 400);
+  if (isReservedAccountName(name)) throw new ApiError("This name is reserved for a system account. Choose another name.", 409);
   if (!ACCOUNT_TYPES.includes(type)) throw new ApiError(`type must be one of ${ACCOUNT_TYPES.join(", ")}`, 400);
 
   const existing = await prisma.chartOfAccount.findFirst({ where: { campusId, name } });

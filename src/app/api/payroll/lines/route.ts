@@ -74,6 +74,8 @@ export async function PATCH(req: NextRequest) {
           create: { campusId, name: "Salaries Expense", type: "EXPENSE", isSystem: true },
           update: {},
         });
+        // SKAI-2233: never post salaries to an account that only borrowed the name.
+        if (!account.isSystem || account.type !== "EXPENSE") throw new ApiError("The \"Salaries Expense\" account on this campus is not the system expense account. Rename that account before paying salaries.", 409);
 
         await tx.ledgerEntry.create({
           data: {
