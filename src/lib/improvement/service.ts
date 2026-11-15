@@ -140,7 +140,8 @@ async function people(schoolId: string, ids: string[]) {
 }
 
 /** One computed view of a framework for an audience; packs freeze exactly this. */
-async function build(user: AuthUser, frameworkId: string, audience: Audience, clinic: boolean, only: Set<string> | null) {
+/** SKAI-2115: `ownOnly` (plain staff) limits evidence and actions to records the user owns. */
+async function build(user: AuthUser, frameworkId: string, audience: Audience, clinic: boolean, only: Set<string> | null, ownOnly = false) {
   const fw = await framework(user, frameworkId);
   const today = await schoolToday(user.schoolId, fw.campusId);
   const [allItems, allActions] = await Promise.all([
@@ -148,8 +149,9 @@ async function build(user: AuthUser, frameworkId: string, audience: Audience, cl
     prisma.improvementAction.findMany({ where: { schoolId: user.schoolId, frameworkId }, orderBy: { createdAt: "asc" } }),
   ]);
   const owners = await visibleOwners(user, [...allItems, ...allActions].map(r => r.ownerId));
-  const items = owners ? allItems.filter(i => i.ownerId === user.userId || owners.has(i.ownerId)) : allItems;
-  const actions = owners ? allActions.filter(a => a.ownerId === user.userId || owners.has(a.ownerId)) : allActions;
+  const mine = (ownerId: string) => ownerId === user.userId;
+  const items = ownOnly ? allItems.filter(i => mine(i.ownerId)) : owners ? allItems.filter(i => mine(i.ownerId) || owners.has(i.ownerId)) : allItems;
+  const actions = ownOnly ? allActions.filter(a => mine(a.ownerId)) : owners ? allActions.filter(a => mine(a.ownerId) || owners.has(a.ownerId)) : allActions;
   const now = await currentSources(user.schoolId, items.map(i => ({ type: i.sourceType, id: i.sourceId })));
   const plans = await prisma.interventionPlan.findMany({ where: { schoolId: user.schoolId, id: { in: actions.map(a => a.interventionPlanId).filter((x): x is string => !!x) } }, select: { id: true, status: true, version: true } });
   const names = await people(user.schoolId, [...items.flatMap(i => [i.ownerId, i.reviewedById ?? ""]), ...actions.flatMap(a => [a.ownerId, a.completedById ?? ""]), ...fw.criteria.map(c => c.interpretationApprovedById ?? "")]);
@@ -202,7 +204,7 @@ export async function workspace(user: AuthUser, frameworkId?: string | null) {
   const id = frameworkId || granted?.frameworkId || frameworks.find(f => f.status === "ACTIVE")?.id || frameworks[0]?.id;
   if (!id) return { frameworks, mode: lead ? "LEAD" : "STAFF", view: null, packs: [], grants: [] };
   const a = await access(user, id);
-  const view = await build(user, id, a.mode, a.clinic, a.criteria);
+  const view = await build(user, id, a.mode, a.clinic, a.criteria, a.mode === "STAFF");
   const packs = await prisma.evidencePack.findMany({ where: { schoolId: user.schoolId, frameworkId: id, ...(a.mode === "REVIEWER" ? { audience: "EXTERNAL" } : {}) }, select: { id: true, version: true, audience: true, digest: true, createdAt: true, manifest: true }, orderBy: { version: "desc" } });
   const grants = a.mode === "LEAD" ? await prisma.evidenceReviewerGrant.findMany({ where: { schoolId: user.schoolId, frameworkId: id, revokedAt: null }, orderBy: { createdAt: "desc" } }) : [];
   const grantNames = await people(user.schoolId, grants.map(g => g.userId));
@@ -370,6 +372,8 @@ export async function openSource(user: AuthUser, itemId: string) {
   await assertOwnerVisible(user, item.ownerId, "Evidence not found");
   const a = await access(user, item.frameworkId);
   if (a.mode === "REVIEWER") assert(item.audience !== "STAFF" && item.criterionIds.some(id => a.criteria!.has(id)), "Evidence not found", 404);
+  // SKAI-2115: plain staff open only evidence they own.
+  if (a.mode === "STAFF") assert(item.ownerId === user.userId, "Evidence not found", 404);
   const restricted = item.sensitivity === "CLINIC" ? !(a.mode === "LEAD" && a.clinic) : item.sensitivity === "PUPIL" ? a.mode !== "LEAD" : false;
   assert(!restricted, "You can review this criterion but cannot open its restricted source.");
   if (item.sourceType === "DOCUMENT") return { sourceType: item.sourceType, version: item.sourceVersion, current: true, content: { note: item.note } };
