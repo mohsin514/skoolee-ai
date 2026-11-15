@@ -236,6 +236,17 @@ export interface SchoolDetailsInput {
 export async function updateSchoolDetails(input: SchoolDetailsInput) {
   const session = await requireSession();
   assertCanEditSchool(session);
+  try {
+    return await saveSchoolDetails(session, input);
+  } catch (error) {
+    // SKAI-2188: Next.js replaces a thrown message in production builds, so a validation refusal is returned as data.
+    // Database errors keep throwing; their text is not meant for the user.
+    if (error instanceof Error && !error.constructor.name.startsWith("PrismaClient")) return { success: false as const, error: error.message };
+    throw error;
+  }
+}
+
+async function saveSchoolDetails(session: Awaited<ReturnType<typeof requireSession>>, input: SchoolDetailsInput) {
 
   const name = input.name === undefined ? undefined : requiredText(input.name, "School name");
   const city = input.city === undefined ? undefined : requiredText(input.city, "City");
@@ -272,7 +283,7 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
     // SKAI-114: read, update and audit run in one transaction; the 5 s default expired on a slow database and refused the save.
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 10_000, timeout: 30_000 });
 
-  return { success: true, changed: result.changed, school: { id: result.school.id, name: result.school.name, timezone: result.school.timezone } };
+  return { success: true as const, changed: result.changed, school: { id: result.school.id, name: result.school.name, timezone: result.school.timezone } };
 }
 
 export async function updateCampusDetails(input: CampusDetailsInput) {
