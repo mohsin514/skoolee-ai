@@ -9,7 +9,7 @@
 import { z } from "zod";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
-import { ApiError, assertSharedModuleRead, canManageAcademics } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageAcademics, isFamilyRole } from "@/lib/api/scope";
 import { assertExamSchedulingAccess } from "@/lib/academic/exam-scheduling-write";
 import { notify } from "@/lib/notifications/in-app";
 import { getAcademicLead } from "@/lib/notifications/events";
@@ -243,9 +243,10 @@ async function viewSlots(user: AuthUser, tx: TxClient, rows: SlotRow[], today: s
 
 const todayUtc = () => new Date().toISOString().slice(0, 10);
 
-/** Every slot of a session, for the office's Papers step. Readable by anyone who reads the exams module. */
+/** Every slot of a session, for the office's Papers step. Staff who read the exams module only: the paper pipeline (author, moderator, seal) is never shown to students or parents. */
 export async function listSessionSlots(user: AuthUser, sessionId: string, today = todayUtc()) {
-  await assertSharedModuleRead(user, "exams");
+  if (isFamilyRole(user)) throw new ApiError("Insufficient permissions: exams.view denied", 403);
+  await assertPermission(user, "exams", "view");
   return schoolAiTransaction(user, async tx => {
     const session = await sessionFor(user, sessionId, tx);
     const office = await assertExamOffice(user, session.campusId, tx).then(() => true, () => false);
