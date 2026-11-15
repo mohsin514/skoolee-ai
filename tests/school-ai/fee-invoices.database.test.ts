@@ -171,6 +171,16 @@ test("monthly duplicate lookup keeps UTC date-only boundaries in positive and ne
 }));
 
 
+test("SKAI-2002 monthly duplicate lookup can ignore a CANCELLED invoice so it can be replaced", () => school(async f => {
+  const cancelled = await legacyInvoice(f, f.studentId, "CANCELLED"), range = [new Date("2026-10-01Z"), new Date("2026-11-01Z")] as const;
+  const run = (excludeCancelled?: boolean) => db.$transaction(tx => existingMonthlyStudentInvoices(tx, f.schoolId, f.campusId, [f.studentId], range[0], range[1], { excludeCancelled }));
+  assert.deepEqual((await run()).map(row => row.id), [cancelled.id]);
+  assert.deepEqual(await run(true), []);
+  const live = await legacyInvoice(f);
+  assert.deepEqual((await run(true)).map(row => row.id), [live.id]);
+}));
+
+
 test("explicit reviewed carry consumption keeps money separate and preserves remaining credit across months", () => school(async f => {
   const carry = await db.feeCarryForward.create({ data: { schoolId: f.schoolId, campusId: f.campusId, studentId: f.studentId, fromAcademicYear: 2025, toAcademicYear: 2026, balance: -10000, currency: "PKR" } });
   const record = await approved(f, { ...f.proposal, applyCarryForward: true }), p = await preview(f, record);

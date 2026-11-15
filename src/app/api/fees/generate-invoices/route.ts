@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     // SKAI-1946: nobody to bill is an empty result, not a missing resource, so it answers 200 with a zero count.
     if (students.length === 0) return null;
 
-    const existingInvoices = await existingMonthlyStudentInvoices(tx, user.schoolId, campusId, students.map(student => student.id), invoiceDate, nextMonth);
+    const existingInvoices = await existingMonthlyStudentInvoices(tx, user.schoolId, campusId, students.map(student => student.id), invoiceDate, nextMonth, { excludeCancelled: true });
     if (existingInvoices.length > 0) {
       throw new ApiError(
         `Invoices already exist for ${existingInvoices.length} student(s) this month`,

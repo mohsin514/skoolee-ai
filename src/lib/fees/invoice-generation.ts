@@ -8,14 +8,17 @@ import { Prisma } from "@prisma/client";
 
 /** A pupil's monthly bill survives a campus transfer. The tenant client normally
  * restricts invoice reads to the actor's campus, so use an explicit school and
- * current-pupil-scope projection here; never select another campus's amounts. */
-export async function existingMonthlyStudentInvoices(tx: Pick<TxClient, "$queryRaw">, schoolId: string, campusId: string, studentIds: string[], start: Date, end: Date) {
+ * current-pupil-scope projection here; never select another campus's amounts.
+ * SKAI-2002: excludeCancelled lets a void (CANCELLED) invoice be replaced; the default still counts it. */
+export async function existingMonthlyStudentInvoices(tx: Pick<TxClient, "$queryRaw">, schoolId: string, campusId: string, studentIds: string[], start: Date, end: Date, options: { excludeCancelled?: boolean } = {}) {
   if (!studentIds.length) return [];
+  const cancelledFilter = options.excludeCancelled ? Prisma.sql`AND i.status <> 'CANCELLED'` : Prisma.empty;
   return tx.$queryRaw<Array<{ id: string; studentId: string; invoiceDate: Date }>>(Prisma.sql`
     SELECT DISTINCT ON (i.student_id) i.id, i.student_id AS "studentId", i.invoice_date AS "invoiceDate"
     FROM invoices i JOIN students s ON s.id=i.student_id AND s.school_id=i.school_id
     WHERE i.school_id=${schoolId} AND s.campus_id=${campusId}
       AND i.student_id IN (${Prisma.join([...new Set(studentIds)])})
+      ${cancelledFilter}
       AND i.invoice_date >= ${start.toISOString().slice(0, 10)}::date
       AND i.invoice_date < ${end.toISOString().slice(0, 10)}::date
     ORDER BY i.student_id, i.id`);
