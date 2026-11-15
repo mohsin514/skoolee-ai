@@ -125,6 +125,11 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
   const amount = minorUnits(body.amount, "amount");
   if (amount <= 0) throw new ApiError("amount must be a positive integer (paisa)", 400);
 
+  // SKAI-2101: fine and discount were stored on the payment and printed on the receipt but never applied to the
+  // invoice, so a desk discount left the full balance owed. Concessions go through the approved adjustments flow.
+  const fineAmount = minorUnits(body.fineAmount, "fineAmount", 0), discountAmount = minorUnits(body.discountAmount, "discountAmount", 0);
+  if (fineAmount > 0 || discountAmount > 0) throw new ApiError("Fines and discounts cannot be recorded on a payment. Use invoice adjustments for a fine or a concession.", 400);
+
   // SKAI-2069: an omitted paymentDate defaults to today in the school timezone (resolved below), not the UTC date.
   const explicitDate = body.paymentDate !== undefined && body.paymentDate !== null;
   const paymentDateInput = explicitDate ? calendarDate(body.paymentDate) : null;
@@ -156,7 +161,6 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
   // response replays the original receipt; the same key with a different request is a conflict.
   const idempotencyKey = typeof body.idempotencyKey === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(body.idempotencyKey) ? body.idempotencyKey : null;
   if (!idempotencyKey) throw new ApiError("idempotencyKey is required for a manual collection", 400);
-  const fineAmount = minorUnits(body.fineAmount, "fineAmount", 0), discountAmount = minorUnits(body.discountAmount, "discountAmount", 0);
   const referenceNumber = (body.referenceNumber ?? null) as string | null, note = (body.note ?? null) as string | null;
   const requestHash = createHash("sha256").update(JSON.stringify({ invoiceId: invoice.id, studentId: invoice.studentId, amount, fineAmount, discountAmount, paymentDate: paymentDate.toISOString().slice(0, 10), paymentMethod, referenceNumber, note })).digest("hex");
   const outcome = (payment: CollectPayment, credit: number, replayed: boolean): CollectOutcome => ({ invoice, payment, credit, replayed, campusId, amount });

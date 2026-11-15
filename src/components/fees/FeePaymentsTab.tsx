@@ -386,8 +386,6 @@ function PaymentModal({
   const [invoices, setInvoices] = useState<any[]>([]);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
   const [amount, setAmount] = useState("");
-  const [fineAmount, setFineAmount] = useState("");
-  const [discountAmount, setDiscountAmount] = useState("");
   const [note, setNote] = useState("");
   const [paymentDate, setPaymentDate] = useState(todayInSchool);
   const [paymentMethod, setPaymentMethod] = useState("CASH");
@@ -468,14 +466,14 @@ function PaymentModal({
   const paymentDraft = useFormDraft({
     record: `accountant:payment:${campusId ?? "all"}`,
     schema: 1,
-    values: { studentId: selectedStudent?.id ?? "", studentName: selectedStudent?.fullName ?? "", invoiceId: selectedInvoiceId, amount, fineAmount, discountAmount, note, paymentDate, paymentMethod, referenceNumber },
-    baseline: { studentId: "", studentName: "", invoiceId: "", amount: "", fineAmount: "", discountAmount: "", note: "", paymentDate: "", paymentMethod: "CASH", referenceNumber: "" },
-    fields: ["studentId", "studentName", "invoiceId", "amount", "fineAmount", "discountAmount", "note", "paymentDate", "paymentMethod", "referenceNumber"] as const,
+    values: { studentId: selectedStudent?.id ?? "", studentName: selectedStudent?.fullName ?? "", invoiceId: selectedInvoiceId, amount, note, paymentDate, paymentMethod, referenceNumber },
+    baseline: { studentId: "", studentName: "", invoiceId: "", amount: "", note: "", paymentDate: "", paymentMethod: "CASH", referenceNumber: "" },
+    fields: ["studentId", "studentName", "invoiceId", "amount", "note", "paymentDate", "paymentMethod", "referenceNumber"] as const,
     enabled: step === "payment",
     apply: (values) => {
       setSelectedStudent(values.studentId ? { id: String(values.studentId), fullName: String(values.studentName ?? "") } : null);
-      setSelectedInvoiceId(String(values.invoiceId ?? "")); setAmount(String(values.amount ?? "")); setFineAmount(String(values.fineAmount ?? ""));
-      setDiscountAmount(String(values.discountAmount ?? "")); setNote(String(values.note ?? "")); setPaymentDate(String(values.paymentDate ?? ""));
+      setSelectedInvoiceId(String(values.invoiceId ?? "")); setAmount(String(values.amount ?? "")); 
+      setNote(String(values.note ?? "")); setPaymentDate(String(values.paymentDate ?? ""));
       setPaymentMethod(String(values.paymentMethod ?? "CASH")); setReferenceNumber(String(values.referenceNumber ?? "")); setStep("payment"); restoredPaymentRef.current = true;
     },
   });
@@ -492,8 +490,6 @@ function PaymentModal({
         studentId: selectedStudent?.id,
         invoiceId: selectedInvoiceId,
         amount: rupeesToPaisa(amount, currency),
-        fineAmount: fineAmount ? rupeesToPaisa(fineAmount, currency) : undefined,
-        discountAmount: discountAmount ? rupeesToPaisa(discountAmount, currency) : undefined,
         paymentDate,
         paymentMethod,
         referenceNumber: referenceNumber || undefined,
@@ -518,8 +514,8 @@ function PaymentModal({
           studentName: json.data?.studentName || "",
           invoiceNumber: json.data?.invoiceNumber || "",
           amount: rupeesToPaisa(amount, currency),
-          fineAmount: fineAmount ? rupeesToPaisa(fineAmount, currency) : 0,
-          discountAmount: discountAmount ? rupeesToPaisa(discountAmount, currency) : 0,
+          fineAmount: 0,
+          discountAmount: 0,
           creditAmount: json.data?.credit || 0,
           paymentDate,
           paymentMethod,
@@ -723,16 +719,6 @@ function PaymentModal({
               <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("Amount") } (<bdi>{currency}</bdi>)</span>
               <SystemInput type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={tr("e.g. 5000")} className={inputClass} />
             </label>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
-              <label>
-                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("Fine") } (<bdi>{currency}</bdi>)</span>
-                <SystemInput type="number" min="0" value={fineAmount} onChange={(e) => setFineAmount(e.target.value)} placeholder="0" className={inputClass} />
-              </label>
-              <label>
-                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("Discount") } (<bdi>{currency}</bdi>)</span>
-                <SystemInput type="number" min="0" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0" className={inputClass} />
-              </label>
-            </div>
             <label>
               <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Payment date"}</UiText></span>
               <SystemInput type="date" value={paymentDate} max={todayInSchool} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
