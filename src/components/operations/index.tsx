@@ -81,7 +81,7 @@ import { SkeletonTable } from "@/components/ui/skeleton";
 import { FormField } from "@/components/ui/form-field";
 import { RidersPlanner, TripsPlanner } from "@/components/transport/transport";
 import { downloadCSV } from "@/lib/csv";
-import { AlarmClock, BedDouble, BookCheck, CircleSlash, DoorOpen, Inbox, Route as RouteIcon, SearchX, type LucideIcon } from "lucide-react";
+import { AlarmClock, BedDouble, BookCheck, Pencil, CircleSlash, DoorOpen, Inbox, Route as RouteIcon, SearchX, type LucideIcon } from "lucide-react";
 import { DeskFilterStatus, DeskPill, DeskStats, RelativeTime, StatTile, urgencyFirst } from "@/components/ui/desk";
 import { Progress } from "@/components/ui/progress";
 import { routeVehicleCount } from "@/lib/transport/route-vehicle-count";
@@ -798,6 +798,8 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
   const [category, setCategory] = useListField<string>("library.category", "", "library.page");
   const [sort, setSort] = useListField<string>("library.sort", "name", "library.page");
   const [showAdd, setShowAdd] = useState(false);
+  // SKAI-2161: the add form doubles as the edit form; editingId set means PATCH that title.
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [cats, setCats] = useState<any[]>([]);
 
   const requestVersion = useRef(0);
@@ -830,8 +832,9 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
     initialValues: { title: "", author: "", isbn: "", categoryId: "", copiesTotal: "1" },
     onSubmit: async (values) => {
       if (loading || loadFailed) return;
-      if (!(await submitTo("/api/library/books", values, form))) return;
-      toast.success(ui("Book added."));
+      if (!(await submitTo("/api/library/books", editingId ? { ...values, id: editingId } : values, form, { method: editingId ? "PATCH" : "POST" }))) return;
+      toast.success(ui(editingId ? "Book updated." : "Book added."));
+      setEditingId(null);
       setShowAdd(false);
       form.reset();
       load();
@@ -847,7 +850,7 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
           <Search data-field-affix="start" className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
           <SystemInput className={`${inputCls} w-full ps-9`} placeholder={ui("Search books…")} aria-label={ui("Search books")} value={search} onChange={(e) => setSearch(e.target.value)} />
         </InputGroup>
-        {hideAdd ? null : <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add book")}</BrandButton>}
+        {hideAdd ? null : <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => { setEditingId(null); form.reset(); setShowAdd(!showAdd || Boolean(editingId)); }}>{ui("Add book")}</BrandButton>}
       </div>
       {showAdd && (
         <div className={addBoxCls}>
@@ -889,7 +892,7 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
                 <td className={tdCls}>{b.category?.name || "—"}</td>
                 <td className={tdCls}>{b.copiesTotal}</td>
                 <td className={`${tdCls} min-w-28`}><span className={b.copiesAvailable > 0 ? "tabular-nums" : "font-semibold tabular-nums text-status-warning-text"}>{b.copiesAvailable}</span><Progress className="mt-1" size="sm" value={b.copiesAvailable} max={b.copiesTotal || 1} tone={b.copiesAvailable > 0 ? "success" : "warning"} label={ui("{0} available", [b.copiesAvailable])} /></td>
-                <td className={tdCls}><ReviewedDelete endpoint="library/books" record={b} label={b.title} onDeleted={load} /></td>
+                <td className={tdCls}><span className="flex items-center gap-1"><IconButton variant="ghost" label={ui("Edit {0}", [b.title])} data-book-edit onClick={() => { setEditingId(b.id); form.setValues({ title: b.title ?? "", author: b.author ?? "", isbn: b.isbn ?? "", categoryId: b.categoryId ?? "", copiesTotal: String(b.copiesTotal ?? 1) }); setShowAdd(true); }}><Pencil aria-hidden="true" /></IconButton><ReviewedDelete endpoint="library/books" record={b} label={b.title} onDeleted={load} /></span></td>
               </tr>
             ))}
           </tbody>
