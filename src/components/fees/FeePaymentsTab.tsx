@@ -732,7 +732,7 @@ function PaymentModal({
             </div>
             <label>
               <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Payment date"}</UiText></span>
-              <SystemInput type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
+              <SystemInput type="date" value={paymentDate} max={new Date().toISOString().split("T")[0]} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
             </label>
             <label>
               <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Method"}</UiText></span>

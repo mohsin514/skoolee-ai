@@ -4,6 +4,7 @@ import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, resolveCampusId } from "@/lib/api/scope";
 import { recordPayment } from "@/lib/fees/payment";
+import { schoolToday } from "@/lib/datetime";
 import { DELIVERY_POLICY_KIND, resolveDeliveryPolicy } from "@/lib/school-ai/delivery-policy";
 
 /**
@@ -144,6 +145,8 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
   if (invoice.status === "CANCELLED") throw conflict("Cancelled invoices cannot accept payments.", "INVOICE_CANCELLED");
 
   const campusId = await resolveCampusId(user, invoice.student.campusId);
+  // SKAI-2050: a collection cannot be dated after today in the school timezone (same rule as the manual ledger).
+  if (paymentDate.toISOString().slice(0, 10) > (await schoolToday(user.schoolId, campusId))) throw new ApiError("The payment date cannot be in the future.", 400);
 
   // SKO-475: the operation key binds this collection to its exact request. A retry after a dropped
   // response replays the original receipt; the same key with a different request is a conflict.

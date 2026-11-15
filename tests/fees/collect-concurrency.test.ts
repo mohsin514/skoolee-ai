@@ -30,3 +30,10 @@ test("SKAI-2053: a duplicate payment reference is a 409 and the form no longer p
   const ui = readFileSync("src/components/fees/FeePaymentsTab.tsx", "utf8");
   assert.doesNotMatch(ui, /setReferenceNumber\([^)]*invoiceNumber/);
 });
+
+// SKAI-2050: a collection cannot be dated after today in the school timezone.
+test("SKAI-2050: the collect command refuses a payment date after the school's today", () => {
+  assert.match(core, /paymentDate\.toISOString\(\)\.slice\(0, 10\) > \(await schoolToday\(user\.schoolId, campusId\)\)/);
+  assert.match(core, /The payment date cannot be in the future\./);
+  assert.ok(core.indexOf("schoolToday(") < core.indexOf("prisma.$transaction("));
+});
