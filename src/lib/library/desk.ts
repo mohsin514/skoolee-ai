@@ -210,7 +210,7 @@ export async function returnCopy(user: AuthUser, raw: unknown) {
  * the same overdue fine as the lending desk, under the loan's own rule version.
  */
 export async function returnIssue(user: AuthUser, id: string) {
-  const existing = await prisma.bookIssue.findFirst({ where: { id, book: { campus: { schoolId: user.schoolId } } }, include: { book: { select: { campusId: true } } } });
+  const existing = await prisma.bookIssue.findFirst({ where: { id, book: { campus: { schoolId: user.schoolId }, ...(user.campusId ? { campusId: user.campusId } : {}) } }, include: { book: { select: { campusId: true } } } });
   if (!existing) throw new ApiError("Issue not found", 404);
   if (existing.returnedAt) throw new ApiError("Book already returned", 409);
   // SKO-436: loans of a barcoded copy are returned at the lending desk, which also settles the
@@ -233,7 +233,7 @@ export async function renewLoan(user: AuthUser, raw: unknown) {
   assertDesk(user);
   const input = parse(z.object({ issueId: text(1, 120) }).strict(), raw);
   return prisma.$transaction(async (tx) => {
-    const loan = await tx.bookIssue.findFirst({ where: { id: input.issueId, schoolId: user.schoolId, returnedAt: null } });
+    const loan = await tx.bookIssue.findFirst({ where: { id: input.issueId, schoolId: user.schoolId, returnedAt: null, book: { campusId: campusOf(user) } } });
     if (!loan) throw new ApiError("Open loan not found", 404);
     const rules = (loan.policySnapshot as LoanRules | null) ?? (await currentRules(tx, user.schoolId, campusOf(user)));
     if (loan.renewals >= rules.maxRenewals) throw new ApiError(`This loan has used its ${rules.maxRenewals} renewals.`, 409);
@@ -288,7 +288,7 @@ export async function markLost(user: AuthUser, raw: unknown) {
   assertDesk(user);
   const input = parse(z.object({ issueId: text(1, 120) }).strict(), raw), campusId = campusOf(user);
   return prisma.$transaction(async (tx) => {
-    const loan = await tx.bookIssue.findFirst({ where: { id: input.issueId, schoolId: user.schoolId, returnedAt: null } });
+    const loan = await tx.bookIssue.findFirst({ where: { id: input.issueId, schoolId: user.schoolId, returnedAt: null, book: { campusId: campusOf(user) } } });
     if (!loan) throw new ApiError("Open loan not found", 404);
     const rules = (loan.policySnapshot as LoanRules | null) ?? (await currentRules(tx, user.schoolId, campusId));
     await tx.bookIssue.update({ where: { id: loan.id }, data: { returnedAt: new Date(), returnCondition: "LOST" } });
@@ -303,7 +303,7 @@ export async function decideCharge(user: AuthUser, raw: unknown) {
   const input = parse(z.object({ chargeId: text(1, 120), decision: z.enum(["WAIVE", "HAND_TO_FEES"]), reason: text(8, 500) }).strict(), raw);
   if (input.decision === "WAIVE" && !canWaiveCharge(user)) throw new ApiError("Only a school leader can waive a library charge.", 403);
   if (input.decision === "HAND_TO_FEES") assertDesk(user);
-  const done = await prisma.libraryCharge.updateMany({ where: { id: input.chargeId, schoolId: user.schoolId, status: "OPEN" },
+  const done = await prisma.libraryCharge.updateMany({ where: { id: input.chargeId, schoolId: user.schoolId, status: "OPEN", ...(user.campusId ? { campusId: user.campusId } : {}) },
     data: { status: input.decision === "WAIVE" ? "WAIVED" : "HANDED_TO_FEES", waivedById: user.userId, waiverReason: input.reason, decidedAt: new Date() } });
   if (!done.count) throw new ApiError("This charge has already been decided.", 409);
   return prisma.libraryCharge.findUnique({ where: { id: input.chargeId } });

@@ -144,3 +144,30 @@ test("SKAI-1447: reservations need a member of this school and campus; others ge
     await raw.campus.deleteMany({ where: { id: otherCampus } });
   }
 });
+
+test("SKAI-2163: a campus-scoped librarian cannot renew, return or mark lost another campus's loan (404, loan unchanged)", async () => {
+  const northCampus = randomUUID();
+  await raw.campus.create({ data: { id: northCampus, schoolId, name: "Synthetic North", regId: northCampus, city: "Synthetic" } });
+  try {
+    const northUser = await raw.user.create({ data: { id: randomUUID(), schoolId, campusId: northCampus, role: "STUDENT", email: `${randomUUID()}@example.invalid`, fullName: "Synthetic North reader", onboardingComplete: true } });
+    const northMember = await raw.libraryMember.create({ data: { schoolId, campusId: northCampus, userId: northUser.id, memberNo: "LM-N1" } });
+    const northBook = await raw.book.create({ data: { schoolId, campusId: northCampus, title: "Synthetic North Atlas", copiesTotal: 1, copiesAvailable: 0 } });
+    const dueAt = new Date(Date.now() + 7 * 86_400_000);
+    const loan = await raw.bookIssue.create({ data: { schoolId, bookId: northBook.id, memberId: northMember.id, dueAt } });
+    const issueId = loan.id;
+    await assert.rejects(() => ctx(librarian, () => renewLoan(librarian, { issueId })), { status: 404 });
+    await assert.rejects(() => ctx(librarian, () => markLost(librarian, { issueId })), { status: 404 });
+    await assert.rejects(() => ctx(librarian, () => returnIssue(librarian, issueId)), { status: 404 });
+    const after = await raw.bookIssue.findUniqueOrThrow({ where: { id: issueId } });
+    assert.equal(after.returnedAt, null);
+    assert.equal(after.renewals, 0);
+    assert.equal(after.dueAt.getTime(), dueAt.getTime());
+    assert.equal(await raw.libraryCharge.count({ where: { issueId } }), 0);
+  } finally {
+    await raw.bookIssue.deleteMany({ where: { book: { campusId: northCampus } } });
+    await raw.book.deleteMany({ where: { campusId: northCampus } });
+    await raw.libraryMember.deleteMany({ where: { campusId: northCampus } });
+    await raw.user.deleteMany({ where: { campusId: northCampus } });
+    await raw.campus.deleteMany({ where: { id: northCampus } });
+  }
+});
