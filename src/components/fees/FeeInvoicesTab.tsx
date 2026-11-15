@@ -197,7 +197,11 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
       if (json.success) {
         toast.success(tr(json.message));
         loadInvoices();
-        if (detailInvoice?.id === id) setDetailInvoice(null);
+        detailVersion.current++;
+        setShowDetail(false);
+        setDetailInvoice(null);
+        setDetailFailed(null);
+        setLoadingDetail(false);
         return true;
       } else {
         toast.error(tr(json.error || "Failed to update status"));
