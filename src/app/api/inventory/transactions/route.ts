@@ -74,6 +74,8 @@ export async function POST(req: NextRequest) {
     if (!itemId || !storeId || !kind) throw new ApiError("itemId, storeId and kind required", 400);
     if (!VALID_KINDS.includes(kind)) throw new ApiError("Invalid kind", 400);
     if (!quantity || quantity <= 0 || !Number.isInteger(quantity)) throw new ApiError("quantity must be a positive whole number", 400);
+    // SKAI-2172: quantity is stored as INT4; a larger number failed in Prisma with a 500.
+    if (quantity > 1_000_000) throw new ApiError("quantity must be 1,000,000 or fewer", 400);
     // SKAI-1347: a unit price is a cost, so it can never be negative. SKAI-1335: nor exceed the stored Int32 range.
     const unitPriceMinor = parseUnitPrice(unitPrice);
     if (idempotencyKey !== undefined && (typeof idempotencyKey !== "string" || !/^[A-Za-z0-9_-]{8,80}$/.test(idempotencyKey))) throw new ApiError("Invalid idempotency key", 400);

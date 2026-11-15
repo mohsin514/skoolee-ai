@@ -299,7 +299,7 @@ export async function returnToSupplier(user: AuthUser, id: string, raw: unknown)
 /** Match an invoice to what was received. Variances and duplicates become review items. */
 export async function recordInvoice(user: AuthUser, id: string, raw: unknown) {
   assert(OPS.includes(user.role) || user.role === "ACCOUNTANT", "Only the office or accounts records supplier invoices.");
-  const input = parse(z.object({ invoiceNo: text(2, 60), amount: z.number().int().min(0) }).strict(), raw);
+  const input = parse(z.object({ invoiceNo: text(2, 60), amount: z.number().int().min(0).max(INT32_MAX) }).strict(), raw);
   // SKAI-1461: one canonical number per supplier; a per-supplier lock makes the duplicate check and insert atomic,
   // so a concurrent identical invoice waits, then sees the first and becomes a DUPLICATE review item.
   const invoiceNo = input.invoiceNo.trim().replace(/\s+/g, " ");
