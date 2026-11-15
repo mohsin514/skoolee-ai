@@ -2,7 +2,7 @@ import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { createFeeType } from "@/lib/fees/fee-type-command";
+import { createFeeType, feeTypeCodeField, feeTypeDescription, feeTypeName } from "@/lib/fees/fee-type-command";
 import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere,
   assertSharedModuleRead,
 } from "@/lib/api/scope";
@@ -54,9 +54,9 @@ export async function PATCH(req: NextRequest) {
     });
     if (!existing) throw new ApiError("Fee type not found", 404);
 
-    const code = body.code !== undefined
-      ? String(body.code).trim().toUpperCase().replace(/\s+/g, "_")
-      : existing.code;
+    const code = body.code !== undefined ? feeTypeCodeField(body.code) : existing.code;
+    const name = body.name !== undefined ? feeTypeName(body.name) : undefined;
+    const description = body.description !== undefined ? feeTypeDescription(body.description) : undefined;
 
     const dup = await prisma.feeType.findUnique({ where: { campusId_code: { campusId: existing.campusId, code } } });
     if (dup && dup.id !== body.id) throw new ApiError("A fee type with this code already exists", 409);
@@ -65,9 +65,9 @@ export async function PATCH(req: NextRequest) {
       const next = await tx.feeType.update({
         where: { id: body.id },
         data: {
-          name: body.name !== undefined ? String(body.name).trim() : undefined,
+          name,
           code,
-          description: body.description !== undefined ? body.description : undefined,
+          description,
         },
       });
       await writeAuditEvent(tx, user, { table: "fee_types", recordId: next.id, action: "UPDATE", campusId: existing.campusId, after: { renamed: next.name !== existing.name, recoded: next.code !== existing.code } });
