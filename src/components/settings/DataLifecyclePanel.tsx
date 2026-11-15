@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { useLocale } from "@/components/locale/LocaleProvider";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
 import { getDataLifecycleCopy } from "./data-lifecycle-copy";
 import { usePanelCommand } from "@/components/fees/fee-utils";
@@ -70,6 +70,8 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
   const locale = useLocale();
   const { language } = locale;
   const t = getDataLifecycleCopy(language);
+  // SKAI-2203: provider names and placement notes come from the server in English; translate the known ones.
+  const ui = useUiText();
   const rtl = language === "ar" || language === "ur";
   const [data, setData] = useState<Overview | null>(null);
   const [status, setStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
@@ -150,7 +152,7 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
       <p className="text-sm text-ink-muted">{t.placementHelp}</p>
       <ul className="space-y-2 sm:hidden">{data.inventory.map(item => <li key={item.service} data-tone={stateTone[item.state]} className={`${deskRow} text-sm`}>
         <p className="font-semibold">{t.services[item.service as keyof typeof t.services] ?? item.service}</p>
-        <p className="text-ink-muted">{t.provider}: <bdi>{item.provider}</bdi> · {t.location}: <bdi dir="ltr">{location(item)}</bdi></p>
+        <p className="text-ink-muted">{t.provider}: <bdi>{ui(item.provider)}</bdi> · {t.location}: <bdi dir="ltr">{location(item)}</bdi></p>
         <DeskPill tone={stateTone[item.state]} className="mt-2">{t.states[item.state]}</DeskPill>
       </li>)}</ul>
       <div className="hidden overflow-x-auto rounded-xl border sm:block">
@@ -158,9 +160,9 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
           <thead className="bg-surface-subtle"><tr>{[t.service, t.provider, t.location, t.state].map(label => <th key={label} scope="col" className="p-3 text-start font-semibold">{label}</th>)}</tr></thead>
           <tbody>{data.inventory.map(item => <tr key={item.service} className="border-t align-top">
             <th scope="row" className="p-3 text-start font-semibold">{t.services[item.service as keyof typeof t.services] ?? item.service}</th>
-            <td className="p-3"><bdi>{item.provider}</bdi></td>
+            <td className="p-3"><bdi>{ui(item.provider)}</bdi></td>
             <td className="p-3"><bdi dir="ltr">{location(item)}</bdi></td>
-            <td className="p-3"><DeskPill tone={stateTone[item.state]}>{t.states[item.state]}</DeskPill><p className="mt-1 text-xs text-ink-subtle" lang="en" dir="ltr">{item.note}</p></td>
+            <td className="p-3"><DeskPill tone={stateTone[item.state]}>{t.states[item.state]}</DeskPill><p className="mt-1 text-xs text-ink-subtle" dir="auto">{ui(item.note)}</p></td>
           </tr>)}</tbody>
         </table>
       </div>

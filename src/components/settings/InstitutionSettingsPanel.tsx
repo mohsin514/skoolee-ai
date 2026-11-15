@@ -530,7 +530,7 @@ function SchoolDialog({
             { icon: Hash, label: tr("School ID"), value: school.regId },
             { icon: Mail, label: tr("Contact Email"), value: school.contactEmail },
           ]}
-          note="The school ID prints on report cards, invoices and receipts, and the contact email identifies the owner account. Neither can be changed here."
+          note={tr("The school ID prints on report cards, invoices and receipts, and the contact email identifies the owner account. Neither can be changed here.")}
         />
       </div>
     </Modal>
