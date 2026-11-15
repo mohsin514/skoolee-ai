@@ -11,11 +11,17 @@ export async function getStudentContext(user: AuthUser, studentId?: string) {
       ...(studentId ? { id: studentId } : {}),
       ...studentScope(user),
     },
-    include: {
+    // SKAI-2193: an explicit allow-list. This context is sent to a third-party model, so health data, date of
+    // birth, identifiers and family details never leave with it.
+    select: {
+      id: true,
+      fullName: true,
+      campusId: true,
+      classId: true,
       class: { select: { name: true, section: true, academicYear: true } },
       reportCards: {
         where: publishedReportsWhere,
-        include: { exam: { select: { title: true, term: true, academicYear: true } } },
+        select: { id: true },
         orderBy: { generatedAt: "desc" },
         take: 3,
       },
