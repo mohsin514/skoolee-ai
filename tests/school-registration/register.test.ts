@@ -55,3 +55,11 @@ test("every server code is localized in EN, AR and UR", () => {
   }
   assert.match(page, /throw new Error\(serverError\(step2\)/);
 });
+
+test("SKAI-1998: signup addresses are lowercased and the owner check ignores case", () => {
+  assert.match(lib, /const signupEmail = [^\n]*z\.string\(\)\.trim\(\)\.toLowerCase\(\)\.email\(/);
+  assert.match(lib, /SignupStep1Schema = z\.object\(\{\s*email: signupEmail\(\)/);
+  assert.match(lib, /email: signupEmail\("Invalid work email address"\)/);
+  assert.match(lib, /school\.findFirst\(\{ where: \{ contactEmail: \{ equals: valid\.email, mode: "insensitive" \} \}/);
+  assert.doesNotMatch(lib, /school\.findUnique\(\{ where: \{ contactEmail/);
+});

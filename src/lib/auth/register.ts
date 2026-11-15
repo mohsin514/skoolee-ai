@@ -12,13 +12,17 @@ import { billingCountry, WORLD_COUNTRIES } from "@/lib/locale/world-countries";
 import { createPlanContract } from "@/config/commercial-contract";
 import { resetPasswordProblem } from "@/lib/auth/reset-password-policy";
 
+// SKAI-1998: one mailbox is one address, whatever the casing, so the address is
+// normalised here and every lookup and write below sees the lowercase form.
+const signupEmail = (message?: string) => z.string().trim().toLowerCase().email(message);
+
 export const SignupStep1Schema = z.object({
-  email: z.string().email(),
+  email: signupEmail(),
   registrationType: z.enum(["school_group", "single_campus"]),
 });
 
 export const SignupStep2Schema = z.object({
-  email: z.string().email("Invalid work email address"),
+  email: signupEmail("Invalid work email address"),
   fullName: z.string().min(3, "Please enter your full name"),
   // SKAI-81: the same policy the form checklist shows, so a direct API call cannot set a weaker one.
   password: z.string().superRefine((value, ctx) => {
@@ -90,6 +94,10 @@ export async function saveSignupStep1(data: SignupStep1Input): Promise<SignupRes
   // Self-serve signup runs before any school exists, so there is no tenant
   // to scope to. Everything touched here is keyed by the applicant's email.
   return runUnscoped("signup step 1: no school exists yet", async () => {
+    // Drop any step-1 row saved under another casing before normalisation existed.
+    await prisma.pendingRegistration.deleteMany({
+      where: { email: { equals: valid.email, mode: "insensitive" }, NOT: { email: valid.email } },
+    });
 
     const existing = await prisma.pendingRegistration.findFirst({
       where: { email: valid.email },
@@ -136,7 +144,8 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
   // school being registered does not exist yet.
   const [existingSchoolByRegId, existingSchoolByEmail] = await Promise.all([
     prisma.school.findUnique({ where: { regId: valid.regId } }),
-    prisma.school.findUnique({ where: { contactEmail: valid.email } }),
+    // Insensitive so a school registered under a mixed-case address before SKAI-1998 still counts.
+    prisma.school.findFirst({ where: { contactEmail: { equals: valid.email, mode: "insensitive" } }, select: { id: true } }),
   ]);
   if (existingSchoolByRegId) return { success: false, code: "reg_id_taken", error: REG_ID_TAKEN };
   // SKO-457: an address that already owns a school is answered exactly like a new one; the owner
@@ -237,7 +246,7 @@ async function existingAddressOutcome(valid: SignupStep2Input): Promise<SignupRe
   // Comparable work to a real signup: hash the password and attempt one delivery.
   await hashPassword(valid.password, 10);
   await prisma.pendingRegistration.deleteMany({ where: { email: valid.email } });
-  if ((await authRateLimit(`signup-existing:${valid.email.toLowerCase()}`, { limit: 3, windowMs: 3_600_000 })).ok) {
+  if ((await authRateLimit(`signup-existing:${valid.email}`, { limit: 3, windowMs: 3_600_000 })).ok) {
     try {
       await sendExistingAccountNotice(valid.email);
     } catch {

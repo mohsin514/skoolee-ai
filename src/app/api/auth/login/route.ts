@@ -34,6 +34,12 @@ async function recordFailedSignIn(accounts: { id: string; schoolId: string; role
   }
 }
 
+/**
+ * SKAI-1998: signup now stores addresses lowercase, but accounts created before that keep
+ * their original casing, so the lookup ignores case (the filter after it keeps it exact).
+ */
+const sameAddress = (email: string) => ({ equals: email.trim(), mode: "insensitive" as const });
+
 // A valid bcrypt digest of a random value, compared against when no candidate exists.
 const TIMING_HASH = "$2a$12$utCRA1dXQTT8A9JBh4zQcO9TcVl2Hmaznnf01qUhQ5.w6D/T6LQ6e";
 
@@ -71,7 +77,7 @@ async function handleLogin(req: NextRequest) {
     const throttle = await checkLoginThrottle(ip, typeof body?.email === "string" ? body.email : "");
     if (!throttle.ok) {
       if (typeof body?.email === "string" && body.email) {
-        const known = await prisma.user.findMany({ where: { email: body.email }, select: { id: true, schoolId: true, role: true } }).catch(() => []);
+        const known = await prisma.user.findMany({ where: { email: sameAddress(body.email) }, select: { id: true, schoolId: true, role: true } }).catch(() => []);
         await recordFailedSignIn(known, () => "THROTTLED", ip, req.headers.get("user-agent") || undefined);
       }
       const error = throttle.retryAfterSeconds > 60
@@ -106,13 +112,13 @@ async function handleLogin(req: NextRequest) {
       ? (body as { schoolId: string }).schoolId
       : null;
 
-    const candidates = await prisma.user.findMany({
+    const candidates = (await prisma.user.findMany({
       where: {
-        email,
+        email: sameAddress(email),
         ...(requestedSchoolId ? { schoolId: requestedSchoolId } : {}),
       },
       include: { school: true, campus: true },
-    });
+    })).filter((c) => c.email.toLowerCase() === email.trim().toLowerCase());
 
     // 2. Verify the password against each candidate BEFORE revealing anything.
     //

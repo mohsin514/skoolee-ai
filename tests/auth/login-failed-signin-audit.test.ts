@@ -12,7 +12,8 @@ const h = { users: [] as Row[], events: [] as { schoolId: string; kind: string; 
 const user = (id: string, schoolId: string, over: Partial<Row> = {}): Row => ({ id, email: "shared@example.test", schoolId, role: "TEACHER", password: HASH, isActive: true, campus: null, school: { status: "ACTIVE" }, ...over });
 
 const prisma = {
-  user: { findMany: async ({ where }: { where: { email: string } }) => h.users.filter(u => u.email === where.email) },
+  // Mirrors Prisma `{ equals, mode: "insensitive" }` the route sends (SKAI-1998).
+  user: { findMany: async ({ where }: { where: { email: string | { equals: string; mode?: string } } }) => h.users.filter(u => typeof where.email === "string" ? u.email === where.email : where.email.mode === "insensitive" ? u.email.toLowerCase() === where.email.equals.toLowerCase() : u.email === where.email.equals) },
   identityEvent: { create: async ({ data }: { data: (typeof h.events)[number] }) => { if (h.failWrite) throw new Error("db down"); h.events.push(data); return data; } },
 };
 mock.module(src("lib/db/prisma.ts"), { namedExports: { prisma } });
@@ -71,4 +72,13 @@ test("a failed audit write does not change the response", async () => {
   h.failWrite = true;
   const error = console.error; console.error = () => {};
   try { assert.deepEqual(await login("shared@example.test", "wrong-password"), GENERIC); } finally { console.error = error; }
+});
+
+test("SKAI-1998: an account stored under a mixed-case address is found whatever casing is typed", async () => {
+  h.users = [user("u-a", "school-a", { email: "Mixed.Case@Example.test" }), user("u-b", "school-b", { email: "other@example.test" })];
+  assert.deepEqual(await login("mixed.case@example.test", "wrong-password"), GENERIC);
+  assert.deepEqual(h.events.map(e => e.schoolId), ["school-a"]);
+  h.events = [];
+  assert.deepEqual(await login("MIXED.CASE@EXAMPLE.TEST", "wrong-password"), GENERIC);
+  assert.deepEqual(h.events.map(e => e.schoolId), ["school-a"]);
 });
