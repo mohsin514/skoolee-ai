@@ -35,7 +35,7 @@ const pupils = [
   { id: "s9", schoolId: "school-b", fullName: "Pupil Nine", rollNo: "9" },
 ];
 
-let user: { role: string; schoolId: string; campusId: string; denied?: boolean } = { role: "PRINCIPAL", schoolId: "school-a", campusId: "campus-a" };
+let user: { role: string; schoolId: string; campusId: string; denied?: boolean; deniedModules?: string[] } = { role: "PRINCIPAL", schoolId: "school-a", campusId: "campus-a" };
 type W = { campusId?: string; campus?: { schoolId: string }; schoolId?: string; examId?: { in: string[] }; id?: { in: string[] } };
 const calls: { model: string; args: { where: W; select?: Record<string, unknown> } }[] = [];
 const record = (model: string, args: { where: W; select?: Record<string, unknown> }) => { calls.push({ model, args }); };
@@ -77,7 +77,7 @@ mock.module("@/lib/db/prisma", { namedExports: { prisma: {
 mock.module("@/lib/api/scope", { namedExports: {
   ApiError,
   requireAuthUser: async () => user,
-  assertModuleRead: async (u: typeof user) => { if (u.denied) throw new ApiError("Forbidden", 403); },
+  assertModuleRead: async (u: typeof user, m: string) => { if (u.denied || u.deniedModules?.includes(m)) throw new ApiError("Forbidden", 403); },
   resolveCampusId: async (u: typeof user, requested: string | null) => requested ?? u.campusId,
   errorResponse: (e: ApiError) => Response.json({ success: false, error: e.message }, { status: e.status ?? 500 }),
 } });
@@ -148,4 +148,13 @@ test("a role without reports read is denied before any query", async () => {
   user = { role: "PARENT", schoolId: "school-a", campusId: "campus-a", denied: true };
   assert.equal((await get()).status, 403);
   assert.equal(calls.length, 0);
+});
+
+test("SKAI-2073: reports.view alone is not enough; exams and attendance read are required too", async () => {
+  for (const deniedModules of [["exams"], ["attendance"]]) {
+    user = { role: "ACCOUNTANT", schoolId: "school-a", campusId: "campus-a", deniedModules };
+    const { status } = await get();
+    assert.equal(status, 403, `denied ${deniedModules}`);
+    assert.equal(calls.length, 0);
+  }
 });
