@@ -9,7 +9,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getFinancialLocale } from "@/app/actions/locale";
-import { CURRENCIES } from "@/lib/locale/package";
+import { CURRENCIES, minorUnits } from "@/lib/locale/package";
 import { calendarDateIn } from "@/lib/calendar-date";
 import { UiText, useUiText, useLocaleFormat, useLocale } from "@/components/locale/LocaleProvider";
 
@@ -484,12 +484,20 @@ function PaymentModal({
   const [outcomeUnknown, setOutcomeUnknown] = useState(false);
   const handleRecordPayment = async () => {
     if (!selectedInvoiceId || !amount) { toast.error(tr("Invoice and amount required")); return; }
+    // SKAI-2187: refuse extra decimals instead of rounding, and keep the amount inside what the server accepts.
+    const digits = minorUnits(currency), maxMinor = 2147483647;
+    const exact = new RegExp(digits ? `^\\d+(\\.\\d{1,${digits}})?$` : "^\\d+$").test(String(amount).trim());
+    const minor = exact ? rupeesToPaisa(amount, currency) : 0;
+    if (!exact || minor < 1 || minor > maxMinor) {
+      toast.error(tr("Enter an amount between {0} and {1}, with at most {2} decimals.", [formatPKR(1, currency), formatPKR(maxMinor, currency), digits]));
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
         studentId: selectedStudent?.id,
         invoiceId: selectedInvoiceId,
-        amount: rupeesToPaisa(amount, currency),
+        amount: minor,
         paymentDate,
         paymentMethod,
         referenceNumber: referenceNumber || undefined,
