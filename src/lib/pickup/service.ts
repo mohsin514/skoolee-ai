@@ -280,9 +280,13 @@ export async function addRestriction(user: AuthUser, body: Record<string, unknow
   if (!["CUSTODY_ORDER", "DO_NOT_RELEASE", "LEAD_APPROVAL"].includes(kind)) throw new ApiError("Choose the kind of restriction.", 400);
   const instruction = text(body.instruction, 300);
   if (!instruction) throw new ApiError("Write what gate staff should do.", 400);
+  // SKAI-2133: an end date must parse and lie in the future, or the restriction would never apply.
+  const endsAt = body.endsAt ? new Date(String(body.endsAt)) : null;
+  if (endsAt && Number.isNaN(endsAt.getTime())) throw new ApiError("Enter the end date as a date, for example 2026-12-31.", 400);
+  if (endsAt && endsAt.getTime() <= Date.now()) throw new ApiError("The end date must be in the future.", 400);
   const leadUserId = body.leadUserId ? await assertPickupLead(user.schoolId, student.campusId, String(body.leadUserId)) : user.userId;
   return schoolAiTransaction(user, async tx => {
-    const row = await tx.pickupRestriction.create({ data: { schoolId: user.schoolId, campusId: student.campusId, studentId: student.id, kind, instruction, reason: text(body.reason, 1000) || null, leadUserId, endsAt: body.endsAt ? new Date(String(body.endsAt)) : null, createdById: user.userId } });
+    const row = await tx.pickupRestriction.create({ data: { schoolId: user.schoolId, campusId: student.campusId, studentId: student.id, kind, instruction, reason: text(body.reason, 1000) || null, leadUserId, endsAt, createdById: user.userId } });
     await event(tx, user.schoolId, student.id, "RESTRICTION_ADDED", user.userId, { kind });
     return row;
   });
