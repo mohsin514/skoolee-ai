@@ -35,14 +35,12 @@ import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { csvCell } from "@/lib/csv";
 import { StickySaveBar } from "@/components/teacher/sticky-save-bar";
-import { createRequestSequence, enteredBySubject, indexSheetMarks, invalidSheetCells, sheetFields, sheetLabels } from "@/lib/marks/sheet-model";
+import { ABSENT_TOKEN, EXEMPT_TOKEN, isFlagToken, createRequestSequence, enteredBySubject, indexSheetMarks, invalidSheetCells, sheetFields, sheetLabels } from "@/lib/marks/sheet-model";
 import { Input as SystemInput } from "@/components/ui/input";
 
 /** How many assessment cards show before "Show all". */
 const EXAM_PAGE = 6;
 // SKAI-1385: status cells keep their token on the sheet so an unrelated edit cannot turn them into a scored zero.
-const ABSENT_TOKEN = "ABSENT";
-const EXEMPT_TOKEN = "EXEMPT";
 function markCellValue(mark: { marksObtained: number; isAbsent?: boolean; isExempt?: boolean }) {
   if (mark.isAbsent) return ABSENT_TOKEN;
   if (mark.isExempt) return EXEMPT_TOKEN;
@@ -597,15 +595,27 @@ export default function MarksPage() {
                           const numVal = Number(value);
                           // Matches the save guard exactly, so every cell that
                           // blocks the save is the one highlighted.
-                          const isOverLimit = value !== "" && (!Number.isFinite(numVal) || numVal < 0 || numVal > max);
+                          const isFlag = isFlagToken(value);
+                          const isOverLimit = value !== "" && !isFlag && (!Number.isFinite(numVal) || numVal < 0 || numVal > max);
                           const isDirty = dirtyKeys.has(key);
                           return (
                             <TableCell key={subject.id} className="px-3 py-3">
-                              <SystemInput id={`mark-${key}`} aria-invalid={isOverLimit || undefined} aria-describedby={isOverLimit ? `mark-${key}-error` : undefined} type="number" min={0} max={max} value={value} disabled={isLocked || marksSaving || !!draft.recovery}
+                              <SystemInput id={`mark-${key}`} aria-invalid={isOverLimit || undefined} aria-describedby={isOverLimit ? `mark-${key}-error` : undefined} type={isFlag ? "text" : "number"} min={0} max={max} value={isFlag ? (value === ABSENT_TOKEN ? ui("Absent") : ui("Exempt")) : value} readOnly={isFlag} disabled={isLocked || marksSaving || !!draft.recovery}
                                 data-row={row} data-col={col}
                                 onChange={(e) => setMarksByKey((c) => ({ ...c, [key]: e.target.value }))}
                                 onFocus={(e) => e.currentTarget.select()}
                                 onKeyDown={(e) => {
+                                  // SKAI-2005: A / E set Absent / Exempt; Backspace or Delete clears a flagged cell.
+                                  if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key.length === 1 && /[ae]/i.test(e.key)) {
+                                    e.preventDefault();
+                                    setMarksByKey((c) => ({ ...c, [key]: e.key.toLowerCase() === "a" ? ABSENT_TOKEN : EXEMPT_TOKEN }));
+                                    return;
+                                  }
+                                  if (isFlag && (e.key === "Backspace" || e.key === "Delete")) {
+                                    e.preventDefault();
+                                    setMarksByKey((c) => ({ ...c, [key]: "" }));
+                                    return;
+                                  }
                                   if (e.key === "Enter" || e.key === "ArrowDown") {
                                     e.preventDefault();
                                     focusCell(row + 1, col);
