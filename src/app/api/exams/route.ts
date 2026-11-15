@@ -205,8 +205,10 @@ export async function GET(req: NextRequest) {
 
     return Response.json({ success: true, exams, academicYear });
   } catch (error) {
-    console.error("[exams] GET failed", error);
-    return Response.json({ error: "Operation failed" }, { status: 500 });
+    const status = (error as { status?: number })?.status;
+    // A denied role is an expected 403, not a server failure worth a stack trace in the logs.
+    if (typeof status !== "number" || status < 400 || status >= 500) console.error("[exams] GET failed", error);
+    return permissionAwareError(error);
   }
 }
 
