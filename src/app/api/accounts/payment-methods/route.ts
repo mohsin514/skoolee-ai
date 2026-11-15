@@ -1,3 +1,4 @@
+import { booksName, sameName } from "@/lib/accounts/chart-account-command";
 import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -68,9 +69,10 @@ export async function PATCH(req: NextRequest) {
     });
     if (!method) throw new ApiError("Payment method not found", 404);
 
+    if (body.name !== undefined) booksName(body.name);
     if (body.name && String(body.name).trim() !== method.name) {
       const dup = await prisma.paymentMethodRef.findFirst({
-        where: { campusId: method.campusId, name: String(body.name).trim() },
+        where: { campusId: method.campusId, id: { not: method.id }, name: sameName(String(body.name).trim()) },
       });
       if (dup) throw new ApiError("A payment method with this name already exists", 409);
     }

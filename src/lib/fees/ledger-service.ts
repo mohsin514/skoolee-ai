@@ -101,6 +101,8 @@ export async function postManualEntry(user: AuthUser, campusId: string, body: Ma
     const date = ledgerDay(dateText, false);
     if (!date) throw new ApiError("Choose the date of the transaction.", 400);
     if (date.getTime() > Date.now() + 86_400_000) throw new ApiError("The transaction date cannot be in the future.", 400);
+    // SKAI-2236: a manual entry dated before 2000 (for example 0001-01-01) is a typing mistake, not a transaction.
+    if (dateText < "2000-01-01") throw new ApiError("The transaction date must be in 2000 or later.", 400);
     if (!body.accountId) throw new ApiError("Choose an account.", 400);
     const key = body.idempotencyKey ? String(body.idempotencyKey) : null;
     if (key && !/^[A-Za-z0-9-]{8,80}$/.test(key)) throw new ApiError("Invalid idempotency key", 400);
