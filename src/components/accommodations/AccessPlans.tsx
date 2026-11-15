@@ -1,6 +1,6 @@
 "use client";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Accessibility, CalendarClock, CheckCircle2, CircleDashed, Lock, PlayCircle, ShieldCheck } from "lucide-react";
 import { ErrorState } from "@/components/ui/error-state";
 import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowIcon, DeskSection, DeskStats, StatTile, deskRow, urgencyFirst } from "@/components/ui/desk";
@@ -60,7 +60,10 @@ export function CoordinatorAccess() {
   const [show, setShow] = useState<"" | "active" | "none" | "review">(""), [query, setQuery] = useState("");
   const load = useCallback(async () => { const data = await call(`/api/accommodations?view=coordinator${classId ? `&classId=${classId}` : ""}`); setView(data); }, [classId]);
   useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
-  const run = async (work: () => Promise<unknown>) => { setStatus(null); try { await work(); await load(); setStatus({ tone: "ok", text: t.saved }); return true; } catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); return false; } };
+  // SKAI-2180: one write at a time; a double-click re-sent the same expectedVersion and showed a false 409.
+  const inFlight = useRef(false);
+  const [pending, setPending] = useState(false);
+  const run = async (work: () => Promise<unknown>) => { if (inFlight.current) return false; inFlight.current = true; setPending(true); setStatus(null); try { await work(); await load(); setStatus({ tone: "ok", text: t.saved }); return true; } catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); return false; } finally { inFlight.current = false; setPending(false); } };
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
   if (!view) return <div dir={rtl ? "rtl" : "ltr"}>{status?.tone === "error" ? <ErrorState description={status.text} onRetry={() => { setStatus(null); return load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }} /> : <SkeletonList rows={3} label={t.loading} />}</div>;
   const reviewIds = new Set(view.review.map(row => row.studentId));
@@ -92,7 +95,7 @@ export function CoordinatorAccess() {
         </div>
         {active && <div className="mt-2 space-y-2"><Capability t={t} plan={active} />{active.instructions && <p className="text-sm" dir="auto">{active.instructions}</p>}
           <Breakdown t={t} effective={effectiveSettings({ baseMinutes: 45, type: active.assessmentTypes[0], at: new Date(active.validFrom), plan: asRow(active) })} /></div>}
-        {editing?.id === student.id && <PlanForm t={t} student={student} active={active ?? null} onCancel={() => setEditing(null)} onSubmit={async body => { if (await run(() => call("/api/accommodations", { op: "plan", ...body }))) setEditing(null); }} onRevoke={active ? async reason => { if (await run(() => call("/api/accommodations", { op: "revoke", planId: active.id, reason }))) setEditing(null); } : undefined} />}
+        {editing?.id === student.id && <PlanForm t={t} busy={pending} student={student} active={active ?? null} onCancel={() => setEditing(null)} onSubmit={async body => { if (await run(() => call("/api/accommodations", { op: "plan", ...body }))) setEditing(null); }} onRevoke={active ? async reason => { if (await run(() => call("/api/accommodations", { op: "revoke", planId: active.id, reason }))) setEditing(null); } : undefined} />}
         {active && <SupportRecords t={t} planId={active.id} language={language} />}
         {student.plans.length > 1 && <details className="mt-2 text-sm"><summary className="cursor-pointer font-semibold">{t.history}</summary><ol className="mt-1 grid gap-1">{student.plans.map(plan => <li key={plan.id}>{t.version} {plan.version} · {t.statuses[plan.status ?? "ACTIVE"]} · {date(plan.validFrom)} – {date(plan.validUntil)}{plan.endReason ? ` · ${plan.endReason}` : ""}</li>)}</ol></details>}
       </li>;
@@ -100,7 +103,7 @@ export function CoordinatorAccess() {
   </div>;
 }
 
-function PlanForm({ t, student, active, onCancel, onSubmit, onRevoke }: { t: AccessCopy; student: Student; active: Plan | null; onCancel: () => void; onSubmit: (body: Record<string, unknown>) => Promise<void>; onRevoke?: (reason: string) => Promise<void> }) {
+function PlanForm({ t, busy, student, active, onCancel, onSubmit, onRevoke }: { t: AccessCopy; busy: boolean; student: Student; active: Plan | null; onCancel: () => void; onSubmit: (body: Record<string, unknown>) => Promise<void>; onRevoke?: (reason: string) => Promise<void> }) {
   const today = new Date().toISOString().slice(0, 10);
   const [types, setTypes] = useState<string[]>(active?.assessmentTypes ?? ["EXAM"]);
   const [caps, setCaps] = useState<Capabilities>(active?.capabilities ?? { reader: false, scribe: false, largeText: false, highContrast: false, screenReader: false, cameraExempt: false, assistiveTech: [], submissionMode: "STANDARD" });
@@ -124,22 +127,22 @@ function PlanForm({ t, student, active, onCancel, onSubmit, onRevoke }: { t: Acc
     <label className="grid gap-1 text-xs font-semibold">{t.assistive}<Input name="assistive" maxLength={420} defaultValue={caps.assistiveTech.join(", ")} /></label>
     <div className="grid gap-1 text-xs sm:col-span-2"><label className="grid gap-1 font-semibold">{t.instructions}<Textarea name="instructions" maxLength={500} rows={2} defaultValue={active?.instructions ?? ""} aria-describedby="access-instructions-help" className="rounded-md border px-3 py-2 text-sm font-normal" /></label><span id="access-instructions-help" className="text-ink-muted">{t.instructionsHelp}</span></div>
     <div className="space-y-2 rounded-lg border bg-card p-3 sm:col-span-2">{number("base", t.baseMinutes, 480)}<Breakdown t={t} effective={preview} /><p className="text-xs text-ink-muted">{t.startedNote}</p></div>
-    <div className="flex flex-wrap gap-2 sm:col-span-2"><Button type="submit" disabled={!types.length}>{t.savePlan}</Button><Button type="button" variant="ghost" onClick={onCancel}>{t.cancel}</Button></div>
-    {onRevoke && <div className="flex flex-wrap items-end gap-2 border-t pt-3 sm:col-span-2"><label className="grid flex-1 gap-1 text-xs font-semibold">{t.revokeReason}<Input value={revokeReason} onChange={event => setRevokeReason(event.target.value)} maxLength={300} /></label><Button type="button" variant="outline" disabled={revokeReason.trim().length < 3} onClick={() => void onRevoke(revokeReason)}>{t.confirmRevoke}</Button></div>}
+    <div className="flex flex-wrap gap-2 sm:col-span-2"><Button type="submit" disabled={busy || !types.length} loading={busy}>{t.savePlan}</Button><Button type="button" variant="ghost" onClick={onCancel}>{t.cancel}</Button></div>
+    {onRevoke && <div className="flex flex-wrap items-end gap-2 border-t pt-3 sm:col-span-2"><label className="grid flex-1 gap-1 text-xs font-semibold">{t.revokeReason}<Input value={revokeReason} onChange={event => setRevokeReason(event.target.value)} maxLength={300} /></label><Button type="button" variant="outline" disabled={busy || revokeReason.trim().length < 3} onClick={() => void onRevoke(revokeReason)}>{t.confirmRevoke}</Button></div>}
   </form>;
 }
 
 function SupportRecords({ t, planId, language }: { t: AccessCopy; planId: string; language: string }) {
   const [records, setRecords] = useState<Array<{ id: string; note: string; createdAt: string }> | null>(null);
   const [note, setNote] = useState("");
-  const [error, setError] = useState("");
-  const open = async (body?: unknown) => { setError(""); try { const response = await fetch(`/api/accommodations/${planId}/support`, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : { cache: "no-store" }); const data = await response.json(); if (!response.ok) throw new Error(data.error ?? t.failed); setRecords(data.records); setNote(""); } catch (cause) { setError(cause instanceof Error ? cause.message : t.failed); } };
+  const [error, setError] = useState(""), [saving, setSaving] = useState(false);
+  const open = async (body?: unknown) => { if (body && saving) return; if (body) setSaving(true); setError(""); try { const response = await fetch(`/api/accommodations/${planId}/support`, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : { cache: "no-store" }); const data = await response.json(); if (!response.ok) throw new Error(data.error ?? t.failed); setRecords(data.records); setNote(""); } catch (cause) { setError(cause instanceof Error ? cause.message : t.failed); } finally { if (body) setSaving(false); } };
   return <details className="mt-3 rounded-lg border border-status-warning-border bg-status-warning-surface p-3 text-sm" onToggle={event => { if ((event.target as HTMLDetailsElement).open && !records) void open(); }}>
     <summary className="flex cursor-pointer items-center gap-2 font-semibold"><Lock className="h-4 w-4" aria-hidden />{t.support}</summary>
     <p className="mt-1 text-xs text-status-warning-text">{t.supportHelp}</p>
     {error && <Alert tone="danger" compact className="mt-2">{error}</Alert>}
     {records && (records.length ? <ul className="mt-2 grid gap-1">{records.map(row => <li key={row.id} dir="auto">{new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(row.createdAt))} · {row.note}</li>)}</ul> : <p className="mt-2 text-ink-muted">{t.noSupport}</p>)}
-    <div className="mt-2 flex flex-wrap items-end gap-2"><label className="grid flex-1 gap-1 text-xs font-semibold">{t.note}<Input value={note} onChange={event => setNote(event.target.value)} maxLength={4000} /></label><Button type="button" variant="outline" disabled={note.trim().length < 3} onClick={() => void open({ note })}>{t.addNote}</Button></div>
+    <div className="mt-2 flex flex-wrap items-end gap-2"><label className="grid flex-1 gap-1 text-xs font-semibold">{t.note}<Input value={note} onChange={event => setNote(event.target.value)} maxLength={4000} /></label><Button type="button" variant="outline" disabled={saving || note.trim().length < 3} loading={saving} onClick={() => void open({ note })}>{t.addNote}</Button></div>
   </details>;
 }
 
