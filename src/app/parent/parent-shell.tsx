@@ -71,7 +71,7 @@ function ChildSwitcher() {
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(true)}
-        className="min-h-11 min-w-0 max-w-[14rem] justify-between gap-2 px-3 text-start"
+        className="min-h-11 min-w-0 max-w-[7.5rem] justify-between sm:max-w-[14rem] gap-2 px-3 text-start"
       >
         <span className="min-w-0">
           <span className="sr-only">{t("Viewing")} </span>

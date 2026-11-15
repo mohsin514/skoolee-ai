@@ -231,8 +231,9 @@ export function RoleHeader({
         </div>
 
         <div className="ms-auto flex w-auto shrink-0 items-center justify-end gap-[6px] sm:min-w-0 sm:max-w-full sm:shrink sm:flex-wrap sm:gap-2.5">
-          <div className="me-auto hidden min-w-0 max-w-full flex-wrap items-center gap-[6px] sm:flex [&_svg]:shrink-0">
-            <ScopeBadge />
+          {/* SKAI-2157: the context slot (parent child switcher, super campus switcher) stays visible on phones; only the badges are sm+. */}
+          <div className="me-auto flex min-w-0 max-w-full flex-wrap items-center gap-[6px] [&_svg]:shrink-0">
+            <div className="hidden sm:contents"><ScopeBadge /></div>
             {showCycle ? <div data-tour="shell.header.cycle" className="hidden sm:block [&>div]:max-w-full [&>div]:px-[8px] [&>div]:py-[6px]"><CycleBadge /></div> : null}
             {context ? <div data-tour="shell.header.context" className="flex min-w-0 max-w-full items-center gap-2">{context}</div> : null}
           </div>
