@@ -113,3 +113,11 @@ test("the default board comes from the school's country when none is given", asy
   await createMany("school-c", 1, "c");
   assert.ok(campuses[0].board.length > 0);
 });
+
+test("SKAI-1988: a duplicate name or Campus ID throws CampusConflictError so the action can return the message", async () => {
+  reset(); limits["school-d"] = 5;
+  const { createCampusRecord, CampusConflictError } = await load();
+  await createCampusRecord({ schoolId: "school-d" } as never, { ...fields("Alpha North"), regId: "QA-A-C2" } as never);
+  await assert.rejects(createCampusRecord({ schoolId: "school-d" } as never, fields("ALPHA north") as never), (e: Error) => e instanceof CampusConflictError && /already uses this name/.test(e.message));
+  await assert.rejects(createCampusRecord({ schoolId: "school-d" } as never, { ...fields("Other"), regId: "QA-A-C2" } as never), (e: Error) => e instanceof CampusConflictError && /QA-A-C2 is already in use/.test(e.message));
+});
