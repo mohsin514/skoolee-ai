@@ -30,7 +30,9 @@ const isStaff = (user: AuthUser) => !["PARENT", "STUDENT"].includes(user.role);
 const canLead = (user: AuthUser, campusId: string) => canManageCampusOps(user) && (user.role === "SUPER_ADMIN" || user.campusId === campusId);
 
 function campusOf(user: AuthUser, requested: unknown) {
-  const campusId = String(requested ?? "") || user.campusId || "";
+  // SKAI-2042: a group admin has no home campus; fall back to the campus chosen in the header switcher
+  // (activeCampusId is already validated against the user's school in getAuthUser).
+  const campusId = String(requested ?? "") || user.campusId || user.activeCampusId || "";
   if (!campusId) throw new ApiError("Choose a campus.", 400);
   if (user.role !== "SUPER_ADMIN" && user.campusId && campusId !== user.campusId) throw new ApiError("Choose your own campus.", 403);
   return campusId;
