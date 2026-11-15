@@ -5823,6 +5823,7 @@ model TaxActivation {
   approvedById    String?   @map("approved_by_id")
   approvedBy User? @relation("TaxActivationApprovedBy", fields: [schoolId, approvedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
   approvedAt      DateTime? @map("approved_at")
+  selfApprovalReason String? @map("self_approval_reason") // SKAI-2142: SD3 sole-authority reason
   numberSeq       Int       @default(0) @map("number_seq")
   createdAt       DateTime  @default(now()) @map("created_at")
 
