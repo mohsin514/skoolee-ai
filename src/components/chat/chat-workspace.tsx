@@ -64,7 +64,7 @@ export function ChatWorkspace({ layout = "split", className }: ChatWorkspaceProp
 
       <div
         className={cn(
-          "min-h-0 flex-1",
+          "min-h-0 min-w-0 flex-1",
           stacked ? (activeId ? "block" : "hidden") : activeId ? "block" : "hidden md:block"
         )}
       >
