@@ -114,7 +114,6 @@ import {
   groupClasses,
   LeadershipPanel,
   LeaveManagementPanel,
-  MoveStudentModal,
   PeriodsPanel,
   RolePermissionsPanel,
   StudentDetailModal,
@@ -310,7 +309,6 @@ export default function CampusConsolePage() {
   const [showAdmissionForm, setShowAdmissionForm] = useState(false);
   const [admissionClassId, setAdmissionClassId] = useState("");
   const [bulkImportClassId, setBulkImportClassId] = useState("");
-  const [movingStudent, setMovingStudent] = useState<any>(null);
   const [selectedClass, setSelectedClass] = useState<any>(null);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   // Set when a category or group card asks to see its students, cleared as soon as the roster has taken
@@ -322,8 +320,6 @@ export default function CampusConsolePage() {
   const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
   const [inviteRole, setInviteRole] = useState<StaffInviteRole | null>(null);
   const [showInviteChooser, setShowInviteChooser] = useState(false);
-  const [moveClassId, setMoveClassId] = useState("");
-  const [movingStudentBusy, setMovingStudentBusy] = useState(false);
   const [savingClassTeacherId, setSavingClassTeacherId] = useState<string | null>(null);
   const [savingSubjectId, setSavingSubjectId] = useState<string | null>(null);
   const [creatingSubjectClassId, setCreatingSubjectClassId] = useState<string | null>(null);
@@ -413,11 +409,6 @@ export default function CampusConsolePage() {
     setShowAdmissionForm(true);
   };
 
-  const openMoveStudent = (student: any) => {
-    setMovingStudent(student);
-    setMoveClassId("");
-  };
-
   const syncSelectedClass = (nextData: any, classId: string) => {
     const nextClass = nextData?.classes?.find((item: any) => item.id === classId);
     if (nextClass) setSelectedClass(nextClass);
@@ -475,31 +466,6 @@ export default function CampusConsolePage() {
       await loadData();
     } catch (error) {
       toast.error(friendlyErrorMessage(error, failed));
-    }
-  };
-
-  const handleMoveStudent = async () => {
-    if (!movingStudent || !moveClassId || moveClassId === (movingStudent.class?.id || movingStudent.classId)) return;
-    setMovingStudentBusy(true);
-    const failed = ui("Could not move the student. Please try again.");
-    try {
-      const res = await fetch("/api/students", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: movingStudent.id, classId: moveClassId }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
-      const moved = result.data;
-      const cls = moved?.class ? [moved.class.name, moved.class.section].filter(Boolean).join(" ") : "";
-      toast.success(moved?.rollNo ? ui("Moved to {0}. New roll number: {1}", [cls, moved.rollNo]) : ui("Student moved"));
-      setMovingStudent(null);
-      setMoveClassId("");
-      await loadData();
-    } catch (error) {
-      toast.error(friendlyErrorMessage(error, failed));
-    } finally {
-      setMovingStudentBusy(false);
     }
   };
 
@@ -1037,18 +1003,6 @@ export default function CampusConsolePage() {
         />
       ) : null}
 
-      {data && movingStudent ? (
-        <MoveStudentModal
-          student={movingStudent}
-          classes={data.classes}
-          classId={moveClassId}
-          busy={movingStudentBusy}
-          onClassChange={setMoveClassId}
-          onClose={() => setMovingStudent(null)}
-          onSave={handleMoveStudent}
-        />
-      ) : null}
-
       {data && selectedClass ? (
         <ClassManager
           cls={selectedClass}
@@ -1094,7 +1048,7 @@ export default function CampusConsolePage() {
             if (next) setSelectedStudent(next);
           }}
           onClose={() => setSelectedStudent(null)}
-          onMove={() => { openMoveStudent(selectedStudent); setSelectedStudent(null); }}
+          onMove={() => { window.location.assign(`/pupils/${selectedStudent.id}`); }}
           onDelete={handleDeleteStudent}
           onUpdate={handleUpdateStudent}
           onOpenGuardians={() => {
