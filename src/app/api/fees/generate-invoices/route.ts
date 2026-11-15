@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { existingMonthlyStudentInvoices, invoiceGenerationTransaction } from "@/lib/fees/invoice-generation";
 import { invoiceEnrollmentContext } from "@/lib/fees/invoice-context";
+import { monthOutsideCycle } from "@/lib/fees/billing-window";
 import { minorUnits } from "@/lib/locale/package";
 import { activationFor, issueDocuments, taxForActivation } from "@/lib/tax/service";
 import { classYearKey, loadInvoiceGenerationInputs, memoByKey } from "@/lib/fees/invoice-generation-inputs";
@@ -100,6 +101,10 @@ export async function POST(req: NextRequest) {
     const capMode = capSchool?.feeCapMode ?? "OFF";
     const enrollments = await tx.studentEnrollment.findMany({ where: { schoolId: user.schoolId, campusId, studentId: { in: students.map(student => student.id) }, NOT: { origin: { startsWith: "LEGACY" } } }, select: { id: true, studentId: true, classId: true, academicYear: true, startDate: true, endDate: true } });
 
+    // SKAI-2059: the cycle dates of each class's academic year bound the months it can be billed for.
+    const cycles = await tx.academicCycle.findMany({ where: { schoolId: user.schoolId, campusId, academicYear: { in: [...new Set(students.map(student => student.class.academicYear))] } }, select: { academicYear: true, startDate: true, endDate: true } });
+    const cycleByYear = new Map(cycles.map(cycle => [cycle.academicYear, cycle]));
+
     const maxSeq = await tx.invoice.findFirst({
       where: { campusId, invoiceNumber: { startsWith: generateInvoiceNumber(campusId, year, 0).slice(0, -5) } },
       orderBy: { invoiceNumber: "desc" },
@@ -124,6 +129,7 @@ export async function POST(req: NextRequest) {
     const pending: Array<{ data: Prisma.InvoiceCreateManyInput; packageTax: ReturnType<typeof taxForActivation>; studentName: string }> = [];
 
     for (const student of students) {
+      if (monthOutsideCycle(cycleByYear.get(student.class.academicYear), invoiceDate, nextMonth)) { results.push({ studentId: student.id, status: "error", error: `${parsed.data.generationMonth} is outside this class's academic year.` }); continue; }
       const invoiceContext = invoiceEnrollmentContext((enrollmentsByStudent.get(student.id) ?? []).filter(period => period.classId === student.classId && period.academicYear === student.class.academicYear), invoiceDate, dueDate);
       if (!invoiceContext) { results.push({ studentId: student.id, status: "error", error: "Review enrollment for this billing period before generating an invoice." }); continue; }
       // 1. New-model resolution (FeeGroupAssignment + lines + discounts + carry-forward)

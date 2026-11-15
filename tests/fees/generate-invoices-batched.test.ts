@@ -29,6 +29,7 @@ const activation = {
   legalName: "QA-01 Synthetic School", taxId: "300000000000003", approvedById: "admin-a", approvedAt: new Date("2026-01-01T00:00:00Z"), evidenceReference: "QA-01",
 };
 const tx = {
+  academicCycle: { findMany: async () => [] },
   student: { findMany: async ({ where }: { where: Row }) => { state.ops.push("student.findMany"); assert.equal(where.schoolId, state.user.schoolId); return state.students; } },
   feeStructure: { findMany: async () => { state.ops.push("feeStructure.findMany"); return [{ classId: "class-1", currency: "SAR", monthlyFee: 100000, oneTimeFeesJson: state.oneTime, discountRulesJson: state.discountRules, taxPercentage: 0, approvedFee: null, approvedFeeReference: null }]; } },
   school: { findUnique: async () => { state.ops.push("school.findUnique"); return { feeCapMode: "OFF" }; } },
