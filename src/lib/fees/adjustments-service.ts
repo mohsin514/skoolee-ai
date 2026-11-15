@@ -2,7 +2,8 @@ import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, canApproveFinance, canManageFinance, soleChecker } from "@/lib/api/scope";
-import { isInstitutionAuthority } from "@/lib/auth/institution";
+import { isCampusOperator, isInstitutionAuthority } from "@/lib/auth/institution";
+import { getCampusSeats } from "@/lib/auth/seats";
 import { notifySelfApproval } from "@/lib/notifications/events";
 import { capturePaymentReceipt } from "./receipt";
 import { settleLibraryChargeForInvoice } from "@/lib/library/charge-settlement";
@@ -63,8 +64,16 @@ export function replayedAdjustment<T extends { kind: string; invoiceId: string; 
   return previous;
 }
 
+/** The finance desk is the accountant, or the campus admin only while the campus has no active accountant (role-ux §2.5; same rule as payment corrections). */
+export async function holdsFinanceDesk(user: AuthUser, campusId: string | null) {
+  if (user.role === "ACCOUNTANT") return true;
+  if (!isCampusOperator(user)) return canManageFinance(user);
+  return !(await getCampusSeats(user.schoolId, campusId)).accountant;
+}
+
 export async function requestAdjustment(user: AuthUser, input: { kind: AdjustmentKind; invoiceId: string; paymentId?: string | null; amount: number; reasonCategory: string; reason: string; publicExplanation: string; privateNote?: string | null; idempotencyKey: string }) {
   if (!canManageFinance(user)) throw new ApiError("Only the finance desk requests refunds, credit notes and waivers.", 403);
+  if (!(await holdsFinanceDesk(user, user.campusId ?? null))) throw new ApiError("Your campus accountant requests refunds, credit notes and waivers; the campus admin decides them.", 403);
   if (!ADJUSTMENT_KINDS.includes(input.kind)) throw new ApiError("Choose refund, credit note or waiver.", 400);
   if (!Number.isSafeInteger(input.amount) || input.amount <= 0) throw new ApiError("Enter a positive amount.", 400);
   if (!(REASON_CATEGORIES as readonly string[]).includes(input.reasonCategory)) throw new ApiError("Choose a reason category.", 400);
@@ -173,6 +182,7 @@ export async function recordDisbursement(user: AuthUser, id: string, outcome: "c
   return prisma.$transaction(async (tx) => {
     const adjustment = await tx.financialAdjustment.findFirst({ where: { id, schoolId: user.schoolId, kind: "REFUND", ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) } });
     if (!adjustment) throw new ApiError("Refund not found", 404);
+    if (!(await holdsFinanceDesk(user, adjustment.campusId))) throw new ApiError("Your campus accountant records refund payouts; the campus admin decides them.", 403);
     await tx.$queryRaw`SELECT id FROM financial_adjustments WHERE id = ${adjustment.id} FOR UPDATE`;
     const current = await tx.financialAdjustment.findUniqueOrThrow({ where: { id: adjustment.id } });
     if (current.status === "DISBURSED" || current.status === "FAILED") return current;
