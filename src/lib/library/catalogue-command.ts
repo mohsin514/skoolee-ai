@@ -34,6 +34,17 @@ export async function createCategory(user: AuthUser, body: Body) {
   });
 }
 
+/**
+ * SKAI-2154: one catalogue title per ISBN per campus, so stock and lending history are not split across look-alike rows.
+ * ISBNs arrive normalized (bookSchema strips hyphens and spaces).
+ * shortcut: app-level check, no unique index (existing duplicates would block a migration); add a partial
+ * unique index on (campus_id, isbn) once the duplicates are merged.
+ */
+async function assertIsbnFree(campusId: string, isbn: string, exceptId?: string) {
+  const clash = await prisma.book.findFirst({ where: { campusId, isbn, ...(exceptId ? { id: { not: exceptId } } : {}) }, select: { id: true } });
+  if (clash) throw new ApiError("A title with this ISBN already exists. Add copies to it instead.", 409);
+}
+
 /** POST /api/library/books. */
 export async function createBook(user: AuthUser, body: Body) {
   await assertLibrary(user, "add");
@@ -42,6 +53,7 @@ export async function createBook(user: AuthUser, body: Body) {
   const { title, author, isbn, subject, categoryId, copiesTotal } = parseWith(bookSchema, {
     title: body.title, author: body.author, isbn: body.isbn, subject: body.subject, categoryId: body.categoryId, copiesTotal: body.copiesTotal,
   });
+  if (isbn) await assertIsbnFree(campusId, isbn);
 
   return prisma.book.create({
     data: {
