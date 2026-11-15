@@ -128,7 +128,12 @@ export async function decideAdjustment(user: AuthUser, id: string, decision: "ap
     if (!adjustment) throw new ApiError("Adjustment not found", 404);
     await tx.$queryRaw`SELECT id FROM financial_adjustments WHERE id = ${adjustment.id} FOR UPDATE`;
     const current = await tx.financialAdjustment.findUniqueOrThrow({ where: { id: adjustment.id } });
-    if (current.status !== "REQUESTED") return current;
+    // SKAI-2129: only a replay of the same decision is a no-op; the opposite decision on a decided record is refused.
+    if (current.status !== "REQUESTED") {
+      const approved = ["APPROVED", "APPLIED", "DISBURSED", "FAILED"].includes(current.status);
+      if ((decision === "approve") === approved && (approved || current.status === "DECLINED")) return current;
+      throw new ApiError(`This adjustment was already ${approved ? "approved" : current.status.toLowerCase()}${current.approverName ? ` by ${current.approverName}` : ""}. Reload to see its current status.`, 409);
+    }
     let self: { selfApproved: true; reason: string } | null = null;
     if (current.requesterId === user.userId) {
       // SD3: only when nobody else holds the checker seat for this campus (an accountant never counts).
@@ -185,7 +190,9 @@ export async function recordDisbursement(user: AuthUser, id: string, outcome: "c
     if (!(await holdsFinanceDesk(user, adjustment.campusId))) throw new ApiError("Your campus accountant records refund payouts; the campus admin decides them.", 403);
     await tx.$queryRaw`SELECT id FROM financial_adjustments WHERE id = ${adjustment.id} FOR UPDATE`;
     const current = await tx.financialAdjustment.findUniqueOrThrow({ where: { id: adjustment.id } });
-    if (current.status === "DISBURSED" || current.status === "FAILED") return current;
+    // SKAI-2129: a replay of the same outcome is a no-op; a different outcome on a settled payout is refused.
+    if (current.status === (outcome === "confirmed" ? "DISBURSED" : "FAILED")) return current;
+    if (current.status === "DISBURSED" || current.status === "FAILED") throw new ApiError(`This refund payout was already recorded as ${current.status === "DISBURSED" ? "paid out" : "failed"}. Reload to see its current status.`, 409);
     if (current.status !== "APPROVED") throw new ApiError("Only an approved refund can be recorded as paid out.", 409);
     const ref = reference.trim().slice(0, 120);
     if (outcome === "failed") {
