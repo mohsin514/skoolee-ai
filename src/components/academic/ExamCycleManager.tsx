@@ -34,6 +34,7 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Alert } from "@/components/ui/alert";
 import { ErrorState } from "@/components/ui/error-state";
+import { createExamErrorMessage } from "@/lib/exams/create-error";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -2097,9 +2098,11 @@ function CreateExamModal({
       });
       const data = await res.json();
       if (!res.ok) {
-        // Server text is not guaranteed to be user-safe; log it and show a human message.
+        // Only 400 (field validation) and 409 (business rule) texts are written for the
+        // user; anything else stays generic. A retry cannot fix either, so say why.
         console.error("Create exam failed", data?.error);
-        toast.error(ui(role === "TEACHER" ? "Could not create the test. Please try again." : "Could not create the exam. Please try again."));
+        const reason = res.status === 400 || res.status === 409 ? createExamErrorMessage(data?.error) : null;
+        toast.error(reason ? ui(reason) : ui(role === "TEACHER" ? "Could not create the test. Please try again." : "Could not create the exam. Please try again."));
         return;
       }
       toast.success(ui(role === "TEACHER" ? "Test created" : "Exam created"));
@@ -2181,6 +2184,7 @@ function CreateExamModal({
               <Field label={role === "TEACHER" ? "Test title" : "Exam title"}>
                 <SystemInput
                   value={form.title}
+                  maxLength={200}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                   placeholder={ui(role === "TEACHER" ? "e.g. Fractions class test" : "e.g. Mid-term examination")}
                   className="w-full"
