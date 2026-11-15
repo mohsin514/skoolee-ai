@@ -119,7 +119,7 @@ export function FamilyActivities({ studentId }: { studentId: string }) {
 }
 
 type Roster = { activity: { id: string; title: string; kind: string; capacity: number; placesTaken: number; startsAt: string; costAmount: number; costCurrency: string; status: string; canRun?: boolean }; places: { id: string; studentId: string; name: string; className: string; status: string; feeStatus: string; refundState: string | null; cancelReason: string | null; requirements: { consent: string; fee: string } }[]; sessions: { id: string; startsAt: string; endsAt: string; marks: { studentId: string; status: string; markedAt?: string }[] }[] };
-type StaffList = { activities: { id: string; title: string; kind: string; capacity: number; startsAt: string; status: string; canRun?: boolean; counts: Record<string, number> }[]; classes: { id: string; name: string }[]; trips: { id: string; title: string }[]; campuses?: { id: string; name: string }[]; canLead?: boolean; canPublish?: boolean; currency?: string };
+type StaffList = { activities: { id: string; title: string; kind: string; capacity: number; startsAt: string; status: string; canRun?: boolean; counts: Record<string, number> }[]; classes: { id: string; name: string }[]; trips: { id: string; title: string }[]; campuses?: { id: string; name: string }[]; canLead?: boolean; canPublish?: boolean; readsCampus?: boolean; currency?: string };
 
 /**
  * The staff desk at /activities, framed in the caller's console. It is the page itself, so it draws no card of its
@@ -163,7 +163,7 @@ export function ActivitiesDesk() {
     <PageHeader
       icon={CalendarDays}
       title="Activities"
-      description={publish ? "Clubs, sports and trips. Interest, reservation and confirmed participation are kept apart." : "Clubs, sports and trips on your campus. Their coordinators run them; you can open any roster."}
+      description={publish ? "Clubs, sports and trips. Interest, reservation and confirmed participation are kept apart." : list.readsCampus ? "Clubs, sports and trips on your campus. Their coordinators run them; you can open any roster." : "Activities you coordinate or help run appear here."}
       primaryAction={publish ? { id: "publish-activity", label: "Publish activity", icon: Plus, onClick: () => setCreating(true) } : undefined}
     />
     {list.activities.length ? <DeskStats data-activities-pulse>
