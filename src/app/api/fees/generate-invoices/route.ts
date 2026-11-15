@@ -8,7 +8,7 @@ import { activationFor, issueDocuments, taxForActivation } from "@/lib/tax/servi
 import { classYearKey, loadInvoiceGenerationInputs, memoByKey } from "@/lib/fees/invoice-generation-inputs";
 import { calculateInvoiceAmounts, invoiceMonthDates, MAX_INVOICE_MINOR } from "@/lib/school-ai/fee-invoices";
 import { evaluateFeeCap, feeCapDecision } from "@/lib/fees/regulator-cap";
-import { daysOverdue, lateFeeFor } from "@/lib/fees/late-fee";
+import { daysOverdue, lateFeeAsOf, lateFeeFor } from "@/lib/fees/late-fee";
 import { generateInvoicesSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
@@ -212,7 +212,7 @@ export async function POST(req: NextRequest) {
           const prevInvoice = inputs.latestOpenInvoiceByStudent.get(student.id);
           if (prevInvoice && prevInvoice.currency !== currency) { results.push({ studentId: student.id, status: "error", error: "Cannot combine late fees across currencies" }); continue; }
           if (prevInvoice) {
-            lateFeeAmount = lateFeeFor(daysOverdue(invoiceDate, prevInvoice.dueDate), prevInvoice.balanceDue, fineRule, { percentage: feeStructure.lateFeePercentage ?? 2.0, compound: Boolean(feeStructure.compoundLateFee) });
+            lateFeeAmount = lateFeeFor(daysOverdue(lateFeeAsOf(invoiceDate, new Date()), prevInvoice.dueDate), prevInvoice.balanceDue, fineRule, { percentage: feeStructure.lateFeePercentage ?? 2.0, compound: Boolean(feeStructure.compoundLateFee) });
           }
         }
       }
