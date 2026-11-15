@@ -482,6 +482,15 @@ function StructureModal({
     }
     setSaving(true);
 
+    // SKAI-2028: refuse negative / out-of-range amounts before they reach the API.
+    const badOtf = oneTimeFees.find((r) => r.name.trim() && r.amount && !(Number(r.amount) >= 0 && rupeesToPaisa(r.amount, currency) <= 2147483647));
+    const badPct = discountRules.find((r) => r.name.trim() && r.pct && !(Number(r.pct) >= 0 && Number(r.pct) <= 100));
+    if (badOtf || badPct) {
+      toast.error(tr(badOtf ? "One-time fee amounts must be zero or more and within the allowed range" : "Discount percentages must be between 0 and 100"));
+      setSaving(false);
+      return;
+    }
+
     const otfObj: Record<string, number> = {};
     for (const row of oneTimeFees) {
       if (row.name.trim() && row.amount) otfObj[row.name.trim()] = rupeesToPaisa(row.amount, currency);

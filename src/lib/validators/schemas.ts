@@ -382,6 +382,38 @@ export const reportRemarkSchema = z.object({
   approve: z.boolean().optional(),
 });
 
+// SKAI-2028: one-time fees are whole minor units inside the int money column; discount rules are percentages.
+const MAX_MONEY_INT = 2147483647;
+function feeMapJson(label: string, check: (v: unknown) => boolean, rule: string) {
+  return z.string().optional().superRefine((raw, ctx) => {
+    if (!raw) return;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      ctx.addIssue({ code: "custom", message: `${label} must be valid JSON` });
+      return;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      ctx.addIssue({ code: "custom", message: `${label} must be an object of name to number` });
+      return;
+    }
+    for (const [name, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!check(v)) ctx.addIssue({ code: "custom", message: `${label} "${name}" must be ${rule}` });
+    }
+  });
+}
+export const oneTimeFeesJsonSchema = feeMapJson(
+  "One-time fees",
+  (v) => typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= MAX_MONEY_INT,
+  `a whole amount between 0 and ${MAX_MONEY_INT}`,
+);
+export const discountRulesJsonSchema = feeMapJson(
+  "Discount rules",
+  (v) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 100,
+  "a percentage between 0 and 100",
+);
+
 // Fee structure
 export const feeStructureSchema = z.object({
   campusId: z.string().optional(),
@@ -390,9 +422,9 @@ export const feeStructureSchema = z.object({
   // SKAI-1154: regulator-approved monthly fee (minor units) and permit reference; null clears them.
   approvedFee: z.coerce.number().int().min(0).nullable().optional(),
   approvedFeeReference: z.string().trim().max(120).nullable().optional(),
-  oneTimeFeesJson: z.string().optional(),
+  oneTimeFeesJson: oneTimeFeesJsonSchema,
   installmentType: z.enum(["11-month", "6-month", "quarterly", "one-time"]).optional(),
-  discountRulesJson: z.string().optional(),
+  discountRulesJson: discountRulesJsonSchema,
   lateFeePercentage: z.coerce.number().min(0).max(100).default(2.0),
   compoundLateFee: z.boolean().default(true),
   taxPercentage: z.coerce.number().min(0).max(100).default(0.0),
