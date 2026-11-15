@@ -175,7 +175,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
       </div>
 
       <form className="sk-desk-section flex flex-wrap items-end gap-2" data-tour="library.lending.scan" onSubmit={(e) => { e.preventDefault(); void scan(code); }}>
-        <FormField name="desk-scan" label={ui("Scan a member card or a copy")} hint={ui(member ? "Scan each copy to issue it to this reader." : "Scan a member card first to issue books.")} className="min-w-0 flex-1 sm:min-w-[16rem]">
+        <FormField name="desk-scan" label={ui("Scan a member card or a copy")} hint={ui(member ? "Scan each copy to issue it to this reader." : "Scan a member card first to issue books.")} className="min-w-[12rem] flex-1 sm:min-w-[16rem]">
           <Input ref={scanRef} dir="ltr" autoFocus value={code} onChange={(e) => setCode(e.target.value)} />
         </FormField>
         {/* A scanner submits with Enter; the button is the fallback and never competes with the one primary (§4.4). */}
