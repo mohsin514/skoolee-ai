@@ -4,6 +4,7 @@ import { familyVersion, publishedVersionsFor } from "@/lib/academic/report-versi
 import { pendingReportReviewCount } from "@/lib/academic/report-review-count";
 
 import { getLocalePackage } from "@/lib/locale/store";
+import { overdueCutoff } from "@/lib/datetime";
 import { studentScope, publishedReportsWhere } from "@/lib/auth/policy";
 
 import { cache } from "react";
@@ -1817,6 +1818,7 @@ async function librarianSummary(schoolId: string, campusId: string) {
 
 async function accountantSummary(schoolId: string, campusId: string) {
   const twelveMonths = monthsAgo(11);
+  const overdueBefore = await overdueCutoff(schoolId, campusId);
   const { currency: localeCurrency } = await getLocalePackage(schoolId, campusId);
   // Summaries follow the currency the campus actually bills in, never the
   // locale default — otherwise PKR invoices vanish behind a USD filter.
@@ -1843,7 +1845,7 @@ async function accountantSummary(schoolId: string, campusId: string) {
         campus: { schoolId },
         status: { not: "CANCELLED" },
         balanceDue: { gt: 0 },
-        dueDate: { lt: new Date() },
+        dueDate: { lt: overdueBefore },
       },
     }),
     prisma.payrollRun.count({ where: { campusId, schoolId } }),

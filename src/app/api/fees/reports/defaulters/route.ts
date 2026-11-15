@@ -4,6 +4,7 @@ import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { overdueCutoff } from "@/lib/datetime";
 import { listPagination, pageWindow } from "@/lib/lists/query";
 import {
   assertFeesRead,
@@ -61,7 +62,10 @@ export async function GET(req: NextRequest) {
 
     // A student defaults once an unpaid invoice is at least `minDays` whole days past due.
     const now = new Date();
-    const cutoff = minDaysOverdue === 0 ? now : new Date(now.getTime() - minDaysOverdue * DAY_MS);
+    // SKAI-2088: day-granular, anchored to the school's calendar date (due dates are UTC-midnight dates), so an
+    // invoice due today is not overdue at minDays=0 and minDays=N means N whole school days past the due date.
+    const today = await overdueCutoff(user.schoolId, campusId);
+    const cutoff = new Date(today.getTime() - minDaysOverdue * DAY_MS);
     const dueDate = minDaysOverdue === 0 ? { lt: cutoff } : { lte: cutoff };
     const where = {
       schoolId: user.schoolId,
