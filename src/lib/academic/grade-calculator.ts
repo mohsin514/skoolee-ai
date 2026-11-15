@@ -290,6 +290,13 @@ export async function loadWeightedGradeContext(
   return { config, subjects, exams };
 }
 
+/** SKAI-2019: narrow a context to the subjects a subject teacher may see, so totals and breakdown never include the rest. */
+export function restrictContextToSubjects(ctx: WeightedGradeContext, subjectIds?: readonly string[] | null): WeightedGradeContext {
+  if (!subjectIds) return ctx;
+  const allowed = new Set(subjectIds);
+  return { ...ctx, subjects: ctx.subjects.filter((s) => allowed.has(s.id)) };
+}
+
 /** One mark query for the whole roster, grouped by learner. */
 export async function loadMarksByStudent(ctx: WeightedGradeContext, campusId: string, studentIds: string[], db: TxClient) {
   const byStudent = new Map<string, WeightedGradeMark[]>();
@@ -408,9 +415,10 @@ export async function calculateWeightedGradesForStudents(
   db: TxClient = prisma,
   academicModelVersionId?: string | null,
   configOverride?: WeightConfig,
+  subjectIds?: readonly string[] | null,
 ): Promise<Array<WeightedGradeResult | null>> {
   if (!students.length) return [];
-  const ctx = await loadWeightedGradeContext(campusId, classId, academicYear, db, academicModelVersionId, configOverride);
+  const ctx = restrictContextToSubjects(await loadWeightedGradeContext(campusId, classId, academicYear, db, academicModelVersionId, configOverride), subjectIds);
   const marksByStudent = await loadMarksByStudent(ctx, campusId, students.map((s) => s.id), db);
   return students.map((student) => {
     try {
@@ -431,8 +439,9 @@ export async function calculateWeightedGrade(
   /** SKAI-152: evaluate proposed rules without saving them (the editor's preview). */
   configOverride?: WeightConfig,
   releasedOnly?: ReleasedOnlyScope,
+  subjectIds?: readonly string[] | null,
 ): Promise<WeightedGradeResult> {
-  const [student, ctx] = await Promise.all([
+  const [student, fullCtx] = await Promise.all([
     db.student.findUnique({
       where: { id: studentId },
       select: { id: true, fullName: true, classId: true },
@@ -442,6 +451,7 @@ export async function calculateWeightedGrade(
 
   if (!student) throw new Error("Student not found");
 
+  const ctx = restrictContextToSubjects(fullCtx, subjectIds);
   const marksByStudent = await loadMarksByStudent(ctx, campusId, [student.id], db);
   return computeWeightedGrade(student, ctx, marksByStudent.get(student.id) ?? []);
 }
@@ -449,7 +459,9 @@ export async function calculateWeightedGrade(
 export async function calculateWeightedGradeForClass(
   classId: string,
   campusId: string,
-  academicYear: number
+  academicYear: number,
+  /** SKAI-2019: a subject teacher's own subjects; null/undefined = every subject. */
+  subjectIds?: readonly string[] | null,
 ) {
   // SKAI-212: only current learners are ranked and reported; archived or withdrawn pupils keep their history but leave the class list.
   const students = await prisma.student.findMany({
@@ -459,7 +471,7 @@ export async function calculateWeightedGradeForClass(
   });
 
   // SKAI-1832: one batched load for the class; a database error fails the request instead of silently dropping learners.
-  const results = await calculateWeightedGradesForStudents(students, campusId, classId, academicYear);
+  const results = await calculateWeightedGradesForStudents(students, campusId, classId, academicYear, prisma, undefined, undefined, subjectIds);
 
   const validResults = results.filter((r): r is WeightedGradeResult => r !== null);
 
