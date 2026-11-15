@@ -27,6 +27,8 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     assertStaffRole(user);
+    // SKAI-2084: same exam-access rule as exam-schedule/rooms (SKAI-1300).
+    await assertPermission(user, "exams", "view");
     const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
     const date = req.nextUrl.searchParams.get("date");
     const periodDefinitionId = req.nextUrl.searchParams.get("periodDefinitionId");
