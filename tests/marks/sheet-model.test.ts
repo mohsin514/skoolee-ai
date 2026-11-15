@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createRequestSequence, enteredBySubject, indexSheetMarks, invalidSheetCells, markCellKey, sheetFields, sheetLabels } from "../../src/lib/marks/sheet-model";
+import { ABSENT_TOKEN, EXEMPT_TOKEN, createRequestSequence, enteredBySubject, indexSheetMarks, invalidSheetCells, markCellKey, sheetFields, sheetLabels } from "../../src/lib/marks/sheet-model";
 import { createDebouncedTask } from "../../src/lib/drafts/debounce";
 
 // SKAI-1869: the teacher mark sheet builds its cell map in one pass, drops responses for a test it has left,
@@ -92,4 +92,12 @@ test("draft persistence runs once after a pause, flushes on demand and can be ca
   task.flush();
   assert.equal(task.pending, false);
   assert.deepEqual(writes, ["45.5", "page hidden"]);
+});
+
+test("SKAI-2005: Absent and Exempt cells are valid, a bad number still is not", () => {
+  const students = [{ id: "s1" }, { id: "s2" }, { id: "s3" }];
+  const subjects = [{ id: "m", totalMarks: 100 }];
+  const invalid = invalidSheetCells(students, subjects, { "s1:m": ABSENT_TOKEN, "s2:m": EXEMPT_TOKEN, "s3:m": "101" });
+  assert.deepEqual(invalid.map((c) => c.student.id), ["s3"]);
+  assert.equal(invalidSheetCells(students, subjects, { "s1:m": "ABSENT", "s2:m": "60" }).length, 0);
 });
