@@ -117,7 +117,9 @@ export function documentKey(
   const safe = fileName
     .toLowerCase()
     .replace(/[^a-z0-9.]+/g, "-")
-    .replace(/^-+|-+$/g, "")
+    // SKAI-2195: "my..logo.png" kept ".." and the key guard then threw a 500; repeated dots collapse to one.
+    .replace(/\.{2,}/g, ".")
+    .replace(/^[-.]+|-+$/g, "")
     .slice(0, 80);
   return `student-docs/${campusId}/${studentId}/${safe}`;
 }
@@ -163,7 +165,8 @@ function safeFileName(fileName: string): string {
   return fileName
     .toLowerCase()
     .replace(/[^a-z0-9.]+/g, "-")
-    .replace(/^-+|-+$/g, "")
+    .replace(/\.{2,}/g, ".")
+    .replace(/^[-.]+|-+$/g, "")
     .slice(0, 80);
 }
 
