@@ -12,7 +12,7 @@ import { recordDietary, setSpendLimit } from "@/lib/campus-packages/service";
 import { familyActivities, requestPlace } from "@/lib/activities/service";
 import { notifyOfferedPlaces } from "@/lib/activities/offer-notice";
 import { reconcileStatement, schoolToday as feeToday } from "@/lib/fees/statement";
-import { installmentStates, type Installment } from "@/lib/fees/installments";
+import { installmentStates, settledTowardPlan, type Installment } from "@/lib/fees/installments";
 import { onlinePaymentAvailability } from "@/lib/fees/online-payment";
 import { zonedInstant } from "@/lib/meetings/time";
 import { defineCapability } from "../../define";
@@ -120,7 +120,7 @@ async function childDues(ctx: CapabilityContext, child: BoundChild) {
     const rows = invoices.filter(invoice => invoice.currency === currency).map(invoice => {
       const plan = schedule.get(invoice.id);
       return { id: invoice.id, status: invoice.status, totalAmount: invoice.totalAmount, totalAmountPaid: invoice.totalAmountPaid, balanceDue: invoice.balanceDue, dueDate: invoice.dueDate.toISOString().slice(0, 10),
-        ...(plan ? { installments: installmentStates(plan.installmentsJson as Installment[], invoice.totalAmountPaid - plan.paidAtCreation, today) } : {}) };
+        ...(plan ? { installments: installmentStates(plan.installmentsJson as Installment[], settledTowardPlan(plan.installmentsJson as Installment[], invoice.balanceDue), today) } : {}) };
     });
     const summary = reconcileStatement(rows, today);
     return { currency, outstanding: summary.outstanding, overdue: summary.overdue, dueToday: summary.dueToday, notYetDue: summary.notYetDue, openInvoices: rows.filter(row => row.balanceDue > 0 && row.status !== "CANCELLED").length };
