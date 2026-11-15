@@ -377,7 +377,8 @@ function PaymentModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { money: formatPKR } = useLocaleFormat();
+  // SKAI-2243: dialog and receipt dates use the same localised format as the payments list.
+  const { money: formatPKR, date: formatDate } = useLocaleFormat();
   const { currency: campusCurrency, timezone: schoolTimeZone } = useLocale();
   const tr = useUiText();
   const todayInSchool = calendarDateIn(schoolTimeZone); // SKAI-2069: the school's calendar day, not the UTC date
@@ -613,7 +614,7 @@ function PaymentModal({
               ) : null}
               <div className="flex justify-between">
                 <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Date"}</UiText></span>
-                <span className="text-sm font-bold text-ink-strong">{receipt.paymentDate}</span>
+                <span className="text-sm font-bold text-ink-strong"><bdi>{formatDate(receipt.paymentDate)}</bdi></span>
               </div>
               <div className="flex justify-between">
                 <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Method"}</UiText></span>
@@ -702,7 +703,7 @@ function PaymentModal({
                       <input type="radio" name="invoice" value={inv.id} checked={selectedInvoiceId === inv.id} onChange={() => { setSelectedInvoiceId(inv.id); setAmount(String(paisaToRupees(inv.balance, inv.currency))); }} className="accent-primary" />
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold text-ink-strong">{inv.invoiceNumber || tr("Invoice")}</p>
-                        <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{inv.dueDate} · {formatPKR(inv.balance, inv.currency)}</p>
+                        <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText><bdi>{formatDate(inv.dueDate)}</bdi> · {formatPKR(inv.balance, inv.currency)}</p>
                       </div>
                       <Badge variant={invoiceStatusVariant(inv.status)} size="sm" dot>{tr(inv.status)}</Badge>
                     </label>
@@ -719,7 +720,7 @@ function PaymentModal({
               return sel ? (
                 <div className="rounded-2xl bg-brand-50/40 px-4 py-3 border border-edge/10">
                   <p className="text-xs font-bold text-ink-strong">{sel.invoiceNumber || tr("Invoice")}</p>
-                  <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{sel.dueDate} · {formatPKR(sel.balance, sel.currency)}</p>
+                  <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText><bdi>{formatDate(sel.dueDate)}</bdi> · {formatPKR(sel.balance, sel.currency)}</p>
                 </div>
               ) : null;
             })()}
