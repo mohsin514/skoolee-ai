@@ -49,6 +49,8 @@ function summary(matched: Row[], unmatched: Row[]) {
 // GET ?campusId=                → the latest 30 statements with every matched and unmatched row
 // GET ?campusId=&summary=1      → the same statements with counts and the first unmatched rows only
 // GET ?campusId=&id=            → one statement in full (same campus scope)
+// SKAI-2127: bank_account holds a saved account id, or the typed account name when no saved account matched.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
@@ -66,7 +68,7 @@ export async function GET(req: NextRequest) {
     return Response.json({ success: true, data: rows.map(rec => {
       const matched = storedRows(rec.reconciliationDetailsJson), unmatched = storedRows(rec.unmatchedJson);
       return {
-        id: rec.id, status: rec.status, bankAccount: rec.bankAccount ? accountNames.get(rec.bankAccount) ?? null : null, from: rec.statementPeriodFrom?.toISOString().slice(0, 10) ?? null, to: rec.statementPeriodTo?.toISOString().slice(0, 10) ?? null,
+        id: rec.id, status: rec.status, bankAccount: rec.bankAccount ? accountNames.get(rec.bankAccount) ?? (UUID.test(rec.bankAccount) ? null : rec.bankAccount) : null, from: rec.statementPeriodFrom?.toISOString().slice(0, 10) ?? null, to: rec.statementPeriodTo?.toISOString().slice(0, 10) ?? null,
         ...(brief ? summary(matched, unmatched) : { matched, unmatched }),
         posting: postings.get(rec.id) ?? null, report: report(rec, postings.get(rec.id) ?? null),
       };
