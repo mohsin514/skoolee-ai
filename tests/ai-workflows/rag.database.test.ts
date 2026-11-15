@@ -113,3 +113,17 @@ test("search loads embeddings only for a hybrid query, keeps school scope, and r
     assert.equal(await searchKnowledge(student, "refund", async () => [near]).then(result => result.sources.length, () => 0), 0);
   } finally { (delegate as { findMany: unknown }).findMany = findMany; }
 });
+
+test("non-manager staff cannot read DRAFT or ARCHIVED documents by id; managers still can", async () => {
+  const admin = await fixture("ADMIN"), teacherId = randomUUID();
+  await db.user.create({ data: { id: teacherId, schoolId: admin.schoolId, campusId: admin.campusId, role: "TEACHER", isActive: true, email: `${teacherId}@example.invalid`, fullName: "QA Teacher" } });
+  const teacher = { ...admin, userId: teacherId, role: "TEACHER", email: `${teacherId}@example.invalid`, fullName: "QA Teacher" } satisfies AuthUser;
+  const doc = await saveKnowledge(admin, { ...input(["ADMIN", "TEACHER"]), campusId: admin.campusId });
+  await assert.rejects(readKnowledge(teacher, doc.id), { status: 404 });
+  assert.equal((await readKnowledge(admin, doc.id)).status, "DRAFT");
+  const published = await publishKnowledge(admin, doc.id, doc.version, lexical);
+  assert.equal((await readKnowledge(teacher, doc.id)).content, input().content);
+  await withdrawKnowledge(admin, doc.id, published.version, false);
+  await assert.rejects(readKnowledge(teacher, doc.id), { status: 404 });
+  assert.equal((await readKnowledge(admin, doc.id)).status, "ARCHIVED");
+});
