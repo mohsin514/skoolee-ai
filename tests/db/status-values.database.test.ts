@@ -46,3 +46,12 @@ test("every listed table has its status CHECK constraint and no watch trigger", 
     WHERE NOT t.tgisinternal AND t.tgname = c.relname || '_status_watch' AND c.relname = ANY(${Object.keys(STATUS_VALUES)})`;
   assert.equal(Number(watches[0].n), 0);
 });
+
+test("SKAI-2066: a pupil can be marked transferred, and an unlisted student status is still refused", async () => {
+  const cls = await db.class.create({ data: { schoolId, campusId, name: "Transfer", academicYear: 2026 } });
+  const pupil = await db.student.create({ data: { schoolId, campusId, classId: cls.id, fullName: "Transfer Pupil", rollNo: `T-${randomUUID().slice(0, 8)}`, gender: "MALE" } });
+  await db.student.update({ where: { id: pupil.id }, data: { status: "transferred" } });
+  assert.equal((await db.student.findUniqueOrThrow({ where: { id: pupil.id } })).status, "transferred");
+  const error = await db.student.update({ where: { id: pupil.id }, data: { status: unknown } }).then(() => null, (e: unknown) => e);
+  assert.match(String((error as Error)?.message), /students_status_check/);
+});

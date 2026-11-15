@@ -11,7 +11,7 @@
  */
 export const STATUS_VALUES = {
   exams: ["DRAFT", "ACTIVE", "MARKS_ENTRY", "LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"],
-  students: ["active", "archived", "consolidated", "graduated", "inactive", "withdrawn"],
+  students: ["active", "archived", "consolidated", "graduated", "inactive", "transferred", "withdrawn"],
   classes: ["ACTIVE", "COMPLETED"],
   academic_cycles: ["DRAFT", "ACTIVE", "PAUSED", "ENDED"],
   guardian_relationships: ["DRAFT", "INVITED", "ACTIVE", "SUSPENDED", "REVOKED", "REVIEW_REQUIRED"],
