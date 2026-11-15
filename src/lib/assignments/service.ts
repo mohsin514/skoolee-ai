@@ -519,6 +519,17 @@ export async function prepareDraftFile(user: AuthUser, assignmentId: string, raw
   });
 }
 
+/** Discard the draft file (failed, interrupted or finished) so the learner can submit a typed answer alone. */
+export async function removeDraftFile(user: AuthUser, assignmentId: string, now = new Date()) {
+  return schoolAiTransaction(user, async tx => {
+    const access = await learnerAccess(tx, user, assignmentId, now);
+    if (!(await openLearnerView(tx, user, access, now)).canEditDraft) throw new ApiError("This work cannot be changed now.", 409);
+    const submission = await submissionRow(tx, user, assignmentId, access.student.id);
+    await tx.assignmentSubmission.update({ where: { id: submission.id }, data: { draftStorageKey: null, draftFileName: null, draftContentType: null, draftSizeBytes: null, draftSha256: null, draftUploadedAt: null, draftSavedAt: now } });
+    return { removed: true };
+  });
+}
+
 /** After the browser's PUT: read the stored bytes back, check the size and record their checksum. */
 export async function confirmDraftFile(user: AuthUser, assignmentId: string, read: typeof readPrivateObject = readPrivateObject, now = new Date()) {
   const pending = await schoolAiTransaction(user, async tx => {

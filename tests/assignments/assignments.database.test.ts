@@ -5,7 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import type { AuthUser } from "../../src/lib/auth";
 import { prisma } from "../../src/lib/db/prisma";
 import {
-  assertSubmissionUploadTarget, closeAssignment, confirmDraftFile, createAssignment, getAssignment, grantExtension, listAssignments, prepareDraftFile, previewRelease,
+  assertSubmissionUploadTarget, closeAssignment, confirmDraftFile, removeDraftFile, createAssignment, getAssignment, grantExtension, listAssignments, prepareDraftFile, previewRelease,
   recordPaperSubmission, releaseAssignment, reopenSubmission, resolveSubmissionFile, returnFeedback, saveDraft, saveFeedback, submitWork, updateAssignment,
 } from "../../src/lib/assignments/service";
 import { sha256 } from "../../src/lib/assignments/rules";
@@ -98,6 +98,21 @@ test("a file submission records the stored bytes' checksum; only the owner may u
   assert.ok((await resolveSubmissionFile(s.learner, id, receipt.id)).storageKey.startsWith(`submissions/${s.campusId}/${id}/${s.learnerId}/`));
   assert.ok(await resolveSubmissionFile(s.teacher, id, receipt.id));
   for (const other of [s.classmate, s.outsider, s.guardian, s.otherTeacher]) await assert.rejects(() => resolveSubmissionFile(other, id, receipt.id), { status: 404, message: "Assignment not found." });
+});
+
+test("a learner can discard an interrupted file and submit the typed answer alone", async () => {
+  const s = await school();
+  const id = await released(s);
+  await prepareDraftFile(s.learner, id, { fileName: "Lab report.pdf", contentType: "application/pdf", sizeBytes: bytes.length }, BEFORE);
+  await saveDraft(s.learner, id, { text: "Typed answer" }, BEFORE);
+  await assert.rejects(() => submitWork(s.learner, id, { idempotencyKey: key() }, BEFORE), { status: 409 }, "a pending file blocks submit");
+  await removeDraftFile(s.learner, id, BEFORE);
+  const row = await db.assignmentSubmission.findFirstOrThrow({ where: { assignmentId: id } });
+  assert.equal(row.draftStorageKey, null);
+  assert.equal(row.draftUploadedAt, null);
+  assert.equal(row.draftText, "Typed answer");
+  const receipt = await submitWork(s.learner, id, { idempotencyKey: key() }, BEFORE);
+  assert.equal(receipt.fileSha256 ?? null, null);
 });
 
 test("drafts, other classes and other pupils' work return one uniform 404", async () => {
