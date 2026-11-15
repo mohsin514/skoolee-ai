@@ -2,7 +2,7 @@ import type { AuthUser } from "@/lib/auth";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { getLocalePackage } from "@/lib/locale/store";
+import { campusBillingCurrency } from "@/app/api/fees/reports/invoice-currency";
 import { ApiError, resolveCampusId } from "@/lib/api/scope";
 
 /** The route's code normalisation: trimmed, upper case, spaces as underscores ("sibling 10" → "SIBLING_10"). */
@@ -49,7 +49,7 @@ export async function createDiscount(user: AuthUser, body: Record<string, unknow
   const replay = await settle();
   if (replay) return replay;
 
-  const currency = (await getLocalePackage(user.schoolId, campusId)).currency;
+  const currency = await campusBillingCurrency(user.schoolId, campusId);
   if ((body.currency || "PKR") !== currency) throw new ApiError("Currency changed. Reload discount form.", 409);
   try {
     return await prisma.$transaction(async (tx) => {

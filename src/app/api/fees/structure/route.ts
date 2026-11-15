@@ -1,4 +1,4 @@
-import { getLocalePackage } from "@/lib/locale/store";
+import { campusBillingCurrency } from "@/app/api/fees/reports/invoice-currency";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { feeStructureSchema } from "@/lib/validators/schemas";
@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
       });
     } else {
       data.createdBy = user.userId;
-      data.currency = (await getLocalePackage(user.schoolId, campusId, activeFrom)).currency;
+      data.currency = (await campusBillingCurrency(user.schoolId, campusId, activeFrom));
       if ((body.currency || "PKR") !== data.currency) throw new ApiError("Currency changed. Reload the fee form before saving.", 409);
       structure = await prisma.feeStructure.create({
         data,
