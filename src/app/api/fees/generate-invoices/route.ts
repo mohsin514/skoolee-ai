@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     const classWhere = { campusId, schoolId: user.schoolId, archivedAt: null, status: "ACTIVE", ...(parsed.data.classId ? { id: parsed.data.classId } : {}) };
 
-    const students = await tx.student.findMany({
+    const classStudents = await tx.student.findMany({
       where: {
         schoolId: user.schoolId, campusId, archivedAt: null,
         status: { equals: "active", mode: "insensitive" },
@@ -65,15 +65,19 @@ export async function POST(req: NextRequest) {
     });
 
     // SKAI-1946: nobody to bill is an empty result, not a missing resource, so it answers 200 with a zero count.
-    if (students.length === 0) return null;
+    if (classStudents.length === 0) return null;
 
-    const existingInvoices = await existingMonthlyStudentInvoices(tx, user.schoolId, campusId, students.map(student => student.id), invoiceDate, nextMonth, { excludeCancelled: true });
-    if (existingInvoices.length > 0) {
+    const existingInvoices = await existingMonthlyStudentInvoices(tx, user.schoolId, campusId, classStudents.map(student => student.id), invoiceDate, nextMonth, { excludeCancelled: true });
+    // SKAI-2058: a re-run is idempotent per student. Students already billed this month are skipped, so a late joiner still gets an invoice.
+    const billedIds = new Set(existingInvoices.map(invoice => invoice.studentId));
+    const students = classStudents.filter(student => !billedIds.has(student.id));
+    if (students.length === 0) {
       throw new ApiError(
         `Invoices already exist for ${existingInvoices.length} student(s) this month`,
         409
       );
     }
+    const alreadyBilled = classStudents.length - students.length;
 
     const feeStructures = await tx.feeStructure.findMany({
       where: {
@@ -293,7 +297,7 @@ export async function POST(req: NextRequest) {
     const generated = results.filter((r) => r.status === "generated").length;
     const errors = results.filter((r) => r.error);
 
-    return { generated, errors, totalStudents: students.length, className: students[0]?.class?.name };
+    return { generated, errors, alreadyBilled, totalStudents: students.length, className: students[0]?.class?.name };
     });
     if (!committed) {
       return Response.json({ success: false, error: "No active students found for this class/campus", totalStudents: 0, generated: 0, errors: [] });
@@ -322,6 +326,7 @@ export async function POST(req: NextRequest) {
         success: true,
         totalStudents: committed.totalStudents,
         generated,
+        alreadyBilled: committed.alreadyBilled,
         errors,
         message: `Generated ${generated} invoices for ${parsed.data.generationMonth}`,
       },

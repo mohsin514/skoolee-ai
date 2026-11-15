@@ -22,6 +22,7 @@ const state = {
   discountRules: {} as Record<string, number>,
   billedEnrollments: new Set<string>(),
   carry: new Map<string, { balance: number }>(),
+  billed: [] as string[],
 };
 const activation = {
   id: "act-1", schoolId: "school-a", packageCode: "SA-DEMO", packageVersion: 1, currency: "SAR", exemptFeeCodes: [] as string[],
@@ -91,7 +92,7 @@ mock.module("@/lib/school-ai/fee-invoices", {
 });
 mock.module("@/lib/fees/invoice-generation", {
   namedExports: {
-    existingMonthlyStudentInvoices: async () => [],
+    existingMonthlyStudentInvoices: async () => state.billed.map(studentId => ({ id: `old-${studentId}`, studentId, invoiceDate: new Date("2026-11-01T00:00:00Z") })),
     invoiceGenerationTransaction: async (_u: User, _campusId: string, work: (t: typeof tx) => Promise<unknown>) => work(tx),
   },
 });
@@ -129,7 +130,7 @@ beforeEach(() => {
   state.user = { userId: "acc-a", role: "ACCOUNTANT", schoolId: "school-a", campusId: "campus-a1", fullName: "QA Accountant" };
   state.ops = []; state.invoices = []; state.docs = []; state.seqIncrements = []; state.campusReads = []; state.locks = [];
   state.lastDocNumber = "SAD-000041";
-  state.oneTime = {}; state.discountRules = {}; state.billedEnrollments = new Set(); state.carry = new Map();
+  state.oneTime = {}; state.discountRules = {}; state.billedEnrollments = new Set(); state.carry = new Map(); state.billed = [];
   state.students = roster(5, "campus-a1");
 });
 
@@ -230,4 +231,23 @@ test("SKAI-2024: a fully discounted pupil gets a PAID zero invoice, others stay 
   state.discountRules = { scholarship: 50 };
   await generate();
   assert.deepEqual(state.invoices.map(i => [i.totalAmount, i.status]), [[57500, "PENDING"], [57500, "PENDING"]]);
+});
+
+test("SKAI-2058: a re-run skips students already billed and invoices the late joiner", async () => {
+  state.students = roster(4, "campus-a1");
+  state.billed = ["stu-0000", "stu-0001", "stu-0002"];
+  const r = await generate();
+  assert.equal(r.status, 201);
+  assert.equal(r.body.generated, 1);
+  assert.equal(r.body.alreadyBilled, 3);
+  assert.deepEqual(state.invoices.map(i => i.studentId), ["stu-0003"]);
+});
+
+test("SKAI-2058: a re-run where every student is already billed still answers 409 and writes nothing", async () => {
+  state.students = roster(3, "campus-a1");
+  state.billed = ["stu-0000", "stu-0001", "stu-0002"];
+  const r = await generate();
+  assert.equal(r.status, 409);
+  assert.equal(r.body.error, "Invoices already exist for 3 student(s) this month");
+  assert.equal(state.invoices.length, 0);
 });
