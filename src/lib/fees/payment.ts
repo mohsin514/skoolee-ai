@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api/scope";
 import { capturePaymentReceipt } from "./receipt";
 import { settleLibraryChargeForInvoice } from "@/lib/library/charge-settlement";
 import { paymentAcademicYear } from "./payment-year";
@@ -137,6 +138,8 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
     });
     if (existing) {
       if (existing.currency !== invoice.currency) throw new Error("Cannot combine overpayment credit across currencies");
+      // SKAI-2202: the carry-forward balance is Int4; refuse a credit it cannot hold instead of a raw 500.
+      if (existing.balance - credit < -2147483647) throw new ApiError("This overpayment would take the pupil's credit above the largest supported amount. Record only what is owed.", 400);
       await tx.feeCarryForward.update({
         where: { id: existing.id },
         data: { balance: existing.balance - credit },
