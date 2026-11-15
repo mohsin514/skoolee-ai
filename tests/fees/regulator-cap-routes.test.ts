@@ -43,9 +43,10 @@ mock.module(src("lib/db/prisma.ts"), {
         update: async ({ where, data }: any) => Object.assign(state.schools[where.id], data),
       },
       feeStructure: {
-        findFirst: async () => null,
+        findFirst: async ({ where }: any) => state.structures.find((r: any) => r.classId === where.classId && r.academicYearId === where.academicYearId && +r.activeFrom === +where.activeFrom) ?? null,
         create: async ({ data }: any) => { const row = { id: `fs-${state.structures.length + 1}`, ...data, class: { id: data.classId, name: "Grade 1", section: null } }; state.structures.push(row); return row; },
       },
+      localePolicy: { count: async () => 1 },
       auditLog: { create: async ({ data }: any) => { state.audits.push(data); } },
     },
   },
@@ -110,4 +111,16 @@ test("BLOCK refuses an over-cap or unrecorded approved fee and writes nothing", 
   assert.equal((await POST(json("/api/fees/structure", "POST", structureBody({ approvedFee: null })))).status, 422);
   assert.equal(state.structures.length, 0);
   assert.equal((await POST(json("/api/fees/structure", "POST", structureBody({ monthlyFee: 5000 })))).status, 201);
+});
+
+// SKAI-2035: a create for a class/year/start date that already has a structure is refused, never overwritten.
+test("creating a second structure for the same class, year and start date is refused with 409", async () => {
+  const { POST } = await import("../../src/app/api/fees/structure/route");
+  assert.equal((await POST(json("/api/fees/structure", "POST", structureBody({ monthlyFee: 5000 })))).status, 201);
+  const res = await POST(json("/api/fees/structure", "POST", structureBody({ monthlyFee: 2000 })));
+  assert.equal(res.status, 409);
+  assert.match((await res.json()).error, /already has a fee structure/);
+  assert.equal(state.structures.length, 1);
+  assert.equal(state.structures[0].monthlyFee, 5000);
+  assert.equal(state.audits.length, 1);
 });
