@@ -286,8 +286,11 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
         />
       ) : (
         <>
-          <div className="sk-panel sk-rise overflow-hidden">
-            <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-muted/50 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+          {/* SKAI-2238: the table scrolls sideways on narrow screens instead of collapsing the student column, and
+              the receipt and invoice columns fit a full number (shown left-to-right, with the full text on hover). */}
+          <div className="sk-panel sk-rise overflow-x-auto">
+            <div className="min-w-[760px]">
+            <div className="grid grid-cols-[minmax(10rem,1fr)_160px_100px_100px_100px_160px] gap-3 px-5 py-3 bg-muted/50 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               <span><UiText>{"Student"}</UiText></span>
               <span><UiText>{"Receipt"}</UiText></span>
               <span><UiText>{"Amount"}</UiText></span>
@@ -299,7 +302,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
               {payments.map((p) => (
                 <div
                   key={p.id}
-                  className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 items-center hover:bg-brand-50/20 transition-colors"
+                  className="grid grid-cols-[minmax(10rem,1fr)_160px_100px_100px_100px_160px] gap-3 px-5 py-3 items-center hover:bg-brand-50/20 transition-colors"
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-ink-strong truncate">{p.student.fullName}</p>
@@ -307,18 +310,19 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
                       {classLabel(p.student.class.name, p.student.class.section)}
                     </p>
                   </div>
-                  <p className="text-2xs font-bold text-ink truncate">{p.receiptNo ?? "—"}</p>
+                  <p className="text-2xs font-bold text-ink truncate" dir="ltr" title={p.receiptNo ?? undefined}>{p.receiptNo ?? "—"}</p>
                   <p className="text-xs font-bold tabular-nums text-status-success-text">{formatPKR(p.amount, p.invoice.currency)}</p>
                   <p className="text-2xs font-medium text-ink-subtle">{tr(paymentMethodLabel(p.paymentMethod))}</p>
                   <p className="text-2xs font-medium tabular-nums text-ink-subtle">{formatDate(p.paymentDate)}</p>
                   <div className="min-w-0">
-                    <p className="text-2xs font-bold text-ink truncate">{p.invoice.invoiceNumber}</p>
+                    <p className="text-2xs font-bold text-ink truncate" dir="ltr" title={p.invoice.invoiceNumber ?? undefined}>{p.invoice.invoiceNumber}</p>
                     <Badge variant={invoiceStatusVariant(p.invoice.status)} size="sm" dot>
                       {tr(p.invoice.status)}
                     </Badge>
                   </div>
                 </div>
               ))}
+            </div>
             </div>
           </div>
 
