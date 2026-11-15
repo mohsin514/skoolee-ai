@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
+  assertStaffRole,
   canManageOperations,
   errorResponse,
   requireAuthUser,
@@ -35,6 +36,8 @@ export async function GET(
 ) {
   try {
     const user = await requireAuthUser();
+    // SKAI-2054: staff-only read, like GET /api/subjects; families must not read other classes' syllabus.
+    assertStaffRole(user);
     const { subjectId } = await params;
     await getScopedSubject(subjectId, user.role === "SUPER_ADMIN" ? null : user.campusId, user.schoolId);
 
