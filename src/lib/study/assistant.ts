@@ -4,6 +4,7 @@ import { ApiError, canManageOperations } from "@/lib/api/scope";
 import { teacherClassIds } from "@/lib/chat/policy";
 import { assertNoPII, PIILeakError } from "@/lib/ai/pseudonymize";
 import { consumeAICreditAndLog, ensureAICreditsAvailable, generateAIDraft } from "@/lib/ai/openai";
+import { guardianDeclinedPurpose } from "@/lib/family/guardian-consent";
 import { listSchoolAiExams } from "@/lib/school-ai/exam-service";
 
 // SKO-428: a study assistant grounded only in the learner's approved class material.
@@ -110,6 +111,9 @@ export async function ask(user: AuthUser, body: Record<string, unknown>) {
   const save = (outcome: string, answer: Record<string, unknown>, citationIds: string[] = []) => prisma.studyTurn.create({ data: { schoolId: user.schoolId, studentId: learner.id, classId: learner.classId, question, outcome, answer: answer as never, citationIds, engine, promptVersion: STUDY_PROMPT_VERSION } });
   const exam = await activeExam(user);
   if (exam) return { turn: await save("BLOCKED", { message: "Help for this assessment is restricted until it ends.", exam }), sources: [] };
+  // SKAI-2151: a guardian's "No" to AI assistance stops the model call for this child (fail closed on a lookup error).
+  const aiDeclined = await guardianDeclinedPurpose(user.schoolId, learner.id, "aiAssistance").catch(() => true);
+  if (aiDeclined) return { turn: await save("BLOCKED", { message: "Your guardian has not agreed to AI help. Your class resources and your teacher are still available." }), sources: [] };
   try { assertNoPII(question, "study question"); } catch (error) { if (error instanceof PIILeakError) return { turn: await save("REFUSED", { message: "Please do not enter private personal information. Ask about your class material." }), sources: [] }; throw error; }
   const { resources, passages } = await approvedPassages(prisma, user.schoolId, learner.classId);
   const wanted = body.resourceId ? passages.filter(p => p.resourceId === String(body.resourceId)) : passages;
