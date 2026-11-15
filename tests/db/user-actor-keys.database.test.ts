@@ -13,7 +13,7 @@ if (!["127.0.0.1", "localhost"].includes(url.hostname)) throw Error("Only a loca
 
 const db = new PrismaClient();
 type Fixture = { schoolId: string; campusId: string; userId: string };
-let a: Fixture, b: Fixture;
+let a: Fixture, b: Fixture, platform: Fixture;
 
 async function seedSchool(label: string): Promise<Fixture> {
   const schoolId = `uak1954-${label}-${randomUUID()}`, campusId = randomUUID();
@@ -25,9 +25,9 @@ async function seedSchool(label: string): Promise<Fixture> {
 const newUser = (f: Fixture) => db.user.create({ data: { schoolId: f.schoolId, campusId: f.campusId, email: `t-${randomUUID()}@example.invalid`, password: "not-a-real-hash", fullName: "Synthetic Teacher", role: "TEACHER" } });
 const framework = (f: Fixture, createdById: string) => db.evidenceFramework.create({ data: { schoolId: f.schoolId, name: `F-${randomUUID()}`, version: "1", createdById } });
 
-before(async () => { a = await seedSchool("A"); b = await seedSchool("B"); });
+before(async () => { a = await seedSchool("A"); b = await seedSchool("B"); platform = await seedSchool("P"); });
 after(async () => {
-  for (const s of [a, b]) if (s) await db.school.delete({ where: { id: s.schoolId } }).catch(() => undefined);
+  for (const s of [a, b, platform]) if (s) await db.school.delete({ where: { id: s.schoolId } }).catch(() => undefined);
   await db.$disconnect();
 });
 
@@ -55,6 +55,13 @@ test("a user named by a required actor column cannot be deleted on their own", a
   const author = await newUser(a);
   await framework(a, author.id);
   await assert.rejects(db.user.delete({ where: { id: author.id } }), (e: { code?: string }) => e.code === "P2003");
+});
+
+test("an owner-written column accepts a platform owner from another school but still needs a real user", async () => {
+  const incident = (ownerActorId: string) => db.supportIncident.create({ data: { schoolId: a.schoolId, reference: `INC-${randomUUID()}`, purpose: "Synthetic support case", impact: "none", ownerActorId } });
+  assert.equal((await incident(platform.userId)).ownerActorId, platform.userId);
+  await assert.rejects(incident(randomUUID()), (e: { code?: string }) => e.code === "P2003");
+  await assert.rejects(db.user.delete({ where: { id: platform.userId } }), (e: { code?: string }) => e.code === "P2003", "support history keeps the owner account");
 });
 
 test("deleting a school still removes its users and the rows that name them", async () => {
@@ -89,4 +96,22 @@ test("every school-pinned user relation is a validated key, and optional ones cl
     else if (onDelete === "NoAction" && found.deltype !== "a") problems.push(`${key}: expected NO ACTION`);
   }
   assert.deepEqual(problems, []);
+});
+
+test("every owner-written user relation is a validated key on users(id)", async () => {
+  const schema = readFileSync(join(__dirname, "..", "..", "prisma", "schema.prisma"), "utf8");
+  const expected: string[] = [];
+  for (const [, body] of schema.matchAll(/^model\s+\w+\s*\{([\s\S]*?)^\}/gm)) {
+    const table = body.match(/@@map\("([^"]+)"\)/)?.[1];
+    for (const [, field] of body.matchAll(/User\??\s+@relation\("\w+", fields: \[(\w+)\], references: \[id\], onDelete: \w+\) \/\/ SKAI-1954: platform owner/g)) {
+      expected.push(`${table}.${body.match(new RegExp(`^\\s*${field}\\s.*@map\\("([^"]+)"\\)`, "m"))![1]}`);
+    }
+  }
+  assert.ok(expected.length >= 10, `expected at least 10 owner-written user relations, found ${expected.length}`);
+  const keys = await db.$queryRaw<{ key: string }[]>`
+    select c.conrelid::regclass::text || '.' || a.attname as key from pg_constraint c
+    join pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+    where c.contype = 'f' and c.confrelid = 'users'::regclass and c.convalidated and array_length(c.conkey, 1) = 1`;
+  const actual = new Set(keys.map((k) => k.key.replace(/"/g, "")));
+  assert.deepEqual(expected.filter((k) => !actual.has(k)), []);
 });

@@ -251,8 +251,10 @@ test("readiness is read per campus", async () => {
 
 test("class C entries prepare a hand-off and write nothing", async () => {
   const { user, schoolId, gulbergId, ahmed, sana } = await fixture();
-  const incident = await db.supportIncident.create({ data: { schoolId, reference: `INC-${randomUUID().slice(0, 8)}`, purpose: "Check the fee setup at Gulberg", impact: "Fee invoices", ownerActorId: randomUUID() } });
-  const grant = await db.supportGrant.create({ data: { schoolId, incidentId: incident.id, requestedById: randomUUID(), purpose: "Read the fee setup", scope: ["fees"], expiresAt: new Date(Date.now() + 86_400_000) } });
+  // SKAI-1954: the support owner must be a real account.
+  const supportOwner = await db.user.create({ data: { schoolId, campusId: gulbergId, email: `${randomUUID()}@example.invalid`, fullName: "Synthetic support owner", role: "ADMIN", isActive: true } });
+  const incident = await db.supportIncident.create({ data: { schoolId, reference: `INC-${randomUUID().slice(0, 8)}`, purpose: "Check the fee setup at Gulberg", impact: "Fee invoices", ownerActorId: supportOwner.id } });
+  const grant = await db.supportGrant.create({ data: { schoolId, incidentId: incident.id, requestedById: supportOwner.id, purpose: "Read the fee setup", scope: ["fees"], expiresAt: new Date(Date.now() + 86_400_000) } });
   const template = await db.policyTemplate.create({ data: { schoolId, domain: "CALENDAR", title: "Group calendar", campusIds: [gulbergId], createdById: user.userId } });
   const version = await db.policyTemplateVersion.create({ data: { schoolId, templateId: template.id, version: 1, status: "ACTIVE", values: { weekend: [5, 6] }, overridableKeys: ["weekend"], effectiveFrom: new Date("2026-01-01"), reviewedAt: new Date("2025-12-20"), activatedAt: new Date("2026-01-01"), submittedById: sana.id, reviewerId: user.userId, createdById: user.userId } });
   const override = await db.policyOverride.create({ data: { schoolId, campusId: gulbergId, templateId: template.id, versionId: version.id, key: "weekend", value: [0], reason: "Ramadan timing", requestedById: sana.id, validFrom: new Date(), validUntil: new Date(Date.now() + 30 * 86_400_000) } });

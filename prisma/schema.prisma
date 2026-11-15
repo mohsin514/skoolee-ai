@@ -661,6 +661,7 @@ model SubscriptionRequest {
   effectiveAt    DateTime? @map("effective_at")
   details        Json
   reviewedById   String?  @map("reviewed_by_id")
+  reviewedBy User? @relation("SubscriptionRequestReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull) // SKAI-1954: platform owner or staff, not pinned to this school
   reviewedAt     DateTime? @map("reviewed_at")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
@@ -668,6 +669,7 @@ model SubscriptionRequest {
   @@index([schoolId, state, createdAt])
   @@index([requestedById])
   @@map("subscription_requests")
+  @@index([reviewedById])
 }
 
 // Durable provider receipt. Event IDs are globally unique at Stripe; failed
@@ -1392,6 +1394,17 @@ model User {
   whatsAppConnectionConnectedBy WhatsAppConnection[] @relation("WhatsAppConnectionConnectedBy")
   whatsAppManagedSendingUpdatedBy WhatsAppManagedSending[] @relation("WhatsAppManagedSendingUpdatedBy")
   whatsAppUsageEntryCreatedBy WhatsAppUsageEntry[] @relation("WhatsAppUsageEntryCreatedBy")
+  // SKAI-1954: owner-written actor columns, keyed to users(id) only
+  aiWorkflowHandoffClaimedBy AiWorkflowHandoff[] @relation("AiWorkflowHandoffClaimedBy")
+  aiWorkflowHandoffCompletedBy AiWorkflowHandoff[] @relation("AiWorkflowHandoffCompletedBy")
+  aiWorkflowHandoffOriginUser AiWorkflowHandoff[] @relation("AiWorkflowHandoffOriginUser")
+  aiWorkflowJobActor AiWorkflowJob[] @relation("AiWorkflowJobActor")
+  schoolAiRequestActor SchoolAiRequest[] @relation("SchoolAiRequestActor")
+  subscriptionRequestReviewedBy SubscriptionRequest[] @relation("SubscriptionRequestReviewedBy")
+  supportActionActor SupportAction[] @relation("SupportActionActor")
+  supportGrantApprovedBy SupportGrant[] @relation("SupportGrantApprovedBy")
+  supportGrantRequestedBy SupportGrant[] @relation("SupportGrantRequestedBy")
+  supportIncidentOwnerActor SupportIncident[] @relation("SupportIncidentOwnerActor")
 
   @@unique([schoolId, email])
   @@unique([schoolId, username])
@@ -6204,6 +6217,7 @@ model SupportIncident {
   impact           String   @db.Text
   status           String   @default("open")
   ownerActorId     String   @map("owner_actor_id")
+  ownerActor User @relation("SupportIncidentOwnerActor", fields: [ownerActorId], references: [id], onDelete: NoAction) // SKAI-1954: platform owner or staff, not pinned to this school
   closureEvidence String?  @map("closure_evidence") @db.Text
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
@@ -6212,6 +6226,7 @@ model SupportIncident {
 
   @@index([schoolId, status, updatedAt])
   @@map("support_incidents")
+  @@index([ownerActorId])
 }
 
 model SupportGrant {
@@ -6221,7 +6236,9 @@ model SupportGrant {
   incidentId      String   @map("incident_id")
   incident        SupportIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
   requestedById   String   @map("requested_by_id")
+  requestedBy User @relation("SupportGrantRequestedBy", fields: [requestedById], references: [id], onDelete: NoAction) // SKAI-1954: platform owner or staff, not pinned to this school
   approvedById    String?  @map("approved_by_id")
+  approvedBy User? @relation("SupportGrantApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull) // SKAI-1954: platform owner or staff, not pinned to this school
   purpose         String   @db.Text
   scope           String[]
   actions         String[] @default(["read"])
@@ -6240,6 +6257,8 @@ model SupportGrant {
   @@index([schoolId, status, expiresAt])
   @@index([incidentId])
   @@map("support_grants")
+  @@index([approvedById])
+  @@index([requestedById])
 }
 
 model SupportAction {
@@ -6249,6 +6268,7 @@ model SupportAction {
   grantId   String   @map("grant_id")
   grant     SupportGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
   actorId   String   @map("actor_id")
+  actor User @relation("SupportActionActor", fields: [actorId], references: [id], onDelete: NoAction) // SKAI-1954: platform owner or staff, not pinned to this school
   domain    String
   action    String
   status    String   @default("queued")
@@ -6259,6 +6279,7 @@ model SupportAction {
   @@index([grantId, status])
   @@index([schoolId])
   @@map("support_actions")
+  @@index([actorId])
 }
 
 model LoginSession {
@@ -8090,6 +8111,7 @@ model SchoolAiRequest {
   campusId         String? @map("campus_id")
   campus           Campus? @relation(fields: [campusId], references: [id], onDelete: Cascade)
   actorId          String @map("actor_id")
+  actor User @relation("SchoolAiRequestActor", fields: [actorId], references: [id], onDelete: NoAction) // SKAI-1954: platform owner or staff, not pinned to this school
   actorRole        String @map("actor_role")
   subjectId        String? @map("subject_id")
   classId          String? @map("class_id")
@@ -8118,6 +8140,7 @@ model SchoolAiRequest {
   @@index([conversationId, schoolId])
   @@index([campusId])
   @@map("school_ai_requests")
+  @@index([actorId])
 }
 
 model SchoolAiConversation {
@@ -11703,6 +11726,7 @@ model AiWorkflowJob {
   campusId             String?   @map("campus_id")
   campus               Campus?   @relation(fields: [campusId], references: [id], onDelete: Cascade)
   actorId              String    @map("actor_id")
+  actor User @relation("AiWorkflowJobActor", fields: [actorId], references: [id], onDelete: NoAction) // SKAI-1954: platform owner or staff, not pinned to this school
   actorRole            String    @map("actor_role")
   accessVersion        Int       @map("access_version")
   sessionTokenHash     String?   @map("session_token_hash")
@@ -11751,6 +11775,7 @@ model AiWorkflowJob {
   @@index([schoolId, actorId, updatedAt])
   @@index([campusId])
   @@map("ai_workflow_jobs")
+  @@index([actorId])
 }
 
 /// User-authored text only (the evidence base). Never sent back to clients verbatim from other users.
@@ -11909,6 +11934,7 @@ model AiWorkflowHandoff {
   targetRoles      String[]      @default([]) @map("target_roles")
   originRole       String        @map("origin_role")
   originUserId     String        @map("origin_user_id")
+  originUser User @relation("AiWorkflowHandoffOriginUser", fields: [originUserId], references: [id], onDelete: NoAction) // SKAI-1954: platform owner or staff, not pinned to this school
   recordId         String?       @map("record_id")
   recordVersion    Int?          @map("record_version")
   domainRef        Json?         @map("domain_ref")
@@ -11917,9 +11943,11 @@ model AiWorkflowHandoff {
   idempotencyKey   String        @map("idempotency_key")
   status           String        @default("OPEN")
   claimedById      String?       @map("claimed_by_id")
+  claimedBy User? @relation("AiWorkflowHandoffClaimedBy", fields: [claimedById], references: [id], onDelete: SetNull) // SKAI-1954: platform owner or staff, not pinned to this school
   claimedAt        DateTime?     @map("claimed_at")
   claimExpiresAt   DateTime?     @map("claim_expires_at")
   completedById    String?       @map("completed_by_id")
+  completedBy User? @relation("AiWorkflowHandoffCompletedBy", fields: [completedById], references: [id], onDelete: SetNull) // SKAI-1954: platform owner or staff, not pinned to this school
   completedModel   String?       @map("completed_model")
   completedId      String?       @map("completed_id")
   completedReceipt Json?         @map("completed_receipt")
@@ -11932,6 +11960,9 @@ model AiWorkflowHandoff {
   @@index([schoolId, campusId, status, kind])
   @@index([jobId, schoolId])
   @@map("ai_workflow_handoffs")
+  @@index([claimedById])
+  @@index([completedById])
+  @@index([originUserId])
 }
 
 /// Ids and template keys only; never free text (scanned for PII in tests).
