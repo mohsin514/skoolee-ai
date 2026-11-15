@@ -102,7 +102,7 @@
     "test:purchasing-budget-lock": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/purchasing/budget-approval-lock.test.ts tests/purchasing/decision-single-audit.test.ts",
     "test:purchasing-service-complete-once": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/purchasing/service-complete-once.test.ts",
     "test:accommodations-rehearsal": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/accommodations/rehearsal-replay.test.ts",
-    "test:classes-list-scope": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/classes/list-scope.test.ts",
+    "test:classes-list-scope": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/classes/list-scope.test.ts tests/classes/dashboard-archived.test.ts",
     "test:classes-transfer-target": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/classes/transfer-target-overfill.test.ts",
     "test:leave-allocation-identity": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/leave/allocation-identity.test.ts",
     "test:leave-type-input": "node --import ./tests/support/server-only.mjs --import tsx --test tests/leave/leave-type-input.test.ts",
