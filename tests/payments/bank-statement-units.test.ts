@@ -59,3 +59,15 @@ test("job import (the ticket's fixture): Rs 20 'Xaba Bhatti' matches Saba Bhatti
   assert.equal(reconciliation!.reconciliationDetailsJson[0].matchedInvoiceId, "inv-saba");
   assert.equal(body.data.preview[0].amount, 2000);
 });
+
+
+test("SKAI-2126: a Value Date column before Amount is not read as the amount", async () => {
+  const { POST } = await import("../../src/app/api/import-batches/route");
+  const csvText = "Date,Value Date,Narration,Amount\n2026-10-30,2026-10-30,Fee INV-SB-1,20.00\n";
+  const res = await POST(new Request("http://localhost/api/import-batches", { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "BANK_STATEMENT", sourceName: "oct.csv", csvText, accountName: "Synthetic Main", currency: "PKR", statementFrom: "2026-10-01", statementTo: "2026-10-31", campusId: "campus-a" }) }) as never);
+  assert.equal(res.status, 201);
+  const [row] = staged!.rows;
+  assert.equal(row.proposal.amountMinor, 2000);
+  assert.equal(row.state, "ACCEPTED");
+});
