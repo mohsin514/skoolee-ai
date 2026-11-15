@@ -99,7 +99,7 @@ const fakePrisma: Record<string, unknown> = new Proxy({}, {
     if (property === "$queryRaw") return async (_sql: TemplateStringsArray, schoolId: string, campusId: string) => {
       db.reportScopes.push({ schoolId, campusId });
       if (db.failing.has("$queryRaw")) throw new Error("synthetic report outage");
-      return [{ examId: "exam-1", title: "Synthetic Midterm", count: 1 }];
+      return [{ examId: "exam-1", title: "Synthetic Midterm", className: "Grade 3", section: "A", count: 1 }];
     };
     if (property.startsWith("$")) return async () => undefined;
     return model(property);
@@ -263,7 +263,8 @@ test("SKAI-1866: report approvals are counted in one query scoped to the caller'
   const principal = await queue.loadQueue(actor("PRINCIPAL"), CAMPUS);
   const report = principal.items.find((item) => item.key === "REPORT_APPROVAL:exam-1");
   assert.equal(report?.count, 1);
-  assert.equal(report?.trigger, "1 current report version(s) for Synthetic Midterm are not approved.");
+  assert.equal(report?.trigger, "1 current report version(s) for Synthetic Midterm · Grade 3 A are not approved.");
+  assert.equal(report?.link, "/principal?view=report-cards&exam=exam-1", "SKAI-2139: the link pins the exam");
   assert.deepEqual(db.reportScopes, [{ schoolId: SCHOOL, campusId: CAMPUS }]);
   db.failing = new Set(["$queryRaw"]);
   const failed = await queue.loadQueue(actor("PRINCIPAL"), CAMPUS);
