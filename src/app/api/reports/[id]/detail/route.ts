@@ -87,7 +87,11 @@ export async function GET(
         reportCard.studentId,
         reportCard.campusId,
         studentClassId,
-        reportCard.exam.academicYear
+        reportCard.exam.academicYear,
+        undefined,
+        undefined,
+        undefined,
+        { includeExamId: reportCard.examId }
       );
       subjectBreakdown = grade.subjectBreakdown || [];
       examResults = (grade.examResults || []).filter((result) => !(isAggregateFinal && result.examId === reportCard.examId));
@@ -107,6 +111,7 @@ export async function GET(
         classId: studentClassId,
         academicYear: reportCard.exam.academicYear,
         weightConfig,
+        releasedOnly: { includeExamId: reportCard.examId },
         ...(isAggregateFinal ? { excludeExamId: reportCard.examId } : {}),
       });
     } catch {}
