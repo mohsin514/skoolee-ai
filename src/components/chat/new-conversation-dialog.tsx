@@ -54,10 +54,12 @@ for (const role of ROLE_ORDER) {
 interface NewConversationDialogProps {
   open: boolean;
   onClose: () => void;
+  /** SKAI-2198: pick people to add to this existing group instead of starting a conversation. */
+  addTo?: { conversationId: string; memberIds: string[] };
 }
 
-export function NewConversationDialog({ open, onClose }: NewConversationDialogProps) {
-  const { viewer, searchDirectory, startDirect, createGroup, clearError } = useChat();
+export function NewConversationDialog({ open, onClose, addTo }: NewConversationDialogProps) {
+  const { viewer, searchDirectory, startDirect, createGroup, addMembers, clearError } = useChat();
   // SKAI-1599: a failed start is shown inside this dialog (the shared alert sits behind it), with Try again.
   const [startFailed, setStartFailed] = useState<null | { retry: () => void }>(null);
   const ui = useUiText();
@@ -94,6 +96,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
       setMode("direct");
     }
   }, [open]);
+  useEffect(() => { if (open && addTo) setMode("group"); }, [open, addTo]);
 
   useEffect(() => {
     if (!open) return;
@@ -126,7 +129,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
     // viewer, or a future change to that endpoint, can never put someone in a
     // position to open a conversation with themselves — which the API would
     // refuse anyway, but only after a confusing round trip.
-    const reachable = contacts.filter((c) => c.id !== viewer?.id);
+    const reachable = contacts.filter((c) => c.id !== viewer?.id && !addTo?.memberIds.includes(c.id));
 
     const buckets = new Map<string, DirectoryContact[]>();
     for (const contact of reachable) {
@@ -142,7 +145,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
       heading: roleLabel(buckets.get(label)![0].role, language),
       contacts: buckets.get(label)!,
     }));
-  }, [contacts, viewer?.id, language]);
+  }, [contacts, viewer?.id, language, addTo?.memberIds]);
 
   const total = grouped.reduce((n, g) => n + g.contacts.length, 0);
 
@@ -162,6 +165,16 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
     setIsSubmitting(false);
     if (id) onClose();
     else { clearError(); setStartFailed({ retry: () => void choose(contact) }); }
+  }
+
+  async function submitAdd() {
+    if (!addTo || selected.length === 0) return;
+    setIsSubmitting(true);
+    setStartFailed(null);
+    const ok = await addMembers(addTo.conversationId, selected.map((c) => c.id));
+    setIsSubmitting(false);
+    if (ok) onClose();
+    else { clearError(); setStartFailed({ retry: () => void submitAdd() }); }
   }
 
   async function submitGroup() {
@@ -223,7 +236,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                         id="new-conversation-title"
                         className="truncate text-sm font-bold tracking-tight text-ink-strong"
                       >
-                        {mode === "group" ? ui("New group") : ui("New conversation")}
+                        {addTo ? ui("Add people") : mode === "group" ? ui("New group") : ui("New conversation")}
                       </h2>
                       <p className="truncate text-2xs font-normal text-ink-muted">
                         {directoryFailed ? null : total === 1 ? ui("{0} person you can reach", [total]) : ui("{0} people you can reach", [total])}
@@ -272,7 +285,7 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
 
               {/* ── Controls ── */}
               <div className="shrink-0 space-y-3 border-b border-edge/25 px-5 py-4">
-                {canCreateGroup && (
+                {canCreateGroup && !addTo && (
                   <div
                     className="relative flex gap-1 rounded-xl bg-brand-50/70 p-1"
                     // SKAI-1602: a labelled toggle group, not a tablist: these buttons filter in place and have no tab panels.
@@ -305,17 +318,17 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                       exit={{ opacity: 0, height: 0 }}
                       className="space-y-2 overflow-hidden"
                     >
-                      <label className="sr-only" htmlFor="group-title">
+                      {!addTo && <label className="sr-only" htmlFor="group-title">
                         {ui("Group name")}
-                      </label>
-                      <SystemInput
+                      </label>}
+                      {!addTo && <SystemInput
                         id="group-title"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder={ui("Group name — e.g. Grade 6 Teachers")}
                         maxLength={120}
                         className="w-full px-3 py-2.5"
-                      />
+                      />}
                       {selected.length > 0 && (
                         <ul className="flex flex-wrap gap-1.5">
                           {selected.map((c) => (
@@ -483,11 +496,13 @@ export function NewConversationDialog({ open, onClose }: NewConversationDialogPr
                 <footer className="shrink-0 border-t border-edge/25 bg-card px-5 py-4">
                   <Button variant="default" size="sm"
                     type="button"
-                    onClick={submitGroup}
-                    disabled={selected.length === 0 || !title.trim() || isSubmitting}
+                    onClick={addTo ? submitAdd : submitGroup}
+                    disabled={selected.length === 0 || (!addTo && !title.trim()) || isSubmitting}
                     className="w-full hover:-translate-y-0.5"
                   >
-                    {isSubmitting
+                    {addTo
+                      ? selected.length ? ui("Add people · {0}", [selected.length]) : ui("Add people")
+                      : isSubmitting
                       ? ui("Creating…")
                       : selected.length
                         ? ui("Create group · {0}", [selected.length])

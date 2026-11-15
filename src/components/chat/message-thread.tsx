@@ -22,6 +22,7 @@ import {
   Sparkles,
   PinOff,
   Trash2,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
@@ -45,6 +46,7 @@ import { fill } from "./chat-text";
 import { clockTimeIn, dayLabelIn } from "./message-time";
 import { ErrorState } from "@/components/ui/error-state";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { NewConversationDialog } from "./new-conversation-dialog";
 
 
 
@@ -103,6 +105,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
   // SKAI-1584: withdrawing hides the message for everyone and cannot be undone, so it is confirmed first.
   const [withdrawing, setWithdrawing] = useState<ChatMessageView | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -311,6 +314,16 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                         if (await setPreference(detail.id, { isArchived: !detail.isArchived })) closeConversation();
                       }}
                     />
+                    {detail.kind === "GROUP" && detail.canModerate && (
+                      <MenuItem
+                        icon={UserPlus}
+                        label={ui("Add people")}
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setAddOpen(true);
+                        }}
+                      />
+                    )}
                     {detail.kind !== "DIRECT" && (
                       <>
                         <span className="my-1 block h-px bg-edge/30" aria-hidden />
@@ -495,6 +508,9 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           if (target) await deleteMessage(target.id);
         }}
       />
+      {detail.kind === "GROUP" && detail.canModerate && (
+        <NewConversationDialog open={addOpen} onClose={() => setAddOpen(false)} addTo={{ conversationId: detail.id, memberIds: detail.members.map((m) => m.userId) }} />
+      )}
     </MotionConfig>
   );
 }

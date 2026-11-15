@@ -105,6 +105,8 @@ interface ChatContextValue {
     prefs: { isMuted?: boolean; isPinned?: boolean; isArchived?: boolean }
   ) => Promise<boolean>;
   leaveConversation: (id: string) => Promise<void>;
+  /** SKAI-2198: add people to an existing group; resolves false when refused. */
+  addMembers: (id: string, userIds: string[]) => Promise<boolean>;
 
   typingUsers: TypingUser[];
   notifyTyping: () => void;
@@ -848,6 +850,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [activeId, closeConversation, refresh]
   );
 
+  const addMembers = useCallback(
+    async (id: string, userIds: string[]) => {
+      const res = await fetch(`/api/chat/conversations/${id}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userIds }),
+      });
+      if (!res.ok) {
+        setError(await readError(res, "Could not add those people"));
+        return false;
+      }
+      const json = await res.json();
+      setDetail((prev) => (prev && prev.id === id ? json.conversation : prev));
+      await refresh();
+      return true;
+    },
+    [refresh]
+  );
+
   const notifyTyping = useCallback(() => {
     if (!activeId) return;
 
@@ -909,6 +930,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       createGroup,
       setPreference,
       leaveConversation,
+      addMembers,
       typingUsers,
       notifyTyping,
       searchDirectory,
@@ -949,6 +971,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       createGroup,
       setPreference,
       leaveConversation,
+      addMembers,
       typingUsers,
       notifyTyping,
       searchDirectory,
