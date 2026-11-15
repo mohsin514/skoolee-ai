@@ -83,7 +83,7 @@ export function CurriculumPacks() {
         </div>
         <DeskFilterStatus shown={only ? data.activations.filter(row => row.status === only).length : data.activations.length} total={data.activations.length} onClear={() => setOnly(null)} />
         {requesting && <RequestForm t={t} data={data} busy={busy} onCancel={() => setRequesting(false)} onSubmit={body => act(async () => { await send("/api/school-ai/curriculum-packs", JSON.stringify(body)); setRequesting(false); })} />}
-        {!data.activations.length && !requesting && <div className="sk-panel" data-static><EmptyState icon={BookMarked} title={t.noRequests} description={t.catalogueIntro}
+        {!data.activations.length && !requesting && <div className="sk-panel" data-static><EmptyState icon={BookMarked} title={t.noRequests} description={t.noRequestsBody}
           action={data.canRequest && data.catalogue.length > 0 && data.campuses.length > 0 ? <Button onClick={() => setRequesting(true)} data-pack-request-open><Plus aria-hidden="true" />{t.request}</Button> : undefined} /></div>}
         <ul className="space-y-4">{urgencyFirst(data.activations.filter(row => !only || row.status === only), rank).map(activation => <li key={activation.id}><ActivationCard t={t} activation={activation} campus={data.campuses.find(item => item.id === activation.campusId)?.name ?? ""} busy={busy} uploads={data.uploadsAvailable} locale={locale} act={act} /></li>)}</ul>
       </section>
