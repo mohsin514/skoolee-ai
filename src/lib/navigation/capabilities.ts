@@ -178,7 +178,8 @@ export async function capabilitiesFor(
   caps.improvementLead = role === "PRINCIPAL" || operator;
   caps.recordSearch = RECORD_SEARCH.includes(role);
   // Flagship 1 — AI Workflows (`/ai`): platform owner workspace, staff workspace, or family personal workspace.
-  caps.schoolAi = role === "APP_OWNER" || ([...SCHOOL_AI_STAFF_ROLES, "PARENT", "STUDENT"] as readonly string[]).includes(role) && permissions.get("ai")?.canView === true;
+  // SKAI-2123: campus staff with no campus yet cannot open /ai (it redirects them to Today), so the row is hidden.
+  caps.schoolAi = role === "APP_OWNER" || ([...SCHOOL_AI_STAFF_ROLES, "PARENT", "STUDENT"] as readonly string[]).includes(role) && permissions.get("ai")?.canView === true && !(CAMPUS_STAFF.includes(role) && !user.campusId);
   // Flagship 2 — Exam Studio (`/ai/studio`) for the academic roles, set below once the academic-lead seat is known;
   // a student's `schoolAiExams` is secure exam delivery ("My online exams", `/ai/exams`).
   caps.schoolAiExams = role === "STUDENT";
