@@ -235,3 +235,9 @@ test('navigation comes from the role registry; the retired layout shell is never
   const importers = sourceFiles('src').filter((file) => RETIRED.test(readFileSync(file, 'utf8'))).map(posix);
   assert.deepEqual(importers, []);
 });
+
+test('.sk-launch grid column can shrink below its content (no phone-width overflow)', () => {
+  const css = readFileSync('src/app/globals.css', 'utf8');
+  const rule = css.match(/\.sk-launch\s*\{[^}]*\}/)?.[0] ?? '';
+  assert.match(rule, /grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+});
