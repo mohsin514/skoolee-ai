@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
-import { ApiError, canManageOperations } from "@/lib/api/scope";
+import { ApiError, canLeadAcademics } from "@/lib/api/scope";
 import { studentScope } from "@/lib/auth/policy";
 import { teacherClassIds } from "@/lib/chat/policy";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
@@ -16,7 +16,9 @@ import { markCandidateExamActive } from "@/lib/school-ai/exam-active-marker";
 //  - the learner: their effective settings and rehearsal; guardians: a capability summary
 // Everyone else is refused.
 
-const isApprover = (user: AuthUser) => canManageOperations(user);
+// SKAI-2190: the same gate as /accommodations: the principal, or a campus operator while the campus has no principal.
+// A failed seat read fails closed.
+const isApprover = (user: AuthUser) => canLeadAcademics(user).catch(() => false);
 const audit = (tx: TxClient, user: AuthUser, campusId: string, recordId: string, newValue: Record<string, unknown>, oldValue?: Record<string, unknown>) =>
   tx.auditLog.create({ data: { schoolId: user.schoolId, campusId, tableName: "accommodation_plans", recordId, userId: user.userId, newValue: newValue as never, ...(oldValue ? { oldValue: oldValue as never } : {}) } });
 
@@ -30,7 +32,7 @@ const operational = (plan: PlanRow & { approvedAt: Date }) => ({ id: plan.id, ve
 // ─── Coordinator ──────────────────────────────────────────────────
 export async function coordinatorView(user: AuthUser, raw: unknown) {
   const { classId } = z.object({ classId: z.string().min(1).optional() }).strict().parse(raw);
-  if (!isApprover(user)) throw new ApiError("Only designated staff can manage access plans.", 403);
+  if (!(await isApprover(user))) throw new ApiError("Only designated staff can manage access plans.", 403);
   return schoolAiTransaction(user, async tx => {
     const campus = user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" };
     const classes = await tx.class.findMany({ where: { schoolId: user.schoolId, archivedAt: null, ...campus }, select: { id: true, name: true, section: true }, orderBy: { name: "asc" } });
@@ -62,7 +64,7 @@ export const planInput = z.object({
 /** Every change is a new version; the previous active version is superseded, never edited. */
 export async function savePlan(user: AuthUser, raw: unknown) {
   const input = planInput.parse(raw);
-  if (!isApprover(user)) throw new ApiError("Only designated staff can approve access plans.", 403);
+  if (!(await isApprover(user))) throw new ApiError("Only designated staff can approve access plans.", 403);
   const issue = sensitiveInstructionIssue(input.instructions);
   if (issue) throw new ApiError(issue, 400);
   return schoolAiTransaction(user, async tx => {
@@ -79,7 +81,7 @@ export async function savePlan(user: AuthUser, raw: unknown) {
 
 export async function revokePlan(user: AuthUser, planId: string, raw: unknown) {
   const { reason } = z.object({ reason: z.string().trim().min(3).max(300) }).strict().parse(raw);
-  if (!isApprover(user)) throw new ApiError("Only designated staff can revoke access plans.", 403);
+  if (!(await isApprover(user))) throw new ApiError("Only designated staff can revoke access plans.", 403);
   return schoolAiTransaction(user, async tx => {
     const plan = await tx.accommodationPlan.findFirst({ where: { id: planId, schoolId: user.schoolId, status: "ACTIVE" } });
     if (!plan) throw new ApiError("Active plan not found.", 404);
@@ -93,7 +95,7 @@ export async function revokePlan(user: AuthUser, planId: string, raw: unknown) {
 
 /** Supporting records are confidential: only designated approvers can add or read them. */
 export async function supportRecords(user: AuthUser, planId: string, raw?: unknown) {
-  if (!isApprover(user)) throw new ApiError("Supporting records are restricted to designated staff.", 403);
+  if (!(await isApprover(user))) throw new ApiError("Supporting records are restricted to designated staff.", 403);
   return schoolAiTransaction(user, async tx => {
     const plan = await tx.accommodationPlan.findFirst({ where: { id: planId, schoolId: user.schoolId } });
     if (!plan) throw new ApiError("Plan not found.", 404);
@@ -112,9 +114,9 @@ export async function supportRecords(user: AuthUser, planId: string, raw?: unkno
 /** Operational adjustments for the learners a teacher teaches. No supporting records or end reasons. */
 export async function staffView(user: AuthUser) {
   if (user.role === "STUDENT" || user.role === "PARENT") throw new ApiError("Not available.", 403);
-  if (!isApprover(user) && user.role !== "TEACHER") throw new ApiError("Access plans are available to teaching staff only.", 403);
+  if (!(await isApprover(user)) && user.role !== "TEACHER") throw new ApiError("Access plans are available to teaching staff only.", 403);
   return schoolAiTransaction(user, async tx => {
-    const classIds = isApprover(user) ? null : await teacherClassIds(user.userId, tx);
+    const classIds = (await isApprover(user)) ? null : await teacherClassIds(user.userId, tx);
     const students = await tx.student.findMany({ where: { schoolId: user.schoolId, archivedAt: null, ...(classIds ? { classId: { in: classIds } } : user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true, fullName: true, rollNo: true, classId: true } });
     const plans = await tx.accommodationPlan.findMany({ where: { schoolId: user.schoolId, ...currentWindowWhere(new Date()), studentId: { in: students.map(row => row.id) } } });
     return plans.map(plan => ({ student: students.find(row => row.id === plan.studentId)!, plan: operational(plan) })).sort((a, b) => a.student.rollNo.localeCompare(b.student.rollNo));
@@ -174,7 +176,7 @@ export const liveInput = z.object({ studentId: z.string().min(1), addedMinutes: 
 /** An exceptional extension of a running attempt: approver, reason and old/new deadline are recorded for the invigilator. */
 export async function liveAdjustment(user: AuthUser, assignmentId: string, raw: unknown) {
   const input = liveInput.parse(raw);
-  if (!isApprover(user)) throw new ApiError("Only designated staff can approve a live adjustment.", 403);
+  if (!(await isApprover(user))) throw new ApiError("Only designated staff can approve a live adjustment.", 403);
   return schoolAiTransaction(user, async tx => {
     const assignment = await tx.schoolAiExamAssignment.findFirst({ where: { id: assignmentId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true, campusId: true } });
     if (!assignment) throw new ApiError("Exam not found.", 404);
