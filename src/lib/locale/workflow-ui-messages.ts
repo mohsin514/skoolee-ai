@@ -1,5 +1,7 @@
 /** Static interface copy only. Authored names, comments and identifiers bypass this catalog. */
 const entries: [string, string, string][] = [
+// SKAI-2136: pickup history event labels.
+["Code issued", "تم إصدار الرمز", "کوڈ جاری ہوا"], ["Code scanned", "تم مسح الرمز", "کوڈ اسکین ہوا"], ["Release blocked", "تم منع التسليم", "حوالگی روک دی گئی"], ["Exception requested", "طُلب استثناء", "استثنا کی درخواست کی گئی"], ["Exception approved", "تمت الموافقة على الاستثناء", "استثنا منظور ہوا"], ["Exception denied", "رُفض الاستثناء", "استثنا مسترد ہوا"], ["Restriction added", "أُضيف قيد", "پابندی شامل کی گئی"], ["Restriction lifted", "رُفع القيد", "پابندی ہٹا دی گئی"], ["Pickup permission revoked", "أُلغي إذن الاستلام", "وصولی کی اجازت منسوخ کی گئی"],
 ["Messages could not be loaded", "تعذّر تحميل الرسائل", "پیغامات لوڈ نہیں ہو سکے"],
 ["Check your connection, then try again. Your conversations are unchanged.", "تحقّق من اتصالك ثم حاول مرة أخرى. تبقى محادثاتك كما هي.", "اپنا کنکشن چیک کریں، پھر دوبارہ کوشش کریں۔ آپ کی گفتگوئیں جوں کی توں ہیں۔"],
 ["The exam date sheet could not be loaded. Your child's exam dates are not affected; try again.", "تعذّر تحميل جدول مواعيد الامتحانات. مواعيد امتحانات طفلك لم تتأثر؛ حاول مرة أخرى.", "امتحان کی تاریخوں کا شیڈول لوڈ نہیں ہو سکا۔ آپ کے بچے کی امتحانی تاریخیں متاثر نہیں ہوئیں؛ دوبارہ کوشش کریں۔"],
