@@ -506,7 +506,8 @@ export async function POST(req: NextRequest) {
       context: safeContext,
       input: safeInput,
     });
-    const draft = await generateAIDraft({ system: prompt.system, prompt: prompt.user });
+    // SKAI-2191: free text (questions, review titles, remarks) can repeat a name already registered above.
+    const draft = await generateAIDraft({ system: prompt.system, prompt: pseudonymizer.mask(prompt.user) });
     const result = { ...draft, text: pseudonymizer.unmask(draft.text) };
     const approvalStatus = featureNeedsHumanApproval(feature) ? "PENDING_REVIEW" : "DRAFT";
     const title = AI_FEATURE_LABELS[feature];

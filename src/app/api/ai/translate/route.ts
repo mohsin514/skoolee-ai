@@ -11,6 +11,8 @@ import {
   generateAIDraft,
 } from "@/lib/ai/openai";
 import { PIILeakError, Pseudonymizer } from "@/lib/ai/pseudonymize";
+import { prisma } from "@/lib/db/prisma";
+import { studentScope } from "@/lib/auth/policy";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -53,6 +55,10 @@ export async function POST(req: NextRequest) {
   try {
     await ensureAICreditsAvailable(user.schoolId);
     const pseudonymizer = new Pseudonymizer();
+    // SKAI-2191: register the names of pupils this user can reach so a remark naming one is masked.
+    // shortcut: capped at 5000 pupils in scope; upgrade to a name index if campuses grow past that.
+    const pupils = await prisma.student.findMany({ where: { schoolId: user.schoolId, ...studentScope(user) }, select: { fullName: true, guardianName: true }, take: 5000 });
+    for (const p of pupils) { pseudonymizer.token(p.fullName, "STUDENT"); if (p.guardianName) pseudonymizer.token(p.guardianName, "PERSON"); }
     const safeText = pseudonymizer.mask(text);
     const draft = await generateAIDraft({
       system:
