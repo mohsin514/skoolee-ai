@@ -33,6 +33,13 @@ type Statement = {
 const STATE_TONE: Record<DueState, "success" | "neutral" | "danger" | "warning" | "info"> = { PAID: "success", CANCELLED: "neutral", OVERDUE: "danger", DUE_TODAY: "warning", NOT_YET_DUE: "info" };
 // Overdue invoices lead, then today's, then upcoming; settled ones sink to the end.
 const STATE_RANK: Record<DueState, number> = { OVERDUE: 0, DUE_TODAY: 1, NOT_YET_DUE: 2, PAID: 3, CANCELLED: 4 };
+// SKAI-2071: within an unpaid state the earliest due invoice (the one to pay next) comes first; paid and
+// cancelled invoices keep the API's latest-first order. Array.sort is stable, so equal pairs keep that order.
+function nextToPayFirst(a: { dueState: DueState; dueDate: string }, b: { dueState: DueState; dueDate: string }) {
+  const rank = (STATE_RANK[a.dueState] ?? 5) - (STATE_RANK[b.dueState] ?? 5);
+  if (rank || STATE_RANK[a.dueState] > 2) return rank;
+  return a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0;
+}
 const STATE_LABEL: Record<DueState, string> = { PAID: "Paid", CANCELLED: "Cancelled", OVERDUE: "Overdue", DUE_TODAY: "Due today", NOT_YET_DUE: "Not yet due" };
 
 /** The most recent payment on the statement, so a page header can offer "Download receipt" (§4.4 parent · Fees). */
@@ -106,7 +113,7 @@ export function FamilyFeeStatement({ studentId, onSummary, canPay = true }: { st
       <p className="text-xs leading-relaxed text-ink-muted tabular-nums" data-statement-reconciliation={s.reconciles ? "ok" : "mismatch"}><bdi>{ui("Charges {0} − payments {1} = {2} owed", [fmt(s.charges), fmt(s.payments), fmt(s.closing)])}</bdi>{" · "}{ui("Dates as of {0} (school calendar)", [date(statement.today)])}{s.reconciles ? "" : ` · ${ui("These figures do not reconcile; please contact the school office.")}`}</p>
       {statement.credit && statement.credit.total > 0 ? <p className="rounded-lg border border-status-info-border bg-status-info-surface px-3 py-2 text-xs leading-relaxed tabular-nums" data-statement-credit><bdi>{ui("Credit on account: {0}. It is carried forward and will be used against your next fees.", [fmt(statement.credit.total)])}</bdi>{statement.credit.items.map(item => <span key={item.toAcademicYear} className="block text-ink-muted"><bdi>{ui("{0} carried from {1} to {2}", [fmt(item.amount), String(item.fromAcademicYear), String(item.toAcademicYear)])}</bdi></span>)}</p> : null}
       {!canPay && s.outstanding > 0 ? <p className="text-xs leading-relaxed text-ink-muted" data-pay-note>{ui("Your parent or guardian pays fees from their family account.")}</p> : null}
-      <div className="space-y-3">{urgencyFirst(statement.invoices, invoice => STATE_RANK[invoice.dueState] ?? 5).map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} focused={invoice.id === focusInvoice} fmt={fmt} onPending={setPaymentRef} canPay={canPay} />)}</div>
+      <div className="space-y-3">{urgencyFirst(statement.invoices, invoice => STATE_RANK[invoice.dueState] ?? 5).sort(nextToPayFirst).map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} focused={invoice.id === focusInvoice} fmt={fmt} onPending={setPaymentRef} canPay={canPay} />)}</div>
     </>}
   </div>;
 }
