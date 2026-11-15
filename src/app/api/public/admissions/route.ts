@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { familyBookSlot, familyRespond, loadApplication, publicForm, saveApplication, startApplication, submitFamilyApplication } from "@/lib/admissions/service";
 import { ApiError, errorResponse } from "@/lib/api/scope";
+import { clientIp } from "@/lib/http/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
 
 // SKO-398 family application (no account). The form is found by its unguessable link token; a family's own
@@ -13,7 +14,7 @@ import { rateLimit } from "@/lib/rate-limit";
 // POST {action: book-slot, reference, assessmentId} + X-Resume-Key  → SKAI-1263 the family picks an offered time
 
 async function limit(request: NextRequest, bucket: string, max: number) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const ip = clientIp(request.headers);
   if (!(await rateLimit(`admissions:${bucket}:${ip}`, { limit: max, windowMs: 60_000 })).ok) throw new ApiError("Too many attempts. Wait a minute and try again.", 429);
 }
 
