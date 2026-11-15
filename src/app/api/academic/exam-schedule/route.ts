@@ -82,6 +82,9 @@ const scheduleInclude = {
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // SKAI-2084: staff roles without exam access (accountant, librarian, receptionist) must not read the
+    // unpublished date sheet. Families keep their own published-only view below.
+    if (!isFamilyRole(user)) await assertPermission(user, "exams", "view");
     const { searchParams } = new URL(req.url);
     const examId = searchParams.get("examId");
     // The master date sheet is every class's papers at once, which is one
