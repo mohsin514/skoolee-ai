@@ -8,7 +8,7 @@ import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
 import { inviteStaff } from "./invite";
 import { enterTenantContext } from "@/lib/db/tenant-context";
 import { assertEmail, optionalText } from "@/lib/school/details";
-import { createCampusRecord, validateCampusInput } from "@/lib/school/campus-commands";
+import { CampusConflictError, createCampusRecord, validateCampusInput } from "@/lib/school/campus-commands";
 
 
 export interface AddCampusInput {
@@ -51,7 +51,14 @@ export async function addCampus(input: AddCampusInput) {
   // Bind current membership before touching tenant records.
   enterTenantContext({ schoolId, userId: payload.userId, campusId: payload.campusId, role: payload.role });
   // Plan capacity, the name and Campus ID checks, the create and the calendar seeding (shared with AI Workflows).
-  const newCampus = await createCampusRecord(payload, valid);
+  let newCampus;
+  try {
+    newCampus = await createCampusRecord(payload, valid);
+  } catch (error) {
+    // SKAI-1988: a thrown message is replaced by Next.js in production builds, so return the conflict as data.
+    if (error instanceof CampusConflictError) return { success: false as const, error: error.message };
+    throw error;
+  }
 
   // Automatically trigger invite if email provided
   let invitation: { link: string; needsAttention: boolean } | null = null;
@@ -65,5 +72,5 @@ export async function addCampus(input: AddCampusInput) {
     }
   }
 
-  return { success: true, campus: newCampus, invitation };
+  return { success: true as const, campus: newCampus, invitation };
 }

@@ -67,6 +67,12 @@ export function normalizeCampusRegId(value?: string | null) {
   return id;
 }
 
+/**
+ * A duplicate campus name or Campus ID. Server actions that throw show Next.js's "omitted in production builds"
+ * text instead of the message, so actions catch this class and return the message as data (SKAI-1988).
+ */
+export class CampusConflictError extends Error {}
+
 export type ValidCampusFields = ReturnType<typeof validateCampusInput>;
 
 /** SKO-402: the same validators as editing a campus, so a campus can always be saved as it was created. */
@@ -92,9 +98,9 @@ export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid
   // 500. Check first for the common case; the create is still wrapped below
   // because two admins can race between this read and the write.
   const sameName = await prisma.campus.findFirst({ where: { schoolId, archivedAt: null, name: { equals: valid.name, mode: "insensitive" } }, select: { id: true } });
-  if (sameName) throw new Error("Another active campus already uses this name.");
+  if (sameName) throw new CampusConflictError("Another active campus already uses this name.");
   const clash = await prisma.campus.findUnique({ where: { regId: finalRegId }, select: { id: true } });
-  if (clash) throw new Error(`Campus ID ${finalRegId} is already in use. Choose another.`);
+  if (clash) throw new CampusConflictError(`Campus ID ${finalRegId} is already in use. Choose another.`);
 
   // SKAI-1508: resolve the default board before taking the lock. schoolCountry() reads through the global
   // client, so calling it inside the FOR UPDATE transaction needed a second pool connection while holding
@@ -131,7 +137,7 @@ export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid
     });
   } catch (error) {
     if ((error as { code?: string })?.code === "P2002") {
-      throw new Error(`Campus ID ${finalRegId} is already in use. Choose another.`);
+      throw new CampusConflictError(`Campus ID ${finalRegId} is already in use. Choose another.`);
     }
     throw error;
   }
@@ -243,7 +249,7 @@ export async function updateCampusDetailsCommand(session: AuthUser, input: Campu
     if (!current || (input.expectedRevision && input.expectedRevision !== recordRevision(current))) throw new Error("This record changed. Review your draft against the current values before saving.");
     if (name && name.toLocaleLowerCase() !== current.name.toLocaleLowerCase()) {
       const clash = await tx.campus.findFirst({ where: { schoolId: session.schoolId, archivedAt: null, id: { not: campusId }, name: { equals: name, mode: "insensitive" } }, select: { id: true } });
-      if (clash) throw new Error("Another active campus already uses this name.");
+      if (clash) throw new CampusConflictError("Another active campus already uses this name.");
     }
     const data = {
       name, city, phone, email, website,

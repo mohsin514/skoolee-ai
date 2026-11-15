@@ -1088,7 +1088,7 @@ function AddCampusModal({ onClose, onCreated }: { onClose: () => void; onCreated
   const [errors, setErrors] = useState<Partial<Record<keyof typeof EMPTY_CAMPUS, string>>>({});
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [created, setCreated] = useState<Awaited<ReturnType<typeof addCampus>> | null>(null);
+  const [created, setCreated] = useState<Extract<Awaited<ReturnType<typeof addCampus>>, { success: true }> | null>(null);
   const [copyFailed, setCopyFailed] = useState(false);
   // The school's country picks the boards a new campus is offered.
   const [country, setCountry] = useState("");
@@ -1123,6 +1123,7 @@ function AddCampusModal({ onClose, onCreated }: { onClose: () => void; onCreated
         principalName: form.principalName, board: form.board, adminEmail: form.adminEmail,
         regId: form.autoId ? form.regId || undefined : form.regId,
       });
+      if (!result.success) { setSaveError(friendlyErrorMessage(new Error(result.error))); return; }
       setCreated(result);
       await onCreated();
     } catch (failure) {
