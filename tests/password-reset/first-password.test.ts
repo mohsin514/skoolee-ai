@@ -39,3 +39,12 @@ test("errors are non-enumerating codes the page localizes in every language", ()
   }
   for (const key of ["reused: \"", "limited: \"", "notPending: \""]) assert.equal(page.split(key).length - 1, 3, key);
 });
+
+test("SKAI-2008: the route runs unscoped so campus-less admins can finish first-login", () => {
+  assert.match(route, /import \{ runUnscoped \} from "@\/lib\/db\/tenant-context"/);
+  assert.match(route, /export async function PUT\(req: NextRequest\) \{\s*return runUnscoped\(.*completeFirstPassword\(req\)/);
+});
+
+test("SKAI-2008: unscoped, the history row names its school explicitly", () => {
+  assert.match(route, /passwordHistory\.create\(\{\s*data: \{ schoolId: user\.schoolId, userId: user\.id/);
+});
