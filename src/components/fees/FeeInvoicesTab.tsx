@@ -195,7 +195,8 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(tr(json.message));
+        // SKAI-2090: the server's "Invoice marked as <ENUM>" is not translatable; say it from the requested status.
+        toast.success(tr(status === "CANCELLED" ? "Invoice cancelled" : "Invoice marked as overdue"));
         loadInvoices();
         detailVersion.current++;
         setShowDetail(false);
