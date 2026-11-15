@@ -72,6 +72,12 @@ const db = {
       return links.filter((l) => ids.includes(l.guardianUserId) && schools.includes(l.schoolId)).map((l) => ({ guardianUserId: l.guardianUserId }));
     },
   },
+  // SKAI-2165: recipients are re-checked for school and campus; every synthetic member lives in its room's campus.
+  user: {
+    findMany: async ({ where }: { where: { id: { in: string[] }; schoolId: string } }) => conversations.flatMap((c) => c.members
+      .filter((m) => where.id.in.includes(m.userId) && c.schoolId === where.schoolId)
+      .map((m) => ({ id: m.userId, role: m.user.role, campusId: c.campusId }))),
+  },
   chatSetting: { findUnique: async () => null },
   chatMessage: {
     findFirst: async () => null,
