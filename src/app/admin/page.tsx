@@ -551,7 +551,7 @@ export default function CampusConsolePage() {
         body: JSON.stringify({
           classId,
           name: subject.name.trim(),
-          totalMarks: subject.totalMarks || 100,
+          totalMarks: subject.totalMarks ?? 100,
           teacherId: subject.teacherId || undefined,
           applyToAllSections: subject.applyToAllSections || undefined,
           code: subject.code?.trim() || undefined,

@@ -90,6 +90,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader, type PageAction } from "@/components/ui/page-header";
 import { ViewTabs } from "@/components/ui/view-tabs";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
+import { SUBJECT_MARKS_ERROR, parseSubjectMarks } from "@/lib/academic/subject-marks";
 import { translateUi } from "@/lib/locale/ui-translate";
 import { AiActionPanel, AIReviewQueue, BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
@@ -1305,9 +1306,11 @@ export function ClassDetailModal({
   );
 
   const createSubject = async () => {
+    const totalMarks = parseSubjectMarks(subjectMarks);
+    if (totalMarks === null) { toast.error(ui(SUBJECT_MARKS_ERROR)); return; }
     const created = await onCreateSubject(cls.id, {
       name: subjectName,
-      totalMarks: Number(subjectMarks) || 100,
+      totalMarks,
       teacherId: teachingMode === "SINGLE" ? cls.classTeacher?.id || "" : newSubjectTeacherId,
       applyToAllSections,
     });
@@ -1350,9 +1353,11 @@ export function ClassDetailModal({
   };
 
   const saveEditingSubject = async (subjectId: string) => {
+    const totalMarks = parseSubjectMarks(editSubjectMarks);
+    if (totalMarks === null) { toast.error(ui(SUBJECT_MARKS_ERROR)); return; }
     const saved = await onUpdateSubject(cls.id, subjectId, {
       name: editSubjectName,
-      totalMarks: Number(editSubjectMarks) || 100,
+      totalMarks,
     });
     // Keep the form open on failure so the user can fix the name.
     if (saved !== false) setEditingSubjectId(null);
