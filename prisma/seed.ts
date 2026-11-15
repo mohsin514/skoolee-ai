@@ -2,6 +2,7 @@ import { PrismaClient, UserRole, AttendanceStatus, InvoiceStatus } from "@prisma
 import bcrypt from "bcryptjs";
 import { TENANT_MODELS } from "../src/lib/db/tenant-models";
 import { assertSeedAllowed, seedSecret } from "./seed-guard";
+import { recordSeedTimetableVersions } from "./seed-timetable-versions";
 
 /** Set once the demo school exists, then stamped onto every tenant-scoped row
  *  the seed writes. The seed predates the school_id migration and threads only
@@ -1213,6 +1214,7 @@ async function seedTimetable(campusId: string) {
     }
   }
 
+  await recordSeedTimetableVersions(prisma, campusId); // SKAI-2078: readers see only the version in force
   const slots = await prisma.timetableSlot.count({ where: { timetable: { campusId } } });
   console.log(`  ✓ Timetable slots: ${slots}`);
 }

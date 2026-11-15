@@ -13,6 +13,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { assertSeedAllowed } from "./seed-env-guard";
+import { recordSeedTimetableVersions } from "../../prisma/seed-timetable-versions";
 import {
   ACADEMIC_CLASSES, ACADEMIC_EXAMS, ACADEMIC_SUBJECTS, PERIODS, SCHOOL_DAYS, STAFF_SALARIES,
   markFor, previousMonth, studentsFor, subjectIndexFor,
@@ -109,6 +110,8 @@ async function main() {
         });
       }
     }
+
+    await recordSeedTimetableVersions(prisma, campusId); // SKAI-2078: readers see only the version in force
 
     for (const e of ACADEMIC_EXAMS) {
       const published = e.status === "PUBLISHED";
