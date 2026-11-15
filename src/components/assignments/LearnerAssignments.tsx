@@ -11,6 +11,7 @@ import Link from "next/link";
 import { getAssignmentCopy, type AssignmentCopy } from "./assignment-copy";
 import { Banner, LoadOlder, call, fileHref, fill, formatAt, Pill, RubricTable, stateTone, type Criterion, type Feedback, type Receipt } from "./shared";
 import { Textarea } from "@/components/ui/textarea";
+import { useParentData } from "@/app/parent/parent-data-context";
 
 // SKO-409 learner and family view. Learners draft, upload and submit with a server receipt;
 // families read status and returned feedback only. Unreturned feedback never reaches either.
@@ -41,8 +42,10 @@ export function LearnerAssignments({ audience }: { audience: "learner" | "guardi
   const params = useSearchParams(), requested = params.get("open"), fromToday = params.get("from") === "today";
   const [missing, setMissing] = useState(false), linked = useRef(false);
   const [cursor, setCursor] = useState<string | null>(null);
-  const load = useCallback(async () => { const data = await call("/api/assignments"); setItems(data.assignments); setCursor(data.nextCursor ?? null); }, []);
-  const loadOlder = useCallback(async (from: string) => { const data = await call(`/api/assignments?cursor=${encodeURIComponent(from)}`); setItems(prev => [...(prev ?? []), ...data.assignments]); setCursor(data.nextCursor ?? null); }, []);
+  const { selectedStudentId } = useParentData();
+  const child = audience === "guardian" && selectedStudentId ? `studentId=${encodeURIComponent(selectedStudentId)}` : "";
+  const load = useCallback(async () => { const data = await call(`/api/assignments${child ? `?${child}` : ""}`); setItems(data.assignments); setCursor(data.nextCursor ?? null); }, [child]);
+  const loadOlder = useCallback(async (from: string) => { const data = await call(`/api/assignments?cursor=${encodeURIComponent(from)}${child ? `&${child}` : ""}`); setItems(prev => [...(prev ?? []), ...data.assignments]); setCursor(data.nextCursor ?? null); }, [child]);
   // SKAI-1501: a failed first load is its own state with a localized Retry, not a dead-end banner.
   const [loadFailed, setLoadFailed] = useState(false);
   const firstLoad = useCallback(() => { setLoadFailed(false); load().catch(() => setLoadFailed(true)); }, [load]);
