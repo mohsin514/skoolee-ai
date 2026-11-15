@@ -220,6 +220,8 @@ function view(row: { id: string; assignmentId: string; questionId: string; statu
 export async function listAssessmentRepairs(user: AuthUser, assignmentId: string) {
   return schoolAiTransaction(user, async tx => {
     const { assignment, paper } = await scopedAssignment(user, assignmentId, tx);
+    // SKAI-2223: the repair map carries question text and options, so only exam staff may read it.
+    await staffExamAccess(user, assignment, "view", tx);
     const rows = await tx.schoolAiAssessmentRepair.findMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId }, orderBy: { createdAt: "desc" }, take: 20 });
     const questions = paper.questions.map((question, index) => ({ id: question.id, number: index + 1, type: question.type, prompt: question.prompt, options: question.options })).filter(question => OBJECTIVE.has(question.type));
     return { released: !!assignment.resultsReleasedAt, me: user.userId, canApprove: isSchoolAiManager(user), questions, repairs: rows.map(view) };

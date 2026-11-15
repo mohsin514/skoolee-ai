@@ -157,4 +157,6 @@ test("an interrupted repair resumes only its unfinished steps, with no duplicate
   assert.equal((await raw.notification.findMany({ where: { schoolId, sourceId: proposed.id, userId: guardian.userId } })).length, 1);
   const listed = await ctx(lead, () => listAssessmentRepairs(lead, examId));
   assert.deepEqual(listed.repairs.map(r => r.status).sort(), ["APPLIED", "APPLIED", "STALE"]);
+  // SKAI-2223: a candidate never reads the repair map, which carries the question text.
+  await assert.rejects(() => ctx(learners[0].user, () => listAssessmentRepairs(learners[0].user, examId)), { status: 403 });
 });
