@@ -474,7 +474,7 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
         </div> : null}
       </div>
       <nav aria-label={f(FRAME.secondary)} data-ai-secondary-links className={cn(styles.secondaryLinks, "flex flex-wrap gap-2")}>
-        {hasKind("PAPER") && <Link className={buttonVariants({ variant: "outline", size: "sm", className: "sk-nudge-trigger" })} href={EXAM_STUDIO_HREF}><FileCheck2 aria-hidden="true" />{studioCopy.openStudio}<FlagshipChip /><ArrowRight className="sk-nudge rtl:rotate-180" aria-hidden="true" /></Link>}
+        {hasKind("PAPER") && features.examStudio !== false && <Link className={buttonVariants({ variant: "outline", size: "sm", className: "sk-nudge-trigger" })} href={EXAM_STUDIO_HREF}><FileCheck2 aria-hidden="true" />{studioCopy.openStudio}<FlagshipChip /><ArrowRight className="sk-nudge rtl:rotate-180" aria-hidden="true" /></Link>}
         {hasKind("PAPER") && <Link className={buttonVariants({ variant: "outline", size: "sm", className: "sk-nudge-trigger" })} href="/ai/exams"><ClipboardCheck aria-hidden="true" />{f(FRAME.delivery)}<ArrowRight className="sk-nudge rtl:rotate-180" aria-hidden="true" /></Link>}
         {workflowsV2 ? <InboxCountChip tone="paper" /> : null}
         {runsVisible && campusId ? <Button type="button" variant="outline" size="sm" className="sk-nudge-trigger" onClick={() => selectTab("runs")}><Activity aria-hidden="true" />{ui("Run history")}<ArrowRight className="sk-nudge rtl:rotate-180" aria-hidden="true" /></Button> : null}
