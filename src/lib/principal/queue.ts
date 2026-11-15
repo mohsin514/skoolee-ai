@@ -138,16 +138,18 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
     // SKAI-1866: count only each card's current version in the database. Reading every unapproved version and dropping
     // the superseded ones in JS grew with every revision. Same rows: a current version of a card on this campus that is
     // not approved, grouped by exam. The join keeps the version on its own card and school.
-    const rows = await db.$queryRaw<{ examId: string; title: string; count: number }[]>`
-      SELECT rc.exam_id AS "examId", e.title AS title, COUNT(*)::int AS count
+    // SKAI-2139: every class has its own exam row with the same title, so the item names the class and section too.
+    const rows = await db.$queryRaw<{ examId: string; title: string; className: string | null; section: string | null; count: number }[]>`
+      SELECT rc.exam_id AS "examId", e.title AS title, c.name AS "className", c.section AS section, COUNT(*)::int AS count
       FROM report_cards rc
       JOIN report_versions rv ON rv.id = rc.current_version_id AND rv.report_card_id = rc.id AND rv.school_id = rc.school_id
       JOIN exams e ON e.id = rc.exam_id
+      LEFT JOIN classes c ON c.id = e.class_id
       WHERE rc.school_id = ${user.schoolId} AND rc.campus_id = ${campusId} AND rv.approved_at IS NULL
-      GROUP BY rc.exam_id, e.title
+      GROUP BY rc.exam_id, e.title, c.name, c.section
       ORDER BY rc.exam_id`;
-    const byExam = new Map(rows.map(row => [row.examId, { title: row.title, count: Number(row.count) }]));
-    for (const [examId, entry] of byExam) items.push({ family: "academic", key: `REPORT_APPROVAL:${examId}`, type: "REPORT_APPROVAL", sourceId: examId, count: entry.count, title: `${entry.count} report version(s) still need approval`, titleMessage: { key: "{0} report version(s) still need approval", values: [entry.count] }, triggerMessage: { key: "{0} current report version(s) for {1} are not approved.", values: [entry.count, entry.title] }, trigger: `${entry.count} current report version(s) for ${entry.title} are not approved.`, nextAction: "Open report review", sourceOwner: null, dueAt: null, link: link("report-cards") });
+    const byExam = new Map(rows.map(row => [row.examId, { title: row.className ? `${row.title} · ${row.className}${row.section ? ` ${row.section}` : ""}` : row.title, count: Number(row.count) }]));
+    for (const [examId, entry] of byExam) items.push({ family: "academic", key: `REPORT_APPROVAL:${examId}`, type: "REPORT_APPROVAL", sourceId: examId, count: entry.count, title: `${entry.count} report version(s) still need approval`, titleMessage: { key: "{0} report version(s) still need approval", values: [entry.count] }, triggerMessage: { key: "{0} current report version(s) for {1} are not approved.", values: [entry.count, entry.title] }, trigger: `${entry.count} current report version(s) for ${entry.title} are not approved.`, nextAction: "Open report review", sourceOwner: null, dueAt: null, link: link("report-cards", { exam: examId }) });
   });
   run("DELIVERY_FAILED", async items => {
     const since = new Date(Date.now() - 14 * 86_400_000);
