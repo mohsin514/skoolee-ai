@@ -47,10 +47,12 @@ export async function POST(req: NextRequest) {
     const currency = body.currency || "PKR";
     if (!CURRENCIES.includes(currency)) throw new ApiError("Invalid currency", 400);
 
-    if (!Number.isInteger(fromAcademicYear) || !Number.isInteger(toAcademicYear) || toAcademicYear <= fromAcademicYear) {
-      throw new ApiError("invalid academic years", 400);
+    // SKAI-2103: years use the same 2000-2100 range as classes, and a balance carries into the next year only.
+    if (!Number.isInteger(fromAcademicYear) || !Number.isInteger(toAcademicYear) || fromAcademicYear < 2000 || toAcademicYear > 2100 || toAcademicYear !== fromAcademicYear + 1) {
+      throw new ApiError("Academic years must be between 2000 and 2100, and the balance must carry into the next year", 400);
     }
     if (!Number.isInteger(balance)) throw new ApiError("balance must be an integer (paisa)", 400);
+    if (balance === 0 || Math.abs(balance) > 2147483647) throw new ApiError("balance must be a non-zero amount within the supported range", 400);
 
     const student = await prisma.student.findFirst({
       where: { id: body.studentId, ...campusScope(user) },
