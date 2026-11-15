@@ -1,4 +1,5 @@
 import { booksName, sameName } from "@/lib/accounts/chart-account-command";
+import { parseBankAccountNumber } from "@/lib/accounts/bank-account-number";
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
@@ -45,7 +46,7 @@ export async function createBankAccount(user: AuthUser, body: Record<string, unk
         campusId,
         name,
         bankName: body.bankName ? String(body.bankName).trim() : null,
-        accountNumber: body.accountNumber ? String(body.accountNumber).trim() : null,
+        accountNumber: parseBankAccountNumber(body.accountNumber),
         openingBalance,
         isActive: body.isActive !== false,
       },
