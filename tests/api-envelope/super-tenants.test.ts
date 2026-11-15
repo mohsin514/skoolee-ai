@@ -44,3 +44,12 @@ test("the MFA refusal keeps its machine code through the envelope", async () => 
   assert.equal(readApiErrorCode(body), "MFA_REQUIRED");
   assert.equal(readApiError(body), "Turn on two-step sign-in before you review support access.");
 });
+
+// SKAI-2018: the admin session list must never expose another user's tokenHash.
+test("super sessions list selects display fields and never tokenHash", () => {
+  const source = readFileSync("src/app/api/super/sessions/route.ts", "utf8");
+  const get = source.slice(source.indexOf("export async function GET"), source.indexOf("export async function DELETE"));
+  assert.match(get, /loginSession\.findMany\(\{[\s\S]*?\bselect:\s*\{/, "GET must use an explicit select");
+  assert.doesNotMatch(get, /\binclude:/, "GET must not include whole LoginSession rows");
+  assert.doesNotMatch(get, /tokenHash/, "GET must not select tokenHash");
+});
