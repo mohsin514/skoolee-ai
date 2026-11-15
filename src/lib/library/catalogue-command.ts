@@ -80,7 +80,7 @@ export async function updateBook(user: AuthUser, body: Body) {
     where: { id, campus: { schoolId: user.schoolId } },
   });
   if (!existing) throw new ApiError("Book not found", 404);
-
+  if (isbn && isbn !== existing.isbn) await assertIsbnFree(existing.campusId, isbn, existing.id);
   let copiesAvailable = existing.copiesAvailable;
   let copiesTotal = existing.copiesTotal;
   if (requestedTotal !== undefined) {
