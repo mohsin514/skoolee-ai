@@ -48,7 +48,7 @@ mock.module("@/lib/tax/service", { namedExports: { activationFor: async () => nu
 mock.module("@/lib/fees/invoice-generation-inputs", { namedExports: { classYearKey: () => "", loadInvoiceGenerationInputs: async () => ({}), memoByKey: () => () => null } });
 mock.module("@/lib/notifications/in-app", { namedExports: { notify: () => { state.notified += 1; } } });
 mock.module("@/lib/fees/structure-year", {
-  namedExports: { feeStructureActiveWhere: () => ({}), invoiceBatchStatus: (g: number, e: number) => (g === 0 && e > 0 ? 422 : 201), pickStructureForClass: () => null },
+  namedExports: { enrollmentsBilledOneTimeFees: async () => new Set<string>(), feeStructureActiveWhere: () => ({}), invoiceBatchStatus: (g: number, e: number) => (g === 0 && e > 0 ? 422 : 201), pickStructureForClass: () => null },
 });
 
 const generate = async (body: Record<string, unknown>) => {
