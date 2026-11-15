@@ -6,6 +6,7 @@ import { assertModuleRead, assertPermission, canLeadAcademics } from "@/lib/api/
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { teachesExamClass } from "@/lib/academic/teaches-exam-class";
+import { canViewReportCards } from "@/lib/academic/report-card-access";
 import { getAuthUser } from "@/lib/auth";
 import { isCampusAdminRole } from "@/lib/roles";
 import { generateReportCardPdf } from "@/lib/academic/pdf";
@@ -82,6 +83,8 @@ export async function GET(req: NextRequest) {
 
   try {
     await assertModuleRead(user, "reports");
+    // SKAI-2087: the generic reports module is not enough; same seat as GET /api/reports/{id}/detail.
+    if (!canViewReportCards(user.role)) return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     await assertSchoolOperational(user.schoolId);
     const exam = await getScopedExam(examId, user);
     // SKAI-1622: a teacher reads report cards (and guardian contacts) only for a class they teach.
