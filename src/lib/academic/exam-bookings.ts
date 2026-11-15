@@ -95,12 +95,12 @@ export async function assertExamReservations(db: TxClient, scope: { schoolId: st
   }
   const roomIds = [...new Set(proposed.flatMap(item => item.roomIds))], teacherIds = [...new Set(proposed.flatMap(item => item.teacherIds))];
   const [lessons, leaves] = await Promise.all([
-    db.timetableSlot.findMany({ where: { schoolId: scope.schoolId, timetable: { campusId: scope.campusId, status: "PUBLISHED" }, slotType: "CLASS", OR: [{ roomId: { in: roomIds } }, { teacherId: { in: teacherIds } }, { timetable: { classId: { in: classIds } } }] }, include: { timetable: { select: { academicYear: true, term: true, classId: true } } }, take: 10001, orderBy: { id: "asc" } }),
+    db.timetableSlot.findMany({ where: { schoolId: scope.schoolId, timetable: { campusId: scope.campusId, status: "PUBLISHED" }, slotType: "CLASS", OR: [{ roomId: { in: roomIds } }, { teacherId: { in: teacherIds } }] }, include: { timetable: { select: { academicYear: true, term: true, classId: true } } }, take: 10001, orderBy: { id: "asc" } }),
     db.leaveRequest.findMany({ where: { ...scope, userId: { in: teacherIds }, status: "APPROVED" }, select: { userId: true, fromDate: true, toDate: true }, orderBy: { id: "asc" } }),
   ]);
   if (lessons.length > 10000) fail("This campus needs a narrower resource planning scope.", "EXAM_PLAN_LIMIT");
   for (const candidate of prepared) {
-    if (lessons.some(lesson => lesson.timetable.academicYear === candidate.academicYear && termsOverlap(lesson.timetable.term, candidate.term) && lesson.dayOfWeek === examWeekday(candidate.date) && (lesson.timetable.classId === candidate.classId || lesson.roomId && candidate.roomIds.includes(lesson.roomId) || lesson.teacherId && candidate.teacherIds.includes(lesson.teacherId)) && overlaps(candidate, lesson))) fail("A published lesson already uses a selected room or invigilator at this time.", "EXAM_PLAN_LESSON_CLASH");
+    if (lessons.some(lesson => lesson.timetable.academicYear === candidate.academicYear && termsOverlap(lesson.timetable.term, candidate.term) && lesson.dayOfWeek === examWeekday(candidate.date) && (lesson.roomId && candidate.roomIds.includes(lesson.roomId) || lesson.teacherId && candidate.teacherIds.includes(lesson.teacherId)) && overlaps(candidate, lesson))) fail("A published lesson already uses a selected room or invigilator at this time.", "EXAM_PLAN_LESSON_CLASH");
     if (leaves.some(leave => candidate.teacherIds.includes(leave.userId) && leave.fromDate.toISOString().slice(0, 10) <= candidate.date && leave.toDate.toISOString().slice(0, 10) >= candidate.date)) fail("A selected invigilator has approved leave on this date.", "EXAM_PLAN_LEAVE");
   }
   return { periods, rooms, existing: rows, holidays, lessons, leaves, classes, cycles, teachers, calendar: proposed.map(item => ({ date: item.date, weekend: localeAt(new Date(`${item.date}T00:00:00Z`)).weekend })) };

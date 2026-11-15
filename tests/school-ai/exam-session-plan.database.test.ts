@@ -141,7 +141,7 @@ test("manual rescheduling shares the AI booking fence and rolls back conflicting
 });
 test("published class lessons and duplicate invigilators across allocated rooms are blocked", async () => {
   const f = await fixture(), record = await approved(f), alternate = await teacher(f), room = await db.classRoom.create({ data: { schoolId, campusId: f.campusId, roomNumber: "Other lesson room", capacity: 20 } });
-  const board = await db.timetable.create({ data: { schoolId, campusId: f.campusId, classId: f.classId, academicYear: 2026, term: "TERM_1", status: "PUBLISHED", slots: { create: { schoolId, dayOfWeek: 3, periodNumber: 7, startTime: "09:30", endTime: "10:30", teacherId: alternate, roomId: room.id, subjectId: f.subjectId, slotType: "CLASS" } } } });
+  const board = await db.timetable.create({ data: { schoolId, campusId: f.campusId, classId: f.classId, academicYear: 2026, term: "TERM_1", status: "PUBLISHED", slots: { create: { schoolId, dayOfWeek: 3, periodNumber: 7, startTime: "09:30", endTime: "10:30", teacherId: f.teacherId, roomId: f.roomId, subjectId: f.subjectId, slotType: "CLASS" } } } });
   await assert.rejects(() => preview(f, record), { code: "EXAM_PLAN_LESSON_CLASH" });
   await db.timetable.delete({ where: { id: board.id } });
   await db.classRoom.update({ where: { id: f.roomId }, data: { rows: 1 } });
