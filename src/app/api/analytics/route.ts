@@ -13,7 +13,12 @@ export async function GET(req: Request) {
     // PARENT could pull the whole cohort's results and the list of children the
     // school considers at risk. Staff-only, gated on reports.view like the
     // screen it feeds.
+    // SKAI-2073: reports.view alone also admits accountant, librarian and receptionist (their own
+    // finance/library/front-desk reports). The payload is exam results and attendance, so the
+    // exams and attendance read bits must hold too.
     await assertModuleRead(user, "reports");
+    await assertModuleRead(user, "exams");
+    await assertModuleRead(user, "attendance");
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
     const yearParam = searchParams.get("year");
