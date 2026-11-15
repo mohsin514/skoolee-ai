@@ -126,6 +126,13 @@ test("invigilator changes are conflict checked, stale-safe and explicitly cleare
   assert.equal(await db.examInvigilation.count({ where: { campusId: f.campusId } }), 0);
   assert.equal(await db.examSeat.count({ where: { examScheduleId: duty.scheduleId } }), 3);
 });
+test("SKAI-2086: an archived room cannot take seats", async () => {
+  const f = await fixture(), receipt = await applied(f), { duties } = await listExamInvigilation(f.user, receipt.sessionId), duty = duties[0];
+  await updateExamInvigilation(f.user, { examRoomId: duty.examRoomId, expectedHash: duty.expectedHash, teacherId: null });
+  const retired = await db.classRoom.create({ data: { schoolId, campusId: f.campusId, roomNumber: "Retired-1", capacity: 30, archivedAt: new Date() } });
+  await assert.rejects(() => withExamSchedulingWrite(f.user, f.campusId, "edit", tx => allocateExamRooms({ db: tx, campusId: f.campusId, scheduleId: duty.scheduleId, roomIds: [retired.id] })), { status: 409, message: /archived/ });
+  assert.equal(await db.examSeat.count({ where: { examRoomId: { in: (await db.examRoom.findMany({ where: { roomId: retired.id }, select: { id: true } })).map(r => r.id) } } }), 0);
+});
 test("manual rescheduling shares the AI booking fence and rolls back conflicting moves", async () => {
   const f = await fixture(), receipt = await applied(f);
   const altTeacher = await teacher(f), room = await db.classRoom.create({ data: { schoolId, campusId: f.campusId, roomNumber: "Second", capacity: 10 } });

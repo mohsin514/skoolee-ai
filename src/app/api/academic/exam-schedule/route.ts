@@ -263,6 +263,7 @@ async function createOrUpdate(
   if (roomId) {
     const room = await db.classRoom.findFirst({ where: { id: roomId, campusId, schoolId } });
     if (!room) throw new ApiError("Room not found", 400);
+    if (room.archivedAt) throw new ApiError("This room is archived. Restore it first.", 409); // SKAI-2086
     const allocation = excludeId ? await db.examRoom.count({ where: { examScheduleId: excludeId } }) : 0;
     // Existing multi-room plans retain their full capacity when dates move.
     if (allocation <= 1) {
