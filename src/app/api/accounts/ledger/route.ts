@@ -1,6 +1,6 @@
 import { assertListBudget } from "@/lib/lists/access";
 import { listPagination, pageWindow } from "@/lib/lists/query";
-import { getLocalePackage } from "@/lib/locale/store";
+import { campusBillingCurrency } from "@/app/api/fees/reports/invoice-currency";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { deleteUnreconciledManualLedgerEntry } from "@/lib/fees/ledger-protection";
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     await assertModuleRead(user, "accounts");
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
-    const currency = searchParams.get("currency") || (await getLocalePackage(user.schoolId, campusId)).currency;
+    const currency = searchParams.get("currency") || (await campusBillingCurrency(user.schoolId, campusId));
     const filters = { currency, kind: searchParams.get("kind"), accountId: searchParams.get("accountId"), from: searchParams.get("from"), to: searchParams.get("to"), source: searchParams.get("source"), status: searchParams.get("status") };
     const where = ledgerWhere(scopedCampusWhere(user, campusId ?? undefined) as never, filters);
     const include = {

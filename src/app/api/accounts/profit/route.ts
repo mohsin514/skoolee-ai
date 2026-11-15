@@ -1,4 +1,4 @@
-import { getLocalePackage } from "@/lib/locale/store";
+import { campusBillingCurrency } from "@/app/api/fees/reports/invoice-currency";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ledgerTotals, ledgerWhere } from "@/lib/fees/ledger-service";
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     await assertModuleRead(user, "accounts");
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
-    const currency = searchParams.get("currency") || (await getLocalePackage(user.schoolId, campusId)).currency;
+    const currency = searchParams.get("currency") || (await campusBillingCurrency(user.schoolId, campusId));
     const from = searchParams.get("from"), to = searchParams.get("to");
     if (!from || !to) throw new ApiError("from and to are required", 400);
     const where = ledgerWhere(scopedCampusWhere(user, campusId ?? undefined) as never, { currency, from, to, accountId: searchParams.get("accountId"), source: searchParams.get("source") });
