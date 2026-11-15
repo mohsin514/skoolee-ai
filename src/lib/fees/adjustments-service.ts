@@ -1,3 +1,4 @@
+import { minorUnits } from "@/lib/locale/package";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
@@ -28,6 +29,11 @@ const OPEN = ["REQUESTED", "APPROVED"];
 type InvoiceRow = { id: string; schoolId: string; campusId: string; studentId: string; currency: string; status: string; totalAmount: number; totalAmountPaid: number; balanceDue: number; discountAmount: number };
 const invoiceVersion = (invoice: InvoiceRow) => `${invoice.totalAmount}:${invoice.totalAmountPaid}:${invoice.balanceDue}:${invoice.status}`;
 
+/** SKAI-2131: limits in error messages are money ("PKR 3,500.00"), not raw minor units. */
+function limitText(minor: number, currency: string) {
+  const digits = minorUnits(currency);
+  return new Intl.NumberFormat("en", { style: "currency", currency, currencyDisplay: "code", minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Math.max(0, minor) / 10 ** digits);
+}
 async function lockInvoice(tx: TxClient, user: AuthUser, invoiceId: string) {
   const scoped = await tx.invoice.findFirst({ where: { id: invoiceId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true } });
   if (!scoped) throw new ApiError("Invoice not found", 404);
@@ -93,14 +99,14 @@ export async function requestAdjustment(user: AuthUser, input: { kind: Adjustmen
         await tx.$queryRaw`SELECT id FROM payments WHERE id = ${source.payment.id} FOR UPDATE`;
         const open = await tx.financialAdjustment.findMany({ where: { paymentId: source.payment.id, kind: "REFUND", status: { in: OPEN } }, select: { invoiceAmount: true, creditAmount: true } });
         const freeCredit = source.credit - open.reduce((sum, row) => sum + row.creditAmount, 0), freeApplied = source.applied - open.reduce((sum, row) => sum + row.invoiceAmount, 0);
-        if (input.amount > freeCredit + freeApplied) throw new ApiError(`Only ${Math.max(0, freeCredit + freeApplied)} can still be refunded on this payment after earlier refunds and open requests.`, 409);
+        if (input.amount > freeCredit + freeApplied) throw new ApiError(`Only ${limitText(freeCredit + freeApplied, invoice.currency)} can still be refunded on this payment after earlier refunds and open requests.`, 409);
         // Unapplied credit is returned first; only the rest reopens the invoice.
         creditAmount = Math.min(input.amount, Math.max(0, freeCredit)); invoiceAmount = input.amount - creditAmount;
         sourceVersion = `${sourceVersion}|${source.version}`; paymentId = source.payment.id;
       } else {
         const open = await tx.financialAdjustment.findMany({ where: { invoiceId: invoice.id, kind: { in: ["CREDIT_NOTE", "WAIVER"] }, status: "REQUESTED" }, select: { amount: true } });
         const free = invoice.balanceDue - open.reduce((sum, row) => sum + row.amount, 0);
-        if (input.amount > free) throw new ApiError(`Only ${Math.max(0, free)} is still owed on this invoice after other open credit and waiver requests.`, 409);
+        if (input.amount > free) throw new ApiError(`Only ${limitText(free, invoice.currency)} is still owed on this invoice after other open credit and waiver requests.`, 409);
         invoiceAmount = input.amount;
       }
       const requester = await tx.user.findUnique({ where: { id: user.userId }, select: { fullName: true } });
