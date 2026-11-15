@@ -471,22 +471,28 @@ export const discountRulesJsonSchema = feeMapJson(
 );
 
 // Fee structure
-export const feeStructureSchema = z.object({
-  campusId: z.string().optional(),
-  classId: z.string().min(1),
-  monthlyFee: z.coerce.number().int().min(0),
-  // SKAI-1154: regulator-approved monthly fee (minor units) and permit reference; null clears them.
-  approvedFee: z.coerce.number().int().min(0).nullable().optional(),
-  approvedFeeReference: z.string().trim().max(120).nullable().optional(),
-  oneTimeFeesJson: oneTimeFeesJsonSchema,
-  installmentType: z.enum(["11-month", "6-month", "quarterly", "one-time"]).optional(),
-  discountRulesJson: discountRulesJsonSchema,
-  lateFeePercentage: z.coerce.number().min(0).max(100).default(2.0),
-  compoundLateFee: z.boolean().default(true),
-  taxPercentage: z.coerce.number().min(0).max(100).default(0.0),
-  activeFrom: z.string().min(1),
-  activeTo: z.string().optional(),
-});
+export const feeStructureSchema = z
+  .object({
+    campusId: z.string().optional(),
+    classId: z.string().min(1),
+    monthlyFee: z.coerce.number().int().min(0).max(MAX_MONEY_INT),
+    // SKAI-1154: regulator-approved monthly fee (minor units) and permit reference; null clears them.
+    approvedFee: z.coerce.number().int().min(0).max(MAX_MONEY_INT).nullable().optional(),
+    approvedFeeReference: z.string().trim().max(120).nullable().optional(),
+    oneTimeFeesJson: oneTimeFeesJsonSchema,
+    installmentType: z.enum(["11-month", "6-month", "quarterly", "one-time"]).optional(),
+    discountRulesJson: discountRulesJsonSchema,
+    lateFeePercentage: z.coerce.number().min(0).max(100).default(2.0),
+    compoundLateFee: z.boolean().default(true),
+    taxPercentage: z.coerce.number().min(0).max(100).default(0.0),
+    activeFrom: z.string().refine(isRealDate, "Use a real calendar date (YYYY-MM-DD)."),
+    activeTo: z.string().refine((v) => v === "" || isRealDate(v), "Use a real calendar date (YYYY-MM-DD).").optional(),
+  })
+  // SKAI-2031: a structure's window runs forward; an inverted range is refused.
+  .refine((v) => !v.activeTo || v.activeTo >= v.activeFrom, {
+    message: "End date must be on or after the start date.",
+    path: ["activeTo"],
+  });
 
 // Generate invoices
 export const generateInvoicesSchema = z.object({
