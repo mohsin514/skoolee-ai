@@ -14,7 +14,7 @@ import { getCampusSeats } from "@/lib/auth/seats";
 import { notifyCorrectionRequested } from "@/lib/notifications/events";
 import { contentHash, refreshVersion, versionTransaction } from "@/lib/academic/report-versions";
 import { gradeForMark, thresholdsForClass } from "@/lib/academic/report-cards";
-import { assertSeparateApprover, validateCorrectionRequest, previewMarkCorrection, previewPaymentReversal, invoiceAfterReversal } from "./domain";
+import { assertSeparateApprover, validateCorrectionRequest, previewMarkCorrection, previewPaymentReversal, invoiceAfterReversal, correctionLabel } from "./domain";
 export type Kind = "MARK" | "PAYMENT";
 export type Proposal = {
     kind: Kind;
@@ -87,7 +87,7 @@ async function source(tx: TxClient, user: AuthUser, kind: Kind, id: string) {
         const reports = await tx.reportCard.findMany({ where: { studentId: mark.studentId }, select: { id: true, currentVersionId: true, publishedVersionId: true, sourceRevision: true } });
         const thresholds = await thresholdsForClass(mark.exam.classId, mark.exam.academicYear, tx);
         const snapshot = { grade: mark.grade, thresholds, marksObtained: mark.marksObtained, isAbsent: mark.isAbsent, maximum: mark.subject.totalMarks, reports };
-        return { kind, row: mark, label: `${mark.student.fullName} · ${mark.subject.name}`, version: contentHash({ revision: mark.correctionVersion, snapshot }), snapshot };
+        return { kind, row: mark, label: correctionLabel(mark.student.fullName, mark.subject.name, mark.exam.title), version: contentHash({ revision: mark.correctionVersion, snapshot }), snapshot };
     }
     const payment = await tx.payment.findFirst({ where: { id, ...campusScope(user), reversalOfId: null, amount: { gt: 0 } }, include: { invoice: true, student: { select: { fullName: true } }, ledgerEntry: true } });
     if (!payment)
@@ -260,6 +260,24 @@ export async function decideCorrection(user: AuthUser, id: string, decision: "AP
         return tx.correction.update({ where: { id }, data: { status: decision, approverId: user.userId, approverName: user.fullName ?? user.role, decidedAt: new Date(), successorId, reportVersionIds } });
     });
 }
+/** SKAI-2098: "Pupil · Subject · Exam" / "Pupil · Receipt" for each source id. Callers pass ids from already-scoped correction rows. */
+async function sourceLabels(kind: Kind, ids: string[]) {
+    const unique = [...new Set(ids)];
+    const labels = new Map<string, string>();
+    if (!unique.length)
+        return labels;
+    if (kind === "MARK") {
+        const marks = await prisma.mark.findMany({ where: { id: { in: unique } }, select: { id: true, student: { select: { fullName: true } }, subject: { select: { name: true } }, exam: { select: { title: true } } } });
+        for (const m of marks)
+            labels.set(m.id, correctionLabel(m.student.fullName, m.subject.name, m.exam.title));
+    }
+    else {
+        const payments = await prisma.payment.findMany({ where: { id: { in: unique } }, select: { id: true, receiptNo: true, student: { select: { fullName: true } } } });
+        for (const p of payments)
+            labels.set(p.id, correctionLabel(p.student.fullName, p.receiptNo ?? p.id));
+    }
+    return labels;
+}
 export async function history(user: AuthUser, kind: Kind) {
     await permit(user, kind);
     const approver = !isFamily(user) && await canApproveKind(user, kind, user.campusId ?? null);
@@ -267,8 +285,10 @@ export async function history(user: AuthUser, kind: Kind) {
     // screen. The legacy students.parent_user_id link grants nothing; it is queued for admin review (SKAI-1893).
     const children = await prisma.student.findMany({ where: studentScope(user), select: { id: true } });
     const rows = await prisma.correction.findMany({ where: { ...campusScope(user), kind, studentId: { in: children.map(x => x.id) }, ...(isFamily(user) ? { status: "APPLIED" } : {}) }, orderBy: { requestedAt: "desc" } });
+    const labels = await sourceLabels(kind, rows.map(r => r.sourceId));
     const output = [];
     for (const row of rows) {
+        const sourceLabel = labels.get(row.sourceId) ?? null;
         const versionIds = row.reportVersionIds as string[];
         const released = await correctionReleased(prisma, versionIds);
         if (isFamily(user)) {
@@ -276,7 +296,7 @@ export async function history(user: AuthUser, kind: Kind) {
                 continue;
             // Allowlist public fields. Payment before/after contain only this child's
             // amounts; internal reasons and private notes never enter this projection.
-            output.push({ id: row.id, kind: row.kind, sourceId: row.sourceId, sourceVersion: row.sourceVersion, before: row.before, after: row.after, publicExplanation: row.publicExplanation, requesterName: row.requesterName, approverName: row.approverName, requestedAt: row.requestedAt, decidedAt: row.decidedAt, status: row.status, successorId: row.successorId, released });
+            output.push({ id: row.id, kind: row.kind, sourceId: row.sourceId, sourceLabel, sourceVersion: row.sourceVersion, before: row.before, after: row.after, publicExplanation: row.publicExplanation, requesterName: row.requesterName, approverName: row.approverName, requestedAt: row.requestedAt, decidedAt: row.decidedAt, status: row.status, successorId: row.successorId, released });
         }
         else {
             // Teachers can only inspect records assigned to them.
@@ -289,7 +309,7 @@ export async function history(user: AuthUser, kind: Kind) {
                 }
             }
             const note = await prisma.correctionNote.findUnique({ where: { correctionId: row.id } });
-            output.push({ ...row, privateNote: note?.text ?? null, released, canApprove: approver && (!row.separateApprover || row.requesterId !== user.userId) });
+            output.push({ ...row, sourceLabel, privateNote: note?.text ?? null, released, canApprove: approver && (!row.separateApprover || row.requesterId !== user.userId) });
         }
     }
     return output;

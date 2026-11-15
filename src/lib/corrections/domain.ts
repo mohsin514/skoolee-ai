@@ -175,3 +175,8 @@ export function previewMarkCorrection(source: MarkSource, expectedVersion: numbe
         requiresReportApproval: source.publishedReportVersionId !== null,
     });
 }
+
+/** SKAI-2098: the human label of a correction source ("Pupil · Subject · Exam"), so a reviewer sees what they are approving. */
+export function correctionLabel(...parts: Array<string | null | undefined>): string {
+    return parts.map(x => x?.trim()).filter(Boolean).join(" · ");
+}
