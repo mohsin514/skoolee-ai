@@ -32,7 +32,7 @@ const tx = {
   auditLog: { create: async () => { audits++; return {}; } },
 };
 mock.module("@/lib/school-ai/transaction", { namedExports: { schoolAiTransaction: async (_u: unknown, fn: (t: typeof tx) => Promise<unknown>) => { const run = chain.then(() => fn(tx)); chain = run.then(() => undefined, () => undefined); return run; } } });
-mock.module("@/lib/api/scope", { namedExports: { ApiError: class ApiError extends Error { constructor(m: string, public status = 400) { super(m); } }, canManageOperations: (u: { role: string }) => u.role !== "TEACHER" } });
+mock.module("@/lib/api/scope", { namedExports: { ApiError: class ApiError extends Error { constructor(m: string, public status = 400) { super(m); } }, canManageOperations: (u: { role: string }) => u.role !== "TEACHER", canLeadAcademics: async (u: { role: string }) => u.role !== "TEACHER" } });
 mock.module("@/lib/auth/policy", { namedExports: { studentScope: () => ({}) } });
 mock.module("@/lib/chat/policy", { namedExports: { teacherClassIds: async () => [] } });
 
