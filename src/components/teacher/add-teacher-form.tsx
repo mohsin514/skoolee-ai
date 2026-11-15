@@ -17,7 +17,8 @@ import {
   User,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
-import { inviteStaff } from "@/app/actions/invite";
+import { inviteStaffResult } from "@/app/actions/invite";
+import { unwrapActionResult } from "@/lib/staff/action-result";
 import { SpecialtyEditor } from "@/components/shared-admin";
 import { EMPLOYMENT_TYPE_LABELS } from "@/lib/staff/hierarchy-presets";
 import {
@@ -159,7 +160,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
 
     setIsSubmitting(true);
     try {
-      await inviteStaff({
+      unwrapActionResult(await inviteStaffResult({
         email: form.email.trim().toLowerCase(),
         fullName: form.fullName.trim(),
         role: "TEACHER",
@@ -194,7 +195,7 @@ export function AddTeacherForm({ onSuccess, onClose }: AddTeacherFormProps) {
             | undefined,
           employeeCode: position.employeeCode.trim() || undefined,
         },
-      });
+      }));
       toast.success(ui("Invitation sent to {0}.", [form.email.trim().toLowerCase()]));
       onSuccess();
     } catch (error) {
