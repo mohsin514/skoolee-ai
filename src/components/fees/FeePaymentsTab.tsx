@@ -13,6 +13,7 @@ import { CURRENCIES } from "@/lib/locale/package";
 import { UiText, useUiText, useLocaleFormat, useLocale } from "@/components/locale/LocaleProvider";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { payableInvoices } from "@/lib/fees/next-due";
 import {
   Banknote,
   ChevronLeft,
@@ -448,11 +449,11 @@ function PaymentModal({
       if (!json.success) setInvoicesFailed(true);
       else {
         const all = json.data.invoiceHistory || [];
-        const unpaid = all.filter((i: any) => i.status !== "PAID");
-        setInvoices(unpaid.map((i: any) => ({ ...i, balanceDue: i.amountDue - i.amountPaid })));
+        const unpaid = payableInvoices<any>(all);
+        setInvoices(unpaid.map((i: any) => ({ ...i, balanceDue: i.balance })));
         if (unpaid.length > 0) {
           setSelectedInvoiceId(unpaid[0].id);
-          setAmount(String(paisaToRupees(unpaid[0].amountDue - unpaid[0].amountPaid, unpaid[0].currency)));
+          setAmount(String(paisaToRupees(unpaid[0].balance, unpaid[0].currency)));
         }
       }
     } catch {
@@ -692,10 +693,10 @@ function PaymentModal({
                 <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                   {invoices.map((inv) => (
                     <label key={inv.id} className={`flex items-center gap-3 rounded-2xl px-4 py-3 border cursor-pointer transition-colors ${selectedInvoiceId === inv.id ? "border-primary/30 bg-brand-50" : "border-edge/10 bg-muted/50 hover:border-primary/20"}`}>
-                      <input type="radio" name="invoice" value={inv.id} checked={selectedInvoiceId === inv.id} onChange={() => { setSelectedInvoiceId(inv.id); setAmount(String(paisaToRupees(inv.amountDue - inv.amountPaid, inv.currency))); }} className="accent-primary" />
+                      <input type="radio" name="invoice" value={inv.id} checked={selectedInvoiceId === inv.id} onChange={() => { setSelectedInvoiceId(inv.id); setAmount(String(paisaToRupees(inv.balance, inv.currency))); }} className="accent-primary" />
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold text-ink-strong">{inv.invoiceNumber || tr("Invoice")}</p>
-                        <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{inv.dueDate} · {formatPKR(inv.amountDue, inv.currency)}</p>
+                        <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{inv.dueDate} · {formatPKR(inv.balance, inv.currency)}</p>
                       </div>
                       <Badge variant={invoiceStatusVariant(inv.status)} size="sm" dot>{tr(inv.status)}</Badge>
                     </label>
@@ -712,7 +713,7 @@ function PaymentModal({
               return sel ? (
                 <div className="rounded-2xl bg-brand-50/40 px-4 py-3 border border-edge/10">
                   <p className="text-xs font-bold text-ink-strong">{sel.invoiceNumber || tr("Invoice")}</p>
-                  <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{sel.dueDate} · {formatPKR(sel.amountDue, sel.currency)}</p>
+                  <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{sel.dueDate} · {formatPKR(sel.balance, sel.currency)}</p>
                 </div>
               ) : null;
             })()}
