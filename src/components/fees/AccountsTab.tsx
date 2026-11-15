@@ -616,7 +616,7 @@ function BanksPanel({ campusId, command, hideCreate = false }: SectionProps) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-ink-strong">{b.name}</p>
                 <p className="text-2xs font-bold text-ink-subtle mt-0.5">
-                  {[b.bankName, b.accountNumber].filter(Boolean).join(" · ") || "—"}
+                  {[b.bankName, b.accountNumber ? `••••${b.accountNumber.slice(-4)}` : null].filter(Boolean).join(" · ") || "—"}
                 </p>
               </div>
               <div className="text-end">
