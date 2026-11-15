@@ -250,9 +250,12 @@ export async function auditedOperation({ delegate, operation, args, query, clien
     const recordId = single
       ? String((result as { id?: unknown } | null)?.id ?? (before as { id?: unknown } | null)?.id ?? whereId(input) ?? "")
       : "*";
+    // SKAI-2218: file the row under the record's campus, so a campus-scoped activity log can see it.
+    const recordCampus = single ? ((result as { campusId?: unknown } | null)?.campusId ?? (before as { campusId?: unknown } | null)?.campusId) : null;
     const row = {
       tableName: tableNames.get(delegate) ?? delegate,
       recordId,
+      ...(typeof recordCampus === "string" && recordCampus ? { campusId: recordCampus } : {}),
       oldValue: (before ? redact(before) : undefined) as Prisma.InputJsonValue | undefined,
       newValue: redact(
         single
