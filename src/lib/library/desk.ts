@@ -5,6 +5,8 @@ import type { AuthUser } from "@/lib/auth";
 import { ApiError, assertPermission, assertStaffRole, canManageLibrary } from "@/lib/api/scope";
 import { isCampusOperator } from "@/lib/auth/institution";
 import { writeAuditEvent } from "@/lib/audit-events";
+import { calendarDateIn } from "@/lib/calendar-date";
+import { getLocalePackage } from "@/lib/locale/store";
 import { DEFAULT_RULES, dueDate, finePreview, type LoanRules } from "./rules";
 
 /**
@@ -186,6 +188,12 @@ export async function returnCopy(user: AuthUser, raw: unknown) {
     if (!copy) throw new ApiError("Copy not found", 404);
     const loan = await tx.bookIssue.findFirst({ where: { copyId: copy.id, returnedAt: null } });
     if (!loan) return { alreadyReturned: true, barcode: copy.barcode };
+    if (input.returnedOn) {
+      // A return date is a calendar day in the school time zone: not before the loan was issued, not in the future.
+      const timeZone = (await getLocalePackage(user.schoolId, campusId, new Date(), null, tx)).timezone;
+      if (input.returnedOn < calendarDateIn(timeZone, loan.issuedAt)) throw new ApiError("The return date cannot be before the loan was issued.", 400);
+      if (input.returnedOn > calendarDateIn(timeZone)) throw new ApiError("The return date cannot be in the future.", 400);
+    }
     const back = input.returnedOn ? new Date(`${input.returnedOn}T12:00:00Z`) : new Date();
     const rules = (loan.policySnapshot as LoanRules | null) ?? (await currentRules(tx, user.schoolId, campusId));
     const fine = finePreview(loan.dueAt, back, rules);

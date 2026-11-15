@@ -68,7 +68,10 @@ test("two desks cannot lend the same copy; the loan keeps its rules; limits are 
 
 test("a repeated return scan changes nothing; the fine skips closures and caps; only leaders waive", async () => {
   const loan = await raw.bookIssue.findFirstOrThrow({ where: { copyId: (await raw.bookCopy.findFirstOrThrow({ where: { barcode: "AT-1", campusId } })).id, returnedAt: null } });
-  await raw.bookIssue.update({ where: { id: loan.id }, data: { dueAt: new Date("2026-10-27T00:00:00Z") } });
+  await assert.rejects(() => ctx(librarian, () => returnCopy(librarian, { barcode: "AT-1", returnedOn: "2019-05-05" })), { status: 400, message: /before the loan was issued/ });
+  await assert.rejects(() => ctx(librarian, () => returnCopy(librarian, { barcode: "AT-1", returnedOn: "2099-01-01" })), { status: 400, message: /in the future/ });
+  assert.equal((await raw.bookIssue.findUniqueOrThrow({ where: { id: loan.id } })).returnedAt, null, "a rejected date leaves the loan open");
+  await raw.bookIssue.update({ where: { id: loan.id }, data: { issuedAt: new Date("2026-10-20T00:00:00Z"), dueAt: new Date("2026-10-27T00:00:00Z") } });
   const first = await ctx(librarian, () => returnCopy(librarian, { barcode: "AT-1", returnedOn: "2026-11-02" }));
   assert.equal(first.alreadyReturned, false);
   assert.deepEqual([first.fine!.overdueDays, first.fine!.closureDays, first.fine!.chargeableDays, first.fine!.amount], [6, ["2026-10-30"], 4, 40]);
