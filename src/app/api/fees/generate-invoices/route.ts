@@ -9,7 +9,8 @@ import { activationFor, issueDocuments, taxForActivation } from "@/lib/tax/servi
 import { classYearKey, loadInvoiceGenerationInputs, memoByKey } from "@/lib/fees/invoice-generation-inputs";
 import { calculateInvoiceAmounts, invoiceMonthDates, MAX_INVOICE_MINOR } from "@/lib/school-ai/fee-invoices";
 import { evaluateFeeCap, feeCapDecision } from "@/lib/fees/regulator-cap";
-import { daysOverdue, lateFeeAsOf, lateFeeFor } from "@/lib/fees/late-fee";
+import { daysOverdue, lateFeeAsOf, lateFeeFor, planOverdueBase } from "@/lib/fees/late-fee";
+import { installmentStates, settledTowardPlan, type Installment } from "@/lib/fees/installments";
 import { generateInvoicesSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
@@ -232,7 +233,11 @@ export async function POST(req: NextRequest) {
           const prevInvoice = inputs.latestOpenInvoiceByStudent.get(student.id);
           if (prevInvoice && prevInvoice.currency !== currency) { results.push({ studentId: student.id, status: "error", error: "Cannot combine late fees across currencies" }); continue; }
           if (prevInvoice) {
-            lateFeeAmount = lateFeeFor(daysOverdue(lateFeeAsOf(invoiceDate, new Date()), prevInvoice.dueDate), prevInvoice.balanceDue, fineRule, { percentage: feeStructure.lateFeePercentage ?? 2.0, compound: Boolean(feeStructure.compoundLateFee) });
+            const asOf = lateFeeAsOf(invoiceDate, new Date());
+            // SKAI-2207: an approved plan replaces the invoice due date; only past-due instalments are charged.
+            const plan = prevInvoice.paymentPlans?.[0]?.installmentsJson as Installment[] | undefined;
+            const base = plan ? planOverdueBase(installmentStates(plan, settledTowardPlan(plan, prevInvoice.balanceDue), asOf.toISOString().slice(0, 10)), asOf.toISOString().slice(0, 10)) : { dueDate: prevInvoice.dueDate, balanceDue: prevInvoice.balanceDue };
+            if (base) lateFeeAmount = lateFeeFor(daysOverdue(asOf, base.dueDate), base.balanceDue, fineRule, { percentage: feeStructure.lateFeePercentage ?? 2.0, compound: Boolean(feeStructure.compoundLateFee) });
           }
         }
       }

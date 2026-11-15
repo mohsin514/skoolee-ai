@@ -67,7 +67,7 @@ export async function loadInvoiceGenerationInputs(tx: InputsTx, scope: { schoolI
     ? await tx.invoice.findMany({
         where: { schoolId, studentId: { in: legacyIds }, status: { in: ["PENDING", "PARTIAL", "OVERDUE"] } },
         orderBy: { dueDate: "desc" },
-        select: { studentId: true, currency: true, dueDate: true, balanceDue: true },
+        select: { studentId: true, currency: true, dueDate: true, balanceDue: true, paymentPlans: { where: { status: "active" }, select: { installmentsJson: true }, take: 1 } },
       })
     : [];
 

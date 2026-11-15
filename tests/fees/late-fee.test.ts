@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { daysOverdue, lateFeeAsOf, lateFeeFor } from "@/lib/fees/late-fee";
+import { daysOverdue, lateFeeAsOf, lateFeeFor, planOverdueBase } from "@/lib/fees/late-fee";
 
 // SKAI-2022: the campus fine rule (with grace days) decides the late fee; the class percentage is only the fallback.
 const legacy = { percentage: 2, compound: false };
@@ -42,4 +42,12 @@ test("SKAI-2057: an invoice generated ahead of time does not charge a late fee o
 test("SKAI-2057: back-dated generation still measures lateness at the invoice date", () => {
   const invoiceDate = new Date("2026-10-01T00:00:00Z");
   assert.equal(lateFeeAsOf(invoiceDate, new Date("2026-11-15T00:00:00Z")).getTime(), invoiceDate.getTime());
+});
+
+test("SKAI-2207: an instalment plan with nothing past due has no late-fee base", () => {
+  const plan = [{ dueDate: "2027-02-15", remaining: 51000 }, { dueDate: "2027-03-15", remaining: 51000 }];
+  assert.equal(planOverdueBase(plan, "2027-02-01"), null);
+  const base = planOverdueBase(plan, "2027-02-20");
+  assert.equal(base?.balanceDue, 51000);
+  assert.equal(base?.dueDate.toISOString().slice(0, 10), "2027-02-15");
 });

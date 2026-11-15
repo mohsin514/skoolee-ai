@@ -4,6 +4,16 @@ export type FineRule = { type: string; value: number; graceDays: number };
 export type LegacyLateFee = { percentage: number; compound: boolean };
 
 const DAY_MS = 86400000;
+/**
+ * SKAI-2207: under an approved instalment plan only past-due instalments are overdue. Returns the due date and
+ * amount the late fee is based on: the earliest past-due instalment and the sum still owed on past-due ones,
+ * or null when nothing in the plan is due yet. `asOf` is the late-fee date (YYYY-MM-DD).
+ */
+export function planOverdueBase(installments: { dueDate: string; remaining: number }[], asOf: string): { dueDate: Date; balanceDue: number } | null {
+  const pastDue = installments.filter(item => item.remaining > 0 && item.dueDate < asOf);
+  if (!pastDue.length) return null;
+  return { dueDate: new Date(`${pastDue[0].dueDate}T00:00:00Z`), balanceDue: pastDue.reduce((sum, item) => sum + item.remaining, 0) };
+}
 
 /** Whole days between the previous invoice's due date and the new invoice date. */
 export function daysOverdue(invoiceDate: Date, dueDate: Date): number {
