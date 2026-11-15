@@ -423,6 +423,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                         onEdit={() => setEditing(message)}
                         onDelete={() => setWithdrawing(message)}
                         canModerate={detail.canModerate}
+                        canEdit={detail.canPost}
                         language={locale.language}
                         tag={tag}
                         timeZone={timeZone}
@@ -556,6 +557,7 @@ function MessageBubble({
   onEdit,
   onDelete,
   canModerate,
+  canEdit,
   sendState,
   seen,
   onRetry,
@@ -580,6 +582,7 @@ function MessageBubble({
   onEdit: () => void;
   onDelete: () => void;
   canModerate: boolean;
+  canEdit: boolean;
 }) {
   const isPending = message.id.startsWith("pending-");
   const ui = useUiText();
@@ -765,7 +768,7 @@ function MessageBubble({
           )}
         >
           <IconAction icon={CornerUpLeft} label={ui("Reply")} onClick={onReply} />
-          {isMine && <IconAction icon={Pencil} label={ui("Edit")} onClick={onEdit} />}
+          {isMine && canEdit && <IconAction icon={Pencil} label={ui("Edit")} onClick={onEdit} />}
           {(isMine || canModerate) && (
             <IconAction icon={Trash2} label={ui("Withdraw")} onClick={onDelete} destructive />
           )}
