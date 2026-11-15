@@ -1133,10 +1133,12 @@ export async function removeMember(
   }
 
   await inTenant(user, async (tx) => {
-    await tx.conversationMember.updateMany({
+    const removed = await tx.conversationMember.updateMany({
       where: { conversationId, userId: targetUserId, leftAt: null },
       data: { leftAt: new Date(), unreadCount: 0 },
     });
+    // SKAI-2197: removing someone who is not a current member changes nothing and announces nothing.
+    if (removed.count === 0) throw new ApiError("That person is not in this conversation", 404);
 
     if (row.kind !== "DIRECT") {
       const target = row.members.find((m) => m.userId === targetUserId);
