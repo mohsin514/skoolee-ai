@@ -114,6 +114,8 @@ export async function enrollmentImpact(tx: TxClient, studentId: string, fromId: 
     tx.class.findFirst({ where: { id: targetClassId, status: "ACTIVE" }, include: { campus: true, _count: { select: { students: true } } } }),
   ]);
   if (!pupil || !from || !target || pupil.consolidatedIntoId) throw new ApiError("Placement changed or is unavailable. Reload the pupil record.", 409);
+  // SKAI-2110: an archived pupil keeps their campus; a transition would hand the record to another campus.
+  if (pupil.archivedAt || pupil.status !== "active") throw new ApiError("Restore or re-admit this pupil first", 409);
   if (from.classId !== pupil.classId || from.campusId !== pupil.campusId) throw new ApiError("Current placement needs reconciliation", 409);
   if (effectiveDate <= from.startDate) throw new ApiError("Effective date overlaps the current enrollment start", 409);
   if (!allowFuture && effectiveDate > new Date()) throw new ApiError("Future transitions may be saved as proposals; confirm on their effective date", 409);
