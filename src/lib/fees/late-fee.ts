@@ -11,6 +11,14 @@ export function daysOverdue(invoiceDate: Date, dueDate: Date): number {
 }
 
 /**
+ * SKAI-2057: lateness is measured at the earlier of the invoice date and the run date. An invoice generated ahead
+ * of time (a future month) must not assume the previous bill will still be unpaid on that future date.
+ */
+export function lateFeeAsOf(invoiceDate: Date, now: Date): Date {
+  return invoiceDate.getTime() < now.getTime() ? invoiceDate : now;
+}
+
+/**
  * Late fee in minor units on the overdue balance. An active campus fine rule wins (nothing is charged inside
  * its grace days); without one the class fee structure's percentage applies as before.
  */
