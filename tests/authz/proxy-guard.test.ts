@@ -195,3 +195,14 @@ test("/parent is no longer a public path (D14)", async () => {
   const result = await call("/parent?token=abc");
   assert.equal(result.location?.startsWith("/login"), true);
 });
+
+test("SKAI-2013: authenticated /api/* responses are private, no-store; routes with their own cache policy are left alone", async () => {
+  for (const path of ["/api/students", "/api/staff", "/api/classes", "/api/academic-cycle", "/api/memberships", "/api/subjects"]) {
+    const result = await call(path, { role: "ADMIN" });
+    assert.equal(result.passed, true, path);
+    assert.equal(result.response.headers.get("cache-control"), "private, no-store", path);
+  }
+  for (const path of ["/api/notifications/sse", "/api/chat/stream", "/api/media/private/school-synthetic/a.png"]) {
+    assert.equal((await call(path, { role: "ADMIN" })).response.headers.get("cache-control"), null, path);
+  }
+});
