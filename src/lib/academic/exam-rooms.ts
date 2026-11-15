@@ -333,6 +333,9 @@ export async function allocateExamRooms(opts: {
   if (rooms.length !== roomIds.length) {
     throw new ApiError("One or more rooms do not belong to this campus", 400);
   }
+  // SKAI-2086: an archived room is no longer offered, so it cannot take new seats either.
+  const archived = await db.classRoom.findMany({ where: { id: { in: roomIds }, campusId, archivedAt: { not: null } }, select: { roomNumber: true } });
+  if (archived.length) throw new ApiError(`Room ${archived.map((r) => r.roomNumber).join(", ")} is archived. Restore it first.`, 409);
 
   const unsized = rooms.filter((r) => roomCapacity(r).unmeasured);
   if (unsized.length) {

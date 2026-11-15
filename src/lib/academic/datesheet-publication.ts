@@ -17,7 +17,7 @@ import { notify } from "@/lib/notifications/in-app";
  * exact people it affects (told once).
  */
 
-export type Room = { roomId: string; roomNumber: string; invigilatorId: string | null; invigilatorName: string | null; seats: number; capacity: number };
+export type Room = { roomId: string; roomNumber: string; invigilatorId: string | null; invigilatorName: string | null; seats: number; capacity: number; archived?: boolean };
 export type Paper = {
   scheduleId: string; examId: string; examTitle: string; classId: string; classLabel: string; subjectId: string; subjectName: string; totalMarks: number;
   date: string; startTime: string | null; endTime: string | null; rooms: Room[]; candidates: number; seated: number;
@@ -63,7 +63,7 @@ async function liveState(sessionId: string, campusId: string) {
     return {
       scheduleId: s.id, examId: s.exam.id, examTitle: s.exam.title, classId: s.exam.classId, classLabel: label(s.exam.class), subjectId: s.subject.id, subjectName: s.subject.name, totalMarks: s.subject.totalMarks,
       date: s.date.toISOString().slice(0, 10), startTime: s.periodDefinition?.startTime ?? null, endTime: s.periodDefinition?.endTime ?? null,
-      rooms: s.rooms.map(r => ({ roomId: r.roomId, roomNumber: r.room.roomNumber, invigilatorId: r.invigilation?.teacherId ?? null, invigilatorName: r.invigilation?.teacher.fullName ?? null, seats: r._count.seats, capacity: examSeats(r.room) })),
+      rooms: s.rooms.map(r => ({ roomId: r.roomId, roomNumber: r.room.roomNumber, invigilatorId: r.invigilation?.teacherId ?? null, invigilatorName: r.invigilation?.teacher.fullName ?? null, seats: r._count.seats, capacity: examSeats(r.room), ...(r.room.archivedAt ? { archived: true } : {}) })),
       candidates: candidates.size, seated: s.seats.filter(seat => candidates.has(seat.studentId)).length,
     };
   });
@@ -81,6 +81,8 @@ async function hardIssues(user: AuthUser, campusId: string, live: Awaited<Return
     if (!paper.startTime || !paper.endTime) issues.push({ scheduleId: paper.scheduleId, paper: name, kind: "NO_TIME", message: "This paper has no exam period (start and end time)." });
     if (!paper.rooms.length) issues.push({ scheduleId: paper.scheduleId, paper: name, kind: "NO_ROOM", message: "This paper has no room." });
     for (const room of paper.rooms) {
+      // SKAI-2086: candidates must not be sent to a retired room.
+      if (room.archived) issues.push({ scheduleId: paper.scheduleId, paper: name, kind: "ARCHIVED_ROOM", message: `Room ${room.roomNumber} is archived. Restore it or choose another room.` });
       if (!room.invigilatorId) issues.push({ scheduleId: paper.scheduleId, paper: name, kind: "NO_INVIGILATOR", message: `Room ${room.roomNumber} has no invigilator.` });
       if (room.seats > room.capacity) issues.push({ scheduleId: paper.scheduleId, paper: name, kind: "OVER_CAPACITY", message: `Room ${room.roomNumber} seats ${room.seats} but its usable exam capacity is ${room.capacity}.` });
     }
