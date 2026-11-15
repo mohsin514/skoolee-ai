@@ -14,7 +14,7 @@ export async function createMasterLine(user: AuthUser, body: Record<string, unkn
   if (!body.feeGroupId || !body.feeTypeId) throw new ApiError("feeGroupId and feeTypeId required", 400);
   const feeGroupId = String(body.feeGroupId), feeTypeId = String(body.feeTypeId);
   const amount = Number(body.amount);
-  if (!Number.isInteger(amount) || amount < 0) throw new ApiError("amount must be a non-negative integer (paisa)", 400);
+  if (!Number.isInteger(amount) || amount < 0 || amount > 2147483647) throw new ApiError("amount must be a whole number of paisa between 0 and 2147483647", 400);
 
   const [group, type] = await Promise.all([
     prisma.feeGroup.findFirst({ where: { id: feeGroupId, campusId } }),
