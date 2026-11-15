@@ -18,7 +18,7 @@ import type { AuthUser } from "@/lib/auth";
 import { ApiError, requireAuthUser } from "@/lib/api/scope";
 import { roleLabel, type UserRole } from "@/lib/roles";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
-import { conversationListInclude, accessibleConversationList, currentMemberCount, groupCampusId, requireConversationAccess, requireMembership, visibleConversationWhere, type ConversationRow } from "./membership";
+import { conversationListInclude, deliverableUserIds, accessibleConversationList, currentMemberCount, groupCampusId, requireConversationAccess, requireMembership, visibleConversationWhere, type ConversationRow } from "./membership";
 import {
   canCreateAnnouncement,
   canCreateGroup,
@@ -220,6 +220,11 @@ function serialiseConversation(
 /** The people a message should be delivered to. */
 function recipientIds(row: ConversationRow, excludeUserId?: string) {
   return row.members.map((m) => m.userId).filter((id) => id !== excludeUserId);
+}
+
+/** SKAI-2165: recipientIds narrowed to the members the read API would still let in (school and campus scope). */
+async function liveRecipientIds(row: ConversationRow, excludeUserId?: string) {
+  return deliverableUserIds(row, recipientIds(row, excludeUserId));
 }
 
 // ─── Reads ───────────────────────────────────────────────────────
@@ -527,7 +532,7 @@ export async function createGroupConversation(
   });
 
   const detail = await getConversation(user, created.id);
-  await publishToUsers([...memberIds], {
+  await publishToUsers(await deliverableUserIds({ schoolId: user.schoolId, campusId }, [...memberIds]), {
     type: "conversation",
     conversationId: created.id,
     payload: detail,
@@ -746,7 +751,7 @@ export async function sendMessage(
   // SKAI-1878: `row` came from requireMembership, which already dropped CLASS parents whose guardian link has
   // lapsed (currentClassMembers). Re-running that guardian query for the live push and again for the
   // notification fallback cost two more queries over every parent member on each send.
-  await publishToUsers(recipientIds(row), {
+  await publishToUsers(await liveRecipientIds(row), {
     type: "message",
     conversationId,
     payload: view,
@@ -886,7 +891,7 @@ export async function markRead(user: AuthUser, conversationId: string): Promise<
     ? row.members.map((m) => m.userId).filter((id) => id !== user.userId)
     : (await currentMemberCount(row)) <= 20 ? recipientIds((await requireMembership(user, conversationId)).row, user.userId) : null;
   if (recipients) {
-    await publishToUsers(recipients, {
+    await publishToUsers(await deliverableUserIds(row, recipients), {
       type: "read",
       conversationId,
       payload: { userId: user.userId, readAt: readAt.toISOString() },
@@ -935,7 +940,7 @@ export async function editMessage(
   });
 
   const view = await serialiseMessage(updated);
-  await publishToUsers(recipientIds(row), {
+  await publishToUsers(await liveRecipientIds(row), {
     type: "message-updated",
     conversationId: row.id,
     payload: view,
@@ -986,7 +991,7 @@ export async function deleteMessage(user: AuthUser, messageId: string): Promise<
   });
 
   const view = await serialiseMessage(updated);
-  await publishToUsers(recipientIds(row), {
+  await publishToUsers(await liveRecipientIds(row), {
     type: "message-updated",
     conversationId: row.id,
     payload: view,
@@ -1036,7 +1041,7 @@ export async function updateConversation(
   });
 
   const detail = await getConversation(user, conversationId);
-  await publishToUsers(recipientIds(row), {
+  await publishToUsers(await liveRecipientIds(row), {
     type: "conversation",
     conversationId,
     payload: detail,
@@ -1093,7 +1098,7 @@ export async function addMembers(
   });
 
   const detail = await getConversation(user, conversationId);
-  await publishToUsers([...existing, ...toAdd], {
+  await publishToUsers(await deliverableUserIds(row, [...existing, ...toAdd]), {
     type: "conversation",
     conversationId,
     payload: detail,
@@ -1136,7 +1141,7 @@ export async function removeMember(
     }
   });
 
-  await publishToUsers(recipientIds(row), {
+  await publishToUsers(await liveRecipientIds(row), {
     type: "conversation",
     conversationId,
     payload: { id: conversationId, removed: targetUserId },

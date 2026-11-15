@@ -43,6 +43,18 @@ function outsideScope(user: AuthUser, loaded: Pick<ConversationRow, "schoolId" |
 }
 
 /**
+ * SKAI-2165: the members who would pass requireMembership's school and campus check right now, for realtime fan-out.
+ * A membership row alone is not enough: a campus-bound member of another campus, or with no campus, is denied by the
+ * read API, so the live stream must not carry that room's messages or roster to them either.
+ */
+export async function deliverableUserIds(row: Pick<ConversationRow, "schoolId" | "campusId">, userIds: string[], db: TxClient = prisma): Promise<string[]> {
+  if (!userIds.length) return [];
+  const users = await db.user.findMany({ where: { id: { in: userIds }, schoolId: row.schoolId, isActive: true }, select: { id: true, role: true, campusId: true } });
+  const allowed = new Set(users.filter((u) => u.role !== "APP_OWNER" && (!campusBoundChatRole(u.role) || (u.campusId !== null && u.campusId === row.campusId))).map((u) => u.id));
+  return userIds.filter((id) => allowed.has(id));
+}
+
+/**
  * SKAI-1938: the campus a new group or channel is stamped with. A creator with a campus keeps it. A creator without
  * one (a school-wide SUPER_ADMIN) takes the campus of the campus-bound staff they add, so those staff can see it;
  * staff from two campuses cannot share one room, because each of them only sees their own campus.

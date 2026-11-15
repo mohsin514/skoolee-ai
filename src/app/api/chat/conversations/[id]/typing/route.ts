@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { errorResponse } from "@/lib/api/scope";
 import { requireChatUser } from "@/lib/chat/service";
+import { deliverableUserIds, requireConversationAccess } from "@/lib/chat/membership";
 import { prisma } from "@/lib/db/prisma";
 import { publishToUsers } from "@/lib/chat/realtime";
 import { rateLimit } from "@/lib/rate-limit";
@@ -27,16 +28,15 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
     const limit = await rateLimit(`chat:typing:${user.userId}`, { limit: 30, windowMs: 60_000 });
     if (!limit.ok) return Response.json({ success: true });
 
-    const membership = await prisma.conversationMember.findFirst({
-      where: { conversationId: id, userId: user.userId, leftAt: null },
-      select: { id: true },
-    });
-    if (!membership) return Response.json({ success: true });
+    // SKAI-2165: the same access decision as the read API, then only members that decision would still admit.
+    const access = await requireConversationAccess(user, id).catch(() => null);
+    if (!access) return Response.json({ success: true });
 
-    const others = await prisma.conversationMember.findMany({
+    const members = await prisma.conversationMember.findMany({
       where: { conversationId: id, leftAt: null, userId: { not: user.userId } },
       select: { userId: true },
     });
+    const others = (await deliverableUserIds(access.row, members.map((m) => m.userId))).map((userId) => ({ userId }));
 
     await publishToUsers(
       others.map((m) => m.userId),
