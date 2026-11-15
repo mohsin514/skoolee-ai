@@ -85,7 +85,13 @@ async function seedOptionalTasks(tx: TxClient, user: AuthUser) {
   const areas = SETUP_AREAS.filter(id => id !== "logo").map(id => ({ schoolId: user.schoolId, key: setupAreaTaskKey(id), title: SETUP_AREA_TITLES[id], createdById: user.userId }));
   await tx.readinessTask.createMany({ data: areas, skipDuplicates: true });
   const setup = await tx.institutionSetup.findUnique({ where: { schoolId: user.schoolId } });
-  if (!setup) return;
+  if (!setup) {
+    // SKAI-1989: a school created outside the wizard has no draft to say its logo is missing, and an area with no
+    // task reads as Done. Read the school itself so the logo row shows To do until a logo exists.
+    const school = await tx.school.findUnique({ where: { id: user.schoolId }, select: { logoUrl: true } });
+    if (!school?.logoUrl) await tx.readinessTask.createMany({ data: [{ schoolId: user.schoolId, key: "logo", title: OPTIONAL_TITLES.logo, createdById: user.userId }], skipDuplicates: true });
+    return;
+  }
   const keys = unresolvedOptionalWork(setup.institutionType as InstitutionType, setup.adoptionMode as SetupAdoptionMode | null, parseSetupDraft(setup.draft));
   // One insert, existing follow-ups untouched: a per-key upsert outlived the transaction timeout on a slow database.
   await tx.readinessTask.createMany({ data: keys.map(key => ({ schoolId: user.schoolId, key, title: OPTIONAL_TITLES[key], createdById: user.userId })), skipDuplicates: true });
