@@ -12,7 +12,7 @@ import { campusScope, studentScope, isFamily } from "@/lib/auth/policy";
 import { isCampusOperator } from "@/lib/auth/institution";
 import { getCampusSeats } from "@/lib/auth/seats";
 import { notifyCorrectionRequested } from "@/lib/notifications/events";
-import { contentHash, refreshVersion, versionTransaction } from "@/lib/academic/report-versions";
+import { ReportConflict, contentHash, refreshVersion, versionTransaction } from "@/lib/academic/report-versions";
 import { gradeForMark, thresholdsForClass } from "@/lib/academic/report-cards";
 import { assertSeparateApprover, validateCorrectionRequest, previewMarkCorrection, previewPaymentReversal, invoiceAfterReversal } from "./domain";
 export type Kind = "MARK" | "PAYMENT";
@@ -141,15 +141,29 @@ export async function requestCorrection(user: AuthUser, proposal: Proposal, revi
     privateNote?: string;
 }) {
     const text = validateCorrectionRequest(explanation);
-    const correction = await versionTransaction(async (tx) => {
+    const attempt = () => versionTransaction(async (tx) => {
+        // SKAI-2092: serialize requests per source record so a double submit cannot save two PENDING rows.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`correction-request:${user.schoolId}:${proposal.kind}:${proposal.sourceId}`}, 0))`;
         const p = await preview(tx, user, proposal);
         if (p.hash !== reviewHash)
             throw new ApiError("Review the current before/after preview before submitting", 409);
+        const pending = await tx.correction.findFirst({ where: { schoolId: user.schoolId, kind: p.kind, sourceId: p.sourceId, status: "PENDING" }, orderBy: { requestedAt: "asc" } });
+        if (pending) {
+            // The same reviewed request again (double click, retry after a slow response) is idempotent.
+            if (pending.previewHash === p.hash && pending.requesterId === user.userId)
+                return { correction: pending, existing: true };
+            throw new ApiError("A correction is already pending for this record. Wait for it to be decided, or ask the reviewer to reject it, before requesting another.", 409);
+        }
         const correction = await tx.correction.create({ data: { schoolId: user.schoolId, campusId: p.campusId, studentId: p.studentId, kind: p.kind, sourceId: p.sourceId, sourceVersion: p.sourceVersion, before: p.before as Prisma.InputJsonValue, after: p.after as Prisma.InputJsonValue, previewHash: p.hash, reason: text.reason, publicExplanation: text.publicExplanation, requesterId: user.userId, requesterName: user.fullName ?? user.role, separateApprover: p.separateApprover } });
         if (text.privateNote)
             await tx.correctionNote.create({ data: { schoolId: user.schoolId, campusId: p.campusId, correctionId: correction.id, text: text.privateNote } });
-        return correction;
+        return { correction, existing: false };
     });
+    // A parallel duplicate loses the serializable race once the first commits; retrying sees the pending row.
+    const created = await attempt().catch((error) => error instanceof ReportConflict ? attempt() : Promise.reject(error));
+    const correction = created.correction;
+    if (created.existing)
+        return correction;
     // After commit, fire-and-forget: the checker seat (campus admin for PAYMENT, academic lead for MARK) is told.
     void Promise.resolve()
         .then(() => notifyCorrectionRequested({ schoolId: correction.schoolId, campusId: correction.campusId, correctionId: correction.id, kind: correction.kind as Kind, requesterId: user.userId }))
@@ -257,6 +271,14 @@ export async function decideCorrection(user: AuthUser, id: string, decision: "AP
         }
         if (why)
             await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "corrections", recordId: c.id, userId: user.userId, oldValue: { status: "PENDING" }, newValue: { status: decision, kind: c.kind, reason: why } } });
+        if (decision === "APPLIED") {
+            // SKAI-2092: the source moved on, so any other proposal on it is stale; close it instead of leaving it in the queue.
+            const stale = await tx.correction.findMany({ where: { schoolId: c.schoolId, kind: c.kind, sourceId: c.sourceId, status: "PENDING", id: { not: c.id } }, select: { id: true } });
+            for (const other of stale) {
+                await tx.correction.update({ where: { id: other.id }, data: { status: "REJECTED", approverId: user.userId, approverName: user.fullName ?? user.role, decidedAt: new Date() } });
+                await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "corrections", recordId: other.id, userId: user.userId, oldValue: { status: "PENDING" }, newValue: { status: "REJECTED", kind: c.kind, reason: `Superseded by applied correction ${c.id}` } } });
+            }
+        }
         return tx.correction.update({ where: { id }, data: { status: decision, approverId: user.userId, approverName: user.fullName ?? user.role, decidedAt: new Date(), successorId, reportVersionIds } });
     });
 }
