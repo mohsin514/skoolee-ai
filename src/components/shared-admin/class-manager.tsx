@@ -1041,7 +1041,7 @@ function SectionDetailView({
             <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
               {ui("Teaching Mode")}
             </p>
-            <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {(
                 [
                   {
@@ -1076,7 +1076,8 @@ function SectionDetailView({
                         onChangeTeachingMode(section.id, option.mode);
                     }}
                     className={cn(
-                      "p-3.5 text-start",
+                      // SKAI-2072: stack title and description inside the card instead of the button's default row.
+                      "h-auto min-w-0 flex-col items-stretch whitespace-normal p-3.5 text-start",
                       active
                         ? option.activeClasses
                         : "border-transparent bg-card/70 hover:border-edge/30 hover:bg-card hover:shadow-sm",
