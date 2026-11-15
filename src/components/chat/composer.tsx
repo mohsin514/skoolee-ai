@@ -276,7 +276,7 @@ export function Composer({
                   <ImageIcon className="h-3 w-3 shrink-0" aria-hidden />
                 )}
                 <bdi className="max-w-[150px] truncate">{f.file.name}</bdi>
-                {f.error && <span role="alert">· {fill(ui("{0}. Your message draft is still here."), [f.error])}</span>}
+                {f.error && <span role="alert">· {fill(ui("{0}. Your message draft is still here."), [f.error.replace(/[.۔]+$/, "")])}</span>}
                 {f.error && (
                   <Button variant="outline" size="sm" type="button" aria-label={ui("Retry upload of {0}", [f.file.name])}
                     onClick={async () => {
