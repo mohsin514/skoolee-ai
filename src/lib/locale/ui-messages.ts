@@ -327,6 +327,12 @@ export const arabicReviewedUi: Record<string, string> = {
   "Unlimited students": "عدد غير محدود من الطلاب",
   "Unlimited campuses": "عدد غير محدود من الفروع",
   "{0} AI credits per student a month": "{0} رصيد ذكاء اصطناعي لكل طالب شهريًا",
+  "Allocate bed": "تخصيص سرير",
+  "Room types": "أنواع الغرف",
+  "Receive goods": "استلام البضائع",
+  "Total Stock": "إجمالي المخزون",
+  "Your student record is not linked yet": "لم يتم ربط سجلك الطلابي بعد",
+  "Your school has not linked your account to a student record. Ask your teacher or school office for help.": "لم تربط مدرستك حسابك بسجل طالب بعد. اطلب المساعدة من معلمك أو إدارة المدرسة.",
   "Role": "الدور",
   "Role, email and permissions are managed by your school administrator.": "يدير مسؤول مدرستك الدور والبريد الإلكتروني والصلاحيات.",
   "Role, email and permissions are managed by SkooleeAI support.": "يدير دعم SkooleeAI الدور والبريد الإلكتروني والصلاحيات.",
@@ -746,6 +752,12 @@ export const urduReviewedUi: Record<string, string> = {
   "Unlimited students": "لامحدود طلبہ",
   "Unlimited campuses": "لامحدود کیمپس",
   "{0} AI credits per student a month": "فی طالب علم ماہانہ {0} اے آئی کریڈٹس",
+  "Allocate bed": "بستر الاٹ کریں",
+  "Room types": "کمروں کی اقسام",
+  "Receive goods": "سامان وصول کریں",
+  "Total Stock": "کل اسٹاک",
+  "Your student record is not linked yet": "آپ کا طالب علم ریکارڈ ابھی منسلک نہیں ہوا",
+  "Your school has not linked your account to a student record. Ask your teacher or school office for help.": "آپ کے اسکول نے ابھی آپ کا اکاؤنٹ کسی طالب علم ریکارڈ سے منسلک نہیں کیا۔ اپنے استاد یا اسکول دفتر سے مدد لیں۔",
   "Role": "کردار",
   "Role, email and permissions are managed by your school administrator.": "کردار، ای میل اور اجازتوں کا انتظام آپ کے اسکول کا منتظم کرتا ہے۔",
   "Role, email and permissions are managed by SkooleeAI support.": "کردار، ای میل اور اجازتوں کا انتظام SkooleeAI سپورٹ کرتا ہے۔",
@@ -902,7 +914,8 @@ export function reviewedTranslation(source: string, language: "en" | "ar" | "ur"
   const catalog = language === "ar" ? arabicReviewedUi : urduReviewedUi;
   const workflow = language === "ar" ? arabicWorkflowUi : urduWorkflowUi;
   const navigation = language === "ar" ? arabicNavigationUi : urduNavigationUi;
-  return navigation[source] ?? catalog[source] ?? workflow[source] ?? academicModelUi[language][source] ?? academicModelUiExtra[language][source] ?? (language === "ar" ? arabicWhatsappUi : urduWhatsappUi)[source] ?? (language === "ar" ? arabicConsentUi : urduConsentUi)[source] ?? (language === "ar" ? arabicImportRehearsalUi : urduImportRehearsalUi)[source] ?? (language === "ar" ? arabicSubjectSetupUi : urduSubjectSetupUi)[source] ?? (language === "ar" ? arabicClassSetupUi : urduClassSetupUi)[source] ?? (language === "ar" ? arabicClassSyncUi : urduClassSyncUi)[source] ?? (language === "ar" ? arabicGradingModelUi : urduGradingModelUi)[source] ?? (language === "ar" ? arabicTeacherAllocationUi : urduTeacherAllocationUi)[source] ?? (language === "ar" ? arabicSchoolBrandingUi : urduSchoolBrandingUi)[source] ?? (language === "ar" ? arabicPortfolioLoadUi : urduPortfolioLoadUi)[source];
+  return navigation[source] ?? catalog[source] ?? workflow[source] ?? academicModelUi[language][source] ?? academicModelUiExtra[language][source] ?? (language === "ar" ? arabicWhatsappUi : urduWhatsappUi)[source] ?? (language === "ar" ? arabicConsentUi : urduConsentUi)[source] ?? (language === "ar" ? arabicImportRehearsalUi : urduImportRehearsalUi)[source] ?? (language === "ar" ? arabicSubjectSetupUi : urduSubjectSetupUi)[source] ?? (language === "ar" ? arabicClassSetupUi : urduClassSetupUi)[source] ?? (language === "ar" ? arabicClassSyncUi : urduClassSyncUi)[source] ?? (language === "ar" ? arabicGradingModelUi : urduGradingModelUi)[source] ?? (language === "ar" ? arabicTeacherAllocationUi : urduTeacherAllocationUi)[source] ?? (language === "ar" ? arabicSchoolBrandingUi : urduSchoolBrandingUi)[source] ?? (language === "ar" ? arabicPortfolioLoadUi : urduPortfolioLoadUi)[source]
+    ?? (language === "ar" ? arabicDropUi : urduDropUi)[source]; // SKAI-2037: "Scan sheets" in the nav
 }
 
 const reportedMissing = new Set<string>();

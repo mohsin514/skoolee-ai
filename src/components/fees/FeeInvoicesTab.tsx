@@ -663,10 +663,13 @@ function GenerateInvoicesModal({
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(tr(json.message || "Invoices generated"));
+        // SKAI-2074: the server's sentence is interpolated English; rebuild it from the counts so it translates.
+        toast.success(typeof json.generated === "number" ? tr("Generated {0} invoices for {1}", [String(json.generated), generationMonth]) : tr(json.message || "Invoices generated"));
         onGenerated();
       } else {
-        toast.error(tr(json.error || "Generation failed"));
+        const existing = /^Invoices already exist for (\d+) student\(s\) this month$/.exec(json.error ?? "");
+        const none = /^No invoices generated: (.+)$/.exec(json.error ?? "");
+        toast.error(existing ? tr("Invoices already exist for {0} student(s) this month", [existing[1]]) : none ? tr("No invoices generated: {0}", [tr(none[1])]) : tr(json.error || "Generation failed"));
       }
     } catch {
       toast.error(tr("Failed to generate invoices"));

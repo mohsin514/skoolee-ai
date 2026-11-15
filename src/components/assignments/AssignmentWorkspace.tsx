@@ -65,9 +65,9 @@ export function AssignmentWorkspace({ createRequest, hideCreateButton = false }:
   useEffect(() => { if (detail?.assignment.classId && view && detail.assignment.classId !== view.classId) setClassId(detail.assignment.classId); }, [detail, view]);
   useEffect(() => { if (selected) loadDetail(selected).catch(error => setStatus({ tone: "error", text: error.status === 404 ? t.notAvailable : error.message })); else setDetail(null); }, [selected, loadDetail, t.notAvailable]);
 
-  async function run(work: () => Promise<unknown>, done = t.saved) {
+  async function run(work: () => Promise<unknown>, done = t.saved, reloadDetail = true) {
     setBusy(true); setStatus(null);
-    try { await work(); await loadList(); if (selected) await loadDetail(selected); setStatus({ tone: "ok", text: done }); return true; }
+    try { await work(); await loadList(); if (selected && reloadDetail) await loadDetail(selected); setStatus({ tone: "ok", text: done }); return true; }
     catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); return false; }
     finally { setBusy(false); }
   }
@@ -171,11 +171,12 @@ function AssignmentEditor({ t, classId, subjects, resources, initial, busy, onCa
   </form>;
 }
 
-function AssignmentDetail({ t, language, detail, subjects, busy, editing, setEditing, run, onBack }: { t: AssignmentCopy; language: string; detail: Detail; subjects: { id: string; name: string }[]; busy: boolean; editing: boolean; setEditing: (value: boolean) => void; run: (work: () => Promise<unknown>, done?: string) => Promise<boolean>; onBack: () => void }) {
+function AssignmentDetail({ t, language, detail, subjects, busy, editing, setEditing, run, onBack }: { t: AssignmentCopy; language: string; detail: Detail; subjects: { id: string; name: string }[]; busy: boolean; editing: boolean; setEditing: (value: boolean) => void; run: (work: () => Promise<unknown>, done?: string, reloadDetail?: boolean) => Promise<boolean>; onBack: () => void }) {
   const { assignment, release } = detail;
   const [plan, setPlan] = useState<Plan | null>(null);
   const [learner, setLearner] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const row = detail.queue.find(q => q.studentId === learner) ?? null;
   const openPreview = () => run(async () => setPlan((await call(`/api/assignments/${assignment.id}`, { op: "preview" })).result), "");
@@ -193,6 +194,7 @@ function AssignmentDetail({ t, language, detail, subjects, busy, editing, setEdi
         <Button ref={trigger} type="button" disabled={busy} onClick={openPreview}>{t.preview}</Button>
         <Button type="button" variant="outline" disabled={busy} onClick={() => setEditing(!editing)}>{assignment.status === "DRAFT" ? t.edit : t.editReleased}</Button>
         {assignment.status === "RELEASED" && <Button type="button" variant="ghost" disabled={busy} onClick={() => setConfirmClose(true)}>{t.close}</Button>}
+        {assignment.status === "DRAFT" && !assignment.currentVersion && <Button type="button" variant="ghost" className="text-status-danger-text" disabled={busy} onClick={() => setConfirmDiscard(true)}>{t.discard}</Button>}
       </div>}
     </header>
     <ConfirmAction
@@ -205,6 +207,17 @@ function AssignmentDetail({ t, language, detail, subjects, busy, editing, setEdi
       busy={busy}
       onCancel={() => setConfirmClose(false)}
       onConfirm={async () => { if (await run(() => call(`/api/assignments/${assignment.id}`, { op: "close" }))) setConfirmClose(false); }}
+    />
+    <ConfirmAction
+      open={confirmDiscard}
+      tone="danger"
+      title={t.discardTitle}
+      description={t.discardBody}
+      confirmLabel={t.discard}
+      cancelLabel={t.keepDraft}
+      busy={busy}
+      onCancel={() => setConfirmDiscard(false)}
+      onConfirm={async () => { if (await run(() => call(`/api/assignments/${assignment.id}`, { op: "discard" }), t.saved, false)) { setConfirmDiscard(false); onBack(); } }}
     />
     {editing && <AssignmentEditor t={t} classId={""} subjects={subjects} resources={detail.resources} initial={assignment} busy={busy} onCancel={() => setEditing(false)} onSave={async body => { if (await run(() => call(`/api/assignments/${assignment.id}`, { op: "update", ...body }))) setEditing(false); }} />}
     {plan && <ReleaseReview t={t} language={language} plan={plan} busy={busy} onCancel={closePreview} onRelease={async () => {

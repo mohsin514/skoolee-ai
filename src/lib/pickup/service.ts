@@ -241,7 +241,8 @@ export async function decideException(user: AuthUser, body: Record<string, unkno
     const check = await tx.pickupCheck.findFirst({ where: { id: String(body.checkId ?? ""), schoolId: user.schoolId } });
     if (!check) throw new ApiError("Pickup check not found", 404);
     const restriction = await activeRestriction(tx, user.schoolId, check.studentId);
-    if (!(isLead(user) && sameCampus(user, check.campusId)) && restriction?.leadUserId !== user.userId) throw new ApiError("Only the designated pickup lead can decide this.", 403);
+    // SKAI-2132: a designated lead must still be a campus leader; family accounts never decide an exception.
+    if (!(isLead(user) && sameCampus(user, check.campusId)) && !(restriction?.leadUserId === user.userId && isLead(user))) throw new ApiError("Only the designated pickup lead can decide this.", 403);
     if (check.exceptionStatus !== "REQUESTED") throw new ApiError("No exception is waiting for a decision.", 409);
     const decision = String(body.decision ?? ""), note = text(body.note, 500);
     if (!["approve", "deny"].includes(decision) || !note) throw new ApiError("Record the decision and why.", 400);
@@ -262,6 +263,15 @@ export async function gateQueue(user: AuthUser) {
 
 // ─── Restrictions (leads) ────────────────────────────────────────────────
 
+/** SKAI-2132: a designated pickup lead is an active campus leader of this school and campus, never a family account. */
+async function assertPickupLead(schoolId: string, campusId: string, leadUserId: string) {
+  const lead = await prisma.user.findFirst({ where: { id: leadUserId, schoolId, isActive: true }, select: { id: true, role: true, campusId: true } });
+  if (!lead || !canManageCampusOps(lead as AuthUser) || (lead.role !== "SUPER_ADMIN" && lead.campusId !== campusId)) {
+    throw new ApiError("The pickup lead must be an active campus admin of this campus.", 400);
+  }
+  return lead.id;
+}
+
 export async function addRestriction(user: AuthUser, body: Record<string, unknown>) {
   if (!isLead(user)) throw new ApiError("Only campus leaders record pickup restrictions.", 403);
   const student = await prisma.student.findFirst({ where: { id: String(body.studentId ?? ""), schoolId: user.schoolId, archivedAt: null }, select: { id: true, campusId: true } });
@@ -270,8 +280,13 @@ export async function addRestriction(user: AuthUser, body: Record<string, unknow
   if (!["CUSTODY_ORDER", "DO_NOT_RELEASE", "LEAD_APPROVAL"].includes(kind)) throw new ApiError("Choose the kind of restriction.", 400);
   const instruction = text(body.instruction, 300);
   if (!instruction) throw new ApiError("Write what gate staff should do.", 400);
+  // SKAI-2133: an end date must parse and lie in the future, or the restriction would never apply.
+  const endsAt = body.endsAt ? new Date(String(body.endsAt)) : null;
+  if (endsAt && Number.isNaN(endsAt.getTime())) throw new ApiError("Enter the end date as a date, for example 2026-12-31.", 400);
+  if (endsAt && endsAt.getTime() <= Date.now()) throw new ApiError("The end date must be in the future.", 400);
+  const leadUserId = body.leadUserId ? await assertPickupLead(user.schoolId, student.campusId, String(body.leadUserId)) : user.userId;
   return schoolAiTransaction(user, async tx => {
-    const row = await tx.pickupRestriction.create({ data: { schoolId: user.schoolId, campusId: student.campusId, studentId: student.id, kind, instruction, reason: text(body.reason, 1000) || null, leadUserId: body.leadUserId ? String(body.leadUserId) : user.userId, endsAt: body.endsAt ? new Date(String(body.endsAt)) : null, createdById: user.userId } });
+    const row = await tx.pickupRestriction.create({ data: { schoolId: user.schoolId, campusId: student.campusId, studentId: student.id, kind, instruction, reason: text(body.reason, 1000) || null, leadUserId, endsAt, createdById: user.userId } });
     await event(tx, user.schoolId, student.id, "RESTRICTION_ADDED", user.userId, { kind });
     return row;
   });

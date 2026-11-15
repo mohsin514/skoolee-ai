@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import {
-  closeAssignment, confirmDraftFile, getAssignment, grantExtension, prepareDraftFile, previewRelease, recordPaperSubmission, releaseAssignment, removeDraftFile,
+  closeAssignment, confirmDraftFile, discardDraft, getAssignment, grantExtension, prepareDraftFile, previewRelease, recordPaperSubmission, releaseAssignment, removeDraftFile,
   reopenSubmission, returnFeedback, saveDraft, saveFeedback, submitWork, updateAssignment,
 } from "@/lib/assignments/service";
 import { parseBody } from "@/lib/api/validate";
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       : op === "preview" ? await previewRelease(user, id)
       : op === "release" ? await releaseAssignment(user, id, input)
       : op === "close" ? await closeAssignment(user, id)
+      : op === "discard" ? await discardDraft(user, id)
       : op === "extension" ? await grantExtension(user, id, input)
       : op === "paper" ? await recordPaperSubmission(user, id, input)
       : op === "feedback" ? await saveFeedback(user, id, input)

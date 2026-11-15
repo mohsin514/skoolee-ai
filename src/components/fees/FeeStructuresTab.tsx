@@ -115,6 +115,7 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const [capMode, setCapMode] = useState<FeeCapMode>("OFF");
   const [canEditCap, setCanEditCap] = useState(false);
+  const [canDeactivate, setCanDeactivate] = useState(false);
   const loadSequence = useRef(0);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
@@ -131,7 +132,7 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
       const sJson = await checkedJson(sRes);
       const cJson = await checkedJson(cRes);
       if (loadVersion !== loadSequence.current) return;
-      if (sJson.success) setStructures(sJson.data);
+      if (sJson.success) { setStructures(sJson.data); setCanDeactivate(sJson.canDeactivate === true); }
       else throw new Error("Invalid result");
       if (cJson.success) setClasses(cJson.data);
       // SKAI-1154: the opt-in regulator fee cap; an unreadable policy leaves the cap off in the form only.
@@ -272,7 +273,7 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
               structure={fs}
               capMode={capMode}
               onEdit={() => { setEditing(fs); setShowModal(true); }}
-              onDeactivate={() => handleDeactivate(fs.id)}
+              onDeactivate={canDeactivate ? () => handleDeactivate(fs.id) : undefined}
             />
           ))}
         </div>
@@ -322,7 +323,7 @@ function StructureCard({
   structure: FeeStructure;
   capMode: FeeCapMode;
   onEdit: () => void;
-  onDeactivate: () => Promise<boolean>;
+  onDeactivate?: () => Promise<boolean>;
 }) {
   const { money: formatPKR, date } = useLocaleFormat();
   const tr = useUiText();
@@ -349,7 +350,7 @@ function StructureCard({
             label="More actions"
             items={[
               { id: "edit", label: "Edit", icon: Edit3, onSelect: onEdit },
-              { id: "deactivate", label: "Deactivate", icon: Archive, tone: "danger", onSelect: () => setConfirmOpen(true) },
+              ...(onDeactivate ? [{ id: "deactivate", label: "Deactivate", icon: Archive, tone: "danger" as const, onSelect: () => setConfirmOpen(true) }] : []),
             ]}
             trigger={<IconButton variant="ghost" label={tr("More actions")}><MoreHorizontal aria-hidden="true" /></IconButton>}
           />
@@ -357,7 +358,7 @@ function StructureCard({
             open={confirmOpen}
             title={tr("Deactivate this fee structure?")}
             description={tr("This will deactivate the fee structure for {0}. Existing invoices won't be affected.", [classLabel(fs.class.name, fs.class.section)])}
-            onConfirm={async () => { if (await onDeactivate()) setConfirmOpen(false); }}
+            onConfirm={async () => { if (onDeactivate && await onDeactivate()) setConfirmOpen(false); }}
             onCancel={() => setConfirmOpen(false)}
             tone="danger"
             confirmLabel={tr("Deactivate")}

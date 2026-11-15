@@ -50,7 +50,9 @@ export async function GET(req: NextRequest) {
       orderBy: [{ activeFrom: "desc" }],
     });
 
-    return Response.json({ success: true, data: structures });
+    // SKAI-2036: tell the client whether Deactivate (DELETE, fees.delete) is allowed, so it is not offered in vain.
+    const canDeactivate = await assertPermission(user, "fees", "delete").then(() => true, () => false);
+    return Response.json({ success: true, data: structures, canDeactivate });
   } catch (error) {
     return errorResponse(error, "[fees/structure] GET failed");
   }
