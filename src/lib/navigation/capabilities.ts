@@ -161,6 +161,8 @@ export async function capabilitiesFor(
     CAMPUS_STAFF.includes(role) || role === "PARENT" || role === "STUDENT" ? duty("pkgCanteen", user, () => pkgCanteen(user)) : false,
     role === "PARENT" ? duty("pickupGuardian", user, async () => (await guardianChildren(user, "pickup")) > 0) : false,
     role === "PARENT" ? duty("multiChild", user, async () => (await guardianChildren(user, "any")) >= 2) : false,
+    // SKAI-2152: child-scoped family pages bounce a guardian with no linked child back to Home.
+    role === "PARENT" ? duty("linkedChild", user, async () => (await guardianChildren(user, "any")) > 0) : false,
   ]);
   const permissions = await permissionsInput;
 
@@ -212,7 +214,7 @@ export async function capabilitiesFor(
   if (examStudioSeat) caps.schoolAiExams = caps.schoolAi && permissions.get("exams")?.canView === true && (plan?.examStudioEnabled ?? true);
 
   // Duties — operators run them on their campus; named staff only while the duty exists.
-  const [care, agent, trip, activity, plans, canteen, pickup, children] = await dutiesPromise;
+  const [care, agent, trip, activity, plans, canteen, pickup, children, linked] = await dutiesPromise;
   caps.careMember = care;
   caps.serviceAgent = agent;
   caps.tripToday = trip;
@@ -221,6 +223,7 @@ export async function capabilitiesFor(
   caps.pkgCanteen = canteen;
   caps.pickupGuardian = pickup;
   caps.multiChild = children;
+  caps.linkedChild = linked;
 
   return caps;
 }

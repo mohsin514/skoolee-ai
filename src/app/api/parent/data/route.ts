@@ -18,7 +18,7 @@ export const runtime = "nodejs";
 const RECENT_INVOICES = 5;
 
 /** The registry keys the family console reads (§3 `parent`): the role-matrix modules and the family capability keys. */
-const FAMILY_NAV_KEYS = ["reports", "exams", "timetable", "attendance", "fees", "corrections", "pkgCanteen", "accessPlans", "pickupGuardian", "multiChild"] as const;
+const FAMILY_NAV_KEYS = ["reports", "exams", "timetable", "attendance", "fees", "corrections", "pkgCanteen", "accessPlans", "pickupGuardian", "multiChild", "linkedChild"] as const;
 const NO_FAMILY_ACCESS = Object.fromEntries(FAMILY_NAV_KEYS.map((key) => [key, false])) as Record<(typeof FAMILY_NAV_KEYS)[number], boolean>;
 
 /**
@@ -159,6 +159,7 @@ export async function GET(req: NextRequest) {
           accessPlans: family?.accessPlans ?? false,
           pickupGuardian: family?.pickupGuardian ?? false,
           multiChild: family?.multiChild ?? false,
+          linkedChild: true,
         },
         student: {
           fullName: student.fullName,
