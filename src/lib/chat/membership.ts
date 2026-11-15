@@ -67,6 +67,16 @@ export function groupCampusId(user: Pick<AuthUser, "campusId" | "role">, members
   return [...campuses][0] ?? null;
 }
 
+/**
+ * SKAI-2167: refuses a campus-bound member (or one with no campus) who could never open a room stamped with
+ * conversationCampusId, so the sender is told instead of seeing a member count that includes someone who cannot read it.
+ */
+export function assertMembersInCampusScope(conversationCampusId: string | null, members: Array<{ role: string; campusId: string | null }>) {
+  if (members.some((member) => campusBoundChatRole(member.role) && member.campusId !== conversationCampusId)) {
+    throw new ApiError("Staff from different campuses cannot share a group. Create one group per campus.", 400);
+  }
+}
+
 /** SKAI-1938: the same campus rule as outsideScope, as a conversation filter (the unread badge counts only visible rooms). */
 export function visibleConversationWhere(user: AuthUser): Prisma.ConversationWhereInput {
   return { schoolId: user.schoolId, ...(campusBoundChatRole(user.role) ? { campusId: user.campusId } : {}) };

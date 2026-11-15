@@ -18,7 +18,7 @@ import type { AuthUser } from "@/lib/auth";
 import { ApiError, requireAuthUser } from "@/lib/api/scope";
 import { roleLabel, type UserRole } from "@/lib/roles";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
-import { conversationListInclude, deliverableUserIds, accessibleConversationList, currentMemberCount, groupCampusId, requireConversationAccess, requireMembership, visibleConversationWhere, type ConversationRow } from "./membership";
+import { conversationListInclude, deliverableUserIds, accessibleConversationList, currentMemberCount, groupCampusId, assertMembersInCampusScope, requireConversationAccess, requireMembership, visibleConversationWhere, type ConversationRow } from "./membership";
 import {
   canCreateAnnouncement,
   canCreateGroup,
@@ -501,6 +501,7 @@ export async function createGroupConversation(
 
   const peers = await assertReachable(user, [...memberIds], settings);
   const campusId = groupCampusId(user, peers);
+  if (input.kind !== "CLASS") assertMembersInCampusScope(campusId, peers);
 
   const created = await inTenant(user, async (tx) => {
     const conversation = await tx.conversation.create({
@@ -1065,7 +1066,8 @@ export async function addMembers(
 
   if (toAdd.length === 0) return getConversation(user, conversationId);
 
-  await assertReachable(user, toAdd, settings);
+  const peers = await assertReachable(user, toAdd, settings);
+  if (row.kind !== "CLASS") assertMembersInCampusScope(row.campusId, peers);
 
   const names = await prisma.user.findMany({
     where: { id: { in: toAdd } },
