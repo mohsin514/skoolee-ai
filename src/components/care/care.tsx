@@ -45,7 +45,7 @@ function writeCareTab(tab: string) {
 
 type Ui = ReturnType<typeof useUiText>;
 type Domain = "CLINIC" | "SAFEGUARDING";
-type Me = { canConfigure: boolean; canReport: boolean; canEmergency: Record<Domain, boolean>; CLINIC: { role: string; enabled: boolean } | null; SAFEGUARDING: { role: string; enabled: boolean } | null; grants: { id: string; domain: Domain; studentId: string; studentName: string; purpose: string; expiresAt: string }[] };
+type Me = { canConfigure: boolean; canReport: boolean; canReadSummaries?: boolean; canEmergency: Record<Domain, boolean>; CLINIC: { role: string; enabled: boolean } | null; SAFEGUARDING: { role: string; enabled: boolean } | null; grants: { id: string; domain: Domain; studentId: string; studentName: string; purpose: string; expiresAt: string }[] };
 type Student = { id: string; fullName: string; rollNo?: string | null; class?: { name: string; section: string | null } | null };
 
 class AccessError extends Error {}
@@ -642,7 +642,7 @@ export function CareDesk() {
   // anyone already holding a live grant so they can return to it (role-ux §6.3).
   const tabs = useMemo(() => !me ? [] : [
     { id: "report", label: "Record a concern" },
-    { id: "summary", label: "Care summaries" },
+    ...(me.canReadSummaries ? [{ id: "summary", label: "Care summaries" }] : []),
     ...(me.CLINIC ? [{ id: "clinic", label: "Clinic" }] : []),
     ...(me.SAFEGUARDING ? [{ id: "safeguarding", label: "Safeguarding" }] : []),
     ...(me.CLINIC?.role === "LEAD" || me.SAFEGUARDING?.role === "LEAD" ? [{ id: "oversight", label: "Access review" }] : []),

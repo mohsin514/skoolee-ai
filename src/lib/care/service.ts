@@ -5,6 +5,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, assertStaffRole, canManageAcademics, canManageCampusOps, isFamilyRole } from "@/lib/api/scope";
 import { guardianRelationshipAuthorityWhere } from "@/lib/parent/guardian-query";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
+import { teacherClassIds } from "@/lib/chat/policy";
 
 // SKO-439: confidential clinic and safeguarding workspaces.
 // - Two domains with separate memberships. Clinic membership never opens safeguarding records and the other
@@ -128,8 +129,11 @@ export async function workspaces(user: AuthUser) {
   const grants = isFamilyRole(user) ? [] : await prisma.emergencyAccess.findMany({ where: { schoolId: user.schoolId, userId: user.userId, revokedAt: null, expiresAt: { gt: new Date() } }, select: { id: true, domain: true, studentId: true, purpose: true, expiresAt: true } });
   const students = grants.length ? await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: grants.map(g => g.studentId) } }, select: { id: true, fullName: true } }) : [];
   out.grants = grants.map(g => ({ ...g, studentName: students.find(s => s.id === g.studentId)?.fullName ?? "" }));
+  out.canReadSummaries = summaryReader(user) || Boolean(out.CLINIC || out.SAFEGUARDING);
   return out;
 }
+/** SKAI-2185: care summaries reach teachers (of their own pupils), academic leaders and care members, not office roles. */
+const summaryReader = (user: AuthUser) => user.role === "TEACHER" || canManageAcademics(user);
 
 export async function findStudents(user: AuthUser, q: string) {
   assertStaffRole(user);
@@ -366,8 +370,10 @@ export async function recordDose(user: AuthUser, body: Record<string, unknown>) 
 /** General staff at the student's campus see the summary the clinic wrote for them — nothing else. */
 export async function careSummary(user: AuthUser, studentId: string) {
   assertStaffRole(user);
-  const student = await prisma.student.findFirst({ where: { id: studentId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true } });
+  const student = await prisma.student.findFirst({ where: { id: studentId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true, classId: true } });
   if (!student) throw new ApiError("Student not found", 404);
+  if (!summaryReader(user) && !(await membership(user, "CLINIC")) && !(await membership(user, "SAFEGUARDING"))) return deny(user, { domain: "CLINIC", recordType: "CARE_SUMMARY", studentId }, "Care summaries are shared with the pupil's teachers and care staff only.");
+  if (user.role === "TEACHER" && !(student.classId && (await teacherClassIds(user.userId)).includes(student.classId)) && !(await membership(user, "CLINIC"))) return deny(user, { domain: "CLINIC", recordType: "CARE_SUMMARY", studentId }, "Care summaries are shared with the pupil's teachers and care staff only.");
   const plan = await prisma.carePlan.findFirst({ where: { schoolId: user.schoolId, studentId }, select: { teacherSummary: true, updatedAt: true } });
   await log(user, { domain: "CLINIC", recordType: "CARE_SUMMARY", studentId, action: "VIEW" });
   return { summary: plan?.teacherSummary ?? null, updatedAt: plan?.teacherSummary ? plan.updatedAt : null };
