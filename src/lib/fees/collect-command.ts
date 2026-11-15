@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
+import { optionalPaymentText } from "@/lib/fees/payment-text";
 import { ApiError, resolveCampusId } from "@/lib/api/scope";
 import { recordPayment } from "@/lib/fees/payment";
 import { schoolToday } from "@/lib/datetime";
@@ -161,7 +162,7 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
   // response replays the original receipt; the same key with a different request is a conflict.
   const idempotencyKey = typeof body.idempotencyKey === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(body.idempotencyKey) ? body.idempotencyKey : null;
   if (!idempotencyKey) throw new ApiError("idempotencyKey is required for a manual collection", 400);
-  const referenceNumber = (body.referenceNumber ?? null) as string | null, note = (body.note ?? null) as string | null;
+  const referenceNumber = optionalPaymentText(body.referenceNumber, "referenceNumber", 200), note = optionalPaymentText(body.note, "note", 2000);
   const requestHash = createHash("sha256").update(JSON.stringify({ invoiceId: invoice.id, studentId: invoice.studentId, amount, fineAmount, discountAmount, paymentDate: paymentDate.toISOString().slice(0, 10), paymentMethod, referenceNumber, note })).digest("hex");
   const outcome = (payment: CollectPayment, credit: number, replayed: boolean): CollectOutcome => ({ invoice, payment, credit, replayed, campusId, amount });
   // Same-key retries are serialised below, so a replay is read inside the transaction that posts the payment.
