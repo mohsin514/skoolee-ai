@@ -93,10 +93,17 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
   const newCredit = amount - applied;
   await tx.paymentAllocation.create({ data: { schoolId: invoice.schoolId, campusId: invoice.campusId, paymentId: payment.id, invoiceId: invoice.id, amount: applied, credit: newCredit, currency: invoice.currency } });
 
-  const totalPaid = (await tx.paymentAllocation.aggregate({
+  const allocatedPaid = (await tx.paymentAllocation.aggregate({
     where: { invoiceId: input.invoiceId },
     _sum: { amount: true },
   }))._sum.amount ?? 0;
+  // SKAI-2091: a payment with no allocation row (seeded or imported outside recordPayment) still counts
+  // as paid; summing allocations alone forgot it and left a settled invoice PARTIAL.
+  const unallocatedPaid = (await tx.payment.aggregate({
+    where: { invoiceId: input.invoiceId, allocations: { none: {} } },
+    _sum: { amount: true },
+  }))._sum.amount ?? 0;
+  const totalPaid = allocatedPaid + unallocatedPaid;
 
   const newBalance = invoice.totalAmount - totalPaid;
   const newStatus = newBalance <= 0 ? "PAID" : totalPaid > 0 ? "PARTIAL" : "PENDING";
