@@ -39,3 +39,14 @@ test("errors are non-enumerating codes the page localizes in every language", ()
   }
   for (const key of ["reused: \"", "limited: \"", "notPending: \""]) assert.equal(page.split(key).length - 1, 3, key);
 });
+
+test("SKAI-2008: the account work runs unscoped, so a campus-less admin is not refused", () => {
+  assert.match(route, /import \{ enterUnscoped \} from "@\/lib\/db\/tenant-context"/);
+  const unscoped = route.indexOf("enterUnscoped(");
+  assert.ok(unscoped > route.indexOf("const auth = await getAuthUser()"), "only after the caller is authenticated");
+  assert.ok(unscoped > route.indexOf("authRateLimit(`first-password:"), "only after the per-account limit");
+  assert.ok(unscoped < route.indexOf("prisma.user.findUnique("), "before the first account read");
+  // Every write stays keyed by the caller's own id.
+  assert.match(route, /findUnique\(\{\s*where: \{ id: auth\.userId \}/);
+  assert.match(route, /updateMany\(\{\s*where: \{ id: user\.id, mustChangePassword: true/);
+});

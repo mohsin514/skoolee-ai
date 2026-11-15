@@ -27,6 +27,7 @@ import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 import { authRateLimit } from "@/lib/auth/rate-limit";
 import { resetPasswordProblem } from "@/lib/auth/reset-password-policy";
+import { enterUnscoped } from "@/lib/db/tenant-context";
 
 /** SKAI-87: stable codes the first-login page localizes; `error` stays as an English fallback. */
 const fail = (code: string, error: string, status: number) => Response.json({ error, code }, { status });
@@ -49,6 +50,10 @@ export async function PUT(req: NextRequest) {
       return fail("limited", "Wait five minutes before trying again", 429);
     }
 
+    // SKAI-2008: a self-service change on the caller's own account, keyed by their id from
+    // here on (as password reset is). The campus guard would refuse a school-wide account
+    // with no campus (ADMIN, SUPER_ADMIN), locking every such invited user out of first login.
+    enterUnscoped("first-login: own password change, keyed by the signed-in user's id");
     const user = await prisma.user.findUnique({
       where: { id: auth.userId },
       include: { school: true },
