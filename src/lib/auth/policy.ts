@@ -38,12 +38,18 @@ export function studentScope(user: AuthUser, permission: "learningRecords" | "at
   }
   return { ...campusScope(user),
     ...(user.role === "STUDENT" ? { studentUserId: user.userId } : {}),
+    ...(user.role === "TEACHER" ? { AND: [{ class: teacherClassWhere(user.userId) }] } : {}),
   };
 }
 
+/** SKAI-2012: a TEACHER reaches only pupils in classes they lead or teach a subject in. */
+export const teacherClassWhere = (userId: string): Prisma.ClassWhereInput => ({
+  OR: [{ classTeacherId: userId }, { subjects: { some: { teacherId: userId } } }],
+});
+
 /** SKAI-1497: a TEACHER reaches only reports for classes they lead or teach a subject in. */
 export const teacherReportClassWhere = (userId: string): Prisma.ReportCardWhereInput => ({
-  exam: { class: { OR: [{ classTeacherId: userId }, { subjects: { some: { teacherId: userId } } }] } },
+  exam: { class: teacherClassWhere(userId) },
 });
 
 export function reportScope(user: AuthUser): Prisma.ReportCardWhereInput {
