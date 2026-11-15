@@ -159,6 +159,11 @@ function summary(r: Req, names: Map<string, string>, now: Date) {
 const MINE_PAGE = 50;
 // SKAI-1702: keyset pages (newest first, id tiebreak). The cursor only positions the page; the requester/watcher
 // and school filter applies to every page, so a cursor from someone else's request reveals nothing.
+// SKAI-2119: campus staff with no campus yet get one clear answer the desk shows as a calm state (nothing to retry).
+export const NO_CAMPUS = "No campus assigned yet";
+export function assertHasCampus(user: AuthUser) {
+  if (isStaff(user) && !["SUPER_ADMIN", "APP_OWNER"].includes(user.role) && !user.campusId) throw new ApiError(NO_CAMPUS, 403);
+}
 export async function myRequests(user: AuthUser, cursor?: string | null) {
   if (!isStaff(user)) throw new ApiError("The service desk is for staff.", 403);
   const found = await prisma.serviceRequest.findMany({ where: { schoolId: user.schoolId, OR: [{ requesterId: user.userId }, { watcherIds: { has: user.userId } }] }, include: { category: true }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: MINE_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
