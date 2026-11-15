@@ -2,7 +2,7 @@ import { validateStoredExamSchedules } from "@/lib/academic/exam-bookings";
 import { withSchedulingResourceWrite, resourceScope } from "@/lib/academic/resource-write";
 import { NextRequest } from "next/server";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageCampusOps, errorResponse, requestedCampusId, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, assertStaffRole, canManageCampusOps, errorResponse, requestedCampusId, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 import { classPeriodEditDecision, findPeriodOverlap, periodImpactMessage, periodInputProblem, type PeriodTimetableImpact } from "@/lib/academic/period-rules";
@@ -30,6 +30,7 @@ async function classPeriodImpact(tx: TxClient, schoolId: string, campusId: strin
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    assertStaffRole(user); // SKAI-2063: campus structure is staff data
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
     const timeType = searchParams.get("timeType") === "EXAM" ? "EXAM" : "CLASS";
