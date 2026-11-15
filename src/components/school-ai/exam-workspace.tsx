@@ -14,14 +14,15 @@ import { examCopy } from "./exam-copy";
 
 type Exam = { id: string; title: string; startsAt: string; endsAt: string; status: string; _count?: { attempts: number } };
 type RecordSummary = { id: string; kind: string; title: string; status: string };
-export function ExamWorkspace({ locale, records, student = false, canCreate = true, headingLevel = 2 }: { locale: AssessmentLocale; records?: RecordSummary[]; student?: boolean; canCreate?: boolean; headingLevel?: 1 | 2 }) {
+export function ExamWorkspace({ locale, records, student = false, canCreate = true, canManageSecure = false, headingLevel = 2 }: { locale: AssessmentLocale; records?: RecordSummary[]; student?: boolean; canCreate?: boolean; canManageSecure?: boolean; headingLevel?: 1 | 2 }) {
   const t = examCopy(locale), secure = secureBrowserCopy(locale);
   const Heading = headingLevel === 1 ? "h1" : "h2";
   const [exams, setExams] = useState<Exam[]>([]);
   // SKO-449: approved Safe Exam Browser profiles; teachers without coordinator rights simply see none.
   const [secureProfiles, setSecureProfiles] = useState<Array<{ id: string; profileKey: string; name: string; version: number; status: string }>>([]);
   const [secureProfileId, setSecureProfileId] = useState("");
-  useEffect(() => { if (student) return; fetch("/api/school-ai/secure-profiles", { cache: "no-store" }).then(response => response.ok ? response.json() : { profiles: [] }).then(data => setSecureProfiles((data.profiles ?? []).filter((row: { status: string }) => row.status === "APPROVED"))).catch(() => setSecureProfiles([])); }, [student]);
+  // SKAI-2082: only exam coordinators may read the profiles; a teacher no longer fires a 403 on every load.
+  useEffect(() => { if (student || !canManageSecure) return; fetch("/api/school-ai/secure-profiles", { cache: "no-store" }).then(response => response.ok ? response.json() : { profiles: [] }).then(data => setSecureProfiles((data.profiles ?? []).filter((row: { status: string }) => row.status === "APPROVED"))).catch(() => setSecureProfiles([])); }, [student, canManageSecure]);
   const [availableRecords, setAvailableRecords] = useState<RecordSummary[]>(records ?? []);
   const [allowedCreate, setAllowedCreate] = useState(Boolean(records) && canCreate);
   const [loading, setLoading] = useState(true);
