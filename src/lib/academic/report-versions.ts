@@ -592,9 +592,12 @@ export async function publishExam(
         !v.correctionReason
       )
         throw new ReportConflict("Enter a family-facing correction reason.");
+      // SKAI-2138: only a version this publish releases is held to the reason typed now; corrections
+      // published in an earlier round keep their own reason.
       if (
         correctionReason?.trim() &&
         v.predecessorId &&
+        !v.publishedAt &&
         correctionReason.trim() !== v.correctionReason
       )
         throw new ReportConflict(
