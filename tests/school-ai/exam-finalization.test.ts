@@ -10,7 +10,7 @@ const { paper } = assessmentFixture();
 /** Emulate an atomic conditional row update, including a competing write after the caller's read. */
 function fixture() {
   const row: Record<string, unknown> = { id: "attempt-1", schoolId: "school-1", status: "IN_PROGRESS", sequence: 3, deadlineAt: new Date(now.getTime() - 1000), pausedAt: null, responses: { q1: "a1", q3: "Combine quantities." }, scoreProposal: null };
-  const snapshot = { id: "attempt-1", schoolId: "school-1", sequence: 3, responses: { q1: "a1", q3: "Combine quantities." } };
+  const snapshot = { id: "attempt-1", schoolId: "school-1", sequence: 3, deadlineAt: new Date(now.getTime() - 1000), responses: { q1: "a1", q3: "Combine quantities." } };
   const scalar = (value: unknown) => value instanceof Date ? value.getTime() : value;
   const db = { schoolAiExamAttempt: { updateMany: async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
     const matched = Object.entries(where).every(([key, condition]) => {
@@ -30,7 +30,7 @@ test("automatic finalization scores persisted answers exactly once when still ex
   const { db, row, snapshot } = fixture();
   assert.equal((await finalizeExpiredAttempt(db, snapshot, paper, now)).count, 1);
   assert.equal(row.status, "SUBMITTED");
-  assert.deepEqual(row.submittedAt, now);
+  assert.deepEqual(row.submittedAt, snapshot.deadlineAt, "submittedAt is the deadline, not the read time");
   assert.deepEqual(row.responses, snapshot.responses);
   assert.equal((row.scoreProposal as { totalObjectiveMarks: number }).totalObjectiveMarks, 2);
   assert.equal((await finalizeExpiredAttempt(db, snapshot, paper, now)).count, 0);
