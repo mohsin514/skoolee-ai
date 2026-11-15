@@ -178,7 +178,7 @@ export async function approve(user: AuthUser, id: string, reason?: string | null
   const run = await prisma.taxFixtureRun.findFirst({ where: { activationId: a.id }, orderBy: { createdAt: "desc" } });
   const missing = blockers(a, run);
   if (missing.length) throw new ApiError(`This package has unresolved validation requirements: ${missing.join(" ")}`, 409);
-  const done = await prisma.taxActivation.updateMany({ where: { id: a.id, status: "DRAFT", configHash: a.configHash }, data: { status: "SCHEDULED", approvedById: user.userId, approvedAt: new Date() } });
+  const done = await prisma.taxActivation.updateMany({ where: { id: a.id, status: "DRAFT", configHash: a.configHash }, data: { status: "SCHEDULED", approvedById: user.userId, approvedAt: new Date(), selfApprovalReason: self?.reason ?? null } });
   if (!done.count) throw new ApiError("The draft changed while you were reviewing it. Review it again.", 409);
   await prisma.auditLog.create({ data: { schoolId: user.schoolId, tableName: "tax_activations", recordId: a.id, userId: user.userId, oldValue: { status: "DRAFT" }, newValue: { status: "SCHEDULED", preparedById: a.preparedById, configHash: a.configHash, ...(self ?? {}) } } });
   // The approver is the institution authority, so an SD3 sign-off needs no authority notice (role-ux §2.5).
