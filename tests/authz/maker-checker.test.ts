@@ -251,6 +251,22 @@ test("SD3: a campus admin alone on a group campus decides their own refund reque
   assert.deepEqual({ selfApproved: (audit.newValue as Row).selfApproved, reason: (audit.newValue as Row).reason }, { selfApproved: true, reason: "No other campus admin is appointed yet." });
 });
 
+test("SKAI-2128: the campus admin holds the finance desk only while the campus has no active accountant", async () => {
+  const admin = actor("ca-1", "CAMPUS_ADMIN", { institutionKind: "GROUP" });
+  const request = { kind: "WAIVER" as const, invoiceId: INVOICE.id, amount: 100, reasonCategory: "HARDSHIP", reason: "Hardship case", publicExplanation: "Waiver granted", idempotencyKey: "idem-2128-abc" };
+  db.users.push(staff("ca-1", "CAMPUS_ADMIN"), staff("ac-1", "ACCOUNTANT"));
+  assert.equal(await adjustments.holdsFinanceDesk(admin, CAMPUS), false);
+  assert.equal(await adjustments.holdsFinanceDesk(actor("ac-1", "ACCOUNTANT"), CAMPUS), true);
+  assert.equal(await refusal(() => adjustments.requestAdjustment(admin, request)), 403, "admin cannot request with an accountant seated");
+  assert.equal(db.adjustments.length, 0);
+  db.adjustments.push({ ...waiver("ac-1"), kind: "REFUND", status: "APPROVED" });
+  assert.equal(await refusal(() => adjustments.recordDisbursement(admin, "adj-1", "confirmed", "CASH-REF-1")), 403, "admin cannot pay out with an accountant seated");
+  assert.equal(db.adjustments[0].status, "APPROVED");
+  db.users.length = 0;
+  db.users.push(staff("ca-1", "CAMPUS_ADMIN"), staff("ac-gone", "ACCOUNTANT", CAMPUS, false));
+  assert.equal(await adjustments.holdsFinanceDesk(admin, CAMPUS), true, "an inactive accountant does not hold the seat");
+});
+
 test("SD3: the sole single-school admin decides their own request with a reason, recorded as self-approved", async () => {
   db.users.push(staff("so-1", "ADMIN"), staff("ac-1", "ACCOUNTANT"));
   db.adjustments.push(waiver("so-1"));
