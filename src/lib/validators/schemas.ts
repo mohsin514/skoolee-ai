@@ -107,6 +107,27 @@ const optionalEmail = z.preprocess(
   z.string().email().optional().nullable()
 ).optional();
 
+/** SKAI-2026: server-side limits so API calls cannot bypass the admission wizard's checks. */
+export const STUDENT_NAME_MAX_LENGTH = 150;
+const STUDENT_MIN_AGE_YEARS = 3;
+const PHONE_PATTERN = /^[+(]?[0-9][0-9\s\-().]*$/;
+
+export function isValidStudentPhone(value: string): boolean {
+  const digits = value.replace(/\D/g, "").length;
+  return PHONE_PATTERN.test(value) && digits >= 7 && digits <= 15;
+}
+
+/** Returns an error message for a date of birth that is unreadable, in the future or under the minimum age. */
+export function studentDateOfBirthError(value: string, now = new Date()): string | null {
+  const time = Date.parse(value);
+  if (!/^\d{4}-\d{2}-\d{2}/.test(value) || !Number.isFinite(time)) return "Date of birth must be a valid date";
+  if (time > now.getTime()) return "Date of birth cannot be in the future";
+  const cutoff = new Date(now);
+  cutoff.setFullYear(cutoff.getFullYear() - STUDENT_MIN_AGE_YEARS);
+  if (time > cutoff.getTime()) return `Student must be at least ${STUDENT_MIN_AGE_YEARS} years old`;
+  return null;
+}
+
 export const studentSchema = z.object({
   fullName: optionalText,
   firstName: optionalText,
@@ -152,6 +173,27 @@ export const studentSchema = z.object({
       path: ["fullName"],
       message: "Student name is required",
     });
+  }
+
+  if (fullName.length > STUDENT_NAME_MAX_LENGTH) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["fullName"],
+      message: `Student name must be at most ${STUDENT_NAME_MAX_LENGTH} characters`,
+    });
+  }
+
+  if (data.guardianPhone.trim() && !isValidStudentPhone(data.guardianPhone.trim())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["guardianPhone"],
+      message: "Enter a valid guardian phone number",
+    });
+  }
+
+  if (data.dateOfBirth) {
+    const dobError = studentDateOfBirthError(data.dateOfBirth);
+    if (dobError) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["dateOfBirth"], message: dobError });
   }
 
   if (!rollNo) {
