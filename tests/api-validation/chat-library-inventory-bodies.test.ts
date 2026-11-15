@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import { errorResponse } from "../../src/lib/api/scope";
 import { parseBody, readJsonBody } from "../../src/lib/api/validate";
 import { jsonObjectBody, requiredIdBody } from "../../src/lib/validators/route-bodies";
+import { parseWith } from "../../src/lib/api/validate";
+import { bookPatchSchema, bookSchema } from "../../src/lib/validators/operations";
 
 // Batch of SKAI-1161: chat, library and inventory write routes.
 const ADOPTED_ROUTES = [
@@ -54,4 +56,31 @@ test("chat, library and inventory write routes read bodies through the shared he
     assert.doesNotMatch(source, /await (req|request)\.json\(\)(?!\.catch)/, file);
     assert.match(source, /(parseBody|readJsonBody)\(/, file);
   }
+});
+
+// SKAI-2153: the books API validates server-side, not only in the form.
+const rejected = (schema: Parameters<typeof parseWith>[0], value: unknown) => {
+  try { parseWith(schema, value); return null; } catch (error) { const r = errorResponse(error); return r.status; }
+};
+
+test("book create rejects a bad ISBN, an oversized title, fractional or huge copies and non-string titles with 400", () => {
+  assert.equal(rejected(bookSchema, { title: "t", isbn: "abc-not-an-isbn!!", copiesTotal: 2 }), 400);
+  assert.equal(rejected(bookSchema, { title: "x".repeat(5021), copiesTotal: 1 }), 400);
+  assert.equal(rejected(bookSchema, { title: "t", copiesTotal: 1.5 }), 400);
+  assert.equal(rejected(bookSchema, { title: "t", copiesTotal: 3_000_000_000 }), 400);
+  assert.equal(rejected(bookSchema, { title: "t", author: "a".repeat(3000), copiesTotal: 1 }), 400);
+  assert.equal(rejected(bookSchema, { title: { a: 1 }, copiesTotal: 1 }), 400);
+  assert.equal(rejected(bookSchema, { title: "   ", copiesTotal: 1 }), 400);
+  assert.deepEqual(parseWith(bookSchema, { title: "Dune", isbn: "978-0-306-40615-7", copiesTotal: "3" }), { title: "Dune", isbn: "9780306406157", copiesTotal: 3 });
+});
+
+test("book patch rejects a blank or non-string title and out-of-range copies, keeps clears and partial updates", () => {
+  assert.equal(rejected(bookPatchSchema, { id: "b1", title: "" }), 400);
+  assert.equal(rejected(bookPatchSchema, { id: "b1", title: 12345 }), 400);
+  assert.equal(rejected(bookPatchSchema, { id: "b1", isbn: "12345" }), 400);
+  assert.equal(rejected(bookPatchSchema, { id: "b1", copiesTotal: 99_999_999_999 }), 400);
+  assert.equal(rejected(bookPatchSchema, { title: "no id" }), 400);
+  assert.deepEqual(parseWith(bookPatchSchema, { id: "b1", copiesTotal: 4 }), { id: "b1", copiesTotal: 4 });
+  const cleared = parseWith(bookPatchSchema, { id: "b1", author: "", categoryId: "", isbn: null });
+  assert.deepEqual(cleared, { id: "b1", author: null, categoryId: null, isbn: null });
 });

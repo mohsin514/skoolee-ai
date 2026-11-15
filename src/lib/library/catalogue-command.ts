@@ -3,6 +3,8 @@ import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { prisma } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, assertPermission, canManageLibrary, resolveCampusId } from "@/lib/api/scope";
+import { parseWith } from "@/lib/api/validate";
+import { bookPatchSchema, bookSchema } from "@/lib/validators/operations";
 
 /**
  * Catalogue writes extracted from the library routes (categories POST, books POST/PATCH, members POST) so
@@ -36,13 +38,10 @@ export async function createCategory(user: AuthUser, body: Body) {
 export async function createBook(user: AuthUser, body: Body) {
   await assertLibrary(user, "add");
   const campusId = await resolveCampusId(user, body.campusId as string | null | undefined);
-  const { title, author, isbn, subject, categoryId } = body as Record<string, string | undefined>;
-  const copiesTotal = Number(body.copiesTotal);
-
-  if (!title) throw new ApiError("title is required", 400);
-  if (!Number.isFinite(copiesTotal) || copiesTotal < 0) {
-    throw new ApiError("copiesTotal must be a non-negative number", 400);
-  }
+  // SKAI-2153: the route and the AI workflow adapter both reach the database through here, so the schema runs here.
+  const { title, author, isbn, subject, categoryId, copiesTotal } = parseWith(bookSchema, {
+    title: body.title, author: body.author, isbn: body.isbn, subject: body.subject, categoryId: body.categoryId, copiesTotal: body.copiesTotal,
+  });
 
   return prisma.book.create({
     data: {
@@ -61,8 +60,9 @@ export async function createBook(user: AuthUser, body: Body) {
 /** PATCH /api/library/books. */
 export async function updateBook(user: AuthUser, body: Body) {
   await assertLibrary(user, "edit");
-  const { id, title, author, isbn, subject, categoryId } = body as Record<string, string | undefined>;
-  if (!id) throw new ApiError("id is required", 400);
+  const { id, title, author, isbn, subject, categoryId, copiesTotal: requestedTotal } = parseWith(bookPatchSchema, {
+    id: body.id, title: body.title, author: body.author, isbn: body.isbn, subject: body.subject, categoryId: body.categoryId, copiesTotal: body.copiesTotal,
+  });
 
   const existing = await prisma.book.findFirst({
     where: { id, campus: { schoolId: user.schoolId } },
@@ -71,11 +71,8 @@ export async function updateBook(user: AuthUser, body: Body) {
 
   let copiesAvailable = existing.copiesAvailable;
   let copiesTotal = existing.copiesTotal;
-  if (body.copiesTotal !== undefined) {
-    const newTotal = Number(body.copiesTotal);
-    if (!Number.isFinite(newTotal) || newTotal < 0) {
-      throw new ApiError("copiesTotal must be a non-negative number", 400);
-    }
+  if (requestedTotal !== undefined) {
+    const newTotal = requestedTotal;
     // SKAI-1560: stock cannot drop below the copies that physically exist here: those out on loan,
     // and the barcoded copies still in stock. Otherwise a return later pushes available above total.
     const onLoan = Math.max(0, existing.copiesTotal - existing.copiesAvailable);
