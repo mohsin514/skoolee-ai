@@ -65,7 +65,7 @@ export function KnowledgeLibrary({ canManage, role, campusId }: { canManage: boo
     await refresh();
   });
   const dirty = !selected || selected.title !== title || selected.content !== content || JSON.stringify(selected.roles) !== JSON.stringify(audience) || (selected.expiresAt?.slice(0, 10) ?? "") !== expiry;
-  return <main className="mx-auto w-full min-w-0 max-w-7xl space-y-6 p-1 pb-20 sm:p-4">
+  return <div className="mx-auto w-full min-w-0 max-w-7xl space-y-6 p-1 pb-20 sm:p-4">
     <PageHeader icon={BookOpen} eyebrow={ui("Skoolee knowledge")} title={ui("Knowledge library")} description={ui("Published guides and policies give Ask Skoolee evidence it can cite. Access follows your school, campus and role.")}
       secondaryActions={[{ id: "back-to-ask", label: ui("Back to Ask Skoolee"), href: "/ai", icon: ArrowLeft }]} />
     {error ? <Alert tone="danger" onDismiss={() => setError("")}>{ui(error)}</Alert> : null}
@@ -100,5 +100,5 @@ export function KnowledgeLibrary({ canManage, role, campusId }: { canManage: boo
         {selected && !dirty ? <div className="space-y-3 border-t pt-4"><label className="flex items-start gap-2 text-sm"><Checkbox checked={reviewed} disabled={busy} onChange={event => setReviewed(event.target.checked)} />{ui("I reviewed this text and audience. These users may receive and cite it in AI answers.")}</label><Button disabled={busy || !reviewed} onClick={() => void act("publish")}>{ui(busy ? "Working…" : selected.status === "PUBLISHED" ? "Rebuild search index" : "Publish reviewed document")}</Button></div> : null}
       </section> : <section className="self-start rounded-2xl border border-dashed bg-card"><EmptyState icon={ShieldCheck} title={ui("Evidence before answers")} description={ui("Only current published documents are searchable. Drafts, archived sources, expired versions and other schools’ documents are excluded.")} action={canManage ? <Button variant="outline" disabled={busy} onClick={startNew}><Plus aria-hidden="true" />{ui("New")}</Button> : undefined} /></section>}
     </div>
-  </main>;
+  </div>;
 }
