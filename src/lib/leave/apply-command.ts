@@ -53,7 +53,10 @@ export async function applyLeave(user: AuthUser, body: Record<string, unknown>) 
 
   // Overlapping-request guard: any non-terminal request for the same user
   // whose date range intersects this one is a conflict.
-  const days = body.days !== undefined ? explicitDaysToTenths(body.days) : rangeTenths(start, end);
+  // SKAI-2263: the dates decide the duration. A caller may send days only to ask for part of a single day.
+  const range = rangeTenths(start, end);
+  const days = body.days === undefined ? range : explicitDaysToTenths(body.days);
+  if (days !== range && (range !== 10 || days > 10)) throw new ApiError("days must match the dates; only a single day can be shortened (for example to a half day).", 400);
 
   // SKAI-1408: the overlap check and the insert run under a per-person lock, so two tabs cannot both pass the check.
   const request = await prisma.$transaction(async (tx) => {

@@ -114,10 +114,20 @@ test("an application larger than the remaining entitlement is refused with 409 a
   await raw.user.create({ data: { id: user.userId, schoolId: user.schoolId, campusId: user.campusId, email: user.email, role: user.role, fullName: user.fullName!, onboardingComplete: true } });
   await raw.leaveAllocation.create({ data: { schoolId: schoolA, campusId: campusA, leaveTypeId: typeA, userId: user.userId, days: 10, academicYear: 2027 } });
   await assert.rejects(
-    as(user, () => applyLeave(user, body(typeA, "2027-04-01", "2027-04-01", { days: 500 }))),
+    as(user, () => applyLeave(user, body(typeA, "2027-04-01", "2027-04-20"))),
     (error: { status?: number }) => error.status === 409
   );
   assert.equal(await requestsFor(user.userId), 0);
+});
+// SKAI-2263: a caller-supplied days cannot shrink a long range; only a single day may be shortened.
+test("days must match the dates except for part of a single day", async () => {
+  const user = { ...teacher, userId: randomUUID(), email: `${randomUUID()}@example.invalid` };
+  await raw.user.create({ data: { id: user.userId, schoolId: user.schoolId, campusId: user.campusId, email: user.email, role: user.role, fullName: user.fullName!, onboardingComplete: true } });
+  await raw.leaveAllocation.create({ data: { schoolId: schoolA, campusId: campusA, leaveTypeId: typeA, userId: user.userId, days: 10, academicYear: 2027 } });
+  await assert.rejects(as(user, () => applyLeave(user, body(typeA, "2027-05-05", "2027-05-30", { days: 1 }))), (error: { status?: number }) => error.status === 400);
+  await assert.rejects(as(user, () => applyLeave(user, body(typeA, "2027-05-05", "2027-05-05", { days: 2 }))), (error: { status?: number }) => error.status === 400);
+  const half = await as(user, () => applyLeave(user, body(typeA, "2027-05-06", "2027-05-06", { days: 0.5 })));
+  assert.equal(half.days, 5);
 });
 
 test("an application within the remaining entitlement succeeds, and a second one beyond it is refused", async () => {
