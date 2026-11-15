@@ -386,9 +386,12 @@ const TRANSITIONS: Record<string, { from: string[]; to: string }> = {
   withdraw: { from: ["DRAFT", "SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "OFFERED", "WAITLISTED", "ACCEPTED"], to: "WITHDRAWN" },
 };
 
+/** Who may own an application: the front desk and the campus admins of this campus (role-ux §2.2 #50); never the principal or the group admin. */
+export const APPLICATION_OWNER_ROLES = ["CAMPUS_ADMIN", "ADMIN", "RECEPTIONIST"] as const;
+export const applicationOwnerWhere = (schoolId: string, campusId: string) => ({ schoolId, campusId, isActive: true, role: { in: [...APPLICATION_OWNER_ROLES] } });
+
 async function validOwner(db: TxClient, user: AuthUser, campusId: string, ownerId: string) {
-  // The front desk and the campus admins own applications (role-ux §2.2 #50); never the principal or the group admin.
-  const owner = await db.user.findFirst({ where: { id: ownerId, schoolId: user.schoolId, isActive: true, role: { in: ["CAMPUS_ADMIN", "ADMIN", "RECEPTIONIST"] }, campusId }, select: { id: true } });
+  const owner = await db.user.findFirst({ where: { id: ownerId, ...applicationOwnerWhere(user.schoolId, campusId) } as never, select: { id: true } });
   if (!owner) throw new ApiError("Choose an active front-desk colleague or campus admin in this campus as the owner.", 400);
 }
 
