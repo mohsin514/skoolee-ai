@@ -100,7 +100,8 @@ import { FeeOverviewTab } from "@/components/fees/FeeOverviewTab";
 import { addCampus } from "@/app/actions/addCampus";
 import { phoneProblem } from "@/lib/school/details";
 import { getSchoolCountry } from "@/app/actions/school-boards";
-import { cancelInvitation, inviteStaff, removeStaff, resendInvitation } from "@/app/actions/invite";
+import { cancelInvitationResult, inviteStaffResult, removeStaffResult, resendInvitationResult } from "@/app/actions/invite";
+import { unwrapActionResult } from "@/lib/staff/action-result";
 import { getPlanLimits } from "@/config/plans";
 import { cn } from "@/lib/utils";
 import { useSuperAdminData } from "./super-data-context";
@@ -166,16 +167,16 @@ export default function SuperAdminDashboard() {
     title: role === "CAMPUS_ADMIN" ? t("Revoke campus admin access?") : t("Revoke principal access?"),
     description: t("They lose access to {0} straight away and are signed out. The seat becomes vacant until you appoint someone.", [campusName]),
     confirmLabel: t("Revoke access"),
-    run: async () => { await removeStaff(userId); toast.success(t("Access revoked")); await refetch(); },
+    run: async () => { unwrapActionResult(await removeStaffResult(userId)); toast.success(t("Access revoked")); await refetch(); },
   });
   const cancelInvite = (inviteId: string) => setConfirm({
     title: t("Cancel invitation?"),
     description: t("The invited person will no longer be able to use this invitation link."),
     confirmLabel: t("Cancel invitation"),
-    run: async () => { await cancelInvitation(inviteId); toast.success(t("Invitation cancelled")); await refetch(); },
+    run: async () => { unwrapActionResult(await cancelInvitationResult(inviteId)); toast.success(t("Invitation cancelled")); await refetch(); },
   });
   const resendInvite = async (inviteId: string) => {
-    try { await resendInvitation(inviteId); toast.success(t("Invitation sent again.")); await refetch(); }
+    try { unwrapActionResult(await resendInvitationResult(inviteId)); toast.success(t("Invitation sent again.")); await refetch(); }
     catch (error) { toast.error(friendlyErrorMessage(error, t("The invitation could not be resent. Please try again."))); }
   };
 
@@ -947,7 +948,7 @@ function AppointLeaderModal({ campuses, initial, onClose, onSent }: {
     if (!campusId) return;
     setBusy(true); setError(null);
     try {
-      const result = await inviteStaff({ email: email.trim(), role, campusId, canManageMemberships: role === "CAMPUS_ADMIN" && manage && mfa }, { returnDeliveryStatus: true });
+      const result = unwrapActionResult(await inviteStaffResult({ email: email.trim(), role, campusId, canManageMemberships: role === "CAMPUS_ADMIN" && manage && mfa }, { returnDeliveryStatus: true }));
       toast.success(t("Invitation saved"));
       setLink(result.inviteLink || "");
       setDeliveryFailed(result.deliveryStatus === "failed");

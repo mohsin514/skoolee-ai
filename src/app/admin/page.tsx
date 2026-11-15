@@ -70,7 +70,8 @@ import { apiErrorMessage } from "@/lib/errors";
 import { downloadCSV } from "@/lib/csv";
 import { getCampusDashboardData } from "@/app/actions/dashboard";
 import { createLatestOnlyLoader, mergeStudentEdit, mergeSubjectEdit, mergeTeacherEdit } from "@/lib/dashboard/console-data-merge";
-import { cancelInvitation, removeStaff, resendInvitation } from "@/app/actions/invite";
+import { cancelInvitationResult, removeStaffResult, resendInvitationResult } from "@/app/actions/invite";
+import { unwrapActionResult } from "@/lib/staff/action-result";
 import { RoleShell } from "@/components/role-dashboard";
 import { CommandCentreSkeleton, PAGE_CARD_BODY, PageSkeleton, RoleShellSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
 import { useConsoleView, WORKSPACE_VIEW_CHANGE } from "@/components/nav/useConsoleView";
@@ -270,7 +271,7 @@ function replaceConsoleView(view: string, tab?: string | null) {
  * server action ignores the extra argument; the reason is still asked for, because revoking access is a
  * membership decision (R3, §4.5.5).
  */
-const revokeStaff = removeStaff as (userId: string, reason?: string) => ReturnType<typeof removeStaff>;
+const revokeStaff = removeStaffResult as (userId: string, reason?: string) => ReturnType<typeof removeStaffResult>;
 
 /**
  * Staff rows hand over either a readable label ("Admin", "Teacher") or the raw role ("ACCOUNTANT"); the
@@ -717,7 +718,7 @@ export default function CampusConsolePage() {
       cancelLabel: ui("Keep access"),
       requireReason: { label: ui("Why are you revoking access?"), minLength: 10 },
       run: async (reason) => {
-        await revokeStaff(userId, reason);
+        unwrapActionResult(await revokeStaff(userId, reason));
         toast.success(ui("{0} access revoked", [roleLabel]));
         await loadData();
       },
@@ -726,7 +727,7 @@ export default function CampusConsolePage() {
 
   const handleResendInvite = async (inviteId: string) => {
     try {
-      await resendInvitation(inviteId);
+      unwrapActionResult(await resendInvitationResult(inviteId));
       toast.success(ui("Invitation resent"));
       await loadData();
     } catch (error) {
@@ -741,7 +742,7 @@ export default function CampusConsolePage() {
       confirmLabel: ui("Cancel invitation"),
       cancelLabel: ui("Keep invitation"),
       run: async () => {
-        await cancelInvitation(inviteId);
+        unwrapActionResult(await cancelInvitationResult(inviteId));
         toast.success(ui("Invitation cancelled"));
         await loadData();
       },

@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Download, ShieldAlert, UserPlus, Users } from "lucide-react";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
-import { inviteStaff } from "@/app/actions/invite";
+import { inviteStaffResult } from "@/app/actions/invite";
+import { unwrapActionResult } from "@/lib/staff/action-result";
 import { INVITABLE_ROLES, membershipPreview, type InvitableRole } from "@/lib/membership-access";
 import { roleLabelFor, type UserRole } from "@/lib/roles";
 import type { InstitutionKind } from "@/lib/auth/institution";
@@ -141,7 +142,7 @@ export function MembershipsPanel({ exportRequest }: { exportRequest?: number } =
   const invite = async () => {
     setBusy(true);
     try {
-      await inviteStaff({ email: draft.email.trim(), role: draft.role as InvitableRole, campusId: draft.campusId, canPurchaseSubscription: false, canManageMemberships: draft.manage && mfaReady });
+      unwrapActionResult(await inviteStaffResult({ email: draft.email.trim(), role: draft.role as InvitableRole, campusId: draft.campusId, canPurchaseSubscription: false, canManageMemberships: draft.manage && mfaReady }));
       toast.success(t("Invitation sent to {0}.", [draft.email.trim()]));
       close();
       await load();

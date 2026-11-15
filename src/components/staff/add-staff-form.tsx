@@ -16,7 +16,8 @@ import {
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { Alert } from "@/components/ui/alert";
-import { inviteStaff } from "@/app/actions/invite";
+import { inviteStaffResult } from "@/app/actions/invite";
+import { unwrapActionResult } from "@/lib/staff/action-result";
 import { EMPLOYMENT_TYPE_LABELS } from "@/lib/staff/hierarchy-presets";
 import {
   PositionFields,
@@ -137,7 +138,7 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
 
     setIsSubmitting(true);
     try {
-      await inviteStaff({
+      unwrapActionResult(await inviteStaffResult({
         email: form.email.trim().toLowerCase(),
         fullName: form.fullName.trim(),
         role,
@@ -163,7 +164,7 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
             | undefined,
           employeeCode: position.employeeCode.trim() || undefined,
         },
-      });
+      }));
       toast.success(ui("Invitation sent to {0}", [form.email.trim().toLowerCase()]));
       onSuccess();
     } catch (error) {
