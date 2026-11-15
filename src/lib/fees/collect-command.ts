@@ -125,8 +125,10 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
   const amount = minorUnits(body.amount, "amount");
   if (amount <= 0) throw new ApiError("amount must be a positive integer (paisa)", 400);
 
-  const paymentDate = calendarDate(body.paymentDate ?? new Date().toISOString().split("T")[0]);
-  if (!paymentDate) throw new ApiError("paymentDate must be a real calendar date (YYYY-MM-DD)", 400);
+  // SKAI-2069: an omitted paymentDate defaults to today in the school timezone (resolved below), not the UTC date.
+  const explicitDate = body.paymentDate !== undefined && body.paymentDate !== null;
+  const paymentDateInput = explicitDate ? calendarDate(body.paymentDate) : null;
+  if (explicitDate && !paymentDateInput) throw new ApiError("paymentDate must be a real calendar date (YYYY-MM-DD)", 400);
   const paymentMethod = String(body.paymentMethod ?? "").toUpperCase();
   if (!(COLLECT_METHODS as readonly string[]).includes(paymentMethod)) {
     throw new ApiError("paymentMethod must be CASH, BANK, CHEQUE, SAFEPAY or MOBILE_WALLET", 400);
@@ -145,8 +147,10 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
   if (invoice.status === "CANCELLED") throw conflict("Cancelled invoices cannot accept payments.", "INVOICE_CANCELLED");
 
   const campusId = await resolveCampusId(user, invoice.student.campusId);
+  const today = await schoolToday(user.schoolId, campusId);
+  const paymentDate = paymentDateInput ?? calendarDate(today)!;
   // SKAI-2050: a collection cannot be dated after today in the school timezone (same rule as the manual ledger).
-  if (paymentDate.toISOString().slice(0, 10) > (await schoolToday(user.schoolId, campusId))) throw new ApiError("The payment date cannot be in the future.", 400);
+  if (paymentDate.toISOString().slice(0, 10) > today) throw new ApiError("The payment date cannot be in the future.", 400);
 
   // SKO-475: the operation key binds this collection to its exact request. A retry after a dropped
   // response replays the original receipt; the same key with a different request is a conflict.

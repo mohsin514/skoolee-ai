@@ -10,6 +10,7 @@ import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getFinancialLocale } from "@/app/actions/locale";
 import { CURRENCIES } from "@/lib/locale/package";
+import { calendarDateIn } from "@/lib/calendar-date";
 import { UiText, useUiText, useLocaleFormat, useLocale } from "@/components/locale/LocaleProvider";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -377,8 +378,9 @@ function PaymentModal({
   onSaved: () => void;
 }) {
   const { money: formatPKR } = useLocaleFormat();
-  const { currency: campusCurrency } = useLocale();
+  const { currency: campusCurrency, timezone: schoolTimeZone } = useLocale();
   const tr = useUiText();
+  const todayInSchool = calendarDateIn(schoolTimeZone); // SKAI-2069: the school's calendar day, not the UTC date
   const [searchQuery, setSearchQuery] = useState("");
   const [studentsList, setStudentsList] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -387,7 +389,7 @@ function PaymentModal({
   const [fineAmount, setFineAmount] = useState("");
   const [discountAmount, setDiscountAmount] = useState("");
   const [note, setNote] = useState("");
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0]);
+  const [paymentDate, setPaymentDate] = useState(todayInSchool);
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [searching, setSearching] = useState(false);
@@ -733,7 +735,7 @@ function PaymentModal({
             </div>
             <label>
               <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Payment date"}</UiText></span>
-              <SystemInput type="date" value={paymentDate} max={new Date().toISOString().split("T")[0]} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
+              <SystemInput type="date" value={paymentDate} max={todayInSchool} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
             </label>
             <label>
               <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Method"}</UiText></span>

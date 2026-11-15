@@ -33,7 +33,19 @@ test("SKAI-2053: a duplicate payment reference is a 409 and the form no longer p
 
 // SKAI-2050: a collection cannot be dated after today in the school timezone.
 test("SKAI-2050: the collect command refuses a payment date after the school's today", () => {
-  assert.match(core, /paymentDate\.toISOString\(\)\.slice\(0, 10\) > \(await schoolToday\(user\.schoolId, campusId\)\)/);
+  assert.match(core, /const today = await schoolToday\(user\.schoolId, campusId\);/);
+  assert.match(core, /paymentDate\.toISOString\(\)\.slice\(0, 10\) > today/);
   assert.match(core, /The payment date cannot be in the future\./);
   assert.ok(core.indexOf("schoolToday(") < core.indexOf("prisma.$transaction("));
+});
+
+// SKAI-2069: the default payment date is the school's calendar day, not the UTC date.
+test("SKAI-2069: an omitted paymentDate defaults to schoolToday and the form pre-fills the school's day", () => {
+  assert.doesNotMatch(core, /new Date\(\)\.toISOString\(\)/);
+  assert.match(core, /const paymentDate = paymentDateInput \?\? calendarDate\(today\)!;/);
+  const ui = readFileSync("src/components/fees/FeePaymentsTab.tsx", "utf8");
+  const modal = ui.slice(ui.indexOf("function PaymentModal"));
+  assert.match(modal, /calendarDateIn\(schoolTimeZone\)/);
+  assert.match(modal, /useState\(todayInSchool\)/);
+  assert.doesNotMatch(modal, /new Date\(\)\.toISOString\(\)\.split/);
 });
