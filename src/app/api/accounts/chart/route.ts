@@ -2,7 +2,7 @@ import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ACCOUNT_TYPES as TYPES, createChartAccount, isReservedAccountName } from "@/lib/accounts/chart-account-command";
+import { ACCOUNT_TYPES as TYPES, createChartAccount, isReservedAccountName, booksName, sameName } from "@/lib/accounts/chart-account-command";
 import {
   ApiError,
   assertModuleRead,
@@ -81,12 +81,13 @@ export async function PATCH(req: NextRequest) {
     if (account.isSystem && (body.isActive === false || type !== account.type)) throw new ApiError("Fee and payroll postings use this system account, so it stays active with its type.", 409);
     if (type !== account.type && account._count.entries > 0) throw new ApiError("This account already has ledger entries, so its type cannot change. Create a new account instead.", 409);
 
+    if (body.name !== undefined) booksName(body.name);
     if (body.name && String(body.name).trim() !== account.name) {
       // SKAI-2233: fee and payroll postings find system accounts by name, so they keep it and nobody else takes it.
       if (account.isSystem) throw new ApiError("Fee and payroll postings use this system account, so its name cannot change.", 409);
       if (isReservedAccountName(String(body.name))) throw new ApiError("This name is reserved for a system account. Choose another name.", 409);
       const dup = await prisma.chartOfAccount.findFirst({
-        where: { campusId: account.campusId, name: String(body.name).trim() },
+        where: { campusId: account.campusId, id: { not: account.id }, name: sameName(String(body.name).trim()) },
       });
       if (dup) throw new ApiError("An account with this name already exists", 409);
     }

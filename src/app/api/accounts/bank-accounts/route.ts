@@ -1,3 +1,4 @@
+import { booksName, sameName } from "@/lib/accounts/chart-account-command";
 import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -68,9 +69,10 @@ export async function PATCH(req: NextRequest) {
 
     if (body.currency !== undefined && body.currency !== bank.currency) throw new ApiError("Existing monetary currency cannot be changed", 400);
 
+    if (body.name !== undefined) booksName(body.name);
     if (body.name && String(body.name).trim() !== bank.name) {
       const dup = await prisma.bankAccount.findFirst({
-        where: { campusId: bank.campusId, name: String(body.name).trim() },
+        where: { campusId: bank.campusId, id: { not: bank.id }, name: sameName(String(body.name).trim()) },
       });
       if (dup) throw new ApiError("A bank account with this name already exists", 409);
     }

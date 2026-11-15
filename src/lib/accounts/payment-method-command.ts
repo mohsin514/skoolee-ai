@@ -1,3 +1,4 @@
+import { booksName, sameName } from "@/lib/accounts/chart-account-command";
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
@@ -10,10 +11,10 @@ import { ApiError, resolveCampusId } from "@/lib/api/scope";
  */
 export async function createPaymentMethod(user: AuthUser, body: Record<string, unknown>) {
   const campusId = await resolveCampusId(user, body.campusId as string | null | undefined);
-  const name = String(body.name ?? "").trim();
+  const name = booksName(body.name);
   if (!name) throw new ApiError("name is required", 400);
 
-  const existing = await prisma.paymentMethodRef.findFirst({ where: { campusId, name } });
+  const existing = await prisma.paymentMethodRef.findFirst({ where: { campusId, name: sameName(name) } });
   if (existing) throw new ApiError("A payment method with this name already exists", 409);
 
   return prisma.$transaction(async (tx) => {
