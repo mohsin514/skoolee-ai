@@ -15,7 +15,7 @@ const match = (r: Record<string, unknown>, where: Record<string, unknown>) => Ob
 const db = {
   user: { findMany: async ({ where }: { where: Record<string, unknown> }) => users.filter(u => match(u, where)).map(u => ({ id: u.id, fullName: u.id })) },
   confidentialMember: { findFirst: async () => null },
-  evidenceReviewerGrant: { findMany: async () => [] },
+  evidenceReviewerGrant: { findMany: async () => [], findFirst: async () => null },
   evidenceFramework: { findFirst: async () => ({ id: "fw", schoolId: "s", campusId: null, status: "ACTIVE", name: "n", version: "1", criteria: [{ id: "c1", code: "C1", title: "t", interpretation: null, interpretationApprovedAt: null, interpretationApprovedById: null, sortOrder: 0 }] }), findFirstOrThrow: async () => ({ campusId: null }), findMany: async () => [{ id: "fw", name: "n", version: "1", status: "ACTIVE", createdAt: new Date() }] },
   evidencePack: { findMany: async () => [] },
   evidenceItem: {
@@ -80,4 +80,24 @@ test("unpinned or school-wide leaders keep school-wide access", async () => {
     assert.equal(v.actions.length, 2);
   }
   await svc.openSource(lead("ADMIN", CAMPUS_2), I_MAIN);
+});
+
+// SKAI-2115: plain staff (teacher, accountant, ...) only see and open improvement records they own.
+test("staff workspace and source are limited to the user's own actions and evidence", async () => {
+  seed();
+  const svc = await import("../../src/lib/improvement/service");
+  const staff = (userId: string, role = "TEACHER") => lead(role, CAMPUS_1, userId);
+  const other = (await svc.workspace(staff("t-garden"), "fw")).view!;
+  assert.deepEqual(other.actions.map(a => a.id), [A_GARDEN]);
+  assert.equal(other.criteria[0].items.length, 0);
+  const owner = (await svc.workspace(staff("t-main"), "fw")).view!;
+  assert.deepEqual(owner.actions.map(a => a.id), [A_MAIN]);
+  assert.equal(owner.criteria[0].items.length, 1);
+  const nonTeaching = (await svc.workspace(staff("acct-1", "ACCOUNTANT"), "fw")).view!;
+  assert.equal(nonTeaching.actions.length, 0);
+  assert.equal(nonTeaching.criteria[0].items.length, 0);
+  await assert.rejects(svc.openSource(staff("acct-1", "ACCOUNTANT"), I_MAIN), e => status(e) === 404);
+  await assert.rejects(svc.openSource(staff("t-garden"), I_MAIN), e => status(e) === 404);
+  assert.deepEqual((await svc.openSource(staff("t-main"), I_MAIN)).content, { note: "Lesson observation note" });
+  assert.equal((await svc.workspace(lead("ADMIN", null), "fw")).view!.actions.length, 2);
 });
