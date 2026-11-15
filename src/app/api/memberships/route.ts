@@ -3,6 +3,7 @@ import { requireAuthUser, ApiError, readJsonObject } from "@/lib/api/scope";
 import { ok, failFrom } from "@/lib/api/envelope";
 import { INVITABLE_ROLES, membershipAuthority, membershipChangeDecision } from "@/lib/membership-access";
 import { authorityRoleFor, kindFor } from "@/lib/auth/institution";
+import { lockSchoolMemberships, assertCampusPrincipalSeatFree } from "@/lib/staff/invitation-write";
 import { z } from "zod";
 
 /**
@@ -54,6 +55,11 @@ export async function PUT(req: Request) {
     const before = { role: target.role, campusId: target.campusId, isActive: target.isActive, canPurchaseSubscription: target.canPurchaseSubscription, canManageMemberships: target.canManageMemberships };
     const after = { role: input.role, campusId: nextCampusId, isActive: input.isActive, canPurchaseSubscription: input.canPurchaseSubscription, canManageMemberships: input.canManageMemberships };
     await prisma.$transaction(async tx => {
+      // Same one-principal-per-campus rule as invitations; the school lock serialises concurrent role changes.
+      if (after.role === "PRINCIPAL" && after.isActive && after.campusId) {
+        await lockSchoolMemberships(tx, actor.schoolId);
+        await assertCampusPrincipalSeatFree(tx, { schoolId: actor.schoolId, campusId: after.campusId, excludeUserId: target.id });
+      }
       const changed = await tx.user.updateMany({ where: { id: target.id, accessVersion: input.expectedVersion }, data: { ...after, accessVersion: { increment: 1 } } });
       if (changed.count !== 1) throw new ApiError("This membership changed. Reload and review again.", 409);
       await tx.loginSession.updateMany({ where: { userId: target.id }, data: { isActive: false } });
