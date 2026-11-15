@@ -136,6 +136,8 @@ export async function PATCH(req: NextRequest) {
     if (body.fullName !== undefined) {
       const fullName = cleanOptionalText(body.fullName);
       if (!fullName || fullName.length < 2) throw new ApiError("Full name must be at least 2 characters", 400);
+      // SKAI-2200: the name shows in registers, report cards and other users' headers, and is mirrored to students.full_name.
+      if (fullName.length > 120) throw new ApiError("Full name must be 120 characters or fewer", 400);
       data.fullName = fullName;
     }
 
