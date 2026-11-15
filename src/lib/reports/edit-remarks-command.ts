@@ -2,7 +2,7 @@ import type { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError } from "@/lib/api/scope";
+import { ApiError, canLeadAcademics } from "@/lib/api/scope";
 import { reportScope } from "@/lib/auth/policy";
 import type { reportRemarkSchema } from "@/lib/validators/schemas";
 import { approveVersions, refreshVersion, versionTransaction } from "@/lib/academic/report-versions";
@@ -43,6 +43,8 @@ export async function updateReportCardCommand(user: AuthUser, id: string, data: 
     data.reportLanguage !== undefined;
   if (data.approve) {
     if (!reviewer) throw new ApiError("Only reviewers can approve reports", 403);
+    // G32: approval is the academic lead's act, the same rule POST /api/reports enforces.
+    if (!(await canLeadAcademics(user, report.campusId))) throw new ApiError("Report cards are approved and published by your principal.", 403);
     if (editing || !data.versionId) throw new ApiError("Save edits, inspect the version, then approve its version ID", 409);
     await approveVersions(
       [{ reportCardId: id, versionId: data.versionId }],
@@ -56,6 +58,7 @@ export async function updateReportCardCommand(user: AuthUser, id: string, data: 
     );
   } else {
     if (data.requestCorrection && !reviewer) throw new ApiError("Only reviewers can request correction", 403);
+    if (data.requestCorrection && !(await canLeadAcademics(user, report.campusId))) throw new ApiError("Report cards are approved and published by your principal.", 403);
     await versionTransaction(async (tx) => {
       if (data.requestCorrection) {
         const current = await refreshVersion(tx, id);
