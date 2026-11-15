@@ -1976,6 +1976,27 @@ model Class {
   feeGroupAssignments FeeGroupAssignment[]
   admissionQueries    AdmissionQuery[]      @relation("QueryClass")
   conversations       Conversation[]
+  // SKAI-1955: rows that name this class, pinned to the same school
+  activityJobClass ActivityJob[] @relation("ActivityJobClass")
+  admissionApplicationIntakeClass AdmissionApplication[] @relation("AdmissionApplicationIntakeClass")
+  assignmentClass Assignment[] @relation("AssignmentClass")
+  enrollmentProposalTargetClass EnrollmentProposal[] @relation("EnrollmentProposalTargetClass")
+  familyDigestClass FamilyDigest[] @relation("FamilyDigestClass")
+  interventionPlanClass InterventionPlan[] @relation("InterventionPlanClass")
+  learningResourceClass LearningResource[] @relation("LearningResourceClass")
+  lessonRecoveryClass LessonRecovery[] @relation("LessonRecoveryClass")
+  offlineOperationClass OfflineOperation[] @relation("OfflineOperationClass")
+  portfolioEntryClass PortfolioEntry[] @relation("PortfolioEntryClass")
+  rolloverDecisionDestinationClass RolloverDecision[] @relation("RolloverDecisionDestinationClass")
+  rolloverDecisionSourceClass RolloverDecision[] @relation("RolloverDecisionSourceClass")
+  schoolAiConversationClass SchoolAiConversation[] @relation("SchoolAiConversationClass")
+  schoolAiExamAssignmentClass SchoolAiExamAssignment[] @relation("SchoolAiExamAssignmentClass")
+  schoolAiRecordClass SchoolAiRecord[] @relation("SchoolAiRecordClass")
+  schoolAiRequestClass SchoolAiRequest[] @relation("SchoolAiRequestClass")
+  studyPassageClass StudyPassage[] @relation("StudyPassageClass")
+  studyTurnClass StudyTurn[] @relation("StudyTurnClass")
+  teachingAssignmentClass TeachingAssignment[] @relation("TeachingAssignmentClass")
+  teachingProgressClass TeachingProgress[] @relation("TeachingProgressClass")
 
   @@index([schoolId])
   @@index([schoolId, updatedAt])
@@ -2072,6 +2093,67 @@ model Student {
   dormRoomId             String?                 @map("dorm_room_id")
   dormRoom               DormRoom?               @relation("StudentDormRoom", fields: [dormRoomId], references: [id], onDelete: SetNull)
   dormAllocations        DormAllocation[]
+  // SKAI-1955: rows that name this student, pinned to the same school
+  accommodationLiveAdjustmentStudent AccommodationLiveAdjustment[] @relation("AccommodationLiveAdjustmentStudent")
+  accommodationPlanStudent AccommodationPlan[] @relation("AccommodationPlanStudent")
+  accommodationRehearsalStudent AccommodationRehearsal[] @relation("AccommodationRehearsalStudent")
+  activityAttendanceStudent ActivityAttendance[] @relation("ActivityAttendanceStudent")
+  activityPlaceStudent ActivityPlace[] @relation("ActivityPlaceStudent")
+  alumniProfileStudent AlumniProfile[] @relation("AlumniProfileStudent")
+  assignmentExtensionStudent AssignmentExtension[] @relation("AssignmentExtensionStudent")
+  assignmentSubmissionStudent AssignmentSubmission[] @relation("AssignmentSubmissionStudent")
+  assignmentSubmissionVersionStudent AssignmentSubmissionVersion[] @relation("AssignmentSubmissionVersionStudent")
+  attendanceExplanationStudent AttendanceExplanation[] @relation("AttendanceExplanationStudent")
+  boardingLeaveStudent BoardingLeave[] @relation("BoardingLeaveStudent")
+  canteenLedgerEntryStudent CanteenLedgerEntry[] @relation("CanteenLedgerEntryStudent")
+  canteenOrderStudent CanteenOrder[] @relation("CanteenOrderStudent")
+  canteenSpendLimitStudent CanteenSpendLimit[] @relation("CanteenSpendLimitStudent")
+  carePlanStudent CarePlan[] @relation("CarePlanStudent")
+  clinicVisitStudent ClinicVisit[] @relation("ClinicVisitStudent")
+  counsellingAppointmentStudent CounsellingAppointment[] @relation("CounsellingAppointmentStudent")
+  counsellingNoteStudent CounsellingNote[] @relation("CounsellingNoteStudent")
+  dataLifecycleRequestStudent DataLifecycleRequest[] @relation("DataLifecycleRequestStudent")
+  dietaryRecordStudent DietaryRecord[] @relation("DietaryRecordStudent")
+  emergencyAccessStudent EmergencyAccess[] @relation("EmergencyAccessStudent")
+  examAttendanceStudent ExamAttendance[] @relation("ExamAttendanceStudent")
+  examExceptionStudent ExamException[] @relation("ExamExceptionStudent")
+  examPaperScriptStudent ExamPaperScript[] @relation("ExamPaperScriptStudent")
+  familyDigestEntryStudent FamilyDigestEntry[] @relation("FamilyDigestEntryStudent")
+  familyResultNoteStudent FamilyResultNote[] @relation("FamilyResultNoteStudent")
+  financialAdjustmentStudent FinancialAdjustment[] @relation("FinancialAdjustmentStudent")
+  integrationExternalRefStudent IntegrationExternalRef[] @relation("IntegrationExternalRefStudent")
+  interventionPlanStudent InterventionPlan[] @relation("InterventionPlanStudent")
+  learnerLeaveRequestStudent LearnerLeaveRequest[] @relation("LearnerLeaveRequestStudent")
+  learningTransferCaseStudent LearningTransferCase[] @relation("LearningTransferCaseStudent")
+  markScanCellStudent MarkScanCell[] @relation("MarkScanCellStudent")
+  medicationDoseStudent MedicationDose[] @relation("MedicationDoseStudent")
+  medicationInstructionStudent MedicationInstruction[] @relation("MedicationInstructionStudent")
+  meetingActionStudent MeetingAction[] @relation("MeetingActionStudent")
+  meetingBookingStudent MeetingBooking[] @relation("MeetingBookingStudent")
+  mentoringRequestStudent MentoringRequest[] @relation("MentoringRequestStudent")
+  offlineOperationStudent OfflineOperation[] @relation("OfflineOperationStudent")
+  onlinePaymentOrderStudent OnlinePaymentOrder[] @relation("OnlinePaymentOrderStudent")
+  parentConversationStudent ParentConversation[] @relation("ParentConversationStudent")
+  pathwayActionStudent PathwayAction[] @relation("PathwayActionStudent")
+  pathwayGoalStudent PathwayGoal[] @relation("PathwayGoalStudent")
+  pickupAuthorizationStudent PickupAuthorization[] @relation("PickupAuthorizationStudent")
+  pickupCheckStudent PickupCheck[] @relation("PickupCheckStudent")
+  pickupRestrictionStudent PickupRestriction[] @relation("PickupRestrictionStudent")
+  portfolioEntryStudent PortfolioEntry[] @relation("PortfolioEntryStudent")
+  portfolioShareStudent PortfolioShare[] @relation("PortfolioShareStudent")
+  practiceRevisitStudent PracticeRevisit[] @relation("PracticeRevisitStudent")
+  practiceSessionStudent PracticeSession[] @relation("PracticeSessionStudent")
+  rolloverDecisionStudent RolloverDecision[] @relation("RolloverDecisionStudent")
+  safeguardingConcernStudent SafeguardingConcern[] @relation("SafeguardingConcernStudent")
+  schoolAiExamAppealStudent SchoolAiExamAppeal[] @relation("SchoolAiExamAppealStudent")
+  schoolAiExamFormAllocationStudent SchoolAiExamFormAllocation[] @relation("SchoolAiExamFormAllocationStudent")
+  secureBrowserExceptionStudent SecureBrowserException[] @relation("SecureBrowserExceptionStudent")
+  studyTurnStudent StudyTurn[] @relation("StudyTurnStudent")
+  transportRiderStopStudent TransportRiderStop[] @relation("TransportRiderStopStudent")
+  tripConsentStudent TripConsent[] @relation("TripConsentStudent")
+  tripExceptionStudent TripException[] @relation("TripExceptionStudent")
+  tripInviteeStudent TripInvitee[] @relation("TripInviteeStudent")
+  tripPassengerStudent TripPassenger[] @relation("TripPassengerStudent")
 
   @@index([schoolId, admissionNo])
   @@index([campusId, rollNo])
@@ -2086,6 +2168,7 @@ model Student {
   @@index([dormRoomId])
   @@index([schoolId, campusId])
   @@map("students")
+  @@unique([schoolId, id]) // SKAI-1955: target of the school-pinned keys
 }
 
 // A guardian link is scoped to one child and one school. Account identity is
@@ -2374,6 +2457,7 @@ model AdmissionApplication {
   owner              User?                       @relation("ApplicationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   nextContactAt      DateTime?                   @map("next_contact_at")
   intakeClassId      String?                     @map("intake_class_id")
+  intakeClass Class? @relation("AdmissionApplicationIntakeClass", fields: [schoolId, intakeClassId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   // SKAI-1142: an offer's respond-by date (families cannot accept after it) and the waitlist order.
   offerExpiresAt     DateTime?                   @map("offer_expires_at")
   waitlistRank       Int?                        @map("waitlist_rank")
@@ -2410,6 +2494,7 @@ model AdmissionApplication {
   @@map("admission_applications")
   @@index([schoolId, campusId])
   @@index([schoolId, convertedById])
+  @@index([schoolId, intakeClassId])
 }
 
 /// Each submission (first, and after an information request) exactly as sent, with its form version.
@@ -3065,6 +3150,7 @@ model AttendanceExplanation {
   attendanceId   String     @map("attendance_id")
   attendance     Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
   studentId      String     @map("student_id")
+  student Student @relation("AttendanceExplanationStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   submittedById  String     @map("submitted_by_id")
   submittedBy User @relation("AttendanceExplanationSubmittedBy", fields: [schoolId, submittedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   reason         String     @db.Text
@@ -3084,6 +3170,7 @@ model AttendanceExplanation {
   @@index([schoolId, campusId])
   @@index([schoolId, reviewedById])
   @@index([schoolId, submittedById])
+  @@index([schoolId, studentId])
 }
 
 // ─── 11. FEE_STRUCTURES ───────────────────────────────────
@@ -3505,6 +3592,7 @@ model OnlinePaymentOrder {
   invoiceId   String    @map("invoice_id")
   invoice     Invoice   @relation(fields: [invoiceId], references: [id], onDelete: NoAction)
   studentId   String    @map("student_id")
+  student Student @relation("OnlinePaymentOrderStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   amount      Int // paisa
   // SKAI-1844: stays globally unique. The payment provider callback looks an order up by this ref alone, before any school is known; 80 random bits.
   orderRef    String    @unique @map("order_ref")
@@ -3519,6 +3607,7 @@ model OnlinePaymentOrder {
   @@index([campusId])
   @@index([schoolId, campusId])
   @@map("online_payment_orders")
+  @@index([schoolId, studentId])
 }
 
 // SKO-432: receipt numbers come from one atomic counter per campus and year.
@@ -3630,6 +3719,7 @@ model FinancialAdjustment {
   campusId           String    @map("campus_id")
   campus             Campus    @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction)
   studentId          String    @map("student_id")
+  student Student @relation("FinancialAdjustmentStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   invoiceId          String    @map("invoice_id")
   paymentId          String?   @map("payment_id")
   kind               String
@@ -3665,6 +3755,7 @@ model FinancialAdjustment {
   @@index([campusId])
   @@map("financial_adjustments")
   @@index([schoolId, approverId])
+  @@index([schoolId, studentId])
 }
 
 // Durable preview, commit receipt, and guarded reversal record for CSV imports.
@@ -3782,6 +3873,7 @@ model InterventionPlan {
   campusId        String    @map("campus_id")
   campus          Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId       String?   @map("student_id")
+  student Student? @relation("InterventionPlanStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   createdBy       String    @map("created_by")
   title           String
   summary         String    @db.Text
@@ -3796,6 +3888,7 @@ model InterventionPlan {
   version         Int       @default(1)
   origin          String    @default("TEACHER") // TEACHER, AI
   classId         String?   @map("class_id")
+  class Class? @relation("InterventionPlanClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   subjectId       String?   @map("subject_id")
   concern         String?   @db.Text
   evidenceState   String    @default("NEEDS_OBSERVATION") @map("evidence_state") // CONFIRMED, NEEDS_OBSERVATION
@@ -3823,6 +3916,8 @@ model InterventionPlan {
   @@index([ownerId, status])
   @@map("intervention_plans")
   @@index([schoolId, ownerId])
+  @@index([schoolId, classId])
+  @@index([schoolId, studentId])
 }
 
 model PromptTemplate {
@@ -3854,6 +3949,7 @@ model ParentConversation {
   userId    String   @map("user_id")
   user User @relation("ParentConversationUser", fields: [schoolId, userId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   studentId String?  @map("student_id")
+  student Student? @relation("ParentConversationStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   question  String   @db.Text
   answer    String   @db.Text
   source    String   @default("APPROVED_FAQ")
@@ -3863,6 +3959,7 @@ model ParentConversation {
   @@index([schoolId, campusId, userId])
   @@map("parent_conversations")
   @@index([schoolId, userId])
+  @@index([schoolId, studentId])
 }
 
 model ConsentLog {
@@ -4114,6 +4211,7 @@ model LearnerLeaveRequest {
   campusId      String    @map("campus_id")
   campus        Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId     String    @map("student_id")
+  student Student @relation("LearnerLeaveRequestStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   requestedById String    @map("requested_by_id")
   requestedBy User @relation("LearnerLeaveRequestRequestedBy", fields: [schoolId, requestedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   fromDate      DateTime  @db.Date @map("from_date")
@@ -4201,10 +4299,12 @@ model TripInvitee {
   tripId    String @map("trip_id")
   trip      Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
   studentId String @map("student_id")
+  student Student @relation("TripInviteeStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
 
   @@unique([tripId, studentId])
   @@index([schoolId])
   @@map("trip_invitees")
+  @@index([schoolId, studentId])
 }
 
 /// SKO-421: one guardian's answer to one exact trip version, kept forever; a withdrawal is a new row.
@@ -4217,6 +4317,7 @@ model TripConsent {
   tripVersionId  String      @map("trip_version_id")
   tripVersion    TripVersion @relation(fields: [tripVersionId], references: [id], onDelete: Cascade)
   studentId      String      @map("student_id")
+  student Student @relation("TripConsentStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   guardianUserId String      @map("guardian_user_id")
   guardianUser User @relation("TripConsentGuardianUser", fields: [schoolId, guardianUserId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   relationshipId String      @map("relationship_id")
@@ -4232,6 +4333,7 @@ model TripConsent {
   @@index([schoolId])
   @@map("trip_consents")
   @@index([schoolId, guardianUserId])
+  @@index([schoolId, studentId])
 }
 
 /// SKO-423: a class's weekly family update. Built only from released evidence, reviewed and approved by a
@@ -4243,6 +4345,7 @@ model FamilyDigest {
   campusId        String    @map("campus_id")
   campus          Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   classId         String    @map("class_id")
+  class Class @relation("FamilyDigestClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   weekStart       DateTime  @db.Date @map("week_start")
   status          String    @default("DRAFT") // DRAFT | APPROVED | SCHEDULED | SENT | CANCELLED
   version         Int       @default(1)
@@ -4267,6 +4370,7 @@ model FamilyDigest {
   @@index([schoolId, campusId])
   @@index([schoolId, approvedById])
   @@index([schoolId, createdById])
+  @@index([schoolId, classId])
 }
 
 /// One child's section of a digest: sourced statements, one home activity, and whether it is sent at all.
@@ -4277,6 +4381,7 @@ model FamilyDigestEntry {
   digestId  String       @map("digest_id")
   digest    FamilyDigest @relation(fields: [digestId], references: [id], onDelete: Cascade)
   studentId String       @map("student_id")
+  student Student @relation("FamilyDigestEntryStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   content   Json
   skipped   Boolean      @default(false)
   status    String       @default("PENDING") // PENDING | SENT | BLOCKED
@@ -4287,6 +4392,7 @@ model FamilyDigestEntry {
   @@unique([digestId, studentId])
   @@index([schoolId])
   @@map("family_digest_entries")
+  @@index([schoolId, studentId])
 }
 
 /// A delivery to one guardian on one channel for one child's week; unique so a retry never sends twice.
@@ -4410,6 +4516,7 @@ model MarkScanCell {
   pageNumber       Int           @map("page_number")
   rowNumber        Int           @map("row_number")
   studentId        String        @map("student_id")
+  student Student @relation("MarkScanCellStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   proposedValue    Float?        @map("proposed_value")
   proposedAbsent   Boolean       @default(false) @map("proposed_absent")
   confidence       Float?
@@ -4426,6 +4533,7 @@ model MarkScanCell {
   @@index([schoolId])
   @@map("mark_scan_cells")
   @@index([schoolId, reviewedById])
+  @@index([schoolId, studentId])
 }
 
 /// SKO-420: a teacher's bookable window in school-local time. Slots are computed from it; a booking holds
@@ -4474,6 +4582,7 @@ model MeetingBooking {
   teacherId      String        @map("teacher_id")
   teacher User @relation("MeetingBookingTeacher", fields: [schoolId, teacherId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   studentId      String        @map("student_id")
+  student Student @relation("MeetingBookingStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   guardianUserId String        @map("guardian_user_id")
   guardianUser User @relation("MeetingBookingGuardianUser", fields: [schoolId, guardianUserId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   relationshipId String        @map("relationship_id")
@@ -4500,6 +4609,7 @@ model MeetingBooking {
   @@index([windowId])
   @@map("meeting_bookings")
   @@index([schoolId, campusId])
+  @@index([schoolId, studentId])
 }
 
 /// SKO-420: versioned receipt of every booking change (book, reschedule, cancel, conflict, outcome).
@@ -4549,6 +4659,7 @@ model MeetingAction {
   bookingId     String         @map("booking_id")
   booking       MeetingBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   studentId     String         @map("student_id")
+  student Student @relation("MeetingActionStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   text          String
   ownerRole     String         @map("owner_role") // FAMILY | STAFF
   ownerUserId   String         @map("owner_user_id")
@@ -4567,6 +4678,7 @@ model MeetingAction {
   @@map("meeting_actions")
   @@index([schoolId, completedById])
   @@index([schoolId, createdById])
+  @@index([schoolId, studentId])
 }
 
 /// SKO-420: restricted staff notes for a meeting. No family route reads this table.
@@ -4631,6 +4743,7 @@ model LessonRecovery {
   timetableSlotId String    @map("timetable_slot_id")
   date            DateTime  @db.Date
   classId         String    @map("class_id")
+  class Class @relation("LessonRecoveryClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   subjectName     String    @map("subject_name")
   ownerId         String    @map("owner_id")
   owner User @relation("LessonRecoveryOwner", fields: [schoolId, ownerId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
@@ -4778,7 +4891,9 @@ model PortfolioEntry {
   campusId           String    @map("campus_id")
   campus             Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId          String    @map("student_id")
+  student Student @relation("PortfolioEntryStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   classId            String    @map("class_id")
+  class Class @relation("PortfolioEntryClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   goal               Json // { curriculumId, curriculumVersion, outcomeId, code, title } or null-ish {}
   title              String
   assignmentId       String    @map("assignment_id")
@@ -4810,6 +4925,7 @@ model PortfolioEntry {
   @@index([schoolId, campusId])
   @@index([schoolId, createdById])
   @@index([schoolId, reviewedById])
+  @@index([schoolId, classId])
 }
 
 /// SKO-427: a teacher-approved collection shared with one named guardian until it expires or is revoked.
@@ -4819,6 +4935,7 @@ model PortfolioShare {
   schoolId       String    @default("") @map("school_id")
   school         School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   studentId      String    @map("student_id")
+  student Student @relation("PortfolioShareStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   guardianUserId String    @map("guardian_user_id")
   guardianUser User @relation("PortfolioShareGuardianUser", fields: [schoolId, guardianUserId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   title          String
@@ -4848,6 +4965,7 @@ model StudyPassage {
   resourceId      String   @map("resource_id")
   resourceVersion Int      @map("resource_version")
   classId         String   @map("class_id")
+  class Class @relation("StudyPassageClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   section         String
   text            String
   createdById     String   @map("created_by_id")
@@ -4869,7 +4987,9 @@ model StudyTurn {
   schoolId      String    @default("") @map("school_id")
   school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   studentId     String    @map("student_id")
+  student Student @relation("StudyTurnStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   classId       String    @map("class_id")
+  class Class @relation("StudyTurnClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   question      String
   outcome       String // ANSWERED | UNSUPPORTED | BLOCKED | UNAVAILABLE | REFUSED
   answer        Json      @default("{}")
@@ -4900,6 +5020,7 @@ model PickupAuthorization {
   campusId         String    @map("campus_id")
   campus           Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId        String    @map("student_id")
+  student Student @relation("PickupAuthorizationStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   issuedById       String    @map("issued_by_id")
   issuedBy User @relation("PickupAuthorizationIssuedBy", fields: [schoolId, issuedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   relationshipId   String    @map("relationship_id")
@@ -4936,6 +5057,7 @@ model PickupRestriction {
   campusId    String    @map("campus_id")
   campus      Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId   String    @map("student_id")
+  student Student @relation("PickupRestrictionStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   kind        String // CUSTODY_ORDER | DO_NOT_RELEASE | LEAD_APPROVAL
   instruction String
   reason      String?
@@ -4964,6 +5086,7 @@ model PickupCheck {
   authorizationId String?   @map("authorization_id")
   authorization   PickupAuthorization? @relation(fields: [authorizationId], references: [id], onDelete: Cascade)
   studentId       String    @map("student_id")
+  student Student @relation("PickupCheckStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   gate            String
   staffId         String    @map("staff_id")
   staff User @relation("PickupCheckStaff", fields: [schoolId, staffId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
@@ -5050,6 +5173,7 @@ model ActivityPlace {
   activityId       String    @map("activity_id")
   activity         Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
   studentId        String    @map("student_id")
+  student Student @relation("ActivityPlaceStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   requestedById    String    @map("requested_by_id")
   requestedBy User @relation("ActivityPlaceRequestedBy", fields: [schoolId, requestedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   status           String // WAITLIST | OFFERED | RESERVED | CONFIRMED | DECLINED | EXPIRED | CANCELLED
@@ -5095,6 +5219,7 @@ model ActivityAttendance {
   school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   sessionId String   @map("session_id")
   studentId String   @map("student_id")
+  student Student @relation("ActivityAttendanceStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   status    String // PRESENT | ABSENT | LATE_WITHDRAWAL
   markedById String  @map("marked_by_id")
   markedBy User @relation("ActivityAttendanceMarkedBy", fields: [schoolId, markedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
@@ -5164,6 +5289,7 @@ model EmergencyAccess {
   userId       String    @map("user_id")
   user User @relation("EmergencyAccessUser", fields: [schoolId, userId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   studentId    String    @map("student_id")
+  student Student @relation("EmergencyAccessStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   purpose      String
   expiresAt    DateTime  @map("expires_at")
   revokedAt    DateTime? @map("revoked_at")
@@ -5177,6 +5303,7 @@ model EmergencyAccess {
   @@map("emergency_accesses")
   @@index([schoolId, campusId])
   @@index([schoolId, reviewedById])
+  @@index([schoolId, studentId])
 }
 
 model ConfidentialAccessLog {
@@ -5203,6 +5330,7 @@ model ClinicVisit {
   campusId    String   @map("campus_id")
   campus      Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId   String   @map("student_id")
+  student Student @relation("ClinicVisitStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   arrivedAt   DateTime @map("arrived_at")
   observation String
   actionTaken String   @map("action_taken")
@@ -5224,6 +5352,7 @@ model CarePlan {
   campusId       String   @map("campus_id")
   campus         Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId      String   @unique @map("student_id")
+  student Student @relation("CarePlanStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   allergies      String?
   actionPlan     String?  @map("action_plan")
   teacherSummary String?  @map("teacher_summary")
@@ -5235,6 +5364,7 @@ model CarePlan {
   @@map("care_plans")
   @@index([schoolId, campusId])
   @@index([schoolId, updatedById])
+  @@index([schoolId, studentId])
 }
 
 model MedicationInstruction {
@@ -5244,6 +5374,7 @@ model MedicationInstruction {
   campusId          String    @map("campus_id")
   campus            Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId         String    @map("student_id")
+  student Student @relation("MedicationInstructionStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   medicine          String
   dose              String
   schedule          String
@@ -5271,6 +5402,7 @@ model MedicationDose {
   instructionId String   @map("instruction_id")
   instruction   MedicationInstruction @relation(fields: [instructionId], references: [id], onDelete: Cascade)
   studentId     String   @map("student_id")
+  student Student @relation("MedicationDoseStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   givenAt       DateTime @map("given_at")
   dose          String
   actorId       String   @map("actor_id")
@@ -5295,6 +5427,7 @@ model SafeguardingConcern {
   campus        Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   reference     String
   studentId     String    @map("student_id")
+  student Student @relation("SafeguardingConcernStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   source        String // STAFF_OBSERVATION | DISCLOSURE_BY_PUPIL | THIRD_PARTY | OTHER
   observation   String
   eventAt       DateTime  @map("event_at")
@@ -5319,6 +5452,7 @@ model SafeguardingConcern {
   @@map("safeguarding_concerns")
   @@index([schoolId, ownerId])
   @@index([schoolId, reporterId])
+  @@index([schoolId, studentId])
 }
 
 model SafeguardingEntry {
@@ -5396,6 +5530,7 @@ model TransportRiderStop {
   schoolId  String   @default("") @map("school_id")
   school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   studentId String        @unique @map("student_id")
+  student Student @relation("TransportRiderStopStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   stopId    String        @map("stop_id")
   stop      TransportStop @relation(fields: [stopId], references: [id], onDelete: Cascade)
   updatedAt DateTime      @updatedAt @map("updated_at")
@@ -5403,6 +5538,7 @@ model TransportRiderStop {
   @@index([schoolId])
   @@index([stopId])
   @@map("transport_rider_stops")
+  @@index([schoolId, studentId])
 }
 
 model TransportTrip {
@@ -5460,6 +5596,7 @@ model TripPassenger {
   tripId        String        @map("trip_id")
   trip          TransportTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
   studentId     String        @map("student_id")
+  student Student @relation("TripPassengerStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   studentName   String        @map("student_name")
   stopName      String?       @map("stop_name")
   source        String        @default("MANIFEST") // MANIFEST | AMENDMENT
@@ -5511,6 +5648,7 @@ model TripException {
   tripId       String        @map("trip_id")
   trip         TransportTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
   studentId    String?       @map("student_id")
+  student Student? @relation("TripExceptionStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   kind         String // UNLISTED_PASSENGER | CAPACITY_OVERFLOW | MISSING_CHILD | MISSING_RECIPIENT | DOUBLE_BOARDING | LATE_CHANGE
   note         String
   ownerId      String        @map("owner_id")
@@ -5530,6 +5668,7 @@ model TripException {
   @@index([schoolId, createdById])
   @@index([schoolId, ownerId])
   @@index([schoolId, resolvedById])
+  @@index([schoolId, studentId])
 }
 
 /// SKO-443: school-group policy templates. Published versions never change; a campus's effective value is resolved
@@ -5929,6 +6068,7 @@ model IntegrationExternalRef {
   school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   connectionId String   @map("connection_id")
   studentId    String   @map("student_id")
+  student Student @relation("IntegrationExternalRefStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   system       String
   externalId   String   @map("external_id")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -5936,6 +6076,7 @@ model IntegrationExternalRef {
   @@unique([connectionId, studentId, system])
   @@index([schoolId])
   @@map("integration_external_refs")
+  @@index([schoolId, studentId])
 }
 
 /// SKO-446: school identity (OIDC) and roster exchange. Provider subjects and roster ids are namespaced by connection;
@@ -6093,8 +6234,10 @@ model OfflineOperation {
   deviceId     String    @map("device_id")
   kind         String // ATTENDANCE_MARK
   classId      String    @map("class_id")
+  class Class @relation("OfflineOperationClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   date         String
   studentId    String    @map("student_id")
+  student Student @relation("OfflineOperationStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   capturedAt   DateTime  @map("captured_at")
   baseStatus   String?   @map("base_status")
   baseVersion  Int?      @map("base_version")
@@ -6113,6 +6256,8 @@ model OfflineOperation {
   @@index([schoolId, status, createdAt])
   @@map("offline_operations")
   @@index([schoolId, resolvedById])
+  @@index([schoolId, classId])
+  @@index([schoolId, studentId])
 }
 
 // ─── 16. SECURITY & ONBOARDING ────────────────────────────
@@ -7606,12 +7751,17 @@ model StudentEnrollment {
   attendance Attendance[]
   invoices Invoice[]
   reports ReportCard[]
+  // SKAI-1955: rows that name this studentenrollment, pinned to the same school
+  enrollmentProposalFromEnrollment EnrollmentProposal[] @relation("EnrollmentProposalFromEnrollment")
+  rolloverDecisionNewEnrollment RolloverDecision[] @relation("RolloverDecisionNewEnrollment")
+  rolloverDecisionSourceEnrollment RolloverDecision[] @relation("RolloverDecisionSourceEnrollment")
   @@index([schoolId, studentId, startDate])
   @@index([studentId])
   @@index([schoolId, campusId])
   @@index([schoolId, classId])
   @@index([campusId, academicYear])
   @@map("student_enrollments")
+  @@unique([schoolId, id]) // SKAI-1955: target of the school-pinned keys
 }
 
 model EnrollmentProposal {
@@ -7623,7 +7773,9 @@ model EnrollmentProposal {
   campusId String @map("campus_id")
   campus   Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   fromEnrollmentId String @map("from_enrollment_id")
+  fromEnrollment StudentEnrollment @relation("EnrollmentProposalFromEnrollment", fields: [schoolId, fromEnrollmentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   targetClassId String @map("target_class_id")
+  targetClass Class @relation("EnrollmentProposalTargetClass", fields: [schoolId, targetClassId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   rollNo String @map("roll_no")
   effectiveDate DateTime @db.Date @map("effective_date")
   reason String
@@ -7636,6 +7788,8 @@ model EnrollmentProposal {
   @@index([studentId])
   @@map("enrollment_proposals")
   @@index([schoolId, campusId])
+  @@index([schoolId, fromEnrollmentId])
+  @@index([schoolId, targetClassId])
 }
 // Shared authentication counters: keys are hashed and contain no plaintext identifiers.
 model ActivityJob {
@@ -7645,6 +7799,7 @@ model ActivityJob {
   schoolId          String         @map("school_id")
   campusId          String         @map("campus_id")
   classId           String?        @map("class_id")
+  class Class? @relation("ActivityJobClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   actorId           String         @map("actor_id")
   actor User @relation("ActivityJobActor", fields: [schoolId, actorId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   kind              String
@@ -7661,6 +7816,7 @@ model ActivityJob {
   @@index([campusId])
   @@map("activity_jobs")
   @@index([schoolId, actorId])
+  @@index([schoolId, classId])
 }
 
 model ActivityItem {
@@ -7893,6 +8049,7 @@ model SchoolAiRecord {
   data           Json
   subjectId      String? @map("subject_id")
   classId        String? @map("class_id")
+  class Class? @relation("SchoolAiRecordClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   createdById    String @map("created_by_id")
   createdBy User @relation("SchoolAiRecordCreatedBy", fields: [schoolId, createdById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   updatedById    String @map("updated_by_id")
@@ -7916,6 +8073,7 @@ model SchoolAiRecord {
   @@map("school_ai_records")
   @@index([schoolId, approvedById])
   @@index([schoolId, updatedById])
+  @@index([schoolId, classId])
 }
 
 model SchoolAiRevision {
@@ -7953,6 +8111,7 @@ model SchoolAiExamAssignment {
   campusId     String @map("campus_id")
   campus       Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
   classId      String @map("class_id")
+  class Class @relation("SchoolAiExamAssignmentClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   paperId      String @map("paper_id")
   paper        SchoolAiRecord @relation(fields: [paperId, schoolId], references: [id, schoolId], onDelete: Restrict)
   paperVersion Int @map("paper_version")
@@ -7997,6 +8156,7 @@ model SchoolAiExamAssignment {
   @@index([paperId, schoolId])
   @@map("school_ai_exam_assignments")
   @@index([schoolId, resultsReleasedById])
+  @@index([schoolId, classId])
 }
 
 model SchoolAiExamAttempt {
@@ -8115,6 +8275,7 @@ model SchoolAiRequest {
   actorRole        String @map("actor_role")
   subjectId        String? @map("subject_id")
   classId          String? @map("class_id")
+  class Class? @relation("SchoolAiRequestClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   feature          String @default("ASSISTANT")
   idempotencyKey   String @map("idempotency_key")
   requestHash      String @map("request_hash")
@@ -8141,6 +8302,7 @@ model SchoolAiRequest {
   @@index([campusId])
   @@map("school_ai_requests")
   @@index([actorId])
+  @@index([schoolId, classId])
 }
 
 model SchoolAiConversation {
@@ -8154,6 +8316,7 @@ model SchoolAiConversation {
   actorRole String @map("actor_role")
   subjectId String? @map("subject_id")
   classId String? @map("class_id")
+  class Class? @relation("SchoolAiConversationClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   purpose String @default("WORKSPACE")
   topicKey String? @map("topic_key")
   title String
@@ -8169,6 +8332,7 @@ model SchoolAiConversation {
   @@index([schoolId, campusId, actorId, updatedAt])
   @@index([campusId])
   @@map("school_ai_conversations")
+  @@index([schoolId, classId])
 }
 
 model SchoolAiSetupTask {
@@ -8312,6 +8476,7 @@ model SchoolAiExamAppeal {
   attempt SchoolAiExamAttempt @relation(fields: [attemptId, schoolId, campusId], references: [id, schoolId, campusId], onDelete: Cascade)
   resultVersion Int @map("result_version")
   studentId String @map("student_id")
+  student Student @relation("SchoolAiExamAppealStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   userId String @map("user_id")
   user User @relation("SchoolAiExamAppealUser", fields: [schoolId, userId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   reason String @db.Text
@@ -8333,6 +8498,7 @@ model SchoolAiExamAppeal {
   @@map("school_ai_exam_appeals")
   @@index([schoolId, resolvedById])
   @@index([schoolId, userId])
+  @@index([schoolId, studentId])
 }
 
 // Each step references an approved version and exact preview; workers never execute prose.
@@ -8557,6 +8723,7 @@ model SchoolAiExamFormAllocation {
   formSetId    String   @map("form_set_id")
   formSet      SchoolAiExamFormSet @relation(fields: [formSetId, schoolId, campusId], references: [id, schoolId, campusId], onDelete: Cascade)
   studentId    String   @map("student_id")
+  student Student @relation("SchoolAiExamFormAllocationStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   formLabel    String   @map("form_label")
   assignmentId String   @map("assignment_id")
   createdById  String   @map("created_by_id")
@@ -8568,6 +8735,7 @@ model SchoolAiExamFormAllocation {
   @@index([formSetId, schoolId, campusId])
   @@map("school_ai_exam_form_allocations")
   @@index([schoolId, createdById])
+  @@index([schoolId, studentId])
 }
 
 // One row per item placed in front of a cohort, so an author adding an item can
@@ -8657,6 +8825,7 @@ model DataLifecycleRequest {
   status            String    @default("REQUESTED")
   category          String?
   studentId         String?   @map("student_id")
+  student Student? @relation("DataLifecycleRequestStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   targetRegion      String?   @map("target_region")
   reason            String
   requestedBy       String    @map("requested_by")
@@ -8675,6 +8844,7 @@ model DataLifecycleRequest {
   @@index([schoolId, status, requestedAt])
   @@map("data_lifecycle_requests")
   @@index([schoolId, campusId])
+  @@index([schoolId, studentId])
 }
 
 // Platform evidence that a service actually runs in a region; without it a location is only "configured".
@@ -8749,6 +8919,7 @@ model LearningResource {
   campusId         String    @map("campus_id")
   campus           Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   classId          String    @map("class_id")
+  class Class @relation("LearningResourceClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   subjectId        String?   @map("subject_id")
   title            String
   kind             String
@@ -8834,6 +9005,7 @@ model Assignment {
   campusId        String    @map("campus_id")
   campus          Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   classId         String    @map("class_id")
+  class Class @relation("AssignmentClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   subjectId       String?   @map("subject_id")
   title           String
   instructions    String    @default("")
@@ -8928,6 +9100,7 @@ model AssignmentExtension {
   assignmentId String     @map("assignment_id")
   assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "assignment_extensions_assignment_fkey")
   studentId    String     @map("student_id")
+  student Student @relation("AssignmentExtensionStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   dueAt        DateTime   @map("due_at")
   dueLocal     String     @map("due_local")
   timezone     String
@@ -8940,6 +9113,7 @@ model AssignmentExtension {
   @@index([assignmentId])
   @@map("assignment_extensions")
   @@index([schoolId, grantedById])
+  @@index([schoolId, studentId])
 }
 
 /// One learner's work on one assignment: the resumable draft plus its workflow status.
@@ -8950,6 +9124,7 @@ model AssignmentSubmission {
   assignmentId       String     @map("assignment_id")
   assignment         Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "assignment_submissions_assignment_fkey")
   studentId          String     @map("student_id")
+  student Student @relation("AssignmentSubmissionStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   status             String     @default("DRAFT") // DRAFT | SUBMITTED | RETURNED | REOPENED
   draftText          String     @default("") @map("draft_text")
   draftStorageKey    String?    @map("draft_storage_key")
@@ -8979,6 +9154,7 @@ model AssignmentSubmissionVersion {
   submission        AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "assignment_submission_versions_submission_fkey")
   assignmentId      String               @map("assignment_id")
   studentId         String               @map("student_id")
+  student Student @relation("AssignmentSubmissionVersionStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   version           Int
   assignmentVersion Int                  @map("assignment_version")
   rubricVersion     Int                  @map("rubric_version")
@@ -9007,6 +9183,7 @@ model AssignmentSubmissionVersion {
   @@unique([schoolId, receiptCode])
   @@map("assignment_submission_versions")
   @@index([schoolId, recordedById])
+  @@index([schoolId, studentId])
 }
 
 /// Formative, criterion-level feedback on one submitted version. Hidden from learners and
@@ -9043,6 +9220,7 @@ model AccommodationPlan {
   campusId        String    @map("campus_id")
   campus          Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId       String    @map("student_id")
+  student Student @relation("AccommodationPlanStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   version         Int
   status          String    @default("ACTIVE") // ACTIVE | SUPERSEDED | REVOKED
   validFrom       DateTime  @map("valid_from") @db.Date
@@ -9097,6 +9275,7 @@ model AccommodationRehearsal {
   planId      String            @map("plan_id")
   plan        AccommodationPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
   studentId   String            @map("student_id")
+  student Student @relation("AccommodationRehearsalStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   settings    Json
   completedAt DateTime          @default(now()) @map("completed_at")
 
@@ -9115,6 +9294,7 @@ model AccommodationLiveAdjustment {
   assignmentId String   @map("assignment_id")
   attemptId    String   @map("attempt_id")
   studentId    String   @map("student_id")
+  student Student @relation("AccommodationLiveAdjustmentStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   addedMinutes Int      @map("added_minutes")
   reason       String
   oldDeadline  DateTime @map("old_deadline")
@@ -9130,6 +9310,7 @@ model AccommodationLiveAdjustment {
   @@map("accommodation_live_adjustments")
   @@index([schoolId, campusId])
   @@index([schoolId, approvedById])
+  @@index([schoolId, studentId])
 }
 
 /// SKO-449: a tested Safe Exam Browser delivery profile. Revisions are immutable rows; keys are the
@@ -9172,6 +9353,7 @@ model SecureBrowserException {
   campus       Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   assignmentId String   @map("assignment_id")
   studentId    String   @map("student_id")
+  student Student @relation("SecureBrowserExceptionStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   reason       String
   approvedById String   @map("approved_by_id")
   approvedBy User @relation("SecureBrowserExceptionApprovedBy", fields: [schoolId, approvedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
@@ -9182,6 +9364,7 @@ model SecureBrowserException {
   @@map("secure_browser_exceptions")
   @@index([schoolId, campusId])
   @@index([schoolId, approvedById])
+  @@index([schoolId, studentId])
 }
 
 
@@ -9241,6 +9424,7 @@ model TeachingAssignment {
   campusId      String    @map("campus_id")
   campus        Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   classId       String    @map("class_id")
+  class Class @relation("TeachingAssignmentClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   /// Null for the class-teacher role.
   subjectId     String?   @map("subject_id")
   role          String
@@ -9258,6 +9442,7 @@ model TeachingAssignment {
   @@index([schoolId, teacherId])
   @@map("teaching_assignments")
   @@index([schoolId, createdById])
+  @@index([schoolId, classId])
 }
 
 /// SKO-408 R15.4: a supervised pause of one attempt, its reason, who paused and resumed it, and the time restored.
@@ -9429,13 +9614,17 @@ model RolloverDecision {
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   planId             String    @map("plan_id")
   studentId          String    @map("student_id")
+  student Student @relation("RolloverDecisionStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   sourceClassId      String    @map("source_class_id")
+  sourceClass Class @relation("RolloverDecisionSourceClass", fields: [schoolId, sourceClassId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   sourceEnrollmentId String    @map("source_enrollment_id")
+  sourceEnrollment StudentEnrollment @relation("RolloverDecisionSourceEnrollment", fields: [schoolId, sourceEnrollmentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   sourceRollNo       String    @map("source_roll_no")
   evidence           String    // PASSED, FAILED, MISSING
   evidenceDetail     Json?     @map("evidence_detail")
   decision           String    // PROMOTE, RETAIN, GRADUATE, TRANSFER_OUT, NEEDS_REVIEW
   destinationClassId String?   @map("destination_class_id")
+  destinationClass Class? @relation("RolloverDecisionDestinationClass", fields: [schoolId, destinationClassId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   reason             String?
   reviewedById       String?   @map("reviewed_by_id")
   reviewedBy User? @relation("RolloverDecisionReviewedBy", fields: [schoolId, reviewedById], references: [schoolId, id], onDelete: SetNull) // SKAI-1954
@@ -9443,6 +9632,7 @@ model RolloverDecision {
   executionStatus    String    @default("PENDING") @map("execution_status") // PENDING, DONE, BLOCKED, REVERSED
   executionNote      String?   @map("execution_note")
   newEnrollmentId    String?   @map("new_enrollment_id")
+  newEnrollment StudentEnrollment? @relation("RolloverDecisionNewEnrollment", fields: [schoolId, newEnrollmentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   newRollNo          String?   @map("new_roll_no")
   executedAt         DateTime? @map("executed_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
@@ -9452,6 +9642,11 @@ model RolloverDecision {
   @@index([schoolId])
   @@map("rollover_decisions")
   @@index([schoolId, reviewedById])
+  @@index([schoolId, destinationClassId])
+  @@index([schoolId, newEnrollmentId])
+  @@index([schoolId, sourceClassId])
+  @@index([schoolId, sourceEnrollmentId])
+  @@index([schoolId, studentId])
 }
 
 model RolloverEvent {
@@ -9847,6 +10042,7 @@ model PracticeSession {
   campusId         String    @map("campus_id")
   campus           Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId        String    @map("student_id")
+  student Student @relation("PracticeSessionStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   practiceRecordId String    @map("practice_record_id")
   revisionId       String    @map("revision_id")
   revisitId        String?   @map("revisit_id")
@@ -9894,6 +10090,7 @@ model PracticeRevisit {
   campusId         String    @map("campus_id")
   campus           Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId        String    @map("student_id")
+  student Student @relation("PracticeRevisitStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   practiceRecordId String    @map("practice_record_id")
   dueOn            DateTime  @map("due_on") @db.Date
   originalDueOn    DateTime  @map("original_due_on") @db.Date
@@ -10701,6 +10898,7 @@ model PathwayGoal {
   campusId     String    @map("campus_id")
   campus       Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId    String    @map("student_id")
+  student Student @relation("PathwayGoalStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   title        String
   detail       String?
   audience     String[]
@@ -10725,6 +10923,7 @@ model PathwayAction {
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   goalId        String    @map("goal_id")
   studentId     String    @map("student_id")
+  student Student @relation("PathwayActionStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   title         String
   /// STUDENT | COUNSELLOR | GUARDIAN
   owner         String
@@ -10742,6 +10941,7 @@ model PathwayAction {
   @@index([schoolId])
   @@map("pathway_actions")
   @@index([schoolId, createdById])
+  @@index([schoolId, studentId])
 }
 
 /// An opportunity with its source and when it was last checked.
@@ -10778,6 +10978,7 @@ model CounsellingAppointment {
   campusId      String   @map("campus_id")
   campus        Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId     String   @map("student_id")
+  student Student @relation("CounsellingAppointmentStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   counsellorId  String   @map("counsellor_id")
   counsellor User @relation("CounsellingAppointmentCounsellor", fields: [schoolId, counsellorId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
   startsAt      DateTime @map("starts_at")
@@ -10805,6 +11006,7 @@ model CounsellingNote {
   campusId      String   @map("campus_id")
   campus        Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId     String   @map("student_id")
+  student Student @relation("CounsellingNoteStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   appointmentId String?  @map("appointment_id")
   authorId      String   @map("author_id")
   author User @relation("CounsellingNoteAuthor", fields: [schoolId, authorId], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
@@ -10825,6 +11027,7 @@ model AlumniProfile {
   campusId           String    @map("campus_id")
   campus             Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId          String?   @map("student_id")
+  student Student? @relation("AlumniProfileStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   displayName        String    @map("display_name")
   pathway            String
   contactEmail       String    @map("contact_email")
@@ -10845,6 +11048,7 @@ model AlumniProfile {
   @@index([schoolId, campusId])
   @@map("alumni_profiles")
   @@index([schoolId, recordedById])
+  @@index([schoolId, studentId])
 }
 
 /// A student's request to meet an alumnus, reviewed by a designated counsellor. Introductions are
@@ -10857,6 +11061,7 @@ model MentoringRequest {
   campus               Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   reference            String
   studentId            String    @map("student_id")
+  student Student @relation("MentoringRequestStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   alumniId             String    @map("alumni_id")
   purpose              String
   /// REQUESTED | CLARIFY | APPROVED | DECLINED | CANCELLED
@@ -10878,6 +11083,7 @@ model MentoringRequest {
   @@index([schoolId, campusId])
   @@index([schoolId, requestedById])
   @@index([schoolId, reviewedById])
+  @@index([schoolId, studentId])
 }
 
 // SKO-450: improvement and accreditation evidence. A framework is a school-configured reference (name + version);
@@ -11106,6 +11312,7 @@ model CanteenOrder {
   campus         Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   itemId         String   @map("item_id")
   studentId      String   @map("student_id")
+  student Student @relation("CanteenOrderStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   quantity       Int
   amount         Int
   currency       String
@@ -11135,6 +11342,7 @@ model CanteenLedgerEntry {
   campusId    String   @map("campus_id")
   campus      Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId   String   @map("student_id")
+  student Student @relation("CanteenLedgerEntryStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   orderId     String   @map("order_id")
   /// CHARGE | REFUND
   kind        String
@@ -11157,6 +11365,7 @@ model CanteenSpendLimit {
   schoolId   String   @map("school_id")
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   studentId  String   @map("student_id")
+  student Student @relation("CanteenSpendLimitStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   dailyLimit Int      @map("daily_limit")
   setById    String   @map("set_by_id")
   setBy User @relation("CanteenSpendLimitSetBy", fields: [schoolId, setById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
@@ -11176,6 +11385,7 @@ model DietaryRecord {
   campusId      String    @map("campus_id")
   campus        Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId     String    @map("student_id")
+  student Student @relation("DietaryRecordStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   allergens     String[]
   diet          String?
   /// GUARDIAN | CLINIC | DOCTOR_LETTER
@@ -11206,6 +11416,7 @@ model BoardingLeave {
   campusId         String    @map("campus_id")
   campus           Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId        String    @map("student_id")
+  student Student @relation("BoardingLeaveStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   departAt         DateTime  @map("depart_at")
   expectedReturnAt DateTime  @map("expected_return_at")
   destination      String
@@ -11227,6 +11438,7 @@ model BoardingLeave {
   @@map("boarding_leaves")
   @@index([schoolId, approvedById])
   @@index([schoolId, receivedById])
+  @@index([schoolId, studentId])
 }
 
 /// A boarding roll call. Missing students and overdue returns become exceptions for designated staff.
@@ -11343,6 +11555,7 @@ model LearningTransferCase {
   campusId             String    @map("campus_id")
   campus               Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   studentId            String    @map("student_id")
+  student Student @relation("LearningTransferCaseStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   sourceInstitution    String    @map("source_institution")
   sourceLearnerRef     String    @map("source_learner_ref")
   sourceCurriculumId   String    @map("source_curriculum_id")
@@ -11411,6 +11624,7 @@ model TeachingProgress {
   campus            Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   subjectId         String   @map("subject_id")
   classId           String   @map("class_id")
+  class Class @relation("TeachingProgressClass", fields: [schoolId, classId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   curriculumId      String   @map("curriculum_id")
   curriculumVersion Int      @map("curriculum_version")
   outcomeId         String   @map("outcome_id")
@@ -11426,6 +11640,7 @@ model TeachingProgress {
   @@index([schoolId, campusId, subjectId, classId, taughtOn])
   @@map("teaching_progress")
   @@index([schoolId, teacherId])
+  @@index([schoolId, classId])
 }
 
 /// One paper for one subject of one grade in one term exam: the office's request and the chain's ledger row.
@@ -11513,6 +11728,7 @@ model ExamPaperScript {
   slotId       String    @map("slot_id")
   scheduleId   String    @map("schedule_id")
   studentId    String    @map("student_id")
+  student Student @relation("ExamPaperScriptStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   candidateNo  Int       @map("candidate_no")
   sealPrefix   String    @map("seal_prefix")
   printedAt    DateTime  @default(now()) @map("printed_at")
@@ -11532,6 +11748,7 @@ model ExamPaperScript {
   @@map("exam_paper_scripts")
   @@index([schoolId, markedById])
   @@index([schoolId, scannedById])
+  @@index([schoolId, studentId])
 }
 
 /// SKO-503: the room sheet. ABSENT is authoritative: no mark can be entered until the office reopens it.
@@ -11543,6 +11760,7 @@ model ExamAttendance {
   campus       Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   scheduleId   String    @map("schedule_id")
   studentId    String    @map("student_id")
+  student Student @relation("ExamAttendanceStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   status       String    // PRESENT | ABSENT
   recordedById String    @map("recorded_by_id")
   recordedBy User @relation("ExamAttendanceRecordedBy", fields: [schoolId, recordedById], references: [schoolId, id], onDelete: NoAction) // SKAI-1954
@@ -11557,6 +11775,7 @@ model ExamAttendance {
   @@map("exam_attendance")
   @@index([schoolId, recordedById])
   @@index([schoolId, reopenedById])
+  @@index([schoolId, studentId])
 }
 
 /// SKO-503: one print of a sealed paper for a section or room: covers equal to candidates, copies with spares.
@@ -11620,6 +11839,7 @@ model FamilyResultNote {
   assignmentId  String    @map("assignment_id")
   attemptId     String    @map("attempt_id")
   studentId     String    @map("student_id")
+  student Student @relation("FamilyResultNoteStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   resultVersion Int       @map("result_version")
   language      String    @default("en")
   sentence      String    @db.Text
@@ -11669,6 +11889,7 @@ model ExamException {
   campus       Campus @relation(fields: [schoolId, campusId], references: [schoolId, id], onDelete: NoAction) // SKAI-1953: pinned to this row's school
   examId       String    @map("exam_id")
   studentId    String    @map("student_id")
+  student Student @relation("ExamExceptionStudent", fields: [schoolId, studentId], references: [schoolId, id], onDelete: NoAction) // SKAI-1955
   subjectId    String?   @map("subject_id")
   kind         String    // ABSENT_MEDICAL | ABSENT_LEAVE | UNFAIR_MEANS | EXEMPT | RESIT
   note         String    @db.Text
