@@ -431,6 +431,16 @@ export async function closeAssignment(user: AuthUser, assignmentId: string) {
   });
 }
 
+/** SKAI-2003: an author discards a never-released draft. Released work stays close-only for audit. */
+export async function discardDraft(user: AuthUser, assignmentId: string) {
+  return schoolAiTransaction(user, async tx => {
+    const assignment = await authorAssignment(tx, user, assignmentId);
+    if (assignment.status !== "DRAFT" || assignment.currentVersion) throw new ApiError("Only unreleased drafts can be deleted. Close released work instead.", 409);
+    await audit(tx, user, assignment, { action: "DISCARD" }, { status: assignment.status, title: assignment.title });
+    await tx.assignment.delete({ where: { id: assignment.id } });
+    return { id: assignment.id, discarded: true };
+  });
+}
 async function recipient(tx: TxClient, user: AuthUser, assignment: Assignment, studentId: string) {
   const release = await currentRelease(tx, user, assignment);
   if (!release) throw new ApiError("Release this assignment first.", 409);
