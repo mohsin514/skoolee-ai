@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getYearClosureReport } from "../../src/lib/academic/year-closure";
+import { getYearClosureReport, pickOpenCycle } from "../../src/lib/academic/year-closure";
 
 // SKAI-1289: a downstream step is only done when its work exists, never because its candidate set is empty.
 function fakeDb(exams: { status: string; reportCards: number }[], reportCards = 0) {
@@ -36,4 +36,17 @@ test("a year with no exams completes nothing", async () => {
   const r = await getYearClosureReport("cmp", 2026, fakeDb([]));
   assert.equal(r.canClose, false);
   assert.ok(r.steps.every((s) => !s.done));
+});
+
+// SKAI-1991: preparing next year must not change which year gets closed.
+test("an active year stays the open year after the next year's draft is prepared", () => {
+  const cycles = [
+    { id: "d", academicYear: 2027, status: "DRAFT" },
+    { id: "a", academicYear: 2026, status: "ACTIVE" },
+  ];
+  assert.equal(pickOpenCycle(cycles, null)?.id, "a");
+  assert.equal(pickOpenCycle(cycles, 2026)?.id, "a");
+  assert.equal(pickOpenCycle(cycles, 2027)?.id, "d");
+  assert.equal(pickOpenCycle([cycles[0]], null)?.id, "d");
+  assert.equal(pickOpenCycle([], null), null);
 });

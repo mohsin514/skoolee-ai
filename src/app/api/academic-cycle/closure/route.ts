@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { assertStaffRole, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
-import { getYearClosureReport, getUnclosedPriorCycles } from "@/lib/academic/year-closure";
+import { getYearClosureReport, getUnclosedPriorCycles, pickOpenCycle } from "@/lib/academic/year-closure";
 
 /**
  * GET /api/academic-cycle/closure?campusId=&year=
@@ -23,13 +23,18 @@ export async function GET(req: NextRequest) {
 
     const campusId = await resolveCampusId(user, sp.get("campusId"));
 
-    const activeCycle = await prisma.academicCycle.findFirst({
+    const requested = parseInt(sp.get("year") || "", 10);
+    const hasRequested = Number.isFinite(requested) && requested > 0;
+
+    // The year being closed is the one that is running (ACTIVE/PAUSED). A DRAFT
+    // created by "Prepare next year" must never take precedence over it.
+    const openCycles = await prisma.academicCycle.findMany({
       where: { campusId, status: { in: ["ACTIVE", "PAUSED", "DRAFT"] } },
       orderBy: { academicYear: "desc" },
     });
+    const activeCycle = pickOpenCycle(openCycles, hasRequested ? requested : null);
 
-    const requested = parseInt(sp.get("year") || "", 10);
-    const academicYear = Number.isFinite(requested) && requested > 0
+    const academicYear = hasRequested
       ? requested
       : activeCycle?.academicYear ?? new Date().getFullYear();
 
