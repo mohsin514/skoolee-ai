@@ -3,11 +3,13 @@ import { announcementChannelSchema, type AnnouncementChannel } from "./announcem
 import type { AnnouncementTemplate, ChannelCapability } from "./announcement-channels";
 
 const id = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/);
+// SKAI-2186: seeded class ids can contain single inner spaces ("<campus>-Grade 1-A-2026"); the class lookup is parameterised.
+const classId = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+(?: [a-zA-Z0-9_-]+)*$/);
 export const announcementLanguageSchema = z.enum(["en", "ar", "ur"]);
 const text = z.strictObject({ subject: z.string().min(1).max(180).refine(value => Boolean(value.trim()) && !/[\r\n]/.test(value)), body: z.string().min(1).max(5000).refine(value => Boolean(value.trim())) });
 export const announcementProposalSchema = z.strictObject({
   operation: z.literal("communications.queue_announcement"),
-  classIds: z.array(id).min(1).max(10).refine(value => new Set(value).size === value.length),
+  classIds: z.array(classId).min(1).max(10).refine(value => new Set(value).size === value.length),
   channel: announcementChannelSchema,
   templateIds: z.strictObject({ en: z.string().max(64).optional(), ar: z.string().max(64).optional(), ur: z.string().max(64).optional() }).optional(),
   messages: z.strictObject({ en: text.optional(), ar: text.optional(), ur: text.optional() }),
