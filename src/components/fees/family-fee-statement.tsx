@@ -24,6 +24,7 @@ import { toast } from "@/components/ui/toast";
 type DueState = "PAID" | "CANCELLED" | "OVERDUE" | "DUE_TODAY" | "NOT_YET_DUE";
 type Statement = {
   student: { id: string; fullName: string }; currency: string | null; currencies: string[]; today: string;
+  credit?: { total: number; items: { fromAcademicYear: number; toAcademicYear: number; amount: number }[] };
   summary: { charges: number; payments: number; closing: number; outstanding: number; overdue: number; dueToday: number; notYetDue: number; reconciles: boolean };
   invoices: { id: string; invoiceNumber: string | null; currency: string; status: string; dueState: DueState; dueDate: string; totalAmount: number; paid: number; balance: number; receipts: { id: string; amount: number; receiptNo: string | null; paymentDate: string; method: string }[];
     installments: { dueDate: string; amount: number; paid: number; remaining: number; state: "PAID" | "PART_PAID" | "OVERDUE" | "DUE_TODAY" | "NOT_YET_DUE" }[] | null;
@@ -103,6 +104,7 @@ export function FamilyFeeStatement({ studentId, onSummary, canPay = true }: { st
         <StatTile index={3} icon={CheckCircle2} label={ui("Not yet due")} value={<bdi className="break-words tabular-nums">{fmt(s.notYetDue)}</bdi>} tone="info" />
       </DeskStats>
       <p className="text-xs leading-relaxed text-ink-muted tabular-nums" data-statement-reconciliation={s.reconciles ? "ok" : "mismatch"}><bdi>{ui("Charges {0} − payments {1} = {2} owed", [fmt(s.charges), fmt(s.payments), fmt(s.closing)])}</bdi>{" · "}{ui("Dates as of {0} (school calendar)", [date(statement.today)])}{s.reconciles ? "" : ` · ${ui("These figures do not reconcile; please contact the school office.")}`}</p>
+      {statement.credit && statement.credit.total > 0 ? <p className="rounded-lg border border-status-info-border bg-status-info-surface px-3 py-2 text-xs leading-relaxed tabular-nums" data-statement-credit><bdi>{ui("Credit on account: {0}. It is carried forward and will be used against your next fees.", [fmt(statement.credit.total)])}</bdi>{statement.credit.items.map(item => <span key={item.toAcademicYear} className="block text-ink-muted"><bdi>{ui("{0} carried from {1} to {2}", [fmt(item.amount), String(item.fromAcademicYear), String(item.toAcademicYear)])}</bdi></span>)}</p> : null}
       {!canPay && s.outstanding > 0 ? <p className="text-xs leading-relaxed text-ink-muted" data-pay-note>{ui("Your parent or guardian pays fees from their family account.")}</p> : null}
       <div className="space-y-3">{urgencyFirst(statement.invoices, invoice => STATE_RANK[invoice.dueState] ?? 5).map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} focused={invoice.id === focusInvoice} fmt={fmt} onPending={setPaymentRef} canPay={canPay} />)}</div>
     </>}

@@ -43,10 +43,14 @@ export async function familyStatement(user: AuthUser, studentId: string | null, 
       ...(plan ? { installments: installmentStates(plan.installmentsJson as Installment[], invoice.totalAmountPaid - plan.paidAtCreation, today) } : {}) };
   });
   const summary = reconcileStatement(rows, today);
+  // SKAI-2100: an overpayment sits in a carry-forward record (negative balance = credit). Show it so receipts reconcile.
+  const carries = await prisma.feeCarryForward.findMany({ where: { studentId: student.id, currency: currency ?? "", balance: { lt: 0 } }, orderBy: [{ toAcademicYear: "asc" }], select: { fromAcademicYear: true, toAcademicYear: true, balance: true } });
+  const credits = carries.map(row => ({ fromAcademicYear: row.fromAcademicYear, toAcademicYear: row.toAcademicYear, amount: -row.balance }));
   return {
     student: { id: student.id, fullName: student.fullName },
     currency, currencies, today, timezone: student.school.timezone,
     summary: { ...summary, states: undefined },
+    credit: { total: credits.reduce((sum, row) => sum + row.amount, 0), items: credits },
     invoices: inCurrency.map((invoice, index) => ({
       id: invoice.id, invoiceNumber: invoice.invoiceNumber, currency: invoice.currency, status: invoice.status,
       dueState: summary.states[invoice.id], dueDate: rows[index].dueDate, installments: rows[index].installments ?? null, adjustments: adjustments.filter(row => row.invoiceId === invoice.id).map(({ invoiceId: _invoiceId, ...row }) => row),

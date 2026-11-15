@@ -133,4 +133,17 @@ describe("SKAI-1653 family fee statement covers the whole ledger", () => {
     await assert.rejects(statement(annexParent, other), (error: unknown) => error instanceof ApiError && error.status === 404);
     assert.equal((await statement(annexParent, kid)).invoices.length, 2);
   });
+
+  it("SKAI-2100: an overpayment credit carried forward is shown, so receipts reconcile with the statement", async () => {
+    const f = fixtures.run;
+    const kid = await learner(f.schoolA, f.campusA1, "credit-kid");
+    const parent = await guardian(f.schoolA, f.campusA1, kid, true);
+    await ledger(f.schoolA, f.campusA1, kid, 2);
+    assert.deepEqual((await statement(parent, kid)).credit, { total: 0, items: [] });
+    await db.feeCarryForward.create({ data: { schoolId: f.schoolA, campusId: f.campusA1, studentId: kid, fromAcademicYear: 2026, toAcademicYear: 2027, balance: -135000, currency: "PKR" } as never });
+    // A positive carry (a debt) and a credit in another currency are not shown as credit.
+    await db.feeCarryForward.create({ data: { schoolId: f.schoolA, campusId: f.campusA1, studentId: kid, fromAcademicYear: 2027, toAcademicYear: 2028, balance: 5000, currency: "PKR" } as never });
+    const out = await statement(parent, kid);
+    assert.deepEqual(out.credit, { total: 135000, items: [{ fromAcademicYear: 2026, toAcademicYear: 2027, amount: 135000 }] });
+  });
 });
