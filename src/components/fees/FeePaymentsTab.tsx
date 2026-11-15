@@ -54,6 +54,7 @@ import {
 } from "./fee-utils";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
+import { readApiError } from "@/lib/api/envelope-client";
 
 function invoiceStatusVariant(status: string): BadgeProps["variant"] {
   switch (status) {
@@ -541,8 +542,9 @@ function PaymentModal({
         setOutcomeUnknown(true);
       } else {
         // The server answered and nothing was recorded: the entered values stay for correction.
+        // SKAI-2240: an expired session (401) is a definite "not saved", and the error body may be an object.
         setOutcomeUnknown(false);
-        toast.error(tr(json.error || "Payment failed"));
+        toast.error(res.status === 401 ? tr("Your session has ended, so this payment was not saved. Sign in again and record it again.") : tr(readApiError(json, "Payment failed")));
       }
     } catch {
       // No answer: the payment may or may not have been saved. Retrying with the same key is safe.
