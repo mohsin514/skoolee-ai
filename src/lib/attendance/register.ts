@@ -282,7 +282,7 @@ export async function exceptionQueue(user: AuthUser, campusId: string, todayText
   const [absences, explanations, openRegisters, notStarted] = await Promise.all([
     prisma.attendance.findMany({ where: { schoolId: user.schoolId, campusId, status: "ABSENT", date: { gte: since, lte: today }, explanations: { none: { status: { in: ["PENDING", "CLARIFICATION", "ACCEPTED"] } } }, ...classFilter }, select: { id: true, date: true, version: true, student: { select: { id: true, fullName: true } }, class: { select: { name: true, section: true } } }, orderBy: { date: "desc" }, take: 200 }),
     prisma.attendanceExplanation.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: ["PENDING", "CLARIFICATION"] }, ...(user.role === "TEACHER" ? { attendance: classFilter } : {}) }, include: { attendance: { select: { id: true, date: true, status: true, version: true, student: { select: { fullName: true } }, class: { select: { name: true, section: true } } } } }, orderBy: { createdAt: "asc" } }),
-    prisma.attendanceRegister.findMany({ where: { schoolId: user.schoolId, campusId, status: "OPEN", date: { gte: since, lte: today } }, select: { id: true, date: true, classId: true }, orderBy: { date: "desc" } }),
+    prisma.attendanceRegister.findMany({ where: { schoolId: user.schoolId, campusId, status: "OPEN", date: { gte: since, lte: today }, ...(user.role === "TEACHER" ? { class: teacherClasses } : {}) }, // SKAI-2253 select: { id: true, date: true, classId: true }, orderBy: { date: "desc" } }),
     notStartedToday(),
   ]);
   return {
