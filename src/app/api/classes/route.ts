@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { compareClassesForList } from "@/lib/academic/class-order";
 import { prisma } from "@/lib/db/prisma";
 import { classSchema } from "@/lib/validators/schemas";
 import {
@@ -91,7 +92,7 @@ export async function GET(req: NextRequest) {
         },
         orderBy,
       });
-      return Response.json({ success: true, data: classes });
+      return Response.json({ success: true, data: classes.sort(compareClassesForList) });
     }
 
     const classes = await prisma.class.findMany({
@@ -108,7 +109,7 @@ export async function GET(req: NextRequest) {
       orderBy,
     });
 
-    return Response.json({ success: true, data: classes });
+    return Response.json({ success: true, data: classes.sort(compareClassesForList) });
   } catch (error) {
     return errorResponse(error, "[classes] GET failed");
   }
