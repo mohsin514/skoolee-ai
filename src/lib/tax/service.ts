@@ -129,7 +129,10 @@ export async function saveDraft(user: AuthUser, body: Record<string, unknown>) {
     effectiveFrom: body.effectiveFrom ? new Date(String(body.effectiveFrom)) : null, ownerId: text(body.ownerId, 64) || null,
     evidenceReviewer: text(body.evidenceReviewer, 160) || null, evidenceReference: text(body.evidenceReference, 300) || null, evidenceReviewedAt: body.evidenceReviewedAt ? new Date(String(body.evidenceReviewedAt)) : null,
   };
-  if (data.effectiveFrom && Number.isNaN(data.effectiveFrom.getTime())) throw new ApiError("Choose a valid effective date.", 400);
+  // SKAI-2145: both dates must be real and within 2000-2100; a NaN or 5-digit year reached Prisma as a raw 500.
+  const inRange = (d: Date) => !Number.isNaN(d.getTime()) && d.getUTCFullYear() >= 2000 && d.getUTCFullYear() <= 2100;
+  if (data.effectiveFrom && !inRange(data.effectiveFrom)) throw new ApiError("Choose a valid effective date.", 400);
+  if (data.evidenceReviewedAt && !inRange(data.evidenceReviewedAt)) throw new ApiError("Choose a valid evidence review date.", 400);
   if (data.ownerId && !(await prisma.user.findFirst({ where: { id: data.ownerId, schoolId: user.schoolId, isActive: true } }))) throw new ApiError("Choose an active staff member as the validation owner.", 400);
   const hash = configHash(data);
   if (body.id) {
