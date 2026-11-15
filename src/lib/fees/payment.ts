@@ -165,6 +165,8 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
   let incomeAccount = await tx.chartOfAccount.findFirst({
     where: { schoolId: invoice.schoolId, campusId: input.campusId, name: "Fee Income" },
   });
+  // SKAI-2233: never post fee income to an account that only borrowed the name.
+  if (incomeAccount && (!incomeAccount.isSystem || incomeAccount.type !== "INCOME")) throw new ApiError("The \"Fee Income\" account on this campus is not the system income account. Rename that account before recording payments.", 409);
   if (!incomeAccount) {
     incomeAccount = await tx.chartOfAccount.create({
       data: { schoolId: invoice.schoolId, campusId: input.campusId, name: "Fee Income", type: "INCOME", isSystem: true },
