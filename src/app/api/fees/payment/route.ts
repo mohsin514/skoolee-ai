@@ -1,7 +1,7 @@
 import { recordPayment } from "@/lib/fees/payment";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { paymentSchema } from "@/lib/validators/schemas";
+import { LEGACY_PAYMENT_METHOD_STORED, paymentSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
   assertPermission,
@@ -56,8 +56,8 @@ async function confirmPayment(req: NextRequest) {
     const { payment } = await prisma.$transaction(async tx => {
       const result = await recordPayment(tx, {
       campusId, invoiceId: invoice.id, studentId: invoice.studentId,
-      amount: parsed.data.amount, paymentDate: new Date(parsed.data.paymentDate),
-      paymentMethod: parsed.data.paymentMethod, referenceNumber: parsed.data.referenceNumber,
+      amount: parsed.data.amount, paymentDate: new Date(`${parsed.data.paymentDate}T00:00:00Z`),
+      paymentMethod: LEGACY_PAYMENT_METHOD_STORED[parsed.data.paymentMethod], referenceNumber: parsed.data.referenceNumber,
       recordedBy: user.userId, idempotencyKey, requestHash,
       });
       await tx.auditLog.create({
