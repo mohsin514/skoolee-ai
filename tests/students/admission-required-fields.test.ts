@@ -53,3 +53,26 @@ test("required-field messages are translated for Urdu and Arabic", () => {
     for (const language of ["ur", "ar"] as const) assert.notEqual(translateUi(message, language), message, `${language}: ${message}`);
   }
 });
+
+// SKAI-2026: the API must enforce what the admission wizard shows.
+test("future or under-age dates of birth are rejected, past valid ones pass", () => {
+  for (const dateOfBirth of ["2099-12-31", "2030-01-01", "not-a-date"]) {
+    assert.ok(failingPaths({ ...complete, dateOfBirth }).includes("dateOfBirth"), `${dateOfBirth} must be rejected`);
+  }
+  assert.ok(failingPaths({ ...complete, dateOfBirth: new Date().toISOString().slice(0, 10) }).includes("dateOfBirth"));
+  assert.deepEqual(failingPaths({ ...complete, dateOfBirth: "2015-05-05" }), []);
+});
+
+test("guardian phone must look like a phone number", () => {
+  for (const guardianPhone of ["abc", "not-a-phone!!", "12", "1".repeat(20)]) {
+    assert.ok(failingPaths({ ...complete, guardianPhone }).includes("guardianPhone"), `${guardianPhone} must be rejected`);
+  }
+  for (const guardianPhone of ["+92 300 0000000", "0300-1234567", "(042) 111 2222"]) {
+    assert.deepEqual(failingPaths({ ...complete, guardianPhone }), [], guardianPhone);
+  }
+});
+
+test("student name is capped at 150 characters", () => {
+  assert.ok(failingPaths({ ...complete, fullName: "S".repeat(151) }).includes("fullName"));
+  assert.deepEqual(failingPaths({ ...complete, fullName: "S".repeat(150) }), []);
+});
