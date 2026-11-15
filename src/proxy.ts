@@ -15,6 +15,7 @@ import { SUBSCRIPTION_PAUSED_MESSAGE } from "@/lib/billing/hub";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
 import { buildCsp } from "@/lib/security/csp-policy";
+import { defaultApiCacheControl } from "@/lib/security/api-cache-policy";
 import { requiredOnboardingPath } from "@/lib/onboarding/launch-plan";
 import { allowedDuringCandidateExam, candidateExamUrl, isPublicStaticFileRequest } from "@/lib/school-ai/exam-boundary";
 import { examUnavailableHeaders, examUnavailablePage, wantsExamUnavailablePage } from "@/lib/school-ai/exam-boundary-unavailable";
@@ -359,5 +360,8 @@ export async function proxy(req: NextRequest) {
   if (!pathname.startsWith("/api") && !response.headers.has("content-security-policy")) {
     response.headers.set("content-security-policy", buildCsp({ nonce, isProd, env: process.env }));
   }
+  // SKAI-2013: API responses are never stored unless the route owns a different policy (see api-cache-policy.ts).
+  const apiCacheControl = defaultApiCacheControl(pathname);
+  if (apiCacheControl && !response.headers.has("cache-control")) response.headers.set("Cache-Control", apiCacheControl);
   return response;
 }

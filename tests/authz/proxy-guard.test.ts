@@ -195,3 +195,19 @@ test("/parent is no longer a public path (D14)", async () => {
   const result = await call("/parent?token=abc");
   assert.equal(result.location?.startsWith("/login"), true);
 });
+
+test("SKAI-2013: authenticated API responses default to private, no-store; routes that own their policy are left alone", async () => {
+  for (const path of ["/api/students", "/api/staff", "/api/classes", "/api/academic-cycle", "/api/memberships", "/api/subjects"]) {
+    const result = await call(path, { role: "CAMPUS_ADMIN" });
+    assert.equal(result.passed, true, path);
+    assert.equal(result.response.headers.get("cache-control"), "private, no-store", path);
+  }
+  // Refusals from the proxy itself are not stored either.
+  assert.equal((await call("/api/students")).response.headers.get("cache-control"), "private, no-store");
+  assert.equal((await call("/api/profile", { role: "ADMIN", status: "SUSPENDED", method: "PATCH" })).response.headers.get("cache-control"), "private, no-store");
+  // Pages keep Next's own document policy; these routes set theirs (public caching, private images, event streams).
+  for (const path of ["/admin", "/api/media/profile-images/school-synthetic/a.png", "/api/chat/stream", "/api/notifications/sse", "/api/school-ai/generate-paper/stream"]) {
+    assert.equal((await call(path, { role: "ADMIN" })).response.headers.get("cache-control"), null, path);
+  }
+  assert.equal((await call("/api/public/v1/contract")).response.headers.get("cache-control"), null);
+});
