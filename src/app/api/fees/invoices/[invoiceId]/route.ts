@@ -91,7 +91,8 @@ export async function PATCH(
       const result = await tx.invoice.updateMany({ where: { id: invoiceId, status: invoice.status, totalAmountPaid: invoice.totalAmountPaid }, data: { status } });
       if (result.count !== 1) throw new ApiError("This invoice changed. Refresh it before trying again.", 409);
       await settleLibraryChargeForInvoice(tx, invoiceId);
-      await tx.auditLog.create({ data: { tableName: "invoice", recordId: invoiceId, newValue: { action: "status_change", from: invoice.status, to: status }, userId: user.userId } });
+      // SKAI-2216: before/after status so the activity log reads "Updated · Status: PENDING -> CANCELLED".
+      await tx.auditLog.create({ data: { tableName: "invoice", recordId: invoiceId, oldValue: { status: invoice.status }, newValue: { status }, userId: user.userId } });
       return { invoice: await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } }), changed: true };
     });
 
