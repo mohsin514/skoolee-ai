@@ -3,6 +3,7 @@ import { assertModuleRead, errorResponse, requireAuthUser, resolveCampusId } fro
 import { gradeForPercentage } from "@/lib/academic/report-cards";
 import { groupedRuleRate } from "@/lib/attendance";
 import { attendanceRuleFor } from "@/lib/attendance/rule";
+import { teacherClassWhere } from "@/lib/auth/policy";
 
 export async function GET(req: Request) {
   try {
@@ -30,10 +31,14 @@ export async function GET(req: Request) {
 
     const campusWhere = campusId ? { campusId } : { campus: { schoolId: user.schoolId } };
     const academicYear = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
+    // SKAI-2252: a teacher's analytics cover only the classes they lead or teach a subject in.
+    const teacherOnly = user.role === "TEACHER";
+    const classScope = teacherOnly ? { class: teacherClassWhere(user.userId) } : {};
 
     const exams = await prisma.exam.findMany({
       where: {
         ...campusWhere,
+        ...classScope,
         academicYear,
         status: { in: ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"] },
       },
@@ -63,11 +68,12 @@ export async function GET(req: Request) {
         _sum: { marksObtained: true },
         _count: { _all: true },
       }),
-      prisma.student.count({ where: campusId ? { campusId } : { campus: { schoolId: user.schoolId } } }),
+      prisma.student.count({ where: { ...(campusId ? { campusId } : { campus: { schoolId: user.schoolId } }), ...classScope } }),
       prisma.attendance.groupBy({
         by: ["status"],
         where: {
           ...(campusId ? { campusId } : { campus: { schoolId: user.schoolId } }),
+          ...(teacherOnly ? { student: classScope } : {}),
           // SKAI-1607: the selected year is closed at both ends, like the exam and report-card filters.
           date: { gte: new Date(Date.UTC(academicYear, 0, 1)), lt: new Date(Date.UTC(academicYear + 1, 0, 1)) },
         },
