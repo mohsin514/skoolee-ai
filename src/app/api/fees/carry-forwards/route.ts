@@ -4,7 +4,7 @@ import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
+import { assertFeesRead, ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { requiredIdBody } from "@/lib/validators/route-bodies";
 
@@ -14,6 +14,7 @@ import { requiredIdBody } from "@/lib/validators/route-bodies";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertFeesRead(user);
     const { searchParams } = new URL(req.url);
     const studentId = searchParams.get("studentId");
     const academicYear = searchParams.get("academicYear");

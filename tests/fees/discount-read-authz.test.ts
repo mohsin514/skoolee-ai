@@ -23,6 +23,7 @@ mock.module(src("lib/api/scope.ts"), {
     requireAuthUser: async () => state.user,
     canManageFinance: (user: { role: string }) => FINANCE_ROLES.includes(user.role),
     assertPermission: async () => undefined,
+    assertFeesRead: async () => undefined,
     scopedCampusWhere: (user: { schoolId: string }, campusId?: string | null) => ({
       campus: { schoolId: user.schoolId, ...(campusId ? { id: campusId } : {}) },
     }),
