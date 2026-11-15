@@ -158,7 +158,7 @@ export function ProfileSettingsSection({ onSaved, onDirtyChange }: {
           <ReadOnly icon={Mail} label={t("Email")} value={profile.email || "—"} ltr />
         </dl>
         <p className="mt-3 flex items-start gap-2 text-xs font-semibold leading-relaxed text-ink-muted">
-          <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{t(["SUPER_ADMIN", "APP_OWNER"].includes(profile.role) ? "Role, email and permissions are managed by SkooleeAI support." : "Role, email and permissions are managed by your school administrator.")}
+          <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{t(["SUPER_ADMIN", "APP_OWNER"].includes(profile.role ?? "") ? "Role, email and permissions are managed by SkooleeAI support." : "Role, email and permissions are managed by your school administrator.")}
         </p>
       </section>
 
