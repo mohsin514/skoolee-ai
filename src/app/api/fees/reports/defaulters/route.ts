@@ -41,7 +41,8 @@ export async function GET(req: NextRequest) {
         : await resolveCampusId(user, requestedCampusId);
 
     const minDaysOverdue = Number(searchParams.get("minDays") ?? "1");
-    if (!Number.isSafeInteger(minDaysOverdue) || minDaysOverdue < 0) {
+    // SKAI-2149: bounded to 100 years; a larger value made the cutoff an Invalid Date (raw 500).
+    if (!Number.isSafeInteger(minDaysOverdue) || minDaysOverdue < 0 || minDaysOverdue > 36500) {
       return Response.json({ error: "Invalid minimum overdue days" }, { status: 400 });
     }
 
