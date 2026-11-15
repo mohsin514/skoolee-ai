@@ -159,6 +159,12 @@ function Work({ t, language, item, reload, setStatus, onReceipt }: { t: Assignme
       setStatus({ tone: "error", text: error instanceof Error && error.message !== "Request failed" ? error.message : t.uploadFailed });
     }
   }
+  async function removeFile() {
+    try {
+      await post({ op: "remove" });
+      setUpload({ state: "idle", file: null, name: null, sha256: null }); setStatus(null);
+    } catch (error) { setStatus({ tone: "error", text: error instanceof Error && error.message !== "Request failed" ? error.message : t.failed }); }
+  }
   async function submit() {
     // One key per intended submission, kept across retries and reloads until a receipt arrives.
     const idempotencyKey = store.get(submitKey) ?? submitKeyRef.current ?? `s-${crypto.randomUUID()}`;
@@ -190,7 +196,7 @@ function Work({ t, language, item, reload, setStatus, onReceipt }: { t: Assignme
       <p id="asg-upload-state" role="status" className="flex flex-wrap items-center gap-2">
         {upload.state === "uploading" && <><span className="inline-block h-2 w-24 animate-pulse rounded bg-brand-200 motion-reduce:animate-none" role="progressbar" aria-label={t.uploading} />{t.uploading} <bdi>{upload.name}</bdi></>}
         {upload.state === "uploaded" && <span className="text-status-success-text">{t.uploaded}: <bdi>{upload.name}</bdi></span>}
-        {upload.state === "failed" && <><span className="text-status-error-text">{t.uploadFailed} <bdi>{upload.name}</bdi></span>{upload.file && <Button type="button" size="sm" variant="outline" onClick={() => void sendFile(upload.file!)}><RotateCcw aria-hidden />{t.retry}</Button>}</>}
+        {upload.state === "failed" && <><span className="text-status-error-text">{t.uploadFailed} <bdi>{upload.name}</bdi></span>{upload.file && <Button type="button" size="sm" variant="outline" onClick={() => void sendFile(upload.file!)}><RotateCcw aria-hidden />{t.retry}</Button>}<Button type="button" size="sm" variant="outline" onClick={() => void removeFile()}>{t.removeFile}</Button></>}
       </p>
     </div>}
     {phase === "submitting" && <p role="status" className="text-sm text-ink">{t.submitting}</p>}
