@@ -5,6 +5,7 @@ const messages = {
   reviewHint: ["AI uses your confirmed answers to create the requested records. Follow saved progress and answer any missing details below.", "يستخدم الذكاء الاصطناعي إجاباتك المؤكدة لإنشاء السجلات المطلوبة. تابع التقدم المحفوظ وأجب عن التفاصيل الناقصة أدناه.", "اے آئی تصدیق شدہ جوابات سے مطلوبہ ریکارڈ بناتا ہے۔ محفوظ پیش رفت دیکھیں اور نیچے نامکمل تفصیل کا جواب دیں۔"],
   generate: ["Generate my workspace", "جهّز مساحة عملي", "میری ورک اسپیس تیار کریں"],
   finish: ["Finish and set up automatically", "إنهاء وإعداد تلقائي", "مکمل کریں اور خودکار سیٹ اپ چلائیں"],
+  finishManual: ["Finish setup", "إنهاء الإعداد", "سیٹ اپ مکمل کریں"],
   skipFinish: ["Skip and start setup", "تخطي وبدء الإعداد", "چھوڑیں اور سیٹ اپ شروع کریں"],
   regenerate: ["Save and regenerate", "حفظ وإعادة التجهيز", "محفوظ کر کے دوبارہ تیار کریں"],
   retry: ["Retry preparation", "إعادة محاولة التجهيز", "تیاری دوبارہ کریں"],
@@ -42,4 +43,9 @@ const messages = {
 export function setupGenerationCopy(language: Language) {
   const index = language === "ar" ? 1 : language === "ur" ? 2 : 0;
   return Object.fromEntries(Object.entries(messages).map(([key, values]) => [key, values[index]])) as Record<keyof typeof messages, string>;
+}
+
+/** The last wizard question's button: the automatic hand-off is promised only when AI Workflows can run it. */
+export function setupFinishLabel(copy: Pick<ReturnType<typeof setupGenerationCopy>, "finish" | "finishManual">, automaticSetup: boolean) {
+  return automaticSetup ? copy.finish : copy.finishManual;
 }
