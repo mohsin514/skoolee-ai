@@ -19,7 +19,9 @@ import {
   Info,
   LayoutList,
   Lock,
+  Pencil,
   Plus,
+  Trash2,
   RefreshCw,
   Rows3,
   RotateCcw,
@@ -239,6 +241,8 @@ export function ExamCycleManager({
 
   // ── Pending confirmations ──
   const [pendingPlan, setPendingPlan] = useState<MovePlan | null>(null);
+  const [editing, setEditing] = useState<ExamItem | null>(null);
+  const [deleting, setDeleting] = useState<ExamItem | null>(null);
   const [rejecting, setRejecting] = useState<ExamItem[] | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectBusy, setRejectBusy] = useState(false);
@@ -1283,6 +1287,8 @@ export function ExamCycleManager({
                   setRejectReason("");
                 }}
                 onMove={(id, to) => requestMove([id], to)}
+                onEdit={setEditing}
+                onDelete={setDeleting}
                 onNudge={nudge}
               />
             ))}
@@ -1363,6 +1369,14 @@ export function ExamCycleManager({
         />
       ) : null}
 
+      {editing ? (
+        <EditExamModal exam={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+      ) : null}
+
+      {deleting ? (
+        <DeleteExamModal exam={deleting} onClose={() => setDeleting(null)} onDeleted={() => { setDeleting(null); load(); }} />
+      ) : null}
+
       {creating ? (
         <CreateExamModal
           campusId={campusId}
@@ -1419,6 +1433,8 @@ function BoardLane({
   onAdvance,
   onReject,
   onMove,
+  onEdit,
+  onDelete,
   onNudge,
 }: {
   column: BoardColumn;
@@ -1443,6 +1459,8 @@ function BoardLane({
   onAdvance: (exam: ExamItem, action: NextAction) => void;
   onReject: (exam: ExamItem) => void;
   onMove: (id: string, to: ColumnKey) => void;
+  onEdit: (exam: ExamItem) => void;
+  onDelete: (exam: ExamItem) => void;
   onNudge: (exam: ExamItem, direction: -1 | 1) => void;
 }) {
   const ui = useUiText();
@@ -1568,6 +1586,8 @@ function BoardLane({
               onAdvance={(action) => onAdvance(exam, action)}
               onReject={() => onReject(exam)}
               onMove={(to) => onMove(exam.id, to)}
+              onEdit={() => onEdit(exam)}
+              onDelete={() => onDelete(exam)}
               onDragStart={(e) => onCardDragStart(e, exam.id)}
               onDragEnd={onCardDragEnd}
             />
@@ -1984,6 +2004,116 @@ function RejectMarksModal({
             : ui("{0} characters · the teacher sees this verbatim", [reason.trim().length])}
         </p>
 
+    </Modal>
+  );
+}
+
+function EditExamModal({ exam, onClose, onSaved }: { exam: ExamItem; onClose: () => void; onSaved: () => void }) {
+  const ui = useUiText();
+  const [busy, setBusy] = useState(false);
+  const [title, setTitle] = useState(exam.title);
+  const [term, setTerm] = useState(exam.term);
+  const changed = title.trim() !== exam.title || term.trim() !== exam.term;
+  const invalid = !title.trim() || !term.trim();
+
+  const submit = async () => {
+    if (invalid || !changed) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/exams", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: exam.id,
+          ...(title.trim() !== exam.title ? { title: title.trim() } : {}),
+          ...(term.trim() !== exam.term ? { term: term.trim() } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error("Edit exam failed", data?.error);
+        toast.error(ui("Could not save the changes. Please try again."));
+        return;
+      }
+      toast.success(ui("Details updated"));
+      onSaved();
+    } catch (e) {
+      console.error(e);
+      toast.error(ui("Could not save the changes. Please try again."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={ui("Edit details")}
+      icon={Pencil}
+      size="sm"
+      onClose={onClose}
+      dirty={changed}
+      dirtyMessage={ui("Discard your changes?")}
+      footer={
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <Button variant="secondary" type="button" onClick={onClose} className="px-5 py-2.5">{ui("Cancel")}</Button>
+          <BrandButton variant="gradient" onClick={submit} disabled={invalid || !changed} loading={busy}>{ui("Save changes")}</BrandButton>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="Title">
+          <SystemInput value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} className="w-full" autoFocus />
+        </Field>
+        <Field label="Term">
+          <SystemInput value={term} maxLength={100} onChange={(e) => setTerm(e.target.value)} className="w-full" />
+        </Field>
+      </div>
+    </Modal>
+  );
+}
+
+function DeleteExamModal({ exam, onClose, onDeleted }: { exam: ExamItem; onClose: () => void; onDeleted: () => void }) {
+  const ui = useUiText();
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/exams?id=${encodeURIComponent(exam.id)}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error("Delete exam failed", data?.error);
+        toast.error(ui("Could not delete this. Please try again."));
+        return;
+      }
+      toast.success(ui("Deleted"));
+      onDeleted();
+    } catch (e) {
+      console.error(e);
+      toast.error(ui("Could not delete this. Please try again."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={ui("Delete this test?")}
+      icon={Trash2}
+      tone="amber"
+      size="xs"
+      onClose={onClose}
+      footer={
+        <div className="flex gap-2">
+          <BrandButton variant="soft" onClick={onClose} disabled={busy} className="flex-1">{ui("Keep it")}</BrandButton>
+          <BrandButton variant="gradient" onClick={submit} loading={busy} className="flex-1">{ui("Delete")}</BrandButton>
+        </div>
+      }
+    >
+      <p className="text-2xs font-semibold leading-relaxed text-ink-muted">
+        <bdi>{exam.title}{exam.class ? ` · ${classLabel(exam.class)}` : ""}</bdi>{" "}
+        {ui("has no marks yet. Deleting it cannot be undone.")}
+      </p>
     </Modal>
   );
 }

@@ -338,6 +338,49 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
+/**
+ * SKAI-1999: discard an exam created by mistake. Only while it is unlocked and has no marks or
+ * report cards, so nothing a teacher has entered or a parent has seen can be lost. Schedules go with it.
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await getAuthUser();
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    const billingBlocked = await billingAccessResponse(user.schoolId);
+    if (billingBlocked) return billingBlocked;
+    if (!canManageExams(user.role)) {
+      return Response.json({ error: "Insufficient permissions" }, { status: 403 });
+    }
+    await assertPermission(user, "exams", "edit");
+
+    const id = new URL(req.url).searchParams.get("id")?.trim();
+    if (!id) return Response.json({ error: "Exam id required" }, { status: 400 });
+
+    await prisma.$transaction(async (tx) => {
+      const current = await tx.exam.findFirst({ where: { id, schoolId: user.schoolId } });
+      if (!current) throw new ApiError("Exam not found", 404);
+      if (user.campusId && current.campusId !== user.campusId) throw new ApiError("Exam is outside your campus", 403);
+      if (!canManageExamType(user.role, current.examType)) throw new ApiError(TERM_EXAM_DENIED_MESSAGE, 403);
+      if (user.role === "TEACHER" && !await tx.class.findFirst({ where: { id: current.classId, schoolId: user.schoolId, campusId: current.campusId, OR: [{ classTeacherId: user.userId }, { subjects: { some: { teacherId: user.userId } } }] }, select: { id: true } })) {
+        throw new ApiError("You are not assigned to this class", 403);
+      }
+      if (current.isLocked || current.status !== "DRAFT" && current.status !== "ACTIVE" && current.status !== "MARKS_ENTRY") {
+        throw new ApiError("Locked exams cannot be deleted", 409);
+      }
+      if (await hasMarks(tx, user.schoolId, current.id) || await tx.reportCard.findFirst({ where: { schoolId: user.schoolId, examId: current.id }, select: { id: true } })) {
+        throw new ApiError("Exams with marks cannot be deleted", 409);
+      }
+      const result = await tx.exam.deleteMany({ where: { id: current.id, schoolId: user.schoolId, isLocked: false } });
+      if (result.count !== 1) throw new ApiError("Locked exams cannot be deleted", 409);
+      await writeAuditEvent(tx, user, { table: "exams", recordId: current.id, action: "DELETE", campusId: current.campusId, before: { title: current.title, term: current.term, examType: current.examType, status: current.status } });
+    });
+    return Response.json({ success: true });
+  } catch (error) {
+    console.error("[exams] DELETE failed", error);
+    return permissionAwareError(error);
+  }
+}
+
 /** The draft guard only needs to know whether any mark exists, so it stops at the first one. */
 async function hasMarks(db: Pick<typeof prisma, "mark">, schoolId: string, examId: string) {
   return Boolean(await db.mark.findFirst({ where: { schoolId, examId }, select: { id: true } }));
