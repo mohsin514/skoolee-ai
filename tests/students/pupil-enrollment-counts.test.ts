@@ -36,7 +36,7 @@ function groupBy(model: keyof typeof rows) {
 mock.module("@/lib/api/scope", {
   namedExports: {
     ApiError: class ApiError extends Error { constructor(m: string, public status = 400) { super(m); } },
-    assertPermission: async () => {}, canManageCampusOps: () => true,
+    assertPermission: async () => {}, assertFeesRead: async () => {}, canManageCampusOps: () => true,
   },
 });
 mock.module("@/lib/auth/policy", {

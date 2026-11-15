@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageCampusOps } from "@/lib/api/scope";
+import { ApiError, assertFeesRead, assertPermission, canManageCampusOps } from "@/lib/api/scope";
 import { isFamily, publishedReportsWhere, studentScope } from "@/lib/auth/policy";
 import type { AuthUser } from "@/lib/auth";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
@@ -73,9 +73,18 @@ export function enrollmentHistoryWhere(user: AuthUser) {
     reports: { student: studentScope(user, "learningRecords"), ...(isFamily(user) ? publishedReportsWhere : {}) },
   };
 }
+/** SKAI-2011: staff see a pupil's invoices only with fees.view, the same gate as /api/fees/invoices; families keep their guardian finances scope. */
+export async function canReadPupilFees(user: AuthUser) {
+  if (isFamily(user)) return true;
+  try { await assertFeesRead(user); return true; } catch (error) {
+    if (error instanceof ApiError && error.status === 403) return false;
+    throw error;
+  }
+}
 export async function readPupil(user: AuthUser, id: string) {
   if (!isFamily(user)) await assertPermission(user, "students", "view");
   const history = enrollmentHistoryWhere(user);
+  const feesVisible = await canReadPupilFees(user);
   const pupil = await prisma.student.findFirst({ where: { id, ...studentScope(user) }, select: {
     id: true, admissionNo: true, fullName: true, campusId: true, classId: true, rollNo: true, status: true,
     profileImageUrl: true, category: { select: { name: true } }, group: { select: { name: true } },
@@ -89,7 +98,7 @@ export async function readPupil(user: AuthUser, id: string) {
   const ids = pupil.enrollments.map((e) => e.id);
   const [attendance, invoices, reports] = ids.length ? await Promise.all([
     prisma.attendance.groupBy({ by: ["enrollmentId"], where: { enrollmentId: { in: ids }, ...history.attendance }, _count: { _all: true } }),
-    prisma.invoice.groupBy({ by: ["enrollmentId"], where: { enrollmentId: { in: ids }, ...history.invoices }, _count: { _all: true } }),
+    feesVisible ? prisma.invoice.groupBy({ by: ["enrollmentId"], where: { enrollmentId: { in: ids }, ...history.invoices }, _count: { _all: true } }) : Promise.resolve([]),
     prisma.reportCard.groupBy({ by: ["enrollmentId"], where: { enrollmentId: { in: ids }, ...history.reports }, _count: { _all: true } }),
   ]) : [[], [], []];
   const byEnrollment = (rows: { enrollmentId: string | null; _count: { _all: number } }[]) => new Map(rows.map((r) => [r.enrollmentId, r._count._all]));

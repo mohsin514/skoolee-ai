@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { isFamily, studentScope } from "@/lib/auth/policy";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
-import { applyEnrollment, applyReadmission, assertPlacementTarget, assertRegistrar, assertRollNoFree, canPlaceAcrossCampuses, dateOnly, enrollmentHistoryWhere, enrollmentImpact, readPupil } from "@/lib/students/enrollment";
+import { applyEnrollment, applyReadmission, assertPlacementTarget, assertRegistrar, assertRollNoFree, canPlaceAcrossCampuses, canReadPupilFees, dateOnly, enrollmentHistoryWhere, enrollmentImpact, readPupil } from "@/lib/students/enrollment";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 import { isSerializationConflict, retrySerializable } from "@/lib/students/serializable-retry";
@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
     if (enrollmentId) {
       if (!pupil.enrollments.some(e => e.id === enrollmentId)) throw new ApiError("Enrollment not found", 404);
       const history = enrollmentHistoryWhere(user);
+      const feesVisible = await canReadPupilFees(user);
       // SKAI-1503: each collection is paged by keyset (id tie-break) with its own cursor and total, so older rows stay reachable.
       const cursor = (name: string) => req.nextUrl.searchParams.get(name) || undefined;
       const page = <T extends { id: string }>(rows: T[]) => {
@@ -42,10 +43,10 @@ export async function GET(req: NextRequest) {
       const after = (value?: string) => (value ? { cursor: { id: value }, skip: 1 } : {});
       const [attendanceRows, invoiceRows, reportRows, attendanceTotal, invoiceTotal, reportTotal] = await Promise.all([
         prisma.attendance.findMany({ where: { studentId: id, enrollmentId, ...history.attendance }, select: { id: true, date: true, status: true }, orderBy: [{ date: "desc" }, { id: "desc" }], take: PAGE_SIZE + 1, ...after(cursor("attendanceCursor")) }),
-        prisma.invoice.findMany({ where: { studentId: id, enrollmentId, ...history.invoices }, select: { id: true, invoiceNumber: true, invoiceDate: true, currency: true, balanceDue: true }, orderBy: [{ invoiceDate: "desc" }, { id: "desc" }], take: PAGE_SIZE + 1, ...after(cursor("invoiceCursor")) }),
+        !feesVisible ? Promise.resolve([]) : prisma.invoice.findMany({ where: { studentId: id, enrollmentId, ...history.invoices }, select: { id: true, invoiceNumber: true, invoiceDate: true, currency: true, balanceDue: true }, orderBy: [{ invoiceDate: "desc" }, { id: "desc" }], take: PAGE_SIZE + 1, ...after(cursor("invoiceCursor")) }),
         prisma.reportCard.findMany({ where: { studentId: id, enrollmentId, ...history.reports }, select: { id: true, generatedAt: true, status: true, exam: { select: { title: true } } }, orderBy: [{ generatedAt: "desc" }, { id: "desc" }], take: PAGE_SIZE + 1, ...after(cursor("reportCursor")) }),
         prisma.attendance.count({ where: { studentId: id, enrollmentId, ...history.attendance } }),
-        prisma.invoice.count({ where: { studentId: id, enrollmentId, ...history.invoices } }),
+        !feesVisible ? Promise.resolve(0) : prisma.invoice.count({ where: { studentId: id, enrollmentId, ...history.invoices } }),
         prisma.reportCard.count({ where: { studentId: id, enrollmentId, ...history.reports } }),
       ]);
       const attendance = page(attendanceRows);
