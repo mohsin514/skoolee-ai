@@ -424,15 +424,18 @@ export const reportActionSchema = z.object({
   correctionReason: z.string().max(1000).optional(),
 });
 
+// SKAI-2124: cap per-language remarks so a save cannot bloat report_versions snapshots or break the review UI.
+export const REPORT_REMARK_MAX_LENGTH = 2000;
+
 export const reportRemarkSchema = z.object({
   versionId: z.string().optional(),
   requestCorrection: z.boolean().optional(),
   correctionReason: z.string().max(1000).optional(),
   reviewerNote: z.string().max(4000).optional(),
   reportLanguage: z.enum(["en", "ar", "ur"]).optional(),
-  remarksAr: z.string().optional().nullable(),
-  remarksEn: z.string().optional().nullable(),
-  remarksUr: z.string().optional().nullable(),
+  remarksAr: z.string().max(REPORT_REMARK_MAX_LENGTH).optional().nullable(),
+  remarksEn: z.string().max(REPORT_REMARK_MAX_LENGTH).optional().nullable(),
+  remarksUr: z.string().max(REPORT_REMARK_MAX_LENGTH).optional().nullable(),
   // SKAI-1491: the remarks the editor loaded; a save against a newer draft is refused.
   expectedRemarks: z.object({ remarksEn: z.string().nullable(), remarksUr: z.string().nullable(), remarksAr: z.string().nullable().optional() }).strict().optional(),
   approve: z.boolean().optional(),
