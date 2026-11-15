@@ -322,6 +322,12 @@ async function proxyImpl(req: NextRequest, nonce: string) {
       // redirect. Never reuse candidate HTML (or its development Flight stream).
       response.headers.set("Cache-Control", "private, no-store");
     }
+    if (pathname.startsWith("/api/") && !API_OWN_CACHE_POLICY.some(prefix => pathname.startsWith(prefix))) {
+      // SKAI-2013: authenticated JSON carries tenant data and PII; keep it out of
+      // browser, bfcache and shared caches. This header set here wins over the
+      // handler's, so routes with a deliberate policy are listed above.
+      response.headers.set("Cache-Control", "private, no-store");
+    }
     return response;
   } catch {
     // Invalid or expired token
@@ -334,6 +340,10 @@ async function proxyImpl(req: NextRequest, nonce: string) {
     return res;
   }
 }
+
+// Routes whose own Cache-Control must survive: event streams need no-transform,
+// and authenticated media is deliberately cached privately.
+const API_OWN_CACHE_POLICY = ["/api/notifications/sse", "/api/chat/stream", "/api/media/"];
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
