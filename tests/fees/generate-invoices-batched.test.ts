@@ -18,6 +18,8 @@ const state = {
   campusReads: [] as unknown[],
   locks: [] as unknown[],
   lastDocNumber: null as string | null,
+  oneTime: {} as Record<string, number>,
+  billedEnrollments: new Set<string>(),
 };
 const activation = {
   id: "act-1", schoolId: "school-a", packageCode: "SA-DEMO", packageVersion: 1, currency: "SAR", exemptFeeCodes: [] as string[],
@@ -25,7 +27,7 @@ const activation = {
 };
 const tx = {
   student: { findMany: async ({ where }: { where: Row }) => { state.ops.push("student.findMany"); assert.equal(where.schoolId, state.user.schoolId); return state.students; } },
-  feeStructure: { findMany: async () => { state.ops.push("feeStructure.findMany"); return [{ classId: "class-1", currency: "SAR", monthlyFee: 100000, oneTimeFeesJson: {}, discountRulesJson: {}, taxPercentage: 0, approvedFee: null, approvedFeeReference: null }]; } },
+  feeStructure: { findMany: async () => { state.ops.push("feeStructure.findMany"); return [{ classId: "class-1", currency: "SAR", monthlyFee: 100000, oneTimeFeesJson: state.oneTime, discountRulesJson: {}, taxPercentage: 0, approvedFee: null, approvedFeeReference: null }]; } },
   school: { findUnique: async () => { state.ops.push("school.findUnique"); return { feeCapMode: "OFF" }; } },
   studentEnrollment: {
     findMany: async ({ where }: { where: { schoolId: string; campusId: string } }) => {
@@ -104,6 +106,7 @@ mock.module("@/lib/fees/regulator-cap", { namedExports: { evaluateFeeCap: () => 
 mock.module("@/lib/notifications/in-app", { namedExports: { notify: () => {} } });
 mock.module("@/lib/fees/structure-year", {
   namedExports: {
+    enrollmentsBilledOneTimeFees: async () => state.billedEnrollments,
     feeStructureActiveWhere: () => ({}),
     invoiceBatchStatus: (g: number, e: number) => (g === 0 && e > 0 ? 422 : 201),
     pickStructureForClass: (list: Row[], classId: string) => list.find(s => s.classId === classId) ?? null,
@@ -124,6 +127,7 @@ beforeEach(() => {
   state.user = { userId: "acc-a", role: "ACCOUNTANT", schoolId: "school-a", campusId: "campus-a1", fullName: "QA Accountant" };
   state.ops = []; state.invoices = []; state.docs = []; state.seqIncrements = []; state.campusReads = []; state.locks = [];
   state.lastDocNumber = "SAD-000041";
+  state.oneTime = {}; state.billedEnrollments = new Set();
   state.students = roster(5, "campus-a1");
 });
 
@@ -191,4 +195,17 @@ test("roles without finance access are refused before any write", async () => {
     assert.equal((await generate()).status, 403, role);
   }
   assert.deepEqual(state.ops, []);
+});
+
+test("SKAI-2061: a legacy one-time fee is billed on the first invoice only, not on later months", async () => {
+  state.students = roster(2, "campus-a1");
+  state.oneTime = { Lab: 100000 };
+  state.billedEnrollments = new Set(["enr-stu-0001"]); // already charged the fee on an earlier invoice
+  const r = await generate();
+  assert.equal(r.status, 201);
+  const byStudent = new Map(state.invoices.map(i => [i.studentId, i]));
+  assert.equal(byStudent.get("stu-0000")!.oneTimeFees, 100000);
+  assert.equal(byStudent.get("stu-0000")!.subtotal, 200000);
+  assert.equal(byStudent.get("stu-0001")!.oneTimeFees, 0);
+  assert.equal(byStudent.get("stu-0001")!.subtotal, 100000);
 });

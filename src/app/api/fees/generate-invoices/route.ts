@@ -19,7 +19,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
-import { feeStructureActiveWhere, invoiceBatchStatus, pickStructureForClass } from "@/lib/fees/structure-year";
+import { enrollmentsBilledOneTimeFees, feeStructureActiveWhere, invoiceBatchStatus, pickStructureForClass } from "@/lib/fees/structure-year";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -112,6 +112,8 @@ export async function POST(req: NextRequest) {
     const fineRule = parsed.data.includeLateFees ? await tx.feeFineRule.findFirst({ where: { schoolId: user.schoolId, campusId, isActive: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { type: true, value: true, graceDays: true } }) : null;
     const enrollmentsByStudent = new Map<string, typeof enrollments>();
     for (const period of enrollments) { const list = enrollmentsByStudent.get(period.studentId); if (list) list.push(period); else enrollmentsByStudent.set(period.studentId, [period]); }
+    // SKAI-2061: loaded only when a legacy structure actually has one-time fees.
+    let oneTimeBilled: Set<string> | undefined;
     const activationOn = memoByKey(day => activationFor(tx, user.schoolId, campusId, new Date(`${day}T00:00:00.000Z`)));
     let localeSnapshot: Awaited<ReturnType<typeof getLocalePackage>> | undefined;
     // SKAI-1968: validated rows are written in bulk after the loop instead of one insert (and one tax document) per student.
@@ -190,7 +192,12 @@ export async function POST(req: NextRequest) {
         }
 
         currency = feeStructure.currency;
-        const oneTimeFees: Record<string, number> = (feeStructure.oneTimeFeesJson as Record<string, number>) ?? {};
+        // SKAI-2061: a one-time fee is billed once per enrolment, on its first invoice.
+        let oneTimeFees: Record<string, number> = (feeStructure.oneTimeFeesJson as Record<string, number>) ?? {};
+        if (Object.keys(oneTimeFees).length) {
+          oneTimeBilled ??= await enrollmentsBilledOneTimeFees(tx, user.schoolId, students.map(s => s.id));
+          if (oneTimeBilled.has(invoiceContext.enrollmentId)) oneTimeFees = {};
+        }
         oneTimeTotal = Object.values(oneTimeFees).reduce((sum, v) => sum + v, 0);
 
         const grossDues: Record<string, number> = (feeStructure.discountRulesJson as Record<string, number>) ?? {};
