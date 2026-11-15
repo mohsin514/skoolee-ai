@@ -85,7 +85,8 @@ export function exportCSV(rows: Record<string, string | number>[], filename: str
     ),
   ].join("\n");
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  // UTF-8 BOM so Excel reads Urdu/Arabic names as UTF-8 instead of Windows-1252 (SKAI-2147).
+  const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
