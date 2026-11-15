@@ -26,7 +26,9 @@ import { assertWorkspacePermission, loadWorkspacePermissionSnapshot } from "./ac
 import { MARKS_DUE_WORKING_DAYS, defaultPaperDue, deriveSlotStatus, slotKey, slotOverdue, slotReadiness, workingDaysAfter, type PaperSlotStatus, type SlotFacts } from "./paper-slot-status";
 import { assertPlanFeature } from "@/lib/billing/entitlements";
 
-const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+/** A real calendar day: the regex alone lets 2026-13-45 reach Prisma (500) and 2026-02-30 roll over to 2 March. */
+export const isCalendarDay = (value: string): boolean => { const parsed = new Date(`${value}T00:00:00Z`); return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value; };
+const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isCalendarDay, "Choose a valid due date");
 const id = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/);
 const deliveryKind = z.enum(["PAPER", "ONLINE", "MIXED"]);
 const coverage = z.strictObject({ chapters: z.array(z.string().trim().min(1).max(200)).max(50), outcomeIds: z.array(id).max(200).optional() });
@@ -114,6 +116,7 @@ export async function createSlotsInTransaction(user: AuthUser, session: { id: st
     if (!schedules.length) throw new ApiError("Place the papers on the date sheet first, then request them.", 422);
     const weekend = await campusWeekend(tx, user.schoolId, session.campusId);
     const firstSitting = ymd(schedules[0].date)!;
+    for (const due of [input.dueOn, ...(input.overrides ?? []).map(override => override.dueOn)]) assertPaperDueWindow(due, firstSitting, todayUtc());
     const sessionDue = input.dueOn ?? ymd(session.paperDueOn) ?? defaultPaperDue(firstSitting, todayUtc(), weekend);
     if (input.dueOn) await tx.examSession.update({ where: { id: session.id }, data: { paperDueOn: new Date(`${input.dueOn}T00:00:00Z`) } });
     const policy = examChainPolicy((await resolveScopeDeliveryPolicy(user, session.campusId, tx)).policy);
@@ -241,6 +244,10 @@ async function viewSlots(user: AuthUser, tx: TxClient, rows: SlotRow[], today: s
   });
 }
 
+/** A paper due date must fall from today up to the day before the first sitting. */
+export function assertPaperDueWindow(dueOn: string | undefined, firstSitting: string, today: string): void {
+  if (dueOn && (dueOn < today || dueOn >= firstSitting)) throw new ApiError("Choose a valid due date: from today up to the day before the first sitting.", 400);
+}
 const todayUtc = () => new Date().toISOString().slice(0, 10);
 
 /** Every slot of a session, for the office's Papers step. Staff who read the exams module only: the paper pipeline (author, moderator, seal) is never shown to students or parents. */
