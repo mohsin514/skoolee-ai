@@ -640,7 +640,7 @@ async function loadCampusDashboardData() {
   ] = await Promise.all([
     L.required("locale", () => getLocalePackage(session.schoolId, campusId)),
     L.widget("classes", () => prisma.class.findMany({
-      where: { campusId, campus: { schoolId: session.schoolId } },
+      where: { campusId, archivedAt: null, campus: { schoolId: session.schoolId } },
       include: {
         _count: { select: { students: { where: ON_ROLL }, subjects: true } },
         classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
@@ -1214,7 +1214,7 @@ async function loadPrincipalDashboardData() {
       orderBy: { createdAt: "asc" },
     }), []),
     L.widget("classes", () => prisma.class.findMany({
-      where: { campusId, campus: { schoolId: session.schoolId } },
+      where: { campusId, archivedAt: null, campus: { schoolId: session.schoolId } },
       include: {
         classTeacher: { select: { id: true, fullName: true, email: true, phone: true, profileImageUrl: true } },
         subjects: {
