@@ -10,6 +10,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Modal } from "@/components/ui/modal";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
+import { costToMinor } from "@/lib/activities/cost-input";
 import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Progress } from "@/components/ui/progress";
@@ -205,7 +206,7 @@ export function ActivitiesDesk() {
       <p className="text-2xs text-ink-muted">{ui("Participant lists exclude private care narratives.")}{roster.activity.costAmount ? <> · {ui("Cost")}: <bdi>{money(roster.activity.costAmount, roster.activity.costCurrency)}</bdi></> : null}</p>
     </section> : null}
 
-    {creating ? <Modal title={ui("Publish activity")} subtitle={ui("Families see the cost, timing and refund terms before they ask for a place.")} icon={Sparkles} onClose={() => setCreating(false)} wide footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setCreating(false)}>{ui("Back")}</Button><Button disabled={busy || !form.title || !form.startsAt || !form.endsAt} loading={busy} onClick={async () => { setBusy(true); try { await call("/api/activities", "POST", { action: "create", ...form, costCurrency: currency, startsAt: new Date(form.startsAt).toISOString(), endsAt: new Date(form.endsAt).toISOString(), capacity: Number(form.capacity), costAmount: Number(form.costAmount), tripId: form.tripId || undefined }); toast.success(ui("Activity published.")); setCreating(false); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } }} data-activity-publish>{ui("Publish")}</Button></div>}>
+    {creating ? <Modal title={ui("Publish activity")} subtitle={ui("Families see the cost, timing and refund terms before they ask for a place.")} icon={Sparkles} onClose={() => setCreating(false)} wide footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setCreating(false)}>{ui("Back")}</Button><Button disabled={busy || !form.title || !form.startsAt || !form.endsAt} loading={busy} onClick={async () => { setBusy(true); try { await call("/api/activities", "POST", { action: "create", ...form, costCurrency: currency, startsAt: new Date(form.startsAt).toISOString(), endsAt: new Date(form.endsAt).toISOString(), capacity: Number(form.capacity), costAmount: costToMinor(form.costAmount, currency), tripId: form.tripId || undefined }); toast.success(ui("Activity published.")); setCreating(false); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } }} data-activity-publish>{ui("Publish")}</Button></div>}>
       <div className="space-y-2" data-activity-form>
         <div className="grid gap-2 sm:grid-cols-3">
           <FormField name="af-kind" label={ui("Kind")}><Select value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value })}>{["CLUB", "SPORT", "TRIP"].map(k => <option key={k} value={k}>{kindLabel(ui, k)}</option>)}</Select></FormField>
@@ -214,7 +215,7 @@ export function ActivitiesDesk() {
           <FormField name="af-start" label={ui("Starts at")}><Input type="datetime-local" value={form.startsAt} onChange={e => setForm({ ...form, startsAt: e.target.value })} /></FormField>
           <FormField name="af-end" label={ui("Ends at")}><Input type="datetime-local" value={form.endsAt} onChange={e => setForm({ ...form, endsAt: e.target.value })} /></FormField>
           <FormField name="af-cap" label={ui("Places")}><Input type="number" min={1} value={form.capacity} onChange={e => setForm({ ...form, capacity: e.target.value })} /></FormField>
-          <FormField name="af-cost" label={ui("Cost in {0} (0 for free)", [currency])}><Input type="number" min={0} value={form.costAmount} onChange={e => setForm({ ...form, costAmount: e.target.value })} /></FormField>
+          <FormField name="af-cost" label={ui("Cost in {0} (0 for free)", [currency])}><Input type="number" min={0} step="any" value={form.costAmount} onChange={e => setForm({ ...form, costAmount: e.target.value })} /></FormField>
           {form.kind === "TRIP" ? <FormField name="af-trip" label={ui("Trip consent record")}><Select value={form.tripId} onChange={e => setForm({ ...form, tripId: e.target.value })}><option value="">{ui("Choose a trip")}</option>{list.trips.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}</Select></FormField> : null}
         </div>
         <FormField name="af-desc" label={ui("Description")}><Textarea rows={2} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></FormField>
