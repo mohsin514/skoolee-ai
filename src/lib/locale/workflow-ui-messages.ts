@@ -1,5 +1,7 @@
 /** Static interface copy only. Authored names, comments and identifiers bypass this catalog. */
 const entries: [string, string, string][] = [
+// SKAI-2176: owner publishing without a campus.
+["Choose a campus for this activity.", "اختر فرعًا لهذا النشاط.", "اس سرگرمی کے لیے کیمپس منتخب کریں۔"], ["Choose a campus for this trip.", "اختر فرعًا لهذه الرحلة.", "اس دورے کے لیے کیمپس منتخب کریں۔"],
 // SKAI-2136: pickup history event labels.
 ["Code issued", "تم إصدار الرمز", "کوڈ جاری ہوا"], ["Code scanned", "تم مسح الرمز", "کوڈ اسکین ہوا"], ["Release blocked", "تم منع التسليم", "حوالگی روک دی گئی"], ["Exception requested", "طُلب استثناء", "استثنا کی درخواست کی گئی"], ["Exception approved", "تمت الموافقة على الاستثناء", "استثنا منظور ہوا"], ["Exception denied", "رُفض الاستثناء", "استثنا مسترد ہوا"], ["Restriction added", "أُضيف قيد", "پابندی شامل کی گئی"], ["Restriction lifted", "رُفع القيد", "پابندی ہٹا دی گئی"], ["Pickup permission revoked", "أُلغي إذن الاستلام", "وصولی کی اجازت منسوخ کی گئی"],
 ["Messages could not be loaded", "تعذّر تحميل الرسائل", "پیغامات لوڈ نہیں ہو سکے"],

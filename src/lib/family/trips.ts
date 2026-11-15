@@ -48,6 +48,8 @@ export async function createTrip(user: AuthUser, body: Record<string, unknown>) 
   const data = terms(body);
   if (data.respondBy <= new Date()) throw new ApiError("The response deadline must be in the future.", 400);
   const campusId = user.role === "SUPER_ADMIN" ? String(body.campusId ?? "") : user.campusId ?? "";
+  // SKAI-2176: same rule as activities; an empty or foreign campus is a 400, not an FK 409.
+  if (!campusId || !(await prisma.campus.count({ where: { id: campusId, schoolId: user.schoolId, archivedAt: null } }))) throw new ApiError("Choose a campus for this trip.", 400);
   // Invite named pupils and/or whole classes (their active pupils at the time of publishing).
   const classIds = (Array.isArray(body.classIds) ? body.classIds : []).map(String);
   const fromClasses = classIds.length ? (await prisma.student.findMany({ where: { schoolId: user.schoolId, campusId, classId: { in: classIds }, archivedAt: null, status: "active" }, select: { id: true } })).map(s => s.id) : [];
