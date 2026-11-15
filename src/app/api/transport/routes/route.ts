@@ -7,12 +7,15 @@ import {
   assertPermission,
   canManageCampusOps,
   errorResponse,
+  isUniqueViolation,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
 import { parseWith, readJsonBody } from "@/lib/api/validate";
 import { transportRoutePatchSchema, transportRouteSchema } from "@/lib/validators/operations";
 import { setRouteVehicles } from "@/lib/transport/service";
+
+const DUPLICATE_ROUTE = "A route with this name already exists on this campus.";
 
 export async function GET(req: NextRequest) {
   try {
@@ -60,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     return Response.json({ success: true, data: route });
   } catch (error) {
-    return errorResponse(error, "[transport-routes] POST failed");
+    return errorResponse(isUniqueViolation(error) ? new ApiError(DUPLICATE_ROUTE, 409) : error, "[transport-routes] POST failed");
   }
 }
 
@@ -101,7 +104,7 @@ export async function PATCH(req: NextRequest) {
 
     return Response.json({ success: true, data: route });
   } catch (error) {
-    return errorResponse(error, "[transport-routes] PATCH failed");
+    return errorResponse(isUniqueViolation(error) ? new ApiError(DUPLICATE_ROUTE, 409) : error, "[transport-routes] PATCH failed");
   }
 }
 

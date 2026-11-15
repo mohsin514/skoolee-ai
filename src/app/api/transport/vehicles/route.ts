@@ -7,6 +7,7 @@ import {
   assertPermission,
   canManageCampusOps,
   errorResponse,
+  isUniqueViolation,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
@@ -15,6 +16,8 @@ import { vehicleSchema } from "@/lib/validators/operations";
 import { changeVehicleWithinCapacity } from "@/lib/transport/service";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+
+const DUPLICATE_VEHICLE = "A vehicle with this number already exists on this campus.";
 
 export async function GET(req: NextRequest) {
   try {
@@ -64,7 +67,7 @@ export async function POST(req: NextRequest) {
 
     return Response.json({ success: true, data: vehicle });
   } catch (error) {
-    return errorResponse(error, "[transport-vehicles] POST failed");
+    return errorResponse(isUniqueViolation(error) ? new ApiError(DUPLICATE_VEHICLE, 409) : error, "[transport-vehicles] POST failed");
   }
 }
 
@@ -103,7 +106,7 @@ export async function PATCH(req: NextRequest) {
 
     return Response.json({ success: true, data: vehicle });
   } catch (error) {
-    return errorResponse(error, "[transport-vehicles] PATCH failed");
+    return errorResponse(isUniqueViolation(error) ? new ApiError(DUPLICATE_VEHICLE, 409) : error, "[transport-vehicles] PATCH failed");
   }
 }
 
