@@ -7,8 +7,10 @@ import {
   errorResponse,
   requireAuthUser,
   resolveCampusId,
+  ValidationError,
 } from "@/lib/api/scope";
 import { Prisma } from "@prisma/client";
+import { parseInvoiceListFilters } from "@/lib/fees/invoice-list-filters";
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,16 +25,17 @@ export async function GET(req: NextRequest) {
         ? null
         : await resolveCampusId(user, requestedCampusId);
 
-    const status = searchParams.get("status");
+    const filters = parseInvoiceListFilters(searchParams);
+    if (!filters.ok) throw new ValidationError(filters.fieldErrors);
+    const { status, month } = filters;
     const classId = searchParams.get("classId");
     const search = searchParams.get("search");
-    const month = searchParams.get("month");
     const { page: requestedPage, limit: pageSize } = listPagination(searchParams, 20, 50, "pageSize");
 
     const where: Prisma.InvoiceWhereInput = {
       campus: { schoolId: user.schoolId },
       ...(campusId ? { campusId } : {}),
-      ...(status ? { status: status as any } : {}),
+      ...(status ? { status } : {}),
       ...(classId ? { enrollment: { classId } } : {}),
       ...(search
         ? {
