@@ -120,8 +120,6 @@ const catalog: Record<string, string> = {
   "Parent": "سرپرست",
   "Password": "پاس ورڈ",
   "Password must be at least 8 characters": "پاس ورڈ میں کم از کم آٹھ حروف ہونے چاہئیں",
-  "Use a password between 8 and 72 characters": "8 سے 72 حروف کے درمیان پاس ورڈ رکھیں",
-  "Please satisfy all security requirements.": "براہ کرم تمام سیکیورٹی تقاضے پورے کریں۔",
   "Password strength": "پاس ورڈ کی مضبوطی",
   "Passwords do not match": "پاس ورڈ یکساں نہیں ہیں",
   "Passwords match": "پاس ورڈ یکساں ہیں",

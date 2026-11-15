@@ -120,8 +120,6 @@ const catalog: Record<string, string> = {
   "Parent": "ولي الأمر",
   "Password": "كلمة المرور",
   "Password must be at least 8 characters": "يجب ألا تقل كلمة المرور عن ثمانية أحرف",
-  "Use a password between 8 and 72 characters": "استخدم كلمة مرور بين 8 و72 حرفاً",
-  "Please satisfy all security requirements.": "يرجى استيفاء جميع متطلبات الأمان.",
   "Password strength": "قوة كلمة المرور",
   "Passwords do not match": "كلمتا المرور غير متطابقتين",
   "Passwords match": "كلمتا المرور متطابقتان",
