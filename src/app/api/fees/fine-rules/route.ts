@@ -2,7 +2,7 @@ import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { createFineRule } from "@/lib/fees/fine-rule-command";
+import { createFineRule, parseFineGraceDays, parseFineIsActive, parseFineName, parseFineType, parseFineValue } from "@/lib/fees/fine-rule-command";
 import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -48,22 +48,26 @@ export async function PATCH(req: NextRequest) {
     const existing = await prisma.feeFineRule.findFirst({ where: { id: body.id, ...scopedCampusWhere(user) } });
     if (!existing) throw new ApiError("Fine rule not found", 404);
 
-    const type = body.type !== undefined ? String(body.type).toUpperCase() : existing.type;
-    if (!["PERCENT", "FLAT", "PER_DAY"].includes(type)) throw new ApiError("type must be PERCENT, FLAT or PER_DAY", 400);
+    const type = body.type !== undefined ? parseFineType(body.type) : existing.type;
+    const value = body.value !== undefined ? parseFineValue(body.value, type) : parseFineValue(existing.value, type);
+    const name = body.name !== undefined ? parseFineName(body.name) : undefined;
+    const graceDays = body.graceDays !== undefined ? parseFineGraceDays(body.graceDays) : undefined;
+    const isActive = body.isActive !== undefined ? parseFineIsActive(body.isActive) : undefined;
 
-    const value = body.value !== undefined ? Number(body.value) : existing.value;
-    if (!Number.isInteger(value) || value < 0) throw new ApiError("value must be a non-negative integer", 400);
-    if (type === "PERCENT" && value > 100) throw new ApiError("percent fine cannot exceed 100", 400);
+    if (name !== undefined) {
+      const clash = await prisma.feeFineRule.findFirst({ where: { campusId: existing.campusId, id: { not: existing.id }, name: { equals: name, mode: "insensitive" } } });
+      if (clash) throw new ApiError("A fine rule with this name already exists", 409);
+    }
 
     const rule = await prisma.$transaction(async (tx) => {
       const next = await tx.feeFineRule.update({
         where: { id: body.id },
         data: {
-          name: body.name !== undefined ? String(body.name).trim() : undefined,
+          name,
           type,
           value,
-          graceDays: body.graceDays !== undefined ? Math.max(0, Math.round(Number(body.graceDays))) : undefined,
-          isActive: body.isActive !== undefined ? body.isActive : undefined,
+          graceDays,
+          isActive,
         },
       });
       await writeAuditEvent(tx, user, { table: "fee_fine_rules", recordId: next.id, action: "UPDATE", campusId: existing.campusId, before: { type: existing.type, value: existing.value, graceDays: existing.graceDays, isActive: existing.isActive }, after: { type: next.type, value: next.value, graceDays: next.graceDays, isActive: next.isActive } });
