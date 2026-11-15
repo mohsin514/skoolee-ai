@@ -14,6 +14,7 @@ import { revisedDraftFrom, curriculumDataSchema, paperDataSchema, validateBluepr
 import { AdvancedQuestionOptions, AdvancedQuestionKey, CurriculumCoverage, PaperResources } from "./assessment-extensions";
 import { assessmentExtensionCopy } from "./assessment-extension-copy";
 import { assessmentCopy } from "./assessment-copy";
+import { studioShellCopy } from "./exam-studio/studio-shell-copy";
 import { schoolAICopy } from "@/lib/school-ai/copy";
 import { decodeFrames } from "@/lib/school-ai/generation-stream";
 import { CoverageGaps, QuestionBank, QuestionBankLabels } from "./question-bank";
@@ -47,6 +48,9 @@ export function AssessmentStudio({ records, locale, onRefresh, subjects = [], ca
   const generationAbort = useRef<AbortController | null>(null);
   const [cancellable, setCancellable] = useState(false);
   const t = assessmentCopy(locale), extension = assessmentExtensionCopy(locale), aiCopy = schoolAICopy(locale);
+  const shell = studioShellCopy(locale);
+  // SKAI-2077: the record picker shows the same localised status words as the studio home cards.
+  const recordStatus = (status: string) => ({ DRAFT: shell.draft, APPROVED: shell.approved, IN_REVIEW: shell.inReview, REJECTED: shell.rejected, PUBLISHED: shell.published, ARCHIVED: shell.archived }[status] || status);
   const [selected, setSelected] = useState<RecordSummary | null>(null);
   const [kind, setKind] = useState<"CURRICULUM" | "PAPER">("CURRICULUM");
   const [curriculum, setCurriculum] = useState<CurriculumData | null>(null);
@@ -210,7 +214,7 @@ export function AssessmentStudio({ records, locale, onRefresh, subjects = [], ca
 
   return <section dir={locale === "en" ? "ltr" : "rtl"} className="space-y-5" aria-label={t.title}>
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-bold">{t.title}</h2><p className="mt-1 max-w-3xl text-sm text-ink-subtle">{t.intro}</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy || !canCreate} onClick={newCurriculum}><BookOpen />{t.newCurriculum}</Button><Button variant="outline" disabled={busy || !canCreate} onClick={() => newPaper()}><FileText />{t.newPaper}</Button></div></div>
-    <FormField name="assessment-record" label={t.select}><Select value={selected?.id ?? ""} disabled={busy} onChange={(event) => { const record = records.find((item) => item.id === event.target.value); if (record) loadRecord(record); }}><option value="">{t.select}</option>{records.filter((record) => ["CURRICULUM", "PAPER"].includes(record.kind)).map((record) => <option key={record.id} value={record.id}>{record.title} · v{record.version} · {record.status}</option>)}</Select></FormField>
+    <FormField name="assessment-record" label={t.select}><Select value={selected?.id ?? ""} disabled={busy} onChange={(event) => { const record = records.find((item) => item.id === event.target.value); if (record) loadRecord(record); }}><option value="">{t.select}</option>{records.filter((record) => ["CURRICULUM", "PAPER"].includes(record.kind)).map((record) => <option key={record.id} value={record.id}>{record.title} · v{record.version} · {recordStatus(record.status)}</option>)}</Select></FormField>
     {message && <p ref={messageRef} role="status" className="sk-panel p-3 text-sm">{localizePaperIssues(message, locale)}</p>}
     {busy && cancellable && <Button variant="outline" onClick={() => generationAbort.current?.abort()} data-cancel-generation>{t.cancelGeneration}</Button>}
     {issues.length > 0 && <div ref={issuesRef} role="alert" tabIndex={-1} className="rounded-xl border border-status-error-border bg-status-error-surface p-4 text-sm text-status-error-text"><p className="font-semibold">{t.invalid}</p><ul className="mt-2 list-disc space-y-1 ps-5">{issues.map((issue, index) => <li key={index}>{localizePaperIssue(issue, locale)}</li>)}</ul></div>}
