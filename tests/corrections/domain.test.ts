@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { previewPaymentReversal, invoiceAfterReversal, validateCorrectionRequest, assertSeparateApprover, familyCorrectionEvidence, previewDigest, CorrectionConflict } from "../../src/lib/corrections/domain";
+import { previewPaymentReversal, invoiceAfterReversal, validateCorrectionRequest, assertSeparateApprover, familyCorrectionEvidence, previewDigest, CorrectionConflict, correctionLabel } from "../../src/lib/corrections/domain";
 for (const currency of ["PKR", "SAR", "AED", "KWD", "USD"]) {
     test(`${currency}: a partially allocated reversal conserves original units and keeps input unchanged`, () => {
         const original = { id: "receipt-1", version: 4, money: { minor: 100001, currency }, allocations: [{ invoiceId: "a", minor: 50000 }, { invoiceId: "b", minor: 30000 }], unappliedMinor: 20001 };
@@ -57,4 +57,8 @@ test("published grade preview preserves release reference and requires renewed a
     assert.throws(() => previewMarkCorrection(original, 7, { marksObtained: 101, isAbsent: false }));
     assert.throws(() => previewMarkCorrection(original, 7, { marksObtained: 60, isAbsent: false }));
     assert.throws(() => previewMarkCorrection(original, 7, { marksObtained: 5, isAbsent: true }));
+});
+test("SKAI-2098: correction label names pupil, subject and exam and skips blanks", () => {
+    assert.equal(correctionLabel("Abdul", "Mathematics", "Mid-term"), "Abdul · Mathematics · Mid-term");
+    assert.equal(correctionLabel("Abdul", null, " "), "Abdul");
 });
