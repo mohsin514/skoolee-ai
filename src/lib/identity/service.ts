@@ -255,6 +255,14 @@ export async function candidates(user: AuthUser, requestId: string) {
 // ─── Roster exchange ─────────────────────────────────────────────────────
 
 type Row = { kind: "student" | "staff"; externalId: string; fullName?: string; admissionNo?: string | null; className?: string; section?: string | null; email?: string; group?: string; status?: "active" | "withdrawn" };
+/** Plain-language reason for a row that failed to apply; raw ORM messages (table/constraint names) never reach the stored result. */
+export function rowFailureMessage(error: unknown): string {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return "An account with this email already exists. Link it deliberately instead of creating a second one.";
+  if (error instanceof Prisma.PrismaClientKnownRequestError || error instanceof Prisma.PrismaClientValidationError || error instanceof Prisma.PrismaClientUnknownRequestError) return "Could not apply this row. Review it and submit a corrected batch.";
+  return error instanceof Error && error.message ? error.message : "Could not apply";
+}
+
 type Change = { key: string; kind: "STUDENT" | "STAFF"; externalId: string; action: "ADD" | "UPDATE" | "WITHDRAW" | "UNCHANGED" | "CONFLICT" | "ERROR"; localId: string | null; changes: { field: string; from: unknown; to: unknown; owner: "SOURCE" | "LOCAL"; applied: boolean }[]; note: string | null; destructive: boolean };
 
 const owner = (c: { fieldOwnership: Prisma.JsonValue }, field: string) => (((c.fieldOwnership ?? {}) as Record<string, string>)[field] === "LOCAL" ? "LOCAL" : "SOURCE") as "SOURCE" | "LOCAL";
@@ -369,7 +377,8 @@ async function computePreview(schoolId: string, c: Prisma.IdentityConnectionGetP
         const email = text(r.email, 200).toLowerCase();
         if (!email || !r.fullName || !role) { changes.push({ key, kind, externalId: r.externalId, action: "ERROR", localId: null, changes: [], note: "A new staff member needs fullName, email and a mapped group.", destructive: false }); continue; }
         // Never adopt an existing account by email from a roster: that is a link decision for an administrator.
-        if (await prisma.user.findFirst({ where: { schoolId, email: { equals: email, mode: "insensitive" } }, select: { id: true } })) { changes.push({ key, kind, externalId: r.externalId, action: "CONFLICT", localId: null, changes: [], note: "An account with this email already exists. Link it deliberately instead of creating a second one.", destructive: false }); continue; }
+        // School-wide check: a campus operator's scope cannot see staff at other campuses, but the (school, email) key is school-wide.
+        if (await runUnscoped("identity: roster email already used in this school", () => prisma.user.findFirst({ where: { schoolId, email: { equals: email, mode: "insensitive" } }, select: { id: true } }))) { changes.push({ key, kind, externalId: r.externalId, action: "CONFLICT", localId: null, changes: [], note: "An account with this email already exists. Link it deliberately instead of creating a second one.", destructive: false }); continue; }
         changes.push({ key, kind, externalId: r.externalId, action: "ADD", localId: null, changes: [{ field: "fullName", from: null, to: r.fullName, owner: "SOURCE", applied: true }, { field: "email", from: null, to: email, owner: "SOURCE", applied: true }, { field: "role", from: null, to: role, owner: "SOURCE", applied: true }], note: "Account created without a password; the person signs in through the school provider.", destructive: false });
         continue;
       }
@@ -431,7 +440,7 @@ export async function applyBatch(user: AuthUser, body: Record<string, unknown>) 
       } catch (error) {
         await tx.$executeRaw`ROLLBACK TO SAVEPOINT roster_row`;
         result.errors++;
-        failures.push({ key: ch.key, error: error instanceof Error ? error.message : "Could not apply" });
+        failures.push({ key: ch.key, error: rowFailureMessage(error) });
       }
     }
     await tx.rosterBatch.update({ where: { id: b.id }, data: { result: { ...result, failures } as unknown as Prisma.InputJsonValue } });
