@@ -23,7 +23,9 @@ export const DISCLAIMER = "School-configured framework. No accreditation outcome
 export const CAUSE_CAVEAT = "Observed change · cause not established";
 
 const text = (min: number, max: number) => z.string().trim().min(min).max(max);
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date (YYYY-MM-DD).");
+// SKAI-2112: a real calendar date in a sane range; "2026-02-30" must not roll over and "2026-13-45" must not reach Prisma.
+export const isRealDay = (v: string) => { const d = new Date(`${v}T00:00:00Z`); return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === v && d.getUTCFullYear() >= 2000 && d.getUTCFullYear() <= 2100; };
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date (YYYY-MM-DD).").refine(isRealDay, "Use a real calendar date (YYYY-MM-DD).");
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 function parse<T extends z.ZodTypeAny>(schema: T, raw: unknown): z.infer<T> {
