@@ -25,7 +25,7 @@ import { SetupHelp } from "./setup-help";
 import styles from "./school-ai.module.css";
 import { useWorkspaceDraft, useWorkspaceDraftNavigation } from "./draft-safety";
 import { SetupGenerationPanel, type SetupGenerationPhase, type SetupGenerationResult } from "./setup-generation-panel";
-import { setupGenerationCopy } from "./setup-generation-copy";
+import { setupFinishLabel, setupGenerationCopy } from "./setup-generation-copy";
 import { restoreSetupGeneration } from "./setup-generation-client";
 import { AiGuide } from "@/components/onboarding/AiGuide";
 import { launchCopy } from "@/components/onboarding/launch-copy";
@@ -45,6 +45,8 @@ interface Props {
   defaults?: SetupAnswers;
   voiceAvailable: boolean;
   assistantAvailable?: boolean;
+  /** AI Workflows are on for this school and plan; without it the automatic hand-off would always be refused. */
+  automaticSetup?: boolean;
   campusId?: string | null;
   campusName?: string;
   onSave: (draft: SetupDraft, record?: AiWorkspaceRecord) => Promise<AiWorkspaceRecord>;
@@ -58,7 +60,7 @@ interface Props {
 const paths: { key: SetupPath; hint: SchoolAICopyKey; Icon: typeof Building2 }[] = [{ key: "new", hint: "newHint", Icon: Building2 }, { key: "import", hint: "importHint", Icon: FileStack }, { key: "migrate", hint: "migrateHint", Icon: Layers3 }];
 const outcomes = ["exams", "timetable", "fees", "records", "complete"] as const;
 
-export function GuidedSetup({ language, role, sources = [], workspaceRecords = [], workflows = [], allowedOperations = [], onOpenWorkflow, canImportRoster = false, record, defaults, voiceAvailable, assistantAvailable = false, campusId, campusName, canApprove, onSave, onClose, onUpload, onAction, onGenerated, onOpenRecord }: Props) {
+export function GuidedSetup({ language, role, sources = [], workspaceRecords = [], workflows = [], allowedOperations = [], onOpenWorkflow, canImportRoster = false, record, defaults, voiceAvailable, assistantAvailable = false, automaticSetup = true, campusId, campusName, canApprove, onSave, onClose, onUpload, onAction, onGenerated, onOpenRecord }: Props) {
   const c = schoolAICopy(language);
   const guide = launchCopy(language);
   const generationCopy = setupGenerationCopy(language);
@@ -191,7 +193,7 @@ export function GuidedSetup({ language, role, sources = [], workspaceRecords = [
       <div className={guideStyles.interviewMain}>
       {reviewing ? <div className={styles.question} key="review"><p className={styles.eyebrow}>{c.workspace}</p><h2 ref={heading} tabIndex={-1} className={styles.questionTitle}>{generationCopy.reviewTitle}</h2><p className={styles.description}>{generationCopy.reviewHint}</p>
         {generation && <details><summary>{c.savedPlans}</summary><SetupGenerationPanel language={language} phase={generationPhase} result={generation ? { ...generation, records: generation.records.map(record => workspaceRecords.find(current => current.id === record.id) ?? record) } : null} error={generationError || (generationPhase === "failed" ? error : "")} stale={Boolean(generation && (dirty || generation.currentSourceVersion !== savedRecord?.version))} disabled={busy || helpActive || mediaBusy} onGenerate={() => void prepare({ ...draft, step: "review" })} onOpen={next => { const open = () => onOpenRecord(next); if (helpDirty) guard(open); else open(); }} /></details>}
-        {savedRecord && <QuestionnaireRun key={`questionnaire-${savedRecord.id}:${savedRecord.version}`} recordId={savedRecord.id} version={savedRecord.version} autoStart={startAutomatically && generationPhase === "complete"} disabled={busy || dirty} />}
+        {savedRecord && automaticSetup && <QuestionnaireRun key={`questionnaire-${savedRecord.id}:${savedRecord.version}`} recordId={savedRecord.id} version={savedRecord.version} autoStart={startAutomatically && generationPhase === "complete"} disabled={busy || dirty} />}
         {savedRecord && assistantAvailable && <SetupActionsPanel key={`${savedRecord.id}:${savedRecord.version}`} record={savedRecord} records={workspaceRecords} language={language} disabled={busy || helpActive || mediaBusy || dirty} onGenerated={onGenerated} onOpen={record => guard(() => onOpenRecord(record))} />}
         {savedRecord && onOpenWorkflow && <SetupJourneyPanel role={role ?? "ADMIN"} recordId={savedRecord.id} language={language} workflows={workflows} disabled={busy || helpActive || mediaBusy} onOpen={workflow => guard(() => onOpenWorkflow(workflow))} />}
         {campusId && generation && <SetupRunPanel allowedOperations={allowedOperations} language={language} campusId={campusId} additionalRecords={workspaceRecords} disabled={busy || helpActive || mediaBusy} records={[...generation.records.map(record => workspaceRecords.find(current => current.id === record.id) ?? record), ...workspaceRecords.filter(record => record.kind === "WORKFLOW" && record.status !== "ARCHIVED" && typeof (record.data.proposal as { sourceReference?: string } | undefined)?.sourceReference === "string" && (record.data.proposal as { sourceReference: string }).sourceReference === `Questionnaire ${savedRecord?.id} v${savedRecord?.version}` && !generation.records.some(existing => existing.id === record.id))]} />}
@@ -212,7 +214,7 @@ export function GuidedSetup({ language, role, sources = [], workspaceRecords = [
           : question.type === "outcome" ? <div className={styles.choices} aria-label={c.firstOutcome}>{outcomes.map(outcome => <Button type="button" key={outcome} variant="choice" className={styles.choice} aria-pressed={value === outcome} disabled={busy} onClick={() => change(outcome)}>{c[outcome]}{value === outcome && <Check aria-hidden="true" />}</Button>)}</div>
           : question.type === "date" ? <FormField name={`setup-${question.key}`} label={c.answer} error={error || undefined}><Input type="date" disabled={busy} value={value} onChange={event => change(event.target.value)} min={question.key === "endDate" ? draft.answers.startDate : undefined} /></FormField>
           : <MultimodalComposer language={language} value={value} onChange={change} label={c.answer} placeholder={c.answer} disabled={busy || helpActive} voiceAvailable={voiceAvailable} onUpload={upload} onActivityChange={setMediaBusy} />}
-        <div className={styles.setupFooter}><Button variant="ghost" disabled={index === 0 || busy || mediaBusy || helpActive} onClick={() => { setIndex(index - 1); setError(""); setNotice(""); }}><ArrowLeft className="rtl:rotate-180" aria-hidden="true" />{c.back}</Button><div className="flex flex-wrap gap-2">{question.key !== "path" && <Button variant="ghost" disabled={busy || mediaBusy || helpActive} onClick={() => void advance(true)}>{index >= questions.length - 1 || editingReview ? generationCopy.skipFinish : c.skip}</Button>}<Button loading={pending} disabled={busy || mediaBusy || helpActive} onClick={() => void advance()}>{!pending && <ArrowRight className="rtl:rotate-180" aria-hidden="true" />}{pending ? c.saving : editingReview ? generationCopy.regenerate : index >= questions.length - 1 ? generationCopy.finish : c.next}</Button></div></div>
+        <div className={styles.setupFooter}><Button variant="ghost" disabled={index === 0 || busy || mediaBusy || helpActive} onClick={() => { setIndex(index - 1); setError(""); setNotice(""); }}><ArrowLeft className="rtl:rotate-180" aria-hidden="true" />{c.back}</Button><div className="flex flex-wrap gap-2">{question.key !== "path" && <Button variant="ghost" disabled={busy || mediaBusy || helpActive} onClick={() => void advance(true)}>{index >= questions.length - 1 || editingReview ? generationCopy.skipFinish : c.skip}</Button>}<Button loading={pending} disabled={busy || mediaBusy || helpActive} onClick={() => void advance()}>{!pending && <ArrowRight className="rtl:rotate-180" aria-hidden="true" />}{pending ? c.saving : editingReview ? generationCopy.regenerate : index >= questions.length - 1 ? setupFinishLabel(generationCopy, automaticSetup) : c.next}</Button></div></div>
       </div>}
       {error && (reviewing || question.type !== "date") && <Alert className="mt-4" tone="danger" compact live="assertive">{error}</Alert>}
       {notice && <Alert tone="success" compact live="polite" className="mt-4">{notice}</Alert>}
