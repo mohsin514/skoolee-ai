@@ -506,7 +506,8 @@ export const generateInvoicesSchema = z.object({
 export const paymentSchema = z.object({
   invoiceId: z.string().min(1),
   amount: z.coerce.number().int().min(1),
-  paymentDate: z.string().min(1),
+  // SKAI-2070: same rule as the Collect desk (SKAI-1307): a real YYYY-MM-DD day, never rolled into another day.
+  paymentDate: z.string().refine(isRealDate, "paymentDate must be a real calendar date (YYYY-MM-DD)"),
   paymentMethod: z.enum(["cash", "bank_transfer", "card", "mobile_wallet", "cheque"]),
   referenceNumber: z.string().optional(),
 });
@@ -543,6 +544,8 @@ export type AttendanceFormData = z.infer<typeof attendanceSchema>;
 export type MarkEntryData = z.infer<typeof markEntrySchema>;
 export type BulkMarksData = z.infer<typeof bulkMarksSchema>;
 export type FeeStructureFormData = z.infer<typeof feeStructureSchema>;
+// SKAI-2070: the legacy lowercase methods are stored in the Collect desk vocabulary (CASH/BANK/...).
+export const LEGACY_PAYMENT_METHOD_STORED = { cash: "CASH", bank_transfer: "BANK", card: "CARD", mobile_wallet: "MOBILE_WALLET", cheque: "CHEQUE" } as const;
 export type PaymentFormData = z.infer<typeof paymentSchema>;
 export type GenerateInvoicesFormData = z.infer<typeof generateInvoicesSchema>;
 export type BankImportFormData = z.infer<typeof bankImportSchema>;
