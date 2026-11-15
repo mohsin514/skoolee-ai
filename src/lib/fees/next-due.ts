@@ -20,3 +20,14 @@ export function payableInvoices<T extends { status: string; dueDate: string | Da
     .filter((i) => (OUTSTANDING_INVOICE_STATUSES as readonly string[]).includes(i.status) && i.balance > 0)
     .sort((a, b) => time(a.dueDate) - time(b.dueDate));
 }
+
+type TotalsInvoice = { status: string; totalAmount: number; totalAmountPaid: number; lateFeeAmount: number };
+
+/** Student fee totals. CANCELLED invoices carry no charge (cancelling keeps balanceDue on the row), so they are excluded. */
+export function studentFeeTotals(invoices: readonly TotalsInvoice[]) {
+  const live = invoices.filter((inv) => inv.status !== "CANCELLED");
+  const totalDue = live.reduce((sum, inv) => sum + inv.totalAmount, 0);
+  const totalPaid = live.reduce((sum, inv) => sum + inv.totalAmountPaid, 0);
+  const lateFeesAccrued = live.reduce((sum, inv) => sum + inv.lateFeeAmount, 0);
+  return { totalDue, totalPaid, balance: totalDue - totalPaid, lateFeesAccrued };
+}
