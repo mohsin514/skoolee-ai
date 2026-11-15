@@ -22,3 +22,10 @@ test("SKAI-1491: the teacher editor sends its loaded remarks", () => {
   const page = readFileSync("src/app/teacher/reports/page.tsx", "utf8");
   assert.match(page, /expectedRemarks: \{ remarksEn: selectedReportCard\.remarksEn \?\? null, remarksUr: selectedReportCard\.remarksUr \?\? null \}/);
 });
+
+test("SKAI-2124: remarks over the length cap are rejected, the cap itself is accepted", () => {
+  for (const field of ["remarksEn", "remarksUr", "remarksAr"] as const) {
+    assert.equal(reportRemarkSchema.safeParse({ [field]: "x".repeat(2000) }).success, true);
+    assert.equal(reportRemarkSchema.safeParse({ [field]: "x".repeat(2001) }).success, false);
+  }
+});
