@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requirePageSession } from "@/lib/auth/require-page-session";
 import { prisma } from "@/lib/db/prisma";
 import { dashboardPathForRole } from "@/lib/roles";
+import { canConfigureCampus } from "@/lib/school-ai/setup-role";
 import { RoleFrame } from "@/components/role-dashboard/RoleFrame";
 import { RoleSetup } from "@/components/ai-workflows/role-setup";
 import { definitionForRole } from "@/lib/ai-workflows/questionnaire/service";
@@ -19,7 +20,7 @@ export default async function AiSetupPage() {
   if (!definition) redirect(dashboardPathForRole(user.role));
   const brand = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { slug: true, logoUrl: true } }).catch(() => null);
   // With AI Workflows off for this school, operators keep the earlier guided setup; others go home.
-  if (!aiWorkflowsV2Enabled(brand?.slug)) redirect(definition.key === "teacher" ? dashboardPathForRole(user.role) : "/ai?workflow=schoolSetup");
+  if (!aiWorkflowsV2Enabled(brand?.slug)) redirect(canConfigureCampus(user.role) ? "/ai?workflow=schoolSetup" : dashboardPathForRole(user.role)); // SKAI-2178
   return (
     <RoleFrame role={user.role} userName={user.fullName || user.email} userEmail={user.email} logoUrl={brand?.logoUrl ?? null} chatDock={false}>
       <RoleSetup questionnaireKey={definition.key} homeHref={dashboardPathForRole(user.role)} badge={isDemoSchool(brand?.slug) ? <DemoSchoolBadge variant="inline" /> : null} />
