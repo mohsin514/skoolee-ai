@@ -268,8 +268,15 @@ export async function submitBatch(user: AuthUser, body: Record<string, unknown>)
   if (!(await prisma.campus.findFirst({ where: { id: campusId, schoolId: user.schoolId } }))) throw new ApiError("Choose a campus.", 400);
   const externalBatchId = text(body.externalBatchId, 120);
   if (!externalBatchId) throw new ApiError("Give the source system's batch id.", 400);
-  const rows = (Array.isArray(body.rows) ? body.rows : []) as Row[];
-  if (!rows.length || rows.length > 5000) throw new ApiError("A batch has between 1 and 5000 rows.", 400);
+  const rawRows = (Array.isArray(body.rows) ? body.rows : []) as Row[];
+  if (!rawRows.length || rawRows.length > 5000) throw new ApiError("A batch has between 1 and 5000 rows.", 400);
+  // SKAI-2122: SIS exports send numeric ids; coerce them to text so every later lookup gets strings, and refuse other types up front.
+  const idText = (v: unknown, label: string) => {
+    if (v == null || typeof v === "string") return v as string | null | undefined;
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+    throw new ApiError(`${label} must be text or a number.`, 400);
+  };
+  const rows = rawRows.map(r => (r && typeof r === "object" ? { ...r, externalId: idText(r.externalId, "externalId") as string, ...(r.admissionNo !== undefined ? { admissionNo: idText(r.admissionNo, "admissionNo") } : {}) } : r)) as Row[];
   const keys = new Set<string>();
   for (const r of rows) {
     if (!["student", "staff"].includes(r?.kind) || !text(r.externalId, 120)) throw new ApiError("Every row needs a kind (student or staff) and a stable externalId.", 400);
@@ -297,8 +304,14 @@ export async function submitBatch(user: AuthUser, body: Record<string, unknown>)
     if (winner) return winner;
     throw new ApiError("This batch is being recorded by another request. Retry shortly.", 409);
   }
-  const p = await computePreview(user.schoolId, c, campusId, rows);
-  await prisma.rosterBatch.update({ where: { id: batch.id }, data: { preview: p.changes as unknown as Prisma.InputJsonValue, previewHash: p.hash } });
+  try {
+    const p = await computePreview(user.schoolId, c, campusId, rows);
+    await prisma.rosterBatch.update({ where: { id: batch.id }, data: { preview: p.changes as unknown as Prisma.InputJsonValue, previewHash: p.hash } });
+  } catch (error) {
+    // SKAI-2122: a batch whose preview cannot be computed must not stay behind and burn the source batch id.
+    await prisma.rosterBatch.deleteMany({ where: { id: batch.id, status: "DRY_RUN" } }).catch(() => undefined);
+    throw error;
+  }
   return { id: batch.id, replayed: false, status: "DRY_RUN" };
 }
 
