@@ -162,6 +162,9 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
       ? detail.members.find((m) => m.userId !== viewerId)?.lastReadAt
       : null;
 
+  // SKAI-2183: "Seen" only when the counterpart has read the viewer's latest sent message, never an older read time.
+  const latestMine = viewerId ? messages.reduce<string | null>((latest, m) => (m.sender?.id === viewerId && !m.id.startsWith("pending-") && (latest === null || m.createdAt > latest) ? m.createdAt : latest), null) : null;
+  const seenLatest = Boolean(counterpartRead && latestMine && counterpartRead >= latestMine);
   const showBack = Boolean(onBack);
 
   return (
@@ -447,7 +450,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
             </div>
           )}
 
-          {detail.kind === "DIRECT" && counterpartRead && messages.length > 0 && (
+          {detail.kind === "DIRECT" && counterpartRead && seenLatest && (
             <p className="mt-2 flex items-center justify-end gap-1 pe-1 text-2xs font-medium tabular-nums text-ink-subtle">
               <CheckCheck className="h-3 w-3 text-primary" />
               {fill(ui("Seen {0}"), [clockTimeIn(counterpartRead, tag, timeZone)])}
