@@ -31,7 +31,7 @@ export const AUDIT_HISTORY_HINT = "Consequential changes within your current sch
 
 /** Record types, as the reader sees them (the server's categories). */
 const CATEGORY_LABEL: Record<AuditCategory, string> = {
-  student: "Students", class: "Classes", subject: "Subjects", invitation: "Invitations", marks: "Marks",
+  student: "Students", class: "Classes", subject: "Subjects", invitation: "Invitations", marks: "Marks", corrections: "Corrections",
   integrity: "Exam observation reviews", fees: "Fees and payments", exports: "History exports",
 };
 const ACTION_LABEL: Record<string, string> = { CREATE: "Created", UPDATE: "Updated", DELETE: "Deleted", GRANT: "Consent given", REVOKE: "Consent withdrawn" };
