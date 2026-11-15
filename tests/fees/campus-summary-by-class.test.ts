@@ -14,7 +14,7 @@ type Who = { role: string; schoolId: string; campusId: string | null };
 const campusesBySchool: Record<string, string[]> = { "school-a": ["campus-a1", "campus-a2"], "school-b": ["campus-b1"] };
 
 function fixture(who: Who, rows: unknown[]) {
-  const calls = { sql: "", values: [] as unknown[], studentLookups: 0, groupBys: 0 };
+  const calls = { sql: "", values: [] as unknown[], studentLookups: 0, groupBys: 0, overdueWheres: [] as any[] };
   const db = {
     campus: {
       findMany: async ({ where }: { where: { schoolId: string; id?: string } }) =>
@@ -26,9 +26,9 @@ function fixture(who: Who, rows: unknown[]) {
       return rows;
     },
     invoice: {
-      aggregate: async () => ({ _sum: { totalAmount: 0, totalAmountPaid: 0, balanceDue: 0 } }),
+      aggregate: async (args: any) => { if (args.where.dueDate) calls.overdueWheres.push(args.where.dueDate); return { _sum: { totalAmount: 0, totalAmountPaid: 0, balanceDue: 0 } }; },
       groupBy: async () => { calls.groupBys++; return []; },
-      findMany: async () => [],
+      findMany: async (args: any) => { if (args?.where?.dueDate) calls.overdueWheres.push(args.where.dueDate); return []; },
     },
     student: { findMany: async () => { calls.studentLookups++; return []; } },
     payment: { findMany: async () => [] },
@@ -37,6 +37,7 @@ function fixture(who: Who, rows: unknown[]) {
   new Function("module", "exports", "require", routeCode)(mod, mod.exports, (id: string) => {
     if (id === "../../reports/invoice-currency") return { dominantInvoiceCurrency: async () => "PKR" };
     if (id === "@/lib/db/prisma") return { prisma: db };
+    if (id === "@/lib/datetime") return { overdueCutoff: async () => new Date("2026-11-15T00:00:00.000Z") };
     if (id === "@/lib/locale/store") return { getLocalePackage: async () => ({ currency: "PKR" }) };
     if (id === "@/lib/locale/package") return { CURRENCIES: ["USD", "PKR"] };
     if (id === "@/lib/api/scope") return {
@@ -98,4 +99,11 @@ test("another campus and a family role are denied before any query runs", async 
   const parent = fixture({ role: "PARENT", schoolId: "school-a", campusId: "campus-a1" }, []);
   assert.equal((await parent.get()).status, 403);
   assert.equal(parent.calls.sql, "");
+});
+
+test("SKAI-2088: overdue is bounded by the school calendar date (UTC midnight), not the current instant", async () => {
+  const { calls, get } = fixture({ role: "ACCOUNTANT", schoolId: "school-a", campusId: "campus-a1" }, []);
+  assert.equal((await get()).status, 200);
+  assert.equal(calls.overdueWheres.length, 2, "totalOverdue and the at-risk list share the cutoff");
+  for (const w of calls.overdueWheres) assert.equal(w.lt.toISOString(), "2026-11-15T00:00:00.000Z");
 });

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { generateAIDraft, ensureAICreditsAvailable, consumeAICreditAndLog } from "@/lib/ai/openai";
 import { AI_PROMPT_VERSION } from "@/lib/ai/prompts";
 import { Pseudonymizer } from "@/lib/ai/pseudonymize";
+import { overdueCutoff } from "@/lib/datetime";
 import { enterTenantContext, runUnscoped } from "@/lib/db/tenant-context";
 
 export const runtime = "nodejs";
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
       for (const campus of campuses) {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const overdueBefore = await overdueCutoff(school.id, campus.id);
 
         const [lowPerformers, lowAttendance, overdueStudents] = await Promise.all([
           prisma.reportCard.findMany({
@@ -94,7 +96,7 @@ export async function POST(req: NextRequest) {
               campusId: campus.id,
               status: { in: ["PENDING", "OVERDUE"] },
               balanceDue: { gt: 0 },
-              dueDate: { lt: new Date() },
+              dueDate: { lt: overdueBefore },
             },
             include: {
               student: { select: { id: true, fullName: true } },
