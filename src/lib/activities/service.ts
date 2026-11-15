@@ -335,7 +335,7 @@ export async function staffActivities(user: AuthUser) {
   // canLead: waive, refund hand-off and cancel are offered only to the campus admin (M71), never shown-then-refused.
   // canPublish / canRun: "Publish activity" and the roster's session, attendance and cancel controls are offered only
   // to those the server lets act (§4.5.11) — the principal reads; coordinators and campus operators run.
-  return { activities: rows.map(r => ({ ...r, canRun: isCoordinator(user, r), counts: Object.fromEntries(counts.filter(c => c.activityId === r.id).map(c => [c.status, c._count._all])) })), classes: classes.map(c => ({ id: c.id, name: [c.name, c.section].filter(Boolean).join(" ") })), trips: trips.map(t => ({ id: t.id, title: t.versions[0]?.title ?? "" })), campuses, canLead: isCampusOperator(user), canPublish: canPublish(user), currency: (await getLocalePackage(user.schoolId, user.campusId ?? null)).currency };
+  return { activities: rows.map(r => ({ ...r, canRun: isCoordinator(user, r), counts: Object.fromEntries(counts.filter(c => c.activityId === r.id).map(c => [c.status, c._count._all])) })), classes: classes.map(c => ({ id: c.id, name: [c.name, c.section].filter(Boolean).join(" ") })), trips: trips.map(t => ({ id: t.id, title: t.versions[0]?.title ?? "" })), campuses, canLead: isCampusOperator(user), canPublish: canPublish(user), readsCampus: campusWide, currency: (await getLocalePackage(user.schoolId, user.campusId ?? null)).currency };
 }
 
 export async function addSession(user: AuthUser, body: Record<string, unknown>) {
