@@ -38,7 +38,9 @@ export async function GET(req: NextRequest) {
       orderBy: [{ type: "asc" }, { name: "asc" }],
     });
 
-    return Response.json({ success: true, data: accounts });
+    // SKAI-2235: the Accounts screen offers Delete only to roles with accounts.delete.
+    const canDelete = await assertPermission(user, "accounts", "delete").then(() => true, () => false);
+    return Response.json({ success: true, data: accounts, canDelete });
   } catch (error) {
     return errorResponse(error, "[accounts/chart] GET failed");
   }

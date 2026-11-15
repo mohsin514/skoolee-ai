@@ -38,7 +38,7 @@ export function ReviewedDeleteDialog({ endpoint, record, label, onDeleted, onCan
   const generation = useRef(0);
   const url = `/api/${endpoint}?${new URLSearchParams({ id: record.id, ...(record.campusId ? { campusId: record.campusId } : {}) })}`;
   const message = useCallback((status: number) => {
-    return ui(status === 401 || status === 403 ? "Your permission changed. Cancel and contact your administrator."
+    return ui(status === 401 || status === 403 ? "You do not have permission to delete this. Cancel and contact your administrator."
       : status === 409 ? "This record or its dependencies changed. Review it again before deleting."
       : status === 404 ? "This record is no longer available. Cancel and refresh the list."
       : "Deletion could not be confirmed. Your work is kept. Retry safely or cancel.");
