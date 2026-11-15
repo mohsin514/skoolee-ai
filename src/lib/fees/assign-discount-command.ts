@@ -26,9 +26,18 @@ export async function assignDiscount(user: AuthUser, body: Record<string, unknow
 
   const student = await prisma.student.findFirst({
     where: { id: studentId, ...campusPin, campus: { schoolId: user.schoolId } },
+    include: { class: { select: { academicYear: true } } },
   });
   if (!student) throw new ApiError("Student not found", 404);
   if (student.campusId !== discount.campusId) throw new ApiError("The discount and the student belong to different campuses.", 409);
+
+  // SKAI-2030: named discounts are applied only to pupils whose class is billed from a fee group. A class billed
+  // from a per-class fee structure ignores them, so refuse instead of recording an assignment that never applies.
+  const feeGroup = await prisma.feeGroupAssignment.findFirst({
+    where: { campusId: student.campusId, classId: student.classId, academicYear: student.class.academicYear },
+    select: { id: true },
+  });
+  if (!feeGroup) throw new ApiError("This pupil's class is billed from a class fee structure, so named discounts do not apply. Move the class to a fee group first.", 409);
 
   const existing = await prisma.feeDiscountAssignment.findUnique({
     where: { discountId_studentId: { discountId, studentId } },
