@@ -33,6 +33,21 @@ function parse<T extends z.ZodTypeAny>(schema: T, raw: unknown): z.infer<T> {
 }
 function assert(cond: unknown, message: string, status = 403): asserts cond { if (!cond) throw new ApiError(message, status); }
 const isLead = (user: AuthUser) => LEADS.includes(user.role);
+/** SKAI-2111: PRINCIPAL and CAMPUS_ADMIN pinned to a campus only see and change records owned by staff of that campus. */
+const campusScope = (user: AuthUser) => (user.role === "CAMPUS_ADMIN" || user.role === "PRINCIPAL") && user.campusId ? user.campusId : null;
+/** Owners a campus-scoped leader may act on (their campus, or staff with no campus); null means unrestricted. */
+async function visibleOwners(user: AuthUser, ownerIds: string[]): Promise<Set<string> | null> {
+  const campusId = campusScope(user);
+  if (!campusId) return null;
+  const ids = [...new Set(ownerIds)];
+  const rows = ids.length ? await prisma.user.findMany({ where: { schoolId: user.schoolId, id: { in: ids }, OR: [{ campusId }, { campusId: null }] }, select: { id: true } }) : [];
+  return new Set(rows.map(r => r.id));
+}
+async function assertOwnerVisible(user: AuthUser, ownerId: string, message: string) {
+  if (ownerId === user.userId) return;
+  const seen = await visibleOwners(user, [ownerId]);
+  if (seen && !seen.has(ownerId)) throw new ApiError(message, 404);
+}
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
 function stable(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
@@ -128,10 +143,13 @@ async function people(schoolId: string, ids: string[]) {
 async function build(user: AuthUser, frameworkId: string, audience: Audience, clinic: boolean, only: Set<string> | null) {
   const fw = await framework(user, frameworkId);
   const today = await schoolToday(user.schoolId, fw.campusId);
-  const [items, actions] = await Promise.all([
+  const [allItems, allActions] = await Promise.all([
     prisma.evidenceItem.findMany({ where: { schoolId: user.schoolId, frameworkId }, orderBy: { createdAt: "asc" } }),
     prisma.improvementAction.findMany({ where: { schoolId: user.schoolId, frameworkId }, orderBy: { createdAt: "asc" } }),
   ]);
+  const owners = await visibleOwners(user, [...allItems, ...allActions].map(r => r.ownerId));
+  const items = owners ? allItems.filter(i => i.ownerId === user.userId || owners.has(i.ownerId)) : allItems;
+  const actions = owners ? allActions.filter(a => a.ownerId === user.userId || owners.has(a.ownerId)) : allActions;
   const now = await currentSources(user.schoolId, items.map(i => ({ type: i.sourceType, id: i.sourceId })));
   const plans = await prisma.interventionPlan.findMany({ where: { schoolId: user.schoolId, id: { in: actions.map(a => a.interventionPlanId).filter((x): x is string => !!x) } }, select: { id: true, status: true, version: true } });
   const names = await people(user.schoolId, [...items.flatMap(i => [i.ownerId, i.reviewedById ?? ""]), ...actions.flatMap(a => [a.ownerId, a.completedById ?? ""]), ...fw.criteria.map(c => c.interpretationApprovedById ?? "")]);
@@ -328,6 +346,7 @@ export async function reviewEvidence(user: AuthUser, raw: unknown) {
   const input = parse(z.object({ itemId: z.string().uuid(), decision: z.enum(["ACCEPT", "REQUEST_MORE"]), note: z.string().trim().max(2000).nullish(), expectedReviewState: z.enum(["PENDING", "ACCEPTED", "MORE_REQUESTED"]).optional() }), raw);
   const item = await prisma.evidenceItem.findFirst({ where: { id: input.itemId, schoolId: user.schoolId } });
   if (!item) throw new ApiError("Evidence not found", 404);
+  await assertOwnerVisible(user, item.ownerId, "Evidence not found");
   const a = await access(user, item.frameworkId);
   assert(a.mode === "LEAD" || (a.mode === "REVIEWER" && item.audience !== "STAFF" && item.criterionIds.some(id => a.criteria!.has(id))), "You cannot review this evidence.");
   assert(item.createdById !== user.userId && item.ownerId !== user.userId, "Someone other than the person who added or owns this evidence must review it.", 409);
@@ -348,6 +367,7 @@ export async function reviewEvidence(user: AuthUser, raw: unknown) {
 export async function openSource(user: AuthUser, itemId: string) {
   const item = await prisma.evidenceItem.findFirst({ where: { id: itemId, schoolId: user.schoolId } });
   if (!item) throw new ApiError("Evidence not found", 404);
+  await assertOwnerVisible(user, item.ownerId, "Evidence not found");
   const a = await access(user, item.frameworkId);
   if (a.mode === "REVIEWER") assert(item.audience !== "STAFF" && item.criterionIds.some(id => a.criteria!.has(id)), "Evidence not found", 404);
   const restricted = item.sensitivity === "CLINIC" ? !(a.mode === "LEAD" && a.clinic) : item.sensitivity === "PUPIL" ? a.mode !== "LEAD" : false;
@@ -380,6 +400,7 @@ export async function createAction(user: AuthUser, raw: unknown) {
 async function ownAction(user: AuthUser, id: string, expectedVersion: number) {
   const action = await prisma.improvementAction.findFirst({ where: { id, schoolId: user.schoolId } });
   if (!action) throw new ApiError("Improvement action not found", 404);
+  await assertOwnerVisible(user, action.ownerId, "Improvement action not found");
   assert(isLead(user) || action.ownerId === user.userId, "Only the action owner or a school leader can update this action.");
   assert(action.version === expectedVersion, "This action changed since you opened it. Reload to see the latest version.", 409);
   assert(action.status === "OPEN", "This action is complete.", 409);
