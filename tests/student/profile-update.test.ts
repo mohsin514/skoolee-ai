@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { studentProfileUpdateSchema } from "../../src/lib/students/profile-update";
 
 test("pupil updates validate identifier and field types before database filtering", () => {
-  for (const payload of [{}, { id: {} }, { id: 123 }, { id: "pupil", campusId: {} }, { id: "pupil", classId: ["class"] }, { id: "pupil", guardianPhone: 123 }, { id: "pupil", fullName: null }, { id: "pupil", fullName: "" }]) {
+  for (const payload of [{}, { id: {} }, { id: 123 }, { id: "pupil", campusId: {} }, { id: "pupil", classId: ["class"] }, { id: "pupil", guardianPhone: 123 }, { id: "pupil", fullName: null }, { id: "pupil", fullName: "" }, { id: "pupil", fullName: "   " }, { id: "pupil", fullName: "\t\n" }]) {
     assert.equal(studentProfileUpdateSchema.safeParse(payload).success, false);
   }
 });
@@ -57,4 +57,8 @@ test("SKAI-164: date of birth is a real date that is not in the future", () => {
   for (const dateOfBirth of [tomorrow, "not a date", "2015-13-45"]) {
     assert.equal(studentProfileUpdateSchema.safeParse({ id: "pupil", dateOfBirth }).success, false);
   }
+});
+
+test("SKAI-2095: pupil names are trimmed before they are stored", () => {
+  assert.equal(studentProfileUpdateSchema.parse({ id: "pupil", fullName: "  Pupil One  " }).fullName, "Pupil One");
 });
