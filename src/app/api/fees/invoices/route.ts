@@ -7,9 +7,9 @@ import {
   errorResponse,
   requireAuthUser,
   resolveCampusId,
+  ValidationError,
 } from "@/lib/api/scope";
 import { Prisma } from "@prisma/client";
-import { ValidationError } from "@/lib/api/scope";
 import { parseInvoiceListFilters } from "@/lib/fees/invoice-list-filters";
 
 export async function GET(req: NextRequest) {
