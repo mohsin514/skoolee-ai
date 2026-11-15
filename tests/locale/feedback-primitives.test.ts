@@ -85,6 +85,13 @@ test("error copy: network and technical failures become plain words in the reade
   assert.equal(friendlyErrorMessage(new Error("P2002 unique constraint")), translateUi("Something went wrong. Please try again.", "ar"));
 });
 
+test("error copy: a server sentence containing \"at <word> (\" is not mistaken for a stack trace", () => {
+  speak("en");
+  const msg = "Maths already exists in that class (subject 1).";
+  assert.equal(friendlyErrorMessage(new Error(msg)), msg);
+  assert.equal(friendlyErrorMessage(new Error("Error: x\n    at run (file.js:1:1)")), translateUi("Something went wrong. Please try again.", "en"));
+});
+
 test("requireReason: Confirm is blocked until the trimmed reason meets minLength, then the reason is passed on", () => {
   const rule = { label: "Reason", minLength: 10 };
   assert.equal(DEFAULT_REASON_MIN_LENGTH, 10, "matches the server's audit minimum");

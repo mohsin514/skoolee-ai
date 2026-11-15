@@ -561,7 +561,7 @@ export function AcademicPanel({
   onDeleteClass?: (cls: any) => void;
   onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }) => Promise<boolean | void>;
   onDeleteSubject?: (subject: any) => void;
-  onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
+  onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void | boolean>;
   onAddSection?: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
 }) {
   const ui = useUiText();
@@ -1266,7 +1266,7 @@ export function ClassDetailModal({
   /** Omitted for a read-only viewer: no Edit control for the class details. */
   onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }) => Promise<boolean | void>;
   onDeleteSubject: (subject: any) => void;
-  onUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
+  onUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void | boolean>;
 }) {
   const ui = useUiText();
   type ManageTab = "overview" | "subjects" | "students";
@@ -1350,11 +1350,12 @@ export function ClassDetailModal({
   };
 
   const saveEditingSubject = async (subjectId: string) => {
-    await onUpdateSubject(cls.id, subjectId, {
+    const saved = await onUpdateSubject(cls.id, subjectId, {
       name: editSubjectName,
       totalMarks: Number(editSubjectMarks) || 100,
     });
-    setEditingSubjectId(null);
+    // Keep the form open on failure so the user can fix the name.
+    if (saved !== false) setEditingSubjectId(null);
   };
 
   const subjectCount = cls.subjects?.length || 0;
@@ -3730,7 +3731,7 @@ export function ClassGroupCard({
   onDeleteClass?: (cls: any) => void;
   onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }) => Promise<boolean | void>;
   onDeleteSubject?: (subject: any) => void;
-  onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
+  onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void | boolean>;
   onAddSection?: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
 }) {
   const ui = useUiText();
@@ -3944,7 +3945,7 @@ export function SectionCard({
   onDeleteClass?: (cls: any) => void;
   onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }) => Promise<boolean | void>;
   onDeleteSubject?: (subject: any) => void;
-  onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
+  onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void | boolean>;
 }) {
   const ui = useUiText();
   const [detailsOpen, setDetailsOpen] = useState(false);
