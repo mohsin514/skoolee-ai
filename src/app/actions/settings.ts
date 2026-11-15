@@ -246,10 +246,19 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
   }
 }
 
+function cappedPatch(value: string | null | undefined, field: string, max: number) {
+  const text = patchText(value);
+  if (text && text.length > max) throw new Error(`${field} must be ${max} characters or fewer.`);
+  return text;
+}
+
 async function saveSchoolDetails(session: Awaited<ReturnType<typeof requireSession>>, input: SchoolDetailsInput) {
 
-  const name = input.name === undefined ? undefined : requiredText(input.name, "School name");
-  const city = input.city === undefined ? undefined : requiredText(input.city, "City");
+  // SKAI-2189: the school name prints on every report card, invoice and header, so identity text is length-capped.
+  const name = input.name === undefined ? undefined : requiredText(input.name, "School name", 120);
+  const city = input.city === undefined ? undefined : requiredText(input.city, "City", 80);
+  const tagline = cappedPatch(input.tagline, "Tagline", 160);
+  const address = cappedPatch(input.address, "Address", 300);
   const phone = input.phone === undefined ? undefined : assertPhone(optionalText(input.phone), "Phone number");
   const website = input.website === undefined ? undefined : assertWebsite(optionalText(input.website), "website");
   const nameUr = input.nameUr === undefined ? undefined : assertScriptName(optionalText(input.nameUr), "Urdu name");
@@ -270,8 +279,8 @@ async function saveSchoolDetails(session: Awaited<ReturnType<typeof requireSessi
     if (!current || (input.expectedRevision && input.expectedRevision !== recordRevision(current))) throw new Error("This record changed. Review your draft against the current values before saving.");
     const data = {
       name, city, phone, website, nameUr, nameAr, shortName, brandColor,
-      tagline: patchText(input.tagline),
-      address: patchText(input.address),
+      tagline,
+      address,
       logoUrl: newLogoUrl,
       establishedYear: input.establishedYear === undefined ? undefined : parseEstablishedYear(input.establishedYear),
     };
