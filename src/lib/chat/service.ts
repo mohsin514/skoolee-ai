@@ -913,7 +913,15 @@ export async function editMessage(
   });
   if (!message) throw new ApiError("Message not found", 404);
 
-  const { row } = await requireMembership(user, message.conversationId);
+  const { row, me } = await requireMembership(user, message.conversationId);
+
+  // SKAI-2168: a closed thread is a frozen record, same gate as sendMessage.
+  if (!canPostIn(row, me.memberRole)) {
+    throw new ApiError(
+      row.isLocked ? "This conversation is closed" : "Only moderators can post here",
+      403
+    );
+  }
 
   // Editing is the author's alone. A moderator can withdraw a message, but
   // putting different words in someone else's mouth is not moderation.
