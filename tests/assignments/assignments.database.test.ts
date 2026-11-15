@@ -5,7 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import type { AuthUser } from "../../src/lib/auth";
 import { prisma } from "../../src/lib/db/prisma";
 import {
-  assertSubmissionUploadTarget, closeAssignment, confirmDraftFile, removeDraftFile, createAssignment, getAssignment, grantExtension, listAssignments, prepareDraftFile, previewRelease,
+  assertSubmissionUploadTarget, closeAssignment, confirmDraftFile, discardDraft, removeDraftFile, createAssignment, getAssignment, grantExtension, listAssignments, prepareDraftFile, previewRelease,
   recordPaperSubmission, releaseAssignment, reopenSubmission, resolveSubmissionFile, returnFeedback, saveDraft, saveFeedback, submitWork, updateAssignment,
 } from "../../src/lib/assignments/service";
 import { sha256 } from "../../src/lib/assignments/rules";
@@ -263,4 +263,19 @@ test("receipts are immutable and rows are deleted only with their school", async
   assert.ok(await db.auditLog.count({ where: { schoolId: s.schoolId, tableName: "assignments", recordId: id } }) >= 3, "create, release and submit are audited");
   await db.school.delete({ where: { id: s.schoolId } });
   assert.equal(await db.assignmentSubmissionVersion.count({ where: { id: receipt.id } }), 0);
+});
+
+test("SKAI-2003: an author deletes an unreleased draft; released work, other schools and denied roles cannot", async () => {
+  const s = await school(), other = await school();
+  const mine = await createAssignment(s.teacher, draft(s, { title: "Mistaken draft" }));
+  for (const user of [s.otherTeacher, s.learner, s.guardian, other.teacher, other.admin]) await assert.rejects(() => discardDraft(user, mine.id), { status: 404 });
+  await discardDraft(s.teacher, mine.id);
+  assert.equal(await db.assignment.count({ where: { id: mine.id } }), 0);
+  const byAdmin = await createAssignment(s.teacher, draft(s, { title: "Admin removes" }));
+  await discardDraft(s.admin, byAdmin.id);
+  const id = await released(s);
+  await assert.rejects(() => discardDraft(s.teacher, id), { status: 409 });
+  await closeAssignment(s.teacher, id);
+  await assert.rejects(() => discardDraft(s.teacher, id), { status: 409 });
+  assert.equal(await db.assignment.count({ where: { id } }), 1);
 });
