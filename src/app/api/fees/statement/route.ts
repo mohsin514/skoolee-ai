@@ -25,7 +25,8 @@ export async function GET(req: NextRequest) {
     const year = Number(searchParams.get("academicYear") ?? new Date().getFullYear());
 
     if (!studentId) throw new ApiError("studentId required", 400);
-    if (!Number.isInteger(year)) throw new ApiError("invalid academicYear", 400);
+    // SKAI-2104: the same 2000-2100 year range as classes; a larger year overflowed Postgres int4 or Date.UTC (raw 500).
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new ApiError("invalid academicYear", 400);
 
     const student = await prisma.student.findFirst({
       where: { id: studentId, ...studentScope(user, "finances") },
