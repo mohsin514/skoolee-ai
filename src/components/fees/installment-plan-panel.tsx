@@ -53,8 +53,10 @@ export function InstallmentPlanPanel({ invoiceId, currency, canPropose = true }:
     } catch { setLoadFailed(true); }
   }, [invoiceId]);
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
-  const preview = useMemo(() => data && firstDue && Number(count) >= 2 ? splitEvenly(data.balance, Number(count), firstDue) : [], [data, firstDue, count]);
-  const problem = data && preview.length ? validatePlan(preview, data.balance, data.today) : null;
+  // SKAI-2209: build the preview only for a whole count of 2-24 and a real date; a huge count crashed the console.
+  const countOk = /^\d+$/.test(count.trim()) && Number(count) >= 2 && Number(count) <= 24;
+  const preview = useMemo(() => data && countOk && /^\d{4}-\d{2}-\d{2}$/.test(firstDue) ? splitEvenly(data.balance, Number(count), firstDue) : [], [data, firstDue, count, countOk]);
+  const problem = data && count.trim() && !countOk ? "A plan needs between 2 and 24 instalments." : data && preview.length ? validatePlan(preview, data.balance, data.today) : null;
   const act = async (request: () => Promise<Response>, success: string) => {
     setBusy(true); setError("");
     try {
