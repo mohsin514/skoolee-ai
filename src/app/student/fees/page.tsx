@@ -11,11 +11,15 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "@/components/ui/toast";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { csvCell } from "@/lib/csv";
+import { minorUnits } from "@/lib/locale/package";
+import { paisaToRupees } from "@/components/fees/fee-utils";
 
 /** Due states as the statement names them (the same EN keys FamilyFeeStatement translates). */
 const DUE_STATE_LABEL: Record<string, string> = { PAID: "Paid", CANCELLED: "Cancelled", OVERDUE: "Overdue", DUE_TODAY: "Due today", NOT_YET_DUE: "Not yet due" };
 
 type StatementInvoice = { invoiceNumber: string | null; currency: string; status: string; dueState: string; dueDate: string; totalAmount: number; paid: number; balance: number };
+
+const major = (minor: number, currency: string) => paisaToRupees(minor, currency).toFixed(minorUnits(currency));
 
 // SKO-431: the pupil's own full statement from the server — the same figures their guardian sees.
 // Read only (M101, G44a): paying online is for guardians, so the statement shows no Pay button.
@@ -45,9 +49,10 @@ export default function FeesPage() {
           invoice.invoiceNumber ?? "",
           String(invoice.dueDate ?? "").slice(0, 10),
           tr(DUE_STATE_LABEL[invoice.dueState] ?? invoice.status),
-          invoice.totalAmount,
-          invoice.paid,
-          invoice.balance,
+          // SKAI-2102: the API returns minor units; the file says "major units" next to the currency code.
+          major(invoice.totalAmount, invoice.currency),
+          major(invoice.paid, invoice.currency),
+          major(invoice.balance, invoice.currency),
           invoice.currency,
         ]);
       }
