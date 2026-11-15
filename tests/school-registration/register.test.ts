@@ -55,3 +55,9 @@ test("every server code is localized in EN, AR and UR", () => {
   }
   assert.match(page, /throw new Error\(serverError\(step2\)/);
 });
+
+test("signup emails are normalized to lowercase so letter-casing cannot dodge the duplicate check (SKAI-1998)", async () => {
+  const { SignupStep1Schema, SignupStep2Schema } = await import("../../src/lib/auth/register.ts");
+  assert.equal(SignupStep1Schema.parse({ email: " CaseTest@Example.com ", registrationType: "single_campus" }).email, "casetest@example.com");
+  assert.match(lib, /SignupStep2Schema = z\.object\(\{\s*email: z\.string\(\)\.trim\(\)\.toLowerCase\(\)\.email\(/);
+});

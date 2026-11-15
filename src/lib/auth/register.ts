@@ -13,12 +13,12 @@ import { createPlanContract } from "@/config/commercial-contract";
 import { resetPasswordProblem } from "@/lib/auth/reset-password-policy";
 
 export const SignupStep1Schema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
   registrationType: z.enum(["school_group", "single_campus"]),
 });
 
 export const SignupStep2Schema = z.object({
-  email: z.string().email("Invalid work email address"),
+  email: z.string().trim().toLowerCase().email("Invalid work email address"),
   fullName: z.string().min(3, "Please enter your full name"),
   // SKAI-81: the same policy the form checklist shows, so a direct API call cannot set a weaker one.
   password: z.string().superRefine((value, ctx) => {
