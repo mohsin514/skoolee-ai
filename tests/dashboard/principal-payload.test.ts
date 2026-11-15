@@ -52,3 +52,8 @@ test("SKAI-1964: marks has a covering index for the campus average", () => {
   const sql = readFileSync("prisma/migrations/20261125020000_skai_1964_marks_average_index/migration.sql", "utf8");
   assert.match(sql, /CREATE INDEX IF NOT EXISTS "marks_school_id_campus_id_marks_obtained_idx" ON "marks"\("school_id", "campus_id", "marks_obtained"\)/);
 });
+
+test("SKAI-2064: the principal Manage class dialog reads the class from the reloaded data, not a stale snapshot", () => {
+  const page = readFileSync("src/app/principal/page.tsx", "utf8");
+  assert.match(page, /useState<any>\(null\);\s*\n\s*\/\/[^\n]*\n\s*const selectedClass = selectedClassSnapshot\s*\n\s*\? \(\(data\?\.classes \?\? \[\]\)\.find\(\(item: any\) => item\.id === selectedClassSnapshot\.id\)/);
+});
