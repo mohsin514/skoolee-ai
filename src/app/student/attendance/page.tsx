@@ -20,6 +20,8 @@ import { useStudentData } from "../student-data-context";
 
 /** Register statuses as words (EN keys; the same labels the class register uses). */
 const STATUS_WORD: Record<string, string> = { PRESENT: "Present", LATE: "Late", PARTIAL: "Part day", ABSENT: "Absent", EXCUSED: "Excused absence", LEAVE: "Approved leave" };
+// SKAI-2130: a distinct short marker per status, so the calendar reads without colour (first letters collided).
+const STATUS_MARK: Record<string, string> = { PRESENT: "P", LATE: "Lt", PARTIAL: "½", ABSENT: "A", EXCUSED: "E", LEAVE: "Lv" };
 
 export default function StudentAttendancePage() {
   const tr = useUiText();
@@ -206,7 +208,7 @@ export default function StudentAttendancePage() {
                   <span className="text-xs font-bold tabular-nums">{cell.day}</span>
                   {status && (
                     <span className="mt-0.5 text-3xs font-semibold">
-                      {statusText.slice(0, 1)}
+                      {locale.language === "en" ? STATUS_MARK[status] ?? statusText.slice(0, 1) : statusText.slice(0, 1)}
                     </span>
                   )}
                 </div>
