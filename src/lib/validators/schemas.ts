@@ -509,7 +509,7 @@ export const generateInvoicesSchema = z.object({
 // Record a payment
 export const paymentSchema = z.object({
   invoiceId: z.string().min(1),
-  amount: z.coerce.number().int().min(1),
+  amount: z.coerce.number().int().min(1).max(2147483647, "amount is above the largest supported amount"), // SKAI-2182: Int4 minor units
   // SKAI-2070: same rule as the Collect desk (SKAI-1307): a real YYYY-MM-DD day, never rolled into another day.
   paymentDate: z.string().refine(isRealDate, "paymentDate must be a real calendar date (YYYY-MM-DD)"),
   paymentMethod: z.enum(["cash", "bank_transfer", "card", "mobile_wallet", "cheque"]),

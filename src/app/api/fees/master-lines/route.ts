@@ -58,8 +58,8 @@ export async function PATCH(req: NextRequest) {
     if (!existing) throw new ApiError("Master line not found", 404);
 
     const amount = body.amount !== undefined ? Number(body.amount) : undefined;
-    if (amount !== undefined && (!Number.isInteger(amount) || amount < 0)) {
-      throw new ApiError("amount must be a non-negative integer (paisa)", 400);
+    if (amount !== undefined && (!Number.isInteger(amount) || amount < 0 || amount > 2147483647)) { // SKAI-2182: Int4 minor units
+      throw new ApiError("amount must be a whole number of paisa between 0 and 2147483647", 400);
     }
 
     const line = await prisma.$transaction(async (tx) => {
