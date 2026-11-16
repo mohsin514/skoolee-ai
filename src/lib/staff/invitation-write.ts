@@ -24,6 +24,12 @@ function roleWhereForInvite(role: z.infer<typeof InviteSchema>["role"]): Prisma.
 }
 
 export async function lockSchoolMemberships(tx: TxClient, schoolId: string) { await tx.$executeRaw`UPDATE schools SET created_at=created_at WHERE id=${schoolId}`; }
+/** One active principal per campus. A role change must obey the same rule as an invitation (SKAI-2009). */
+export async function assertCampusPrincipalSeatFree(tx: TxClient, input: { schoolId: string; campusId: string; excludeUserId: string }) {
+  const existing = await tx.user.findFirst({ where: { schoolId: input.schoolId, campusId: input.campusId, role: "PRINCIPAL", isActive: true, id: { not: input.excludeUserId } }, select: { id: true } });
+  const invited = existing ? null : await tx.staffInvitation.findFirst({ where: { schoolId: input.schoolId, campusId: input.campusId, role: "PRINCIPAL", status: "pending" }, select: { id: true } });
+  if (existing || invited) throw new ApiError("A PRINCIPAL is already assigned or invited to this facility.", 409);
+}
 export async function assertSchoolTeacherInvitationCapacity(tx: TxClient, schoolId: string, additional: number) {
   const school = await tx.school.findUniqueOrThrow({ where: { id: schoolId }, select: { plan: true, commercialContract: true } }), contract = getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract);
   const [usage] = await tx.$queryRaw<Array<{ count: bigint }>>`SELECT ((SELECT count(*) FROM users WHERE school_id=${schoolId} AND role='TEACHER' AND is_active=true) + (SELECT count(*) FROM staff_invitations WHERE school_id=${schoolId} AND role='TEACHER' AND status='pending')) AS count`;

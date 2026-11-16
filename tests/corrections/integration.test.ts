@@ -76,14 +76,15 @@ test("role matrix enforces direct API domain access", async () => { for (const r
 test("two mark requests preserve immutable originals, stale second rejects, new report needs exact approval", async () => {
     const first = await request("TEACHER", "MARK", markId, { marksObtained: 85, isAbsent: false });
     assert.equal(first.status, 201, JSON.stringify(first.data));
+    // SKAI-2092: one PENDING correction per source record; a different proposal is refused while the first waits.
     const second = await request("TEACHER", "MARK", markId, { marksObtained: 90, isAbsent: false });
-    assert.equal(second.status, 201);
+    assert.equal(second.status, 409, JSON.stringify(second.data));
     const denied = await api("TEACHER", "MARK", { action: "approve", id: first.data.id, reviewHash: first.data.previewHash });
     assert.equal(denied.status, 403);
     assert.equal((await api("ADMIN", "MARK", { action: "approve", id: first.data.id, reviewHash: first.data.previewHash })).status, 403, "a campus admin is not the academic lead while a principal is appointed");
-    const [one, two] = await Promise.all([api("PRINCIPAL", "MARK", { action: "approve", id: first.data.id, reviewHash: first.data.previewHash }), api("PRINCIPAL", "MARK", { action: "approve", id: second.data.id, reviewHash: second.data.previewHash })]);
-    assert.deepEqual([one.status, two.status].sort(), [200, 409]);
-    const applied = one.status === 200 ? one.data : two.data;
+    const one = await api("PRINCIPAL", "MARK", { action: "approve", id: first.data.id, reviewHash: first.data.previewHash });
+    assert.equal(one.status, 200, JSON.stringify(one.data));
+    const applied = one.data;
     let updated = await raw.reportCard.findUniqueOrThrow({ where: { id: reportId } });
     assert.equal(updated.publishedVersionId, publishedId);
     assert.notEqual(updated.currentVersionId, publishedId);
@@ -101,6 +102,30 @@ test("two mark requests preserve immutable originals, stale second rejects, new 
     assert.equal(publicHistory.data.history[0].id, applied.id);
     assert.deepEqual((await raw.reportVersion.findUniqueOrThrow({ where: { id: publishedId } })).documentBytes, bytesBefore);
     await assert.rejects(raw.correction.update({ where: { id: applied.id }, data: { reason: "rewrite" } }), /immutable/);
+});
+test("SKAI-2092: duplicate mark requests are idempotent, one stays pending, applying closes stale pending rows", async () => {
+    const subject2 = randomUUID();
+    await raw.subject.create({ data: { id: subject2, schoolId, campusId, classId, name: "Dup subject", totalMarks: 100, teacherId: users.TEACHER } });
+    const mark2 = (await raw.mark.create({ data: { schoolId, campusId, examId, studentId, subjectId: subject2, marksObtained: 60 } })).id;
+    // One reviewed preview, posted twice in parallel with the same reviewHash (double click / retry).
+    const proposal = { kind: "MARK", sourceId: mark2, expectedVersion: (await api("TEACHER")).data.records.items.find((r: any) => r.id === mark2).version, marksObtained: 5, isAbsent: false };
+    const reviewed = await api("TEACHER", "MARK", { action: "preview", proposal });
+    assert.equal(reviewed.status, 200, JSON.stringify(reviewed.data));
+    const input = { action: "request", proposal, reviewHash: reviewed.data.hash, reason: "Duplicate guard", publicExplanation: "Corrected after review" };
+    const [a, b] = await Promise.all([api("TEACHER", "MARK", input), api("TEACHER", "MARK", input)]);
+    assert.deepEqual([a.status, b.status], [201, 201], JSON.stringify([a.data, b.data]));
+    assert.equal(a.data.id, b.data.id, "the same reviewed request posted twice returns the same correction");
+    const other = await request("TEACHER", "MARK", mark2, { marksObtained: 7, isAbsent: false });
+    assert.equal(other.status, 409, JSON.stringify(other.data));
+    assert.equal(await raw.correction.count({ where: { sourceId: mark2, status: "PENDING" } }), 1);
+    // A duplicate that predates the guard: the apply must close it instead of leaving it in the queue.
+    const { id: _id, requestedAt: _at, ...row } = await raw.correction.findUniqueOrThrow({ where: { id: a.data.id } });
+    const legacy = await raw.correction.create({ data: { ...row, previewHash: "legacy-duplicate", before: row.before as any, after: row.after as any, reportVersionIds: [] } });
+    const approved = await api("PRINCIPAL", "MARK", { action: "approve", id: a.data.id, reviewHash: a.data.previewHash });
+    assert.equal(approved.status, 200, JSON.stringify(approved.data));
+    const closed = await raw.correction.findUniqueOrThrow({ where: { id: legacy.id } });
+    assert.equal(closed.status, "REJECTED");
+    assert.equal(await raw.correction.count({ where: { sourceId: mark2, status: "PENDING" } }), 0);
 });
 test("missing reason, review hash, direct self-approval and stale preview are rejected", async () => {
     // role-ux G28a: the teacher requests a mark correction; only the academic lead decides it.

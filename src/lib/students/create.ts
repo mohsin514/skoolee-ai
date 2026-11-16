@@ -156,7 +156,9 @@ export async function createStudentRecords(user: AuthUser, req: NextRequest, opt
       where: {
         id: { in: classIds },
         campus: { schoolId: user.schoolId },
-        ...(importBatch ? { status: "ACTIVE", archivedAt: null } : {}),
+        // An archived or inactive class never takes a new admission, on every path (import and single add).
+        status: "ACTIVE",
+        archivedAt: null,
         ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId || "" }),
       },
       select: { id: true, campusId: true, name: true, section: true, campus: { select: { name: true } } },
@@ -516,13 +518,17 @@ export async function createStudentRecords(user: AuthUser, req: NextRequest, opt
               phone: student.guardianPhone || student.guardianWhatsapp || account.phone,
               relationship, status: "INVITED", validFrom: invitedAt,
               invitationExpiresAt: new Date(invitedAt.getTime() + 14 * 24 * 60 * 60 * 1000),
-              accessVersions: { create: { id: randomUUID(), permissions: {
-                learningRecords: false, attendance: false, finances: false, communication: false, pickup: false,
-                consents: { medicalTreatment: false, fieldTrips: false, mediaPublication: false, offsiteTravel: false },
-              }, effectiveFrom: invitedAt, reason: "Awaiting explicit school review of guardian permissions.", createdByUserId: user.userId } },
               accessEvents: { create: { id: randomUUID(), school: { connect: { id: user.schoolId } }, actor: { connect: { id: user.userId } },
                 action: "INVITED", reason: "Admission created a pending child-specific guardian link; no access is granted before review and acceptance.",
                 afterState: { status: "INVITED", permissions: "pending staff review" }, effectiveAt: invitedAt } },
+            } });
+            // SKAI-1993: created at top level, not nested under the relationship. The tenant extension adds
+            // schoolId to every create, and the nested access-version input has no such field.
+            await tx.guardianAccessVersion.create({ data: {
+              id: randomUUID(), schoolId: user.schoolId, relationshipId: relationId, permissions: {
+                learningRecords: false, attendance: false, finances: false, communication: false, pickup: false,
+                consents: { medicalTreatment: false, fieldTrips: false, mediaPublication: false, offsiteTravel: false },
+              }, effectiveFrom: invitedAt, reason: "Awaiting explicit school review of guardian permissions.", createdByUserId: user.userId,
             } });
           }
         }

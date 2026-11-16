@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, assertSharedModuleRead, assertStaffRole, canApproveFinance, canManageFinance, errorResponse, requireAuthUser, soleChecker } from "@/lib/api/scope";
 import { studentScope } from "@/lib/auth/policy";
-import { decideAdjustment, familyAdjustment, isSelfApproved, recordDisbursement, requestAdjustment, type AdjustmentKind } from "@/lib/fees/adjustments-service";
+import { decideAdjustment, familyAdjustment, holdsFinanceDesk, isSelfApproved, recordDisbursement, requestAdjustment, type AdjustmentKind } from "@/lib/fees/adjustments-service";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     });
     // The super admin keeps audited break-glass on the server but is never offered these controls.
     const checker = canApproveFinance(user) && user.role !== "SUPER_ADMIN";
-    const recorder = canManageFinance(user) && user.role !== "SUPER_ADMIN";
+    const recorder = canManageFinance(user) && user.role !== "SUPER_ADMIN" && await holdsFinanceDesk(user, user.campusId ?? null);
     const sole = checker && rows.some(row => row.status === "REQUESTED" && row.requesterId === user.userId) ? await soleChecker("finance", user, user.campusId ?? null) : false;
     return Response.json({ success: true, data: rows.map(row => {
       const mine = row.requesterId === user.userId;

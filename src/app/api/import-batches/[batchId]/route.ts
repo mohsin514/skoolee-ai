@@ -173,6 +173,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           row.errors = [];
           continue;
         }
+        // SKAI-2121: a row the validator rejected (period, date, amount) cannot be revived by choosing or clearing an invoice match.
+        if (row.state === "REJECTED" && (typeof change.matchedInvoiceId === "string" || change.matchedInvoiceId === null)) throw new ApiError("Row " + row.rowNumber + " failed validation and cannot be matched or accepted. Skip it or fix the statement and upload it again.", 409);
         if (typeof change.matchedInvoiceId === "string") {
           const candidates = Array.isArray(row.proposal?.candidates) ? row.proposal.candidates as Array<Record<string, unknown>> : [];
           if (!candidates.some((candidate) => candidate.id === change.matchedInvoiceId)) throw new ApiError("Choose an invoice from this row's scoped candidates", 400);
@@ -230,13 +232,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
         if (locked.count !== 1) throw new ApiError("Another request already committed or expired this batch", 409);
         const matched = selected.filter((row) => row.proposal?.matchedInvoiceId);
         const unmatched = selected.filter((row) => !row.proposal?.matchedInvoiceId);
-        // Store the stable bank account id so the period guard can find this statement.
+        // Store the stable bank account id so the period guard can find this statement. SKAI-2127: with no saved
+        // account of that name, keep the typed name so the statement still says which account it came from.
         const bankAccount = await tx.bankAccount.findFirst({ where: { schoolId: user.schoolId, campusId: batch.campusId, name: String(metadata.accountName) }, select: { id: true } });
         const reconciliation = await tx.bankReconciliation.create({ data: {
           schoolId: user.schoolId,
           campusId: batch.campusId,
           importDate: new Date(),
-          bankAccount: bankAccount?.id ?? null,
+          bankAccount: bankAccount?.id ?? (String(metadata.accountName ?? "").trim() || null),
           statementPeriodFrom: new Date(`${metadata.statementFrom}T00:00:00.000Z`),
           statementPeriodTo: new Date(`${metadata.statementTo}T00:00:00.000Z`),
           totalTransactions: selected.length,
@@ -294,6 +297,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
           if (!claimed.count) throw new ApiError("This batch was already reversed", 409);
           const changed = await tx.bankReconciliation.updateMany({ where: { id: reconciliation.id, schoolId: user.schoolId, campusId: batch.campusId, status: "pending" }, data: { status: "reversed" } });
           if (!changed.count) throw new ApiError("Reconciliation changed during reversal; recheck its dependencies", 409);
+          // SKAI-2125: release the transaction keys nothing was posted against, so a corrected statement can import them again.
+          await tx.bankTransactionKey.deleteMany({ where: { reconciliationId: reconciliation.id, schoolId: user.schoolId, campusId: batch.campusId, paymentId: null } });
           const newReceipt = { ...(receipt || {}), reversal: { state: "REVERSED", reversedAt: reversedAt.toISOString(), actorId: user.userId, reconciliationId: reconciliation.id } };
           const result = await tx.importBatch.update({ where: { id: batch.id }, data: { state: "REVERSED", reversedAt, receipt: newReceipt as Prisma.InputJsonValue } });
           await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "import_batch", recordId: batch.id, oldValue: { state: "COMMITTED" }, newValue: { action: "REVERSED", reconciliationId: reconciliation.id }, userId: user.userId } });

@@ -10,7 +10,7 @@ import {
 } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
-import { returnIssue } from "@/lib/library/desk";
+import { currentRules, returnIssue } from "@/lib/library/desk";
 import { listPagination, pageWindow } from "@/lib/lists/query";
 
 export async function GET(req: NextRequest) {
@@ -69,22 +69,32 @@ export async function POST(req: NextRequest) {
     });
     if (!member) throw new ApiError("Member not found", 404);
 
-    const data = await prisma.$transaction(async (tx) => {
-      const fresh = await tx.book.findUnique({ where: { id: bookId } });
-      if (!fresh || fresh.copiesAvailable <= 0) {
-        throw new ApiError("No copies available to issue", 409);
-      }
+    // SKAI-2162: a due date must be a real date that is not already past.
+    const due = new Date(dueAt);
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    if (Number.isNaN(due.getTime())) throw new ApiError("dueAt must be a valid date", 400);
+    if (due < today) throw new ApiError("dueAt cannot be in the past", 400);
 
-      await tx.book.update({
-        where: { id: bookId },
+    const data = await prisma.$transaction(async (tx) => {
+      // SKAI-2162: same per-reader lock as the lending desk, so parallel issues cannot all pass the loan-limit count.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`library-reader-loans:${member.id}`}))`;
+      const rules = await currentRules(tx, user.schoolId, member.campusId);
+      const open = await tx.bookIssue.count({ where: { memberId: member.id, returnedAt: null } });
+      if (open >= rules.maxLoans) throw new ApiError(`This reader already has ${open} of ${rules.maxLoans} allowed loans.`, 409);
+
+      // One conditional update decides which request gets the last copy; the counter never drops below zero.
+      const claimed = await tx.book.updateMany({
+        where: { id: bookId, copiesAvailable: { gt: 0 } },
         data: { copiesAvailable: { decrement: 1 } },
       });
+      if (!claimed.count) throw new ApiError("No copies available to issue", 409);
 
       return tx.bookIssue.create({
         data: {
           bookId,
           memberId,
-          dueAt: new Date(dueAt),
+          dueAt: due,
         },
       });
     });

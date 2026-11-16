@@ -59,9 +59,22 @@ export type LegacyStructure = {
   taxPercentage: number | null;
 };
 
-/** The legacy per-structure amounts, identical to the generate-invoices fallback. */
-export function legacyInvoiceAmounts(structure: LegacyStructure) {
-  const oneTimeFees = (structure.oneTimeFeesJson as Record<string, number> | null) ?? {};
+/**
+ * SKAI-2061: one-time fees are charged once per enrolment. Returns the enrolments that already carry a live
+ * invoice with a one-time fee. Library charges (monthlyFee 0) are one-off bills, not the structure's one-time fees.
+ */
+export async function enrollmentsBilledOneTimeFees(tx: Pick<TxClient, "invoice">, schoolId: string, studentIds: string[]): Promise<Set<string>> {
+  if (!studentIds.length) return new Set();
+  const rows = await tx.invoice.findMany({
+    where: { schoolId, studentId: { in: studentIds }, oneTimeFees: { gt: 0 }, monthlyFee: { gt: 0 }, status: { not: "CANCELLED" }, enrollmentId: { not: null } },
+    select: { enrollmentId: true },
+  });
+  return new Set(rows.map((row) => row.enrollmentId as string));
+}
+
+/** The legacy per-structure amounts, identical to the generate-invoices fallback. `includeOneTime: false` bills the monthly fee only. */
+export function legacyInvoiceAmounts(structure: LegacyStructure, includeOneTime = true) {
+  const oneTimeFees = includeOneTime ? ((structure.oneTimeFeesJson as Record<string, number> | null) ?? {}) : {};
   const oneTimeTotal = Object.values(oneTimeFees).reduce((sum, v) => sum + v, 0);
   const grossDues = (structure.discountRulesJson as Record<string, number> | null) ?? {};
   const discountPct = Object.values(grossDues).reduce((sum, v) => sum + (typeof v === "number" ? v : 0), 0);
@@ -111,7 +124,7 @@ export async function recomputePendingInvoices(
       student: { classId: structure.classId },
       invoiceDate: { gte: structure.activeFrom, ...(structure.activeTo ? { lte: structure.activeTo } : {}) },
     },
-    select: { id: true, currency: true, lateFeeAmount: true, totalAmount: true },
+    select: { id: true, currency: true, lateFeeAmount: true, totalAmount: true, oneTimeFees: true },
   });
   if (!invoices.length) return { updated: 0, skipped: 0 };
 
@@ -119,11 +132,14 @@ export async function recomputePendingInvoices(
     (await tx.taxDocument.findMany({ where: { schoolId: actor.schoolId, invoiceId: { in: invoices.map((i) => i.id) } }, select: { invoiceId: true } }))
       .map((d) => d.invoiceId),
   );
-  const amounts = legacyInvoiceAmounts(structure);
+  const withOneTime = legacyInvoiceAmounts(structure);
+  // SKAI-2061: only the invoice that was billed the one-time fee keeps it; the others stay monthly-only.
+  const monthlyOnly = legacyInvoiceAmounts(structure, false);
   const changes: Array<{ invoiceId: string; before: number; after: number }> = [];
   let skipped = 0;
   for (const invoice of invoices) {
     if (taxed.has(invoice.id) || invoice.currency !== structure.currency) { skipped++; continue; }
+    const amounts = invoice.oneTimeFees > 0 ? withOneTime : monthlyOnly;
     const totalAmount = amounts.subtotal - amounts.discountAmount + invoice.lateFeeAmount + amounts.taxAmount;
     // Guarded so a payment landing mid-transaction is never overwritten.
     const res = await tx.invoice.updateMany({

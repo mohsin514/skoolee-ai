@@ -311,6 +311,8 @@ test("blocked approval, stale review, immutable release, correction and idempote
       actorId,
       "Updated result after checking the marked paper.",
     );
+    // SKAI-2138: a later round's reason does not conflict with a correction already published.
+    await publishExam(examId, actorId, "A later correction round reason.");
     const corrected = await getPublishedVersion(reportId, original.id);
     assert.equal(corrected.superseded, true);
     assert.equal(corrected.predecessorId, original.id);

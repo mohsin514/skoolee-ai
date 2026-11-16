@@ -2,8 +2,8 @@ import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { createDiscount } from "@/lib/fees/discount-command";
-import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
+import { assertDiscountValue, createDiscount } from "@/lib/fees/discount-command";
+import { assertFeesRead, ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -13,6 +13,9 @@ import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertFeesRead(user);
+    // SKAI-374 AC3: discount codes and assignments are finance data; only finance seats may read them.
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     const { searchParams } = new URL(req.url);
     const campusId = user.role === "SUPER_ADMIN" ? searchParams.get("campusId") : user.campusId;
 
@@ -60,8 +63,7 @@ export async function PATCH(req: NextRequest) {
     if (type !== "PERCENT" && type !== "FLAT") throw new ApiError("type must be PERCENT or FLAT", 400);
 
     const value = body.value !== undefined ? Number(body.value) : existing.value;
-    if (!Number.isInteger(value) || value < 0) throw new ApiError("value must be a non-negative integer", 400);
-    if (type === "PERCENT" && value > 100) throw new ApiError("percent discount cannot exceed 100", 400);
+    assertDiscountValue(type, value);
 
     if (body.categoryId !== undefined && body.categoryId) {
       const category = await prisma.studentCategory.findFirst({ where: { id: body.categoryId, campusId: existing.campusId } });

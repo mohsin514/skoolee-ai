@@ -129,7 +129,10 @@ export async function saveDraft(user: AuthUser, body: Record<string, unknown>) {
     effectiveFrom: body.effectiveFrom ? new Date(String(body.effectiveFrom)) : null, ownerId: text(body.ownerId, 64) || null,
     evidenceReviewer: text(body.evidenceReviewer, 160) || null, evidenceReference: text(body.evidenceReference, 300) || null, evidenceReviewedAt: body.evidenceReviewedAt ? new Date(String(body.evidenceReviewedAt)) : null,
   };
-  if (data.effectiveFrom && Number.isNaN(data.effectiveFrom.getTime())) throw new ApiError("Choose a valid effective date.", 400);
+  // SKAI-2145: both dates must be real and within 2000-2100; a NaN or 5-digit year reached Prisma as a raw 500.
+  const inRange = (d: Date) => !Number.isNaN(d.getTime()) && d.getUTCFullYear() >= 2000 && d.getUTCFullYear() <= 2100;
+  if (data.effectiveFrom && !inRange(data.effectiveFrom)) throw new ApiError("Choose a valid effective date.", 400);
+  if (data.evidenceReviewedAt && !inRange(data.evidenceReviewedAt)) throw new ApiError("Choose a valid evidence review date.", 400);
   if (data.ownerId && !(await prisma.user.findFirst({ where: { id: data.ownerId, schoolId: user.schoolId, isActive: true } }))) throw new ApiError("Choose an active staff member as the validation owner.", 400);
   const hash = configHash(data);
   if (body.id) {
@@ -178,7 +181,7 @@ export async function approve(user: AuthUser, id: string, reason?: string | null
   const run = await prisma.taxFixtureRun.findFirst({ where: { activationId: a.id }, orderBy: { createdAt: "desc" } });
   const missing = blockers(a, run);
   if (missing.length) throw new ApiError(`This package has unresolved validation requirements: ${missing.join(" ")}`, 409);
-  const done = await prisma.taxActivation.updateMany({ where: { id: a.id, status: "DRAFT", configHash: a.configHash }, data: { status: "SCHEDULED", approvedById: user.userId, approvedAt: new Date() } });
+  const done = await prisma.taxActivation.updateMany({ where: { id: a.id, status: "DRAFT", configHash: a.configHash }, data: { status: "SCHEDULED", approvedById: user.userId, approvedAt: new Date(), selfApprovalReason: self?.reason ?? null } });
   if (!done.count) throw new ApiError("The draft changed while you were reviewing it. Review it again.", 409);
   await prisma.auditLog.create({ data: { schoolId: user.schoolId, tableName: "tax_activations", recordId: a.id, userId: user.userId, oldValue: { status: "DRAFT" }, newValue: { status: "SCHEDULED", preparedById: a.preparedById, configHash: a.configHash, ...(self ?? {}) } } });
   // The approver is the institution authority, so an SD3 sign-off needs no authority notice (role-ux §2.5).

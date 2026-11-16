@@ -35,6 +35,14 @@ export function splitEvenly(total: number, count: number, firstDueDate: string):
   });
 }
 
+/**
+ * SKAI-2206: what has been settled against a plan, from the invoice's current balance. The plan adds up to the
+ * balance when it was made, so payments and approved waivers or credit notes since then both count, and the
+ * instalments never ask for more than is still owed (a PAID invoice shows every instalment paid).
+ */
+export function settledTowardPlan(installments: Installment[], balanceDue: number) {
+  return installments.reduce((sum, item) => sum + item.amount, 0) - Math.max(0, balanceDue);
+}
 /** Each instalment's allocation and state for the amount paid since the plan started. */
 export function installmentStates(installments: Installment[], paidTowardPlan: number, today: string) {
   let remainingPaid = Math.max(0, paidTowardPlan);

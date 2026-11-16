@@ -103,6 +103,13 @@ test("SKAI-1497 teacher report scope requires a class or subject assignment in t
   assert.equal(reportScope({ ...user, role: "CAMPUS_ADMIN" }).exam, undefined);
   assert.equal(reportScope({ ...user, role: "ACADEMIC_COORDINATOR" as AuthUser["role"] }).exam, undefined);
 });
+test("SKAI-2012 teacher student scope requires a led or taught class; other staff stay campus-wide", () => {
+  const teacher = studentScope({ ...user, userId: "teacher-a", role: "TEACHER" });
+  assert.equal(teacher.campusId, user.campusId);
+  assert.deepEqual(teacher.AND, [{ class: { OR: [{ classTeacherId: "teacher-a" }, { subjects: { some: { teacherId: "teacher-a" } } }] } }]);
+  assert.equal(studentScope({ ...user, role: "CAMPUS_ADMIN" }).AND, undefined);
+});
+
 test("an unbound guardian predicate preserves a caller's selected recipients", () => {
   const recipientIds = { in: ["guardian-a", "guardian-b"] };
   const where = { guardianUserId: recipientIds, ...guardianRelationshipAuthorityWhere(null) };

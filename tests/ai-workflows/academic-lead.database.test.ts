@@ -251,7 +251,8 @@ test("model draft: the adapter writes what POST /api/academic-models writes; act
     assert.equal(open.prefill.version, 2);
 
     const template = await db.policyTemplate.create({ data: { schoolId, domain: "GRADING", title: "Group grading", campusIds: [campusId], createdById: user.userId } });
-    await db.policyTemplateVersion.create({ data: { schoolId, templateId: template.id, version: 1, status: "ACTIVE", values: { passingPercentage: 50 }, lockedKeys: ["passingPercentage"], effectiveFrom: new Date("2026-01-01T00:00:00Z"), submittedById: user.userId, reviewerId: randomUUID(), reviewedAt: new Date("2025-12-20T00:00:00Z"), createdById: user.userId } });
+    const reviewer = await db.user.create({ data: { schoolId, campusId, email: `${randomUUID()}@example.invalid`, fullName: "Synthetic group reviewer", role: "SUPER_ADMIN", isActive: true } });
+    await db.policyTemplateVersion.create({ data: { schoolId, templateId: template.id, version: 1, status: "ACTIVE", values: { passingPercentage: 50 }, lockedKeys: ["passingPercentage"], effectiveFrom: new Date("2026-01-01T00:00:00Z"), submittedById: user.userId, reviewerId: reviewer.id, reviewedAt: new Date("2025-12-20T00:00:00Z"), createdById: user.userId } });
     assert.equal(await code(prepare(ctx, "academic.model.activate", { classId: klass.id })), "DOMAIN_REFUSED:GRADING_LOCKED");
     assert.equal(await db.academicModelVersion.count({ where: { schoolId, status: "ACTIVE" } }), 0);
     assert.equal(await db.gradeWeightConfig.count({ where: { schoolId } }), 0);

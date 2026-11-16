@@ -10,6 +10,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Modal } from "@/components/ui/modal";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
+import { costToMinor } from "@/lib/activities/cost-input";
 import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Progress } from "@/components/ui/progress";
@@ -118,7 +119,7 @@ export function FamilyActivities({ studentId }: { studentId: string }) {
 }
 
 type Roster = { activity: { id: string; title: string; kind: string; capacity: number; placesTaken: number; startsAt: string; costAmount: number; costCurrency: string; status: string; canRun?: boolean }; places: { id: string; studentId: string; name: string; className: string; status: string; feeStatus: string; refundState: string | null; cancelReason: string | null; requirements: { consent: string; fee: string } }[]; sessions: { id: string; startsAt: string; endsAt: string; marks: { studentId: string; status: string; markedAt?: string }[] }[] };
-type StaffList = { activities: { id: string; title: string; kind: string; capacity: number; startsAt: string; status: string; canRun?: boolean; counts: Record<string, number> }[]; classes: { id: string; name: string }[]; trips: { id: string; title: string }[]; canLead?: boolean; canPublish?: boolean; currency?: string };
+type StaffList = { activities: { id: string; title: string; kind: string; capacity: number; startsAt: string; status: string; canRun?: boolean; counts: Record<string, number> }[]; classes: { id: string; name: string }[]; trips: { id: string; title: string }[]; campuses?: { id: string; name: string }[]; canLead?: boolean; canPublish?: boolean; readsCampus?: boolean; currency?: string };
 
 /**
  * The staff desk at /activities, framed in the caller's console. It is the page itself, so it draws no card of its
@@ -139,7 +140,7 @@ export function ActivitiesDesk() {
   const [tile, setTile] = useState<"" | "CONFIRMED" | "OFFERED" | "WAITLIST">(""), [q, setQ] = useState("");
   const [open, setOpen] = useState<string | null>(null), [roster, setRoster] = useState<Roster | null>(null), [rosterError, setRosterError] = useState(false), [creating, setCreating] = useState(false), [busy, setBusy] = useState(false);
   // The cost is in the campus currency (locale package); the server applies the same default (R7: no hard-coded "PKR").
-  const [form, setForm] = useState({ kind: "CLUB", title: "", description: "", location: "", startsAt: "", endsAt: "", capacity: "20", costAmount: "0", cancellationTerms: "", tripId: "", classIds: [] as string[] });
+  const [form, setForm] = useState({ kind: "CLUB", title: "", description: "", location: "", startsAt: "", endsAt: "", capacity: "20", costAmount: "0", cancellationTerms: "", tripId: "", campusId: "", classIds: [] as string[] });
   const load = useCallback(async () => { try { setList(await call("/api/activities")); setError(""); } catch (e) { setError(e instanceof Error ? e.message : "Activities could not be loaded."); } }, []);
   // A roster that fails to load says so in place, with a retry (R4), instead of leaving the previous one on screen.
   const loadRoster = useCallback(async (id: string) => { setOpen(id); setRosterError(false); try { setRoster(await call(`/api/activities?id=${encodeURIComponent(id)}`)); } catch { setRoster(null); setRosterError(true); } }, []);
@@ -162,7 +163,7 @@ export function ActivitiesDesk() {
     <PageHeader
       icon={CalendarDays}
       title="Activities"
-      description={publish ? "Clubs, sports and trips. Interest, reservation and confirmed participation are kept apart." : "Clubs, sports and trips on your campus. Their coordinators run them; you can open any roster."}
+      description={publish ? "Clubs, sports and trips. Interest, reservation and confirmed participation are kept apart." : list.readsCampus ? "Clubs, sports and trips on your campus. Their coordinators run them; you can open any roster." : "Activities you coordinate or help run appear here."}
       primaryAction={publish ? { id: "publish-activity", label: "Publish activity", icon: Plus, onClick: () => setCreating(true) } : undefined}
     />
     {list.activities.length ? <DeskStats data-activities-pulse>
@@ -205,16 +206,17 @@ export function ActivitiesDesk() {
       <p className="text-2xs text-ink-muted">{ui("Participant lists exclude private care narratives.")}{roster.activity.costAmount ? <> · {ui("Cost")}: <bdi>{money(roster.activity.costAmount, roster.activity.costCurrency)}</bdi></> : null}</p>
     </section> : null}
 
-    {creating ? <Modal title={ui("Publish activity")} subtitle={ui("Families see the cost, timing and refund terms before they ask for a place.")} icon={Sparkles} onClose={() => setCreating(false)} wide footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setCreating(false)}>{ui("Back")}</Button><Button disabled={busy || !form.title || !form.startsAt || !form.endsAt} loading={busy} onClick={async () => { setBusy(true); try { await call("/api/activities", "POST", { action: "create", ...form, costCurrency: currency, startsAt: new Date(form.startsAt).toISOString(), endsAt: new Date(form.endsAt).toISOString(), capacity: Number(form.capacity), costAmount: Number(form.costAmount), tripId: form.tripId || undefined }); toast.success(ui("Activity published.")); setCreating(false); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } }} data-activity-publish>{ui("Publish")}</Button></div>}>
+    {creating ? <Modal title={ui("Publish activity")} subtitle={ui("Families see the cost, timing and refund terms before they ask for a place.")} icon={Sparkles} onClose={() => setCreating(false)} wide footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setCreating(false)}>{ui("Back")}</Button><Button disabled={busy || !form.title || !form.startsAt || !form.endsAt || Boolean(list.campuses?.length && !form.campusId)} loading={busy} onClick={async () => { setBusy(true); try { await call("/api/activities", "POST", { action: "create", ...form, costCurrency: currency, startsAt: new Date(form.startsAt).toISOString(), endsAt: new Date(form.endsAt).toISOString(), capacity: Number(form.capacity), costAmount: costToMinor(form.costAmount, currency), tripId: form.tripId || undefined, campusId: form.campusId || undefined }); toast.success(ui("Activity published.")); setCreating(false); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } }} data-activity-publish>{ui("Publish")}</Button></div>}>
       <div className="space-y-2" data-activity-form>
         <div className="grid gap-2 sm:grid-cols-3">
+          {list.campuses?.length ? <FormField name="af-campus" label={ui("Campus")} required><Select value={form.campusId} onChange={e => setForm({ ...form, campusId: e.target.value })} data-activity-campus><option value="">{ui("Choose a campus")}</option>{list.campuses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</Select></FormField> : null}
           <FormField name="af-kind" label={ui("Kind")}><Select value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value })}>{["CLUB", "SPORT", "TRIP"].map(k => <option key={k} value={k}>{kindLabel(ui, k)}</option>)}</Select></FormField>
           <FormField name="af-title" label={ui("Title")}><Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></FormField>
           <FormField name="af-location" label={ui("Location")}><Input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} /></FormField>
           <FormField name="af-start" label={ui("Starts at")}><Input type="datetime-local" value={form.startsAt} onChange={e => setForm({ ...form, startsAt: e.target.value })} /></FormField>
           <FormField name="af-end" label={ui("Ends at")}><Input type="datetime-local" value={form.endsAt} onChange={e => setForm({ ...form, endsAt: e.target.value })} /></FormField>
           <FormField name="af-cap" label={ui("Places")}><Input type="number" min={1} value={form.capacity} onChange={e => setForm({ ...form, capacity: e.target.value })} /></FormField>
-          <FormField name="af-cost" label={ui("Cost in {0} (0 for free)", [currency])}><Input type="number" min={0} value={form.costAmount} onChange={e => setForm({ ...form, costAmount: e.target.value })} /></FormField>
+          <FormField name="af-cost" label={ui("Cost in {0} (0 for free)", [currency])}><Input type="number" min={0} step="any" value={form.costAmount} onChange={e => setForm({ ...form, costAmount: e.target.value })} /></FormField>
           {form.kind === "TRIP" ? <FormField name="af-trip" label={ui("Trip consent record")}><Select value={form.tripId} onChange={e => setForm({ ...form, tripId: e.target.value })}><option value="">{ui("Choose a trip")}</option>{list.trips.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}</Select></FormField> : null}
         </div>
         <FormField name="af-desc" label={ui("Description")}><Textarea rows={2} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></FormField>

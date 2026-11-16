@@ -23,7 +23,9 @@ export const DISCLAIMER = "School-configured framework. No accreditation outcome
 export const CAUSE_CAVEAT = "Observed change · cause not established";
 
 const text = (min: number, max: number) => z.string().trim().min(min).max(max);
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date (YYYY-MM-DD).");
+// SKAI-2112: a real calendar date in a sane range; "2026-02-30" must not roll over and "2026-13-45" must not reach Prisma.
+export const isRealDay = (v: string) => { const d = new Date(`${v}T00:00:00Z`); return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === v && d.getUTCFullYear() >= 2000 && d.getUTCFullYear() <= 2100; };
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date (YYYY-MM-DD).").refine(isRealDay, "Use a real calendar date (YYYY-MM-DD).");
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 function parse<T extends z.ZodTypeAny>(schema: T, raw: unknown): z.infer<T> {
@@ -33,6 +35,21 @@ function parse<T extends z.ZodTypeAny>(schema: T, raw: unknown): z.infer<T> {
 }
 function assert(cond: unknown, message: string, status = 403): asserts cond { if (!cond) throw new ApiError(message, status); }
 const isLead = (user: AuthUser) => LEADS.includes(user.role);
+/** SKAI-2111: PRINCIPAL and CAMPUS_ADMIN pinned to a campus only see and change records owned by staff of that campus. */
+const campusScope = (user: AuthUser) => (user.role === "CAMPUS_ADMIN" || user.role === "PRINCIPAL") && user.campusId ? user.campusId : null;
+/** Owners a campus-scoped leader may act on (their campus, or staff with no campus); null means unrestricted. */
+async function visibleOwners(user: AuthUser, ownerIds: string[]): Promise<Set<string> | null> {
+  const campusId = campusScope(user);
+  if (!campusId) return null;
+  const ids = [...new Set(ownerIds)];
+  const rows = ids.length ? await prisma.user.findMany({ where: { schoolId: user.schoolId, id: { in: ids }, OR: [{ campusId }, { campusId: null }] }, select: { id: true } }) : [];
+  return new Set(rows.map(r => r.id));
+}
+async function assertOwnerVisible(user: AuthUser, ownerId: string, message: string) {
+  if (ownerId === user.userId) return;
+  const seen = await visibleOwners(user, [ownerId]);
+  if (seen && !seen.has(ownerId)) throw new ApiError(message, 404);
+}
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
 function stable(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
@@ -125,13 +142,18 @@ async function people(schoolId: string, ids: string[]) {
 }
 
 /** One computed view of a framework for an audience; packs freeze exactly this. */
-async function build(user: AuthUser, frameworkId: string, audience: Audience, clinic: boolean, only: Set<string> | null) {
+/** SKAI-2115: `ownOnly` (plain staff) limits evidence and actions to records the user owns. */
+async function build(user: AuthUser, frameworkId: string, audience: Audience, clinic: boolean, only: Set<string> | null, ownOnly = false) {
   const fw = await framework(user, frameworkId);
   const today = await schoolToday(user.schoolId, fw.campusId);
-  const [items, actions] = await Promise.all([
+  const [allItems, allActions] = await Promise.all([
     prisma.evidenceItem.findMany({ where: { schoolId: user.schoolId, frameworkId }, orderBy: { createdAt: "asc" } }),
     prisma.improvementAction.findMany({ where: { schoolId: user.schoolId, frameworkId }, orderBy: { createdAt: "asc" } }),
   ]);
+  const owners = await visibleOwners(user, [...allItems, ...allActions].map(r => r.ownerId));
+  const mine = (ownerId: string) => ownerId === user.userId;
+  const items = ownOnly ? allItems.filter(i => mine(i.ownerId)) : owners ? allItems.filter(i => mine(i.ownerId) || owners.has(i.ownerId)) : allItems;
+  const actions = ownOnly ? allActions.filter(a => mine(a.ownerId)) : owners ? allActions.filter(a => mine(a.ownerId) || owners.has(a.ownerId)) : allActions;
   const now = await currentSources(user.schoolId, items.map(i => ({ type: i.sourceType, id: i.sourceId })));
   const plans = await prisma.interventionPlan.findMany({ where: { schoolId: user.schoolId, id: { in: actions.map(a => a.interventionPlanId).filter((x): x is string => !!x) } }, select: { id: true, status: true, version: true } });
   const names = await people(user.schoolId, [...items.flatMap(i => [i.ownerId, i.reviewedById ?? ""]), ...actions.flatMap(a => [a.ownerId, a.completedById ?? ""]), ...fw.criteria.map(c => c.interpretationApprovedById ?? "")]);
@@ -184,7 +206,7 @@ export async function workspace(user: AuthUser, frameworkId?: string | null) {
   const id = frameworkId || granted?.frameworkId || frameworks.find(f => f.status === "ACTIVE")?.id || frameworks[0]?.id;
   if (!id) return { frameworks, mode: lead ? "LEAD" : "STAFF", view: null, packs: [], grants: [] };
   const a = await access(user, id);
-  const view = await build(user, id, a.mode, a.clinic, a.criteria);
+  const view = await build(user, id, a.mode, a.clinic, a.criteria, a.mode === "STAFF");
   const packs = await prisma.evidencePack.findMany({ where: { schoolId: user.schoolId, frameworkId: id, ...(a.mode === "REVIEWER" ? { audience: "EXTERNAL" } : {}) }, select: { id: true, version: true, audience: true, digest: true, createdAt: true, manifest: true }, orderBy: { version: "desc" } });
   const grants = a.mode === "LEAD" ? await prisma.evidenceReviewerGrant.findMany({ where: { schoolId: user.schoolId, frameworkId: id, revokedAt: null }, orderBy: { createdAt: "desc" } }) : [];
   const grantNames = await people(user.schoolId, grants.map(g => g.userId));
@@ -328,6 +350,7 @@ export async function reviewEvidence(user: AuthUser, raw: unknown) {
   const input = parse(z.object({ itemId: z.string().uuid(), decision: z.enum(["ACCEPT", "REQUEST_MORE"]), note: z.string().trim().max(2000).nullish(), expectedReviewState: z.enum(["PENDING", "ACCEPTED", "MORE_REQUESTED"]).optional() }), raw);
   const item = await prisma.evidenceItem.findFirst({ where: { id: input.itemId, schoolId: user.schoolId } });
   if (!item) throw new ApiError("Evidence not found", 404);
+  await assertOwnerVisible(user, item.ownerId, "Evidence not found");
   const a = await access(user, item.frameworkId);
   assert(a.mode === "LEAD" || (a.mode === "REVIEWER" && item.audience !== "STAFF" && item.criterionIds.some(id => a.criteria!.has(id))), "You cannot review this evidence.");
   assert(item.createdById !== user.userId && item.ownerId !== user.userId, "Someone other than the person who added or owns this evidence must review it.", 409);
@@ -348,8 +371,11 @@ export async function reviewEvidence(user: AuthUser, raw: unknown) {
 export async function openSource(user: AuthUser, itemId: string) {
   const item = await prisma.evidenceItem.findFirst({ where: { id: itemId, schoolId: user.schoolId } });
   if (!item) throw new ApiError("Evidence not found", 404);
+  await assertOwnerVisible(user, item.ownerId, "Evidence not found");
   const a = await access(user, item.frameworkId);
   if (a.mode === "REVIEWER") assert(item.audience !== "STAFF" && item.criterionIds.some(id => a.criteria!.has(id)), "Evidence not found", 404);
+  // SKAI-2115: plain staff open only evidence they own.
+  if (a.mode === "STAFF") assert(item.ownerId === user.userId, "Evidence not found", 404);
   const restricted = item.sensitivity === "CLINIC" ? !(a.mode === "LEAD" && a.clinic) : item.sensitivity === "PUPIL" ? a.mode !== "LEAD" : false;
   assert(!restricted, "You can review this criterion but cannot open its restricted source.");
   if (item.sourceType === "DOCUMENT") return { sourceType: item.sourceType, version: item.sourceVersion, current: true, content: { note: item.note } };
@@ -380,6 +406,7 @@ export async function createAction(user: AuthUser, raw: unknown) {
 async function ownAction(user: AuthUser, id: string, expectedVersion: number) {
   const action = await prisma.improvementAction.findFirst({ where: { id, schoolId: user.schoolId } });
   if (!action) throw new ApiError("Improvement action not found", 404);
+  await assertOwnerVisible(user, action.ownerId, "Improvement action not found");
   assert(isLead(user) || action.ownerId === user.userId, "Only the action owner or a school leader can update this action.");
   assert(action.version === expectedVersion, "This action changed since you opened it. Reload to see the latest version.", 409);
   assert(action.status === "OPEN", "This action is complete.", 409);

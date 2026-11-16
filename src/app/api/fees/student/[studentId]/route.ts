@@ -2,7 +2,7 @@ import { studentScope, AccessDenied } from "@/lib/auth/policy";
 import { assertSharedModuleRead } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { nextDueInvoice } from "@/lib/fees/next-due";
+import { nextDueInvoice, studentFeeTotals } from "@/lib/fees/next-due";
 import {
   ApiError,
   errorResponse,
@@ -38,12 +38,9 @@ export async function GET(
 
     const currency = req.nextUrl.searchParams.get("currency") || student.invoices[0]?.currency || "USD";
     const scopedInvoices = student.invoices.filter((invoice) => invoice.currency === currency);
-    const totalDue = scopedInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-    const totalPaid = scopedInvoices.reduce((sum, inv) => sum + inv.totalAmountPaid, 0);
-    const balance = totalDue - totalPaid;
+    const { totalDue, totalPaid, balance, lateFeesAccrued } = studentFeeTotals(scopedInvoices);
 
     const nextUnpaid = nextDueInvoice(scopedInvoices);
-    const lateFeesAccrued = scopedInvoices.reduce((sum, inv) => sum + inv.lateFeeAmount, 0);
 
     const paymentStatus = balance <= 0 ? "good" : student.invoices.some((inv) => inv.status === "OVERDUE") ? "critical" : "due";
 

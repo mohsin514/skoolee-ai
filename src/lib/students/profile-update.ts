@@ -22,8 +22,8 @@ export const studentProfileUpdateSchema = z.object({
   id: z.string().min(1, "Student id is required"),
   campusId: optionalText,
   classId: z.string().optional(),
-  fullName: z.string().min(1, "Student name is required").optional(),
-  rollNo: z.string().min(1, "Roll number is required").optional(),
+  fullName: z.string({ error: "Student name is required" }).trim().min(1, "Student name is required").optional(),
+  rollNo: z.string({ error: "Roll number is required" }).trim().min(1, "Roll number is required").optional(),
   nameUr: optionalText,
   phone: optionalText,
   guardianName: optionalText,
@@ -73,4 +73,33 @@ export function expectedValueConditions(data: Record<string, unknown>, expected:
   return Object.keys(data)
     .filter(key => Object.hasOwn(expected, key) && !["siblingGroupId", "classId", "status"].includes(key))
     .map(key => ({ [key]: key === "dateOfBirth" ? asDate(expected[key]) : (expected[key] || null) }));
+}
+
+export type StudentEditFieldErrors = Partial<Record<string, string>>;
+
+/** SKAI-2094: the same rules the server enforces, checked before the request so a blank name never goes out as null. */
+export function studentEditFieldErrors(values: Record<string, string | null | undefined>, now = Date.now()): StudentEditFieldErrors {
+  const errors: StudentEditFieldErrors = {};
+  if (!String(values.fullName ?? "").trim()) errors.fullName = "Student name is required";
+  if (!String(values.rollNo ?? "").trim()) errors.rollNo = "Roll number is required";
+  const email = String(values.guardianEmail ?? "").trim();
+  if (email && !z.string().email().safeParse(email).success) errors.guardianEmail = "Enter a valid guardian email address";
+  const dob = String(values.dateOfBirth ?? "").trim();
+  if (dob) {
+    const time = Date.parse(dob);
+    if (!/^\d{4}-\d{2}-\d{2}/.test(dob) || !Number.isFinite(time)) errors.dateOfBirth = "Date of birth must be a date";
+    else if (time > now) errors.dateOfBirth = "Date of birth cannot be in the future";
+  }
+  return errors;
+}
+
+/** SKAI-2094: the first message per field from an API 400 body's `details`, ignoring anything that is not a message list. */
+export function apiFieldErrors(details: unknown): StudentEditFieldErrors {
+  const out: StudentEditFieldErrors = {};
+  if (!details || typeof details !== "object") return out;
+  for (const [field, messages] of Object.entries(details as Record<string, unknown>)) {
+    const first = Array.isArray(messages) ? messages.find((m) => typeof m === "string" && m.trim()) : typeof messages === "string" ? messages : undefined;
+    if (typeof first === "string") out[field] = first;
+  }
+  return out;
 }

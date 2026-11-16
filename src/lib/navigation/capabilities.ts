@@ -161,6 +161,8 @@ export async function capabilitiesFor(
     CAMPUS_STAFF.includes(role) || role === "PARENT" || role === "STUDENT" ? duty("pkgCanteen", user, () => pkgCanteen(user)) : false,
     role === "PARENT" ? duty("pickupGuardian", user, async () => (await guardianChildren(user, "pickup")) > 0) : false,
     role === "PARENT" ? duty("multiChild", user, async () => (await guardianChildren(user, "any")) >= 2) : false,
+    // SKAI-2152: child-scoped family pages bounce a guardian with no linked child back to Home.
+    role === "PARENT" ? duty("linkedChild", user, async () => (await guardianChildren(user, "any")) > 0) : false,
   ]);
   const permissions = await permissionsInput;
 
@@ -178,7 +180,8 @@ export async function capabilitiesFor(
   caps.improvementLead = role === "PRINCIPAL" || operator;
   caps.recordSearch = RECORD_SEARCH.includes(role);
   // Flagship 1 — AI Workflows (`/ai`): platform owner workspace, staff workspace, or family personal workspace.
-  caps.schoolAi = role === "APP_OWNER" || ([...SCHOOL_AI_STAFF_ROLES, "PARENT", "STUDENT"] as readonly string[]).includes(role) && permissions.get("ai")?.canView === true;
+  // SKAI-2123: campus staff with no campus yet cannot open /ai (it redirects them to Today), so the row is hidden.
+  caps.schoolAi = role === "APP_OWNER" || ([...SCHOOL_AI_STAFF_ROLES, "PARENT", "STUDENT"] as readonly string[]).includes(role) && permissions.get("ai")?.canView === true && !(CAMPUS_STAFF.includes(role) && !user.campusId);
   // Flagship 2 — Exam Studio (`/ai/studio`) for the academic roles, set below once the academic-lead seat is known;
   // a student's `schoolAiExams` is secure exam delivery ("My online exams", `/ai/exams`).
   caps.schoolAiExams = role === "STUDENT";
@@ -211,7 +214,7 @@ export async function capabilitiesFor(
   if (examStudioSeat) caps.schoolAiExams = caps.schoolAi && permissions.get("exams")?.canView === true && (plan?.examStudioEnabled ?? true);
 
   // Duties — operators run them on their campus; named staff only while the duty exists.
-  const [care, agent, trip, activity, plans, canteen, pickup, children] = await dutiesPromise;
+  const [care, agent, trip, activity, plans, canteen, pickup, children, linked] = await dutiesPromise;
   caps.careMember = care;
   caps.serviceAgent = agent;
   caps.tripToday = trip;
@@ -220,6 +223,7 @@ export async function capabilitiesFor(
   caps.pkgCanteen = canteen;
   caps.pickupGuardian = pickup;
   caps.multiChild = children;
+  caps.linkedChild = linked;
 
   return caps;
 }

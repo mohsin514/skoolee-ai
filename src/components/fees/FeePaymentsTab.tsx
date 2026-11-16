@@ -9,10 +9,12 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getFinancialLocale } from "@/app/actions/locale";
-import { CURRENCIES } from "@/lib/locale/package";
+import { CURRENCIES, minorUnits } from "@/lib/locale/package";
+import { calendarDateIn } from "@/lib/calendar-date";
 import { UiText, useUiText, useLocaleFormat, useLocale } from "@/components/locale/LocaleProvider";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { payableInvoices } from "@/lib/fees/next-due";
 import {
   Banknote,
   ChevronLeft,
@@ -52,6 +54,7 @@ import {
 } from "./fee-utils";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
+import { readApiError } from "@/lib/api/envelope-client";
 
 function invoiceStatusVariant(status: string): BadgeProps["variant"] {
   switch (status) {
@@ -284,8 +287,11 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
         />
       ) : (
         <>
-          <div className="sk-panel sk-rise overflow-hidden">
-            <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-muted/50 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+          {/* SKAI-2238: the table scrolls sideways on narrow screens instead of collapsing the student column, and
+              the receipt and invoice columns fit a full number (shown left-to-right, with the full text on hover). */}
+          <div className="sk-panel sk-rise overflow-x-auto">
+            <div className="min-w-[760px]">
+            <div className="grid grid-cols-[minmax(10rem,1fr)_160px_100px_100px_100px_160px] gap-3 px-5 py-3 bg-muted/50 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
               <span><UiText>{"Student"}</UiText></span>
               <span><UiText>{"Receipt"}</UiText></span>
               <span><UiText>{"Amount"}</UiText></span>
@@ -297,7 +303,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
               {payments.map((p) => (
                 <div
                   key={p.id}
-                  className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 items-center hover:bg-brand-50/20 transition-colors"
+                  className="grid grid-cols-[minmax(10rem,1fr)_160px_100px_100px_100px_160px] gap-3 px-5 py-3 items-center hover:bg-brand-50/20 transition-colors"
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-ink-strong truncate">{p.student.fullName}</p>
@@ -305,18 +311,19 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
                       {classLabel(p.student.class.name, p.student.class.section)}
                     </p>
                   </div>
-                  <p className="text-2xs font-bold text-ink truncate">{p.receiptNo ?? "—"}</p>
+                  <p className="text-2xs font-bold text-ink truncate" dir="ltr" title={p.receiptNo ?? undefined}>{p.receiptNo ?? "—"}</p>
                   <p className="text-xs font-bold tabular-nums text-status-success-text">{formatPKR(p.amount, p.invoice.currency)}</p>
                   <p className="text-2xs font-medium text-ink-subtle">{tr(paymentMethodLabel(p.paymentMethod))}</p>
                   <p className="text-2xs font-medium tabular-nums text-ink-subtle">{formatDate(p.paymentDate)}</p>
                   <div className="min-w-0">
-                    <p className="text-2xs font-bold text-ink truncate">{p.invoice.invoiceNumber}</p>
+                    <p className="text-2xs font-bold text-ink truncate" dir="ltr" title={p.invoice.invoiceNumber ?? undefined}>{p.invoice.invoiceNumber}</p>
                     <Badge variant={invoiceStatusVariant(p.invoice.status)} size="sm" dot>
                       {tr(p.invoice.status)}
                     </Badge>
                   </div>
                 </div>
               ))}
+            </div>
             </div>
           </div>
 
@@ -375,18 +382,18 @@ function PaymentModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { money: formatPKR } = useLocaleFormat();
-  const { currency: campusCurrency } = useLocale();
+  // SKAI-2243: dialog and receipt dates use the same localised format as the payments list.
+  const { money: formatPKR, date: formatDate } = useLocaleFormat();
+  const { currency: campusCurrency, timezone: schoolTimeZone } = useLocale();
   const tr = useUiText();
+  const todayInSchool = calendarDateIn(schoolTimeZone); // SKAI-2069: the school's calendar day, not the UTC date
   const [searchQuery, setSearchQuery] = useState("");
   const [studentsList, setStudentsList] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
   const [amount, setAmount] = useState("");
-  const [fineAmount, setFineAmount] = useState("");
-  const [discountAmount, setDiscountAmount] = useState("");
   const [note, setNote] = useState("");
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0]);
+  const [paymentDate, setPaymentDate] = useState(todayInSchool);
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [searching, setSearching] = useState(false);
@@ -448,12 +455,11 @@ function PaymentModal({
       if (!json.success) setInvoicesFailed(true);
       else {
         const all = json.data.invoiceHistory || [];
-        const unpaid = all.filter((i: any) => i.status !== "PAID");
-        setInvoices(unpaid.map((i: any) => ({ ...i, balanceDue: i.amountDue - i.amountPaid })));
+        const unpaid = payableInvoices<any>(all);
+        setInvoices(unpaid.map((i: any) => ({ ...i, balanceDue: i.balance })));
         if (unpaid.length > 0) {
           setSelectedInvoiceId(unpaid[0].id);
-          setAmount(String(paisaToRupees(unpaid[0].amountDue - unpaid[0].amountPaid, unpaid[0].currency)));
-          setReferenceNumber(unpaid[0].invoiceNumber || "");
+          setAmount(String(paisaToRupees(unpaid[0].balance, unpaid[0].currency)));
         }
       }
     } catch {
@@ -466,14 +472,14 @@ function PaymentModal({
   const paymentDraft = useFormDraft({
     record: `accountant:payment:${campusId ?? "all"}`,
     schema: 1,
-    values: { studentId: selectedStudent?.id ?? "", studentName: selectedStudent?.fullName ?? "", invoiceId: selectedInvoiceId, amount, fineAmount, discountAmount, note, paymentDate, paymentMethod, referenceNumber },
-    baseline: { studentId: "", studentName: "", invoiceId: "", amount: "", fineAmount: "", discountAmount: "", note: "", paymentDate: "", paymentMethod: "CASH", referenceNumber: "" },
-    fields: ["studentId", "studentName", "invoiceId", "amount", "fineAmount", "discountAmount", "note", "paymentDate", "paymentMethod", "referenceNumber"] as const,
+    values: { studentId: selectedStudent?.id ?? "", studentName: selectedStudent?.fullName ?? "", invoiceId: selectedInvoiceId, amount, note, paymentDate, paymentMethod, referenceNumber },
+    baseline: { studentId: "", studentName: "", invoiceId: "", amount: "", note: "", paymentDate: "", paymentMethod: "CASH", referenceNumber: "" },
+    fields: ["studentId", "studentName", "invoiceId", "amount", "note", "paymentDate", "paymentMethod", "referenceNumber"] as const,
     enabled: step === "payment",
     apply: (values) => {
       setSelectedStudent(values.studentId ? { id: String(values.studentId), fullName: String(values.studentName ?? "") } : null);
-      setSelectedInvoiceId(String(values.invoiceId ?? "")); setAmount(String(values.amount ?? "")); setFineAmount(String(values.fineAmount ?? ""));
-      setDiscountAmount(String(values.discountAmount ?? "")); setNote(String(values.note ?? "")); setPaymentDate(String(values.paymentDate ?? ""));
+      setSelectedInvoiceId(String(values.invoiceId ?? "")); setAmount(String(values.amount ?? "")); 
+      setNote(String(values.note ?? "")); setPaymentDate(String(values.paymentDate ?? ""));
       setPaymentMethod(String(values.paymentMethod ?? "CASH")); setReferenceNumber(String(values.referenceNumber ?? "")); setStep("payment"); restoredPaymentRef.current = true;
     },
   });
@@ -484,14 +490,20 @@ function PaymentModal({
   const [outcomeUnknown, setOutcomeUnknown] = useState(false);
   const handleRecordPayment = async () => {
     if (!selectedInvoiceId || !amount) { toast.error(tr("Invoice and amount required")); return; }
+    // SKAI-2187: refuse extra decimals instead of rounding, and keep the amount inside what the server accepts.
+    const digits = minorUnits(currency), maxMinor = 2147483647;
+    const exact = new RegExp(digits ? `^\\d+(\\.\\d{1,${digits}})?$` : "^\\d+$").test(String(amount).trim());
+    const minor = exact ? rupeesToPaisa(amount, currency) : 0;
+    if (!exact || minor < 1 || minor > maxMinor) {
+      toast.error(tr("Enter an amount between {0} and {1}, with at most {2} decimals.", [formatPKR(1, currency), formatPKR(maxMinor, currency), digits]));
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
         studentId: selectedStudent?.id,
         invoiceId: selectedInvoiceId,
-        amount: rupeesToPaisa(amount, currency),
-        fineAmount: fineAmount ? rupeesToPaisa(fineAmount, currency) : undefined,
-        discountAmount: discountAmount ? rupeesToPaisa(discountAmount, currency) : undefined,
+        amount: minor,
         paymentDate,
         paymentMethod,
         referenceNumber: referenceNumber || undefined,
@@ -516,8 +528,8 @@ function PaymentModal({
           studentName: json.data?.studentName || "",
           invoiceNumber: json.data?.invoiceNumber || "",
           amount: rupeesToPaisa(amount, currency),
-          fineAmount: fineAmount ? rupeesToPaisa(fineAmount, currency) : 0,
-          discountAmount: discountAmount ? rupeesToPaisa(discountAmount, currency) : 0,
+          fineAmount: 0,
+          discountAmount: 0,
           creditAmount: json.data?.credit || 0,
           paymentDate,
           paymentMethod,
@@ -531,8 +543,9 @@ function PaymentModal({
         setOutcomeUnknown(true);
       } else {
         // The server answered and nothing was recorded: the entered values stay for correction.
+        // SKAI-2240: an expired session (401) is a definite "not saved", and the error body may be an object.
         setOutcomeUnknown(false);
-        toast.error(tr(json.error || "Payment failed"));
+        toast.error(res.status === 401 ? tr("Your session has ended, so this payment was not saved. Sign in again and record it again.") : tr(readApiError(json, "Payment failed")));
       }
     } catch {
       // No answer: the payment may or may not have been saved. Retrying with the same key is safe.
@@ -607,7 +620,7 @@ function PaymentModal({
               ) : null}
               <div className="flex justify-between">
                 <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Date"}</UiText></span>
-                <span className="text-sm font-bold text-ink-strong">{receipt.paymentDate}</span>
+                <span className="text-sm font-bold text-ink-strong"><bdi>{formatDate(receipt.paymentDate)}</bdi></span>
               </div>
               <div className="flex justify-between">
                 <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Method"}</UiText></span>
@@ -693,10 +706,10 @@ function PaymentModal({
                 <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                   {invoices.map((inv) => (
                     <label key={inv.id} className={`flex items-center gap-3 rounded-2xl px-4 py-3 border cursor-pointer transition-colors ${selectedInvoiceId === inv.id ? "border-primary/30 bg-brand-50" : "border-edge/10 bg-muted/50 hover:border-primary/20"}`}>
-                      <input type="radio" name="invoice" value={inv.id} checked={selectedInvoiceId === inv.id} onChange={() => { setSelectedInvoiceId(inv.id); setAmount(String(paisaToRupees(inv.amountDue - inv.amountPaid, inv.currency))); setReferenceNumber(inv.invoiceNumber || ""); }} className="accent-primary" />
+                      <input type="radio" name="invoice" value={inv.id} checked={selectedInvoiceId === inv.id} onChange={() => { setSelectedInvoiceId(inv.id); setAmount(String(paisaToRupees(inv.balance, inv.currency))); }} className="accent-primary" />
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold text-ink-strong">{inv.invoiceNumber || tr("Invoice")}</p>
-                        <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{inv.dueDate} · {formatPKR(inv.amountDue, inv.currency)}</p>
+                        <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText><bdi>{formatDate(inv.dueDate)}</bdi> · {formatPKR(inv.balance, inv.currency)}</p>
                       </div>
                       <Badge variant={invoiceStatusVariant(inv.status)} size="sm" dot>{tr(inv.status)}</Badge>
                     </label>
@@ -713,7 +726,7 @@ function PaymentModal({
               return sel ? (
                 <div className="rounded-2xl bg-brand-50/40 px-4 py-3 border border-edge/10">
                   <p className="text-xs font-bold text-ink-strong">{sel.invoiceNumber || tr("Invoice")}</p>
-                  <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{sel.dueDate} · {formatPKR(sel.amountDue, sel.currency)}</p>
+                  <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText><bdi>{formatDate(sel.dueDate)}</bdi> · {formatPKR(sel.balance, sel.currency)}</p>
                 </div>
               ) : null;
             })()}
@@ -721,19 +734,9 @@ function PaymentModal({
               <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("Amount") } (<bdi>{currency}</bdi>)</span>
               <SystemInput type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={tr("e.g. 5000")} className={inputClass} />
             </label>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
-              <label>
-                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("Fine") } (<bdi>{currency}</bdi>)</span>
-                <SystemInput type="number" min="0" value={fineAmount} onChange={(e) => setFineAmount(e.target.value)} placeholder="0" className={inputClass} />
-              </label>
-              <label>
-                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("Discount") } (<bdi>{currency}</bdi>)</span>
-                <SystemInput type="number" min="0" value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0" className={inputClass} />
-              </label>
-            </div>
             <label>
               <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Payment date"}</UiText></span>
-              <SystemInput type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
+              <SystemInput type="date" value={paymentDate} max={todayInSchool} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
             </label>
             <label>
               <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Method"}</UiText></span>
@@ -907,7 +910,7 @@ function BankImportModal({
             <p className="text-xs text-ink-subtle">{tr("Matching uses exact invoice references only. Unmatched rows stay unmatched until reviewed; no payment is posted.")}</p>
             <label className="block text-xs font-bold">{tr("Reason for matching by hand")}<SystemInput type="text" value={matchReason} maxLength={300} placeholder={tr("e.g. payer's note names the pupil; confirmed by phone")} onChange={(event) => setMatchReason(event.target.value)} className="mt-1 w-full" /></label>
             <Table className="w-full text-xs"><TableHeader><TableRow><TableHead>{tr("Include")}</TableHead><TableHead dir="ltr">{tr("Row")}</TableHead><TableHead>{tr("Date")}</TableHead><TableHead>{tr("Amount")}</TableHead><TableHead>{tr("Description")}</TableHead><TableHead>{tr("Invoice match")}</TableHead><TableHead>{tr("Status")}</TableHead></TableRow></TableHeader><TableBody>
-              {batch.rows?.map((row: any) => <TableRow key={row.rowNumber} className="border-t"><TableCell>{row.state === "ACCEPTED" && <Checkbox  aria-label={tr("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void updateRow(row, { selected: event.target.checked })} />}</TableCell><TableCell dir="ltr">{row.rowNumber}</TableCell><TableCell dir="ltr">{String(row.proposal?.date || "")}</TableCell><TableCell dir="ltr">{money(Number(row.proposal?.amountMinor || 0), currency)}</TableCell><TableCell>{String(row.proposal?.description || "")}</TableCell><TableCell><SystemSelect aria-label={tr("Invoice for row {0}", [row.rowNumber])} className="max-w-52" value={String(row.proposal?.matchedInvoiceId || "")} onChange={(event) => void updateRow(row, event.target.value ? { matchedInvoiceId: event.target.value, reason: matchReason } : { matchedInvoiceId: null })}><option value="">{tr("Leave unmatched")}</option>{(row.proposal?.candidates || []).map((candidate: any) => <option key={candidate.id} value={candidate.id}>{candidate.invoiceNumber || candidate.id} · {candidate.studentName}</option>)}</SystemSelect>{row.state === "UNRESOLVED" && <Button variant="link" type="button" className="mt-1 px-2 py-1 underline" onClick={() => void updateRow(row, { matchedInvoiceId: null })}>{tr("Resolve as unmatched")}</Button>}</TableCell><TableCell>{tr(row.state)}{row.errors?.length > 0 && <span className="block max-w-48 text-status-error-text">{row.errors.join("; ")}</span>}</TableCell></TableRow>)}
+              {batch.rows?.map((row: any) => <TableRow key={row.rowNumber} className="border-t"><TableCell>{row.state === "ACCEPTED" && <Checkbox  aria-label={tr("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void updateRow(row, { selected: event.target.checked })} />}</TableCell><TableCell dir="ltr">{row.rowNumber}</TableCell><TableCell dir="ltr">{String(row.proposal?.date || "")}</TableCell><TableCell dir="ltr">{money(Number(row.proposal?.amountMinor || 0), currency)}</TableCell><TableCell>{String(row.proposal?.description || "")}</TableCell><TableCell><SystemSelect aria-label={tr("Invoice for row {0}", [row.rowNumber])} disabled={row.state === "REJECTED"} className="max-w-52" value={String(row.proposal?.matchedInvoiceId || "")} onChange={(event) => void updateRow(row, event.target.value ? { matchedInvoiceId: event.target.value, reason: matchReason } : { matchedInvoiceId: null })}><option value="">{tr("Leave unmatched")}</option>{(row.proposal?.candidates || []).map((candidate: any) => <option key={candidate.id} value={candidate.id}>{candidate.invoiceNumber || candidate.id} · {candidate.studentName}</option>)}</SystemSelect>{row.state === "UNRESOLVED" && <Button variant="link" type="button" className="mt-1 px-2 py-1 underline" onClick={() => void updateRow(row, { matchedInvoiceId: null })}>{tr("Resolve as unmatched")}</Button>}</TableCell><TableCell>{tr(row.state)}{row.errors?.length > 0 && <span className="block max-w-48 text-status-error-text">{row.errors.join("; ")}</span>}</TableCell></TableRow>)}
             </TableBody></Table>
           </>}
         </>}

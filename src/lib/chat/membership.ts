@@ -43,6 +43,18 @@ function outsideScope(user: AuthUser, loaded: Pick<ConversationRow, "schoolId" |
 }
 
 /**
+ * SKAI-2165: the members who would pass requireMembership's school and campus check right now, for realtime fan-out.
+ * A membership row alone is not enough: a campus-bound member of another campus, or with no campus, is denied by the
+ * read API, so the live stream must not carry that room's messages or roster to them either.
+ */
+export async function deliverableUserIds(row: Pick<ConversationRow, "schoolId" | "campusId">, userIds: string[], db: TxClient = prisma): Promise<string[]> {
+  if (!userIds.length) return [];
+  const users = await db.user.findMany({ where: { id: { in: userIds }, schoolId: row.schoolId, isActive: true }, select: { id: true, role: true, campusId: true } });
+  const allowed = new Set(users.filter((u) => u.role !== "APP_OWNER" && (!campusBoundChatRole(u.role) || (u.campusId !== null && u.campusId === row.campusId))).map((u) => u.id));
+  return userIds.filter((id) => allowed.has(id));
+}
+
+/**
  * SKAI-1938: the campus a new group or channel is stamped with. A creator with a campus keeps it. A creator without
  * one (a school-wide SUPER_ADMIN) takes the campus of the campus-bound staff they add, so those staff can see it;
  * staff from two campuses cannot share one room, because each of them only sees their own campus.
@@ -53,6 +65,16 @@ export function groupCampusId(user: Pick<AuthUser, "campusId" | "role">, members
   const campuses = new Set(members.filter((member) => campusBoundChatRole(member.role)).map((member) => member.campusId));
   if (campuses.size > 1) throw new ApiError("Staff from different campuses cannot share a group. Create one group per campus.", 400);
   return [...campuses][0] ?? null;
+}
+
+/**
+ * SKAI-2167: refuses a campus-bound member (or one with no campus) who could never open a room stamped with
+ * conversationCampusId, so the sender is told instead of seeing a member count that includes someone who cannot read it.
+ */
+export function assertMembersInCampusScope(conversationCampusId: string | null, members: Array<{ role: string; campusId: string | null }>) {
+  if (members.some((member) => campusBoundChatRole(member.role) && member.campusId !== conversationCampusId)) {
+    throw new ApiError("Staff from different campuses cannot share a group. Create one group per campus.", 400);
+  }
 }
 
 /** SKAI-1938: the same campus rule as outsideScope, as a conversation filter (the unread badge counts only visible rooms). */

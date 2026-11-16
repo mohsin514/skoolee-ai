@@ -1,4 +1,5 @@
 "use client";
+import { readApiError } from "@/lib/api/envelope-client";
 import { useState } from "react";
 import { AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, XCircle } from "lucide-react";
 import { toast } from "@/components/ui/toast";
@@ -48,7 +49,7 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
         body: JSON.stringify({ currentPassword, newPassword }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to change password");
+      if (!res.ok) throw new Error(readApiError(json, "Failed to change password"));
       toast.success(t("Password changed successfully"));
       onClose();
     } catch (err) {

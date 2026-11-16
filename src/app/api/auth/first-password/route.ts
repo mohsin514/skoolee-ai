@@ -27,11 +27,19 @@ import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 import { authRateLimit } from "@/lib/auth/rate-limit";
 import { resetPasswordProblem } from "@/lib/auth/reset-password-policy";
+import { runUnscoped } from "@/lib/db/tenant-context";
 
 /** SKAI-87: stable codes the first-login page localizes; `error` stays as an English fallback. */
 const fail = (code: string, error: string, status: number) => Response.json({ error, code }, { status });
 
+// SKAI-2008: first-login is self-service and runs before any campus scope exists. A school-wide ADMIN or an
+// un-scoped SUPER_ADMIN has no campusId, so the fail-closed tenant guard denied every query and the route
+// answered 500. Every query below is keyed on the signed-in user id, like the reset flow in actions/auth/reset.ts.
 export async function PUT(req: NextRequest) {
+  return runUnscoped("first-login password change by the signed-in account", () => completeFirstPassword(req));
+}
+
+async function completeFirstPassword(req: NextRequest) {
   try {
     const auth = await getAuthUser();
     if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -90,7 +98,7 @@ export async function PUT(req: NextRequest) {
       if (claim.count !== 1) return false;
       await tx.loginSession.updateMany({ where: { userId: user.id }, data: { isActive: false, logoutAt: now } });
       await tx.passwordHistory.create({
-        data: { userId: user.id, oldPasswordHash: temporaryHash, changedBy: user.id, changeReason: "admin_forced" },
+        data: { schoolId: user.schoolId, userId: user.id, oldPasswordHash: temporaryHash, changedBy: user.id, changeReason: "admin_forced" },
       });
       await tx.auditLog.create({
         data: {

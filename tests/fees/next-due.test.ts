@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { nextDueInvoice } from "@/lib/fees/next-due";
+import { nextDueInvoice, payableInvoices, studentFeeTotals } from "@/lib/fees/next-due";
 
 // SKAI-1292: the student fee summary's nextDue must include PARTIAL installment balances.
 const inv = (id: string, status: string, dueDate: string, balanceDue: number) => ({ id, status, dueDate: new Date(dueDate), balanceDue });
@@ -21,5 +21,25 @@ describe("nextDueInvoice", () => {
   });
   it("returns null when nothing is outstanding", () => {
     assert.equal(nextDueInvoice([]), null);
+  });
+});
+
+describe("payableInvoices", () => {
+  const row = (id: string, status: string, dueDate: string, balance: number) => ({ id, status, dueDate, balance });
+  it("drops cancelled/paid/zero-balance and orders earliest due first (SKAI-2065)", () => {
+    const history = [row("c", "CANCELLED", "2026-09-30", 6400), row("pen", "PENDING", "2026-10-31", 100), row("par", "PARTIAL", "2026-08-31", 3200), row("paid", "PAID", "2026-07-31", 0)];
+    assert.deepEqual(payableInvoices(history).map((i) => i.id), ["par", "pen"]);
+  });
+});
+
+// SKAI-2067: cancelled invoices must not count toward the student's totalDue / balance.
+describe("studentFeeTotals", () => {
+  const t = (status: string, totalAmount: number, totalAmountPaid: number, lateFeeAmount = 0) => ({ status, totalAmount, totalAmountPaid, lateFeeAmount });
+  it("excludes CANCELLED invoices (reported case)", () => {
+    const r = studentFeeTotals([t("PARTIAL", 350000, 125050), t("CANCELLED", 357000, 0, 500), t("PENDING", 357140, 0)]);
+    assert.deepEqual(r, { totalDue: 707140, totalPaid: 125050, balance: 582090, lateFeesAccrued: 0 });
+  });
+  it("reads zero balance when the only open invoice was cancelled", () => {
+    assert.equal(studentFeeTotals([t("PAID", 100, 100), t("CANCELLED", 50, 0)]).balance, 0);
   });
 });

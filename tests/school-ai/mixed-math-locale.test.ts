@@ -70,3 +70,12 @@ test("rendered RTL papers show expressions left-to-right in authored order and s
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `${language}: no horizontal clipping at 200% text`);
   }
 });
+
+test("SKAI-2075: reaction arrows and temperatures stay in authored order in RTL papers", () => {
+  const eq = "6CO2 + 6H2O → C6H12O6 + 6O2";
+  for (const text of [`ما الغاز (photosynthesis)؟ المعادلة: ${eq}`, `معادلہ: ${eq} ہے`]) {
+    assert.deepEqual(mathSegments(text).filter(s => s.math).map(s => s.text), [eq]);
+  }
+  assert.deepEqual(mathSegments("استخدم وحدات SI مثل 25 °C عند الحاجة").filter(s => s.math).map(s => s.text), ["25 °C"]);
+  assert.match(mathAwareHtml(`س ${eq}`), /<bdi class="math" dir="ltr">6CO2 \+ 6H2O → C6H12O6 \+ 6O2<\/bdi>/);
+});

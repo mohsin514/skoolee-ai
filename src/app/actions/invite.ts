@@ -17,6 +17,7 @@ import { InviteSchema } from "@/lib/staff/invitation-schema";
 import { createStaffInvitation, isCompatibleInviteRole } from "@/lib/staff/invitation-write";
 import { membershipAuthority } from "@/lib/membership-access";
 import { removeStaffMember } from "@/lib/staff/removal";
+import { failureFrom, type ActionFailure } from "@/lib/staff/action-result";
 
 
 
@@ -231,6 +232,37 @@ export async function resendInvitation(inviteId: string) {
   }
 
   return { success: true };
+}
+
+/**
+ * SKAI-2015: the screen-facing forms of the staff actions. Production builds hide the message of an error thrown
+ * from a server action (a 500 "omitted in production builds" toast), so the expected ApiError refusals come back
+ * as data. The throwing forms above stay for /api/staff, which maps ApiError to its HTTP status.
+ */
+async function asResult<T>(run: () => Promise<T>): Promise<T | ActionFailure> {
+  try {
+    return await run();
+  } catch (error) {
+    const failure = failureFrom(error);
+    if (failure && error instanceof ApiError) return failure;
+    throw error;
+  }
+}
+
+export async function inviteStaffResult(data: z.infer<typeof InviteSchema>, options: { returnDeliveryStatus?: boolean } = {}) {
+  return asResult(() => inviteStaff(data, options));
+}
+
+export async function removeStaffResult(userId: string) {
+  return asResult(() => removeStaff(userId));
+}
+
+export async function cancelInvitationResult(inviteId: string) {
+  return asResult(() => cancelInvitation(inviteId));
+}
+
+export async function resendInvitationResult(inviteId: string) {
+  return asResult(() => resendInvitation(inviteId));
 }
 
 export async function acceptInvite(token: string, password: string, fullName?: string, expectedContext?: string) {

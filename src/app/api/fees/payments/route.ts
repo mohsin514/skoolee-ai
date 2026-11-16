@@ -9,6 +9,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { Prisma } from "@prisma/client";
+import { paymentMethodValues } from "@/lib/fees/payment-method-filter";
 
 export async function GET(req: NextRequest) {
   try {
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
     const where: Prisma.PaymentWhereInput = {
       campus: { schoolId: user.schoolId },
       ...(campusId ? { campusId } : {}),
-      ...(method ? { paymentMethod: method } : {}),
+      ...(method?.trim() ? { paymentMethod: { in: paymentMethodValues(method) } } : {}),
       ...(dateFrom || dateTo
         ? {
             paymentDate: {

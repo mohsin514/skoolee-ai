@@ -128,7 +128,8 @@ test("families keep their audience rules and a denied role still gets nothing", 
 
   reset({ userId: "u-acc", role: "ACCOUNTANT", schoolId: "school-a", campusId: "campus-a1" });
   const denied = await get({ academicYear: "active" });
-  assert.notEqual(denied.status, 200);
+  assert.equal(denied.status, 403);
+  assert.equal(denied.body.error, "Insufficient permissions");
   assert.equal(examQueries.length, 0);
   assert.equal(cycleQueries.length, 0);
 });

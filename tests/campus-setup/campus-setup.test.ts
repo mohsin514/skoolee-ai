@@ -12,6 +12,11 @@ test("campus IDs are trimmed, upper-cased and kept to a typeable shape", () => {
   for (const bad of ["AB", "BR NORTH", "-BR1", "A".repeat(21), "BR_1", "بر-1"]) assert.throws(() => normalizeCampusRegId(bad), /3 to 20 letters/);
   assert.equal(validateCampusInput({ name: "North", city: "Lahore", regId: "qa-n1" }).regId, "QA-N1");
   assert.throws(() => validateCampusInput({ name: " ", city: "Lahore" }));
+  // SKAI-2001: name, city and address are length-capped.
+  assert.throws(() => validateCampusInput({ name: "N".repeat(121), city: "Lahore" }), /120 characters or fewer/);
+  assert.throws(() => validateCampusInput({ name: "North", city: "L".repeat(101) }), /100 characters or fewer/);
+  assert.throws(() => validateCampusInput({ name: "North", city: "Lahore", address: "A".repeat(301) }), /300 characters or fewer/);
+  assert.equal(validateCampusInput({ name: "N".repeat(120), city: "Lahore" }).name.length, 120);
 });
 
 test("archived campuses free their package slot and restoring one re-checks the plan", () => {

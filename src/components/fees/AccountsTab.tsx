@@ -41,6 +41,16 @@ import type { PanelCommand } from "@/components/fees/fee-types";
 import { SectionPicker } from "@/components/operations/console-page";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
+// SKAI-2235: accounts.delete is one module permission; the chart list reports it for every section's Delete.
+function useCanDeleteAccounts(qp: string) {
+  const [canDelete, setCanDelete] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void fetch(`/api/accounts/chart${qp}`, { cache: "no-store" }).then(res => res.json()).then(json => { if (live) setCanDelete(json?.canDelete === true); }).catch(() => {});
+    return () => { live = false; };
+  }, [qp]);
+  return canDelete;
+}
 
 const API = "/api";
 const inputClass = "w-full";
@@ -150,6 +160,7 @@ function ChartPanel({ campusId, command, hideCreate = false }: SectionProps) {
   const loadSequence = useRef(0);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
+  const canDelete = useCanDeleteAccounts(qp);
 
   const load = useCallback(async () => {
     const loadVersion = ++loadSequence.current;
@@ -268,9 +279,9 @@ function ChartPanel({ campusId, command, hideCreate = false }: SectionProps) {
                   ...(!acc.isSystem && (acc._count?.entries ?? 0) > 0
                     ? [{ id: "toggle", label: acc.isActive === false ? "Reactivate" : "Deactivate", icon: acc.isActive === false ? Undo2 : Archive, onSelect: () => void toggleActive(acc) }]
                     : []),
-                  (acc._count?.entries ?? 0) > 0
+                  ...(!canDelete ? [] : [(acc._count?.entries ?? 0) > 0
                     ? { id: "delete", label: "Delete", icon: Trash2, tone: "danger" as const, disabled: true, description: "Accounts with entries are kept for audit; deactivate instead." }
-                    : { id: "delete", label: "Delete", icon: Trash2, tone: "danger" as const, onSelect: () => setDeleting(acc) },
+                    : { id: "delete", label: "Delete", icon: Trash2, tone: "danger" as const, onSelect: () => setDeleting(acc) }]),
                 ]}
               />
             </div>
@@ -325,6 +336,7 @@ function MethodsPanel({ campusId, command, hideCreate = false }: SectionProps) {
   const loadSequence = useRef(0);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
+  const canDelete = useCanDeleteAccounts(qp);
 
   const load = useCallback(async () => {
     const loadVersion = ++loadSequence.current;
@@ -436,7 +448,7 @@ function MethodsPanel({ campusId, command, hideCreate = false }: SectionProps) {
               <RowMenu
                 items={[
                   { id: "edit", label: "Edit", icon: Pencil, onSelect: () => openModal(m) },
-                  { id: "delete", label: "Delete", icon: Trash2, tone: "danger", onSelect: () => setDeleting(m) },
+                  ...(canDelete ? [{ id: "delete", label: "Delete", icon: Trash2, tone: "danger" as const, onSelect: () => setDeleting(m) }] : []),
                 ]}
               />
             </div>
@@ -491,6 +503,7 @@ function BanksPanel({ campusId, command, hideCreate = false }: SectionProps) {
   const loadSequence = useRef(0);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
+  const canDelete = useCanDeleteAccounts(qp);
 
   const load = useCallback(async () => {
     const loadVersion = ++loadSequence.current;
@@ -603,7 +616,7 @@ function BanksPanel({ campusId, command, hideCreate = false }: SectionProps) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-ink-strong">{b.name}</p>
                 <p className="text-2xs font-bold text-ink-subtle mt-0.5">
-                  {[b.bankName, b.accountNumber].filter(Boolean).join(" · ") || "—"}
+                  {[b.bankName, b.accountNumber ? `••••${b.accountNumber.slice(-4)}` : null].filter(Boolean).join(" · ") || "—"}
                 </p>
               </div>
               <div className="text-end">
@@ -620,7 +633,7 @@ function BanksPanel({ campusId, command, hideCreate = false }: SectionProps) {
               <RowMenu
                 items={[
                   { id: "edit", label: "Edit", icon: Pencil, onSelect: () => openModal(b) },
-                  { id: "delete", label: "Delete", icon: Trash2, tone: "danger", onSelect: () => setDeleting(b) },
+                  ...(canDelete ? [{ id: "delete", label: "Delete", icon: Trash2, tone: "danger" as const, onSelect: () => setDeleting(b) }] : []),
                 ]}
               />
             </div>
@@ -677,6 +690,7 @@ const PAGE_SIZE = 50;
 const DATE_FILTER_DEBOUNCE_MS = 300;
 
 function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionProps & { kind: "INCOME" | "EXPENSE" }) {
+  const canDelete = useCanDeleteAccounts(campusId ? `?campusId=${encodeURIComponent(campusId)}` : "");
   const { money, date: formatDate } = useLocaleFormat();
   // Until the ledger reports its currency, amounts are in the campus currency (locale package, R7).
   const { currency: campusCurrency } = useLocale();
@@ -918,7 +932,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
                       <Undo2 className="w-4 h-4" aria-hidden="true" />{tr("Correct")}
                     </Button>
                   )}
-                  {correctable && (
+                  {correctable && canDelete && (
                     <Button variant="secondary" size="icon" type="button" onClick={() => setDeleting(e)} className="flex items-center justify-center" aria-label={tr("Delete entry {0}", [e.sourceName])}>
                       <Trash2 className="w-4 h-4" />
                     </Button>

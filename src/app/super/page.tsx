@@ -100,7 +100,8 @@ import { FeeOverviewTab } from "@/components/fees/FeeOverviewTab";
 import { addCampus } from "@/app/actions/addCampus";
 import { phoneProblem } from "@/lib/school/details";
 import { getSchoolCountry } from "@/app/actions/school-boards";
-import { cancelInvitation, inviteStaff, removeStaff, resendInvitation } from "@/app/actions/invite";
+import { cancelInvitationResult, inviteStaffResult, removeStaffResult, resendInvitationResult } from "@/app/actions/invite";
+import { unwrapActionResult } from "@/lib/staff/action-result";
 import { getPlanLimits } from "@/config/plans";
 import { cn } from "@/lib/utils";
 import { useSuperAdminData } from "./super-data-context";
@@ -166,16 +167,16 @@ export default function SuperAdminDashboard() {
     title: role === "CAMPUS_ADMIN" ? t("Revoke campus admin access?") : t("Revoke principal access?"),
     description: t("They lose access to {0} straight away and are signed out. The seat becomes vacant until you appoint someone.", [campusName]),
     confirmLabel: t("Revoke access"),
-    run: async () => { await removeStaff(userId); toast.success(t("Access revoked")); await refetch(); },
+    run: async () => { unwrapActionResult(await removeStaffResult(userId)); toast.success(t("Access revoked")); await refetch(); },
   });
   const cancelInvite = (inviteId: string) => setConfirm({
     title: t("Cancel invitation?"),
     description: t("The invited person will no longer be able to use this invitation link."),
     confirmLabel: t("Cancel invitation"),
-    run: async () => { await cancelInvitation(inviteId); toast.success(t("Invitation cancelled")); await refetch(); },
+    run: async () => { unwrapActionResult(await cancelInvitationResult(inviteId)); toast.success(t("Invitation cancelled")); await refetch(); },
   });
   const resendInvite = async (inviteId: string) => {
-    try { await resendInvitation(inviteId); toast.success(t("Invitation sent again.")); await refetch(); }
+    try { unwrapActionResult(await resendInvitationResult(inviteId)); toast.success(t("Invitation sent again.")); await refetch(); }
     catch (error) { toast.error(friendlyErrorMessage(error, t("The invitation could not be resent. Please try again."))); }
   };
 
@@ -947,7 +948,7 @@ function AppointLeaderModal({ campuses, initial, onClose, onSent }: {
     if (!campusId) return;
     setBusy(true); setError(null);
     try {
-      const result = await inviteStaff({ email: email.trim(), role, campusId, canManageMemberships: role === "CAMPUS_ADMIN" && manage && mfa }, { returnDeliveryStatus: true });
+      const result = unwrapActionResult(await inviteStaffResult({ email: email.trim(), role, campusId, canManageMemberships: role === "CAMPUS_ADMIN" && manage && mfa }, { returnDeliveryStatus: true }));
       toast.success(t("Invitation saved"));
       setLink(result.inviteLink || "");
       setDeliveryFailed(result.deliveryStatus === "failed");
@@ -1088,7 +1089,7 @@ function AddCampusModal({ onClose, onCreated }: { onClose: () => void; onCreated
   const [errors, setErrors] = useState<Partial<Record<keyof typeof EMPTY_CAMPUS, string>>>({});
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [created, setCreated] = useState<Awaited<ReturnType<typeof addCampus>> | null>(null);
+  const [created, setCreated] = useState<Extract<Awaited<ReturnType<typeof addCampus>>, { success: true }> | null>(null);
   const [copyFailed, setCopyFailed] = useState(false);
   // The school's country picks the boards a new campus is offered.
   const [country, setCountry] = useState("");
@@ -1123,6 +1124,7 @@ function AddCampusModal({ onClose, onCreated }: { onClose: () => void; onCreated
         principalName: form.principalName, board: form.board, adminEmail: form.adminEmail,
         regId: form.autoId ? form.regId || undefined : form.regId,
       });
+      if (!result.success) { setSaveError(friendlyErrorMessage(new Error(result.error))); return; }
       setCreated(result);
       await onCreated();
     } catch (failure) {
@@ -1134,7 +1136,7 @@ function AddCampusModal({ onClose, onCreated }: { onClose: () => void; onCreated
 
   const field = (key: keyof typeof EMPTY_CAMPUS, label: string, options: { required?: boolean; type?: "text" | "email" | "tel"; hint?: string; placeholder?: string; span?: boolean } = {}) => (
     <FormField name={`campus-${key}`} label={label} required={options.required} hint={options.hint} error={errors[key]} className={options.span ? "md:col-span-2" : undefined}>
-      <Input type={options.type ?? "text"} dir={options.type && options.type !== "text" ? "ltr" : "auto"} value={String(form[key])} placeholder={options.placeholder} onChange={(event) => set(key, event.target.value)} className="w-full" />
+      <Input type={options.type ?? "text"} dir={options.type && options.type !== "text" ? "ltr" : "auto"} maxLength={key === "address" ? 300 : key === "city" ? 100 : 120} value={String(form[key])} placeholder={options.placeholder} onChange={(event) => set(key, event.target.value)} className="w-full" />
     </FormField>
   );
 

@@ -9,6 +9,7 @@ import {
 } from "@/lib/api/scope";
 import { failFrom, ok, okPage } from "@/lib/api/envelope";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
+import { schoolAuditScope } from "@/lib/audit-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +25,11 @@ export async function GET(req: NextRequest) {
     const days = boundedInteger(searchParams.get("days"), 30, 365);
     const { page: requestedPage, limit } = ownerPagination(searchParams, 50, 200);
 
-    // The platform audit table is global; this school sees only actions by its own people or about itself.
+    // The platform audit table is global; this school sees only actions by its own people or about itself
+    // (platform-owner rows only when they are about this school; see schoolAuditScope).
     const where: any = {
       createdAt: { gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000) },
-      OR: [{ user: { schoolId: user.schoolId } }, { newValues: { path: ["schoolId"], equals: user.schoolId } }],
+      OR: schoolAuditScope(user.schoolId),
     };
     if (action) where.action = action;
 

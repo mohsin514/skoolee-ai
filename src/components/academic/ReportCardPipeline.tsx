@@ -591,7 +591,7 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
                     </Select>
                   </FormField>
                   <FormField name={`report-remarks-${current.id}`} label={ui(copy.remarks)}>
-                    <Textarea className="block w-full" dir={language === "en" ? "ltr" : "rtl"} value={remark} onChange={(e) => setRemark(e.target.value)} />
+                    <Textarea className="block w-full" maxLength={2000} dir={language === "en" ? "ltr" : "rtl"} value={remark} onChange={(e) => setRemark(e.target.value)} />
                   </FormField>
                   {canReview && (
                     <FormField name={`reviewer-note-${current.id}`} label={ui(copy.note)}>

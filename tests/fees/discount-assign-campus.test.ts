@@ -9,9 +9,10 @@ const discounts = [
   { id: "disc-x", campusId: "campus-x" },
 ];
 const students = [
-  { id: "stu-a", campusId: "campus-a" },
-  { id: "stu-b", campusId: "campus-b" },
-  { id: "stu-x", campusId: "campus-x" },
+  { id: "stu-a", campusId: "campus-a", classId: "class-a", class: { academicYear: 2026 } },
+  { id: "stu-b", campusId: "campus-b", classId: "class-b", class: { academicYear: 2026 } },
+  { id: "stu-x", campusId: "campus-x", classId: "class-x", class: { academicYear: 2026 } },
+  { id: "stu-legacy", campusId: "campus-a", classId: "class-legacy", class: { academicYear: 2026 } },
 ];
 let created: Array<{ discountId: string; studentId: string }> = [];
 
@@ -27,6 +28,7 @@ const fakeTx = {
 const fakePrisma = {
   feeDiscount: { findFirst: match(discounts) },
   student: { findFirst: match(students) },
+  feeGroupAssignment: { findFirst: async ({ where }: { where: { classId: string } }) => (where.classId === "class-legacy" ? null : { id: "fga-1" }) },
   feeDiscountAssignment: { findUnique: async () => null },
   $transaction: async (fn: (tx: typeof fakeTx) => Promise<unknown>) => fn(fakeTx),
 };
@@ -80,5 +82,12 @@ test("school isolation holds for every role", async () => {
   const { assignDiscount } = await load();
   await assert.rejects(assignDiscount(superAdmin(), { discountId: "disc-x", studentId: "stu-x" }), status(404));
   await assert.rejects(assignDiscount(accountant("campus-x", "school-a"), { discountId: "disc-x", studentId: "stu-x" }), status(404));
+  assert.equal(created.length, 0);
+});
+
+test("a pupil whose class is billed from a class fee structure is refused, since the discount would never apply", async () => {
+  created = [];
+  const { assignDiscount } = await load();
+  await assert.rejects(assignDiscount(accountant(), { discountId: "disc-a", studentId: "stu-legacy" }), status(409));
   assert.equal(created.length, 0);
 });

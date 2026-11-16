@@ -51,6 +51,15 @@ export function rupeesToPaisa(rupees: number | string, currency = "PKR"): number
   return parseMoney(String(rupees), currency).minor;
 }
 
+/** SKAI-2029: non-throwing variant for render paths and validation; returns null for input parseMoney rejects (e.g. "1e5"). */
+export function tryRupeesToPaisa(rupees: number | string, currency = "PKR"): number | null {
+  try {
+    return rupeesToPaisa(rupees, currency);
+  } catch {
+    return null;
+  }
+}
+
 export function statusBadgeClass(status: InvoiceStatus | string): string {
   switch (status) {
     case "PAID":
@@ -76,7 +85,8 @@ export function exportCSV(rows: Record<string, string | number>[], filename: str
     ),
   ].join("\n");
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  // UTF-8 BOM so Excel reads Urdu/Arabic names as UTF-8 instead of Windows-1252 (SKAI-2147).
+  const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

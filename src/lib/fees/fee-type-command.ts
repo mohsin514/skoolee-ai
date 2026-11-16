@@ -5,6 +5,22 @@ import { ApiError, resolveCampusId } from "@/lib/api/scope";
 
 /** The route's code normalisation: trimmed, upper case, spaces as underscores ("late fee" → "LATE_FEE"). */
 export const feeTypeCode = (value: unknown) => String(value ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+/** SKAI-2221: create and update share these checks: text only, name 1-120 and code 1-40 characters, description text or empty. */
+const text = (value: unknown, field: string, max: number) => {
+  if (typeof value !== "string") throw new ApiError(`${field} must be text`, 400);
+  const trimmed = value.trim();
+  if (!trimmed) throw new ApiError(`${field} is required`, 400);
+  if (trimmed.length > max) throw new ApiError(`${field} must be at most ${max} characters`, 400);
+  return trimmed;
+};
+export const feeTypeName = (value: unknown) => text(value, "name", 120);
+export const feeTypeCodeField = (value: unknown) => feeTypeCode(text(value, "code", 40));
+export function feeTypeDescription(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") throw new ApiError("description must be text", 400);
+  if (value.trim().length > 500) throw new ApiError("description must be at most 500 characters", 400);
+  return value.trim() || null;
+}
 
 /**
  * Create a fee type (POST /api/fees/types), extracted so the route and the AI Workflows
@@ -13,13 +29,12 @@ export const feeTypeCode = (value: unknown) => String(value ?? "").trim().toUppe
  */
 export async function createFeeType(user: AuthUser, body: Record<string, unknown>) {
   const campusId = await resolveCampusId(user, body.campusId as string | null | undefined);
-  const name = String(body.name ?? "").trim();
-  const code = feeTypeCode(body.code);
-
-  if (!name || !code) throw new ApiError("name and code are required", 400);
+  if (body.name === undefined || body.code === undefined) throw new ApiError("name and code are required", 400);
+  const name = feeTypeName(body.name);
+  const code = feeTypeCodeField(body.code);
 
   // Normalised like the code: a blank description is no description, so "" and a missing value are the same request.
-  const wanted = { name, description: String(body.description ?? "").trim() || null };
+  const wanted = { name, description: feeTypeDescription(body.description) };
   const replayOrConflict = async () => {
     const existing = await prisma.feeType.findUnique({ where: { campusId_code: { campusId, code } } });
     if (!existing) return null;

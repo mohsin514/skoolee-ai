@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { compareClassesForList } from "@/lib/academic/class-order";
 import { prisma } from "@/lib/db/prisma";
 import { classSchema } from "@/lib/validators/schemas";
 import {
@@ -91,7 +92,7 @@ export async function GET(req: NextRequest) {
         },
         orderBy,
       });
-      return Response.json({ success: true, data: classes });
+      return Response.json({ success: true, data: classes.sort(compareClassesForList) });
     }
 
     const classes = await prisma.class.findMany({
@@ -108,7 +109,7 @@ export async function GET(req: NextRequest) {
       orderBy,
     });
 
-    return Response.json({ success: true, data: classes });
+    return Response.json({ success: true, data: classes.sort(compareClassesForList) });
   } catch (error) {
     return errorResponse(error, "[classes] GET failed");
   }
@@ -136,7 +137,9 @@ export async function POST(req: NextRequest) {
     const normalizedSections = rawSections
       .map((section: unknown) => String(section || "").trim())
       .filter((section: string) => section.length > 0);
-    const sections: string[] = Array.from(new Set(normalizedSections));
+    // SKAI-2085: de-duplicate case-insensitively, like the class identity index ("A" and "a" are one section).
+    const sections: string[] = normalizedSections.filter((section: string, index: number) =>
+      normalizedSections.findIndex((other: string) => other.toLocaleLowerCase() === section.toLocaleLowerCase()) === index);
     const targetSections: Array<string | null> = sections.length ? sections : [null];
     const classTeacherId = await assertTeacherInCampus(
       parsed.data.classTeacherId || parsed.data.teacherId,

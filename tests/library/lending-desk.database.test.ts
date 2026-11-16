@@ -68,7 +68,10 @@ test("two desks cannot lend the same copy; the loan keeps its rules; limits are 
 
 test("a repeated return scan changes nothing; the fine skips closures and caps; only leaders waive", async () => {
   const loan = await raw.bookIssue.findFirstOrThrow({ where: { copyId: (await raw.bookCopy.findFirstOrThrow({ where: { barcode: "AT-1", campusId } })).id, returnedAt: null } });
-  await raw.bookIssue.update({ where: { id: loan.id }, data: { dueAt: new Date("2026-10-27T00:00:00Z") } });
+  await assert.rejects(() => ctx(librarian, () => returnCopy(librarian, { barcode: "AT-1", returnedOn: "2019-05-05" })), { status: 400, message: /before the loan was issued/ });
+  await assert.rejects(() => ctx(librarian, () => returnCopy(librarian, { barcode: "AT-1", returnedOn: "2099-01-01" })), { status: 400, message: /in the future/ });
+  assert.equal((await raw.bookIssue.findUniqueOrThrow({ where: { id: loan.id } })).returnedAt, null, "a rejected date leaves the loan open");
+  await raw.bookIssue.update({ where: { id: loan.id }, data: { issuedAt: new Date("2026-10-20T00:00:00Z"), dueAt: new Date("2026-10-27T00:00:00Z") } });
   const first = await ctx(librarian, () => returnCopy(librarian, { barcode: "AT-1", returnedOn: "2026-11-02" }));
   assert.equal(first.alreadyReturned, false);
   assert.deepEqual([first.fine!.overdueDays, first.fine!.closureDays, first.fine!.chargeableDays, first.fine!.amount], [6, ["2026-10-30"], 4, 40]);
@@ -142,5 +145,32 @@ test("SKAI-1447: reservations need a member of this school and campus; others ge
     await raw.libraryMember.deleteMany({ where: { campusId: otherCampus } });
     await raw.user.deleteMany({ where: { campusId: otherCampus } });
     await raw.campus.deleteMany({ where: { id: otherCampus } });
+  }
+});
+
+test("SKAI-2163: a campus-scoped librarian cannot renew, return or mark lost another campus's loan (404, loan unchanged)", async () => {
+  const northCampus = randomUUID();
+  await raw.campus.create({ data: { id: northCampus, schoolId, name: "Synthetic North", regId: northCampus, city: "Synthetic" } });
+  try {
+    const northUser = await raw.user.create({ data: { id: randomUUID(), schoolId, campusId: northCampus, role: "STUDENT", email: `${randomUUID()}@example.invalid`, fullName: "Synthetic North reader", onboardingComplete: true } });
+    const northMember = await raw.libraryMember.create({ data: { schoolId, campusId: northCampus, userId: northUser.id, memberNo: "LM-N1" } });
+    const northBook = await raw.book.create({ data: { schoolId, campusId: northCampus, title: "Synthetic North Atlas", copiesTotal: 1, copiesAvailable: 0 } });
+    const dueAt = new Date(Date.now() + 7 * 86_400_000);
+    const loan = await raw.bookIssue.create({ data: { schoolId, bookId: northBook.id, memberId: northMember.id, dueAt } });
+    const issueId = loan.id;
+    await assert.rejects(() => ctx(librarian, () => renewLoan(librarian, { issueId })), { status: 404 });
+    await assert.rejects(() => ctx(librarian, () => markLost(librarian, { issueId })), { status: 404 });
+    await assert.rejects(() => ctx(librarian, () => returnIssue(librarian, issueId)), { status: 404 });
+    const after = await raw.bookIssue.findUniqueOrThrow({ where: { id: issueId } });
+    assert.equal(after.returnedAt, null);
+    assert.equal(after.renewals, 0);
+    assert.equal(after.dueAt.getTime(), dueAt.getTime());
+    assert.equal(await raw.libraryCharge.count({ where: { issueId } }), 0);
+  } finally {
+    await raw.bookIssue.deleteMany({ where: { book: { campusId: northCampus } } });
+    await raw.book.deleteMany({ where: { campusId: northCampus } });
+    await raw.libraryMember.deleteMany({ where: { campusId: northCampus } });
+    await raw.user.deleteMany({ where: { campusId: northCampus } });
+    await raw.campus.deleteMany({ where: { id: northCampus } });
   }
 });

@@ -194,6 +194,8 @@ function CorrectVisit({ visit, onClose, onDone }: { visit: Visit; onClose: () =>
   const ui = useUiText();
   const [fields, setFields] = useState({ name: visit.name, purpose: visit.purpose ?? "", toMeet: visit.toMeet ?? "", reference: visit.reference ?? "", inTime: localInput(visit.inTime), outTime: localInput(visit.outTime) });
   const [reason, setReason] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  // SKAI-2134: the server refuses times older than 30 days.
+  const [minLocal] = useState(() => localInput(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()));
   const save = async () => {
     const changes: Record<string, string> = {};
     if (fields.name !== visit.name) changes.name = fields.name;
@@ -221,8 +223,8 @@ function CorrectVisit({ visit, onClose, onDone }: { visit: Visit; onClose: () =>
       <FormField name="correct-purpose" label={ui("Purpose of visit")}><Input value={fields.purpose} onChange={update("purpose")} /></FormField>
       <FormField name="correct-host" label={ui("Person to meet")}><Input value={fields.toMeet} onChange={update("toMeet")} /></FormField>
       <FormField name="correct-reference" label={ui("Reference (optional)")}><Input value={fields.reference} onChange={update("reference")} /></FormField>
-      <FormField name="correct-in" label={ui("Arrived")}><Input type="datetime-local" value={fields.inTime} onChange={update("inTime")} /></FormField>
-      {visit.outTime ? <FormField name="correct-out" label={ui("Left")}><Input type="datetime-local" value={fields.outTime} onChange={update("outTime")} /></FormField> : null}
+      <FormField name="correct-in" label={ui("Arrived")}><Input type="datetime-local" min={minLocal} value={fields.inTime} onChange={update("inTime")} /></FormField>
+      {visit.outTime ? <FormField name="correct-out" label={ui("Left")}><Input type="datetime-local" min={minLocal} value={fields.outTime} onChange={update("outTime")} /></FormField> : null}
       <FormField name="correct-reason" label={ui("Reason for the correction")}><Input value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField>
     </div>
   </Modal>;

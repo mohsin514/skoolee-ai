@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { actOnApplication, applicationDetail, convertApplication, documentFile, listApplications, listForms, publishForm, saveForm, setFormOpen, staffSaveAnswers, staffStart } from "@/lib/admissions/service";
+import { actOnApplication, applicationOwnerWhere, applicationDetail, convertApplication, documentFile, listApplications, listForms, publishForm, saveForm, setFormOpen, staffSaveAnswers, staffStart } from "@/lib/admissions/service";
 import { admissionsFunnel, parseFunnelYear } from "@/lib/admissions/funnel";
 import { ApiError, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { sendFamilyMessages } from "@/lib/admissions/family-messages";
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
     if (params.get("owners") || params.get("classes")) {
       await listForms(user, campusId); // same admissions read check
-      if (params.get("owners")) return Response.json({ success: true, data: await prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: { in: ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "RECEPTIONIST"] }, OR: [{ campusId }, { role: "SUPER_ADMIN" }] }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" } }) });
+      if (params.get("owners")) return Response.json({ success: true, data: await prisma.user.findMany({ where: applicationOwnerWhere(user.schoolId, campusId), select: { id: true, fullName: true }, orderBy: { fullName: "asc" } }) });
       return Response.json({ success: true, data: await prisma.class.findMany({ where: { campusId, schoolId: user.schoolId, archivedAt: null, status: "ACTIVE" }, select: { id: true, name: true, section: true }, orderBy: [{ name: "asc" }, { section: "asc" }] }) });
     }
     const view = params.get("view") ?? "active";

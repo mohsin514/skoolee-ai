@@ -33,6 +33,9 @@ function matches(r: Row, w: any) {
   return true;
 }
 
+// SKAI-2088: the school calendar date the route sees as "today" (UTC-midnight cutoff).
+let schoolDate = new Date().toISOString().slice(0, 10);
+
 function fixture(rows: Row[], user: { role: string; schoolId: string } = { role: "ACCOUNTANT", schoolId: "school-a" }) {
   const calls: any[] = [];
   const db = {
@@ -80,6 +83,7 @@ function fixture(rows: Row[], user: { role: string; schoolId: string } = { role:
     if (id === "../invoice-currency") return currencies.exports;
     if (id === "@/lib/db/prisma") return { prisma: db };
     if (id === "@/lib/lists/query") return lists.exports;
+    if (id === "@/lib/datetime") return { overdueCutoff: async () => new Date(`${schoolDate}T00:00:00.000Z`) };
     if (id === "@/lib/locale/store") return { getLocalePackage: async () => ({ currency: "USD" }) };
     if (id === "@/lib/locale/package") return { CURRENCIES: ["USD", "PKR"] };
     if (id === "@/lib/api/scope") return {
@@ -172,4 +176,19 @@ test("the other school sees only its own defaulters; a role without fee access i
   const denied = fixture(ledger(), { role: "TEACHER", schoolId: "school-a" });
   assert.equal((await denied.get()).status, 403);
   assert.equal(denied.calls.length, 0);
+});
+
+test("SKAI-2088: an invoice due today (UTC-midnight due date) is not a defaulter at minDays=0; one due yesterday is", async () => {
+  schoolDate = "2026-11-15";
+  try {
+    const dueToday = new Date("2026-11-15T00:00:00.000Z"), dueYesterday = new Date("2026-11-14T00:00:00.000Z");
+    const f = fixture([
+      invoice("1", "pupil-a", 4000, 0, { dueDate: dueToday }), invoice("2", "pupil-a", 2000, 0, { dueDate: dueYesterday }),
+      invoice("3", "pupil-b", 5000, 0, { dueDate: dueToday }),
+    ]);
+    const body = await (await f.get("?minDays=0")).json();
+    assert.deepEqual(body.data.map((d: any) => [d.studentId, d.totalOverdue, d.overdueInvoices]), [["pupil-a", 2000, 1]]);
+    const paged = await (await f.get("?minDays=0&page=1&limit=10")).json();
+    assert.equal(paged.total, 1, "the SQL count uses the same school-date cutoff");
+  } finally { schoolDate = new Date().toISOString().slice(0, 10); }
 });

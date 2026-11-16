@@ -9,7 +9,9 @@ import { DeskSection } from "@/components/ui/desk";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { libraryChargeActionsEnabled } from "@/lib/feature-flags";
+import { minorUnits } from "@/lib/locale/package";
 
+// SKAI-2220: a library charge amount is in whole currency units; money() takes minor units.
 type Charge = { id: string; kind: string; amount: number; currency: string; reason: string | null; memberName: string | null; memberNo: string | null };
 
 /** SKAI-1669: the fees office's queue of library charges handed over by the desk, with Accept and Return to library. */
@@ -43,7 +45,7 @@ export function HandedLibraryCharges({ enabled = libraryChargeActionsEnabled() }
         <ul className="divide-y divide-border">
           {(charges ?? []).map((c) => (
             <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-              <span className="text-ink-strong"><bdi>{c.memberName ?? c.memberNo ?? "—"}</bdi> · <span dir="ltr">{money(c.amount, c.currency)}</span>{c.reason ? <span className="block text-ink-muted"><bdi>{c.reason}</bdi></span> : null}</span>
+              <span className="text-ink-strong"><bdi>{c.memberName ?? c.memberNo ?? "—"}</bdi> · <span dir="ltr">{money(Math.round(c.amount * 10 ** minorUnits(c.currency)), c.currency)}</span>{c.reason ? <span className="block text-ink-muted"><bdi>{c.reason}</bdi></span> : null}</span>
               <span className="flex gap-2">
                 <Button type="button" size="sm" data-action="accept-library-charge" disabled={busy} onClick={() => void act(c.id, "accept")}>{ui("Accept")}</Button>
                 <Button type="button" size="sm" variant="outline" data-action="return-library-charge" disabled={busy} onClick={() => setReturning(c)}>{ui("Return to library")}</Button>

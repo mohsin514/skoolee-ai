@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import * as transport from "@/lib/transport/service";
 import { notifyException } from "@/lib/transport/notify";
 
 export const runtime = "nodejs";
 
 const headers = { "Cache-Control": "private, no-store" };
+// SKAI-2148: coordinator actions need the transport permission; crew actions (board, depart, ...) stay with the assigned crew.
+const COORDINATOR_ACTIONS: Record<string, "add" | "edit"> = { publish: "add", amend: "edit", "emergency-close": "edit", resolve: "edit", owner: "edit" };
 const ok = (data: unknown, status = 200) => Response.json({ success: true, data }, { status, headers });
 
 // SKO-437: dated trips. GET ?date= (list) | ?id= (trip) | ?id=&receiversFor= | ?view=staff.
@@ -15,6 +17,7 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     const p = request.nextUrl.searchParams;
+    if (canManageCampusOps(user) || p.get("view") === "staff") await assertPermission(user, "transport", "view");
     if (p.get("view") === "staff") return ok(await transport.coordinatorStaff(user));
     if (p.get("id") && p.get("receiversFor")) return ok(await transport.receivers(user, p.get("id")!, p.get("receiversFor")!));
     if (p.get("id")) return ok(await transport.tripDetail(user, p.get("id")!));
@@ -26,6 +29,8 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+    const required = COORDINATOR_ACTIONS[String(body.action)];
+    if (required) await assertPermission(user, "transport", required);
     const base = (campusId: string) => ({ schoolId: user.schoolId, campusId, actorId: user.userId });
     switch (body.action) {
       case "publish": {

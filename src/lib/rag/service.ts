@@ -48,8 +48,9 @@ export function listKnowledge(user: AuthUser) {
 export function readKnowledge(user: AuthUser, id: string, version?: number) {
   return inTenant(user, async () => {
     await assertKnowledgeAccess(user);
-    const where = version !== undefined || !isKnowledgeManager(user.role) ? readableWhere(user) : managementWhere(user);
-    const doc = await prisma.ragDocument.findFirst({ where: { ...where, id, ...(version !== undefined ? { version } : { status: { not: "DELETED" } }) }, select: { ...summary, content: true } });
+    const readable = version !== undefined || !isKnowledgeManager(user.role);
+    const where = readable ? readableWhere(user) : { ...managementWhere(user), status: { not: "DELETED" } };
+    const doc = await prisma.ragDocument.findFirst({ where: { ...where, id, ...(version !== undefined ? { version } : {}) }, select: { ...summary, content: true } });
     if (!doc) throw new SchoolAiError("This source is unavailable, changed, or outside your access.", 404);
     return doc;
   });

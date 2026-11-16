@@ -2,7 +2,9 @@ import { z } from "zod";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { prisma } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { ApiError, canManageLibrary, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageLibrary, resolveCampusId } from "@/lib/api/scope";
+import { parseWith } from "@/lib/api/validate";
+import { bookPatchSchema, bookSchema } from "@/lib/validators/operations";
 
 /**
  * Catalogue writes extracted from the library routes (categories POST, books POST/PATCH, members POST) so
@@ -11,13 +13,15 @@ import { ApiError, canManageLibrary, resolveCampusId } from "@/lib/api/scope";
  */
 type Body = Record<string, unknown>;
 
-function assertLibrary(user: AuthUser) {
+// SKAI-2150: the role predicate is not enough; the school's permission matrix (library.add / library.edit) must also allow the write.
+async function assertLibrary(user: AuthUser, action: "add" | "edit") {
   if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
+  await assertPermission(user, "library", action);
 }
 
 /** POST /api/library/categories. */
 export async function createCategory(user: AuthUser, body: Body) {
-  assertLibrary(user);
+  await assertLibrary(user, "add");
   const campusId = await resolveCampusId(user, body.campusId as string | null | undefined);
   const name = String(body.name || "").trim();
   if (!name) throw new ApiError("name is required", 400);
@@ -30,17 +34,26 @@ export async function createCategory(user: AuthUser, body: Body) {
   });
 }
 
+/**
+ * SKAI-2154: one catalogue title per ISBN per campus, so stock and lending history are not split across look-alike rows.
+ * ISBNs arrive normalized (bookSchema strips hyphens and spaces).
+ * shortcut: app-level check, no unique index (existing duplicates would block a migration); add a partial
+ * unique index on (campus_id, isbn) once the duplicates are merged.
+ */
+async function assertIsbnFree(campusId: string, isbn: string, exceptId?: string) {
+  const clash = await prisma.book.findFirst({ where: { campusId, isbn, ...(exceptId ? { id: { not: exceptId } } : {}) }, select: { id: true } });
+  if (clash) throw new ApiError("A title with this ISBN already exists. Add copies to it instead.", 409);
+}
+
 /** POST /api/library/books. */
 export async function createBook(user: AuthUser, body: Body) {
-  assertLibrary(user);
+  await assertLibrary(user, "add");
   const campusId = await resolveCampusId(user, body.campusId as string | null | undefined);
-  const { title, author, isbn, subject, categoryId } = body as Record<string, string | undefined>;
-  const copiesTotal = Number(body.copiesTotal);
-
-  if (!title) throw new ApiError("title is required", 400);
-  if (!Number.isFinite(copiesTotal) || copiesTotal < 0) {
-    throw new ApiError("copiesTotal must be a non-negative number", 400);
-  }
+  // SKAI-2153: the route and the AI workflow adapter both reach the database through here, so the schema runs here.
+  const { title, author, isbn, subject, categoryId, copiesTotal } = parseWith(bookSchema, {
+    title: body.title, author: body.author, isbn: body.isbn, subject: body.subject, categoryId: body.categoryId, copiesTotal: body.copiesTotal,
+  });
+  if (isbn) await assertIsbnFree(campusId, isbn);
 
   return prisma.book.create({
     data: {
@@ -58,22 +71,20 @@ export async function createBook(user: AuthUser, body: Body) {
 
 /** PATCH /api/library/books. */
 export async function updateBook(user: AuthUser, body: Body) {
-  assertLibrary(user);
-  const { id, title, author, isbn, subject, categoryId } = body as Record<string, string | undefined>;
-  if (!id) throw new ApiError("id is required", 400);
+  await assertLibrary(user, "edit");
+  const { id, title, author, isbn, subject, categoryId, copiesTotal: requestedTotal } = parseWith(bookPatchSchema, {
+    id: body.id, title: body.title, author: body.author, isbn: body.isbn, subject: body.subject, categoryId: body.categoryId, copiesTotal: body.copiesTotal,
+  });
 
   const existing = await prisma.book.findFirst({
     where: { id, campus: { schoolId: user.schoolId } },
   });
   if (!existing) throw new ApiError("Book not found", 404);
-
+  if (isbn && isbn !== existing.isbn) await assertIsbnFree(existing.campusId, isbn, existing.id);
   let copiesAvailable = existing.copiesAvailable;
   let copiesTotal = existing.copiesTotal;
-  if (body.copiesTotal !== undefined) {
-    const newTotal = Number(body.copiesTotal);
-    if (!Number.isFinite(newTotal) || newTotal < 0) {
-      throw new ApiError("copiesTotal must be a non-negative number", 400);
-    }
+  if (requestedTotal !== undefined) {
+    const newTotal = requestedTotal;
     // SKAI-1560: stock cannot drop below the copies that physically exist here: those out on loan,
     // and the barcoded copies still in stock. Otherwise a return later pushes available above total.
     const onLoan = Math.max(0, existing.copiesTotal - existing.copiesAvailable);
@@ -101,7 +112,7 @@ export async function updateBook(user: AuthUser, body: Body) {
 
 /** POST /api/library/members. */
 export async function createMember(user: AuthUser, body: Body) {
-  assertLibrary(user);
+  await assertLibrary(user, "add");
   const campusId = await resolveCampusId(user, body.campusId as string | null | undefined);
   const { userId, memberNo } = body as Record<string, string | undefined>;
 
@@ -128,7 +139,7 @@ export const categoryRenameSchema = z.strictObject({
 
 /** Rename within the current campus; a stale preview cannot overwrite a colleague's edit. */
 export async function renameCategory(user: AuthUser, input: unknown) {
-  assertLibrary(user);
+  await assertLibrary(user, "edit");
   const data = categoryRenameSchema.parse(input);
   return schoolAiTransaction(user, async tx => {
     const existing = await tx.bookCategory.findFirst({ where: {

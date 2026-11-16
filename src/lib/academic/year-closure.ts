@@ -191,3 +191,19 @@ export async function getUnclosedPriorCycles(campusId: string, newAcademicYear: 
     select: { id: true, label: true, academicYear: true, status: true },
   });
 }
+
+/**
+ * SKAI-1991: the year to close is the running one. A requested year wins; otherwise ACTIVE/PAUSED
+ * come before a DRAFT (the next year prepared by "Prepare next year"), then the latest year.
+ */
+export function pickOpenCycle<T extends { academicYear: number; status: string }>(
+  cycles: T[],
+  requestedYear: number | null,
+): T | null {
+  if (requestedYear != null) {
+    const match = cycles.find((c) => c.academicYear === requestedYear);
+    if (match) return match;
+  }
+  const rank = (c: T) => (c.status === "DRAFT" ? 1 : 0);
+  return [...cycles].sort((a, b) => rank(a) - rank(b) || b.academicYear - a.academicYear)[0] ?? null;
+}

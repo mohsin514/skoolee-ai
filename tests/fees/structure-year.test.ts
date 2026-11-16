@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { feeStructureActiveWhere, invoiceBatchStatus, legacyInvoiceAmounts, pickStructureForClass, recomputePendingInvoices, resolveFeeStructureYearId } from "@/lib/fees/structure-year";
+import { enrollmentsBilledOneTimeFees, feeStructureActiveWhere, invoiceBatchStatus, legacyInvoiceAmounts, pickStructureForClass, recomputePendingInvoices, resolveFeeStructureYearId } from "@/lib/fees/structure-year";
 
 // SKAI-1123: fee structures per academic year + re-pricing unpaid PENDING invoices on edit.
 
@@ -39,7 +39,7 @@ function fakeTx(invoices: Inv[], opts: { taxed?: string[]; assignment?: boolean 
   return { tx: tx as any, audits, where: () => findWhere };
 }
 
-const inv = (id: string, over: Partial<Inv> = {}): Inv => ({ id, schoolId: "school-a", campusId: "campus-a", status: "PENDING", totalAmountPaid: 0, currency: "PKR", lateFeeAmount: 0, totalAmount: 5000, ...over });
+const inv = (id: string, over: Partial<Inv> = {}): Inv => ({ id, schoolId: "school-a", campusId: "campus-a", status: "PENDING", totalAmountPaid: 0, currency: "PKR", lateFeeAmount: 0, totalAmount: 5000, oneTimeFees: 1000, ...over });
 
 describe("legacyInvoiceAmounts", () => {
   it("matches the generate-invoices legacy formula", () => {
@@ -47,6 +47,33 @@ describe("legacyInvoiceAmounts", () => {
     assert.equal(a.subtotal, 7000);
     assert.equal(a.discountAmount, 700);
     assert.equal(a.taxAmount, 315);
+  });
+});
+
+describe("SKAI-2061 one-time fees are billed once", () => {
+  it("legacyInvoiceAmounts can omit the one-time fee", () => {
+    const a = legacyInvoiceAmounts(structure(), false);
+    assert.equal(a.oneTimeTotal, 0);
+    assert.equal(a.subtotal, 6000);
+    assert.equal(a.discountAmount, 600);
+    assert.equal(a.taxAmount, 270);
+  });
+  it("recompute keeps the one-time fee only on the invoice that carried it", async () => {
+    const invoices = [inv("first"), inv("later", { oneTimeFees: 0 })];
+    await recomputePendingInvoices(fakeTx(invoices).tx, ACTOR, structure());
+    assert.equal(invoices[0].subtotal, 7000);
+    assert.equal(invoices[1].subtotal, 6000);
+    assert.equal(invoices[1].oneTimeFees, 0);
+    assert.equal(invoices[1].totalAmount, 5670);
+  });
+  it("finds enrolments already billed, ignoring cancelled and library invoices via the query", async () => {
+    let where: any;
+    const tx = { invoice: { findMany: async (a: any) => { where = a.where; return [{ enrollmentId: "e-1" }]; } } } as any;
+    const set = await enrollmentsBilledOneTimeFees(tx, "school-a", ["s-1"]);
+    assert.deepEqual([...set], ["e-1"]);
+    assert.deepEqual(where.status, { not: "CANCELLED" });
+    assert.deepEqual(where.monthlyFee, { gt: 0 });
+    assert.deepEqual(where.oneTimeFees, { gt: 0 });
   });
 });
 

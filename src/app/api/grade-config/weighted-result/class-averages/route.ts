@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { assertModuleRead, requireAuthUser } from "@/lib/api/scope";
 import { fail, failFrom, ok } from "@/lib/api/envelope";
 import { calculateWeightedGradeForClass } from "@/lib/academic/grade-calculator";
+import { teacherSubjectScope } from "@/lib/academic/weighted-grade-scope";
 
 export const runtime = "nodejs";
 
@@ -31,16 +32,22 @@ export async function GET(req: NextRequest) {
       return fail("VALIDATION_FAILED", `At most ${MAX_CLASSES} classes`, { classIds: ["Too many"] });
     }
 
-    const classes = await prisma.class.findMany({
+    const found = await prisma.class.findMany({
       where: { id: { in: classIds }, campusId },
-      select: { id: true },
+      select: { id: true, classTeacherId: true, subjects: { select: { id: true, teacherId: true } } },
+    });
+    // SKAI-2019: a teacher gets averages only for classes they teach, over the subjects they may see (as /api/marks).
+    const classes = found.flatMap((c) => {
+      if (user.role !== "TEACHER") return [{ id: c.id, subjectIds: null as string[] | null }];
+      const scope = teacherSubjectScope(c, user.userId);
+      return scope === undefined ? [] : [{ id: c.id, subjectIds: scope }];
     });
 
     const averages: { classId: string; avg: number | null; gradedCount: number }[] = [];
     for (let i = 0; i < classes.length; i += CONCURRENCY) {
       const batch = classes.slice(i, i + CONCURRENCY);
-      averages.push(...(await Promise.all(batch.map(async ({ id }) => {
-        const grades = await calculateWeightedGradeForClass(id, campusId, academicYear);
+      averages.push(...(await Promise.all(batch.map(async ({ id, subjectIds }) => {
+        const grades = await calculateWeightedGradeForClass(id, campusId, academicYear, subjectIds);
         const avg = grades.length ? grades.reduce((s, g) => s + (g.overallPercentage || 0), 0) / grades.length : null;
         return { classId: id, avg, gradedCount: grades.length };
       }))));

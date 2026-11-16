@@ -1,3 +1,5 @@
+import { booksName, sameName } from "@/lib/accounts/chart-account-command";
+import { parseBankAccountNumber } from "@/lib/accounts/bank-account-number";
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
@@ -26,14 +28,14 @@ export function parseOpeningBalance(value: unknown): number {
 
 export async function createBankAccount(user: AuthUser, body: Record<string, unknown>) {
   const campusId = await resolveCampusId(user, body.campusId as string | null | undefined);
-  const name = String(body.name ?? "").trim();
+  const name = booksName(body.name);
   if (!name) throw new ApiError("name is required", 400);
 
   const currency = (body.currency as string | undefined) || (await getLocalePackage(user.schoolId, campusId)).currency;
   if (!CURRENCIES.includes(currency as typeof CURRENCIES[number])) throw new ApiError("Invalid currency", 400);
   const openingBalance = parseOpeningBalance(body.openingBalance ?? 0);
 
-  const existing = await prisma.bankAccount.findFirst({ where: { campusId, name } });
+  const existing = await prisma.bankAccount.findFirst({ where: { campusId, name: sameName(name) } });
   if (existing) throw new ApiError("A bank account with this name already exists", 409);
 
   return prisma.$transaction(async (tx) => {
@@ -44,7 +46,7 @@ export async function createBankAccount(user: AuthUser, body: Record<string, unk
         campusId,
         name,
         bankName: body.bankName ? String(body.bankName).trim() : null,
-        accountNumber: body.accountNumber ? String(body.accountNumber).trim() : null,
+        accountNumber: parseBankAccountNumber(body.accountNumber),
         openingBalance,
         isActive: body.isActive !== false,
       },

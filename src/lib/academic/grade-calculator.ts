@@ -250,6 +250,22 @@ export interface WeightedGradeMark {
   isExempt: boolean;
 }
 
+/**
+ * SKAI-2108: a report card must only carry marks the school has released. Exams with status PUBLISHED count,
+ * and so does the card's own exam (`includeExamId`). Exams still LOCKED, in MARKS_ENTRY or under review do not.
+ */
+export type ReleasedOnlyScope = { includeExamId?: string | null };
+
+export function examStatusFilter(releasedOnly?: ReleasedOnlyScope) {
+  if (!releasedOnly) return { status: { notIn: ["DRAFT", "ACTIVE"] } };
+  return {
+    OR: [
+      { status: "PUBLISHED" },
+      ...(releasedOnly.includeExamId ? [{ id: releasedOnly.includeExamId }] : []),
+    ],
+  };
+}
+
 /** SKAI-1832: load the config, subjects and exams once per class instead of once per learner. */
 export async function loadWeightedGradeContext(
   campusId: string,
@@ -258,6 +274,7 @@ export async function loadWeightedGradeContext(
   db: TxClient = prisma,
   academicModelVersionId?: string | null,
   configOverride?: WeightConfig,
+  releasedOnly?: ReleasedOnlyScope,
 ): Promise<WeightedGradeContext> {
   const config = configOverride ?? await getOrCreateGradeWeightConfig(campusId, classId, academicYear, db, academicModelVersionId);
   const subjects = await db.subject.findMany({
@@ -266,11 +283,18 @@ export async function loadWeightedGradeContext(
     orderBy: { name: "asc" },
   });
   const exams = await db.exam.findMany({
-    where: { classId, campusId, academicYear, status: { notIn: ["DRAFT", "ACTIVE"] } },
+    where: { classId, campusId, academicYear, ...examStatusFilter(releasedOnly) },
     select: { id: true, title: true, examType: true, totalMarks: true, subjectId: true },
     orderBy: [{ examType: "asc" }, { title: "asc" }],
   });
   return { config, subjects, exams };
+}
+
+/** SKAI-2019: narrow a context to the subjects a subject teacher may see, so totals and breakdown never include the rest. */
+export function restrictContextToSubjects(ctx: WeightedGradeContext, subjectIds?: readonly string[] | null): WeightedGradeContext {
+  if (!subjectIds) return ctx;
+  const allowed = new Set(subjectIds);
+  return { ...ctx, subjects: ctx.subjects.filter((s) => allowed.has(s.id)) };
 }
 
 /** One mark query for the whole roster, grouped by learner. */
@@ -391,9 +415,10 @@ export async function calculateWeightedGradesForStudents(
   db: TxClient = prisma,
   academicModelVersionId?: string | null,
   configOverride?: WeightConfig,
+  subjectIds?: readonly string[] | null,
 ): Promise<Array<WeightedGradeResult | null>> {
   if (!students.length) return [];
-  const ctx = await loadWeightedGradeContext(campusId, classId, academicYear, db, academicModelVersionId, configOverride);
+  const ctx = restrictContextToSubjects(await loadWeightedGradeContext(campusId, classId, academicYear, db, academicModelVersionId, configOverride), subjectIds);
   const marksByStudent = await loadMarksByStudent(ctx, campusId, students.map((s) => s.id), db);
   return students.map((student) => {
     try {
@@ -413,17 +438,20 @@ export async function calculateWeightedGrade(
   academicModelVersionId?: string | null,
   /** SKAI-152: evaluate proposed rules without saving them (the editor's preview). */
   configOverride?: WeightConfig,
+  releasedOnly?: ReleasedOnlyScope,
+  subjectIds?: readonly string[] | null,
 ): Promise<WeightedGradeResult> {
-  const [student, ctx] = await Promise.all([
+  const [student, fullCtx] = await Promise.all([
     db.student.findUnique({
       where: { id: studentId },
       select: { id: true, fullName: true, classId: true },
     }),
-    loadWeightedGradeContext(campusId, classId, academicYear, db, academicModelVersionId, configOverride),
+    loadWeightedGradeContext(campusId, classId, academicYear, db, academicModelVersionId, configOverride, releasedOnly),
   ]);
 
   if (!student) throw new Error("Student not found");
 
+  const ctx = restrictContextToSubjects(fullCtx, subjectIds);
   const marksByStudent = await loadMarksByStudent(ctx, campusId, [student.id], db);
   return computeWeightedGrade(student, ctx, marksByStudent.get(student.id) ?? []);
 }
@@ -431,7 +459,9 @@ export async function calculateWeightedGrade(
 export async function calculateWeightedGradeForClass(
   classId: string,
   campusId: string,
-  academicYear: number
+  academicYear: number,
+  /** SKAI-2019: a subject teacher's own subjects; null/undefined = every subject. */
+  subjectIds?: readonly string[] | null,
 ) {
   // SKAI-212: only current learners are ranked and reported; archived or withdrawn pupils keep their history but leave the class list.
   const students = await prisma.student.findMany({
@@ -441,7 +471,7 @@ export async function calculateWeightedGradeForClass(
   });
 
   // SKAI-1832: one batched load for the class; a database error fails the request instead of silently dropping learners.
-  const results = await calculateWeightedGradesForStudents(students, campusId, classId, academicYear);
+  const results = await calculateWeightedGradesForStudents(students, campusId, classId, academicYear, prisma, undefined, undefined, subjectIds);
 
   const validResults = results.filter((r): r is WeightedGradeResult => r !== null);
 
@@ -476,6 +506,7 @@ export async function buildSubjectDistribution(opts: {
   academicYear: number;
   weightConfig: WeightConfig;
   excludeExamId?: string;
+  releasedOnly?: ReleasedOnlyScope;
 }, db: TxClient = prisma) {
   const subjects = await db.subject.findMany({
     where: { classId: opts.classId, campusId: opts.campusId },
@@ -487,7 +518,7 @@ export async function buildSubjectDistribution(opts: {
       classId: opts.classId,
       campusId: opts.campusId,
       academicYear: opts.academicYear,
-      status: { notIn: ["DRAFT", "ACTIVE"] },
+      ...examStatusFilter(opts.releasedOnly),
     },
     select: { id: true, title: true, examType: true, subjectId: true },
     orderBy: [{ examType: "asc" }, { title: "asc" }],

@@ -43,3 +43,11 @@ test("history rows stay out of the generic audit trail", () => {
 test("history rows are tenant scoped", () => {
   assert.match(read("src/lib/db/tenant-models.ts"), /"passwordHistory"/);
 });
+
+// SKAI-2017: change-password must enforce the same complexity policy as reset, register and first login.
+test("change: new password goes through the shared resetPasswordProblem policy", () => {
+  const source = read(PATHS.change);
+  assert.match(source, /resetPasswordProblem\(newPassword\)/);
+  assert.ok(source.indexOf("resetPasswordProblem(newPassword)") < source.indexOf("prisma.user.findUnique"), "policy runs before any lookup");
+  assert.doesNotMatch(source, /newPassword\.length < 8/);
+});

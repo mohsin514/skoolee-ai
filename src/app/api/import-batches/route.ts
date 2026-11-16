@@ -80,8 +80,10 @@ export async function POST(request: NextRequest) {
       const from = details.data.statementFrom;
       const to = details.data.statementTo;
       if (!isoDate(from) || !isoDate(to) || from > to) throw new ApiError("Enter a valid statement date range", 400);
-      const dateIndex = headers.findIndex((header) => /date|transactiondate/.test(header));
-      const amountIndex = headers.findIndex((header) => /amount|value/.test(header));
+      // SKAI-2126: "Value Date" is a date, not the amount. Prefer the transaction date and an explicit amount header.
+      const firstIndex = (...tests: RegExp[]) => { for (const test of tests) { const index = headers.findIndex((header) => test.test(header)); if (index >= 0) return index; } return -1; };
+      const dateIndex = firstIndex(/^(transaction|txn|posting|booking)?date$/, /^(transaction|txn|posting|booking)date/, /^(?!.*value).*date/);
+      const amountIndex = firstIndex(/^amount$/, /amount/, /^value$/);
       const descIndex = headers.findIndex((header) => /description|narration|details|reference/.test(header));
       if (dateIndex < 0 || amountIndex < 0 || descIndex < 0) throw new ApiError("CSV needs transaction date, amount and description columns", 400);
       const rawRows = records.slice(1).map((cells, index) => ({ rowNumber: index + 2, source: headers.reduce<Record<string, string>>((result, header, column) => { result[header] = cells[column] || ""; return result; }, {}), cells }));

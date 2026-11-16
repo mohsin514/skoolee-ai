@@ -6,7 +6,7 @@ export const CAPABILITY_KEYS = [
   "hasCampusAdmin", "hasPrincipal", "hasAccountant", "hasReceptionist", "hasLibrarian", "standaloneDeputy",
   "academicLead", "financeDesk", "frontDesk", "libraryDesk",
   "careMember", "serviceAgent", "tripToday", "activityStaff", "improvementLead",
-  "accessPlans", "pkgCanteen", "pickupGuardian", "multiChild", "recordSearch",
+  "accessPlans", "pkgCanteen", "pickupGuardian", "multiChild", "linkedChild", "recordSearch",
   "schoolAi", "schoolAiExams", "corrections",
   // The school's plan (src/config/plans.ts) — presentation only; each feature's server entry point enforces it.
   "planTimetable", "planExamPlanning", "planGroupConsole", "planApiAccess", "planMarkScan", "planAiRemarks", "planExamStudio",

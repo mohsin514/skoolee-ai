@@ -8,11 +8,12 @@
  */
 export type MathSegment = { text: string; math: boolean };
 
-const RUN = /[0-9A-Za-z.,()[\]{}+\-−×÷*/^=<>≤≥≠±√%°²³π|? ]+/g;
+const RUN = /[0-9A-Za-z.,()[\]{}+\-−×÷*/^=<>≤≥≠±√%°²³π|?→⇒⟶⟹←⇐↔⇌ ]+/g;
 // Whole Latin words ("and", "then") end an expression; single-letter variables and f(x) do not.
 const WORD = /(?<=^|\s)[A-Za-z]{2,}(?=\s|$)/g;
 const HAS_DIGIT = /[0-9]/;
-const HAS_OPERATOR_OR_SIGN = /[+\-−×÷*/^=<>≤≥≠±√%²³]|\d\s*[A-Za-z(]|\)\s*\(/;
+// SKAI-2075: reaction arrows and "25 °C" style temperatures are expressions too.
+const HAS_OPERATOR_OR_SIGN = /[+\-−×÷*/^=<>≤≥≠±√%²³→⇒⟶⟹←⇐↔⇌]|\d\s*°|\d\s*[A-Za-z(]|\)\s*\(/;
 
 export function mathSegments(text: string): MathSegment[] {
   const segments: MathSegment[] = [];

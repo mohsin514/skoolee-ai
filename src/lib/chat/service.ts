@@ -18,7 +18,7 @@ import type { AuthUser } from "@/lib/auth";
 import { ApiError, requireAuthUser } from "@/lib/api/scope";
 import { roleLabel, type UserRole } from "@/lib/roles";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
-import { conversationListInclude, accessibleConversationList, currentMemberCount, groupCampusId, requireConversationAccess, requireMembership, visibleConversationWhere, type ConversationRow } from "./membership";
+import { conversationListInclude, deliverableUserIds, accessibleConversationList, currentMemberCount, groupCampusId, assertMembersInCampusScope, requireConversationAccess, requireMembership, visibleConversationWhere, type ConversationRow } from "./membership";
 import {
   canCreateAnnouncement,
   canCreateGroup,
@@ -220,6 +220,11 @@ function serialiseConversation(
 /** The people a message should be delivered to. */
 function recipientIds(row: ConversationRow, excludeUserId?: string) {
   return row.members.map((m) => m.userId).filter((id) => id !== excludeUserId);
+}
+
+/** SKAI-2165: recipientIds narrowed to the members the read API would still let in (school and campus scope). */
+async function liveRecipientIds(row: ConversationRow, excludeUserId?: string) {
+  return deliverableUserIds(row, recipientIds(row, excludeUserId));
 }
 
 // ─── Reads ───────────────────────────────────────────────────────
@@ -496,6 +501,7 @@ export async function createGroupConversation(
 
   const peers = await assertReachable(user, [...memberIds], settings);
   const campusId = groupCampusId(user, peers);
+  if (input.kind !== "CLASS") assertMembersInCampusScope(campusId, peers);
 
   const created = await inTenant(user, async (tx) => {
     const conversation = await tx.conversation.create({
@@ -527,7 +533,7 @@ export async function createGroupConversation(
   });
 
   const detail = await getConversation(user, created.id);
-  await publishToUsers([...memberIds], {
+  await publishToUsers(await deliverableUserIds({ schoolId: user.schoolId, campusId }, [...memberIds]), {
     type: "conversation",
     conversationId: created.id,
     payload: detail,
@@ -746,7 +752,7 @@ export async function sendMessage(
   // SKAI-1878: `row` came from requireMembership, which already dropped CLASS parents whose guardian link has
   // lapsed (currentClassMembers). Re-running that guardian query for the live push and again for the
   // notification fallback cost two more queries over every parent member on each send.
-  await publishToUsers(recipientIds(row), {
+  await publishToUsers(await liveRecipientIds(row), {
     type: "message",
     conversationId,
     payload: view,
@@ -886,7 +892,7 @@ export async function markRead(user: AuthUser, conversationId: string): Promise<
     ? row.members.map((m) => m.userId).filter((id) => id !== user.userId)
     : (await currentMemberCount(row)) <= 20 ? recipientIds((await requireMembership(user, conversationId)).row, user.userId) : null;
   if (recipients) {
-    await publishToUsers(recipients, {
+    await publishToUsers(await deliverableUserIds(row, recipients), {
       type: "read",
       conversationId,
       payload: { userId: user.userId, readAt: readAt.toISOString() },
@@ -907,7 +913,15 @@ export async function editMessage(
   });
   if (!message) throw new ApiError("Message not found", 404);
 
-  const { row } = await requireMembership(user, message.conversationId);
+  const { row, me } = await requireMembership(user, message.conversationId);
+
+  // SKAI-2168: a closed thread is a frozen record, same gate as sendMessage.
+  if (!canPostIn(row, me.memberRole)) {
+    throw new ApiError(
+      row.isLocked ? "This conversation is closed" : "Only moderators can post here",
+      403
+    );
+  }
 
   // Editing is the author's alone. A moderator can withdraw a message, but
   // putting different words in someone else's mouth is not moderation.
@@ -935,7 +949,7 @@ export async function editMessage(
   });
 
   const view = await serialiseMessage(updated);
-  await publishToUsers(recipientIds(row), {
+  await publishToUsers(await liveRecipientIds(row), {
     type: "message-updated",
     conversationId: row.id,
     payload: view,
@@ -986,7 +1000,7 @@ export async function deleteMessage(user: AuthUser, messageId: string): Promise<
   });
 
   const view = await serialiseMessage(updated);
-  await publishToUsers(recipientIds(row), {
+  await publishToUsers(await liveRecipientIds(row), {
     type: "message-updated",
     conversationId: row.id,
     payload: view,
@@ -1036,7 +1050,7 @@ export async function updateConversation(
   });
 
   const detail = await getConversation(user, conversationId);
-  await publishToUsers(recipientIds(row), {
+  await publishToUsers(await liveRecipientIds(row), {
     type: "conversation",
     conversationId,
     payload: detail,
@@ -1052,7 +1066,8 @@ export async function addMembers(
   const { row, me } = await requireMembership(user, conversationId);
 
   if (row.kind === "DIRECT") throw new ApiError("A direct conversation is fixed at two people", 400);
-  if (me.memberRole === "MEMBER") throw new ApiError("Only the owner or a moderator can add people", 403);
+  // SKAI-2198: the same moderators who may remove people may add them, so a group whose owner left can still grow.
+  if (me.memberRole === "MEMBER" && !canModerate(user.role)) throw new ApiError("Only the owner or a moderator can add people", 403);
 
   const settings = await getChatSettings(user.schoolId);
   const existing = new Set(row.members.map((m) => m.userId));
@@ -1060,7 +1075,8 @@ export async function addMembers(
 
   if (toAdd.length === 0) return getConversation(user, conversationId);
 
-  await assertReachable(user, toAdd, settings);
+  const peers = await assertReachable(user, toAdd, settings);
+  if (row.kind !== "CLASS") assertMembersInCampusScope(row.campusId, peers);
 
   const names = await prisma.user.findMany({
     where: { id: { in: toAdd } },
@@ -1093,7 +1109,7 @@ export async function addMembers(
   });
 
   const detail = await getConversation(user, conversationId);
-  await publishToUsers([...existing, ...toAdd], {
+  await publishToUsers(await deliverableUserIds(row, [...existing, ...toAdd]), {
     type: "conversation",
     conversationId,
     payload: detail,
@@ -1118,10 +1134,12 @@ export async function removeMember(
   }
 
   await inTenant(user, async (tx) => {
-    await tx.conversationMember.updateMany({
+    const removed = await tx.conversationMember.updateMany({
       where: { conversationId, userId: targetUserId, leftAt: null },
       data: { leftAt: new Date(), unreadCount: 0 },
     });
+    // SKAI-2197: removing someone who is not a current member changes nothing and announces nothing.
+    if (removed.count === 0) throw new ApiError("That person is not in this conversation", 404);
 
     if (row.kind !== "DIRECT") {
       const target = row.members.find((m) => m.userId === targetUserId);
@@ -1136,7 +1154,7 @@ export async function removeMember(
     }
   });
 
-  await publishToUsers(recipientIds(row), {
+  await publishToUsers(await liveRecipientIds(row), {
     type: "conversation",
     conversationId,
     payload: { id: conversationId, removed: targetUserId },

@@ -459,6 +459,8 @@ const entries: readonly (readonly [string, string, string])[] = [
   ["Teacher's full name", "الاسم الكامل للمعلم", "استاد کا پورا نام"],
   ["Test", "الاختبار", "ٹیسٹ"],
   ["Test: {0}", "الاختبار: {0}", "ٹیسٹ: {0}"],
+  ["That is {0} more than your available balance, so it cannot be sent. Shorten the dates or withdraw a pending request.", "هذا يزيد بمقدار {0} على رصيدك المتاح، لذا لا يمكن إرساله. اختصر التواريخ أو اسحب طلبًا معلقًا.", "یہ آپ کے دستیاب بیلنس سے {0} زیادہ ہے، اس لیے بھیجی نہیں جا سکتی۔ تاریخیں کم کریں یا کوئی زیرِ التوا درخواست واپس لیں۔"],
+  ["This is more than your available balance. Pending requests count against it.", "هذا أكثر من رصيدك المتاح. تُحتسب الطلبات المعلقة منه.", "یہ آپ کے دستیاب بیلنس سے زیادہ ہے۔ زیرِ التوا درخواستیں بھی اس میں شمار ہوتی ہیں۔"],
   ["That is {0} more than your remaining balance — it can still be sent, but may be declined.", "هذا يزيد بمقدار {0} على رصيدك المتبقي — يمكن إرساله مع ذلك، لكنه قد يُرفض.", "یہ آپ کے باقی بیلنس سے {0} زیادہ ہے — پھر بھی بھیجی جا سکتی ہے، مگر مسترد ہو سکتی ہے۔"],
   ["The account is active, but no central student record is linked to it yet. Ask the school office to link it.", "الحساب نشط، لكن لم يُربط به سجل طالب مركزي بعد. اطلب من مكتب المدرسة ربطه.", "اکاؤنٹ فعال ہے، مگر ابھی اس سے کوئی مرکزی طالب علم ریکارڈ منسلک نہیں۔ اسکول کے دفتر سے منسلک کرنے کو کہیں۔"],
   ["The average of every student's attendance rate this month, counted with your school's attendance rule.", "متوسط نسبة حضور كل طالب هذا الشهر، محسوبةً وفق قاعدة الحضور في مدرستك.", "اس ماہ ہر طالب علم کی حاضری کی شرح کا اوسط، آپ کے اسکول کے حاضری کے اصول کے مطابق۔"],

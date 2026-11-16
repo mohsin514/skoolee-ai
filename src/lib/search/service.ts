@@ -108,6 +108,8 @@ const APPLICATION_STATUS: Record<string, string> = {
 };
 
 const like = (q: string) => `%${q.replace(/[\\%_]/g, char => `\\${char}`)}%`;
+// SKAI-2201: Prisma's insensitive contains/equals become ILIKE without escaping, so % _ \ must be escaped for a literal match.
+const literal = (q: string) => q.replace(/[\\%_]/g, char => `\\${char}`);
 const campusSql = (column: string, campusIds: string[] | null) => campusIds ? Prisma.sql`AND ${Prisma.raw(column)} IN (${Prisma.join(campusIds)})` : Prisma.empty;
 
 async function searchStudents(user: AuthUser, filters: Filters, campusIds: string[] | null, limit: number, offset: number) {
@@ -155,7 +157,7 @@ async function searchClasses(user: AuthUser, filters: Filters, campusIds: string
     schoolId: user.schoolId, ...(campusIds ? { campusId: { in: campusIds } } : {}), ...(teacherClasses ? { id: { in: teacherClasses } } : {}),
     ...(filters.status === "active" ? { archivedAt: null } : filters.status === "archived" ? { archivedAt: { not: null } } : {}),
     ...(filters.academicYear ? { academicYear: filters.academicYear } : {}),
-    ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { section: { contains: q, mode: "insensitive" } }, { id: q }] } : {}),
+    ...(q ? { OR: [{ name: { contains: literal(q), mode: "insensitive" } }, { section: { contains: literal(q), mode: "insensitive" } }, { id: q }] } : {}),
   };
   const [rows, total] = await Promise.all([
     prisma.class.findMany({ where, orderBy: filters.sort && filters.sort !== "default" ? [{ name: filters.sort === "name-desc" ? "desc" : "asc" }, { section: "asc" }, { id: "asc" }] : [{ academicYear: "desc" }, { name: "asc" }, { section: "asc" }, { id: "asc" }], take: limit, skip: offset, select: { id: true, name: true, section: true, academicYear: true, archivedAt: true, campus: { select: { name: true } }, _count: { select: { students: { where: { archivedAt: null } } } } } }),
@@ -170,7 +172,7 @@ async function searchStaff(user: AuthUser, filters: Filters, campusIds: string[]
     schoolId: user.schoolId, role: { in: (STAFF_ROLES_FOR[user.role] ?? STAFF_ROLES) as never[] },
     ...(campusIds ? { campusId: { in: campusIds } } : {}),
     ...(filters.status === "active" ? { isActive: true } : filters.status === "archived" ? { isActive: false } : {}),
-    ...(q ? { AND: [{ OR: [{ fullName: { contains: q, mode: "insensitive" } }, { email: { equals: q, mode: "insensitive" } }, { id: q }] }] } : {}),
+    ...(q ? { AND: [{ OR: [{ fullName: { contains: literal(q), mode: "insensitive" } }, { email: { equals: literal(q), mode: "insensitive" } }, { id: q }] }] } : {}),
   };
   const [rows, total] = await Promise.all([
     prisma.user.findMany({ where, orderBy: [{ fullName: filters.sort === "name-desc" ? "desc" : "asc" }, { id: "asc" }], take: limit, skip: offset, select: { id: true, fullName: true, role: true, email: true, isActive: true, campus: { select: { name: true } } } }),
@@ -184,7 +186,7 @@ async function searchApplications(user: AuthUser, filters: Filters, campusIds: s
   const where: Prisma.AdmissionApplicationWhereInput = {
     schoolId: user.schoolId, ...(campusIds ? { campusId: { in: campusIds } } : {}),
     status: filters.status === "active" ? { notIn: ["DRAFT", "WITHDRAWN", "REJECTED", "DECLINED", "ENROLLED"] } : filters.status === "archived" ? { in: ["WITHDRAWN", "REJECTED", "DECLINED", "ENROLLED"] } : { not: "DRAFT" },
-    ...(q ? { OR: [{ reference: { equals: q, mode: "insensitive" } }, { childName: { contains: q, mode: "insensitive" } }] } : {}),
+    ...(q ? { OR: [{ reference: { equals: literal(q), mode: "insensitive" } }, { childName: { contains: literal(q), mode: "insensitive" } }] } : {}),
   };
   const [rows, total] = await Promise.all([
     prisma.admissionApplication.findMany({ where, orderBy: filters.sort && filters.sort !== "default" ? [{ childName: filters.sort === "name-desc" ? "desc" : "asc" }, { id: "asc" }] : [{ submittedAt: "desc" }, { id: "asc" }], take: limit, skip: offset, select: { id: true, reference: true, childName: true, status: true, submittedAt: true, formVersion: { select: { form: { select: { name: true } } } } } }),

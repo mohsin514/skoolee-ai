@@ -3,6 +3,7 @@ import { assertModuleRead, errorResponse, requireAuthUser, resolveCampusId } fro
 import { gradeForPercentage } from "@/lib/academic/report-cards";
 import { groupedRuleRate } from "@/lib/attendance";
 import { attendanceRuleFor } from "@/lib/attendance/rule";
+import { teacherClassWhere } from "@/lib/auth/policy";
 
 export async function GET(req: Request) {
   try {
@@ -13,7 +14,12 @@ export async function GET(req: Request) {
     // PARENT could pull the whole cohort's results and the list of children the
     // school considers at risk. Staff-only, gated on reports.view like the
     // screen it feeds.
+    // SKAI-2073: reports.view alone also admits accountant, librarian and receptionist (their own
+    // finance/library/front-desk reports). The payload is exam results and attendance, so the
+    // exams and attendance read bits must hold too.
     await assertModuleRead(user, "reports");
+    await assertModuleRead(user, "exams");
+    await assertModuleRead(user, "attendance");
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
     const yearParam = searchParams.get("year");
@@ -25,10 +31,14 @@ export async function GET(req: Request) {
 
     const campusWhere = campusId ? { campusId } : { campus: { schoolId: user.schoolId } };
     const academicYear = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
+    // SKAI-2252: a teacher's analytics cover only the classes they lead or teach a subject in.
+    const teacherOnly = user.role === "TEACHER";
+    const classScope = teacherOnly ? { class: teacherClassWhere(user.userId) } : {};
 
     const exams = await prisma.exam.findMany({
       where: {
         ...campusWhere,
+        ...classScope,
         academicYear,
         status: { in: ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"] },
       },
@@ -58,11 +68,12 @@ export async function GET(req: Request) {
         _sum: { marksObtained: true },
         _count: { _all: true },
       }),
-      prisma.student.count({ where: campusId ? { campusId } : { campus: { schoolId: user.schoolId } } }),
+      prisma.student.count({ where: { ...(campusId ? { campusId } : { campus: { schoolId: user.schoolId } }), ...classScope } }),
       prisma.attendance.groupBy({
         by: ["status"],
         where: {
           ...(campusId ? { campusId } : { campus: { schoolId: user.schoolId } }),
+          ...(teacherOnly ? { student: classScope } : {}),
           // SKAI-1607: the selected year is closed at both ends, like the exam and report-card filters.
           date: { gte: new Date(Date.UTC(academicYear, 0, 1)), lt: new Date(Date.UTC(academicYear + 1, 0, 1)) },
         },

@@ -649,6 +649,7 @@ const P6: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Results released", "نُشرت النتائج", "نتائج جاری کر دیے گئے"],
   ["That did not work. Try again.", "لم ينجح ذلك. حاول مرة أخرى.", "یہ کام نہیں ہوا۔ دوبارہ کوشش کریں۔"],
   ["1 mark saved", "حُفظت درجة واحدة", "1 نمبر محفوظ ہو گیا"],
+  ["This marks sheet changed. Review your draft against the current server values before saving.", "تغيّر جدول الدرجات. راجع مسودتك مقارنةً بالقيم الحالية على الخادم قبل الحفظ.", "یہ نمبروں کی شیٹ تبدیل ہو چکی ہے۔ محفوظ کرنے سے پہلے اپنے مسودے کا موجودہ سرور ویلیوز سے موازنہ کریں۔"],
   ["{0} marks saved", "حُفظت {0} درجات", "{0} نمبر محفوظ ہو گئے"],
   ["{0} taken off the date sheet", "أُزيلت {0} من جدول الامتحانات", "{0} ڈیٹ شیٹ سے ہٹا دیا گیا"],
   ["Pick a date", "اختر تاريخًا", "تاریخ منتخب کریں"],
@@ -1500,6 +1501,8 @@ const P6: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Terms can be drafted now, but activation waits until the academic year has start and end dates.", "يمكن صياغة الفصول الآن، لكن التفعيل ينتظر تحديد تاريخي بداية العام الدراسي ونهايته.", "مدتوں کا مسودہ ابھی بن سکتا ہے، لیکن فعال کرنا تعلیمی سال کی شروع اور اختتام کی تاریخوں تک رکا رہے گا۔"],
   ["In session", "جارية الآن", "جاری ہے"],
   ["Starts next", "تبدأ تاليًا", "اگلی شروع ہوگی"],
+  ["Exam title is too long (max 200 characters)", "عنوان الاختبار طويل جدًا (200 حرف كحد أقصى)", "امتحان کا عنوان بہت لمبا ہے (زیادہ سے زیادہ 200 حروف)"],
+  ["Class is not active in this academic year.", "الصف غير نشط في هذا العام الدراسي.", "یہ کلاس اس تعلیمی سال میں فعال نہیں ہے۔"],
 ];
 
 export const arabicP6Ui: Record<string, string> = Object.fromEntries(P6.map(([en, ar]) => [en, ar]));

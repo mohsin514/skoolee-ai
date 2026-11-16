@@ -2,8 +2,10 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
+import { optionalPaymentText } from "@/lib/fees/payment-text";
 import { ApiError, resolveCampusId } from "@/lib/api/scope";
 import { recordPayment } from "@/lib/fees/payment";
+import { schoolToday } from "@/lib/datetime";
 import { DELIVERY_POLICY_KIND, resolveDeliveryPolicy } from "@/lib/school-ai/delivery-policy";
 
 /**
@@ -124,8 +126,15 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
   const amount = minorUnits(body.amount, "amount");
   if (amount <= 0) throw new ApiError("amount must be a positive integer (paisa)", 400);
 
-  const paymentDate = calendarDate(body.paymentDate ?? new Date().toISOString().split("T")[0]);
-  if (!paymentDate) throw new ApiError("paymentDate must be a real calendar date (YYYY-MM-DD)", 400);
+  // SKAI-2101: fine and discount were stored on the payment and printed on the receipt but never applied to the
+  // invoice, so a desk discount left the full balance owed. Concessions go through the approved adjustments flow.
+  const fineAmount = minorUnits(body.fineAmount, "fineAmount", 0), discountAmount = minorUnits(body.discountAmount, "discountAmount", 0);
+  if (fineAmount > 0 || discountAmount > 0) throw new ApiError("Fines and discounts cannot be recorded on a payment. Use invoice adjustments for a fine or a concession.", 400);
+
+  // SKAI-2069: an omitted paymentDate defaults to today in the school timezone (resolved below), not the UTC date.
+  const explicitDate = body.paymentDate !== undefined && body.paymentDate !== null;
+  const paymentDateInput = explicitDate ? calendarDate(body.paymentDate) : null;
+  if (explicitDate && !paymentDateInput) throw new ApiError("paymentDate must be a real calendar date (YYYY-MM-DD)", 400);
   const paymentMethod = String(body.paymentMethod ?? "").toUpperCase();
   if (!(COLLECT_METHODS as readonly string[]).includes(paymentMethod)) {
     throw new ApiError("paymentMethod must be CASH, BANK, CHEQUE, SAFEPAY or MOBILE_WALLET", 400);
@@ -144,13 +153,16 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
   if (invoice.status === "CANCELLED") throw conflict("Cancelled invoices cannot accept payments.", "INVOICE_CANCELLED");
 
   const campusId = await resolveCampusId(user, invoice.student.campusId);
+  const today = await schoolToday(user.schoolId, campusId);
+  const paymentDate = paymentDateInput ?? calendarDate(today)!;
+  // SKAI-2050: a collection cannot be dated after today in the school timezone (same rule as the manual ledger).
+  if (paymentDate.toISOString().slice(0, 10) > today) throw new ApiError("The payment date cannot be in the future.", 400);
 
   // SKO-475: the operation key binds this collection to its exact request. A retry after a dropped
   // response replays the original receipt; the same key with a different request is a conflict.
   const idempotencyKey = typeof body.idempotencyKey === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(body.idempotencyKey) ? body.idempotencyKey : null;
   if (!idempotencyKey) throw new ApiError("idempotencyKey is required for a manual collection", 400);
-  const fineAmount = minorUnits(body.fineAmount, "fineAmount", 0), discountAmount = minorUnits(body.discountAmount, "discountAmount", 0);
-  const referenceNumber = (body.referenceNumber ?? null) as string | null, note = (body.note ?? null) as string | null;
+  const referenceNumber = optionalPaymentText(body.referenceNumber, "referenceNumber", 200), note = optionalPaymentText(body.note, "note", 2000);
   const requestHash = createHash("sha256").update(JSON.stringify({ invoiceId: invoice.id, studentId: invoice.studentId, amount, fineAmount, discountAmount, paymentDate: paymentDate.toISOString().slice(0, 10), paymentMethod, referenceNumber, note })).digest("hex");
   const outcome = (payment: CollectPayment, credit: number, replayed: boolean): CollectOutcome => ({ invoice, payment, credit, replayed, campusId, amount });
   // Same-key retries are serialised below, so a replay is read inside the transaction that posts the payment.
@@ -204,6 +216,8 @@ export async function collectPaymentCore(user: AuthUser, body: Record<string, un
         const winner = await replay();
         if (winner) return winner;
       }
+      // SKAI-2053: the same reference twice on one campus-day is a clear 409 naming the reference, not a 500.
+      if (/reference/i.test(target)) throw conflict(`A payment with reference "${referenceNumber}" was already recorded today. Use a different reference, or leave it blank.`, "DUPLICATE_PAYMENT_REFERENCE");
       if (/workflow_?handoff/i.test(target)) throw conflict("This prepared collection was already recorded. Check its receipt before recording again.", "HANDOFF_ALREADY_POSTED");
     }
     throw error;

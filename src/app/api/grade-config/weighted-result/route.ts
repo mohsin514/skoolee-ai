@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { assertModuleRead, requireAuthUser } from "@/lib/api/scope";
 import { fail, failFrom, ok } from "@/lib/api/envelope";
 import { calculateWeightedGradeForClass } from "@/lib/academic/grade-calculator";
+import { weightedGradeSubjectScope } from "@/lib/academic/weighted-grade-scope";
 
 export const runtime = "nodejs";
 
@@ -36,7 +37,8 @@ export async function GET(req: NextRequest) {
       return fail("NOT_FOUND", "Class not found in your campus");
     }
 
-    const grades = await calculateWeightedGradeForClass(classId, user.campusId, academicYear);
+    const subjectIds = await weightedGradeSubjectScope(user, classId, user.campusId);
+    const grades = await calculateWeightedGradeForClass(classId, user.campusId, academicYear, subjectIds);
 
     const students = await prisma.student.findMany({
       where: { classId, campusId: user.campusId },

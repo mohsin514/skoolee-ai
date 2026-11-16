@@ -17,7 +17,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { StudentTimeline } from "@/components/students/student-timeline";
 
 type Period = { id: string; classId?: string; className: string; campusName: string; curriculum: string; academicYear: number; rollNo: string; startDate: string; endDate: string | null; status: string; origin: string; _count: { attendance: number; invoices: number; reports: number } };
-type Data = { pupil: { id: string; fullName: string; admissionNo: string | null; consolidatedIntoId: string | null; enrollments: Period[] }; classes: { id: string; name: string; section: string | null; academicYear: number; capacity: number | null; campus: { name: string }; _count?: { students: number } }[]; proposals: { id: string; effectiveDate: string; rollNo: string; targetClassId: string; reason: string; status: string }[]; documents: { id: string; fileName: string; uploadedAt: string }[]; canManage: boolean; canConsolidate: boolean };
+type Data = { pupil: { id: string; status?: string; fullName: string; admissionNo: string | null; consolidatedIntoId: string | null; enrollments: Period[] }; classes: { id: string; name: string; section: string | null; academicYear: number; capacity: number | null; campus: { name: string }; _count?: { students: number } }[]; proposals: { id: string; effectiveDate: string; rollNo: string; targetClassId: string; reason: string; status: string }[]; documents: { id: string; fileName: string; uploadedAt: string }[]; canManage: boolean; canConsolidate: boolean };
 type Impact = { preserved: { attendance: number; reports: number; invoices: number }; targetOccupancy: number; targetCapacity?: number | null };
 type Duplicate = { token: string; blockers: string[]; counts: Record<string,number>; source: { fullName: string; id: string }; target: { fullName: string; id: string } };
 async function request(url: string, body?: unknown) {
@@ -68,7 +68,7 @@ function Pupil({ id }: { id: string }) {
   {success && <Alert tone="success">{t.success}</Alert>}
   {data?.pupil.consolidatedIntoId && <Alert tone="info" live="off">{t.alias}: <a className="sk-link break-all" href={`/pupils/${data.pupil.consolidatedIntoId}`}><bdi>{data.pupil.consolidatedIntoId}</bdi></a></Alert>}
   {data && !current && !data.pupil.consolidatedIntoId && <Alert tone="warning" live="off">{t.empty}</Alert>}
-  {data?.canManage && current && !data.pupil.consolidatedIntoId && <section aria-labelledby="change-title" className="sk-panel space-y-5 p-4 sm:p-6">
+  {data?.canManage && current && !data.pupil.consolidatedIntoId && data.pupil.status === "active" && <section aria-labelledby="change-title" className="sk-panel space-y-5 p-4 sm:p-6">
    <h2 id="change-title" className="text-lg font-bold text-ink-strong">{t.change}</h2>
    <Alert tone="info" live="off"><p>{t.notice}</p><p className="mt-1 text-xs text-ink-muted">{t.policy}</p></Alert>
    <form onSubmit={e => { e.preventDefault(); void run(async () => { setImpact(await request("/api/students/enrollments",{...payload,action:"preview"})); }, "preview"); }} className="space-y-4">

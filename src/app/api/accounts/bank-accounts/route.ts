@@ -1,3 +1,5 @@
+import { booksName, sameName } from "@/lib/accounts/chart-account-command";
+import { maskBankAccountNumber, parseBankAccountNumber } from "@/lib/accounts/bank-account-number";
 import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -33,7 +35,9 @@ export async function GET(req: NextRequest) {
       orderBy: { name: "asc" },
     });
 
-    return Response.json({ success: true, data: banks });
+    // SKAI-2234: the full number only for staff who may edit bank accounts; everyone else reads it masked.
+    const canEdit = await assertPermission(user, "accounts", "edit").then(() => true, () => false);
+    return Response.json({ success: true, data: canEdit ? banks : banks.map(bank => ({ ...bank, accountNumber: maskBankAccountNumber(bank.accountNumber) })) });
   } catch (error) {
     return errorResponse(error, "[accounts/bank-accounts] GET failed");
   }
@@ -68,9 +72,10 @@ export async function PATCH(req: NextRequest) {
 
     if (body.currency !== undefined && body.currency !== bank.currency) throw new ApiError("Existing monetary currency cannot be changed", 400);
 
+    if (body.name !== undefined) booksName(body.name);
     if (body.name && String(body.name).trim() !== bank.name) {
       const dup = await prisma.bankAccount.findFirst({
-        where: { campusId: bank.campusId, name: String(body.name).trim() },
+        where: { campusId: bank.campusId, id: { not: bank.id }, name: sameName(String(body.name).trim()) },
       });
       if (dup) throw new ApiError("A bank account with this name already exists", 409);
     }
@@ -81,7 +86,7 @@ export async function PATCH(req: NextRequest) {
         data: {
           name: body.name ? String(body.name).trim() : undefined,
           bankName: body.bankName !== undefined ? (String(body.bankName).trim() || null) : undefined,
-          accountNumber: body.accountNumber !== undefined ? (String(body.accountNumber).trim() || null) : undefined,
+          accountNumber: body.accountNumber !== undefined ? parseBankAccountNumber(body.accountNumber) : undefined,
           openingBalance: body.openingBalance !== undefined
             ? parseOpeningBalance(body.openingBalance)
             : undefined,

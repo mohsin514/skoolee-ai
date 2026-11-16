@@ -16,6 +16,7 @@ import { getInstitutionKind } from "@/lib/auth/institution-server";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { withExamCalendarChange } from "@/lib/academic/calendar-bookings";
 import { getLocalePackage } from "@/lib/locale/store";
+import { campusBillingCurrency } from "@/app/api/fees/reports/invoice-currency";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { LANGUAGE_COOKIE, languageCookieAttributes, parseLanguage } from "@/lib/locale/language-cookie";
 
@@ -168,6 +169,8 @@ export async function getFinancialLocale(campusId?: string) {
   const { campuses } = await context(user);
   const id = campusId || user.campusId;
   if (!id || !campuses.some((campus) => campus.id === id)) throw new Error("permission");
-  return getLocalePackage(user.schoolId, id);
+  const locale = await getLocalePackage(user.schoolId, id);
+  // SKAI-2038: fee and ledger forms must offer the currency the server will accept (see campusBillingCurrency).
+  return { ...locale, currency: await campusBillingCurrency(user.schoolId, id) as typeof locale.currency };
  });
 }

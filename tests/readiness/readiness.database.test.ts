@@ -261,3 +261,21 @@ test("SKAI-160: progress totals reconcile with the school's own records and neve
   assert.deepEqual({ ...mine.progress.followUps }, { done: 0, inProgress: 1, open: 0, deferred: 0, total: 1 });
   await assert.rejects(() => readinessView(b.teacher), { status: 403 }, "no tasks, no progress");
 });
+
+test("SKAI-1989: a school with no setup record reads its own logo: no logo means an open logo task, a logo means none", async () => {
+  const s = await school("FULL_OPERATIONS");
+  await db.institutionSetup.delete({ where: { schoolId: s.schoolId } });
+  const view = await readinessView(s.owner);
+  assert.equal(view.lead, true);
+  if (!view.lead) return;
+  const logo = view.tasks.find(task => task.key === "logo");
+  assert.equal(logo?.status, "OPEN");
+  assert.equal(view.progress.areaTally.done, 0);
+
+  const withLogo = await school("FULL_OPERATIONS");
+  await db.institutionSetup.delete({ where: { schoolId: withLogo.schoolId } });
+  await db.school.update({ where: { id: withLogo.schoolId }, data: { logoUrl: "https://example.invalid/logo.png" } });
+  const second = await readinessView(withLogo.owner);
+  assert.equal(second.lead, true);
+  if (second.lead) assert.equal(second.tasks.some(task => task.key === "logo"), false);
+});

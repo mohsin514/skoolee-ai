@@ -81,22 +81,25 @@ for (const model of Prisma.dmmf.datamodel.models) {
 // briefly so that later write can take its place.
 const RECENT_TTL_MS = 60_000;
 const RECENT_LIMIT = 5_000;
-const recent = new Map<string, { id: string; at: number }>();
+const recent = new Map<string, { id: string; at: number; userId: string | null }>();
 
 function recentKey(schoolId: string, recordId: string) {
   return `${schoolId}:${recordId}`;
 }
 
-function remember(schoolId: string, recordId: string, id: string) {
+function remember(schoolId: string, recordId: string, id: string, userId: string | null = null) {
   if (recent.size >= RECENT_LIMIT) recent.delete(recent.keys().next().value!);
-  recent.set(recentKey(schoolId, recordId), { id, at: Date.now() });
+  recent.set(recentKey(schoolId, recordId), { id, at: Date.now(), userId });
 }
 
 /** Returns, and forgets, the automatic row for this record if one was just written. */
-export function claimAutoRow(schoolId: string, recordId: string): string | null {
+// SKAI-2215: a manual row replaces only an automatic row written by the same person. A checker's decision must
+// never hide the maker's earlier request on the same record.
+export function claimAutoRow(schoolId: string, recordId: string, userId?: string | null): string | null {
   const key = recentKey(schoolId, recordId);
   const hit = recent.get(key);
   if (!hit) return null;
+  if (userId && hit.userId && hit.userId !== userId) return null;
   recent.delete(key);
   return Date.now() - hit.at <= RECENT_TTL_MS ? hit.id : null;
 }
@@ -144,22 +147,22 @@ export async function withTransactionAudit<T>(tx: unknown, fn: () => Promise<T>)
   const pending: PendingRow[] = [];
   const result = await pendingRows.run(pending, fn);
   const writer = tx as AuditClient;
-  const written: Array<{ schoolId: string; recordId: string; id: string }> = [];
+  const written: Array<{ schoolId: string; recordId: string; id: string; userId: string | null }> = [];
   await pendingRows.exit(async () => {
     for (const row of pending) {
       if (row.claimed) continue;
       const { id } = await runWithTenantContext({ schoolId: row.schoolId, userId: row.userId }, () =>
         writer.auditLog.create({ data: row.data, select: { id: true } })
       );
-      if (row.recordId !== "*") written.push({ schoolId: row.schoolId, recordId: row.recordId, id });
+      if (row.recordId !== "*") written.push({ schoolId: row.schoolId, recordId: row.recordId, id, userId: row.userId ?? null });
     }
   });
-  for (const row of written) remember(row.schoolId, row.recordId, row.id);
+  for (const row of written) remember(row.schoolId, row.recordId, row.id, row.userId);
   return result;
 }
 
-function claimPending(schoolId: string, recordId: string): boolean {
-  const row = pendingRows.getStore()?.find((entry) => !entry.claimed && entry.schoolId === schoolId && entry.recordId === recordId);
+function claimPending(schoolId: string, recordId: string, userId?: string | null): boolean {
+  const row = pendingRows.getStore()?.find((entry) => !entry.claimed && entry.schoolId === schoolId && entry.recordId === recordId && (!userId || !entry.userId || entry.userId === userId));
   if (row) row.claimed = true;
   return Boolean(row);
 }
@@ -175,6 +178,11 @@ function rowSchool(row: unknown, context: TenantContext, delegate: string, opera
   if (typeof own === "string" && own) return own;
   // An unscoped (platform owner) bulk change can span schools; there is no one school to file it under.
   return context.unscoped ? null : context.schoolId || null;
+}
+
+function noRowsAffected(result: unknown): boolean {
+  if (Array.isArray(result)) return result.length === 0;
+  return (result as { count?: unknown } | null)?.count === 0;
 }
 
 function whereId(args: Record<string, unknown>): string | null {
@@ -229,6 +237,12 @@ export async function auditedOperation({ delegate, operation, args, query, clien
   const result = await inFlight.run(true, () => query(args));
   const pending = referenceTransaction.getStore() ? pendingRows.getStore() : undefined;
 
+  // SKAI-2043: a write that changed nothing is not a change to record. A bulk write that touched no rows (a
+  // skipDuplicates createMany of rows that already exist) and an upsert that found its row and left it as it was
+  // (`update: {}`) would otherwise log a phantom row, attributed to the viewer, on every read that seeds data.
+  if (BULK_OPERATIONS.has(operation) && noRowsAffected(result)) return result;
+  if (operation === "upsert" && before && JSON.stringify(redact(before)) === JSON.stringify(redact(result))) return result;
+
   try {
     const schoolId = rowSchool(single ? result ?? before : null, context, delegate, operation);
     if (!schoolId) return result;
@@ -236,9 +250,12 @@ export async function auditedOperation({ delegate, operation, args, query, clien
     const recordId = single
       ? String((result as { id?: unknown } | null)?.id ?? (before as { id?: unknown } | null)?.id ?? whereId(input) ?? "")
       : "*";
+    // SKAI-2218: file the row under the record's campus, so a campus-scoped activity log can see it.
+    const recordCampus = single ? ((result as { campusId?: unknown } | null)?.campusId ?? (before as { campusId?: unknown } | null)?.campusId) : null;
     const row = {
       tableName: tableNames.get(delegate) ?? delegate,
       recordId,
+      ...(typeof recordCampus === "string" && recordCampus ? { campusId: recordCampus } : {}),
       oldValue: (before ? redact(before) : undefined) as Prisma.InputJsonValue | undefined,
       newValue: redact(
         single
@@ -258,7 +275,7 @@ export async function auditedOperation({ delegate, operation, args, query, clien
     const written = await runWithTenantContext({ schoolId, userId: context.userId }, () =>
       writer.auditLog.create({ data: row, select: { id: true } })
     );
-    if (single && recordId) remember(schoolId, recordId, written.id);
+    if (single && recordId) remember(schoolId, recordId, written.id, context.userId ?? null);
   } catch (error) {
     // The change itself succeeded; a failed audit write must not undo it for the user.
     console.warn(`[audit-trail] could not record ${operation} on ${delegate}`, error);
@@ -278,10 +295,11 @@ async function mergeManualAudit(
   const input = (args ?? {}) as { data?: unknown };
   const context = getTenantContext() ?? (await resolveTenantFromRequest());
   const link = (entry: unknown) => {
-    const data = entry as { schoolId?: string; recordId?: string; newValue?: unknown } | undefined;
+    const data = entry as { schoolId?: string; recordId?: string; userId?: string | null; newValue?: unknown } | undefined;
     const schoolId = data?.schoolId || context?.schoolId;
-    if (schoolId && data?.recordId && claimPending(schoolId, data.recordId)) return entry;
-    const autoId = schoolId && data?.recordId ? claimAutoRow(schoolId, data.recordId) : null;
+    const actor = data?.userId ?? context?.userId ?? null;
+    if (schoolId && data?.recordId && claimPending(schoolId, data.recordId, actor)) return entry;
+    const autoId = schoolId && data?.recordId ? claimAutoRow(schoolId, data.recordId, actor) : null;
     if (!autoId) return entry;
     const newValue = data!.newValue;
     return { ...data, newValue: newValue && typeof newValue === "object" && !Array.isArray(newValue) ? { ...newValue, supersedesAuditId: autoId } : { value: newValue ?? null, supersedesAuditId: autoId } };

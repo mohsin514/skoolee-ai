@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { paperDna } from "./paper-dna";
 import type { AuthUser } from "@/lib/auth";
+import { AccessDenied } from "@/lib/auth/policy";
 import type { TxClient } from "@/lib/db/prisma";
 import { SchoolAiError, assertSchoolAiAccess, isSchoolAiManager, loadWorkspacePermissionSnapshot } from "./access";
 import { candidatePaper, curriculumDataSchema, paperDataSchema, type PaperData, type Question } from "./assessment";
@@ -268,6 +269,9 @@ export async function sealRelease(tx: TxClient, user: AuthUser, record: { id: st
 // ─── Result release ───────────────────────────────────────────────
 /** Learners see moderated results only after an academic approver releases them. */
 export async function releaseResults(user: AuthUser, assignmentId: string, now = new Date()) {
+  // SKAI-281: a staff account with no campus scope is a permanent denial (403), not a database failure.
+  // Refuse it before the transaction so the tenant guard's campus error cannot surface as a 503 retry.
+  if (user.role !== "SUPER_ADMIN" && !user.campusId) throw new AccessDenied("campus", "view", user);
   return schoolAiTransaction(user, async tx => {
     const assignment = await tx.schoolAiExamAssignment.findFirst({ where: { id: assignmentId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) } });
     if (!assignment) throw new SchoolAiError("Exam not found.", 404);

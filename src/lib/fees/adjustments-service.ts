@@ -1,8 +1,10 @@
+import { minorUnits } from "@/lib/locale/package";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, canApproveFinance, canManageFinance, soleChecker } from "@/lib/api/scope";
-import { isInstitutionAuthority } from "@/lib/auth/institution";
+import { isCampusOperator, isInstitutionAuthority } from "@/lib/auth/institution";
+import { getCampusSeats } from "@/lib/auth/seats";
 import { notifySelfApproval } from "@/lib/notifications/events";
 import { capturePaymentReceipt } from "./receipt";
 import { settleLibraryChargeForInvoice } from "@/lib/library/charge-settlement";
@@ -27,6 +29,11 @@ const OPEN = ["REQUESTED", "APPROVED"];
 type InvoiceRow = { id: string; schoolId: string; campusId: string; studentId: string; currency: string; status: string; totalAmount: number; totalAmountPaid: number; balanceDue: number; discountAmount: number };
 const invoiceVersion = (invoice: InvoiceRow) => `${invoice.totalAmount}:${invoice.totalAmountPaid}:${invoice.balanceDue}:${invoice.status}`;
 
+/** SKAI-2131: limits in error messages are money ("PKR 3,500.00"), not raw minor units. */
+function limitText(minor: number, currency: string) {
+  const digits = minorUnits(currency);
+  return new Intl.NumberFormat("en", { style: "currency", currency, currencyDisplay: "code", minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Math.max(0, minor) / 10 ** digits);
+}
 async function lockInvoice(tx: TxClient, user: AuthUser, invoiceId: string) {
   const scoped = await tx.invoice.findFirst({ where: { id: invoiceId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true } });
   if (!scoped) throw new ApiError("Invoice not found", 404);
@@ -63,8 +70,16 @@ export function replayedAdjustment<T extends { kind: string; invoiceId: string; 
   return previous;
 }
 
+/** The finance desk is the accountant, or the campus admin only while the campus has no active accountant (role-ux §2.5; same rule as payment corrections). */
+export async function holdsFinanceDesk(user: AuthUser, campusId: string | null) {
+  if (user.role === "ACCOUNTANT") return true;
+  if (!isCampusOperator(user)) return canManageFinance(user);
+  return !(await getCampusSeats(user.schoolId, campusId)).accountant;
+}
+
 export async function requestAdjustment(user: AuthUser, input: { kind: AdjustmentKind; invoiceId: string; paymentId?: string | null; amount: number; reasonCategory: string; reason: string; publicExplanation: string; privateNote?: string | null; idempotencyKey: string }) {
   if (!canManageFinance(user)) throw new ApiError("Only the finance desk requests refunds, credit notes and waivers.", 403);
+  if (!(await holdsFinanceDesk(user, user.campusId ?? null))) throw new ApiError("Your campus accountant requests refunds, credit notes and waivers; the campus admin decides them.", 403);
   if (!ADJUSTMENT_KINDS.includes(input.kind)) throw new ApiError("Choose refund, credit note or waiver.", 400);
   if (!Number.isSafeInteger(input.amount) || input.amount <= 0) throw new ApiError("Enter a positive amount.", 400);
   if (!(REASON_CATEGORIES as readonly string[]).includes(input.reasonCategory)) throw new ApiError("Choose a reason category.", 400);
@@ -84,14 +99,14 @@ export async function requestAdjustment(user: AuthUser, input: { kind: Adjustmen
         await tx.$queryRaw`SELECT id FROM payments WHERE id = ${source.payment.id} FOR UPDATE`;
         const open = await tx.financialAdjustment.findMany({ where: { paymentId: source.payment.id, kind: "REFUND", status: { in: OPEN } }, select: { invoiceAmount: true, creditAmount: true } });
         const freeCredit = source.credit - open.reduce((sum, row) => sum + row.creditAmount, 0), freeApplied = source.applied - open.reduce((sum, row) => sum + row.invoiceAmount, 0);
-        if (input.amount > freeCredit + freeApplied) throw new ApiError(`Only ${Math.max(0, freeCredit + freeApplied)} can still be refunded on this payment after earlier refunds and open requests.`, 409);
+        if (input.amount > freeCredit + freeApplied) throw new ApiError(`Only ${limitText(freeCredit + freeApplied, invoice.currency)} can still be refunded on this payment after earlier refunds and open requests.`, 409);
         // Unapplied credit is returned first; only the rest reopens the invoice.
         creditAmount = Math.min(input.amount, Math.max(0, freeCredit)); invoiceAmount = input.amount - creditAmount;
         sourceVersion = `${sourceVersion}|${source.version}`; paymentId = source.payment.id;
       } else {
         const open = await tx.financialAdjustment.findMany({ where: { invoiceId: invoice.id, kind: { in: ["CREDIT_NOTE", "WAIVER"] }, status: "REQUESTED" }, select: { amount: true } });
         const free = invoice.balanceDue - open.reduce((sum, row) => sum + row.amount, 0);
-        if (input.amount > free) throw new ApiError(`Only ${Math.max(0, free)} is still owed on this invoice after other open credit and waiver requests.`, 409);
+        if (input.amount > free) throw new ApiError(`Only ${limitText(free, invoice.currency)} is still owed on this invoice after other open credit and waiver requests.`, 409);
         invoiceAmount = input.amount;
       }
       const requester = await tx.user.findUnique({ where: { id: user.userId }, select: { fullName: true } });
@@ -119,7 +134,12 @@ export async function decideAdjustment(user: AuthUser, id: string, decision: "ap
     if (!adjustment) throw new ApiError("Adjustment not found", 404);
     await tx.$queryRaw`SELECT id FROM financial_adjustments WHERE id = ${adjustment.id} FOR UPDATE`;
     const current = await tx.financialAdjustment.findUniqueOrThrow({ where: { id: adjustment.id } });
-    if (current.status !== "REQUESTED") return current;
+    // SKAI-2129: only a replay of the same decision is a no-op; the opposite decision on a decided record is refused.
+    if (current.status !== "REQUESTED") {
+      const approved = ["APPROVED", "APPLIED", "DISBURSED", "FAILED"].includes(current.status);
+      if ((decision === "approve") === approved && (approved || current.status === "DECLINED")) return current;
+      throw new ApiError(`This adjustment was already ${approved ? "approved" : current.status.toLowerCase()}${current.approverName ? ` by ${current.approverName}` : ""}. Reload to see its current status.`, 409);
+    }
     let self: { selfApproved: true; reason: string } | null = null;
     if (current.requesterId === user.userId) {
       // SD3: only when nobody else holds the checker seat for this campus (an accountant never counts).
@@ -173,9 +193,12 @@ export async function recordDisbursement(user: AuthUser, id: string, outcome: "c
   return prisma.$transaction(async (tx) => {
     const adjustment = await tx.financialAdjustment.findFirst({ where: { id, schoolId: user.schoolId, kind: "REFUND", ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) } });
     if (!adjustment) throw new ApiError("Refund not found", 404);
+    if (!(await holdsFinanceDesk(user, adjustment.campusId))) throw new ApiError("Your campus accountant records refund payouts; the campus admin decides them.", 403);
     await tx.$queryRaw`SELECT id FROM financial_adjustments WHERE id = ${adjustment.id} FOR UPDATE`;
     const current = await tx.financialAdjustment.findUniqueOrThrow({ where: { id: adjustment.id } });
-    if (current.status === "DISBURSED" || current.status === "FAILED") return current;
+    // SKAI-2129: a replay of the same outcome is a no-op; a different outcome on a settled payout is refused.
+    if (current.status === (outcome === "confirmed" ? "DISBURSED" : "FAILED")) return current;
+    if (current.status === "DISBURSED" || current.status === "FAILED") throw new ApiError(`This refund payout was already recorded as ${current.status === "DISBURSED" ? "paid out" : "failed"}. Reload to see its current status.`, 409);
     if (current.status !== "APPROVED") throw new ApiError("Only an approved refund can be recorded as paid out.", 409);
     const ref = reference.trim().slice(0, 120);
     if (outcome === "failed") {

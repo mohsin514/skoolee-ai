@@ -134,6 +134,18 @@ export const bookCategorySchema = z.object({
   name: requiredText("Category name", { max: 100 }),
 });
 
+const isbnField = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") return value ?? undefined;
+    const cleaned = value.replace(/[\s-]/g, "").toUpperCase();
+    return cleaned === "" ? undefined : cleaned;
+  },
+  z
+    .string()
+    .regex(/^(\d{9}[\dX]|\d{13})$/, "ISBN must be 10 or 13 digits")
+    .optional()
+);
+
 export const bookSchema = z.object({
   title: requiredText("Title", { max: 200 }),
   author: optionalText("Author", 120),
@@ -143,17 +155,7 @@ export const bookSchema = z.object({
    * on the barcode, and refusing to catalogue a book the librarian is holding
    * is a worse failure than storing a slightly wrong number.
    */
-  isbn: z.preprocess(
-    (value) => {
-      if (typeof value !== "string") return value ?? undefined;
-      const cleaned = value.replace(/[\s-]/g, "").toUpperCase();
-      return cleaned === "" ? undefined : cleaned;
-    },
-    z
-      .string()
-      .regex(/^(\d{9}[\dX]|\d{13})$/, "ISBN must be 10 or 13 digits")
-      .optional()
-  ),
+  isbn: isbnField,
   subject: optionalText("Subject", 100),
   categoryId: optionalId("Category"),
   // Was `totalCopies` on the client against `copiesTotal` on the route, so
@@ -162,6 +164,24 @@ export const bookSchema = z.object({
 });
 
 export const bookFormSchema = bookSchema;
+
+/**
+ * SKAI-2153: the PATCH shape. Every field optional, `id` mandatory. Unlike the create
+ * schema, an empty or null optional field is kept (as null) because it is how a caller
+ * clears the value; `title` stays required-when-present so a book cannot go blank.
+ */
+const clearable = <T extends z.ZodType>(inner: T) =>
+  z.preprocess((value) => (value === "" || value === null ? null : value), z.union([z.null(), inner])).optional();
+
+export const bookPatchSchema = z.object({
+  id: id("Book"),
+  title: bookSchema.shape.title.optional(),
+  author: clearable(optionalText("Author", 120)),
+  isbn: clearable(isbnField),
+  subject: clearable(optionalText("Subject", 100)),
+  categoryId: clearable(optionalId("Category")),
+  copiesTotal: optionalInteger("Copies", { min: 0, max: 10_000 }),
+});
 
 export const libraryMemberSchema = z.object({
   userId: id("Member"),
@@ -339,6 +359,7 @@ export type VehicleInput = z.output<typeof vehicleSchema>;
 export type DormRoomTypeInput = z.output<typeof dormRoomTypeSchema>;
 export type DormRoomInput = z.output<typeof dormRoomSchema>;
 export type BookInput = z.output<typeof bookSchema>;
+export type BookPatchInput = z.output<typeof bookPatchSchema>;
 export type VisitorInput = z.output<typeof visitorSchema>;
 export type ComplaintInput = z.output<typeof complaintSchema>;
 export type PostalInput = z.output<typeof postalSchema>;

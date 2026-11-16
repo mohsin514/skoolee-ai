@@ -1,3 +1,4 @@
+import { minorUnits } from "@/lib/locale/package";
 import { createHash } from "node:crypto";
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
@@ -35,7 +36,9 @@ export async function acceptLibraryCharge(user: AuthUser, chargeId: string) {
     // Same rule as the batch path: a campus with an invoice tax package issues tax documents from Fees generation.
     if (await activationFor(tx, user.schoolId, charge.campusId, today)) throw new ApiError("This campus has an approved invoice tax package. Bill this charge from Fees so a tax document is issued.", 409);
     const id = createHash("sha256").update(`library-charge-invoice:${charge.id}`).digest("hex");
-    const invoice = await tx.invoice.create({ data: { schoolId: user.schoolId, campusId: charge.campusId, studentId: student.id, enrollmentId: student.enrollments[0]?.id ?? null, invoiceNumber: `LIB-${id.slice(0, 20).toUpperCase()}`, currency: charge.currency, invoiceDate: today, dueDate: new Date(today.getTime() + 14 * 86_400_000), monthlyFee: 0, oneTimeFees: charge.amount, subtotal: charge.amount, totalAmount: charge.amount, balanceDue: charge.amount, status: "PENDING" } });
+    // SKAI-2220: library amounts are whole currency units (the desk shows "1,500 PKR"); invoices are minor units.
+    const minor = Math.round(charge.amount * 10 ** minorUnits(charge.currency));
+    const invoice = await tx.invoice.create({ data: { schoolId: user.schoolId, campusId: charge.campusId, studentId: student.id, enrollmentId: student.enrollments[0]?.id ?? null, invoiceNumber: `LIB-${id.slice(0, 20).toUpperCase()}`, currency: charge.currency, invoiceDate: today, dueDate: new Date(today.getTime() + 14 * 86_400_000), monthlyFee: 0, oneTimeFees: minor, subtotal: minor, totalAmount: minor, balanceDue: minor, status: "PENDING" } });
     const claimed = await tx.libraryCharge.updateMany({ where: { id: charge.id, status: "HANDED_TO_FEES", invoiceId: null }, data: { status: "POSTED", invoiceId: invoice.id } });
     if (!claimed.count) throw new ApiError("This charge was decided by someone else. Refresh the queue.", 409);
     await writeAuditEvent(tx, user, { table: "library_charges", recordId: charge.id, action: "UPDATE", campusId: charge.campusId, before: { status: charge.status }, after: { status: "POSTED", invoiceId: invoice.id, amount: charge.amount, currency: charge.currency } });

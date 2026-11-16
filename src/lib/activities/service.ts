@@ -54,6 +54,8 @@ export async function createActivity(user: AuthUser, body: Record<string, unknow
   if (!Number.isInteger(capacity) || capacity < 1 || capacity > 2000) throw new ApiError("Capacity is a whole number of places.", 400);
   if (!Number.isInteger(costAmount) || costAmount < 0) throw new ApiError("The cost is a whole amount (0 for free).", 400);
   const campusId = user.role === "SUPER_ADMIN" ? String(body.campusId ?? user.campusId ?? "") : user.campusId ?? "";
+  // SKAI-2176: a school-wide owner must name a campus of this school; an empty one failed the FK as a misleading 409.
+  if (!campusId || !(await prisma.campus.count({ where: { id: campusId, schoolId: user.schoolId, archivedAt: null } }))) throw new ApiError("Choose a campus for this activity.", 400);
   const classIds = (Array.isArray(body.classIds) ? body.classIds : []).map(String);
   if (classIds.length && await prisma.class.count({ where: { schoolId: user.schoolId, campusId, id: { in: classIds } } }) !== classIds.length) throw new ApiError("Choose classes of this campus.", 400);
   const tripId = body.tripId ? String(body.tripId) : null;
@@ -324,14 +326,16 @@ export async function staffActivities(user: AuthUser) {
   const where: Prisma.ActivityWhereInput = { schoolId: user.schoolId, ...(campusWide ? (user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) : { OR: [{ coordinatorId: user.userId }, { staffIds: { has: user.userId } }] }) };
   const rows = await prisma.activity.findMany({ where, orderBy: { startsAt: "asc" }, take: 100 });
   const counts = rows.length ? await prisma.activityPlace.groupBy({ by: ["activityId", "status"], where: { activityId: { in: rows.map(r => r.id) } }, _count: { _all: true } }) : [];
-  const [classes, trips] = await Promise.all([
+  const [classes, trips, campuses] = await Promise.all([
     prisma.class.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? undefined, archivedAt: null }, select: { id: true, name: true, section: true }, orderBy: { name: "asc" } }),
     prisma.trip.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? undefined, status: "OPEN" }, include: { versions: { orderBy: { version: "desc" }, take: 1, select: { title: true } } } }),
+    // SKAI-2176: an owner without a campus picks one when publishing.
+    user.role === "SUPER_ADMIN" && !user.campusId ? prisma.campus.findMany({ where: { schoolId: user.schoolId, archivedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : Promise.resolve([]),
   ]);
   // canLead: waive, refund hand-off and cancel are offered only to the campus admin (M71), never shown-then-refused.
   // canPublish / canRun: "Publish activity" and the roster's session, attendance and cancel controls are offered only
   // to those the server lets act (§4.5.11) — the principal reads; coordinators and campus operators run.
-  return { activities: rows.map(r => ({ ...r, canRun: isCoordinator(user, r), counts: Object.fromEntries(counts.filter(c => c.activityId === r.id).map(c => [c.status, c._count._all])) })), classes: classes.map(c => ({ id: c.id, name: [c.name, c.section].filter(Boolean).join(" ") })), trips: trips.map(t => ({ id: t.id, title: t.versions[0]?.title ?? "" })), canLead: isCampusOperator(user), canPublish: canPublish(user), currency: (await getLocalePackage(user.schoolId, user.campusId ?? null)).currency };
+  return { activities: rows.map(r => ({ ...r, canRun: isCoordinator(user, r), counts: Object.fromEntries(counts.filter(c => c.activityId === r.id).map(c => [c.status, c._count._all])) })), classes: classes.map(c => ({ id: c.id, name: [c.name, c.section].filter(Boolean).join(" ") })), trips: trips.map(t => ({ id: t.id, title: t.versions[0]?.title ?? "" })), campuses, canLead: isCampusOperator(user), canPublish: canPublish(user), readsCampus: campusWide, currency: (await getLocalePackage(user.schoolId, user.campusId ?? null)).currency };
 }
 
 export async function addSession(user: AuthUser, body: Record<string, unknown>) {

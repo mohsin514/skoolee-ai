@@ -217,7 +217,11 @@ function PrincipalWorkspace({
   const icon = leaf?.icon ?? FALLBACK_ICON[view] ?? LayoutDashboard;
 
   // Read-only profile and class dialogs (the principal assigns teachers; campus ops edit records).
-  const [selectedClass, setSelectedClass] = useState<any>(null);
+  const [selectedClassSnapshot, setSelectedClass] = useState<any>(null);
+  // The dialog follows the reloaded data (like syncSelectedClass on the admin console), so saves show at once.
+  const selectedClass = selectedClassSnapshot
+    ? ((data?.classes ?? []).find((item: any) => item.id === selectedClassSnapshot.id) ?? selectedClassSnapshot)
+    : null;
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [studentSequence, setStudentSequence] = useState<any[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
@@ -371,14 +375,16 @@ function PrincipalWorkspace({
     }
   };
 
-  const handleUpdateSubject = async (_classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => {
+  const handleUpdateSubject = async (_classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }): Promise<boolean> => {
     setSavingSubjectUpdateId(subjectId);
     try {
       await patchJson("/api/subjects", { id: subjectId, ...updates });
       toast.success(ui("Subject updated"));
       await reload();
+      return true;
     } catch (e) {
       toast.error(friendlyErrorMessage(e, ui("Could not save the subject. Please try again.")));
+      return false;
     } finally {
       setSavingSubjectUpdateId(null);
     }

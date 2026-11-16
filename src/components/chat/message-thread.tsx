@@ -22,6 +22,7 @@ import {
   Sparkles,
   PinOff,
   Trash2,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
@@ -45,6 +46,7 @@ import { fill } from "./chat-text";
 import { clockTimeIn, dayLabelIn } from "./message-time";
 import { ErrorState } from "@/components/ui/error-state";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { NewConversationDialog } from "./new-conversation-dialog";
 
 
 
@@ -103,6 +105,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
   // SKAI-1584: withdrawing hides the message for everyone and cannot be undone, so it is confirmed first.
   const [withdrawing, setWithdrawing] = useState<ChatMessageView | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -162,6 +165,9 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
       ? detail.members.find((m) => m.userId !== viewerId)?.lastReadAt
       : null;
 
+  // SKAI-2183: "Seen" only when the counterpart has read the viewer's latest sent message, never an older read time.
+  const latestMine = viewerId ? messages.reduce<string | null>((latest, m) => (m.sender?.id === viewerId && !m.id.startsWith("pending-") && (latest === null || m.createdAt > latest) ? m.createdAt : latest), null) : null;
+  const seenLatest = Boolean(counterpartRead && latestMine && counterpartRead >= latestMine);
   const showBack = Boolean(onBack);
 
   return (
@@ -308,6 +314,16 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                         if (await setPreference(detail.id, { isArchived: !detail.isArchived })) closeConversation();
                       }}
                     />
+                    {detail.kind === "GROUP" && detail.canModerate && (
+                      <MenuItem
+                        icon={UserPlus}
+                        label={ui("Add people")}
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setAddOpen(true);
+                        }}
+                      />
+                    )}
                     {detail.kind !== "DIRECT" && (
                       <>
                         <span className="my-1 block h-px bg-edge/30" aria-hidden />
@@ -423,6 +439,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                         onEdit={() => setEditing(message)}
                         onDelete={() => setWithdrawing(message)}
                         canModerate={detail.canModerate}
+                        canEdit={detail.canPost}
                         language={locale.language}
                         tag={tag}
                         timeZone={timeZone}
@@ -446,7 +463,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
             </div>
           )}
 
-          {detail.kind === "DIRECT" && counterpartRead && messages.length > 0 && (
+          {detail.kind === "DIRECT" && counterpartRead && seenLatest && (
             <p className="mt-2 flex items-center justify-end gap-1 pe-1 text-2xs font-medium tabular-nums text-ink-subtle">
               <CheckCheck className="h-3 w-3 text-primary" />
               {fill(ui("Seen {0}"), [clockTimeIn(counterpartRead, tag, timeZone)])}
@@ -491,6 +508,9 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           if (target) await deleteMessage(target.id);
         }}
       />
+      {detail.kind === "GROUP" && detail.canModerate && (
+        <NewConversationDialog open={addOpen} onClose={() => setAddOpen(false)} addTo={{ conversationId: detail.id, memberIds: detail.members.map((m) => m.userId) }} />
+      )}
     </MotionConfig>
   );
 }
@@ -556,6 +576,7 @@ function MessageBubble({
   onEdit,
   onDelete,
   canModerate,
+  canEdit,
   sendState,
   seen,
   onRetry,
@@ -580,6 +601,7 @@ function MessageBubble({
   onEdit: () => void;
   onDelete: () => void;
   canModerate: boolean;
+  canEdit: boolean;
 }) {
   const isPending = message.id.startsWith("pending-");
   const ui = useUiText();
@@ -671,7 +693,7 @@ function MessageBubble({
           ) : (
             <>
               {message.body && (
-                <p className="whitespace-pre-wrap break-words text-sm font-normal leading-relaxed">
+                <p dir="auto" className="whitespace-pre-wrap wrap-anywhere text-sm font-normal leading-relaxed">
                   {message.body}
                 </p>
               )}
@@ -765,7 +787,7 @@ function MessageBubble({
           )}
         >
           <IconAction icon={CornerUpLeft} label={ui("Reply")} onClick={onReply} />
-          {isMine && <IconAction icon={Pencil} label={ui("Edit")} onClick={onEdit} />}
+          {isMine && canEdit && <IconAction icon={Pencil} label={ui("Edit")} onClick={onEdit} />}
           {(isMine || canModerate) && (
             <IconAction icon={Trash2} label={ui("Withdraw")} onClick={onDelete} destructive />
           )}

@@ -3,11 +3,14 @@ import { NextRequest } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { existingMonthlyStudentInvoices, invoiceGenerationTransaction } from "@/lib/fees/invoice-generation";
 import { invoiceEnrollmentContext } from "@/lib/fees/invoice-context";
+import { monthOutsideCycle } from "@/lib/fees/billing-window";
 import { minorUnits } from "@/lib/locale/package";
 import { activationFor, issueDocuments, taxForActivation } from "@/lib/tax/service";
 import { classYearKey, loadInvoiceGenerationInputs, memoByKey } from "@/lib/fees/invoice-generation-inputs";
 import { calculateInvoiceAmounts, invoiceMonthDates, MAX_INVOICE_MINOR } from "@/lib/school-ai/fee-invoices";
 import { evaluateFeeCap, feeCapDecision } from "@/lib/fees/regulator-cap";
+import { daysOverdue, lateFeeAsOf, lateFeeFor, planOverdueBase } from "@/lib/fees/late-fee";
+import { installmentStates, settledTowardPlan, type Installment } from "@/lib/fees/installments";
 import { generateInvoicesSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
@@ -18,7 +21,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
-import { feeStructureActiveWhere, invoiceBatchStatus, pickStructureForClass } from "@/lib/fees/structure-year";
+import { enrollmentsBilledOneTimeFees, feeStructureActiveWhere, invoiceBatchStatus, pickStructureForClass } from "@/lib/fees/structure-year";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -52,7 +55,7 @@ export async function POST(req: NextRequest) {
 
     const classWhere = { campusId, schoolId: user.schoolId, archivedAt: null, status: "ACTIVE", ...(parsed.data.classId ? { id: parsed.data.classId } : {}) };
 
-    const students = await tx.student.findMany({
+    const classStudents = await tx.student.findMany({
       where: {
         schoolId: user.schoolId, campusId, archivedAt: null,
         status: { equals: "active", mode: "insensitive" },
@@ -64,15 +67,19 @@ export async function POST(req: NextRequest) {
     });
 
     // SKAI-1946: nobody to bill is an empty result, not a missing resource, so it answers 200 with a zero count.
-    if (students.length === 0) return null;
+    if (classStudents.length === 0) return null;
 
-    const existingInvoices = await existingMonthlyStudentInvoices(tx, user.schoolId, campusId, students.map(student => student.id), invoiceDate, nextMonth);
-    if (existingInvoices.length > 0) {
+    const existingInvoices = await existingMonthlyStudentInvoices(tx, user.schoolId, campusId, classStudents.map(student => student.id), invoiceDate, nextMonth, { excludeCancelled: true });
+    // SKAI-2058: a re-run is idempotent per student. Students already billed this month are skipped, so a late joiner still gets an invoice.
+    const billedIds = new Set(existingInvoices.map(invoice => invoice.studentId));
+    const students = classStudents.filter(student => !billedIds.has(student.id));
+    if (students.length === 0) {
       throw new ApiError(
         `Invoices already exist for ${existingInvoices.length} student(s) this month`,
         409
       );
     }
+    const alreadyBilled = classStudents.length - students.length;
 
     const feeStructures = await tx.feeStructure.findMany({
       where: {
@@ -95,6 +102,10 @@ export async function POST(req: NextRequest) {
     const capMode = capSchool?.feeCapMode ?? "OFF";
     const enrollments = await tx.studentEnrollment.findMany({ where: { schoolId: user.schoolId, campusId, studentId: { in: students.map(student => student.id) }, NOT: { origin: { startsWith: "LEGACY" } } }, select: { id: true, studentId: true, classId: true, academicYear: true, startDate: true, endDate: true } });
 
+    // SKAI-2059: the cycle dates of each class's academic year bound the months it can be billed for.
+    const cycles = await tx.academicCycle.findMany({ where: { schoolId: user.schoolId, campusId, academicYear: { in: [...new Set(students.map(student => student.class.academicYear))] } }, select: { academicYear: true, startDate: true, endDate: true } });
+    const cycleByYear = new Map(cycles.map(cycle => [cycle.academicYear, cycle]));
+
     const maxSeq = await tx.invoice.findFirst({
       where: { campusId, invoiceNumber: { startsWith: generateInvoiceNumber(campusId, year, 0).slice(0, -5) } },
       orderBy: { invoiceNumber: "desc" },
@@ -107,14 +118,19 @@ export async function POST(req: NextRequest) {
     const results: Array<{ studentId: string; status: string; error?: string }> = [];
     // SKAI-1814: read every per-student input once for the batch instead of once per student.
     const inputs = await loadInvoiceGenerationInputs(tx, { schoolId: user.schoolId, campusId }, students, Boolean(parsed.data.includeLateFees));
+    // SKAI-2022: the campus's active fine rule (oldest first when several) decides late fees.
+    const fineRule = parsed.data.includeLateFees ? await tx.feeFineRule.findFirst({ where: { schoolId: user.schoolId, campusId, isActive: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { type: true, value: true, graceDays: true } }) : null;
     const enrollmentsByStudent = new Map<string, typeof enrollments>();
     for (const period of enrollments) { const list = enrollmentsByStudent.get(period.studentId); if (list) list.push(period); else enrollmentsByStudent.set(period.studentId, [period]); }
+    // SKAI-2061: loaded only when a legacy structure actually has one-time fees.
+    let oneTimeBilled: Set<string> | undefined;
     const activationOn = memoByKey(day => activationFor(tx, user.schoolId, campusId, new Date(`${day}T00:00:00.000Z`)));
     let localeSnapshot: Awaited<ReturnType<typeof getLocalePackage>> | undefined;
     // SKAI-1968: validated rows are written in bulk after the loop instead of one insert (and one tax document) per student.
     const pending: Array<{ data: Prisma.InvoiceCreateManyInput; packageTax: ReturnType<typeof taxForActivation>; studentName: string }> = [];
 
     for (const student of students) {
+      if (monthOutsideCycle(cycleByYear.get(student.class.academicYear), invoiceDate, nextMonth)) { results.push({ studentId: student.id, status: "error", error: `${parsed.data.generationMonth} is outside this class's academic year.` }); continue; }
       const invoiceContext = invoiceEnrollmentContext((enrollmentsByStudent.get(student.id) ?? []).filter(period => period.classId === student.classId && period.academicYear === student.class.academicYear), invoiceDate, dueDate);
       if (!invoiceContext) { results.push({ studentId: student.id, status: "error", error: "Review enrollment for this billing period before generating an invoice." }); continue; }
       // 1. New-model resolution (FeeGroupAssignment + lines + discounts + carry-forward)
@@ -186,8 +202,16 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
+        // SKAI-2099: a per-class invoice cannot bill or apply a carry-forward, so refuse it like the fee-group path.
+        if (inputs.carryForwardByStudentYear.get(classYearKey(student.id, student.class.academicYear))?.balance) { results.push({ studentId: student.id, status: "error", error: "Review carry-forward allocation before generating another invoice." }); continue; }
+
         currency = feeStructure.currency;
-        const oneTimeFees: Record<string, number> = (feeStructure.oneTimeFeesJson as Record<string, number>) ?? {};
+        // SKAI-2061: a one-time fee is billed once per enrolment, on its first invoice.
+        let oneTimeFees: Record<string, number> = (feeStructure.oneTimeFeesJson as Record<string, number>) ?? {};
+        if (Object.keys(oneTimeFees).length) {
+          oneTimeBilled ??= await enrollmentsBilledOneTimeFees(tx, user.schoolId, students.map(s => s.id));
+          if (oneTimeBilled.has(invoiceContext.enrollmentId)) oneTimeFees = {};
+        }
         oneTimeTotal = Object.values(oneTimeFees).reduce((sum, v) => sum + v, 0);
 
         const grossDues: Record<string, number> = (feeStructure.discountRulesJson as Record<string, number>) ?? {};
@@ -209,16 +233,11 @@ export async function POST(req: NextRequest) {
           const prevInvoice = inputs.latestOpenInvoiceByStudent.get(student.id);
           if (prevInvoice && prevInvoice.currency !== currency) { results.push({ studentId: student.id, status: "error", error: "Cannot combine late fees across currencies" }); continue; }
           if (prevInvoice) {
-            const daysOverdue = Math.floor((invoiceDate.getTime() - prevInvoice.dueDate.getTime()) / (1000 * 60 * 60 * 24));
-            if (daysOverdue > 0) {
-              const monthsOverdue = Math.ceil(daysOverdue / 30);
-              let lateBase = prevInvoice.balanceDue;
-              for (let i = 0; i < monthsOverdue; i++) {
-                const fee = Math.round(lateBase * (feeStructure.lateFeePercentage ?? 2.0) / 100);
-                lateFeeAmount += fee;
-                if (feeStructure.compoundLateFee) lateBase += fee;
-              }
-            }
+            const asOf = lateFeeAsOf(invoiceDate, new Date());
+            // SKAI-2207: an approved plan replaces the invoice due date; only past-due instalments are charged.
+            const plan = prevInvoice.paymentPlans?.[0]?.installmentsJson as Installment[] | undefined;
+            const base = plan ? planOverdueBase(installmentStates(plan, settledTowardPlan(plan, prevInvoice.balanceDue), asOf.toISOString().slice(0, 10)), asOf.toISOString().slice(0, 10)) : { dueDate: prevInvoice.dueDate, balanceDue: prevInvoice.balanceDue };
+            if (base) lateFeeAmount = lateFeeFor(daysOverdue(asOf, base.dueDate), base.balanceDue, fineRule, { percentage: feeStructure.lateFeePercentage ?? 2.0, compound: Boolean(feeStructure.compoundLateFee) });
           }
         }
       }
@@ -257,7 +276,8 @@ export async function POST(req: NextRequest) {
           totalAmount,
           totalAmountPaid: 0,
           balanceDue: totalAmount,
-          status: "PENDING",
+          // SKAI-2024: a fully discounted charge owes nothing, so it is settled like an adjustment that brings the balance to 0.
+          status: totalAmount === 0 ? "PAID" : "PENDING",
         },
       });
       results.push({ studentId: student.id, status: "generated" });
@@ -288,7 +308,7 @@ export async function POST(req: NextRequest) {
     const generated = results.filter((r) => r.status === "generated").length;
     const errors = results.filter((r) => r.error);
 
-    return { generated, errors, totalStudents: students.length, className: students[0]?.class?.name };
+    return { generated, errors, alreadyBilled, totalStudents: students.length, className: students[0]?.class?.name };
     });
     if (!committed) {
       return Response.json({ success: false, error: "No active students found for this class/campus", totalStudents: 0, generated: 0, errors: [] });
@@ -317,6 +337,7 @@ export async function POST(req: NextRequest) {
         success: true,
         totalStudents: committed.totalStudents,
         generated,
+        alreadyBilled: committed.alreadyBilled,
         errors,
         message: `Generated ${generated} invoices for ${parsed.data.generationMonth}`,
       },

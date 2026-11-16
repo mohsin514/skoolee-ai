@@ -2608,7 +2608,7 @@ html[data-step-direction="back"]::view-transition-new(sk-step-card) { animation-
   .sk-follow-up-icon > svg { inline-size: .9375rem; block-size: .9375rem; }
 
   /* ── School readiness ("launch control", ReadinessHome) ── */
-  .sk-launch { display: grid; gap: 1.25rem; inline-size: 100%; max-inline-size: 72rem; min-width: 0; margin-inline: auto; padding: .75rem 1rem 3rem; container-type: inline-size; }
+  .sk-launch { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; inline-size: 100%; max-inline-size: 72rem; min-width: 0; margin-inline: auto; padding: .75rem 1rem 3rem; container-type: inline-size; }
   @media (min-width: 640px) { .sk-launch { padding: 1.25rem 1.5rem 4rem; } }
   .sk-launch-hero { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 1.5rem; border-radius: var(--radius-panel); border: 1px solid var(--brand-100); background: radial-gradient(80% 120% at 100% 0%, color-mix(in srgb, var(--brand-600) 10%, transparent), transparent 60%), hsl(var(--card)); box-shadow: var(--shadow-sm); }
   @media (min-width: 640px) { .sk-launch-hero { padding: 2rem; } }

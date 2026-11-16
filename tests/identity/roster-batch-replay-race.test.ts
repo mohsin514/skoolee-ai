@@ -88,3 +88,25 @@ test("a denied role cannot submit", async () => {
   const teacher = { userId: "t", role: "TEACHER", schoolId: "school-a", campusId: "campus-a", kind: "CAMPUS" } as never;
   await assert.rejects(() => submitBatch(teacher, body("a")), (e: { status?: number }) => e.status === 403);
 });
+
+// SKAI-2122: numeric ids are coerced to text; bad types are a 400; a failed preview leaves no batch behind.
+test("numeric externalId and admissionNo are stored as text", async () => {
+  batches.length = 0;
+  const { submitBatch } = await svc();
+  const b = { connectionId: "conn-a", campusId: "campus-a", externalBatchId: "NUM-1", rows: [{ kind: "student", externalId: 7001, admissionNo: 2024001, fullName: "N" }] };
+  const out = await submitBatch(admin(), b);
+  assert.equal(out.replayed, false);
+  const stored = (batches[0] as unknown as { rows?: { externalId: unknown; admissionNo: unknown }[] }).rows;
+  assert.ok(stored);
+  assert.strictEqual(stored[0].externalId, "7001");
+  assert.strictEqual(stored[0].admissionNo, "2024001");
+  const again = await submitBatch(admin(), { ...b, rows: [{ kind: "student", externalId: "7001", admissionNo: "2024001", fullName: "N" }] });
+  assert.equal(again.replayed, true);
+});
+
+test("an object externalId is a 400 and stores no batch", async () => {
+  batches.length = 0;
+  const { submitBatch } = await svc();
+  await assert.rejects(() => submitBatch(admin(), { connectionId: "conn-a", campusId: "campus-a", externalBatchId: "BAD-1", rows: [{ kind: "student", externalId: { a: 1 } }] }), (e: { status?: number }) => e.status === 400);
+  assert.equal(batches.length, 0);
+});

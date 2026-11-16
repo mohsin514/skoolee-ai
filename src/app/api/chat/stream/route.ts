@@ -1,4 +1,5 @@
 import { getAuthUser } from "@/lib/auth";
+import { campusBoundChatRole } from "@/lib/chat/membership";
 import { chatChannel, clearPresence, markPresent } from "@/lib/chat/realtime";
 import { resolveRedisUrl, warnRealtimeDisabledOnce } from "@/lib/queue/redis-config";
 import { realtimeOffResponse } from "@/lib/queue/sse-fallback";
@@ -36,6 +37,10 @@ export async function GET(req: Request) {
   // stream them — and no presence mark to set, which is what the send path
   // consults to decide between a live push and a notification.
   if (user.role === "APP_OWNER") return new Response("Forbidden", { status: 403 });
+
+  // SKAI-2165: the same gate the chat API applies. A campus-bound account with no campus is denied every read, so it
+  // gets no live events either.
+  if (campusBoundChatRole(user.role) && !user.campusId) return new Response("Forbidden", { status: 403 });
 
   const userId = user.userId;
 

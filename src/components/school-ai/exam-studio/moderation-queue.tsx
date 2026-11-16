@@ -12,6 +12,7 @@ import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
 import { studioSlotsCopy } from "@/lib/school-ai/exam-studio-copy-slots";
 import { studioHomeCopy } from "@/lib/school-ai/exam-studio-copy-home";
 import type { SlotView } from "@/lib/school-ai/paper-slot-service";
+import { moderatorQueue, queueView } from "@/lib/school-ai/moderation-queue-state";
 import { ModerationPanel } from "./moderation-panel";
 
 /** SKO-501: papers waiting for this person's moderation (renders nothing when there are none). */
@@ -39,7 +40,7 @@ export function ModerationQueue() {
       const payload = await response.json().catch(() => { throw new RequestFailure("server", response.status); });
       if (!Array.isArray(payload?.slots)) throw new RequestFailure("server", response.status);
       if (request !== sequence.current) return;
-      setSlots((payload.slots as SlotView[]).filter(slot => slot.moderatorUserId === payload.viewerId && ["READY_FOR_REVIEW", "NEEDS_CORRECTION", "MODERATED", "SEALED", "CHANGED_AFTER_APPROVAL"].includes(slot.status)));
+      setSlots(moderatorQueue({ viewerId: payload.viewerId, slots: payload.slots as SlotView[] }));
       setFailure(null);
     } catch (error) {
       if (request === sequence.current) setFailure(requestFailure(error));
@@ -49,16 +50,16 @@ export function ModerationQueue() {
   }, []);
   useEffect(() => { void load(); }, [load]);
   // A denied role has no moderation queue to show; it is not an error for them.
-  if (failure?.kind === "denied") return null;
-  if (slots === null) {
-    if (!failure) return <p role="status" className="text-sm text-ink-muted">{t.moderateLoading}</p>;
+  const view = queueView({ slots, failure });
+  if (view === "denied" || view === "hidden") return null;
+  if (view === "loading") return <p role="status" className="text-sm text-ink-muted">{t.moderateLoading}</p>;
+  if (view === "failed") {
     return <section id="moderation-queue" className="sk-panel scroll-mt-24 space-y-3 p-4 sm:p-5" aria-labelledby="moderation-queue-title" data-moderation-queue data-queue-state="failed">
       <h2 id="moderation-queue-title" className="flex items-center gap-2 text-lg font-bold"><FileCheck2 aria-hidden="true" className="size-5 text-primary" />{t.moderateTitle}</h2>
       <ErrorState error={failure} onRetry={load} variant="panel" />
     </section>;
   }
-  // A successful empty list is a valid state with nothing to show, as before.
-  if (!slots.length && !failure) return null;
+  if (slots === null) return null; // a "list" view always has loaded papers
   return <section id="moderation-queue" className="sk-panel scroll-mt-24 space-y-3 p-4 sm:p-5" aria-labelledby="moderation-queue-title" data-moderation-queue>
     <h2 id="moderation-queue-title" className="flex items-center gap-2 text-lg font-bold"><FileCheck2 aria-hidden="true" className="size-5 text-primary" />{t.moderateTitle}</h2>
     {failure ? <div role="alert" data-queue-refresh-failed className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-3 text-sm">

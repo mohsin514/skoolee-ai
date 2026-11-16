@@ -57,16 +57,17 @@ export async function loadInvoiceGenerationInputs(tx: InputsTx, scope: { schoolI
   const explicitAssignments = newModelIds.length
     ? await tx.feeDiscountAssignment.findMany({ where: { schoolId, studentId: { in: newModelIds } }, include: { discount: { select: discountSelect } } })
     : [];
-  const carryForwards = newModelIds.length
-    ? await tx.feeCarryForward.findMany({ where: { schoolId, studentId: { in: newModelIds }, toAcademicYear: { in: years } } })
+  // SKAI-2099: per-class (legacy) structures read carry-forwards too, so the batch can refuse a balance it cannot bill.
+  const carryForwards = studentIds.length
+    ? await tx.feeCarryForward.findMany({ where: { schoolId, studentId: { in: studentIds }, toAcademicYear: { in: years } } })
     : [];
 
   const legacyIds = includeLateFees ? studentIds.filter(id => !newModelIdSet.has(id)) : [];
   const openInvoices = legacyIds.length
     ? await tx.invoice.findMany({
-        where: { schoolId, studentId: { in: legacyIds }, status: { in: ["PENDING", "OVERDUE"] } },
+        where: { schoolId, studentId: { in: legacyIds }, status: { in: ["PENDING", "PARTIAL", "OVERDUE"] } },
         orderBy: { dueDate: "desc" },
-        select: { studentId: true, currency: true, dueDate: true, balanceDue: true },
+        select: { studentId: true, currency: true, dueDate: true, balanceDue: true, paymentPlans: { where: { status: "active" }, select: { installmentsJson: true }, take: 1 } },
       })
     : [];
 

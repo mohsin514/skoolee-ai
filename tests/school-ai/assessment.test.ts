@@ -101,20 +101,20 @@ test("recorded item review state and an invalidated figure check block paper app
   const { curriculum, paper } = assessmentFixture();
   // One reviewed item puts the paper under the workbench, so its unreviewed siblings now block.
   paper.questions[0].review = approvedReview(1);
-  assert.match(validatePaperApproval(paper, curriculum).join(" "), /Not approved: q2, q3\./);
+  assert.match(validatePaperApproval(paper, curriculum).join(" "), /Not approved: Question 2, Question 3\./);
   for (const question of paper.questions) question.review = approvedReview(1);
   assert.deepEqual(validatePaperApproval(paper, curriculum), []);
   // R4.10: every state other than APPROVED blocks, including the one awaiting an approver.
   paper.questions[2].review = { state: "READY_FOR_REVIEW", itemRevision: 2, invalidated: [], history: [{ state: "READY_FOR_REVIEW", actorId: "author-1", at }] };
-  assert.match(validatePaperApproval(paper, curriculum).join(" "), /Not approved: q3\./);
+  assert.match(validatePaperApproval(paper, curriculum).join(" "), /Not approved: Question 3\./);
   // R6.2: a figure change invalidates that item's figure check, which the figure's own flag cannot express.
   paper.questions[2].review = { ...approvedReview(2), invalidated: [{ artifact: "FIGURE_CHECK", trigger: "FIGURES", actorId: "author-1", at }] };
   const figureErrors = validatePaperApproval(paper, curriculum);
-  assert.match(figureErrors.join(" "), /Question q3: a figures change invalidated the figure check at 2026-10-12T10:00:00.000Z\./);
+  assert.match(figureErrors.join(" "), /Question 3: a figures change invalidated the figure check at 2026-10-12T10:00:00.000Z\./);
   assert.equal(figureErrors.some((error) => /Not approved/.test(error)), false);
   // An approval recorded against an earlier item revision is not an approval of this item.
   paper.questions[2].review = { ...approvedReview(2), approvedBy: { actorId: "approver-1", at, itemRevision: 1 } };
-  assert.match(validatePaperApproval(paper, curriculum).join(" "), /Question q3: the recorded approval belongs to an earlier item revision\./);
+  assert.match(validatePaperApproval(paper, curriculum).join(" "), /Question 3: the recorded approval belongs to an earlier item revision\./);
 });
 test("form set, item groups and staleness are bounded, and no boundary can forge an item approval", () => {
   const { paper } = assessmentFixture();
@@ -128,4 +128,12 @@ test("form set, item groups and staleness are bounded, and no boundary can forge
   assert.equal(Object.hasOwn(prepareGeneratedQuestions([forged], [])[0], "review"), false);
   assert.deepEqual(prepareGeneratedQuestions([forged], [{ ...forged, locked: true }]), [{ ...forged, locked: true }]);
   assert.equal(JSON.stringify(candidatePaper({ ...withSet, questions: [forged, ...paper.questions.slice(1)] })).includes("review"), false);
+});
+
+test("SKAI-2048: paper issues name questions by number and localise in Arabic", async () => {
+  const { localizePaperIssue, localizePaperIssues } = await import("../../src/lib/school-ai/paper-issue-copy");
+  assert.equal(localizePaperIssue("Question 4 needs a model answer.", "ar"), "السؤال 4 يحتاج إلى إجابة نموذجية.");
+  assert.equal(localizePaperIssue("Question 4 needs a model answer.", "en"), "Question 4 needs a model answer.");
+  assert.equal(localizePaperIssues("Question 2 has no prompt. Question 3: rubric criteria must total the question marks.", "ar"), "السؤال 2 بلا نص. السؤال 3: يجب أن يساوي مجموع معايير التصحيح درجات السؤال.");
+  assert.equal(localizePaperIssue("Something new.", "ar"), "Something new.");
 });

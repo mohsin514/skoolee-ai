@@ -67,10 +67,12 @@ import {
 } from "lucide-react";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { apiErrorMessage } from "@/lib/errors";
+import { apiFieldErrors, type StudentEditFieldErrors } from "@/lib/students/profile-update";
 import { downloadCSV } from "@/lib/csv";
 import { getCampusDashboardData } from "@/app/actions/dashboard";
 import { createLatestOnlyLoader, mergeStudentEdit, mergeSubjectEdit, mergeTeacherEdit } from "@/lib/dashboard/console-data-merge";
-import { cancelInvitation, removeStaff, resendInvitation } from "@/app/actions/invite";
+import { cancelInvitationResult, removeStaffResult, resendInvitationResult } from "@/app/actions/invite";
+import { unwrapActionResult } from "@/lib/staff/action-result";
 import { RoleShell } from "@/components/role-dashboard";
 import { CommandCentreSkeleton, PAGE_CARD_BODY, PageSkeleton, RoleShellSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
 import { useConsoleView, WORKSPACE_VIEW_CHANGE } from "@/components/nav/useConsoleView";
@@ -113,7 +115,6 @@ import {
   groupClasses,
   LeadershipPanel,
   LeaveManagementPanel,
-  MoveStudentModal,
   PeriodsPanel,
   RolePermissionsPanel,
   StudentDetailModal,
@@ -270,7 +271,7 @@ function replaceConsoleView(view: string, tab?: string | null) {
  * server action ignores the extra argument; the reason is still asked for, because revoking access is a
  * membership decision (R3, §4.5.5).
  */
-const revokeStaff = removeStaff as (userId: string, reason?: string) => ReturnType<typeof removeStaff>;
+const revokeStaff = removeStaffResult as (userId: string, reason?: string) => ReturnType<typeof removeStaffResult>;
 
 /**
  * Staff rows hand over either a readable label ("Admin", "Teacher") or the raw role ("ACCOUNTANT"); the
@@ -309,7 +310,6 @@ export default function CampusConsolePage() {
   const [showAdmissionForm, setShowAdmissionForm] = useState(false);
   const [admissionClassId, setAdmissionClassId] = useState("");
   const [bulkImportClassId, setBulkImportClassId] = useState("");
-  const [movingStudent, setMovingStudent] = useState<any>(null);
   const [selectedClass, setSelectedClass] = useState<any>(null);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   // Set when a category or group card asks to see its students, cleared as soon as the roster has taken
@@ -321,8 +321,6 @@ export default function CampusConsolePage() {
   const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
   const [inviteRole, setInviteRole] = useState<StaffInviteRole | null>(null);
   const [showInviteChooser, setShowInviteChooser] = useState(false);
-  const [moveClassId, setMoveClassId] = useState("");
-  const [movingStudentBusy, setMovingStudentBusy] = useState(false);
   const [savingClassTeacherId, setSavingClassTeacherId] = useState<string | null>(null);
   const [savingSubjectId, setSavingSubjectId] = useState<string | null>(null);
   const [creatingSubjectClassId, setCreatingSubjectClassId] = useState<string | null>(null);
@@ -412,11 +410,6 @@ export default function CampusConsolePage() {
     setShowAdmissionForm(true);
   };
 
-  const openMoveStudent = (student: any) => {
-    setMovingStudent(student);
-    setMoveClassId("");
-  };
-
   const syncSelectedClass = (nextData: any, classId: string) => {
     const nextClass = nextData?.classes?.find((item: any) => item.id === classId);
     if (nextClass) setSelectedClass(nextClass);
@@ -477,31 +470,6 @@ export default function CampusConsolePage() {
     }
   };
 
-  const handleMoveStudent = async () => {
-    if (!movingStudent || !moveClassId || moveClassId === (movingStudent.class?.id || movingStudent.classId)) return;
-    setMovingStudentBusy(true);
-    const failed = ui("Could not move the student. Please try again.");
-    try {
-      const res = await fetch("/api/students", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: movingStudent.id, classId: moveClassId }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
-      const moved = result.data;
-      const cls = moved?.class ? [moved.class.name, moved.class.section].filter(Boolean).join(" ") : "";
-      toast.success(moved?.rollNo ? ui("Moved to {0}. New roll number: {1}", [cls, moved.rollNo]) : ui("Student moved"));
-      setMovingStudent(null);
-      setMoveClassId("");
-      await loadData();
-    } catch (error) {
-      toast.error(friendlyErrorMessage(error, failed));
-    } finally {
-      setMovingStudentBusy(false);
-    }
-  };
-
   const reportClashes = (clashes: any[] | undefined) => {
     (clashes || []).forEach((c: any) => toast.warning(c?.teacherName && c?.label ? ui("{0} already teaches at {1}", [c.teacherName, c.label]) : ui("This teacher already has a lesson at this time")));
   };
@@ -550,7 +518,7 @@ export default function CampusConsolePage() {
         body: JSON.stringify({
           classId,
           name: subject.name.trim(),
-          totalMarks: subject.totalMarks || 100,
+          totalMarks: subject.totalMarks ?? 100,
           teacherId: subject.teacherId || undefined,
           applyToAllSections: subject.applyToAllSections || undefined,
           code: subject.code?.trim() || undefined,
@@ -717,7 +685,7 @@ export default function CampusConsolePage() {
       cancelLabel: ui("Keep access"),
       requireReason: { label: ui("Why are you revoking access?"), minLength: 10 },
       run: async (reason) => {
-        await revokeStaff(userId, reason);
+        unwrapActionResult(await revokeStaff(userId, reason));
         toast.success(ui("{0} access revoked", [roleLabel]));
         await loadData();
       },
@@ -726,7 +694,7 @@ export default function CampusConsolePage() {
 
   const handleResendInvite = async (inviteId: string) => {
     try {
-      await resendInvitation(inviteId);
+      unwrapActionResult(await resendInvitationResult(inviteId));
       toast.success(ui("Invitation resent"));
       await loadData();
     } catch (error) {
@@ -741,7 +709,7 @@ export default function CampusConsolePage() {
       confirmLabel: ui("Cancel invitation"),
       cancelLabel: ui("Keep invitation"),
       run: async () => {
-        await cancelInvitation(inviteId);
+        unwrapActionResult(await cancelInvitationResult(inviteId));
         toast.success(ui("Invitation cancelled"));
         await loadData();
       },
@@ -855,13 +823,18 @@ export default function CampusConsolePage() {
     }
   };
 
-  const handleUpdateStudent = async (studentId: string, updates: Record<string, any>) => {
+  const handleUpdateStudent = async (studentId: string, updates: Record<string, any>): Promise<void | StudentEditFieldErrors> => {
     setSavingStudentUpdate(true);
     const failed = ui("Could not save the student's changes. Please try again.");
     try {
       const res = await fetch("/api/students", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: studentId, ...updates }) });
       const result = await res.json();
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      if (!res.ok) {
+        // SKAI-2094: a 400 that names fields is shown on those fields, not only as a generic toast.
+        const fields = res.status === 400 ? apiFieldErrors(result.details) : {};
+        if (Object.keys(fields).length) { toast.error(ui("Please correct the highlighted fields.")); return fields; }
+        throw new Error(apiErrorMessage(result.error, failed));
+      }
       toast.success(ui("Student updated"));
       setSelectedStudent((current: any) => (current?.id === studentId ? { ...current, ...result.data } : current));
       await applyLocalEdit((current) => mergeStudentEdit(current, studentId, result.data));
@@ -872,7 +845,7 @@ export default function CampusConsolePage() {
     }
   };
 
-  const handleUpdateSubject = async (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number; code?: string; isElective?: boolean; archived?: boolean }) => {
+  const handleUpdateSubject = async (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number; code?: string; isElective?: boolean; archived?: boolean }): Promise<boolean> => {
     setSavingSubjectUpdateId(subjectId);
     const failed = ui("Could not save the subject changes. Please try again.");
     try {
@@ -882,8 +855,10 @@ export default function CampusConsolePage() {
       toast.success(ui("Subject updated"));
       const nextData = await applyLocalEdit((current) => mergeSubjectEdit(current, classId, subjectId, updates, result.data));
       syncSelectedClass(nextData, classId);
+      return true;
     } catch (error) {
       toast.error(friendlyErrorMessage(error, failed));
+      return false;
     } finally {
       setSavingSubjectUpdateId(null);
     }
@@ -1034,18 +1009,6 @@ export default function CampusConsolePage() {
         />
       ) : null}
 
-      {data && movingStudent ? (
-        <MoveStudentModal
-          student={movingStudent}
-          classes={data.classes}
-          classId={moveClassId}
-          busy={movingStudentBusy}
-          onClassChange={setMoveClassId}
-          onClose={() => setMovingStudent(null)}
-          onSave={handleMoveStudent}
-        />
-      ) : null}
-
       {data && selectedClass ? (
         <ClassManager
           cls={selectedClass}
@@ -1091,7 +1054,7 @@ export default function CampusConsolePage() {
             if (next) setSelectedStudent(next);
           }}
           onClose={() => setSelectedStudent(null)}
-          onMove={() => { openMoveStudent(selectedStudent); setSelectedStudent(null); }}
+          onMove={() => { window.location.assign(`/pupils/${selectedStudent.id}`); }}
           onDelete={handleDeleteStudent}
           onUpdate={handleUpdateStudent}
           onOpenGuardians={() => {

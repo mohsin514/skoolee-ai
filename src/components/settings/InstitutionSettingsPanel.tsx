@@ -441,7 +441,8 @@ function SchoolDialog({
     setSaving(true);
     try {
       const payload = Object.fromEntries(changes.map(key => [key, (form as unknown as Record<string, unknown>)[key] ?? ""]));
-      await updateSchoolDetails({ expectedRevision: form.revision, ...payload });
+      const result = await updateSchoolDetails({ expectedRevision: form.revision, ...payload });
+      if (!result.success) throw new Error(result.error);
       toast.success(tr("School details updated. Current screens now use the new information."));
       draft.markSaved();
       await onSaved();
@@ -488,12 +489,12 @@ function SchoolDialog({
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field id="s-name" label={tr("School Name")} required icon={GraduationCap} value={form.name} placeholder={tr("e.g. Horizon Academy")} onChange={(v) => set("name", v)} />
-          <Field id="s-tagline" label={tr("Tagline / Motto")} icon={Tag} value={form.tagline} placeholder={tr("Optional")} onChange={(v) => set("tagline", v)} />
+          <Field id="s-name" maxLength={120} label={tr("School Name")} required icon={GraduationCap} value={form.name} placeholder={tr("e.g. Horizon Academy")} onChange={(v) => set("name", v)} />
+          <Field id="s-tagline" maxLength={160} label={tr("Tagline / Motto")} icon={Tag} value={form.tagline} placeholder={tr("Optional")} onChange={(v) => set("tagline", v)} />
           <Field id="s-name-ur" dir="rtl" lang="ur" label={tr("Official name (Urdu)")} icon={GraduationCap} value={form.nameUr} placeholder={tr("Optional")} onChange={(v) => set("nameUr", v)} />
           <Field id="s-name-ar" dir="rtl" lang="ar" label={tr("Official name (Arabic)")} icon={GraduationCap} value={form.nameAr} placeholder={tr("Optional")} onChange={(v) => set("nameAr", v)} />
           <Field id="s-short" label={tr("Short name")} icon={Tag} value={form.shortName} placeholder={tr("e.g. HA")} onChange={(v) => set("shortName", v.slice(0, 24))} />
-          <Field id="s-city" label={tr("City")} required icon={MapPin} value={form.city} placeholder={tr("e.g. Lahore")} onChange={(v) => set("city", v)} />
+          <Field id="s-city" maxLength={80} label={tr("City")} required icon={MapPin} value={form.city} placeholder={tr("e.g. Lahore")} onChange={(v) => set("city", v)} />
           <Field id="s-phone" label={tr("Phone")} icon={Phone} value={form.phone} placeholder="+92 300 0000000" onChange={(v) => set("phone", v)} />
           <Field id="s-website" label={tr("Website")} icon={Globe} value={form.website} placeholder={tr("www.school.edu.pk")} onChange={(v) => set("website", v)} />
           <Field id="s-year" label={tr("Established")} icon={CalendarDays} value={form.establishedYear} placeholder="e.g. 1998" onChange={(v) => set("establishedYear", v.replace(/[^\d]/g, "").slice(0, 4))} />
@@ -501,7 +502,7 @@ function SchoolDialog({
 
         <BrandColorPicker value={form.brandColor} onChange={(v) => set("brandColor", v)} />
 
-        <Field id="s-address" label={tr("Address")} icon={MapPin} value={form.address} placeholder={tr("Street address")} onChange={(v) => set("address", v)} />
+        <Field id="s-address" maxLength={300} label={tr("Address")} icon={MapPin} value={form.address} placeholder={tr("Street address")} onChange={(v) => set("address", v)} />
 
         <div className="space-y-1.5">
           <Label htmlFor="s-tz" className="sk-field-label"><UiText>{"Original Time Zone"}</UiText></Label>
@@ -529,7 +530,7 @@ function SchoolDialog({
             { icon: Hash, label: tr("School ID"), value: school.regId },
             { icon: Mail, label: tr("Contact Email"), value: school.contactEmail },
           ]}
-          note="The school ID prints on report cards, invoices and receipts, and the contact email identifies the owner account. Neither can be changed here."
+          note={tr("The school ID prints on report cards, invoices and receipts, and the contact email identifies the owner account. Neither can be changed here.")}
         />
       </div>
     </Modal>
@@ -624,8 +625,8 @@ function CampusDialog({
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field id="c-name" label={tr("Campus Name")} required icon={Building2} value={form.name} placeholder={tr("e.g. Main Campus")} onChange={(v) => set("name", v)} />
-          <Field id="c-city" label={tr("City")} required icon={MapPin} value={form.city} placeholder={tr("e.g. Lahore")} onChange={(v) => set("city", v)} />
+          <Field id="c-name" maxLength={120} label={tr("Campus Name")} required icon={Building2} value={form.name} placeholder={tr("e.g. Main Campus")} onChange={(v) => set("name", v)} />
+          <Field id="c-city" maxLength={100} label={tr("City")} required icon={MapPin} value={form.city} placeholder={tr("e.g. Lahore")} onChange={(v) => set("city", v)} />
           <Field id="c-phone" label={tr("Phone")} icon={Phone} value={form.phone} placeholder="+92 42 0000000" onChange={(v) => set("phone", v)} />
           <Field id="c-email" label={tr("Campus Email")} icon={Mail} value={form.email} placeholder={tr("campus@school.edu.pk")} onChange={(v) => set("email", v)} />
           <Field id="c-website" label={tr("Website")} icon={Globe} value={form.website} placeholder={tr("Optional")} onChange={(v) => set("website", v)} />
@@ -752,9 +753,10 @@ function LogoPicker({
 }
 
 function Field({
-  id, label, value, placeholder, onChange, icon: Icon, required, dir, lang,
+  id, label, value, placeholder, onChange, icon: Icon, required, dir, lang, maxLength,
 }: {
   dir?: "rtl" | "ltr";
+  maxLength?: number;
   lang?: string;
   id: string;
   label: string;
@@ -778,6 +780,7 @@ function Field({
           onChange={(e) => onChange(e.target.value)}
           dir={dir}
           lang={lang}
+          maxLength={maxLength}
           className="w-full ps-10 pe-4 placeholder:text-ink-subtle"
         />
       </InputGroup>

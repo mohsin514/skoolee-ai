@@ -11,7 +11,7 @@ test("SKAI-1741: the access-plan review queue includes every expired or near-exp
   assert.doesNotMatch(line, /take:/, "no 100-row cap");
   assert.match(line, /where: \{ schoolId: user\.schoolId, status: "ACTIVE", \.\.\.campus, validUntil: \{ lt: new Date\(now\.getTime\(\) \+ 14 \* 86_400_000\) \} \}/, "school + campus scope unchanged");
   assert.match(line, /orderBy: \[\{ validUntil: "asc" \}, \{ id: "asc" \}\]/, "expired first, deterministic tie-break");
-  assert.match(body, /if \(!isApprover\(user\)\) throw new ApiError\("Only designated staff can manage access plans\.", 403\);/, "role denial unchanged");
+  assert.match(body, /if \(!\(await isApprover\(user\)\)\) throw new ApiError\("Only designated staff can manage access plans\.", 403\);/, "role denial unchanged");
   assert.match(body, /const campus = user\.role === "SUPER_ADMIN" \? \{\} : \{ campusId: user\.campusId \?\? "" \};/);
 });
 

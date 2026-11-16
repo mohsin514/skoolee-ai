@@ -39,6 +39,7 @@ function activePermissionVersion(versions: Array<{ id: string; permissions: unkn
 }
 
 const STALE_PREVIEW_MESSAGE = "Access changed after the preview. Review the latest permissions again.";
+const REVOKED_FINAL_MESSAGE = "A revoked guardian relationship cannot be reactivated. Send a new invitation instead.";
 
 /** SKAI-1471: the Postgres exclusion violation for overlapping access intervals (SQLSTATE 23P01), a lost race rather than a server fault. */
 function isOverlapConflict(error: unknown) {
@@ -163,6 +164,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ? await prisma.guardianRelationship.findFirst({ where: { id: input.relationshipId, schoolId: user.schoolId, studentId }, include: { accessVersions: { orderBy: { effectiveFrom: "desc" } } } })
         : null;
       if (input.relationshipId && !relationship) throw new ApiError("Guardian relationship not found", 404);
+      // SKAI-2049: revocation is final. Restoring access needs a new invitation that the guardian accepts.
+      if (relationship?.status === "REVOKED" && input.status && input.status !== "REVOKED") throw new ApiError(REVOKED_FINAL_MESSAGE, 409);
       // SKAI-1686: the draft lookup, duplicate check and create run under one lock per school, child and email, so
       // two concurrent previews for a new guardian leave one DRAFT: the same registrar's retry reuses it and any
       // other request sees it as an existing relationship (409).
@@ -234,6 +237,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const effectiveFrom = new Date(change.effectiveFrom);
       const permissions = parseGuardianPermissions(change.permissions);
       const finalStatus = relation.status === "DRAFT" ? "INVITED" : change.status;
+      if (relation.status === "REVOKED" && finalStatus !== "REVOKED") throw new ApiError(REVOKED_FINAL_MESSAGE, 409);
       if (!["INVITED", "ACTIVE", "SUSPENDED", "REVOKED"].includes(finalStatus) || finalStatus === "ACTIVE" && !relation.verifiedAt) {
         throw new ApiError("A guardian must accept the invitation before access can be activated", 409);
       }

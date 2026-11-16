@@ -12,7 +12,7 @@ const s = (title: string, body: string) => ({ title, body });
 export const TRUST_INFO: Record<Language, Record<TrustInfoId, TrustInfoDoc>> = {
   en: {
     security: {
-      metaTitle: "Security | SkooleeAI",
+      metaTitle: "Security",
       metaDescription: "SkooleeAI security overview for authentication, tenant scoping, billing controls, and operational safeguards.",
       title: "Security",
       description: "SkooleeAI combines role-based access, school and campus scoping, subscription gates, and provider isolation for a safer school management workflow.",
@@ -24,7 +24,7 @@ export const TRUST_INFO: Record<Language, Record<TrustInfoId, TrustInfoDoc>> = {
       ],
     },
     "ai-governance": {
-      metaTitle: "AI Governance | SkooleeAI",
+      metaTitle: "AI Governance",
       metaDescription: "SkooleeAI's approach to AI drafts, credits, review queues, approvals, and school-controlled use.",
       title: "AI Governance",
       description: "AI in SkooleeAI is designed to assist educators, not replace professional judgment. Drafts are logged, limited, and routed through review before sensitive use.",
@@ -36,7 +36,7 @@ export const TRUST_INFO: Record<Language, Record<TrustInfoId, TrustInfoDoc>> = {
       ],
     },
     "human-review-policy": {
-      metaTitle: "Human Review Policy | SkooleeAI",
+      metaTitle: "Human Review Policy",
       metaDescription: "How SkooleeAI keeps educators in charge of AI drafts, report card remarks, analytics, and parent communication.",
       title: "Human Review Policy",
       description: "SkooleeAI is built around the principle that school leaders review and approve sensitive outputs before they affect students or parents.",
@@ -50,7 +50,7 @@ export const TRUST_INFO: Record<Language, Record<TrustInfoId, TrustInfoDoc>> = {
   },
   ar: {
     security: {
-      metaTitle: "الأمان | SkooleeAI",
+      metaTitle: "الأمان",
       metaDescription: "نظرة عامة على أمان SkooleeAI: المصادقة، وعزل بيانات كل مدرسة، وضوابط الفوترة، وضمانات التشغيل.",
       title: "الأمان",
       description: "يجمع SkooleeAI بين الوصول حسب الدور، وتحديد النطاق حسب المدرسة والحرم، وبوابات الاشتراك، وعزل مزودي الخدمة لسير عمل أكثر أمانًا في إدارة المدرسة.",
@@ -62,7 +62,7 @@ export const TRUST_INFO: Record<Language, Record<TrustInfoId, TrustInfoDoc>> = {
       ],
     },
     "ai-governance": {
-      metaTitle: "حوكمة الذكاء الاصطناعي | SkooleeAI",
+      metaTitle: "حوكمة الذكاء الاصطناعي",
       metaDescription: "نهج SkooleeAI في مسودات الذكاء الاصطناعي والأرصدة وقوائم المراجعة والاعتمادات والاستخدام الذي تتحكم فيه المدرسة.",
       title: "حوكمة الذكاء الاصطناعي",
       description: "صُمم الذكاء الاصطناعي في SkooleeAI لمساعدة المعلمين لا ليحل محل حكمهم المهني. تُسجَّل المسودات وتُقيَّد وتمر بالمراجعة قبل أي استخدام حساس.",
@@ -74,7 +74,7 @@ export const TRUST_INFO: Record<Language, Record<TrustInfoId, TrustInfoDoc>> = {
       ],
     },
     "human-review-policy": {
-      metaTitle: "سياسة المراجعة البشرية | SkooleeAI",
+      metaTitle: "سياسة المراجعة البشرية",
       metaDescription: "كيف يبقي SkooleeAI المعلمين مسؤولين عن مسودات الذكاء الاصطناعي وملاحظات بطاقات التقارير والتحليلات والتواصل مع أولياء الأمور.",
       title: "سياسة المراجعة البشرية",
       description: "بُني SkooleeAI على مبدأ أن يراجع قادة المدرسة المخرجات الحساسة ويعتمدوها قبل أن تؤثر على الطلاب أو أولياء الأمور.",
@@ -88,7 +88,7 @@ export const TRUST_INFO: Record<Language, Record<TrustInfoId, TrustInfoDoc>> = {
   },
   ur: {
     security: {
-      metaTitle: "سیکیورٹی | SkooleeAI",
+      metaTitle: "سیکیورٹی",
       metaDescription: "SkooleeAI کی سیکیورٹی کا جائزہ: تصدیق، ہر اسکول کے ڈیٹا کی علیحدگی، بلنگ کنٹرول اور آپریشنل حفاظتی اقدامات۔",
       title: "سیکیورٹی",
       description: "SkooleeAI کردار پر مبنی رسائی، اسکول اور کیمپس کی حد بندی، سبسکرپشن گیٹس اور سروس فراہم کنندگان کی علیحدگی کو یکجا کر کے اسکول کے انتظام کو زیادہ محفوظ بناتا ہے۔",
@@ -100,7 +100,7 @@ export const TRUST_INFO: Record<Language, Record<TrustInfoId, TrustInfoDoc>> = {
       ],
     },
     "ai-governance": {
-      metaTitle: "AI گورننس | SkooleeAI",
+      metaTitle: "AI گورننس",
       metaDescription: "AI مسودوں، کریڈٹس، جائزے کی قطاروں، منظوریوں اور اسکول کے کنٹرول میں استعمال کے بارے میں SkooleeAI کا طریقہ۔",
       title: "AI گورننس",
       description: "SkooleeAI میں AI اساتذہ کی مدد کے لیے ہے، ان کے پیشہ ورانہ فیصلے کی جگہ لینے کے لیے نہیں۔ مسودے محفوظ، محدود اور حساس استعمال سے پہلے جائزے سے گزرتے ہیں۔",
@@ -112,7 +112,7 @@ export const TRUST_INFO: Record<Language, Record<TrustInfoId, TrustInfoDoc>> = {
       ],
     },
     "human-review-policy": {
-      metaTitle: "انسانی جائزے کی پالیسی | SkooleeAI",
+      metaTitle: "انسانی جائزے کی پالیسی",
       metaDescription: "SkooleeAI کیسے AI مسودوں، رپورٹ کارڈ تبصروں، تجزیات اور والدین سے رابطے پر اساتذہ کا اختیار برقرار رکھتا ہے۔",
       title: "انسانی جائزے کی پالیسی",
       description: "SkooleeAI اس اصول پر بنا ہے کہ اسکول کی قیادت حساس نتائج کا جائزہ لے کر انہیں منظور کرے، اس سے پہلے کہ وہ طلبہ یا والدین پر اثر ڈالیں۔",

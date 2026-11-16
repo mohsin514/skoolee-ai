@@ -4,6 +4,11 @@ type SheetStudent = { id: string; fullName?: string };
 type SheetSubject = { id: string; name?: string; totalMarks?: number | null };
 type SheetMark = { studentId: string; subjectId: string };
 
+/** SKAI-2005: cell values that stand for a recorded Absent or Exempt result; they are valid, not out of range. */
+export const ABSENT_TOKEN = "ABSENT";
+export const EXEMPT_TOKEN = "EXEMPT";
+export const isFlagToken = (value: string | undefined) => value === ABSENT_TOKEN || value === EXEMPT_TOKEN;
+
 export const markCellKey = (studentId: string, subjectId: string) => `${studentId}:${subjectId}`;
 
 /** One value per sheet cell that has a saved mark. The first mark for a cell wins, as the old linear `find` did. */
@@ -36,7 +41,7 @@ export function invalidSheetCells<S extends SheetStudent, J extends SheetSubject
   for (const student of students) {
     for (const subject of subjects) {
       const value = values[markCellKey(student.id, subject.id)];
-      if (value === "" || value === undefined) continue;
+      if (value === "" || value === undefined || isFlagToken(value)) continue;
       const num = Number(value);
       if (!(Number.isFinite(num) && num >= 0 && num <= (subject.totalMarks || 100))) invalid.push({ student, subject });
     }

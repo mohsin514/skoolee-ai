@@ -14,17 +14,20 @@ const raw = new PrismaClient();
 
 const schoolA = `tax-a-${randomUUID()}`, schoolB = `tax-b-${randomUUID()}`;
 const campusA1 = randomUUID(), campusA2 = randomUUID(), campusB1 = randomUUID();
-const preparer = randomUUID(), approver = randomUUID();
+const preparer = randomUUID(), approver = randomUUID(), preparerB = randomUUID(), approverB = randomUUID();
+// SKAI-1954: each school's rows name that school's own staff.
+const staff = (schoolId: string) => (schoolId === schoolB ? { preparer: preparerB, approver: approverB } : { preparer, approver });
 const sameDate = new Date("2026-10-15T00:00:00.000Z");
 const invoiceDate = new Date("2026-10-20T00:00:00.000Z");
 const now = new Date("2026-10-16T00:00:00.000Z");
 const as = <T>(schoolId: string, campusId: string, fn: () => Promise<T>) => runWithTenantContext({ schoolId, campusId, userId: preparer, role: "PRINCIPAL" }, fn);
 
 async function activation(schoolId: string, campusIds: string[], packageVersion: number, effectiveFrom: Date, status = "SCHEDULED") {
+  const { preparer: owner, approver: reviewer } = staff(schoolId);
   return raw.taxActivation.create({ data: {
     schoolId, packageCode: "SA-DEMO", packageVersion, campusIds, legalName: "Synthetic school", currency: "PKR",
-    effectiveFrom, ownerId: preparer, evidenceReviewer: approver, evidenceReference: "SYN-EVIDENCE-1", evidenceReviewedAt: new Date("2026-10-01T00:00:00.000Z"),
-    configHash: `hash-${packageVersion}`, status, preparedById: preparer, approvedAt: new Date("2026-10-01T00:00:00.000Z"), approvedById: approver,
+    effectiveFrom, ownerId: owner, evidenceReviewer: reviewer, evidenceReference: "SYN-EVIDENCE-1", evidenceReviewedAt: new Date("2026-10-01T00:00:00.000Z"),
+    configHash: `hash-${packageVersion}`, status, preparedById: owner, approvedAt: new Date("2026-10-01T00:00:00.000Z"), approvedById: reviewer,
   } });
 }
 const activeFor = (schoolId: string, campusId: string) => raw.taxActivation.findMany({ where: { schoolId, status: "ACTIVE", campusIds: { has: campusId } }, select: { id: true, packageVersion: true } });
@@ -38,6 +41,8 @@ before(async () => {
   ] });
   await raw.user.create({ data: { id: preparer, schoolId: schoolA, email: `${preparer}@example.invalid`, role: "PRINCIPAL", fullName: "Synthetic preparer", onboardingComplete: true } });
   await raw.user.create({ data: { id: approver, schoolId: schoolA, email: `${approver}@example.invalid`, role: "PRINCIPAL", fullName: "Synthetic approver", onboardingComplete: true } });
+  await raw.user.create({ data: { id: preparerB, schoolId: schoolB, email: `${preparerB}@example.invalid`, role: "PRINCIPAL", fullName: "Synthetic preparer B", onboardingComplete: true } });
+  await raw.user.create({ data: { id: approverB, schoolId: schoolB, email: `${approverB}@example.invalid`, role: "PRINCIPAL", fullName: "Synthetic approver B", onboardingComplete: true } });
 });
 
 after(async () => {

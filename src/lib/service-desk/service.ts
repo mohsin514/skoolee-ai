@@ -30,7 +30,9 @@ const isStaff = (user: AuthUser) => !["PARENT", "STUDENT"].includes(user.role);
 const canLead = (user: AuthUser, campusId: string) => canManageCampusOps(user) && (user.role === "SUPER_ADMIN" || user.campusId === campusId);
 
 function campusOf(user: AuthUser, requested: unknown) {
-  const campusId = String(requested ?? "") || user.campusId || "";
+  // SKAI-2042: a group admin has no home campus; fall back to the campus chosen in the header switcher
+  // (activeCampusId is already validated against the user's school in getAuthUser).
+  const campusId = String(requested ?? "") || user.campusId || user.activeCampusId || "";
   if (!campusId) throw new ApiError("Choose a campus.", 400);
   if (user.role !== "SUPER_ADMIN" && user.campusId && campusId !== user.campusId) throw new ApiError("Choose your own campus.", 403);
   return campusId;
@@ -157,6 +159,11 @@ function summary(r: Req, names: Map<string, string>, now: Date) {
 const MINE_PAGE = 50;
 // SKAI-1702: keyset pages (newest first, id tiebreak). The cursor only positions the page; the requester/watcher
 // and school filter applies to every page, so a cursor from someone else's request reveals nothing.
+// SKAI-2119: campus staff with no campus yet get one clear answer the desk shows as a calm state (nothing to retry).
+export const NO_CAMPUS = "No campus assigned yet";
+export function assertHasCampus(user: AuthUser) {
+  if (isStaff(user) && !["SUPER_ADMIN", "APP_OWNER"].includes(user.role) && !user.campusId) throw new ApiError(NO_CAMPUS, 403);
+}
 export async function myRequests(user: AuthUser, cursor?: string | null) {
   if (!isStaff(user)) throw new ApiError("The service desk is for staff.", 403);
   const found = await prisma.serviceRequest.findMany({ where: { schoolId: user.schoolId, OR: [{ requesterId: user.userId }, { watcherIds: { has: user.userId } }] }, include: { category: true }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: MINE_PAGE + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
@@ -217,7 +224,7 @@ export async function actOnRequest(user: AuthUser, id: string, body: Record<stri
     const needAgent = () => { if (!agent) throw new ApiError("This request is outside your service scope.", 403); };
     const needOpen = () => { if (!OPEN.includes(req.status)) throw new ApiError("Reopen the request before changing it.", 409); };
     const reason = () => { const r = text(body.reason, 500); if (!r) throw new ApiError("Give a reason for the change.", 400); return r; };
-    const save = (data: Prisma.ServiceRequestUpdateInput) => tx.serviceRequest.update({ where: { id: req.id }, data: { ...data, version: v } });
+    const save = (data: Prisma.ServiceRequestUncheckedUpdateInput) => tx.serviceRequest.update({ where: { id: req.id }, data: { ...data, version: v } });
     let notify: { event: string; recipients: string[] } | null = null;
     const audience = [req.requesterId, ...req.watcherIds].filter(x => x !== user.userId);
     switch (action) {

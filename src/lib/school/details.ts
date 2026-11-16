@@ -40,9 +40,10 @@ export function optionalText(value: unknown): string | null {
 }
 
 /** Required text, trimmed. Throws with a field-named message when empty. */
-export function requiredText(value: unknown, field: string): string {
+export function requiredText(value: unknown, field: string, max?: number): string {
   const trimmed = optionalText(value);
   if (!trimmed) throw new Error(`${field} is required.`);
+  if (max && trimmed.length > max) throw new Error(`${field} must be ${max} characters or fewer.`);
   return trimmed;
 }
 

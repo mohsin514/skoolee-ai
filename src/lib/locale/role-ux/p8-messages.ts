@@ -255,6 +255,7 @@ const P8: Record<string, readonly [ar: string, ur: string]> = {
   "Matching people": ["الأشخاص المطابقون", "ملتے جلتے افراد"],
   "No one found. Check the spelling, or ask your campus admin to add the reader's account first.": ["لم يُعثر على أحد. تحقّق من التهجئة، أو اطلب من مدير الفرع إضافة حساب القارئ أولًا.", "کوئی نہیں ملا۔ ہجے جانچیں، یا کیمپس منتظم سے پہلے قاری کا اکاؤنٹ شامل کرنے کو کہیں۔"],
   "Book added.": ["أُضيف الكتاب.", "کتاب شامل ہو گئی۔"],
+  "Book updated.": ["حُدّث الكتاب.", "کتاب اپ ڈیٹ ہو گئی۔"],
   "Book issued.": ["أُعير الكتاب.", "کتاب جاری ہو گئی۔"],
   "Book returned.": ["أُعيد الكتاب.", "کتاب واپس ہو گئی۔"],
   "Issuing…": ["جارٍ الإعارة…", "جاری کیا جا رہا ہے…"],

@@ -6,7 +6,9 @@ export const AUDIT_CATEGORIES = {
   class: ["class", "classes"],
   subject: ["subject", "subjects"],
   invitation: ["invitation", "staff_invitations", "membership", "memberships"],
-  marks: ["marks", "mark", "corrections"],
+  marks: ["marks", "mark"],
+  // SKAI-2217: mark and payment corrections share one table, so they get their own type rather than "Marks".
+  corrections: ["corrections"],
   fees: ["invoice", "invoices", "payment", "payments", "fee_structure", "fee_types", "fee_groups", "fee_discounts", "fee_assignments"],
   integrity: ["school_ai_exam_integrity_events"],
   exports: ["audit_log_exports"],

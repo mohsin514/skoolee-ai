@@ -10,13 +10,8 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { parseBody, parseWith } from "@/lib/api/validate";
+import { supplierSchema } from "@/lib/validators/operations";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
-import { requiredText } from "@/lib/validators/fields";
-import { z } from "zod";
-
-// Names are trimmed, bounded text; a number, object or blank name is a 400 before any database call.
-const supplierName = z.object({ name: requiredText("Name", { max: 120 }) });
-const optionalSupplierName = z.object({ name: requiredText("Name", { max: 120 }).optional() });
 
 export const runtime = "nodejs";
 
@@ -44,8 +39,7 @@ export async function POST(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { phone, email, address } = body;
-    const { name } = parseWith(supplierName, body);
+    const { name, phone, email, address } = parseWith(supplierSchema, body);
 
     // SKAI-1681: one supplier per name per campus. Under a per-campus lock, a retry with the same details replays the
     // committed supplier (200); a different supplier with that name is a recoverable 409, like categories.
@@ -74,8 +68,8 @@ export async function PATCH(req: NextRequest) {
 
     const campusId = await resolveCampusId(user);
     const body = await parseBody(req, jsonObjectBody);
-    const { id, phone, email, address } = body;
-    const { name } = parseWith(optionalSupplierName, body);
+    const { id } = body;
+    const { name, phone, email, address } = parseWith(supplierSchema.partial(), body);
     if (!id) throw new ApiError("id required", 400);
 
     const supplier = await prisma.supplier.findFirst({ where: { id, campusId } });
@@ -83,9 +77,9 @@ export async function PATCH(req: NextRequest) {
 
     const data = {
       ...(name !== undefined ? { name } : {}),
-      ...(phone !== undefined ? { phone } : {}),
-      ...(email !== undefined ? { email } : {}),
-      ...(address !== undefined ? { address } : {}),
+      ...(phone !== undefined || body.phone === null ? { phone: phone ?? null } : {}),
+      ...(email !== undefined || body.email === null ? { email: email ?? null } : {}),
+      ...(address !== undefined || body.address === null ? { address: address ?? null } : {}),
     };
     // SKAI-1687: a rename takes the same per-campus lock and case-insensitive name check as create, so an update
     // cannot produce two suppliers with one name; the record is left unchanged on conflict.

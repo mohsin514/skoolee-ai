@@ -63,3 +63,17 @@ test("GCC skeletons stay behind PAYMENT_GCC_RAILS_ENABLED", () => {
   assert.equal(resolvePaymentProvider("AED", { ...env, PAYMENT_GCC_PROVIDER: "stripe_uae" }), null);
   assert.equal(resolvePaymentProvider("AED", { ...env, PAYMENT_GCC_RAILS_ENABLED: "true", PAYMENT_GCC_PROVIDER: "stripe_uae", NODE_ENV: "production" }), null);
 });
+
+// SKAI-2155: invoice balances are stored in paisa, so the fee route must pass balanceDue through unchanged.
+test("SafePay request carries PKR (paisa / 100): 450000 paisa is 4500 PKR", async () => {
+  const { calls } = await captureFetch(() => resolvePaymentProvider("PKR", env)!.createCheckout({
+    amountMinor: 450000, currency: "PKR", orderRef: "SKLFEE-1", description: "Fee", returnUrl: "http://localhost/r",
+  }));
+  assert.equal(JSON.parse(String(calls[0].init.body)).amount, 4500);
+});
+
+test("fee pay-online route passes invoice.balanceDue as minor units without multiplying by 100", () => {
+  const source = readFileSync(new URL("../../src/app/api/fees/pay-online/route.ts", import.meta.url), "utf8");
+  assert.match(source, /amountMinor: invoice\.balanceDue\b/);
+  assert.doesNotMatch(source, /balanceDue \* 100/);
+});

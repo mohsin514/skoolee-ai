@@ -12,9 +12,9 @@ import { campusScope, studentScope, isFamily } from "@/lib/auth/policy";
 import { isCampusOperator } from "@/lib/auth/institution";
 import { getCampusSeats } from "@/lib/auth/seats";
 import { notifyCorrectionRequested } from "@/lib/notifications/events";
-import { contentHash, refreshVersion, versionTransaction } from "@/lib/academic/report-versions";
+import { ReportConflict, contentHash, refreshVersion, versionTransaction } from "@/lib/academic/report-versions";
 import { gradeForMark, thresholdsForClass } from "@/lib/academic/report-cards";
-import { assertSeparateApprover, validateCorrectionRequest, previewMarkCorrection, previewPaymentReversal, invoiceAfterReversal } from "./domain";
+import { assertSeparateApprover, validateCorrectionRequest, previewMarkCorrection, previewPaymentReversal, invoiceAfterReversal, correctionLabel } from "./domain";
 export type Kind = "MARK" | "PAYMENT";
 export type Proposal = {
     kind: Kind;
@@ -87,7 +87,7 @@ async function source(tx: TxClient, user: AuthUser, kind: Kind, id: string) {
         const reports = await tx.reportCard.findMany({ where: { studentId: mark.studentId }, select: { id: true, currentVersionId: true, publishedVersionId: true, sourceRevision: true } });
         const thresholds = await thresholdsForClass(mark.exam.classId, mark.exam.academicYear, tx);
         const snapshot = { grade: mark.grade, thresholds, marksObtained: mark.marksObtained, isAbsent: mark.isAbsent, maximum: mark.subject.totalMarks, reports };
-        return { kind, row: mark, label: `${mark.student.fullName} · ${mark.subject.name}`, version: contentHash({ revision: mark.correctionVersion, snapshot }), snapshot };
+        return { kind, row: mark, label: correctionLabel(mark.student.fullName, mark.subject.name, mark.exam.title), version: contentHash({ revision: mark.correctionVersion, snapshot }), snapshot };
     }
     const payment = await tx.payment.findFirst({ where: { id, ...campusScope(user), reversalOfId: null, amount: { gt: 0 } }, include: { invoice: true, student: { select: { fullName: true } }, ledgerEntry: true } });
     if (!payment)
@@ -141,15 +141,29 @@ export async function requestCorrection(user: AuthUser, proposal: Proposal, revi
     privateNote?: string;
 }) {
     const text = validateCorrectionRequest(explanation);
-    const correction = await versionTransaction(async (tx) => {
+    const attempt = () => versionTransaction(async (tx) => {
+        // SKAI-2092: serialize requests per source record so a double submit cannot save two PENDING rows.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`correction-request:${user.schoolId}:${proposal.kind}:${proposal.sourceId}`}, 0))`;
         const p = await preview(tx, user, proposal);
         if (p.hash !== reviewHash)
             throw new ApiError("Review the current before/after preview before submitting", 409);
+        const pending = await tx.correction.findFirst({ where: { schoolId: user.schoolId, kind: p.kind, sourceId: p.sourceId, status: "PENDING" }, orderBy: { requestedAt: "asc" } });
+        if (pending) {
+            // The same reviewed request again (double click, retry after a slow response) is idempotent.
+            if (pending.previewHash === p.hash && pending.requesterId === user.userId)
+                return { correction: pending, existing: true };
+            throw new ApiError("A correction is already pending for this record. Wait for it to be decided, or ask the reviewer to reject it, before requesting another.", 409);
+        }
         const correction = await tx.correction.create({ data: { schoolId: user.schoolId, campusId: p.campusId, studentId: p.studentId, kind: p.kind, sourceId: p.sourceId, sourceVersion: p.sourceVersion, before: p.before as Prisma.InputJsonValue, after: p.after as Prisma.InputJsonValue, previewHash: p.hash, reason: text.reason, publicExplanation: text.publicExplanation, requesterId: user.userId, requesterName: user.fullName ?? user.role, separateApprover: p.separateApprover } });
         if (text.privateNote)
             await tx.correctionNote.create({ data: { schoolId: user.schoolId, campusId: p.campusId, correctionId: correction.id, text: text.privateNote } });
-        return correction;
+        return { correction, existing: false };
     });
+    // A parallel duplicate loses the serializable race once the first commits; retrying sees the pending row.
+    const created = await attempt().catch((error) => error instanceof ReportConflict ? attempt() : Promise.reject(error));
+    const correction = created.correction;
+    if (created.existing)
+        return correction;
     // After commit, fire-and-forget: the checker seat (campus admin for PAYMENT, academic lead for MARK) is told.
     void Promise.resolve()
         .then(() => notifyCorrectionRequested({ schoolId: correction.schoolId, campusId: correction.campusId, correctionId: correction.id, kind: correction.kind as Kind, requesterId: user.userId }))
@@ -257,8 +271,34 @@ export async function decideCorrection(user: AuthUser, id: string, decision: "AP
         }
         if (why)
             await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "corrections", recordId: c.id, userId: user.userId, oldValue: { status: "PENDING" }, newValue: { status: decision, kind: c.kind, reason: why } } });
+        if (decision === "APPLIED") {
+            // SKAI-2092: the source moved on, so any other proposal on it is stale; close it instead of leaving it in the queue.
+            const stale = await tx.correction.findMany({ where: { schoolId: c.schoolId, kind: c.kind, sourceId: c.sourceId, status: "PENDING", id: { not: c.id } }, select: { id: true } });
+            for (const other of stale) {
+                await tx.correction.update({ where: { id: other.id }, data: { status: "REJECTED", approverId: user.userId, approverName: user.fullName ?? user.role, decidedAt: new Date() } });
+                await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "corrections", recordId: other.id, userId: user.userId, oldValue: { status: "PENDING" }, newValue: { status: "REJECTED", kind: c.kind, reason: `Superseded by applied correction ${c.id}` } } });
+            }
+        }
         return tx.correction.update({ where: { id }, data: { status: decision, approverId: user.userId, approverName: user.fullName ?? user.role, decidedAt: new Date(), successorId, reportVersionIds } });
     });
+}
+/** SKAI-2098: "Pupil · Subject · Exam" / "Pupil · Receipt" for each source id. Callers pass ids from already-scoped correction rows. */
+async function sourceLabels(kind: Kind, ids: string[]) {
+    const unique = [...new Set(ids)];
+    const labels = new Map<string, string>();
+    if (!unique.length)
+        return labels;
+    if (kind === "MARK") {
+        const marks = await prisma.mark.findMany({ where: { id: { in: unique } }, select: { id: true, student: { select: { fullName: true } }, subject: { select: { name: true } }, exam: { select: { title: true } } } });
+        for (const m of marks)
+            labels.set(m.id, correctionLabel(m.student.fullName, m.subject.name, m.exam.title));
+    }
+    else {
+        const payments = await prisma.payment.findMany({ where: { id: { in: unique } }, select: { id: true, receiptNo: true, student: { select: { fullName: true } } } });
+        for (const p of payments)
+            labels.set(p.id, correctionLabel(p.student.fullName, p.receiptNo ?? p.id));
+    }
+    return labels;
 }
 export async function history(user: AuthUser, kind: Kind) {
     await permit(user, kind);
@@ -267,8 +307,10 @@ export async function history(user: AuthUser, kind: Kind) {
     // screen. The legacy students.parent_user_id link grants nothing; it is queued for admin review (SKAI-1893).
     const children = await prisma.student.findMany({ where: studentScope(user), select: { id: true } });
     const rows = await prisma.correction.findMany({ where: { ...campusScope(user), kind, studentId: { in: children.map(x => x.id) }, ...(isFamily(user) ? { status: "APPLIED" } : {}) }, orderBy: { requestedAt: "desc" } });
+    const labels = await sourceLabels(kind, rows.map(r => r.sourceId));
     const output = [];
     for (const row of rows) {
+        const sourceLabel = labels.get(row.sourceId) ?? null;
         const versionIds = row.reportVersionIds as string[];
         const released = await correctionReleased(prisma, versionIds);
         if (isFamily(user)) {
@@ -276,7 +318,7 @@ export async function history(user: AuthUser, kind: Kind) {
                 continue;
             // Allowlist public fields. Payment before/after contain only this child's
             // amounts; internal reasons and private notes never enter this projection.
-            output.push({ id: row.id, kind: row.kind, sourceId: row.sourceId, sourceVersion: row.sourceVersion, before: row.before, after: row.after, publicExplanation: row.publicExplanation, requesterName: row.requesterName, approverName: row.approverName, requestedAt: row.requestedAt, decidedAt: row.decidedAt, status: row.status, successorId: row.successorId, released });
+            output.push({ id: row.id, kind: row.kind, sourceId: row.sourceId, sourceLabel, sourceVersion: row.sourceVersion, before: row.before, after: row.after, publicExplanation: row.publicExplanation, requesterName: row.requesterName, approverName: row.approverName, requestedAt: row.requestedAt, decidedAt: row.decidedAt, status: row.status, successorId: row.successorId, released });
         }
         else {
             // Teachers can only inspect records assigned to them.
@@ -289,7 +331,7 @@ export async function history(user: AuthUser, kind: Kind) {
                 }
             }
             const note = await prisma.correctionNote.findUnique({ where: { correctionId: row.id } });
-            output.push({ ...row, privateNote: note?.text ?? null, released, canApprove: approver && (!row.separateApprover || row.requesterId !== user.userId) });
+            output.push({ ...row, sourceLabel, privateNote: note?.text ?? null, released, canApprove: approver && (!row.separateApprover || row.requesterId !== user.userId) });
         }
     }
     return output;

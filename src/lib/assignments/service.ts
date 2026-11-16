@@ -181,7 +181,7 @@ function learnerView(user: AuthUser, access: LearnerAccess, now: Date, { rubrics
 }
 
 // ─── Reading ──────────────────────────────────────────────────────
-export const listInput = z.object({ classId: z.string().min(1).optional(), cursor: z.string().min(1).max(200).optional() }).strict();
+export const listInput = z.object({ classId: z.string().min(1).optional(), cursor: z.string().min(1).max(200).optional(), studentId: z.string().min(1).max(64).optional() }).strict();
 export const ASSIGNMENT_PAGE_SIZE = 200;
 
 /** SKAI-1699: stable keyset page over (updatedAt desc, id desc); the cursor is the last row returned. */
@@ -204,7 +204,8 @@ export async function listAssignments(user: AuthUser, raw: unknown, now = new Da
   const input = listInput.parse(raw);
   return schoolAiTransaction(user, async tx => {
     if (user.role === "STUDENT" || user.role === "PARENT") {
-      const students = await learnerStudents(tx, user);
+      // SKAI-2171: a guardian's page follows the chosen child; the filter only narrows their own linked children.
+      const students = (await learnerStudents(tx, user)).filter(s => user.role !== "PARENT" || !input.studentId || s.id === input.studentId);
       const subs = await tx.assignmentSubmission.findMany({ where: { schoolId: user.schoolId, studentId: { in: students.map(s => s.id) }, latestVersion: { gt: 0 } }, select: { assignmentId: true, studentId: true } });
       const { page: rows, nextCursor } = assignmentPage(await tx.assignment.findMany({ where: { schoolId: user.schoolId, status: { not: "DRAFT" }, AND: [{ OR: [{ classId: { in: students.map(s => s.classId) } }, { id: { in: subs.map(s => s.assignmentId) } }] }, assignmentPageWhere(input.cursor)] }, orderBy: pageOrder, take: ASSIGNMENT_PAGE_SIZE + 1 }));
       // SKAI-1816: one query for the current releases and four for the learner data, never one per row.
@@ -431,6 +432,16 @@ export async function closeAssignment(user: AuthUser, assignmentId: string) {
   });
 }
 
+/** SKAI-2003: an author discards a never-released draft. Released work stays close-only for audit. */
+export async function discardDraft(user: AuthUser, assignmentId: string) {
+  return schoolAiTransaction(user, async tx => {
+    const assignment = await authorAssignment(tx, user, assignmentId);
+    if (assignment.status !== "DRAFT" || assignment.currentVersion) throw new ApiError("Only unreleased drafts can be deleted. Close released work instead.", 409);
+    await audit(tx, user, assignment, { action: "DISCARD" }, { status: assignment.status, title: assignment.title });
+    await tx.assignment.delete({ where: { id: assignment.id } });
+    return { id: assignment.id, discarded: true };
+  });
+}
 async function recipient(tx: TxClient, user: AuthUser, assignment: Assignment, studentId: string) {
   const release = await currentRelease(tx, user, assignment);
   if (!release) throw new ApiError("Release this assignment first.", 409);
@@ -516,6 +527,17 @@ export async function prepareDraftFile(user: AuthUser, assignmentId: string, raw
     const storageKey = `submissions/${access.assignment.campusId}/${assignmentId}/${access.student.id}/${leaf}`;
     await tx.assignmentSubmission.update({ where: { id: submission.id }, data: { draftStorageKey: storageKey, draftFileName: input.fileName, draftContentType: input.contentType, draftSizeBytes: input.sizeBytes, draftSha256: null, draftUploadedAt: null, draftSavedAt: now } });
     return { uploadUrl: await createPrivateUploadUrl(user, { kind: "submission", targetId: submission.id, storageKey, contentType: input.contentType, sizeBytes: input.sizeBytes, fileName: input.fileName }) };
+  });
+}
+
+/** Discard the draft file (failed, interrupted or finished) so the learner can submit a typed answer alone. */
+export async function removeDraftFile(user: AuthUser, assignmentId: string, now = new Date()) {
+  return schoolAiTransaction(user, async tx => {
+    const access = await learnerAccess(tx, user, assignmentId, now);
+    if (!(await openLearnerView(tx, user, access, now)).canEditDraft) throw new ApiError("This work cannot be changed now.", 409);
+    const submission = await submissionRow(tx, user, assignmentId, access.student.id);
+    await tx.assignmentSubmission.update({ where: { id: submission.id }, data: { draftStorageKey: null, draftFileName: null, draftContentType: null, draftSizeBytes: null, draftSha256: null, draftUploadedAt: null, draftSavedAt: now } });
+    return { removed: true };
   });
 }
 

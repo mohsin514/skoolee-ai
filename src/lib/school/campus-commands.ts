@@ -17,6 +17,15 @@ import { assertEmail, assertPhone, assertWebsite, optionalText, parseLogo, requi
 /** Trimmed, or null when the field was left blank. */
 const optional = (value?: string) => optionalText(value);
 
+/** Length caps for campus text fields (SKAI-2001); the name prints on report cards, invoices and PDFs. */
+export const CAMPUS_NAME_MAX = 120;
+export const CAMPUS_CITY_MAX = 100;
+export const CAMPUS_TEXT_MAX = 300;
+function capped(value: string | null, field: string, max: number) {
+  if (value && value.length > max) throw new Error(`${field} must be ${max} characters or fewer.`);
+  return value;
+}
+
 export function recordRevision(record: unknown) { return createHash("sha256").update(JSON.stringify(record)).digest("hex"); }
 
 /**
@@ -67,16 +76,22 @@ export function normalizeCampusRegId(value?: string | null) {
   return id;
 }
 
+/**
+ * A duplicate campus name or Campus ID. Server actions that throw show Next.js's "omitted in production builds"
+ * text instead of the message, so actions catch this class and return the message as data (SKAI-1988).
+ */
+export class CampusConflictError extends Error {}
+
 export type ValidCampusFields = ReturnType<typeof validateCampusInput>;
 
 /** SKO-402: the same validators as editing a campus, so a campus can always be saved as it was created. */
 export function validateCampusInput(input: CampusCreateFields) {
-  const name = requiredText(input.name, "Campus name");
-  const city = requiredText(input.city, "City");
+  const name = requiredText(input.name, "Campus name", CAMPUS_NAME_MAX);
+  const city = requiredText(input.city, "City", CAMPUS_CITY_MAX);
   const email = assertEmail(optional(input.email), "campus email address");
   const phone = assertPhone(optional(input.phone), "Phone number");
   const website = assertWebsite(optional(input.website), "website");
-  return { name, city, email, phone, website, address: optional(input.address), principalName: optional(input.principalName), board: optional(input.board), regId: normalizeCampusRegId(input.regId) };
+  return { name, city, email, phone, website, address: capped(optional(input.address), "Address", CAMPUS_TEXT_MAX), principalName: capped(optional(input.principalName), "Principal name", CAMPUS_NAME_MAX), board: optional(input.board), regId: normalizeCampusRegId(input.regId) };
 }
 
 /**
@@ -92,9 +107,9 @@ export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid
   // 500. Check first for the common case; the create is still wrapped below
   // because two admins can race between this read and the write.
   const sameName = await prisma.campus.findFirst({ where: { schoolId, archivedAt: null, name: { equals: valid.name, mode: "insensitive" } }, select: { id: true } });
-  if (sameName) throw new Error("Another active campus already uses this name.");
+  if (sameName) throw new CampusConflictError("Another active campus already uses this name.");
   const clash = await prisma.campus.findUnique({ where: { regId: finalRegId }, select: { id: true } });
-  if (clash) throw new Error(`Campus ID ${finalRegId} is already in use. Choose another.`);
+  if (clash) throw new CampusConflictError(`Campus ID ${finalRegId} is already in use. Choose another.`);
 
   // SKAI-1508: resolve the default board before taking the lock. schoolCountry() reads through the global
   // client, so calling it inside the FOR UPDATE transaction needed a second pool connection while holding
@@ -131,7 +146,7 @@ export async function createCampusRecord(user: Pick<AuthUser, "schoolId">, valid
     });
   } catch (error) {
     if ((error as { code?: string })?.code === "P2002") {
-      throw new Error(`Campus ID ${finalRegId} is already in use. Choose another.`);
+      throw new CampusConflictError(`Campus ID ${finalRegId} is already in use. Choose another.`);
     }
     throw error;
   }
@@ -229,8 +244,8 @@ export async function updateCampusDetailsCommand(session: AuthUser, input: Campu
   const campusId = requiredText(input.campusId, "Campus");
   await assertCanEditCampus(session, campusId);
 
-  const name = input.name === undefined ? undefined : requiredText(input.name, "Campus name");
-  const city = input.city === undefined ? undefined : requiredText(input.city, "City");
+  const name = input.name === undefined ? undefined : requiredText(input.name, "Campus name", CAMPUS_NAME_MAX);
+  const city = input.city === undefined ? undefined : requiredText(input.city, "City", CAMPUS_CITY_MAX);
   const email = input.email === undefined ? undefined : assertEmail(optionalText(input.email), "campus email address");
   const phone = input.phone === undefined ? undefined : assertPhone(optionalText(input.phone), "Phone number");
   const website = input.website === undefined ? undefined : assertWebsite(optionalText(input.website), "website");
@@ -243,12 +258,12 @@ export async function updateCampusDetailsCommand(session: AuthUser, input: Campu
     if (!current || (input.expectedRevision && input.expectedRevision !== recordRevision(current))) throw new Error("This record changed. Review your draft against the current values before saving.");
     if (name && name.toLocaleLowerCase() !== current.name.toLocaleLowerCase()) {
       const clash = await tx.campus.findFirst({ where: { schoolId: session.schoolId, archivedAt: null, id: { not: campusId }, name: { equals: name, mode: "insensitive" } }, select: { id: true } });
-      if (clash) throw new Error("Another active campus already uses this name.");
+      if (clash) throw new CampusConflictError("Another active campus already uses this name.");
     }
     const data = {
       name, city, phone, email, website,
-      address: patchText(input.address),
-      principalName: patchText(input.principalName),
+      address: capped(patchText(input.address) ?? null, "Address", CAMPUS_TEXT_MAX) ?? patchText(input.address),
+      principalName: capped(patchText(input.principalName) ?? null, "Principal name", CAMPUS_NAME_MAX) ?? patchText(input.principalName),
       board,
       logoUrl: newLogoUrl,
     };

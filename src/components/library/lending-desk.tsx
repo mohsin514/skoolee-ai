@@ -29,7 +29,7 @@ type Member = { kind: "MEMBER"; member: { id: string; memberNo: string; name: st
 type Copy = { kind: "COPY"; copy: { id: string; barcode: string; status: string; condition: string; heldForReservation: boolean }; book: { id: string; title: string; author: string | null; isbn: string | null } | null; waitingReservations: number };
 type Fine = { overdueDays: number; graceDays: number; closureDays: string[]; chargeableDays: number; perDay: number; uncapped: number; cap: number; amount: number; currency: string };
 type Overview = { rules: { version: number; loanDays: number; maxLoans: number; maxRenewals: number; graceDays: number; finePerDay: number; fineCap: number; lostCharge: number; holdDays: number; currency: string; closures: string[] }; canWaive: boolean;
-  stock: { copiesTotal: number; copiesAvailable: number }; reservations: { id: string; bookId: string; status: string; readyUntil: string | null }[]; charges: { id: string; kind: string; amount: number; currency: string }[]; handed?: { id: string; kind: string; amount: number; currency: string; decidedAt: string | null; status?: string; invoiceId?: string | null }[] };
+  stock: { copiesTotal: number; copiesAvailable: number }; reservations: { id: string; bookId: string; status: string; readyUntil: string | null }[]; charges: { id: string; kind: string; amount: number; currency: string; financeNote?: string | null }[]; handed?: { id: string; kind: string; amount: number; currency: string; decidedAt: string | null; status?: string; invoiceId?: string | null }[] };
 
 const STATUS_LABEL: Record<string, string> = { AVAILABLE: "On the shelf", ON_LOAN: "On loan", RESERVED_HOLD: "Held for a reservation", DAMAGED: "Damaged", LOST: "Lost", WAITING: "Waiting", READY: "Ready to collect" };
 const STATUS_TONE: Record<string, DeskTone> = { AVAILABLE: "success", ON_LOAN: "brand", RESERVED_HOLD: "info", DAMAGED: "warning", LOST: "danger", WAITING: "neutral", READY: "success" };
@@ -175,7 +175,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
       </div>
 
       <form className="sk-desk-section flex flex-wrap items-end gap-2" data-tour="library.lending.scan" onSubmit={(e) => { e.preventDefault(); void scan(code); }}>
-        <FormField name="desk-scan" label={ui("Scan a member card or a copy")} hint={ui(member ? "Scan each copy to issue it to this reader." : "Scan a member card first to issue books.")} className="min-w-0 flex-1 sm:min-w-[16rem]">
+        <FormField name="desk-scan" label={ui("Scan a member card or a copy")} hint={ui(member ? "Scan each copy to issue it to this reader." : "Scan a member card first to issue books.")} className="min-w-[12rem] flex-1 sm:min-w-[16rem]">
           <Input ref={scanRef} dir="ltr" autoFocus value={code} onChange={(e) => setCode(e.target.value)} />
         </FormField>
         {/* A scanner submits with Enter; the button is the fallback and never competes with the one primary (§4.4). */}
@@ -244,6 +244,8 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
             {overview.charges.length === 0 ? <div className="sk-panel"><EmptyState size="sm" icon={Receipt} title={ui("No open charges.")} /></div> : overview.charges.map((c) => (
               <div key={c.id} data-tone={c.kind === "LOST" ? "danger" : "warning"} className={`${deskRow} space-y-2 text-sm`}>
                 <p className="flex flex-wrap items-center gap-2 font-semibold"><Receipt aria-hidden="true" className="size-4 text-status-warning-text" />{ui(KIND_LABEL[c.kind] ?? c.kind)}<DeskPill tone={c.kind === "LOST" ? "danger" : "warning"}><bdi>{money(c.amount, c.currency)}</bdi></DeskPill></p>
+                {/* SKAI-2227: a charge the fees office sent back shows why, so the desk knows what to fix. */}
+                {c.financeNote ? <p className="text-xs text-status-warning-text" data-finance-note>{ui("Returned by the fees office: {0}", [c.financeNote])}</p> : null}
                 <div className="flex flex-wrap items-end gap-2">
                   <FormField name={`ch-${c.id}`} label={ui("Reason")} className="min-w-0 flex-1 sm:min-w-[12rem]"><Input value={reasons[c.id] ?? ""} onChange={(e) => setReasons((r) => ({ ...r, [c.id]: e.target.value }))} /></FormField>
                   {overview.canWaive ? <Button size="sm" variant="outline" onClick={async () => { if (await post("charge", { chargeId: c.id, decision: "WAIVE", reason: reasons[c.id] ?? "" })) { setMessage(ui("Charge waived; the reason and approver are recorded.")); void load(); void refreshMember(); } }}>{ui("Waive")}</Button> : <span className="text-xs text-ink-subtle">{ui("Your campus admin decides waivers; you can send the charge to the fees office.")}</span>}

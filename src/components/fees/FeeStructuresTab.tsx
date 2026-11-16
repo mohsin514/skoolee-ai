@@ -30,7 +30,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { SectionPicker, UiSentence } from "@/components/operations/console-page";
 import { TypesPanel, GroupsPanel, MasterPanel, AssignPanel, DiscountsPanel, CarryPanel, FineRulesPanel } from "./FeeLayersTab";
 import type { ClassOption, FeeStructure, PanelCommand } from "./fee-types";
-import { API, classLabel, formatPKR, forwardCommand, paisaToRupees, rupeesToPaisa, usePanelCommand } from "./fee-utils";
+import { API, classLabel, formatPKR, forwardCommand, paisaToRupees, rupeesToPaisa, tryRupeesToPaisa, usePanelCommand } from "./fee-utils";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 import { evaluateFeeCap, type FeeCapMode } from "@/lib/fees/regulator-cap";
@@ -115,6 +115,7 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const [capMode, setCapMode] = useState<FeeCapMode>("OFF");
   const [canEditCap, setCanEditCap] = useState(false);
+  const [canDeactivate, setCanDeactivate] = useState(false);
   const loadSequence = useRef(0);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
@@ -131,7 +132,7 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
       const sJson = await checkedJson(sRes);
       const cJson = await checkedJson(cRes);
       if (loadVersion !== loadSequence.current) return;
-      if (sJson.success) setStructures(sJson.data);
+      if (sJson.success) { setStructures(sJson.data); setCanDeactivate(sJson.canDeactivate === true); }
       else throw new Error("Invalid result");
       if (cJson.success) setClasses(cJson.data);
       // SKAI-1154: the opt-in regulator fee cap; an unreadable policy leaves the cap off in the form only.
@@ -272,7 +273,7 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
               structure={fs}
               capMode={capMode}
               onEdit={() => { setEditing(fs); setShowModal(true); }}
-              onDeactivate={() => handleDeactivate(fs.id)}
+              onDeactivate={canDeactivate ? () => handleDeactivate(fs.id) : undefined}
             />
           ))}
         </div>
@@ -322,7 +323,7 @@ function StructureCard({
   structure: FeeStructure;
   capMode: FeeCapMode;
   onEdit: () => void;
-  onDeactivate: () => Promise<boolean>;
+  onDeactivate?: () => Promise<boolean>;
 }) {
   const { money: formatPKR, date } = useLocaleFormat();
   const tr = useUiText();
@@ -349,7 +350,7 @@ function StructureCard({
             label="More actions"
             items={[
               { id: "edit", label: "Edit", icon: Edit3, onSelect: onEdit },
-              { id: "deactivate", label: "Deactivate", icon: Archive, tone: "danger", onSelect: () => setConfirmOpen(true) },
+              ...(onDeactivate ? [{ id: "deactivate", label: "Deactivate", icon: Archive, tone: "danger" as const, onSelect: () => setConfirmOpen(true) }] : []),
             ]}
             trigger={<IconButton variant="ghost" label={tr("More actions")}><MoreHorizontal aria-hidden="true" /></IconButton>}
           />
@@ -357,7 +358,7 @@ function StructureCard({
             open={confirmOpen}
             title={tr("Deactivate this fee structure?")}
             description={tr("This will deactivate the fee structure for {0}. Existing invoices won't be affected.", [classLabel(fs.class.name, fs.class.section)])}
-            onConfirm={async () => { if (await onDeactivate()) setConfirmOpen(false); }}
+            onConfirm={async () => { if (onDeactivate && await onDeactivate()) setConfirmOpen(false); }}
             onCancel={() => setConfirmOpen(false)}
             tone="danger"
             confirmLabel={tr("Deactivate")}
@@ -471,8 +472,8 @@ function StructureModal({
   const [saving, setSaving] = useState(false);
   const formCap = evaluateFeeCap({
     mode: capMode,
-    fee: monthlyFee ? rupeesToPaisa(monthlyFee, currency) : 0,
-    approvedFee: approvedFee ? rupeesToPaisa(approvedFee, currency) : null,
+    fee: monthlyFee ? (tryRupeesToPaisa(monthlyFee, currency) ?? 0) : 0,
+    approvedFee: approvedFee ? tryRupeesToPaisa(approvedFee, currency) : null,
   });
 
   const handleSave = async () => {
@@ -480,7 +481,25 @@ function StructureModal({
       toast.error(tr("Class and monthly fee required"));
       return;
     }
+    // SKAI-2029: exponent / non-decimal input (e.g. "1e5") must show a message, not throw.
+    if (
+      tryRupeesToPaisa(monthlyFee, currency) === null ||
+      (approvedFee && tryRupeesToPaisa(approvedFee, currency) === null) ||
+      oneTimeFees.some((r) => r.name.trim() && r.amount && tryRupeesToPaisa(r.amount, currency) === null)
+    ) {
+      toast.error(tr("Enter amounts as plain numbers, for example 5000 or 5000.50"));
+      return;
+    }
     setSaving(true);
+
+    // SKAI-2028: refuse negative / out-of-range amounts before they reach the API.
+    const badOtf = oneTimeFees.find((r) => r.name.trim() && r.amount && !(Number(r.amount) >= 0 && rupeesToPaisa(r.amount, currency) <= 2147483647));
+    const badPct = discountRules.find((r) => r.name.trim() && r.pct && !(Number(r.pct) >= 0 && Number(r.pct) <= 100));
+    if (badOtf || badPct) {
+      toast.error(tr(badOtf ? "One-time fee amounts must be zero or more and within the allowed range" : "Discount percentages must be between 0 and 100"));
+      setSaving(false);
+      return;
+    }
 
     const otfObj: Record<string, number> = {};
     for (const row of oneTimeFees) {

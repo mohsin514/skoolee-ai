@@ -203,3 +203,39 @@ test("other school changes stay with the owner log, not audit_logs", async () =>
   );
   assert.equal(audits.length, 0);
 });
+
+// SKAI-2043: viewing readiness seeds with skipDuplicates createMany and `upsert({ update: {} })`; neither changes
+// anything once the rows exist, so neither may log an audit row.
+test("a bulk write that touched no rows and an upsert that changed nothing write no audit row", async () => {
+  const row = { id: "r1", schoolId: "school-a", status: "DRAFT" };
+  const { audits, client } = fakeClient(row);
+  await asUser(async () => {
+    await auditedOperation({ delegate: "student", operation: "createMany", args: { data: [], skipDuplicates: true }, query: async () => ({ count: 0 }), client });
+    await auditedOperation({ delegate: "student", operation: "upsert", args: { where: { id: "r1" }, create: {}, update: {} }, query: async () => ({ ...row }), client });
+  });
+  assert.equal(audits.length, 0);
+
+  await asUser(async () => {
+    await auditedOperation({ delegate: "student", operation: "createMany", args: { data: [{}] }, query: async () => ({ count: 2 }), client });
+    await auditedOperation({ delegate: "student", operation: "upsert", args: { where: { id: "r1" }, create: {}, update: { status: "READY" } }, query: async () => ({ ...row, status: "READY" }), client });
+  });
+  assert.equal(audits.length, 2);
+});
+test("SKAI-2215: another person's audit row on the same record does not supersede the maker's automatic row", async () => {
+  const { audits, client } = fakeClient();
+  await asUser(() => auditedOperation({ delegate: "student", operation: "create", args: { data: {} }, query: async () => ({ id: "s1", schoolId: "school-a" }), client }));
+  await runWithTenantContext({ schoolId: "school-a", userId: "user-2" }, () => auditedOperation({
+    delegate: "auditLog",
+    operation: "create",
+    args: { data: { tableName: "student", recordId: "s1", newValue: { decision: "approve" }, userId: "user-2" } },
+    query: async (args) => (client as unknown as { auditLog: { create: (a: unknown) => Promise<unknown> } }).auditLog.create(args),
+    client,
+  }));
+  assert.equal(audits.length, 2);
+  assert.deepEqual(audits[1].newValue, { decision: "approve" });
+});
+test("SKAI-2218: the automatic row is filed under the record's campus", async () => {
+  const { audits, client } = fakeClient();
+  await asUser(() => auditedOperation({ delegate: "student", operation: "create", args: { data: {} }, query: async () => ({ id: "s1", schoolId: "school-a", campusId: "campus-1" }), client }));
+  assert.equal(audits[0].campusId, "campus-1");
+});

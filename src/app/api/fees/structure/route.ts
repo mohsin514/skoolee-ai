@@ -1,8 +1,9 @@
-import { getLocalePackage } from "@/lib/locale/store";
+import { campusBillingCurrency } from "@/app/api/fees/reports/invoice-currency";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { feeStructureSchema } from "@/lib/validators/schemas";
 import {
+  assertFeesRead,
   ApiError,
   assertPermission,
   canManageFinance,
@@ -19,6 +20,7 @@ import { jsonObjectBody } from "@/lib/validators/route-bodies";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertFeesRead(user);
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
     const classId = searchParams.get("classId");
@@ -48,7 +50,9 @@ export async function GET(req: NextRequest) {
       orderBy: [{ activeFrom: "desc" }],
     });
 
-    return Response.json({ success: true, data: structures });
+    // SKAI-2036: tell the client whether Deactivate (DELETE, fees.delete) is allowed, so it is not offered in vain.
+    const canDeactivate = await assertPermission(user, "fees", "delete").then(() => true, () => false);
+    return Response.json({ success: true, data: structures, canDeactivate });
   } catch (error) {
     return errorResponse(error, "[fees/structure] GET failed");
   }
@@ -77,13 +81,17 @@ export async function POST(req: NextRequest) {
     const academicYearId = await resolveFeeStructureYearId(prisma, user.schoolId, campusId, body.academicYearId);
     const existing = await prisma.feeStructure.findFirst({
       where: { classId: parsed.data.classId, academicYearId, activeFrom },
-      select: { id: true, approvedFee: true },
+      select: { id: true },
     });
+    // SKAI-2035: create must never overwrite. Edits go through PUT, which re-prices unpaid invoices and audits old values.
+    if (existing) {
+      throw new ApiError("This class already has a fee structure for this year starting on that date. Edit it instead.", 409);
+    }
 
     // SKAI-1154: the school's opt-in regulator fee cap.
     const capSchool = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { feeCapMode: true } });
     const capMode = capSchool?.feeCapMode ?? "OFF";
-    const approvedFee = parsed.data.approvedFee !== undefined ? parsed.data.approvedFee : (existing?.approvedFee ?? null);
+    const approvedFee = parsed.data.approvedFee !== undefined ? parsed.data.approvedFee : null;
     const cap = feeCapDecision(evaluateFeeCap({ mode: capMode, fee: parsed.data.monthlyFee, approvedFee }), capMode);
     if (cap.error) return Response.json({ error: cap.error, feeCap: "blocked" }, { status: 422 });
 
@@ -104,27 +112,15 @@ export async function POST(req: NextRequest) {
       activeTo,
     };
 
-    let structure;
-    if (existing) {
-      data.updatedBy = user.userId;
-      structure = await prisma.feeStructure.update({
-        where: { id: existing.id },
-        data,
-        include: {
-          class: { select: { id: true, name: true, section: true } },
-        },
-      });
-    } else {
-      data.createdBy = user.userId;
-      data.currency = (await getLocalePackage(user.schoolId, campusId, activeFrom)).currency;
-      if ((body.currency || "PKR") !== data.currency) throw new ApiError("Currency changed. Reload the fee form before saving.", 409);
-      structure = await prisma.feeStructure.create({
-        data,
-        include: {
-          class: { select: { id: true, name: true, section: true } },
-        },
-      });
-    }
+    data.createdBy = user.userId;
+    data.currency = (await campusBillingCurrency(user.schoolId, campusId, activeFrom));
+    if ((body.currency || "PKR") !== data.currency) throw new ApiError("Currency changed. Reload the fee form before saving.", 409);
+    const structure = await prisma.feeStructure.create({
+      data,
+      include: {
+        class: { select: { id: true, name: true, section: true } },
+      },
+    });
 
     await prisma.auditLog.create({
       data: {
@@ -148,9 +144,9 @@ export async function POST(req: NextRequest) {
         success: true,
         data: structure,
         ...(cap.warning ? { feeCapWarning: cap.warning } : {}),
-        message: `Fee structure ${existing ? "updated" : "created"} for ${structure.class.name}`,
+        message: `Fee structure created for ${structure.class.name}`,
       },
-      { status: existing ? 200 : 201 }
+      { status: 201 }
     );
   } catch (error) {
     return errorResponse(error, "[fees/structure] POST failed");

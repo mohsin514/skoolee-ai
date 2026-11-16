@@ -2,6 +2,7 @@ import { PrismaClient, UserRole, AttendanceStatus, InvoiceStatus } from "@prisma
 import bcrypt from "bcryptjs";
 import { TENANT_MODELS } from "../src/lib/db/tenant-models";
 import { assertSeedAllowed, seedSecret } from "./seed-guard";
+import { recordSeedTimetableVersions } from "./seed-timetable-versions";
 
 /** Set once the demo school exists, then stamped onto every tenant-scoped row
  *  the seed writes. The seed predates the school_id migration and threads only
@@ -1123,6 +1124,13 @@ async function seedFees(campusId: string, campusIdx: number, recordedById: strin
   for (const batch of chunkRows(paymentRows.filter((r) => !existingRefs.has(r.referenceNumber)))) {
     await prisma.payment.createMany({ data: batch, skipDuplicates: true });
   }
+  // SKAI-2091: recordPayment sums payment_allocations, so every seeded payment needs one or a seeded
+  // PARTIAL invoice can never be settled. Idempotent: only payments without an allocation get one.
+  await prisma.$executeRaw`
+    INSERT INTO payment_allocations (id, school_id, campus_id, payment_id, invoice_id, amount, credit, currency, created_at)
+    SELECT 'seed-' || p.id, p.school_id, p.campus_id, p.id, p.invoice_id, p.amount, 0, i.currency, p.created_at
+    FROM payments p JOIN invoices i ON i.id = p.invoice_id
+    WHERE p.campus_id = ${campusId} AND NOT EXISTS (SELECT 1 FROM payment_allocations a WHERE a.payment_id = p.id)`;
 
   const invCount = await prisma.invoice.count({ where: { campusId } });
   const payCount = await prisma.payment.count({ where: { campusId } });
@@ -1206,6 +1214,7 @@ async function seedTimetable(campusId: string) {
     }
   }
 
+  await recordSeedTimetableVersions(prisma, campusId); // SKAI-2078: readers see only the version in force
   const slots = await prisma.timetableSlot.count({ where: { timetable: { campusId } } });
   console.log(`  ✓ Timetable slots: ${slots}`);
 }

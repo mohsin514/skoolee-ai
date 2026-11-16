@@ -437,7 +437,7 @@ export async function getLiveReportCardPayload(reportCardId: string, db: TxClien
   if (classId) {
     try {
       weightConfig = await getOrCreateGradeWeightConfig(reportCard.campusId, classId, reportCard.exam.academicYear, db, reportCard.exam.academicModelVersionId);
-      const grade = await calculateWeightedGrade(reportCard.studentId, reportCard.campusId, classId, reportCard.exam.academicYear, db, reportCard.exam.academicModelVersionId);
+      const grade = await calculateWeightedGrade(reportCard.studentId, reportCard.campusId, classId, reportCard.exam.academicYear, db, reportCard.exam.academicModelVersionId, undefined, { includeExamId: reportCard.examId });
       overall = {
         overallPercentage: grade.overallPercentage,
         overallGrade: grade.overallGrade,
@@ -450,6 +450,7 @@ export async function getLiveReportCardPayload(reportCardId: string, db: TxClien
         classId,
         academicYear: reportCard.exam.academicYear,
         weightConfig,
+        releasedOnly: { includeExamId: reportCard.examId },
         ...(isAggregateFinal ? { excludeExamId: reportCard.examId } : {}),
       }, db);
     } catch (error) { throw error; }

@@ -74,11 +74,17 @@ export async function updateClassWithTeacherAssignmentTx(tx: TxClient, user: Aut
   if (existing.archivedAt) throw new ApiError("Restore this class before editing it.", 409);
   const from = effectiveDate(body.effectiveFrom);
   const data: Prisma.ClassUncheckedUpdateInput = {};
-  if (body.name !== undefined) data.name = String(body.name).trim();
-  if (body.section !== undefined) data.section = body.section ? String(body.section).trim() : null;
+  if (body.name !== undefined) {
+    data.name = String(body.name).trim();
+    if (!data.name || data.name.length > 80) throw new ApiError("A class name of up to 80 characters is required", 400);
+  }
+  if (body.section !== undefined) {
+    data.section = body.section ? String(body.section).trim() : null;
+    if (data.section && data.section.length > 40) throw new ApiError("Section must be 40 characters or fewer", 400);
+  }
   if (body.academicYear !== undefined) {
     const academicYear = Number(body.academicYear);
-    if (!Number.isInteger(academicYear)) throw new ApiError("A valid academic year is required", 400);
+    if (!Number.isInteger(academicYear) || academicYear < 2000 || academicYear > 2100) throw new ApiError("Academic year must be a whole year between 2000 and 2100", 400);
     if (academicYear !== existing.academicYear && await tx.timetable.count({ where: { schoolId: user.schoolId, campusId: existing.campusId, classId: id } })) throw new ApiError("A class with timetables cannot move to another academic year. Create the new year's class instead.", 409);
     data.academicYear = academicYear;
   }
@@ -169,7 +175,7 @@ export async function updateSubjectWithTeacherAssignmentTx(tx: TxClient, user: A
   }
   if (data.name !== undefined || data.classId !== undefined) {
     const duplicate = await findDuplicateSubject(tx, (data.classId as string | undefined) ?? existing.classId, (data.name as string | undefined) ?? existing.name, id);
-    if (duplicate) throw new ApiError(`${duplicate.name} already exists in that class (subject ${duplicate.id}).`, 409);
+    if (duplicate) throw new ApiError(`${duplicate.name} already exists in this class. Choose a different name.`, 409);
   }
   if (teacherProvided) await requireScheduleEdit(tx, user, existing.campusId, [id], grants);
   const subject = await tx.subject.update({ where: { id }, data, include: { class: { select: { id: true, name: true, section: true } }, teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } } } });

@@ -121,6 +121,11 @@ export function isForeignKeyViolation(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && (error as { code: unknown }).code === "P2003";
 }
 
+/** Prisma P2002: a unique constraint refused the write (for example a name already taken on the campus). */
+export function isUniqueViolation(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code: unknown }).code === "P2002";
+}
+
 export function errorResponse(error: unknown, fallback = "Request failed") {
   const requestId = crypto.randomUUID();
   const respond = (body: unknown, init: ResponseInit) => Response.json(body, {

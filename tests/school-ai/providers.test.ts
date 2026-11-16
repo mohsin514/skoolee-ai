@@ -6,6 +6,21 @@ import { AIProviderQuotaError, isOpenAIQuotaExhausted } from "../../src/lib/ai/o
 import { PIILeakError } from "../../src/lib/ai/pseudonymize";
 import { ApiError } from "../../src/lib/api/scope";
 import { SchoolAiError } from "../../src/lib/school-ai/access";
+import { WorkflowError } from "../../src/lib/ai-workflows/errors";
+
+test("SKAI-297: denied and access-changed knowledge requests keep 403 instead of a 503 outage", async () => {
+  const denied = schoolAiError(new WorkflowError("ACCESS_CHANGED"));
+  assert.equal(denied.status, 403);
+  const deniedBody = await denied.json() as { code?: string; error?: string };
+  assert.equal(deniedBody.code, "ACCESS_CHANGED");
+  assert.match(deniedBody.error ?? "", /do not have access/);
+  const permission = schoolAiError(new SchoolAiError("Insufficient permissions: ai.view.", 403, "PERMISSION_DENIED"));
+  assert.equal(permission.status, 403);
+  const workflowConflict = schoolAiError(new WorkflowError("STALE_VERSION", { version: 3 }));
+  assert.equal(workflowConflict.status, 409);
+  assert.deepEqual((await workflowConflict.json() as { params?: unknown }).params, { version: 3 });
+  assert.equal(schoolAiError(new Error("boom")).status, 503);
+});
 
 test("binary media stays disabled without an explicit policy and approved destination", () => {
   const keys = ["OPENAI_API_KEY", "OPENAI_BASE_URL", "SCHOOL_AI_MEDIA_EGRESS_APPROVED", "SCHOOL_AI_DOCUMENT_MODEL", "SCHOOL_AI_TRANSCRIPTION_MODEL", "AI_PROVIDER"];

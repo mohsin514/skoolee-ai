@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { hashPassword, verifyPassword } from "@/lib/auth/password-hash";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, requireAuthUser } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { resetPasswordProblem } from "@/lib/auth/reset-password-policy";
 
 export async function PUT(req: NextRequest) {
   try {
@@ -16,9 +18,9 @@ export async function PUT(req: NextRequest) {
     if (!newPassword || typeof newPassword !== "string") {
       throw new ApiError("New password is required", 400);
     }
-    if (newPassword.length < 8) {
-      throw new ApiError("Password must be at least 8 characters", 400);
-    }
+    // SKAI-2017: same policy as registration, reset and first-login, so a change cannot weaken the password.
+    const problem = resetPasswordProblem(newPassword);
+    if (problem) throw new ApiError(problem, 400);
 
     const dbUser = await prisma.user.findUnique({
       where: { id: user.userId },
@@ -72,8 +74,8 @@ export async function PUT(req: NextRequest) {
       }),
     ]);
 
-    return Response.json({ success: true, message: "Password changed. Sign in again on each device." });
+    return ok({ message: "Password changed. Sign in again on each device." });
   } catch (error) {
-    return errorResponse(error, "[auth/change-password] PUT failed");
+    return failFrom(error, "[auth/change-password] PUT failed");
   }
 }

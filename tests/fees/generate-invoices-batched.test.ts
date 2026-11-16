@@ -18,14 +18,20 @@ const state = {
   campusReads: [] as unknown[],
   locks: [] as unknown[],
   lastDocNumber: null as string | null,
+  oneTime: {} as Record<string, number>,
+  discountRules: {} as Record<string, number>,
+  billedEnrollments: new Set<string>(),
+  carry: new Map<string, { balance: number }>(),
+  billed: [] as string[],
 };
 const activation = {
   id: "act-1", schoolId: "school-a", packageCode: "SA-DEMO", packageVersion: 1, currency: "SAR", exemptFeeCodes: [] as string[],
   legalName: "QA-01 Synthetic School", taxId: "300000000000003", approvedById: "admin-a", approvedAt: new Date("2026-01-01T00:00:00Z"), evidenceReference: "QA-01",
 };
 const tx = {
+  academicCycle: { findMany: async () => [] },
   student: { findMany: async ({ where }: { where: Row }) => { state.ops.push("student.findMany"); assert.equal(where.schoolId, state.user.schoolId); return state.students; } },
-  feeStructure: { findMany: async () => { state.ops.push("feeStructure.findMany"); return [{ classId: "class-1", currency: "SAR", monthlyFee: 100000, oneTimeFeesJson: {}, discountRulesJson: {}, taxPercentage: 0, approvedFee: null, approvedFeeReference: null }]; } },
+  feeStructure: { findMany: async () => { state.ops.push("feeStructure.findMany"); return [{ classId: "class-1", currency: "SAR", monthlyFee: 100000, oneTimeFeesJson: state.oneTime, discountRulesJson: state.discountRules, taxPercentage: 0, approvedFee: null, approvedFeeReference: null }]; } },
   school: { findUnique: async () => { state.ops.push("school.findUnique"); return { feeCapMode: "OFF" }; } },
   studentEnrollment: {
     findMany: async ({ where }: { where: { schoolId: string; campusId: string } }) => {
@@ -87,7 +93,7 @@ mock.module("@/lib/school-ai/fee-invoices", {
 });
 mock.module("@/lib/fees/invoice-generation", {
   namedExports: {
-    existingMonthlyStudentInvoices: async () => [],
+    existingMonthlyStudentInvoices: async () => state.billed.map(studentId => ({ id: `old-${studentId}`, studentId, invoiceDate: new Date("2026-11-01T00:00:00Z") })),
     invoiceGenerationTransaction: async (_u: User, _campusId: string, work: (t: typeof tx) => Promise<unknown>) => work(tx),
   },
 });
@@ -96,7 +102,7 @@ mock.module("@/lib/locale/store", { namedExports: { getLocalePackage: async () =
 mock.module("@/lib/fees/invoice-generation-inputs", {
   namedExports: {
     classYearKey: (a: string, b: string) => `${a}|${b}`,
-    loadInvoiceGenerationInputs: async () => ({ assignmentByClassYear: new Map(), categoryDiscountsByCategory: new Map(), explicitDiscountsByStudent: new Map(), carryForwardByStudentYear: new Map(), latestOpenInvoiceByStudent: new Map() }),
+    loadInvoiceGenerationInputs: async () => ({ assignmentByClassYear: new Map(), categoryDiscountsByCategory: new Map(), explicitDiscountsByStudent: new Map(), carryForwardByStudentYear: state.carry, latestOpenInvoiceByStudent: new Map() }),
     memoByKey: <T>(load: (k: string) => Promise<T>) => { const cache = new Map<string, Promise<T>>(); return (k: string) => { if (!cache.has(k)) cache.set(k, load(k)); return cache.get(k)!; }; },
   },
 });
@@ -104,6 +110,7 @@ mock.module("@/lib/fees/regulator-cap", { namedExports: { evaluateFeeCap: () => 
 mock.module("@/lib/notifications/in-app", { namedExports: { notify: () => {} } });
 mock.module("@/lib/fees/structure-year", {
   namedExports: {
+    enrollmentsBilledOneTimeFees: async () => state.billedEnrollments,
     feeStructureActiveWhere: () => ({}),
     invoiceBatchStatus: (g: number, e: number) => (g === 0 && e > 0 ? 422 : 201),
     pickStructureForClass: (list: Row[], classId: string) => list.find(s => s.classId === classId) ?? null,
@@ -124,6 +131,7 @@ beforeEach(() => {
   state.user = { userId: "acc-a", role: "ACCOUNTANT", schoolId: "school-a", campusId: "campus-a1", fullName: "QA Accountant" };
   state.ops = []; state.invoices = []; state.docs = []; state.seqIncrements = []; state.campusReads = []; state.locks = [];
   state.lastDocNumber = "SAD-000041";
+  state.oneTime = {}; state.discountRules = {}; state.billedEnrollments = new Set(); state.carry = new Map(); state.billed = [];
   state.students = roster(5, "campus-a1");
 });
 
@@ -191,4 +199,56 @@ test("roles without finance access are refused before any write", async () => {
     assert.equal((await generate()).status, 403, role);
   }
   assert.deepEqual(state.ops, []);
+});
+
+test("SKAI-2061: a legacy one-time fee is billed on the first invoice only, not on later months", async () => {
+  state.students = roster(2, "campus-a1");
+  state.oneTime = { Lab: 100000 };
+  state.billedEnrollments = new Set(["enr-stu-0001"]); // already charged the fee on an earlier invoice
+  const r = await generate();
+  assert.equal(r.status, 201);
+  const byStudent = new Map(state.invoices.map(i => [i.studentId, i]));
+  assert.equal(byStudent.get("stu-0000")!.oneTimeFees, 100000);
+  assert.equal(byStudent.get("stu-0000")!.subtotal, 200000);
+  assert.equal(byStudent.get("stu-0001")!.oneTimeFees, 0);
+  assert.equal(byStudent.get("stu-0001")!.subtotal, 100000);
+});
+
+test("SKAI-2099: a per-class student with a carry-forward balance (owed or credit) is refused, not billed without it", async () => {
+  state.carry = new Map([["stu-0000|2026-2027", { balance: 120000 }], ["stu-0001|2026-2027", { balance: -80000 }], ["stu-0003|2026-2027", { balance: 0 }]]);
+  const r = await generate();
+  const refused = r.body.errors.filter((e: Row) => e.error === "Review carry-forward allocation before generating another invoice.").map((e: Row) => e.studentId);
+  assert.deepEqual(refused, ["stu-0000", "stu-0001"]);
+  assert.deepEqual(state.invoices.map(i => i.studentId), ["stu-0003", "stu-0004"]);
+});
+
+test("SKAI-2024: a fully discounted pupil gets a PAID zero invoice, others stay PENDING", async () => {
+  state.students = roster(2, "campus-a1");
+  state.discountRules = { scholarship: 100 };
+  const full = await generate();
+  assert.equal(full.status, 201);
+  assert.deepEqual(state.invoices.map(i => [i.totalAmount, i.balanceDue, i.status]), [[0, 0, "PAID"], [0, 0, "PAID"]]);
+  state.invoices = [];
+  state.discountRules = { scholarship: 50 };
+  await generate();
+  assert.deepEqual(state.invoices.map(i => [i.totalAmount, i.status]), [[57500, "PENDING"], [57500, "PENDING"]]);
+});
+
+test("SKAI-2058: a re-run skips students already billed and invoices the late joiner", async () => {
+  state.students = roster(4, "campus-a1");
+  state.billed = ["stu-0000", "stu-0001", "stu-0002"];
+  const r = await generate();
+  assert.equal(r.status, 201);
+  assert.equal(r.body.generated, 1);
+  assert.equal(r.body.alreadyBilled, 3);
+  assert.deepEqual(state.invoices.map(i => i.studentId), ["stu-0003"]);
+});
+
+test("SKAI-2058: a re-run where every student is already billed still answers 409 and writes nothing", async () => {
+  state.students = roster(3, "campus-a1");
+  state.billed = ["stu-0000", "stu-0001", "stu-0002"];
+  const r = await generate();
+  assert.equal(r.status, 409);
+  assert.equal(r.body.error, "Invoices already exist for 3 student(s) this month");
+  assert.equal(state.invoices.length, 0);
 });

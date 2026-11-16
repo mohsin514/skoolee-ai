@@ -617,6 +617,8 @@ export async function DELETE(req: NextRequest) {
     const flipped = await prisma.$transaction(async (tx) => {
       const claimed = await tx.student.updateMany({ where: { id, archivedAt: null }, data: { status: "archived", archivedAt: new Date(), archiveReason } });
       if (claimed.count !== 1) return false;
+      // SKAI-2110: open placement proposals must not outlive the archive; confirming one would move the archived pupil.
+      await tx.enrollmentProposal.updateMany({ where: { studentId: id, status: "PROPOSED" }, data: { status: "CANCELLED" } });
       await tx.auditLog.create({ data: { tableName: "student", recordId: id, oldValue: { archived: false }, newValue: { archived: true, reason: archiveReason, dependencies: impact }, userId: user.userId } });
       await tx.studentTimelineEvent.create({ data: { schoolId: user.schoolId, studentId: id, kind: "ARCHIVED", title: "Archived", detail: JSON.stringify({ reason: archiveReason }), actorId: user.userId } });
       return true;

@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api/scope";
 import { capturePaymentReceipt } from "./receipt";
 import { settleLibraryChargeForInvoice } from "@/lib/library/charge-settlement";
 import { paymentAcademicYear } from "./payment-year";
@@ -93,10 +94,17 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
   const newCredit = amount - applied;
   await tx.paymentAllocation.create({ data: { schoolId: invoice.schoolId, campusId: invoice.campusId, paymentId: payment.id, invoiceId: invoice.id, amount: applied, credit: newCredit, currency: invoice.currency } });
 
-  const totalPaid = (await tx.paymentAllocation.aggregate({
+  const allocatedPaid = (await tx.paymentAllocation.aggregate({
     where: { invoiceId: input.invoiceId },
     _sum: { amount: true },
   }))._sum.amount ?? 0;
+  // SKAI-2091: a payment with no allocation row (seeded or imported outside recordPayment) still counts
+  // as paid; summing allocations alone forgot it and left a settled invoice PARTIAL.
+  const unallocatedPaid = (await tx.payment.aggregate({
+    where: { invoiceId: input.invoiceId, allocations: { none: {} } },
+    _sum: { amount: true },
+  }))._sum.amount ?? 0;
+  const totalPaid = allocatedPaid + unallocatedPaid;
 
   const newBalance = invoice.totalAmount - totalPaid;
   const newStatus = newBalance <= 0 ? "PAID" : totalPaid > 0 ? "PARTIAL" : "PENDING";
@@ -130,6 +138,8 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
     });
     if (existing) {
       if (existing.currency !== invoice.currency) throw new Error("Cannot combine overpayment credit across currencies");
+      // SKAI-2202: the carry-forward balance is Int4; refuse a credit it cannot hold instead of a raw 500.
+      if (existing.balance - credit < -2147483647) throw new ApiError("This overpayment would take the pupil's credit above the largest supported amount. Record only what is owed.", 400);
       await tx.feeCarryForward.update({
         where: { id: existing.id },
         data: { balance: existing.balance - credit },
@@ -155,6 +165,8 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
   let incomeAccount = await tx.chartOfAccount.findFirst({
     where: { schoolId: invoice.schoolId, campusId: input.campusId, name: "Fee Income" },
   });
+  // SKAI-2233: never post fee income to an account that only borrowed the name.
+  if (incomeAccount && (!incomeAccount.isSystem || incomeAccount.type !== "INCOME")) throw new ApiError("The \"Fee Income\" account on this campus is not the system income account. Rename that account before recording payments.", 409);
   if (!incomeAccount) {
     incomeAccount = await tx.chartOfAccount.create({
       data: { schoolId: invoice.schoolId, campusId: input.campusId, name: "Fee Income", type: "INCOME", isSystem: true },

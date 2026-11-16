@@ -107,6 +107,27 @@ const optionalEmail = z.preprocess(
   z.string().email().optional().nullable()
 ).optional();
 
+/** SKAI-2026: server-side limits so API calls cannot bypass the admission wizard's checks. */
+export const STUDENT_NAME_MAX_LENGTH = 150;
+const STUDENT_MIN_AGE_YEARS = 3;
+const PHONE_PATTERN = /^[+(]?[0-9][0-9\s\-().]*$/;
+
+export function isValidStudentPhone(value: string): boolean {
+  const digits = value.replace(/\D/g, "").length;
+  return PHONE_PATTERN.test(value) && digits >= 7 && digits <= 15;
+}
+
+/** Returns an error message for a date of birth that is unreadable, in the future or under the minimum age. */
+export function studentDateOfBirthError(value: string, now = new Date()): string | null {
+  const time = Date.parse(value);
+  if (!/^\d{4}-\d{2}-\d{2}/.test(value) || !Number.isFinite(time)) return "Date of birth must be a valid date";
+  if (time > now.getTime()) return "Date of birth cannot be in the future";
+  const cutoff = new Date(now);
+  cutoff.setFullYear(cutoff.getFullYear() - STUDENT_MIN_AGE_YEARS);
+  if (time > cutoff.getTime()) return `Student must be at least ${STUDENT_MIN_AGE_YEARS} years old`;
+  return null;
+}
+
 export const studentSchema = z.object({
   fullName: optionalText,
   firstName: optionalText,
@@ -152,6 +173,27 @@ export const studentSchema = z.object({
       path: ["fullName"],
       message: "Student name is required",
     });
+  }
+
+  if (fullName.length > STUDENT_NAME_MAX_LENGTH) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["fullName"],
+      message: `Student name must be at most ${STUDENT_NAME_MAX_LENGTH} characters`,
+    });
+  }
+
+  if (data.guardianPhone.trim() && !isValidStudentPhone(data.guardianPhone.trim())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["guardianPhone"],
+      message: "Enter a valid guardian phone number",
+    });
+  }
+
+  if (data.dateOfBirth) {
+    const dobError = studentDateOfBirthError(data.dateOfBirth);
+    if (dobError) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["dateOfBirth"], message: dobError });
   }
 
   if (!rollNo) {
@@ -235,8 +277,9 @@ export const bulkStudentSchema = z.object({
 });
 
 export const classSchema = z.object({
-  name: z.string().min(1, "Class name is required"),
-  section: optionalText,
+  // SKAI-2007: class name and section are length-capped (80 and 40, as on PATCH).
+  name: z.string().trim().min(1, "Class name is required").max(80, "Class name must be 80 characters or fewer"),
+  section: optionalText.refine((v) => v == null || String(v).length <= 40, "Section must be 40 characters or fewer"),
   gradeLevel: z.coerce.number().int().min(1).max(12).default(1),
   academicYear: z.coerce.number().int().min(2000).max(2100),
   teacherId: z.string().optional(),
@@ -283,12 +326,26 @@ export const examStatusSchema = z.object({
   status: z.enum(["DRAFT", "ACTIVE", "MARKS_ENTRY", "PRINCIPAL_REVIEWED", "PUBLISHED"]),
 });
 
+// Marks arrive from API callers as JSON or form strings. z.coerce.boolean()
+// reads "false" as true, and z.coerce.number() reads null and "" as 0, so a
+// pupil could be recorded absent or given a fail score by accident. These
+// accept only a real boolean / "true" / "false", and a real finite number.
+const strictBoolean = z.preprocess(
+  (value) => (value === "true" ? true : value === "false" ? false : value),
+  z.boolean(),
+);
+
+const strictMark = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() !== "" ? Number(value) : value),
+  z.number().finite().min(0),
+);
+
 // Single mark entry
 export const markEntrySchema = z.object({
   studentId: z.string().min(1),
   subjectId: z.string().min(1),
   examId: z.string().min(1),
-  marksObtained: z.coerce.number().min(0),
+  marksObtained: strictMark,
 });
 
 // Bulk marks (teacher enters entire class)
@@ -298,11 +355,11 @@ export const bulkMarksSchema = z.object({
   entries: z.array(z.object({
     studentId: z.string(),
     subjectId: z.string(),
-    marksObtained: z.coerce.number().min(0),
+    marksObtained: strictMark,
     // An absent pupil still gets a row — the paper was set, they did not sit
     // it — so absence travels alongside the mark rather than instead of it.
-    isAbsent: z.coerce.boolean().optional().default(false),
-    isExempt: z.coerce.boolean().optional().default(false),
+    isAbsent: strictBoolean.optional().default(false),
+    isExempt: strictBoolean.optional().default(false),
   })).min(1),
 });
 
@@ -368,37 +425,78 @@ export const reportActionSchema = z.object({
   correctionReason: z.string().max(1000).optional(),
 });
 
+// SKAI-2124: cap per-language remarks so a save cannot bloat report_versions snapshots or break the review UI.
+export const REPORT_REMARK_MAX_LENGTH = 2000;
+
 export const reportRemarkSchema = z.object({
   versionId: z.string().optional(),
   requestCorrection: z.boolean().optional(),
   correctionReason: z.string().max(1000).optional(),
   reviewerNote: z.string().max(4000).optional(),
   reportLanguage: z.enum(["en", "ar", "ur"]).optional(),
-  remarksAr: z.string().optional().nullable(),
-  remarksEn: z.string().optional().nullable(),
-  remarksUr: z.string().optional().nullable(),
+  remarksAr: z.string().max(REPORT_REMARK_MAX_LENGTH).optional().nullable(),
+  remarksEn: z.string().max(REPORT_REMARK_MAX_LENGTH).optional().nullable(),
+  remarksUr: z.string().max(REPORT_REMARK_MAX_LENGTH).optional().nullable(),
   // SKAI-1491: the remarks the editor loaded; a save against a newer draft is refused.
   expectedRemarks: z.object({ remarksEn: z.string().nullable(), remarksUr: z.string().nullable(), remarksAr: z.string().nullable().optional() }).strict().optional(),
   approve: z.boolean().optional(),
 });
 
+// SKAI-2028: one-time fees are whole minor units inside the int money column; discount rules are percentages.
+const MAX_MONEY_INT = 2147483647;
+function feeMapJson(label: string, check: (v: unknown) => boolean, rule: string) {
+  return z.string().optional().superRefine((raw, ctx) => {
+    if (!raw) return;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      ctx.addIssue({ code: "custom", message: `${label} must be valid JSON` });
+      return;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      ctx.addIssue({ code: "custom", message: `${label} must be an object of name to number` });
+      return;
+    }
+    for (const [name, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!check(v)) ctx.addIssue({ code: "custom", message: `${label} "${name}" must be ${rule}` });
+    }
+  });
+}
+export const oneTimeFeesJsonSchema = feeMapJson(
+  "One-time fees",
+  (v) => typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= MAX_MONEY_INT,
+  `a whole amount between 0 and ${MAX_MONEY_INT}`,
+);
+export const discountRulesJsonSchema = feeMapJson(
+  "Discount rules",
+  (v) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 100,
+  "a percentage between 0 and 100",
+);
+
 // Fee structure
-export const feeStructureSchema = z.object({
-  campusId: z.string().optional(),
-  classId: z.string().min(1),
-  monthlyFee: z.coerce.number().int().min(0),
-  // SKAI-1154: regulator-approved monthly fee (minor units) and permit reference; null clears them.
-  approvedFee: z.coerce.number().int().min(0).nullable().optional(),
-  approvedFeeReference: z.string().trim().max(120).nullable().optional(),
-  oneTimeFeesJson: z.string().optional(),
-  installmentType: z.enum(["11-month", "6-month", "quarterly", "one-time"]).optional(),
-  discountRulesJson: z.string().optional(),
-  lateFeePercentage: z.coerce.number().min(0).max(100).default(2.0),
-  compoundLateFee: z.boolean().default(true),
-  taxPercentage: z.coerce.number().min(0).max(100).default(0.0),
-  activeFrom: z.string().min(1),
-  activeTo: z.string().optional(),
-});
+export const feeStructureSchema = z
+  .object({
+    campusId: z.string().optional(),
+    classId: z.string().min(1),
+    monthlyFee: z.coerce.number().int().min(0).max(MAX_MONEY_INT),
+    // SKAI-1154: regulator-approved monthly fee (minor units) and permit reference; null clears them.
+    approvedFee: z.coerce.number().int().min(0).max(MAX_MONEY_INT).nullable().optional(),
+    approvedFeeReference: z.string().trim().max(120).nullable().optional(),
+    oneTimeFeesJson: oneTimeFeesJsonSchema,
+    installmentType: z.enum(["11-month", "6-month", "quarterly", "one-time"]).optional(),
+    discountRulesJson: discountRulesJsonSchema,
+    lateFeePercentage: z.coerce.number().min(0).max(100).default(2.0),
+    compoundLateFee: z.boolean().default(true),
+    taxPercentage: z.coerce.number().min(0).max(100).default(0.0),
+    activeFrom: z.string().refine(isRealDate, "Use a real calendar date (YYYY-MM-DD)."),
+    activeTo: z.string().refine((v) => v === "" || isRealDate(v), "Use a real calendar date (YYYY-MM-DD).").optional(),
+  })
+  // SKAI-2031: a structure's window runs forward; an inverted range is refused.
+  .refine((v) => !v.activeTo || v.activeTo >= v.activeFrom, {
+    message: "End date must be on or after the start date.",
+    path: ["activeTo"],
+  });
 
 // Generate invoices
 export const generateInvoicesSchema = z.object({
@@ -411,8 +509,9 @@ export const generateInvoicesSchema = z.object({
 // Record a payment
 export const paymentSchema = z.object({
   invoiceId: z.string().min(1),
-  amount: z.coerce.number().int().min(1),
-  paymentDate: z.string().min(1),
+  amount: z.coerce.number().int().min(1).max(2147483647, "amount is above the largest supported amount"), // SKAI-2182: Int4 minor units
+  // SKAI-2070: same rule as the Collect desk (SKAI-1307): a real YYYY-MM-DD day, never rolled into another day.
+  paymentDate: z.string().refine(isRealDate, "paymentDate must be a real calendar date (YYYY-MM-DD)"),
   paymentMethod: z.enum(["cash", "bank_transfer", "card", "mobile_wallet", "cheque"]),
   referenceNumber: z.string().optional(),
 });
@@ -449,6 +548,8 @@ export type AttendanceFormData = z.infer<typeof attendanceSchema>;
 export type MarkEntryData = z.infer<typeof markEntrySchema>;
 export type BulkMarksData = z.infer<typeof bulkMarksSchema>;
 export type FeeStructureFormData = z.infer<typeof feeStructureSchema>;
+// SKAI-2070: the legacy lowercase methods are stored in the Collect desk vocabulary (CASH/BANK/...).
+export const LEGACY_PAYMENT_METHOD_STORED = { cash: "CASH", bank_transfer: "BANK", card: "CARD", mobile_wallet: "MOBILE_WALLET", cheque: "CHEQUE" } as const;
 export type PaymentFormData = z.infer<typeof paymentSchema>;
 export type GenerateInvoicesFormData = z.infer<typeof generateInvoicesSchema>;
 export type BankImportFormData = z.infer<typeof bankImportSchema>;

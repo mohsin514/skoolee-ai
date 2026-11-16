@@ -526,13 +526,21 @@ export const prisma = new Proxy(guardedClient, {
     return (first: unknown, options?: unknown) => {
       const transact = target.$transaction.bind(target) as (arg: unknown, options?: unknown) => unknown;
       if (typeof first !== "function") return transact(first, options);
-      return afterCommitInvalidation(async () => await transact(async (tx: ReferenceClient) => {
-        // RLS reads inside this transaction must reuse it: a nested rlsClient
-        // transaction waits on the rows this one locked and times out (SKAI-1303).
-        const context = getTenantContext();
-        if (RLS_ENABLED && context?.schoolId) await applySchoolGuc(tx as unknown as { $executeRawUnsafe: (q: string, ...v: unknown[]) => Promise<unknown> }, context.schoolId);
-        return referenceTransaction.run(tx, () => withTransactionAudit(tx, async () => await first(tx)));
-      }, options));
+      return afterCommitInvalidation(async () => {
+        // SKAI-818: resolve the tenant before the transaction opens, not per query inside it. Inside the
+        // callback every guarded query would otherwise re-resolve the session on the base client once the
+        // two-second resolution cache expires; with a one-connection pool that waits on the connection the
+        // transaction already holds, and the transaction times out (a 500 on commit).
+        const outer = getTenantContext() ?? (await resolveTenantFromRequest());
+        return transact(async (tx: ReferenceClient) => {
+          // RLS reads inside this transaction must reuse it: a nested rlsClient
+          // transaction waits on the rows this one locked and times out (SKAI-1303).
+          const context = outer ?? getTenantContext();
+          if (RLS_ENABLED && context?.schoolId) await applySchoolGuc(tx as unknown as { $executeRawUnsafe: (q: string, ...v: unknown[]) => Promise<unknown> }, context.schoolId);
+          const run = () => referenceTransaction.run(tx, () => withTransactionAudit(tx, async () => await first(tx)));
+          return outer ? runWithTenantContext(outer, run) : run();
+        }, options);
+      });
     };
   },
 });

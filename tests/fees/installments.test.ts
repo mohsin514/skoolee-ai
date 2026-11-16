@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { installmentStates, splitEvenly, validatePlan } from "../../src/lib/fees/installments";
+import { installmentStates, settledTowardPlan, splitEvenly, validatePlan } from "../../src/lib/fees/installments";
 
 // SKO-431: instalment schedules add up exactly, never put a future instalment overdue, and allocate
 // payments in date order.
@@ -21,4 +21,14 @@ test("payments fill instalments in date order; only past-due unpaid amounts are 
   assert.deepEqual(states.map(s => [s.paid, s.remaining, s.state]), [[300, 0, "PAID"], [150, 150, "OVERDUE"], [0, 400, "NOT_YET_DUE"]]);
   const early = installmentStates([{ dueDate: "2026-11-01", amount: 300 }, { dueDate: "2026-12-01", amount: 300 }], 400, "2026-10-17");
   assert.deepEqual(early.map(s => s.state), ["PAID", "PART_PAID"], "a part-paid future instalment is not overdue");
+});
+
+test("SKAI-2206: a waiver after the plan reduces what the instalments still ask for", () => {
+  const plan = [{ dueDate: "2026-11-25", amount: 50000 }, { dueDate: "2026-12-25", amount: 50000 }];
+  // Waiver of 30000 applied, nothing paid: the instalments ask for the 70000 still owed.
+  const waived = installmentStates(plan, settledTowardPlan(plan, 70000), "2026-11-20");
+  assert.equal(waived.reduce((sum, item) => sum + item.remaining, 0), 70000);
+  // Then the full 70000 paid: the invoice is PAID and no instalment stays open.
+  const paid = installmentStates(plan, settledTowardPlan(plan, 0), "2026-12-30");
+  assert.deepEqual(paid.map(item => item.state), ["PAID", "PAID"]);
 });

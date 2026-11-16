@@ -10,6 +10,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { Prisma } from "@prisma/client";
+import { overdueCutoff } from "@/lib/datetime";
 
 type ByClassRow = { className: string; totalDue: bigint; totalPaid: bigint };
 
@@ -39,6 +40,7 @@ export async function GET(req: NextRequest) {
     });
 
     const campusIds = campuses.map((c) => c.id);
+    const overdueBefore = await overdueCutoff(user.schoolId, campusId);
 
     const [invoiceAgg, overdueAgg, byClassRaw, overdueInvoices, recentPayments] = await Promise.all([
       prisma.invoice.aggregate({
@@ -46,7 +48,7 @@ export async function GET(req: NextRequest) {
         _sum: { totalAmount: true, totalAmountPaid: true, balanceDue: true },
       }),
       prisma.invoice.aggregate({
-        where: { currency, campusId: { in: campusIds }, status: { not: "CANCELLED" }, balanceDue: { gt: 0 }, dueDate: { lt: new Date() } },
+        where: { currency, campusId: { in: campusIds }, status: { not: "CANCELLED" }, balanceDue: { gt: 0 }, dueDate: { lt: overdueBefore } },
         _sum: { balanceDue: true },
       }),
       // SKAI-1864: group by the student's current class in SQL instead of loading one row per billed
@@ -63,7 +65,7 @@ export async function GET(req: NextRequest) {
           AND i.status::text <> 'CANCELLED'
         GROUP BY 1`,
       prisma.invoice.findMany({
-        where: { currency, campusId: { in: campusIds }, status: { not: "CANCELLED" }, balanceDue: { gt: 0 }, dueDate: { lt: new Date() } },
+        where: { currency, campusId: { in: campusIds }, status: { not: "CANCELLED" }, balanceDue: { gt: 0 }, dueDate: { lt: overdueBefore } },
         include: { student: { select: { id: true, fullName: true, class: { select: { name: true } } } } },
         orderBy: { dueDate: "asc" },
         take: 50,

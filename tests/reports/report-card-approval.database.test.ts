@@ -152,3 +152,34 @@ test("the other school's exam is untouched by approvals in this school", async (
   const otherCard = (await raw.reportCard.findFirstOrThrow({ where: { examId: exams["B1"] } })).id;
   assert.equal(await approved(otherCard), false);
 });
+
+// SKAI-2140: G32 — approving or sending back is the academic lead's act, the same rule POST /api/reports enforces.
+test("a campus admin cannot approve or request correction while the campus has a principal", async () => {
+  const admin = user(schoolA, campusA1, "CAMPUS_ADMIN", "Synthetic campus admin A1");
+  await raw.user.create({ data: { id: admin.userId, schoolId: schoolA, campusId: campusA1, email: admin.email, role: "CAMPUS_ADMIN", fullName: admin.fullName!, onboardingComplete: true } });
+  const card = (await fixture(schoolA, campusA1, "A1-ADMIN", 1))[0];
+  await as(principalA1, () => updateReportCardCommand(principalA1, card, remarkBody("Admin gate remark")));
+  const versionId = (await currentVersion(card))!;
+  await assert.rejects(
+    as(admin, () => updateReportCardCommand(admin, card, approvalBody(versionId))),
+    (error: { status?: number }) => error.status === 403
+  );
+  await assert.rejects(
+    as(admin, () => updateReportCardCommand(admin, card, { requestCorrection: true, versionId, reviewerNote: "Synthetic note" } as never)),
+    (error: { status?: number }) => error.status === 403
+  );
+  assert.equal(await approved(card), false);
+  await as(principalA1, () => updateReportCardCommand(principalA1, card, approvalBody(versionId)));
+  assert.equal(await approved(card), true);
+});
+
+test("a campus admin approves while the campus has no principal", async () => {
+  const campusA3 = randomUUID();
+  await raw.campus.create({ data: { id: campusA3, schoolId: schoolA, name: "Synthetic campus A3", regId: campusA3, city: "Synthetic" } });
+  const admin = user(schoolA, campusA3, "CAMPUS_ADMIN", "Synthetic campus admin A3");
+  await raw.user.create({ data: { id: admin.userId, schoolId: schoolA, campusId: campusA3, email: admin.email, role: "CAMPUS_ADMIN", fullName: admin.fullName!, onboardingComplete: true } });
+  const card = (await fixture(schoolA, campusA3, "A3-ADMIN", 1))[0];
+  await as(admin, () => updateReportCardCommand(admin, card, remarkBody("No-principal remark")));
+  await as(admin, async () => updateReportCardCommand(admin, card, approvalBody((await currentVersion(card))!)));
+  assert.equal(await approved(card), true);
+});

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, assertPermission, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import * as transport from "@/lib/transport/service";
 
 export const runtime = "nodejs";
@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertPermission(user, "transport", "view");
     const p = request.nextUrl.searchParams, headers = { "Cache-Control": "private, no-store" };
     if (p.get("routeId")) return Response.json({ success: true, data: await transport.routeDetail(user, p.get("routeId")!) }, { headers });
     return Response.json({ success: true, data: await transport.findStudents(user, p.get("q") ?? "") }, { headers });
@@ -19,6 +20,8 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+    // SKAI-2148: same gate as the routes and vehicles APIs. A new stop is "add"; every other change is "edit".
+    await assertPermission(user, "transport", body.action === "stop" && !body.id ? "add" : "edit");
     switch (body.action) {
       case "assign": return Response.json({ success: true, data: await transport.assignRider(user, body) });
       case "unassign": return Response.json({ success: true, data: await transport.unassignRider(user, String(body.studentId ?? "")) });

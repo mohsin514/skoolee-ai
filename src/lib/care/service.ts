@@ -2,9 +2,10 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError, assertStaffRole, canManageCampusOps, isFamilyRole } from "@/lib/api/scope";
+import { ApiError, assertStaffRole, canManageAcademics, canManageCampusOps, isFamilyRole } from "@/lib/api/scope";
 import { guardianRelationshipAuthorityWhere } from "@/lib/parent/guardian-query";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
+import { teacherClassIds } from "@/lib/chat/policy";
 
 // SKO-439: confidential clinic and safeguarding workspaces.
 // - Two domains with separate memberships. Clinic membership never opens safeguarding records and the other
@@ -33,6 +34,9 @@ const SOURCES = ["STAFF_OBSERVATION", "DISCLOSURE_BY_PUPIL", "THIRD_PARTY", "OTH
 const ESCALATIONS = ["INTERNAL_REVIEW", "EXTERNAL_REFERRAL"];
 const RECIPIENTS = ["GUARDIAN", "STAFF", "EXTERNAL_AGENCY"];
 const MAX_EMERGENCY_MINUTES = 240;
+// Emergency clinic access is for staff who supervise pupils (teachers) and campus leadership. Support roles
+// such as librarian, accountant or receptionist have no care duty and cannot open it.
+export const canOpenClinicEmergency = (user: AuthUser) => !isFamilyRole(user) && (user.role === "TEACHER" || canManageAcademics(user));
 
 const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
 const required = (v: unknown, max: number, message: string) => {
@@ -49,8 +53,12 @@ const when = (v: unknown, fallback?: Date) => {
   if (v == null || v === "") { if (fallback) return fallback; throw new ApiError("Give the date and time.", 400); }
   const d = new Date(String(v));
   if (Number.isNaN(d.getTime())) throw new ApiError("Give a valid date and time.", 400);
+  if (d.getTime() < earliestCareTime()) throw new ApiError("That date is too far in the past. Check the year.", 400);
   return d;
 };
+// SKAI-2199: care records are legal chronology. A disclosure can describe events years back, but never before a
+// pupil could have been born, so anything over 20 years old is a mistyped year (0099, 1001).
+const earliestCareTime = () => { const d = new Date(); d.setUTCFullYear(d.getUTCFullYear() - 20); return d.getTime(); };
 export const contentHash = (content: string) => createHash("sha256").update(content).digest("hex");
 const userCampus = (user: AuthUser, requested?: unknown) => {
   const campusId = user.role === "SUPER_ADMIN" ? String(requested || user.campusId || "") : user.campusId ?? "";
@@ -116,7 +124,7 @@ const names = async (schoolId: string, ids: (string | null | undefined)[]) => {
 
 /** What this person may open. Says nothing about whether any record exists. */
 export async function workspaces(user: AuthUser) {
-  const out: Record<string, unknown> = { canConfigure: canManageCampusOps(user), canReport: !isFamilyRole(user), canEmergency: { CLINIC: !isFamilyRole(user), SAFEGUARDING: canManageCampusOps(user) } };
+  const out: Record<string, unknown> = { canConfigure: canManageCampusOps(user), canReport: !isFamilyRole(user), canEmergency: { CLINIC: canOpenClinicEmergency(user), SAFEGUARDING: canManageCampusOps(user) } };
   for (const domain of DOMAINS) {
     const m = await membership(user, domain);
     const s = m ? await setting(user.schoolId, m.campusId, domain) : null;
@@ -125,8 +133,11 @@ export async function workspaces(user: AuthUser) {
   const grants = isFamilyRole(user) ? [] : await prisma.emergencyAccess.findMany({ where: { schoolId: user.schoolId, userId: user.userId, revokedAt: null, expiresAt: { gt: new Date() } }, select: { id: true, domain: true, studentId: true, purpose: true, expiresAt: true } });
   const students = grants.length ? await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: grants.map(g => g.studentId) } }, select: { id: true, fullName: true } }) : [];
   out.grants = grants.map(g => ({ ...g, studentName: students.find(s => s.id === g.studentId)?.fullName ?? "" }));
+  out.canReadSummaries = summaryReader(user) || Boolean(out.CLINIC || out.SAFEGUARDING);
   return out;
 }
+/** SKAI-2185: care summaries reach teachers (of their own pupils), academic leaders and care members, not office roles. */
+const summaryReader = (user: AuthUser) => user.role === "TEACHER" || canManageAcademics(user);
 
 export async function findStudents(user: AuthUser, q: string) {
   assertStaffRole(user);
@@ -363,8 +374,10 @@ export async function recordDose(user: AuthUser, body: Record<string, unknown>) 
 /** General staff at the student's campus see the summary the clinic wrote for them — nothing else. */
 export async function careSummary(user: AuthUser, studentId: string) {
   assertStaffRole(user);
-  const student = await prisma.student.findFirst({ where: { id: studentId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true } });
+  const student = await prisma.student.findFirst({ where: { id: studentId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true, classId: true } });
   if (!student) throw new ApiError("Student not found", 404);
+  if (!summaryReader(user) && !(await membership(user, "CLINIC")) && !(await membership(user, "SAFEGUARDING"))) return deny(user, { domain: "CLINIC", recordType: "CARE_SUMMARY", studentId }, "Care summaries are shared with the pupil's teachers and care staff only.");
+  if (user.role === "TEACHER" && !(student.classId && (await teacherClassIds(user.userId)).includes(student.classId)) && !(await membership(user, "CLINIC"))) return deny(user, { domain: "CLINIC", recordType: "CARE_SUMMARY", studentId }, "Care summaries are shared with the pupil's teachers and care staff only.");
   const plan = await prisma.carePlan.findFirst({ where: { schoolId: user.schoolId, studentId }, select: { teacherSummary: true, updatedAt: true } });
   await log(user, { domain: "CLINIC", recordType: "CARE_SUMMARY", studentId, action: "VIEW" });
   return { summary: plan?.teacherSummary ?? null, updatedAt: plan?.teacherSummary ? plan.updatedAt : null };
@@ -475,7 +488,7 @@ export async function concernDetail(user: AuthUser, concernId: string) {
 }
 
 /** Lead actions change the case under its version so two leads never overwrite each other. */
-async function leadChange(user: AuthUser, body: Record<string, unknown>, change: (tx: TxClient, c: Prisma.SafeguardingConcernGetPayload<object>, m: { campusId: string }) => Promise<{ data: Prisma.SafeguardingConcernUpdateManyMutationInput; kind: string; text: string | null; detail?: Record<string, unknown> }>) {
+async function leadChange(user: AuthUser, body: Record<string, unknown>, change: (tx: TxClient, c: Prisma.SafeguardingConcernGetPayload<object>, m: { campusId: string }) => Promise<{ data: Prisma.SafeguardingConcernUncheckedUpdateManyInput; kind: string; text: string | null; detail?: Record<string, unknown> }>) {
   const m = await member(user, "SAFEGUARDING");
   // The version the lead's screen showed; without it the change cannot be checked against other leads' entries.
   const raw = body.version;
@@ -675,6 +688,7 @@ export async function openEmergency(user: AuthUser, body: Record<string, unknown
   assertStaffRole(user);
   const domain = domainOf(body.domain);
   if (domain === "SAFEGUARDING" && !canManageCampusOps(user)) return deny(user, { domain, recordType: "EMERGENCY_ACCESS" }, "Only a campus leader can open emergency safeguarding access.");
+  if (domain === "CLINIC" && !canOpenClinicEmergency(user)) return deny(user, { domain, recordType: "EMERGENCY_ACCESS" }, "Your role cannot open emergency clinic access.");
   const student = await prisma.student.findFirst({ where: { id: String(body.studentId ?? ""), schoolId: user.schoolId, archivedAt: null, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true, campusId: true } });
   if (!student) throw new ApiError("Choose a student at your campus.", 404);
   if (!(await setting(user.schoolId, student.campusId, domain))?.enabled) throw new ApiError("This confidential workspace has not been enabled for this campus.", 409);

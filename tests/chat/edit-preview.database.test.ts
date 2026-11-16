@@ -37,3 +37,15 @@ test("editing the latest message updates the preview the recipient sees", async 
   await as(teacher, () => editMessage(teacher, older.id, "QA older edit"));
   assert.equal(await inboxPreview(student), "QA deterministic message edited", "an older edit leaves the preview alone");
 });
+
+// SKAI-2168: once a moderator closes the thread, edits are refused like sends.
+test("editing is refused after the conversation is closed", async () => {
+  const msg = await as(student, () => sendMessage(student, conversationId, { body: "before close" }));
+  await raw.conversation.update({ where: { id: conversationId }, data: { isLocked: true } });
+  try {
+    await assert.rejects(as(student, () => editMessage(student, msg.id, "rewritten after close")), /closed/);
+    assert.equal((await raw.chatMessage.findUnique({ where: { id: msg.id } }))?.body, "before close");
+  } finally {
+    await raw.conversation.update({ where: { id: conversationId }, data: { isLocked: false } });
+  }
+});

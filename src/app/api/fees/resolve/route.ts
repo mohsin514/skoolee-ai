@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     const requestedYear = Number(searchParams.get("academicYear") ?? new Date().getFullYear());
 
     if (!studentId) throw new ApiError("studentId required", 400);
-    if (!Number.isInteger(requestedYear) || requestedYear < 2000) throw new ApiError("invalid academicYear", 400);
+    if (!Number.isInteger(requestedYear) || requestedYear < 2000 || requestedYear > 2100) throw new ApiError("invalid academicYear", 400);
 
     const student = await prisma.student.findFirst({
       where: { id: studentId, ...campusScope(user) },
@@ -104,7 +104,8 @@ export async function GET(req: NextRequest) {
 
     // 2. Legacy fallback
     const legacy = await prisma.feeStructure.findFirst({
-      where: { campusId: student.campusId, classId: student.classId },
+      // SKAI-2222: only a structure in force during the requested year (calendar-year window, as invoiceYearWindow).
+      where: { campusId: student.campusId, classId: student.classId, activeFrom: { lt: new Date(Date.UTC(requestedYear + 1, 0, 1)) }, OR: [{ activeTo: null }, { activeTo: { gte: new Date(Date.UTC(requestedYear, 0, 1)) } }] },
       orderBy: { activeFrom: "desc" },
     });
 

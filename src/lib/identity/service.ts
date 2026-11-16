@@ -218,19 +218,25 @@ export async function decideLink(user: AuthUser, body: Record<string, unknown>) 
   groupAdmin(user);
   const r = await prisma.identityLinkRequest.findFirst({ where: { id: String(body.id ?? ""), schoolId: user.schoolId, status: "PENDING" } });
   if (!r) throw new ApiError("Request not found", 404);
+  // Claim PENDING atomically: only the decision that flips the row commits, and it alone emits the audit event.
+  const claimed = (status: "REJECTED" | "LINKED") => ({ where: { id: r.id, status: "PENDING" as const }, data: { status, decidedById: user.userId, decidedAt: new Date() } });
+  const conflict = () => new ApiError("This request was already decided. Reload to see its current state.", 409);
   if (body.decision === "REJECT") {
-    await prisma.identityLinkRequest.update({ where: { id: r.id }, data: { status: "REJECTED", decidedById: user.userId, decidedAt: new Date() } });
+    const { count } = await prisma.identityLinkRequest.updateMany(claimed("REJECTED"));
+    if (!count) throw conflict();
     await event(user.schoolId, "LINK_REJECTED", user.userId, r.connectionId, { subject: r.subject });
     return { id: r.id, status: "REJECTED" };
   }
   const target = await prisma.user.findFirst({ where: { id: String(body.userId ?? ""), schoolId: user.schoolId, isActive: true, role: { notIn: ["APP_OWNER"] } }, select: { id: true } });
   if (!target) throw new ApiError("Choose an active account in this school.", 400);
   try {
-    await prisma.$transaction([
-      prisma.identityLink.create({ data: { schoolId: user.schoolId, connectionId: r.connectionId, subject: r.subject, userId: target.id, method: "ADMIN_DECISION", linkedById: user.userId } }),
-      prisma.identityLinkRequest.update({ where: { id: r.id }, data: { status: "LINKED", decidedById: user.userId, decidedAt: new Date() } }),
-    ]);
+    await prisma.$transaction(async tx => {
+      const { count } = await tx.identityLinkRequest.updateMany(claimed("LINKED"));
+      if (!count) throw conflict();
+      await tx.identityLink.create({ data: { schoolId: user.schoolId, connectionId: r.connectionId, subject: r.subject, userId: target.id, method: "ADMIN_DECISION", linkedById: user.userId } });
+    });
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ApiError("That account is already linked to another identity for this provider.", 409);
     throw error;
   }
@@ -249,6 +255,14 @@ export async function candidates(user: AuthUser, requestId: string) {
 // ─── Roster exchange ─────────────────────────────────────────────────────
 
 type Row = { kind: "student" | "staff"; externalId: string; fullName?: string; admissionNo?: string | null; className?: string; section?: string | null; email?: string; group?: string; status?: "active" | "withdrawn" };
+/** Plain-language reason for a row that failed to apply; raw ORM messages (table/constraint names) never reach the stored result. */
+export function rowFailureMessage(error: unknown): string {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return "An account with this email already exists. Link it deliberately instead of creating a second one.";
+  if (error instanceof Prisma.PrismaClientKnownRequestError || error instanceof Prisma.PrismaClientValidationError || error instanceof Prisma.PrismaClientUnknownRequestError) return "Could not apply this row. Review it and submit a corrected batch.";
+  return error instanceof Error && error.message ? error.message : "Could not apply";
+}
+
 type Change = { key: string; kind: "STUDENT" | "STAFF"; externalId: string; action: "ADD" | "UPDATE" | "WITHDRAW" | "UNCHANGED" | "CONFLICT" | "ERROR"; localId: string | null; changes: { field: string; from: unknown; to: unknown; owner: "SOURCE" | "LOCAL"; applied: boolean }[]; note: string | null; destructive: boolean };
 
 const owner = (c: { fieldOwnership: Prisma.JsonValue }, field: string) => (((c.fieldOwnership ?? {}) as Record<string, string>)[field] === "LOCAL" ? "LOCAL" : "SOURCE") as "SOURCE" | "LOCAL";
@@ -262,8 +276,15 @@ export async function submitBatch(user: AuthUser, body: Record<string, unknown>)
   if (!(await prisma.campus.findFirst({ where: { id: campusId, schoolId: user.schoolId } }))) throw new ApiError("Choose a campus.", 400);
   const externalBatchId = text(body.externalBatchId, 120);
   if (!externalBatchId) throw new ApiError("Give the source system's batch id.", 400);
-  const rows = (Array.isArray(body.rows) ? body.rows : []) as Row[];
-  if (!rows.length || rows.length > 5000) throw new ApiError("A batch has between 1 and 5000 rows.", 400);
+  const rawRows = (Array.isArray(body.rows) ? body.rows : []) as Row[];
+  if (!rawRows.length || rawRows.length > 5000) throw new ApiError("A batch has between 1 and 5000 rows.", 400);
+  // SKAI-2122: SIS exports send numeric ids; coerce them to text so every later lookup gets strings, and refuse other types up front.
+  const idText = (v: unknown, label: string) => {
+    if (v == null || typeof v === "string") return v as string | null | undefined;
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+    throw new ApiError(`${label} must be text or a number.`, 400);
+  };
+  const rows = rawRows.map(r => (r && typeof r === "object" ? { ...r, externalId: idText(r.externalId, "externalId") as string, ...(r.admissionNo !== undefined ? { admissionNo: idText(r.admissionNo, "admissionNo") } : {}) } : r)) as Row[];
   const keys = new Set<string>();
   for (const r of rows) {
     if (!["student", "staff"].includes(r?.kind) || !text(r.externalId, 120)) throw new ApiError("Every row needs a kind (student or staff) and a stable externalId.", 400);
@@ -291,8 +312,14 @@ export async function submitBatch(user: AuthUser, body: Record<string, unknown>)
     if (winner) return winner;
     throw new ApiError("This batch is being recorded by another request. Retry shortly.", 409);
   }
-  const p = await computePreview(user.schoolId, c, campusId, rows);
-  await prisma.rosterBatch.update({ where: { id: batch.id }, data: { preview: p.changes as unknown as Prisma.InputJsonValue, previewHash: p.hash } });
+  try {
+    const p = await computePreview(user.schoolId, c, campusId, rows);
+    await prisma.rosterBatch.update({ where: { id: batch.id }, data: { preview: p.changes as unknown as Prisma.InputJsonValue, previewHash: p.hash } });
+  } catch (error) {
+    // SKAI-2122: a batch whose preview cannot be computed must not stay behind and burn the source batch id.
+    await prisma.rosterBatch.deleteMany({ where: { id: batch.id, status: "DRY_RUN" } }).catch(() => undefined);
+    throw error;
+  }
   return { id: batch.id, replayed: false, status: "DRY_RUN" };
 }
 
@@ -305,6 +332,8 @@ async function computePreview(schoolId: string, c: Prisma.IdentityConnectionGetP
     const withdrawn = r.status === "withdrawn";
     if (kind === "STUDENT") {
       let local = map ? await prisma.student.findFirst({ where: { id: map.localId, schoolId }, select: { id: true, fullName: true, admissionNo: true, campusId: true, archivedAt: true, class: { select: { name: true, section: true } } } }) : null;
+      // SKAI-2116: a mapped pupil the campus guard hides lives at another campus; never fall through to ADD and re-use the mapping.
+      if (map && !local && await runUnscoped("identity: mapped pupil visibility", () => prisma.student.findFirst({ where: { id: map.localId, schoolId }, select: { id: true } }))) { changes.push({ key, kind, externalId: r.externalId, action: "ERROR", localId: null, changes: [], note: "This pupil belongs to another campus.", destructive: false }); continue; }
       let note: string | null = null;
       // An unmapped row can match only a stable identifier (admission number), never a name.
       if (!local && r.admissionNo) {
@@ -341,13 +370,15 @@ async function computePreview(schoolId: string, c: Prisma.IdentityConnectionGetP
     } else {
       const local = map ? await prisma.user.findFirst({ where: { id: map.localId, schoolId }, select: { id: true, fullName: true, email: true, role: true, isActive: true } }) : null;
       const role = r.group ? roleMap[r.group] : undefined;
+      if (map && !local && await runUnscoped("identity: mapped staff visibility", () => prisma.user.findFirst({ where: { id: map.localId, schoolId }, select: { id: true } }))) { changes.push({ key, kind, externalId: r.externalId, action: "ERROR", localId: null, changes: [], note: "This staff member belongs to another campus.", destructive: false }); continue; }
       if (r.group && !role) { changes.push({ key, kind, externalId: r.externalId, action: "ERROR", localId: local?.id ?? null, changes: [], note: `The directory group "${r.group}" has no role mapping.`, destructive: false }); continue; }
       if (!local) {
         if (withdrawn) { changes.push({ key, kind, externalId: r.externalId, action: "UNCHANGED", localId: null, changes: [], note: "Withdrawn upstream and not present here.", destructive: false }); continue; }
         const email = text(r.email, 200).toLowerCase();
         if (!email || !r.fullName || !role) { changes.push({ key, kind, externalId: r.externalId, action: "ERROR", localId: null, changes: [], note: "A new staff member needs fullName, email and a mapped group.", destructive: false }); continue; }
         // Never adopt an existing account by email from a roster: that is a link decision for an administrator.
-        if (await prisma.user.findFirst({ where: { schoolId, email: { equals: email, mode: "insensitive" } }, select: { id: true } })) { changes.push({ key, kind, externalId: r.externalId, action: "CONFLICT", localId: null, changes: [], note: "An account with this email already exists. Link it deliberately instead of creating a second one.", destructive: false }); continue; }
+        // School-wide check: a campus operator's scope cannot see staff at other campuses, but the (school, email) key is school-wide.
+        if (await runUnscoped("identity: roster email already used in this school", () => prisma.user.findFirst({ where: { schoolId, email: { equals: email, mode: "insensitive" } }, select: { id: true } }))) { changes.push({ key, kind, externalId: r.externalId, action: "CONFLICT", localId: null, changes: [], note: "An account with this email already exists. Link it deliberately instead of creating a second one.", destructive: false }); continue; }
         changes.push({ key, kind, externalId: r.externalId, action: "ADD", localId: null, changes: [{ field: "fullName", from: null, to: r.fullName, owner: "SOURCE", applied: true }, { field: "email", from: null, to: email, owner: "SOURCE", applied: true }, { field: "role", from: null, to: role, owner: "SOURCE", applied: true }], note: "Account created without a password; the person signs in through the school provider.", destructive: false });
         continue;
       }
@@ -409,7 +440,7 @@ export async function applyBatch(user: AuthUser, body: Record<string, unknown>) 
       } catch (error) {
         await tx.$executeRaw`ROLLBACK TO SAVEPOINT roster_row`;
         result.errors++;
-        failures.push({ key: ch.key, error: error instanceof Error ? error.message : "Could not apply" });
+        failures.push({ key: ch.key, error: rowFailureMessage(error) });
       }
     }
     await tx.rosterBatch.update({ where: { id: b.id }, data: { result: { ...result, failures } as unknown as Prisma.InputJsonValue } });

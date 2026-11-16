@@ -17,3 +17,12 @@ test("SKAI-1643: the limit and waiting-reservation checks still run before the c
   assert.ok(renew.indexOf("loan.renewals >= rules.maxRenewals") < claim);
   assert.ok(renew.indexOf('status: "WAITING"') < claim);
 });
+
+test("SKAI-2163: loan-by-id actions (renew, lost, return) are limited to the actor's campus and answer 404", () => {
+  const lost = source.slice(source.indexOf("export async function markLost"), source.indexOf("export async function decideCharge"));
+  const back = source.slice(source.indexOf("export async function returnIssue"), source.indexOf("export async function renewLoan"));
+  assert.match(renew, /returnedAt: null, book: \{ campusId: campusOf\(user\) \} \}/);
+  assert.match(lost, /returnedAt: null, book: \{ campusId: campusOf\(user\) \} \}/);
+  assert.match(back, /\.\.\.\(user\.campusId \? \{ campusId: user\.campusId \} : \{\}\)/);
+  assert.match(back, /Issue not found", 404/);
+});

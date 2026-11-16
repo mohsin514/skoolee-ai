@@ -10,8 +10,10 @@ import {
   GripVertical,
   Lock,
   MoreVertical,
+  Pencil,
   PenLine,
   RotateCcw,
+  Trash2,
   TriangleAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -75,6 +77,9 @@ export interface ExamBoardCardProps {
   onAdvance: (action: NextAction) => void;
   onReject: () => void;
   onMove: (to: ColumnKey) => void;
+  /** SKAI-1999: rename / re-term and discard a mistaken exam. */
+  onEdit?: () => void;
+  onDelete?: () => void;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
 }
@@ -94,6 +99,8 @@ export function ExamBoardCard({
   onAdvance,
   onReject,
   onMove,
+  onEdit,
+  onDelete,
   onDragStart,
   onDragEnd,
 }: ExamBoardCardProps) {
@@ -146,7 +153,7 @@ export function ExamBoardCard({
       />
 
       <div className="mb-2 flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-start gap-2">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
           <span
             aria-hidden
             className="mt-0.5 cursor-grab text-edge opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
@@ -166,9 +173,9 @@ export function ExamBoardCard({
           <Button variant="ghost"
             type="button"
             onClick={() => onOpen()}
-            className="min-w-0 text-start text-sm font-semibold leading-tight text-ink-strong"
+            className="h-auto min-w-0 flex-1 justify-start whitespace-normal p-0 text-start text-sm font-semibold leading-tight text-ink-strong"
           >
-            <bdi>{exam.title}</bdi>
+            <bdi className="line-clamp-2 break-words">{exam.title}</bdi>
           </Button>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -180,7 +187,7 @@ export function ExamBoardCard({
             </Tooltip>
           ) : null}
           <StatusPill status={exam.status} />
-          <CardMenu exam={exam} role={role} hasSchedule={hasSchedule} meta={meta} onOpen={onOpen} onMove={onMove} />
+          <CardMenu exam={exam} role={role} hasSchedule={hasSchedule} meta={meta} onOpen={onOpen} onMove={onMove} onEdit={onEdit} onDelete={onDelete} />
         </div>
       </div>
 
@@ -282,6 +289,8 @@ function CardMenu({
   meta,
   onOpen,
   onMove,
+  onEdit,
+  onDelete,
 }: {
   exam: ExamItem;
   role: ExamCycleRole;
@@ -289,6 +298,8 @@ function CardMenu({
   meta?: ExamMeta;
   onOpen: (tab?: DetailTab) => void;
   onMove: (to: ColumnKey) => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   const ui = useUiText();
   const [open, setOpen] = useState(false);
@@ -311,6 +322,9 @@ function CardMenu({
   }, [open]);
 
   const columns = columnsForRole(role);
+  // Mirrors the server: locked exams are read-only, and an exam with marks cannot be discarded.
+  const editable = !exam.isLocked && ["DRAFT", "ACTIVE", "MARKS_ENTRY"].includes(exam.status);
+  const deletable = editable && exam._count.marks === 0 && exam._count.reportCards === 0;
 
   const tabs: { label: string; tab: DetailTab; icon: React.ComponentType<{ className?: string }> }[] =
     role === "TEACHER"
@@ -351,6 +365,19 @@ function CardMenu({
               </Button>
             );
           })}
+
+          {editable && onEdit ? (
+            <Button variant="secondary" type="button" onClick={() => { setOpen(false); onEdit(); }} className="flex w-full items-center justify-start gap-2 px-3 py-2 text-start">
+              <Pencil aria-hidden="true" className="h-3.5 w-3.5 text-primary" />
+              {ui("Edit details")}
+            </Button>
+          ) : null}
+          {deletable && onDelete ? (
+            <Button variant="secondary" type="button" onClick={() => { setOpen(false); onDelete(); }} className="flex w-full items-center justify-start gap-2 px-3 py-2 text-start">
+              <Trash2 aria-hidden="true" className="h-3.5 w-3.5 text-status-danger-text" />
+              {ui("Delete")}
+            </Button>
+          ) : null}
 
           <p className="mt-1 border-t border-edge/15 px-3 pb-1 pt-2 text-xs font-semibold text-ink-subtle">
             {ui("Move to")}
