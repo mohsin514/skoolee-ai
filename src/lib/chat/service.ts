@@ -1066,7 +1066,8 @@ export async function addMembers(
   const { row, me } = await requireMembership(user, conversationId);
 
   if (row.kind === "DIRECT") throw new ApiError("A direct conversation is fixed at two people", 400);
-  if (me.memberRole === "MEMBER") throw new ApiError("Only the owner or a moderator can add people", 403);
+  // SKAI-2198: the same moderators who may remove people may add them, so a group whose owner left can still grow.
+  if (me.memberRole === "MEMBER" && !canModerate(user.role)) throw new ApiError("Only the owner or a moderator can add people", 403);
 
   const settings = await getChatSettings(user.schoolId);
   const existing = new Set(row.members.map((m) => m.userId));
