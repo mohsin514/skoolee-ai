@@ -288,7 +288,8 @@
     "test:family-statement": "node --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit tests/fees/family-statement.test.ts",
     "test:invoice-list-filters": "node --import tsx --test tests/fees/invoice-list-filters.test.ts",
     "test:tx-tenant": "node --import tsx --test tests/db/transaction-tenant-binding.test.ts",
-    "test:thread-load-failure": "node --import ./tests/support/server-only.mjs --import tsx --test tests/chat/thread-load-failure.test.ts"
+    "test:thread-load-failure": "node --import ./tests/support/server-only.mjs --import tsx --test tests/chat/thread-load-failure.test.ts",
+    "test:final-grade-regenerate": "node --experimental-test-module-mocks --import ./tests/support/server-only.mjs --import tsx --test tests/academic/final-grade-regenerate.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
