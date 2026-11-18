@@ -150,7 +150,7 @@ export function LocaleCurrencyReview() {
 
   const pending = data?.role === "ACCOUNTANT" ? data.policies.filter((policy) => policy.status === "FINANCE_REVIEW") : [];
   if (!data || pending.length === 0) return null;
-  const where = (policy: PolicyRow) => (policy.campusId ? data.campuses.find((campus) => campus.id === policy.campusId)?.name : null);
+  const where = (policy: PolicyRow) => (policy.campusId ? [...data.campuses, ...(data.reviewCampuses ?? [])].find((campus) => campus.id === policy.campusId)?.name : null);
   const currencyOf = (policy: PolicyRow) => (policy.settings as { currency?: string }).currency ?? "—";
 
   const decide = async () => {
