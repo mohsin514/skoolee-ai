@@ -7,7 +7,7 @@ export const navigationUiEntries: readonly (readonly [string, string, string])[]
   ["Choose child", "اختر الطالب", "بچہ منتخب کریں"],
   ["School-wide view", "عرض على مستوى المدرسة", "پورے اسکول کا منظر"],
   ["Change campus, viewing {0}", "تغيير الفرع، المعروض {0}", "کیمپس تبدیل کریں، دیکھ رہے ہیں {0}"],
-  ["Every page follows the campus you choose.", "تتبع كل صفحة الفرع الذي تختاره.", "ہر صفحہ آپ کے منتخب کردہ کیمپس کے مطابق ہوگا۔"],
+  ["Campus pages and lists follow the campus you choose. The Overview always shows the whole group.", "تتبع صفحات الفرع والقوائم الفرع الذي تختاره. تعرض النظرة العامة المجموعة كاملة دائمًا.", "کیمپس کے صفحات اور فہرستیں آپ کے منتخب کردہ کیمپس کے مطابق ہوں گی۔ جائزہ ہمیشہ پورے گروپ کو دکھاتا ہے۔"],
   ["Could not switch campus. Try again.", "تعذر تغيير الفرع. حاول مرة أخرى.", "کیمپس تبدیل نہیں ہو سکا۔ دوبارہ کوشش کریں۔"],
   ["Roll number", "رقم الطالب", "رول نمبر"],
   ["Month calendar. Scroll horizontally to see all days.", "تقويم الشهر. مرر أفقياً لرؤية جميع الأيام.", "ماہ کا کیلنڈر۔ تمام دن دیکھنے کے لیے افقی طور پر اسکرول کریں۔"],
