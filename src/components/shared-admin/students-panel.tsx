@@ -1076,8 +1076,8 @@ function StudentCard({
 
           <div className="mt-3 flex items-center justify-between gap-2">
             <StatusPill status={report ? report.status : "NO_REPORT"} />
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-primary/50 transition-all duration-300 group-hover/student:translate-x-0.5 group-hover/student:bg-primary group-hover/student:text-white">
-              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-primary/50 transition-all duration-300 group-hover/student:translate-x-0.5 rtl:group-hover/student:-translate-x-0.5 group-hover/student:bg-primary group-hover/student:text-white">
+              <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" aria-hidden="true" />
             </div>
           </div>
         </div>
