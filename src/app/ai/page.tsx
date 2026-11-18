@@ -20,6 +20,7 @@ import { capability, entriesForRole } from "@/lib/ai-workflows/registry";
 import { getDisplayLocale } from "@/lib/locale/display";
 import type { UserRole } from "@/lib/roles";
 import { aiWorkflowsAvailable } from "@/lib/ai-workflows/flag";
+import { localizedTitle } from "@/lib/locale/page-title";
 
 const HERO_ID = "ai-ask-hero-title";
 
@@ -39,7 +40,8 @@ function askExamplesFor(role: string, language: "en" | "ar" | "ur") {
   return picked;
 }
 
-export const metadata = { title: "AI Workflows" };
+// §7.3 distinct <title>, in the viewer's language (SKAI-2250).
+export const generateMetadata = () => localizedTitle("AI Workflows");
 
 /** The automatic workspace is scoped to the signed-in role and its current permissions. */
 export default async function SchoolAiPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {

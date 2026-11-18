@@ -1,14 +1,11 @@
-import type { Metadata } from "next";
 import { requirePageSession } from "@/lib/auth/require-page-session";
 import { assertSchoolOperational, BillingAccessError } from "@/lib/billing/entitlements";
 import OperationalLayout from "@/app/operational-layout";
 import { SuperAdminDataProvider } from "./super-data-context";
+import { localizedTitle } from "@/lib/locale/page-title";
 
-export const metadata: Metadata = {
-  // §7.3: every route needs a distinct <title>. The root layout supplies
-  // the "%s | SkooleeAI" template, so this renders as "Group console | SkooleeAI".
-  title: "Group console",
-};
+// §7.3 distinct <title>, in the viewer's language (SKAI-2250).
+export const generateMetadata = () => localizedTitle("Group console");
 
 /**
  * F3 / §3.2: whether the school's subscription is paused, read once on the server for this page load. While

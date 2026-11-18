@@ -4,11 +4,12 @@ import { prisma } from "@/lib/db/prisma";
 import { redirectIfSuspended, requirePageSession } from "@/lib/auth/require-page-session";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { redirect } from "next/navigation";
-import type { Metadata } from "next";
+import { localizedTitle } from "@/lib/locale/page-title";
 
 // §7.3: every route segment carries a distinct <title>; the root layout
 // supplies the "%s | SkooleeAI" template.
-export const metadata: Metadata = { title: "Messages" };
+// §7.3 distinct <title>, in the viewer's language (SKAI-2250).
+export const generateMetadata = () => localizedTitle("Messages");
 
 export default async function MessagesLayout({ children }: { children: React.ReactNode }) {
   // The full-page messenger for every school role, framed in the caller's console. The page owns its chat stream, so the floating dock is off.
