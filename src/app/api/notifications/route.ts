@@ -64,6 +64,10 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (Array.isArray(body.ids) && body.ids.length > 0) {
+      // SKAI-2213: non-string ids used to reach Prisma and return 500; reject them (and oversized lists) as 400.
+      if (body.ids.length > 500 || !body.ids.every(id => typeof id === "string" && id.length > 0)) {
+        return Response.json({ error: "ids must be an array of up to 500 notification ids" }, { status: 400 });
+      }
       const result = await prisma.notification.updateMany({
         where: { id: { in: body.ids }, userId: user.userId, isRead: false },
         data: { isRead: true, readAt: now },
