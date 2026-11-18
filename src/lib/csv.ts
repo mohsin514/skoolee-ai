@@ -58,6 +58,13 @@ export function downloadCSV(filename: string, rows: unknown[][]) {
 }
 /** The header plus the CSV rows whose last cell (Record Key, the student id) is in `ids`; quoted line breaks stay inside their row. */
 export function keepRosterRows(csv: string, ids: ReadonlySet<string>): string {
-  const [header, ...rest] = csv.split(/(?<=,[0-9a-f-]{36}|^[^\r\n]*)\r\n/);
+  const rows: string[] = [];
+  let start = 0, quoted = false;
+  for (let i = 0; i < csv.length; i++) {
+    if (csv[i] === '"') quoted = !quoted;
+    else if (!quoted && csv[i] === "\r" && csv[i + 1] === "\n") { rows.push(csv.slice(start, i)); start = i + 2; i++; }
+  }
+  if (start < csv.length) rows.push(csv.slice(start));
+  const [header = "", ...rest] = rows;
   return [header, ...rest.filter((row) => ids.has(row.slice(row.lastIndexOf(",") + 1)))].join("\r\n") + "\r\n";
 }

@@ -81,7 +81,7 @@ test("no live government/SIS connector is advertised as available", () => {
 });
 
 test("SKAI-2260: keepRosterRows keeps the header and the chosen students, quoted line breaks included", () => {
-  const a = "11111111-1111-4111-8111-111111111111", b = "22222222-2222-4222-8222-222222222222";
+  const a = "11111111-1111-4111-8111-111111111111", b = "campus-1-Grade-4-A-002";
   const csv = `Roll No,Address,Record Key\r\n1,"Line 1\r\nLine 2",${a}\r\n2,Street,${b}\r\n`;
   assert.equal(keepRosterRows(csv, new Set([a])), `Roll No,Address,Record Key\r\n1,"Line 1\r\nLine 2",${a}\r\n`);
   assert.equal(keepRosterRows(csv, new Set([b])), `Roll No,Address,Record Key\r\n2,Street,${b}\r\n`);
