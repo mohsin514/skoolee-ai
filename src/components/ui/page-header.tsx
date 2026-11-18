@@ -147,7 +147,7 @@ export function PageHeader({
                   href: action.disabled ? undefined : action.href,
                   onSelect: action.onClick,
                   disabled: action.disabled,
-                  description: action.disabled ? action.disabledReason : undefined,
+                  description: action.disabled && action.disabledReason ? t(action.disabledReason) : undefined,
                   tone: action.tone,
                 }))}
               />

@@ -2083,7 +2083,7 @@ export function StudentDetailModal({
           <Pencil className="h-3.5 w-3.5" />{editing ? ui("Cancel") : ui("Edit details")}
         </SystemButton>}
       </div>
-      <DraftRecovery draft={pupilDraft} saving={busy} excluded="Health notes, allergies, medications and special needs are not stored in device drafts." />
+      <DraftRecovery draft={pupilDraft} saving={busy} excluded={ui("Health notes, allergies, medications and special needs are not stored in device drafts.")} />
       {detailError ? (
         <p
           role="alert"

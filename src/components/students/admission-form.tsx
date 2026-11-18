@@ -489,7 +489,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
       submitting={isSubmitting}
       submittingLabel="Creating…"
     >
-          <DraftRecovery recordLabel="New admission" draft={draft} saving={isSubmitting} excluded="Health notes, allergies, medications, special needs and login emails are never stored in a device draft." />
+          <DraftRecovery recordLabel={ui("New admission")} draft={draft} saving={isSubmitting} excluded={ui("Health notes, allergies, medications, special needs and login emails are never stored in a device draft.")} />
           <FormErrorSummary errors={errors} onFocusField={(field) => {
             const targetStep = ["guardianName", "guardianPhone", "guardianEmail"].includes(field) ? 1 : ["address", "city", "medicalNotes"].includes(field) ? 2 : 0;
             setStep(targetStep);
