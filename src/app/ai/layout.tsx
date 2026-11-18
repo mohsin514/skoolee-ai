@@ -1,11 +1,12 @@
-import type { Metadata } from "next";
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { requirePageSession } from "@/lib/auth/require-page-session";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { assertSchoolOperational, BillingAccessError } from "@/lib/billing/entitlements";
 import { redirect } from "next/navigation";
+import { localizedTitle } from "@/lib/locale/page-title";
 
-export const metadata: Metadata = { title: "School AI" };
+// §7.3 distinct <title>, in the viewer's language (SKAI-2250).
+export const generateMetadata = () => localizedTitle("School AI");
 export const dynamic = "force-dynamic";
 /**
  * Gates for every /ai route, including the candidate exam boundary (/ai/exams). It never renders RoleShell or

@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { redirectIfSuspended, requirePageSession } from "@/lib/auth/require-page-session";
 import { dashboardPathForRole } from "@/lib/roles";
@@ -6,12 +5,10 @@ import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { TeacherShell } from "./teacher-shell";
 import { TeacherDataProvider } from "./teacher-data-context";
+import { localizedTitle } from "@/lib/locale/page-title";
 
-export const metadata: Metadata = {
-  // §7.3: every route needs a distinct <title>. The root layout supplies
-  // the "%s | SkooleeAI" template, so this renders as "Teacher | SkooleeAI".
-  title: "Teacher",
-};
+// §7.3 distinct <title>, in the viewer's language (SKAI-2250).
+export const generateMetadata = () => localizedTitle("Teacher");
 
 export default async function TeacherLayout({ children }: { children: React.ReactNode }) {
   // The shell and every page inside it are client components that fetch their
