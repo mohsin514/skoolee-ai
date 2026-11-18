@@ -213,7 +213,7 @@ export function RoleHeader({
 
   return (
     <>
-      <header data-workspace-header className={cn("sk-panel relative z-40 flex shrink-0 flex-nowrap items-center justify-between gap-[8px] px-[12px] py-[8px] sm:flex-wrap sm:px-4 sm:py-2.5", compact ? "mb-3" : "mb-4")}>
+      <header data-workspace-header className={cn("sk-panel relative z-40 flex shrink-0 flex-nowrap items-center justify-between gap-[8px] px-[12px] py-[8px] sm:flex-wrap sm:px-4 sm:py-2.5 xl:flex-nowrap", compact ? "mb-3" : "mb-4")}>
         <div data-tour="shell.header.identity" className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none sm:gap-3">
           <Tooltip content={t("Home")} describe={false}>
             <Link href={home} aria-label={t("Home")} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-brand-400 shadow-md shadow-primary/15 sm:h-9 sm:w-9">
@@ -226,17 +226,19 @@ export function RoleHeader({
               rather than degrade to a server guess. */}
           <div className="min-w-0">
             {eyebrow && <p className="truncate text-xs font-bold leading-tight text-ink-strong">{eyebrow}</p>}
-            {scopeLine ? <p className="mt-1 truncate text-2xs text-ink-muted sm:hidden" title={scopeLine}><bdi>{scopeLine}</bdi></p> : null}
+            {scopeLine ? <p className="mt-1 truncate text-2xs text-ink-muted xl:hidden" title={scopeLine}><bdi>{scopeLine}</bdi></p> : null}
             {landing && <p suppressHydrationWarning className={cn("hidden text-xs font-semibold leading-tight tracking-tight text-ink-muted sm:block", eyebrow && "mt-1")}>{greetingParts[0]}<bdi>{displayName}</bdi>{greetingParts[1]}</p>}
             {landing && <p suppressHydrationWarning className="mt-px hidden text-2xs font-semibold leading-tight text-ink-muted sm:block">{today}</p>}
           </div>
         </div>
 
-        <div className="ms-auto flex w-auto shrink-0 items-center justify-end gap-[6px] sm:min-w-0 sm:max-w-full sm:shrink sm:flex-wrap sm:gap-2.5">
-          {/* SKAI-2157: the context slot (parent child switcher, super campus switcher) stays visible on phones; only the badges are sm+. */}
+        <div className="ms-auto flex w-auto shrink-0 items-center justify-end gap-[6px] sm:min-w-0 sm:max-w-full sm:shrink sm:gap-2.5">
+          {/* SKAI-2157: the context slot (parent child switcher, super campus switcher) stays visible on phones.
+              SKAI-2259: the scope and cycle badges are xl+ only; below that they wrapped the header to three rows
+              on tablets, so the scope line shows under the console name instead and the cluster does not wrap. */}
           <div className="me-auto flex min-w-0 max-w-full flex-wrap items-center gap-[6px] [&_svg]:shrink-0">
-            <div className="hidden sm:contents"><ScopeBadge /></div>
-            {showCycle ? <div data-tour="shell.header.cycle" className="hidden sm:block [&>div]:max-w-full [&>div]:px-[8px] [&>div]:py-[6px]"><CycleBadge /></div> : null}
+            <div className="hidden xl:contents"><ScopeBadge /></div>
+            {showCycle ? <div data-tour="shell.header.cycle" className="hidden xl:block [&>div]:max-w-full [&>div]:px-[8px] [&>div]:py-[6px]"><CycleBadge /></div> : null}
             {context ? <div data-tour="shell.header.context" className="flex min-w-0 max-w-full items-center gap-2">{context}</div> : null}
           </div>
           {viewerRole ? <HelpMenu role={viewerRole} framed={framed} /> : null}
@@ -317,17 +319,17 @@ export function RoleHeader({
                 data-tour="shell.header.account"
                 aria-label={t("Account menu")}
                 className={cn(
-                  "flex min-h-[44px] min-w-[44px] items-center justify-start gap-0 px-[6px] py-[6px] sm:min-h-11 sm:gap-2.5 sm:px-4",
+                  "flex min-h-[44px] min-w-[44px] items-center justify-start gap-0 px-[6px] py-[6px] sm:min-h-11 sm:px-[8px] xl:gap-2.5 xl:px-4",
                   menuOpen && "bg-surface-hover"
                 )}
               >
                 <div className={cn("flex h-[28px] w-[28px] items-center justify-center overflow-hidden rounded-xl border-2 border-card bg-brand-50 shadow-sm sm:h-8 sm:w-8", menuOpen ? "ring-2 ring-primary/25" : "ring-1 ring-primary/10")}>
                   <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-2xs" />
                 </div>
-                <div className="hidden text-start sm:block">
+                <div className="hidden text-start xl:block">
                   <p className="max-w-28 truncate text-xs font-semibold leading-none text-ink-strong"><bdi>{displayName}</bdi></p>
                 </div>
-                <ChevronDown aria-hidden="true" className={cn("hidden h-3.5 w-3.5 text-ink-subtle transition-transform duration-300 sm:block", menuOpen && "rotate-180 text-primary")} />
+                <ChevronDown aria-hidden="true" className={cn("hidden h-3.5 w-3.5 text-ink-subtle transition-transform duration-300 xl:block", menuOpen && "rotate-180 text-primary")} />
               </Button>
             )}
           />
