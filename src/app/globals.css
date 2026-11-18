@@ -804,6 +804,9 @@ button:disabled,
 /* SKAI-2225: Recharts positions SVG text with text-anchor, which an inherited rtl direction flips, so category
    labels of layout="vertical" bar charts ran across the bars in ar/ur. Chart geometry is LTR; Arabic text still shapes. */
 .recharts-surface { direction: ltr; }
+/* SKAI-2242: in RTL pages a truncated Latin name or code (INV-2026-…) is cut at its own end, not its start:
+   plaintext takes the base direction from the text, so the ellipsis follows it. Arabic/Urdu text is unchanged. */
+.truncate:dir(rtl) { unicode-bidi: plaintext; }
 
 /* Toasts: a countdown line along the bottom edge (an extra background layer: Sonner owns both
    pseudo-elements). It pauses while the stack is hovered/expanded or the toast holds focus, like the
