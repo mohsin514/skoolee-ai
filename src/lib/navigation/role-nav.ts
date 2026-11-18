@@ -248,6 +248,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
         leaf("curriculum-packs", "Curriculum packs", BookCheck, h("/curriculum-packs"), { visible: { module: "exams" } }), // SKAI-1008
         leaf("resources", "Learning resources", FolderOpen, h("/resources"), { hiddenInNav: true, visible: { module: "timetable" } }), // [K-I7]
         leaf("improvement", "Improvement evidence", ClipboardCheck, h("/improvement"), { visible: { all: ["improvementLead"] } }),
+        leaf("service-desk", "Service desk", Wrench, h("/service-desk?tab=queue"), { visible: { all: ["serviceAgent"] } }), // SKAI-2228: owners and escalation contacts reach their queue
         leaf("care", "Care & safeguarding", HeartHandshake, h("/care"), { visible: { all: ["careMember"] } }),
       ]),
     ],
@@ -283,6 +284,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
         leaf("resources", "Resources", FolderOpen, h("/teacher/resources"), { visible: { module: "timetable" } }),
         leaf("portfolios", "Portfolios", Sparkles, h("/teacher/portfolio"), { visible: { module: "students" } }),
       ]),
+      leaf("service-desk", "Service desk", Wrench, h("/service-desk?tab=queue"), { visible: { all: ["serviceAgent"] } }), // SKAI-2228: owners and escalation contacts reach their queue
       messages(4),
       group("more", "More", LayoutGrid, "more", [
         leaf("objective-map", "Objective map", Target, h("/teacher/curriculum"), { visible: { module: "exams" } }),
@@ -321,6 +323,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
       group("setup", "Setup", SlidersHorizontal, "more", [
         leaf("fee-setup", "Fee setup", SlidersHorizontal, v("fee-structures"), { tier: "R", visible: { module: "fees" } }),
         leaf("payment-corrections", "Payment corrections", History, h("/corrections"), { tier: "T", visible: { all: ["corrections"] } }),
+        leaf("service-desk", "Service desk", Wrench, h("/service-desk?tab=queue"), { visible: { all: ["serviceAgent"] } }), // SKAI-2228: owners and escalation contacts reach their queue
       ]),
     ],
     accountMenu: [myLeave(v("my-leave"))],
@@ -343,6 +346,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
         leaf("post", "Post", Mail, v("postal"), { tier: "D", visible: { module: "front-desk" } }),
       ]),
       leaf("documents", "Documents", ScrollText, v("certificates"), { visible: { module: "front-desk" } }),
+      leaf("service-desk", "Service desk", Wrench, h("/service-desk?tab=queue"), { visible: { all: ["serviceAgent"] } }), // SKAI-2228: owners and escalation contacts reach their queue
       messages(),
     ],
     accountMenu: [myLeave(v("my-leave"))],
@@ -358,6 +362,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
       aiWorkflows(),
       leaf("lending", "Lending desk", ScanLine, v("lending"), { tier: "D", mobile: 2, visible: { module: "library" } }),
       leaf("catalogue", "Catalogue & members", BookCopy, v("catalogue"), { tier: "W", mobile: 3, visible: { module: "library" } }),
+      leaf("service-desk", "Service desk", Wrench, h("/service-desk?tab=queue"), { visible: { all: ["serviceAgent"] } }), // SKAI-2228: owners and escalation contacts reach their queue
       messages(4),
     ],
     accountMenu: [myLeave(v("my-leave"))],
