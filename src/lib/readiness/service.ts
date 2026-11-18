@@ -8,7 +8,7 @@ import { ApiError } from "@/lib/api/scope";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { getLocalePackage } from "@/lib/locale/store";
 import { parseSetupDraft, unresolvedOptionalWork, type AdoptionMode as SetupAdoptionMode, type InstitutionType, type OptionalWorkKey } from "@/lib/onboarding/setup-state";
-import { SETUP_AREAS, SETUP_AREA_TITLES, setupAreaHref, setupAreaTaskKey } from "@/lib/onboarding/setup-areas";
+import { SETUP_AREAS, SETUP_AREA_TITLES, evidencedSetupAreas, setupAreaHref, setupAreaTaskKey, withAreaEvidence } from "@/lib/onboarding/setup-areas";
 import { buildSetupProgress } from "./progress";
 import { evaluateReadiness, isUnknownClassError, REHEARSAL_STEPS, type AdoptionMode, type ImportFacts, type ReadinessFacts, type RehearsalStep } from "./checks";
 
@@ -113,12 +113,16 @@ export async function readinessView(user: AuthUser, now = new Date()) {
     await seedOptionalTasks(tx, user);
     const row = await readinessRow(tx, user);
     const facts = await gatherFacts(tx, user.schoolId, row.rehearsal as ReadinessFacts["rehearsal"]);
-    const [tasks, staff, locale, audit] = await Promise.all([
+    const [storedTasks, staff, locale, audit, subjects, campusesWithWeekends] = await Promise.all([
       tx.readinessTask.findMany({ where: { schoolId: user.schoolId }, orderBy: { createdAt: "asc" } }),
       tx.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: { notIn: ["STUDENT", "PARENT", "APP_OWNER"] } }, select: { id: true, fullName: true, role: true }, orderBy: { fullName: "asc" } }),
       getLocalePackage(user.schoolId, null, now, undefined, tx),
       taskAudit(tx, user.schoolId),
+      tx.subject.count({ where: { schoolId: user.schoolId, archivedAt: null } }),
+      tx.campus.count({ where: { schoolId: user.schoolId, archivedAt: null, weekends: { some: {} } } }),
     ]);
+    // SKAI-2241: an area whose records already exist (wizard, class manager) reads done, matching the required checks.
+    const tasks = withAreaEvidence(storedTasks, evidencedSetupAreas({ activeCycles: facts.activeCycles, campuses: facts.campuses, campusesWithWeekends, classes: facts.classes, subjects }));
     const viewer = { role: user.role, institutionKind: user.institutionKind, isInstitutionOwner: user.isInstitutionOwner };
     const evaluation = evaluateReadiness(facts, viewer);
     const areas = SETUP_AREAS.map(id => ({ id, ...setupAreaHref(id, viewer) }));
