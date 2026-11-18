@@ -115,6 +115,8 @@ export function RoleHeader({
     if (h < 17) return "Good afternoon";
     return "Good evening";
   })();
+  // SKAI-2232: one translatable template, so Arabic/Urdu use "،" and translators own the word order; the name stays in <bdi>.
+  const greetingParts = [...t(`${greeting}, {0}`).split("{0}"), ""];
 
   const today = new Date().toLocaleDateString(language, { timeZone: timezone, weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
@@ -225,7 +227,7 @@ export function RoleHeader({
           <div className="min-w-0">
             {eyebrow && <p className="truncate text-xs font-bold leading-tight text-ink-strong">{eyebrow}</p>}
             {scopeLine ? <p className="mt-1 truncate text-2xs text-ink-muted sm:hidden" title={scopeLine}><bdi>{scopeLine}</bdi></p> : null}
-            {landing && <p suppressHydrationWarning className={cn("hidden text-xs font-semibold leading-tight tracking-tight text-ink-muted sm:block", eyebrow && "mt-1")}>{t(greeting)}, <bdi>{displayName}</bdi></p>}
+            {landing && <p suppressHydrationWarning className={cn("hidden text-xs font-semibold leading-tight tracking-tight text-ink-muted sm:block", eyebrow && "mt-1")}>{greetingParts[0]}<bdi>{displayName}</bdi>{greetingParts[1]}</p>}
             {landing && <p suppressHydrationWarning className="mt-px hidden text-2xs font-semibold leading-tight text-ink-muted sm:block">{today}</p>}
           </div>
         </div>
