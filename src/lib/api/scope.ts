@@ -385,7 +385,8 @@ export async function assertPermission(user: AuthUser, module: PermissionModule,
 }
 
 export async function resolveCampusId(user: AuthUser, requestedCampusId?: string | null) {
-  const campusId = user.role === "SUPER_ADMIN" ? requestedCampusId || user.campusId : user.campusId;
+  // SKAI-2239: with no explicit campus, a group owner works in the campus picked in the header switcher.
+  const campusId = user.role === "SUPER_ADMIN" ? requestedCampusId || user.activeCampusId || user.campusId : user.campusId;
 
   if (!campusId) {
     throw new ApiError("campusId required", 400);

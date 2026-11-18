@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
     assertStaffRole(user);
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
-    const campusId = user.role === "SUPER_ADMIN" && !requestedCampusId
+    const campusId = user.role === "SUPER_ADMIN" && !requestedCampusId && !user.activeCampusId
       ? null
       : await resolveCampusId(user, requestedCampusId);
 

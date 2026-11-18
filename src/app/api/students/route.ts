@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
     const picker = searchParams.get("fields") === "picker";
     const page = parsePageParam("page", 1, 100_000);
     const limit = picker ? parsePageParam("limit", 20, 20) : parsePageParam("limit", 50, 200);
-    const campusId = user.role === "SUPER_ADMIN" && !requestedCampusId
+    const campusId = user.role === "SUPER_ADMIN" && !requestedCampusId && !user.activeCampusId
       ? null
       : await resolveCampusId(user, requestedCampusId);
 

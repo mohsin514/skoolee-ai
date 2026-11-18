@@ -77,7 +77,7 @@ export function CampusSwitcher() {
           <h2 className="text-lg font-bold text-ink-strong">{t("Choose campus")}</h2>
           <IconButton label={t("Close")} tooltip={false} onClick={() => setOpen(false)}><X aria-hidden="true" /></IconButton>
         </div>
-        <p className="px-3 pt-3 text-sm text-ink-muted">{t("Every page follows the campus you choose.")}</p>
+        <p className="px-3 pt-3 text-sm text-ink-muted">{t("Campus pages and lists follow the campus you choose. The Overview always shows the whole group.")}</p>
         <div className="min-h-0 space-y-2 overflow-y-auto p-3">
           {options.map(option => {
             const selected = option.id === (active?.id ?? null);
