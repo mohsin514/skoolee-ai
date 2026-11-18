@@ -917,6 +917,10 @@ const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Name (English)", "الاسم (بالإنجليزية)", "نام (انگریزی)"],
   ["Name of previous school (if any)", "اسم المدرسة السابقة (إن وجدت)", "سابقہ اسکول کا نام (اگر ہو)"],
   ["New admission", "قبول جديد", "نیا داخلہ"],
+  // SKAI-2246: admission draft notices and the no-class reason.
+  ["Health notes, allergies, medications, special needs and login emails are never stored in a device draft.", "لا تُحفظ الملاحظات الصحية والحساسية والأدوية والاحتياجات الخاصة وعناوين البريد لتسجيل الدخول في مسودة الجهاز أبدًا.", "صحت کے نوٹس، الرجی، ادویات، خصوصی ضروریات اور لاگ ان ای میلز کبھی بھی ڈیوائس ڈرافٹ میں محفوظ نہیں کی جاتیں۔"],
+  ["Health notes, allergies, medications and special needs are not stored in device drafts.", "لا تُحفظ الملاحظات الصحية والحساسية والأدوية والاحتياجات الخاصة في مسودات الجهاز.", "صحت کے نوٹس، الرجی، ادویات اور خصوصی ضروریات ڈیوائس ڈرافٹ میں محفوظ نہیں کی جاتیں۔"],
+  ["Create a class first. Students are admitted into a class.", "أنشئ صفًا أولًا. يُقبل الطلاب في صف.", "پہلے ایک کلاس بنائیں۔ طلبہ کو کسی کلاس میں داخل کیا جاتا ہے۔"],
   ["No existing guardian matches that. Fill the fields below to add a new one.", "لا يوجد ولي أمر مطابق. املأ الحقول أدناه لإضافة ولي أمر جديد.", "کوئی موجودہ سرپرست نہیں ملا۔ نیا شامل کرنے کے لیے نیچے خانے بھریں۔"],
   ["No guardian details provided", "لم تُقدَّم بيانات ولي الأمر", "سرپرست کی تفصیلات فراہم نہیں کی گئیں"],
   ["No sibling link", "لا ربط بإخوة", "بہن بھائی سے کوئی ربط نہیں"],
