@@ -9,6 +9,7 @@ import {
   NOTIFICATION_KIND_INTENT,
   NOTIFICATION_NOTICE_ONLY_KINDS,
   canOpenHref,
+  localizeChatNotification,
   notificationHref,
   type NotificationViewer,
 } from "@/lib/notifications/links";
@@ -178,6 +179,16 @@ test("fixed-copy kinds really are fixed sentences, and each has Arabic and Urdu"
   assert.deepEqual(missing, []);
 });
 
+test("SKAI-2211: chat notifications render in the reader's language", () => {
+  const ui = (text: string, values: (string | number)[] = []) => translateUi(text, "ar").replace(/\{(\d+)\}/g, (m, i) => (i in values ? String(values[Number(i)]) : m));
+  const direct = localizeChatNotification("New message from Student Demo", "Open Messages to read it.", ui);
+  assert.equal(direct.title, "رسالة جديدة من Student Demo");
+  assert.equal(direct.message, "افتح الرسائل لقراءتها.");
+  const group = localizeChatNotification("Campus Admin posted in Sports day", "Urgent message. Open Messages to read it.", ui);
+  assert.equal(group.title, "نشر Campus Admin في Sports day");
+  assert.equal(group.message, "رسالة عاجلة. افتح الرسائل لقراءتها.");
+  assert.equal(localizeChatNotification("Something else", "x", (t) => t).title, "Something else");
+});
 // ─── Recipients (fake directory) ────────────────────────────────────────────
 
 type Person = { id: string; role: UserRole; campusId: string | null; authority?: boolean; payer?: boolean };

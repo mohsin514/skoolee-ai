@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { arrowSelect } from "@/components/ui/choice-card";
 import type { DeskTone } from "@/components/ui/desk";
-import { NOTIFICATION_FIXED_MESSAGE_KINDS, NOTIFICATION_FIXED_TITLE_KINDS, NOTIFICATION_NOTICE_ONLY_KINDS } from "@/lib/notifications/links";
+import { localizeChatNotification, NOTIFICATION_FIXED_MESSAGE_KINDS, NOTIFICATION_FIXED_TITLE_KINDS, NOTIFICATION_NOTICE_ONLY_KINDS } from "@/lib/notifications/links";
 
 // SKO-416: All / Mentions / Needs you. "Seen" is attention only; an assigned action stays open until its
 // source workflow completes it, and every open rechecks access before navigating.
@@ -135,8 +135,9 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
           // Fixed sentences (and the "no longer available" placeholder) read in the viewer's language; titles and
           // messages that carry names, classes or amounts stay as written.
           const hidden = item.state === "unavailable";
-          const title = hidden || (item.type && NOTIFICATION_FIXED_TITLE_KINDS.has(item.type)) ? ui(item.title) : item.title;
-          const message = hidden || (item.type && NOTIFICATION_FIXED_MESSAGE_KINDS.has(item.type)) ? ui(item.message) : item.message;
+          const chat = !hidden && item.type === "CHAT_MESSAGE" ? localizeChatNotification(item.title, item.message, ui) : null;
+          const title = chat ? chat.title : hidden || (item.type && NOTIFICATION_FIXED_TITLE_KINDS.has(item.type)) ? ui(item.title) : item.title;
+          const message = chat ? chat.message : hidden || (item.type && NOTIFICATION_FIXED_MESSAGE_KINDS.has(item.type)) ? ui(item.message) : item.message;
           const openable = !hidden && !(item.type && NOTIFICATION_NOTICE_ONLY_KINDS.has(item.type));
           // A day heading opens each run of items from the same day (the list arrives newest first).
           const at = inboxItemTime(item), day = dayBucket(at);
