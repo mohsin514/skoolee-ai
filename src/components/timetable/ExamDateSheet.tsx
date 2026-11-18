@@ -1,5 +1,6 @@
 "use client";
 
+import { csvCell } from "@/lib/csv";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { CalendarClock, CalendarDays, Download, Printer } from "lucide-react";
@@ -213,7 +214,7 @@ export function ExamDateSheet({
   // CSV of the chosen exam's papers (Excel-safe: BOM, quoted cells), headers in the viewer's language.
   const download = () => {
     if (!selectedExam || !hasSheets) { toast.info(ui("Choose an exam whose papers are scheduled first.")); return; }
-    const cell = (value: string) => `"${value.replace(/"/g, '""')}"`;
+    const cell = csvCell; // SKAI-2258: shared formula-injection guard (=, +, -, @ become text)
     const header = [ui("Date"), ui("Day"), ui("Start"), ui("End"), ui("Subject"), ui("Room")];
     const lines = grouped.flatMap(({ date, rows }) => rows.map((row) => [
       date,
