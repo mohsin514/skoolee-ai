@@ -139,7 +139,7 @@
     "test:country-capabilities": "node --import ./tests/support/server-only.mjs --import tsx --test tests/market/country-capabilities.test.ts",
     "test:initial-timezone": "node --import ./tests/support/server-only.mjs --import tsx --test tests/onboarding/initial-timezone.test.ts",
     "test:readiness": "node --import ./tests/support/server-only.mjs --import tsx --test tests/ops/readiness.test.ts tests/ops/pdf-worker.test.ts tests/ops/remark-worker.test.ts tests/ops/pdf-cache-headers.test.ts tests/ops/subscription-expiry.test.ts tests/ops/provider-alerts.test.ts",
-    "test:setup-areas": "node --import ./tests/support/server-only.mjs --import tsx --test tests/onboarding/setup-areas.test.ts",
+    "test:setup-areas": "node --import ./tests/support/server-only.mjs --import tsx --test tests/onboarding/setup-areas.test.ts tests/onboarding/setup-country.test.ts",
     "test:subject-setup": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/subject-setup.test.ts",
     "test:teacher-allocation": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/teacher-allocation.test.ts",
     "test:class-setup": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/class-setup.test.ts",
