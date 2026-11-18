@@ -71,12 +71,20 @@ function onceSocketEvent(socket: net.Socket | tls.TLSSocket, eventName: "connect
   });
 }
 
-function readResponse(socket: net.Socket | tls.TLSSocket) {
+// SKAI-2267: a server that stops answering must fail the send, not hang the signup request.
+const SMTP_REPLY_TIMEOUT_MS = 30_000;
+
+function readResponse(socket: net.Socket | tls.TLSSocket, timeoutMs = SMTP_REPLY_TIMEOUT_MS) {
   return new Promise<SmtpResponse>((resolve, reject) => {
     let buffer = "";
     const lines: string[] = [];
 
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("SMTP server did not reply in time"));
+    }, timeoutMs);
     const cleanup = () => {
+      clearTimeout(timer);
       socket.off("data", onData);
       socket.off("error", onError);
       socket.off("end", onEnd);
@@ -314,7 +322,11 @@ export async function sendSmtpMail(config: SmtpConfig, input: SmtpMailInput) {
 
     await command(socket, "DATA", [354]);
     await command(socket, `${dotStuff(raw)}\r\n.`, [250]);
-    await command(socket, "QUIT", [221]);
+    // SKAI-2267: a 250 to DATA means the server accepted the message. QUIT is a courtesy;
+    // if the server drops or refuses it, the email is still on its way, so it is not a failure.
+    await command(socket, "QUIT", [221]).catch((error) => {
+      console.warn("[smtp] QUIT after accepted message failed:", error instanceof Error ? error.message : error);
+    });
 
     return { id: messageId };
   } finally {
