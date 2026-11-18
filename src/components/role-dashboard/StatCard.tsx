@@ -107,11 +107,12 @@ export function StatCard({
     <>
       <span aria-hidden="true" className={cn("pointer-events-none absolute -end-10 -top-10 -z-10 size-32 rounded-full opacity-60 blur-2xl", toneGlowClass[tone])} />
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p dir="auto" className="mb-2 text-xs font-medium text-ink-muted">
             {label}
           </p>
-          <p dir="auto" data-numeric className="text-3xl font-bold leading-none tracking-tight text-ink-strong">{displayValue}</p>
+          {/* SKAI-2245: long amounts wrap inside their column instead of running under the icon. */}
+          <p dir="auto" data-numeric className="text-3xl font-bold leading-none tracking-tight text-ink-strong [overflow-wrap:anywhere]">{displayValue}</p>
           {sub && <p dir="auto" className="mt-2 text-xs text-ink-muted">{sub}</p>}
           {trend && (
             <p className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs">
