@@ -528,13 +528,15 @@ export default function MarksPage() {
             />
           ) : markSheet?.subjects?.length && markSheet?.students?.length ? (
 
-              <Table containerClassName="overflow-x-auto" className="w-full min-w-[720px] text-start">
+              <Table containerClassName="overflow-x-auto" className="w-full min-w-max text-start">
+                {/* SKAI-2265: size to the content, not a fixed 720px. With one subject the surplus went to the sticky
+                    Pupil column, which then covered the mark inputs on a phone; it is also capped at 40vw there. */}
                 <TableHeader>
                   <TableRow className="bg-brand-50/40 text-ink-muted">
                     {/* The student column is frozen: past three subjects the
                         names scrolled out of view and the teacher was typing
                         into an anonymous grid. */}
-                    <TableHead className="sticky start-0 z-10 bg-brand-50/95 px-5 py-4 backdrop-blur-sm">{ui("Pupil")}</TableHead>
+                    <TableHead className="sticky start-0 z-10 max-w-[40vw] bg-brand-50/95 px-3 py-4 backdrop-blur-sm sm:max-w-none sm:px-5">{ui("Pupil")}</TableHead>
                     {markSheet.subjects.map((subject: any, col: number) => {
                       const entered = enteredCounts.get(subject.id) ?? 0;
                       return (
@@ -585,7 +587,7 @@ export default function MarksPage() {
                         "transition-colors hover:bg-surface-hover",
                         rowIncomplete && !isLocked && "bg-status-warning-surface/40",
                       )}>
-                        <TableCell className="sticky start-0 z-10 bg-card px-5 py-3">
+                        <TableCell className="sticky start-0 z-10 max-w-[40vw] overflow-hidden bg-card px-3 py-3 sm:max-w-none sm:px-5">
                           <StudentMini student={student} />
                         </TableCell>
                         {markSheet.subjects.map((subject: any, col: number) => {
