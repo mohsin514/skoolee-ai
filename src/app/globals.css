@@ -801,6 +801,9 @@ button:disabled,
 :where(button, a, [role="button"]) > svg.lucide-arrow-left { transition: translate var(--duration-control) var(--ease-enter); }
 :where(button, a, [role="button"]):where(:hover, :focus-visible) > svg.lucide-arrow-left { translate: -2px 0; }
 :where(button, a, [role="button"]):where(:hover, :focus-visible):dir(rtl) > svg.lucide-arrow-left { translate: 2px 0; }
+/* SKAI-2225: Recharts positions SVG text with text-anchor, which an inherited rtl direction flips, so category
+   labels of layout="vertical" bar charts ran across the bars in ar/ur. Chart geometry is LTR; Arabic text still shapes. */
+.recharts-surface { direction: ltr; }
 
 /* Toasts: a countdown line along the bottom edge (an extra background layer: Sonner owns both
    pseudo-elements). It pauses while the stack is hovered/expanded or the toast holds focus, like the
