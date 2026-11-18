@@ -16,6 +16,8 @@ export function FieldError({ id, live = true, children }: { id?: string; live?: 
   );
 }
 
+/** SKAI-2237: the draft limits from schoolDraftSchema / campusDraftSchema (lib/onboarding/setup-state). */
+const INPUT_MAX_LENGTH: Record<string, number> = { name: 200, tagline: 200, city: 120, address: 500, website: 300, campusName: 160, campusCity: 120, campusAddress: 500, campusEmail: 200, campusPrincipal: 160 };
 export function InputField({ field, error, label, value, onChange, placeholder, icon: Icon, isArea, required, readonly, type = "text", inputMode, hint }: {
   field: string; error?: string; label: string; value: string; onChange: (val: string) => void; placeholder: string; icon: LucideIcon;
   isArea?: boolean; required?: boolean; readonly?: boolean; type?: string;
@@ -34,11 +36,11 @@ export function InputField({ field, error, label, value, onChange, placeholder, 
         {type !== "date" && <Icon data-field-affix="start" className="h-4 w-4" />}
         {isArea ? (
           <SystemTextarea id={id} aria-required={required} aria-invalid={!!error} aria-describedby={describedBy}
-            value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full min-h-[90px] resize-none" />
+            value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} maxLength={INPUT_MAX_LENGTH[field]} className="w-full min-h-[90px] resize-none" />
         ) : (
           <Input id={id} aria-required={required} aria-invalid={!!error} aria-describedby={describedBy}
             dir={["email", "tel", "url", "date"].includes(type) ? "ltr" : undefined}
-            type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} readOnly={readonly} inputMode={inputMode} className="w-full" />
+            type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} readOnly={readonly} inputMode={inputMode} maxLength={INPUT_MAX_LENGTH[field]} className="w-full" />
         )}
       </InputGroup>
       {error && <FieldError id={`${id}-error`} live={false}>{error}</FieldError>}

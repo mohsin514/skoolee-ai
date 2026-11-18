@@ -37,7 +37,9 @@ export function initialInstitutionType(registrationKind: string | null | undefin
   return role === "ADMIN" ? "STANDALONE" : "GROUP";
 }
 
-const text = (max: number) => z.string().max(max).catch("").default("");
+// SKAI-2237: an over-long string is cut to the limit, never blanked (blanking surfaced as "Name is required"
+// and silently dropped taglines). The wizard inputs carry the same limits as maxLength (INPUT_MAX_LENGTH).
+const text = (max: number) => z.string().transform((value) => value.slice(0, max)).catch("").default("");
 
 export const campusDraftSchema = z.object({
   key: z.string().min(1).max(64),

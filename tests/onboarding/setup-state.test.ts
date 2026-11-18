@@ -145,3 +145,11 @@ test("SKAI-934: campus phone rejects letters and accepts PK/SA/AE formats on cli
   const row = parseSetupDraft({ campuses: [campus("a", "BR-A", { phone: "0300-call-me", email: "office@school" })] }).campuses[0];
   assert.deepEqual(validateCampusDraft(row), { campusEmail: "email.invalid", campusPhone: "phone.invalid" });
 });
+
+test("SKAI-2237: over-long draft text is cut to its limit, never blanked", () => {
+  const draft = parseSetupDraft({ school: { name: "N".repeat(300), tagline: "T".repeat(250) }, campuses: [{ key: "c1", city: "C".repeat(130) }] });
+  assert.equal(draft.school.name, "N".repeat(200));
+  assert.equal(draft.school.tagline, "T".repeat(200));
+  assert.equal(draft.campuses[0].city, "C".repeat(120));
+  assert.equal(parseSetupDraft({ school: { name: 42 } }).school.name, "");
+});
