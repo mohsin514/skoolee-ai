@@ -263,6 +263,14 @@ const entries: ReadonlyArray<readonly [string, string, string]> = [
 
   // ── Messages ─────────────────────────────────────────────────────────────
   ["Conversations with families and colleagues stay on the school record.", "تبقى المحادثات مع الأسر والزملاء ضمن سجل المدرسة.", "خاندانوں اور ساتھیوں سے گفتگو اسکول کے ریکارڈ میں محفوظ رہتی ہے۔"],
+  // SKAI-2248: teacher-conflicts banner, report-card empty states and the principal "Teacher profiles" leaf.
+  ["1 teacher double-booked in 1 period", "معلم واحد محجوز مرتين في حصة واحدة", "1 استاد ایک پیریڈ میں دوہری بکنگ میں"],
+  ["1 teacher double-booked across {1} periods", "معلم واحد محجوز مرتين في {1} حصة", "1 استاد {1} پیریڈز میں دوہری بکنگ میں"],
+  ["{0} teachers double-booked in 1 period", "{0} معلمين محجوزون مرتين في حصة واحدة", "{0} اساتذہ ایک پیریڈ میں دوہری بکنگ میں"],
+  ["{0} teachers double-booked across {1} periods", "{0} معلمين محجوزون مرتين في {1} حصة", "{0} اساتذہ {1} پیریڈز میں دوہری بکنگ میں"],
+  ["Marks are locked. Generate report cards to start review.", "الدرجات مقفلة. أنشئ بطاقات التقارير لبدء المراجعة.", "نمبر لاک ہیں۔ جائزہ شروع کرنے کے لیے رپورٹ کارڈ بنائیں۔"],
+  ["Marks are locked. Report cards appear here once the academic office generates them.", "الدرجات مقفلة. تظهر بطاقات التقارير هنا بعد أن ينشئها المكتب الأكاديمي.", "نمبر لاک ہیں۔ اکیڈمک آفس کے بنانے کے بعد رپورٹ کارڈ یہاں نظر آئیں گے۔"],
+  ["Teacher profiles", "ملفات المعلمين", "اساتذہ کے پروفائل"],
 ];
 
 export const arabicP2Ui: Record<string, string> = Object.fromEntries(entries.map(([en, ar]) => [en, ar]));
