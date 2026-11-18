@@ -15,6 +15,7 @@
  * inline ErrorState with retry (never a toast); the reminder sweep reports through one toast.
  */
 
+import { csvCell } from "@/lib/csv";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Clock, Download, Mail, MessageCircle, RefreshCw, Send, ShieldAlert, Smartphone, type LucideIcon } from "lucide-react";
 import { type BadgeProps } from "@/components/ui/badge";
@@ -174,7 +175,7 @@ export function EngagementPanel({ mode, hideActions = false, command }: Engageme
 
   const exportCsv = () => {
     const header = [ui("Message"), ui("Student"), ui("Channel"), ui("Status"), ui("Recipient"), ui("Sent")];
-    const cell = (value: string) => `"${value.replaceAll('"', '""')}"`;
+    const cell = csvCell; // SKAI-2258: shared formula-injection guard (=, +, -, @ become text)
     const lines = rows.map((item) => [
       ui(TEMPLATE_LABELS[item.templateKey] ?? humanize(item.templateKey)),
       item.student?.fullName ?? "",
