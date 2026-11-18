@@ -100,6 +100,7 @@ const FRAME = {
 } satisfies Record<string, Words>;
 const AI_SERVICE_KEYS = ["documentUpload", "documentExtraction", "voiceTranscription", "assistant", "paperGeneration"] as const;
 const EXAM_DELIVERY_KEYS = ["secureBrowser", "proctoring", "optionalRecording"] as const;
+type CapabilityKey = (typeof AI_SERVICE_KEYS)[number] | (typeof EXAM_DELIVERY_KEYS)[number];
 
 export function SchoolAIWorkspace(props: { role?: string; campusId?: string | null; examOnly?: boolean; workflowsV2?: { practiceMode: boolean } | null; askExamples?: string[]; askInitialMessage?: string } = {}) {
   return <WorkspaceDraftBoundary><SchoolAIWorkspaceContent {...props} /></WorkspaceDraftBoundary>;
@@ -379,7 +380,7 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
   const setupMode = canRunQuestionnaire && setupUnfinished;
   const featureState: "checking" | "unknown" | "live" | "prototype" = featureStatusKnown ? features.assistant ? "live" : "prototype" : featureStatusFailed ? "unknown" : "checking";
   const featureChecking = featureState === "checking";
-  const capabilityGroups = [{ id: "ai", title: FRAME.aiServices, keys: AI_SERVICE_KEYS as readonly (keyof AIFeatureCapabilities)[] }, ...(hasKind("PAPER") ? [{ id: "exam", title: FRAME.examDelivery, keys: EXAM_DELIVERY_KEYS as readonly (keyof AIFeatureCapabilities)[] }] : [])];
+  const capabilityGroups = [{ id: "ai", title: FRAME.aiServices, keys: AI_SERVICE_KEYS as readonly CapabilityKey[] }, ...(hasKind("PAPER") ? [{ id: "exam", title: FRAME.examDelivery, keys: EXAM_DELIVERY_KEYS as readonly CapabilityKey[] }] : [])];
   const statsPending = needsCampus || needsSubject;
   const stats = [
     { id: "saved-plans", label: c.savedPlans, count: active.filter(record => record.kind === "WORKFLOW").length, tab: "work" as Tab, Icon: ClipboardList },

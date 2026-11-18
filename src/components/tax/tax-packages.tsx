@@ -106,7 +106,7 @@ export function TaxPackages({ mode = "draft", hideHeader = false, command }: { m
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(`${day}T00:00:00Z`))) throw new Error(message);
     return new Date(`${day}T00:00:00Z`).toISOString();
   };
-  const payload = () => ({ ...form, packageVersion: Number(form.packageVersion), effectiveFrom: isoDay(form.effectiveFrom, ui("Choose a valid effective date.")), evidenceReviewedAt: isoDay(form.evidenceReviewedAt, ui("Choose a valid evidence review date.")), ...(editing ? { id: editing } : {}) });
+  const payload = () => ({ ...form, packageVersion: Number(form.packageVersion), effectiveFrom: isoDay(form.effectiveFrom as string, ui("Choose a valid effective date.")), evidenceReviewedAt: isoDay(form.evidenceReviewedAt as string, ui("Choose a valid evidence review date.")), ...(editing ? { id: editing } : {}) });
   return <div className="min-w-0 space-y-6" data-tax-packages>
     <ConfirmAction
       open={Boolean(signing)}
