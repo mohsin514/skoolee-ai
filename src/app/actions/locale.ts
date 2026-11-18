@@ -10,6 +10,7 @@ import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { wallTimeInstants } from "@/lib/locale/events";
 import { currencyForCountry } from "@/lib/locale/country";
+import { reviewableCampusIds } from "@/lib/locale/currency-review";
 import { assertDelegatedChanges, canManageSchool, dateOnly, defaultLocale, LANGUAGES, localePatchSchema, parseStoredLocaleSettings, POLICY_KEYS, resolvePackage, type Language } from "@/lib/locale/package";
 import { kindFor, type InstitutionKind } from "@/lib/auth/institution";
 import { getInstitutionKind } from "@/lib/auth/institution-server";
@@ -41,14 +42,38 @@ async function context(user: Awaited<ReturnType<typeof session>>) {
   const canManage = canManageSchool(user);
   return { campuses, grouped, canManage };
 }
+/**
+ * SKAI-2254: campuses whose pending currency change this accountant reviews (see reviewableCampusIds). Reads other
+ * campuses, so callers run it in the school-level context below; the filters here are explicit.
+ */
+async function reviewCampusIds(user: Awaited<ReturnType<typeof session>>, db: Pick<typeof prisma, "user" | "campus"> = prisma): Promise<string[]> {
+  if (!user.campusId) return [];
+  if (user.role !== "ACCOUNTANT") return [user.campusId];
+  const [campuses, staffed] = await Promise.all([
+    db.campus.findMany({ where: { schoolId: user.schoolId }, select: { id: true } }),
+    db.user.findMany({ where: { schoolId: user.schoolId, role: "ACCOUNTANT", isActive: true, campusId: { not: null } }, select: { campusId: true }, distinct: ["campusId"] }),
+  ]);
+  return reviewableCampusIds(user.campusId, campuses.map((c) => c.id), staffed.map((u) => u.campusId));
+}
 export async function getLocaleSettings() {
   const user = await session();
   return runWithTenantContext(user, async () => {
-    if (user.role === "APP_OWNER") return { personal: user.preferredLanguage, role: user.role, canManage: false, ownCampusId: null, grouped: false, school: defaultLocale, campuses: [], policies: [] };
+    if (user.role === "APP_OWNER") return { personal: user.preferredLanguage, role: user.role, canManage: false, ownCampusId: null, grouped: false, reviewCampuses: [], school: defaultLocale, campuses: [], policies: [] };
     const { campuses, canManage, grouped } = await context(user);
     const visible = canManage ? campuses : campuses.filter((c) => c.id === user.campusId);
     const policies = await prisma.localePolicy.findMany({ where: { schoolId: user.schoolId, OR: [{ campusId: null }, ...visible.map((c) => ({ campusId: c.id }))] }, orderBy: { effectiveAt: "desc" }, take: 100 });
-    return { personal: user.preferredLanguage, role: user.role, canManage, ownCampusId: user.campusId, grouped,
+    // SKAI-2254: pending currency changes of campuses with no accountant of their own, for the review card only.
+    const shared = user.role === "ACCOUNTANT" && user.campusId ? await runWithTenantContext({ schoolId: user.schoolId, userId: user.id }, async () => {
+      const ids = (await reviewCampusIds(user)).filter((id) => id !== user.campusId);
+      if (!ids.length) return { campuses: [], policies: [] };
+      const [names, pending] = await Promise.all([
+        prisma.campus.findMany({ where: { schoolId: user.schoolId, id: { in: ids } }, select: { id: true, name: true } }),
+        prisma.localePolicy.findMany({ where: { schoolId: user.schoolId, campusId: { in: ids }, status: "FINANCE_REVIEW" }, orderBy: { effectiveAt: "desc" }, take: 20 }),
+      ]);
+      return { campuses: names, policies: pending };
+    }) : { campuses: [], policies: [] };
+    policies.push(...shared.policies);
+    return { personal: user.preferredLanguage, role: user.role, canManage, ownCampusId: user.campusId, grouped, reviewCampuses: shared.campuses,
       school: await getLocalePackage(user.schoolId), campuses: await Promise.all(visible.map(async (c) => ({ ...c, policy: await getLocalePackage(user.schoolId, c.id) }))),
       policies: policies.map((p) => ({ id: p.id, campusId: p.campusId, settings: parseStoredLocaleSettings(p.settings), effectiveAt: p.effectiveAt.toISOString(), status: p.status })) };
   });
@@ -141,16 +166,20 @@ export async function setLocaleDelegation(campusId: string, fields: string[]) {
 export async function reviewLocaleCurrency(id: string, approved: boolean) {
   const user = await session();
   if (user.role !== "ACCOUNTANT") throw new Error("permission");
-  return runWithTenantContext(user, async () => {
+  // SKAI-2254: school-level context so a shared-desk accountant can lock and update another campus; every
+  // query below filters by school, the reviewer's own row and the reviewable campuses explicitly.
+  return runWithTenantContext({ schoolId: user.schoolId, userId: user.id }, async () => {
     await prisma.$transaction(async tx => {
       const current = await tx.user.findFirst({ where: { id: user.id, schoolId: user.schoolId, role: "ACCOUNTANT", isActive: true, campusId: user.campusId }, select: { id: true } });
       if (!current) throw new Error("permission");
-      const policy = await tx.localePolicy.findFirst({ where: { id, schoolId: user.schoolId, status: "FINANCE_REVIEW", createdBy: { not: user.id }, effectiveAt: { gt: new Date() }, ...(user.campusId ? { OR: [{ campusId: user.campusId }, { campusId: null }] } : {}) } });
+      const reviewable = await reviewCampusIds(user, tx);
+      const scope = user.campusId ? { OR: [{ campusId: { in: reviewable } }, { campusId: null }] } : {};
+      const policy = await tx.localePolicy.findFirst({ where: { id, schoolId: user.schoolId, status: "FINANCE_REVIEW", createdBy: { not: user.id }, effectiveAt: { gt: new Date() }, ...scope } });
       if (!policy) throw new Error("permission");
       const campuses = await tx.campus.findMany({ where: { schoolId: user.schoolId, ...(policy.campusId ? { id: policy.campusId } : {}) }, select: { id: true }, orderBy: { id: "asc" } });
       for (const campus of campuses) await lockTimetableCampus(tx as TxClient, user.schoolId, campus.id, true);
       await withExamCalendarChange(tx as TxClient, user.schoolId, campuses.map(campus => campus.id), policy.effectiveAt, async () => {
-        const result = await tx.localePolicy.updateMany({ where: { id, schoolId: user.schoolId, status: "FINANCE_REVIEW", createdBy: { not: user.id }, effectiveAt: { gt: new Date() }, ...(user.campusId ? { OR: [{ campusId: user.campusId }, { campusId: null }] } : {}) }, data: { status: approved ? "ACTIVE" : "REJECTED", financeReviewedBy: user.id } });
+        const result = await tx.localePolicy.updateMany({ where: { id, schoolId: user.schoolId, status: "FINANCE_REVIEW", createdBy: { not: user.id }, effectiveAt: { gt: new Date() }, ...scope }, data: { status: approved ? "ACTIVE" : "REJECTED", financeReviewedBy: user.id } });
         if (result.count !== 1) throw new Error("permission");
       });
     }, { isolationLevel: "Serializable" });
