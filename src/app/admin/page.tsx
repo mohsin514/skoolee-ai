@@ -1144,7 +1144,7 @@ interface AdminCtx {
   handleDeleteClass: (cls: any) => Promise<void>;
   handleUpdateClass: (classId: string, updates: { name?: string; section?: string; academicYear?: number; capacity?: number | null }) => Promise<boolean>;
   handleDeleteSubject: (subject: any) => Promise<void>;
-  handleUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
+  handleUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number; code?: string; isElective?: boolean; archived?: boolean }) => Promise<boolean>;
   handleAddSection: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
   handleRemove: (userId: string, label: string) => Promise<void>;
   handleResendInvite: (inviteId: string) => Promise<void>;

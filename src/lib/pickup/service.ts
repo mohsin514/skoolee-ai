@@ -9,6 +9,7 @@ import { getLocalePackage } from "@/lib/locale/store";
 import { guardianHasAccess } from "@/lib/parent/guardian-access";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { zonedInstant } from "@/lib/meetings/time";
+import { isCampusOperator } from "@/lib/auth/institution";
 
 // SKO-438: authorized pickup. Verification always comes before release.
 // - A guardian with the pickup permission names a recipient, the school's identity method and a window at
@@ -266,7 +267,7 @@ export async function gateQueue(user: AuthUser) {
 /** SKAI-2132: a designated pickup lead is an active campus leader of this school and campus, never a family account. */
 async function assertPickupLead(schoolId: string, campusId: string, leadUserId: string) {
   const lead = await prisma.user.findFirst({ where: { id: leadUserId, schoolId, isActive: true }, select: { id: true, role: true, campusId: true } });
-  if (!lead || !canManageCampusOps(lead as AuthUser) || (lead.role !== "SUPER_ADMIN" && lead.campusId !== campusId)) {
+  if (!lead || !(lead.role === "SUPER_ADMIN" || isCampusOperator(lead)) || (lead.role !== "SUPER_ADMIN" && lead.campusId !== campusId)) {
     throw new ApiError("The pickup lead must be an active campus admin of this campus.", 400);
   }
   return lead.id;

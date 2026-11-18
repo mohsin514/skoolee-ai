@@ -129,7 +129,7 @@ interface ClassManagerProps {
     classId: string,
     subjectId: string,
     updates: { name?: string; totalMarks?: number; code?: string; isElective?: boolean; archived?: boolean },
-  ) => Promise<void>;
+  ) => Promise<void | boolean>;
   onRefresh?: () => void;
 }
 

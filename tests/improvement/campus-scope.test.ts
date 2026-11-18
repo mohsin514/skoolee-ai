@@ -11,7 +11,7 @@ const I_MAIN = "33333333-3333-4333-8333-333333333333";
 const actions: Action[] = [];
 const items: Item[] = [];
 const audits: unknown[] = [];
-const match = (r: Record<string, unknown>, where: Record<string, unknown>) => Object.entries(where).every(([k, v]) => k === "OR" ? (v as Record<string, unknown>[]).some(o => match(r, o)) : k === "id" && v && typeof v === "object" ? (v as { in: unknown[] }).in.includes(r.id) : r[k] === v);
+const match = (r: Record<string, unknown>, where: Record<string, unknown>): boolean => Object.entries(where).every(([k, v]) => k === "OR" ? (v as Record<string, unknown>[]).some(o => match(r, o)) : k === "id" && v && typeof v === "object" ? (v as { in: unknown[] }).in.includes(r.id) : r[k] === v);
 const db = {
   user: { findMany: async ({ where }: { where: Record<string, unknown> }) => users.filter(u => match(u, where)).map(u => ({ id: u.id, fullName: u.id })) },
   confidentialMember: { findFirst: async () => null },
