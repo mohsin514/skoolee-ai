@@ -202,6 +202,8 @@ const publicDetail = (kind: string, detail: Prisma.JsonValue, names: Map<string,
   const d = (detail ?? {}) as Record<string, unknown>;
   if (kind === "ASSIGNED") return { owner: d.ownerId ? names.get(String(d.ownerId)) ?? "" : null };
   if (kind === "CREATED") return { team: d.team };
+  // SKAI-2230: requesters see their own messages labelled as theirs, not as a team "Update".
+  if (kind === "UPDATE" && d.fromRequester) return { fromRequester: true };
   return {};
 };
 
