@@ -59,3 +59,21 @@ export function setupAreaHref(id: SetupAreaId, viewer: SetupAreaViewer): SetupAr
   if (role === "PRINCIPAL") return { href: PRINCIPAL[id] ?? null };
   return { href: null };
 }
+/** Records that show an area is already set up (SKAI-2241). */
+export type SetupAreaEvidence = { activeCycles: number; campuses: number; campusesWithWeekends: number; classes: number; subjects: number };
+/** Areas whose records exist, so the guide shows them done without a manual "Mark done". */
+export function evidencedSetupAreas(e: SetupAreaEvidence): Set<SetupAreaId> {
+  const done = new Set<SetupAreaId>();
+  if (e.activeCycles > 0) done.add("academicYear");
+  if (e.campuses > 0 && e.campusesWithWeekends >= e.campuses) done.add("weekends");
+  if (e.classes > 0) done.add("classes");
+  if (e.subjects > 0) done.add("subjects");
+  return done;
+}
+/** A task reads DONE when its area is evidenced; the stored task is left untouched. */
+export function withAreaEvidence<T extends { key: string; status: string }>(tasks: T[], evidenced: Set<SetupAreaId>): T[] {
+  return tasks.map(task => {
+    const id = setupAreaFromTaskKey(task.key);
+    return id && evidenced.has(id) && task.status !== "DONE" ? { ...task, status: "DONE" } : task;
+  });
+}
