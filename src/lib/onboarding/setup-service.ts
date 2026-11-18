@@ -18,6 +18,7 @@ import { normalizePlan } from "@/config/plans";
 import { getSchoolPlanContract } from "@/config/commercial-contract";
 import { defaultBoardFor } from "@/config/boards";
 import { registeredSchoolCountry } from "@/lib/school/country";
+import { COUNTRIES, currencyForCountry, type Country } from "@/lib/locale/country";
 import { parseDateOnly, parseLogo, safeTimezone } from "@/lib/school/details";
 import {
   ADOPTION_MODES,
@@ -383,8 +384,10 @@ export async function completeSetup(user: AuthUser, expectedVersion: number, fau
           tagline: s.tagline.trim() || null,
           registrationKind: type,
           ...(safeTimezone(s.timezone) ? { timezone: safeTimezone(s.timezone)! } : {}),
+          ...(/^[A-Z]{2}$/.test(s.country ?? "") ? { country: s.country } : {}),
         },
       });
+      await applySetupCountry(tx, school.id, s.country ?? "", user.userId);
 
       const academicYear = Number(s.academicYear);
       const sessionStart = parseDateOnly(s.sessionStart);
@@ -572,4 +575,17 @@ export async function revokeSetupDelegate(user: AuthUser) {
     await tx.institutionSetup.update({ where: { schoolId: actor.school.id }, data: { delegateUserId: null, delegatedById: null, delegatedAt: null } });
     await tx.auditLog.create({ data: { schoolId: actor.school.id, tableName: "institution_setup", recordId: actor.setup.id, userId: user.userId, newValue: { action: "setup.delegate_revoked", delegateUserId } } });
   });
+}
+
+/**
+ * SKAI-2255: the country confirmed in the wizard becomes the school's locale (country and currency). Nothing has
+ * been invoiced before activation, so this is a new school-scope policy row, not a finance-reviewed change.
+ */
+export async function applySetupCountry(tx: Pick<TxClient, "localePolicy">, schoolId: string, iso: string, userId: string) {
+  if (!/^[A-Z]{2}$/.test(iso)) return;
+  const latest = await tx.localePolicy.findFirst({ where: { schoolId, campusId: null, scopeKey: "school" }, orderBy: [{ effectiveAt: "desc" }, { createdAt: "desc" }], select: { settings: true } });
+  const previous = (latest?.settings && typeof latest.settings === "object" && !Array.isArray(latest.settings) ? latest.settings : {}) as Record<string, unknown>;
+  if ((previous.countryIso ?? previous.country) === iso) return;
+  const market: Country = (COUNTRIES as readonly string[]).includes(iso) ? (iso as Country) : "OTHER";
+  await tx.localePolicy.create({ data: { schoolId, scopeKey: "school", settings: { ...previous, country: market, countryIso: iso, currency: currencyForCountry(market) }, effectiveAt: new Date(), createdBy: userId } });
 }
