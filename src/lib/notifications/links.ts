@@ -120,8 +120,8 @@ type Ui = (text: string, values?: (string | number)[]) => string;
  * occurrence; store the actor and title as structured fields if that ever matters.
  */
 export function localizeChatNotification(title: string, message: string, ui: Ui): { title: string; message: string } {
-  const direct = /^New message from (.+)$/s.exec(title);
-  const group = direct ? null : /^(.+?) posted in (.+)$/s.exec(title);
+  const direct = /^New message from (.+)$/.exec(title);
+  const group = direct ? null : /^(.+?) posted in (.+)$/.exec(title);
   return {
     title: direct ? ui("New message from {0}", [direct[1]]) : group ? ui("{0} posted in {1}", [group[1], group[2]]) : title,
     message: ui(message),
