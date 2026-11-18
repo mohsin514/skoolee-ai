@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { SETUP_AREAS, SETUP_AREA_TITLES, setupAreaFromTaskKey, setupAreaHref, setupAreaTaskKey } from "@/lib/onboarding/setup-areas";
+import { SETUP_AREAS, SETUP_AREA_TITLES, evidencedSetupAreas, setupAreaFromTaskKey, setupAreaHref, setupAreaTaskKey, withAreaEvidence } from "@/lib/onboarding/setup-areas";
 import { getSetupAreasCopy } from "@/components/readiness/setup-areas-copy";
 import { areaRows } from "@/components/readiness/SetupAreasGuide";
 
@@ -76,4 +76,12 @@ test("EN, AR and UR name and explain every area", () => {
   }
   assert.notEqual(getSetupAreasCopy("ar").title, getSetupAreasCopy("en").title);
   assert.notEqual(getSetupAreasCopy("ur").title, getSetupAreasCopy("en").title);
+});
+test("SKAI-2241: areas with existing records read done; others keep their stored status", () => {
+  const evidenced = evidencedSetupAreas({ activeCycles: 1, campuses: 2, campusesWithWeekends: 1, classes: 1, subjects: 3 });
+  assert.deepEqual([...evidenced].sort(), ["academicYear", "classes", "subjects"]);
+  assert.ok(evidencedSetupAreas({ activeCycles: 0, campuses: 1, campusesWithWeekends: 1, classes: 0, subjects: 0 }).has("weekends"));
+  assert.equal(evidencedSetupAreas({ activeCycles: 0, campuses: 0, campusesWithWeekends: 0, classes: 0, subjects: 0 }).size, 0);
+  const tasks = [{ key: "area:classes", status: "OPEN" }, { key: "area:rooms", status: "OPEN" }, { key: "area:subjects", status: "DEFERRED" }, { key: "other", status: "OPEN" }];
+  assert.deepEqual(withAreaEvidence(tasks, evidenced).map(t => t.status), ["DONE", "OPEN", "DONE", "OPEN"]);
 });
