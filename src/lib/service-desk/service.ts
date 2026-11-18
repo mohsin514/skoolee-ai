@@ -68,7 +68,8 @@ export async function listCategories(user: AuthUser, campusRequested: unknown) {
     prisma.serviceCategory.findMany({ where: { schoolId: user.schoolId, campusId, active: true }, orderBy: [{ safety: "desc" }, { name: "asc" }], select: { id: true, name: true, kind: true, team: true, safety: true, responseHours: true, resolveHours: true, keywords: true } }),
     prisma.classRoom.findMany({ where: { schoolId: user.schoolId, campusId }, select: { id: true, roomNumber: true }, orderBy: { roomNumber: "asc" }, take: 300 }),
   ]);
-  return { campusId, categories, rooms };
+  // SKAI-2219: tells the New request tab whether to offer request-type setup.
+  return { campusId, categories, rooms, canSetUp: canLead(user, campusId) };
 }
 
 /** Rule-based suggestion from the category keywords; always confirmed by the requester. */

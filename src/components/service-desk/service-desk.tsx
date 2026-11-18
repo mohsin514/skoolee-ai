@@ -21,6 +21,7 @@ import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowButton, DeskSection
 // SKAI-1677: datetime-local holds local wall time; build it from the instant in the browser's zone so an unchanged
 // value round-trips to the same deadline instead of shifting by the timezone offset.
 function toLocalInput(iso: string) { const d = new Date(iso); return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); }
+import { RequestTypeSetup } from "./request-type-setup";
 import { AlarmClock, CircleDot, Hourglass, LifeBuoy, ShieldAlert, UserX, Wrench } from "lucide-react";
 
 type DeskTab = "mine" | "new" | "queue";
@@ -44,7 +45,7 @@ function writeTab(tab: DeskTab) {
 type Ui = ReturnType<typeof useUiText>;
 type Summary = { id: string; reference: string; title: string; location: string; category: string; team: string; safety: boolean; priority: string; status: string; blockedReason: string | null; owner: string | null; ownerId: string | null; requester: string; createdAt: string; resolveDueAt: string | null; responseDueAt: string | null; firstResponseAt: string | null; resolvedAt: string | null; reopenedCount: number; version: number; overdue: boolean; responseOverdue: boolean };
 type Detail = Summary & { description: string; agent: boolean; isRequester?: boolean; watchers: { id: string; name: string }[]; events: { id: string; kind: string; visibility: string; actor: string | null; body: string | null; detail: Record<string, unknown>; attachment: string | null; createdAt: string }[] };
-type Form = { campusId: string; categories: { id: string; name: string; kind: string; team: string; safety: boolean; responseHours: number | null; resolveHours: number | null }[]; rooms: { id: string; roomNumber: string }[]; suggestion: { categoryId: string; matches: number } | null };
+type Form = { campusId: string; categories: { id: string; name: string; kind: string; team: string; safety: boolean; responseHours: number | null; resolveHours: number | null }[]; rooms: { id: string; roomNumber: string }[]; suggestion: { categoryId: string; matches: number } | null; canSetUp?: boolean };
 
 async function send(url: string, method = "GET", body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
@@ -164,6 +165,8 @@ export function ServiceDesk() {
       {formFailed ? <div data-sd-form-failed><Alert tone="warning" compact live="polite" actions={<Button size="sm" variant="outline" onClick={() => setFormAttempt(n => n + 1)}>{ui("Try again")}</Button>}>{ui("Request types and rooms could not be loaded. Your text is kept; try again to choose a type.")}</Alert></div> : null}
       <FormField name="sd-category" label={ui("Who should handle this request?")} hint={form?.suggestion && form.suggestion.categoryId === draft.categoryId ? ui("Suggested from your description. Change it if it is wrong.") : undefined}>
         <Select className="w-full min-w-0" value={draft.categoryId} onChange={e => setDraft({ ...draft, categoryId: e.target.value })} data-sd-category><option value="">{ui("Choose a type")}</option>{form?.categories.map(c => <option key={c.id} value={c.id}>{c.name} · {c.team}{c.safety ? ` · ${ui("Safety")}` : ""}</option>)}</Select></FormField>
+      {form && !form.categories.length && !form.canSetUp ? <div data-sd-no-types><Alert tone="info" compact>{ui("Your school has not set up request types yet. Ask your campus admin to add them.")}</Alert></div> : null}
+      {form?.canSetUp ? <RequestTypeSetup campusId={form.campusId} empty={!form.categories.length} onCreated={id => { setDraft(d => ({ ...d, categoryId: id })); setFormAttempt(n => n + 1); }} /> : null}
       {chosen ? <p className="text-xs text-ink-muted" data-sd-target>{chosen.resolveHours ? ui("The school aims to resolve this within {0} hours.", [String(chosen.resolveHours)]) : ui("The school has not set a target time for this type.")}</p> : null}
       <FormField name="sd-photo" label={ui("Photo (optional)")}><SmartUpload compact accept="image/jpeg,image/png,image/webp" maxBytes={5 * 1024 * 1024} label={ui("Photo (optional)")} actionLabel={ui("Add photo")} inputData={{ "data-sd-photo": true }} onFiles={async ([f]) => setPhoto(await readPhoto(f))} /></FormField>
       {photo && <div className="flex items-center gap-3"><img src={`data:${photo.contentType};base64,${photo.data}`} alt={ui("Photo (optional)")} className="size-16 rounded-xl border border-border object-cover" /><Button type="button" variant="ghost" size="sm" onClick={() => setPhoto(null)}>{ui("Remove")}</Button></div>}

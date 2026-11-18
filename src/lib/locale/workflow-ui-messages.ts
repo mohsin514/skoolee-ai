@@ -861,6 +861,19 @@ const entries: [string, string, string][] = [
   ["Explanation accepted", "قُبل التوضيح", "وضاحت قبول کی گئی"],
   ["No matching conversations", "لا توجد محادثات مطابقة", "کوئی مماثل گفتگو نہیں"],
   ["Try a different name or word.", "جرّب اسمًا أو كلمة أخرى.", "کوئی دوسرا نام یا لفظ آزمائیں۔"],
+  ["Your school has not set up request types yet. Ask your campus admin to add them.", "لم تُعدّ مدرستك أنواع الطلبات بعد. اطلب من مسؤول الحرم إضافتها.", "آپ کے اسکول نے ابھی درخواست کی اقسام نہیں بنائیں۔ اپنے کیمپس ایڈمن سے انہیں شامل کرنے کو کہیں۔"],
+  ["Request type {0} added.", "تمت إضافة نوع الطلب {0}.", "درخواست کی قسم {0} شامل ہو گئی۔"],
+  ["Add a request type", "إضافة نوع طلب", "درخواست کی قسم شامل کریں"],
+  ["No request types yet. Add one so staff can choose who handles their request.", "لا توجد أنواع طلبات بعد. أضف نوعًا ليختار الموظفون من يتولى طلبهم.", "ابھی کوئی درخواست کی قسم نہیں۔ ایک شامل کریں تاکہ عملہ منتخب کر سکے کہ ان کی درخواست کون سنبھالے۔"],
+  ["Request type name", "اسم نوع الطلب", "درخواست کی قسم کا نام"],
+  ["Team that handles it", "الفريق المسؤول عنه", "اسے سنبھالنے والی ٹیم"],
+  ["Repair", "إصلاح", "مرمت"],
+  ["Access", "وصول", "رسائی"],
+  ["Supplies", "لوازم", "سامان"],
+  ["Information", "معلومات", "معلومات"],
+  ["Resolve within (hours, optional)", "الحل خلال (ساعات، اختياري)", "حل کی مدت (گھنٹے، اختیاری)"],
+  ["Keywords for suggestions (comma separated, optional)", "كلمات مفتاحية للاقتراحات (مفصولة بفواصل، اختياري)", "تجاویز کے لیے کلیدی الفاظ (کوما سے الگ، اختیاری)"],
+  ["Save request type", "حفظ نوع الطلب", "درخواست کی قسم محفوظ کریں"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));
