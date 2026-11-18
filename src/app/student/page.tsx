@@ -32,7 +32,8 @@ export default function StudentTodayPage() {
       icon={Sun}
       title="Today"
       // Data, not UI keys: each value in its own <bdi> (R7), joined with " · ".
-      description={user ? <>{[user.rollNo ? tr("Roll {0}", [user.rollNo]) : null, user.className, user.campusName].filter(Boolean).map((part, index) => <span key={index}>{index ? " · " : null}<bdi>{part}</bdi></span>)}</> : undefined}
+      // SKAI-2231: no pupil record means the class/campus values are server placeholders, so leave them out.
+      description={user ? <>{[user.rollNo ? tr("Roll {0}", [user.rollNo]) : null, ...(data.profileMissing ? [] : [user.className, user.campusName])].filter(Boolean).map((part, index) => <span key={index}>{index ? " · " : null}<bdi>{part}</bdi></span>)}</> : undefined}
       primaryAction={nextAction ? { id: "continue", label: nextAction.label, href: nextAction.href } : undefined}
     >
       {data.profileMissing ? (
