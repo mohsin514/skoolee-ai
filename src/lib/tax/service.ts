@@ -270,6 +270,28 @@ export async function issueDocuments(db: TxClient, schoolId: string, items: Arra
   return rows.length;
 }
 
+/**
+ * SKAI-2261: a credit note or waiver lowers the taxable amount, so the invoice's tax document is revised in place
+ * (the invoice id is unique per document): tax and total are recomputed from the issued lines with the new
+ * discount, the previous figures are kept in `snapshot.credits`, and an accepted document is marked CORRECTED so
+ * it is resent. Returns null when the invoice has no tax document (no package applied).
+ */
+export async function reviseDocumentForCredit(db: TxClient, schoolId: string, invoiceId: string, discount: number, credit: { adjustmentId: string; kind: string; amount: number; by: string }) {
+  const d = await db.taxDocument.findFirst({ where: { invoiceId, schoolId } });
+  if (!d) return null;
+  const found = findVersion(d.packageCode, d.packageVersion);
+  const activation = await db.taxActivation.findFirst({ where: { id: d.activationId, schoolId }, select: { exemptFeeCodes: true } });
+  if (!found || !activation) throw new ApiError("This invoice's tax package is no longer available, so its tax cannot be recalculated.", 409);
+  const s = d.snapshot as { lines?: Line[]; discount?: number; tax?: number; total?: number; credits?: unknown[] } & Record<string, unknown>;
+  const lines = (s.lines ?? []).map(l => ({ code: l.code, name: l.name, amount: l.amount }));
+  if (discount > lines.reduce((sum, l) => sum + l.amount, 0)) throw new ApiError("The adjustment is larger than the fees on this invoice.", 409);
+  const calc = calculate(found.v, lines, discount, activation.exemptFeeCodes);
+  const revision = d.revision + 1;
+  const credits = [...(s.credits ?? []), { revision, ...credit, previous: { discount: s.discount ?? 0, tax: s.tax ?? d.taxAmount, total: s.total ?? d.totalAmount }, at: new Date().toISOString() }];
+  const snapshot = { ...s, lines: calc.lines, discount: calc.discount, tax: calc.tax, total: calc.total, credits };
+  await db.taxDocument.update({ where: { id: d.id }, data: { snapshot: snapshot as unknown as Prisma.InputJsonValue, revision, taxAmount: calc.tax, totalAmount: calc.total, ...(d.submissionStatus === "ACCEPTED" ? { submissionStatus: "CORRECTED" } : {}) } });
+  return { tax: calc.tax, total: calc.total, documentNumber: d.documentNumber, revision };
+}
 // ─── Documents and electronic submission ─────────────────────────────────
 
 export async function documents(user: AuthUser) {
