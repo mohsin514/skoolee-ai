@@ -1,4 +1,5 @@
 "use client";
+import { keepRosterRows } from "@/lib/csv";
 import { useListField } from "@/hooks/use-list-field";
 import { pageWindow } from "@/lib/lists/query";
 
@@ -137,7 +138,7 @@ function waHref(phone?: string | null) {
  * `readOnly` (principal, M58) hides every write: Add, Bulk import, bulk actions, archive and the edit path.
  * Export runs on the server with the filters the server understands (search, section, archived), so it
  * returns every matching student rather than the page on screen (M40); filters only the browser knows
- * (category, group, contact, login) export the filtered rows from here.
+ * (category, group, contact, login) export the server file cut to the filtered rows (SKAI-2260).
  */
 export function StudentsPanel({
   students,
@@ -673,13 +674,13 @@ export function StudentsPanel({
   /** M40: export every student matching the filters, from the server — not just the page on screen. */
   const exportMatching = async () => {
     const clientOnly = categoryFilter !== "all" || groupFilter !== "all" || onlyMissingGuardian || onlyNoLogin || (classFilter !== "all" && sectionFilter === "all");
-    if (clientOnly || !onExport) {
-      onExport?.(filtered);
-      return;
-    }
+    if (!onExport) return;
+    // SKAI-2260: filters the server cannot apply still export the server file (same columns and name), cut down to
+    // the rows on screen by their Record Key, so every filter gives one schema.
+    const keep = clientOnly ? new Set(filtered.map((s) => s.id)) : null;
     const params = new URLSearchParams();
-    if (searchQuery.trim()) params.set("search", searchQuery.trim());
-    if (sectionFilter !== "all") params.set("classId", sectionFilter);
+    if (!keep && searchQuery.trim()) params.set("search", searchQuery.trim());
+    if (!keep && sectionFilter !== "all") params.set("classId", sectionFilter);
     // SKAI-1639: fetch the file in place so a 429/403/500 never replaces the roster (and its filters) with raw JSON.
     try {
       const response = await fetch(`/api/students/export?${params.toString()}`, { cache: "no-store" });
@@ -691,7 +692,9 @@ export function StudentsPanel({
         return;
       }
       const name = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "")?.[1] || "students.csv";
-      const url = URL.createObjectURL(await response.blob());
+      // text() drops the UTF-8 BOM that keeps Urdu names readable in Excel, so it is written back.
+      const file = keep ? new Blob(["\uFEFF", keepRosterRows(await response.text(), keep)], { type: "text/csv;charset=utf-8" }) : await response.blob();
+      const url = URL.createObjectURL(file);
       const link = document.createElement("a"); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url);
     } catch {
       toast.error(ui("The roster export failed. Your filters are kept; try again."), { action: { label: ui("Try again"), onClick: () => void exportMatching() } });

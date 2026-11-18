@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { csvCell } from "../../src/lib/csv";
+import { csvCell, keepRosterRows } from "../../src/lib/csv";
 import { importField, normalizeImportHeader, parseImportCsv } from "../../src/lib/imports/csv";
 import { isoDate, summarizeImportRows, type ImportRow } from "../../src/lib/imports/batch";
 
@@ -78,4 +78,11 @@ test("no live government/SIS connector is advertised as available", () => {
   const contract = src("docs/pilots/scoped-exchange-contract.md");
   assert.match(contract, /Noor[\s\S]*Madrasati[\s\S]*KHDA/);
   assert.match(contract, /not available/i);
+});
+
+test("SKAI-2260: keepRosterRows keeps the header and the chosen students, quoted line breaks included", () => {
+  const a = "11111111-1111-4111-8111-111111111111", b = "22222222-2222-4222-8222-222222222222";
+  const csv = `Roll No,Address,Record Key\r\n1,"Line 1\r\nLine 2",${a}\r\n2,Street,${b}\r\n`;
+  assert.equal(keepRosterRows(csv, new Set([a])), `Roll No,Address,Record Key\r\n1,"Line 1\r\nLine 2",${a}\r\n`);
+  assert.equal(keepRosterRows(csv, new Set([b])), `Roll No,Address,Record Key\r\n2,Street,${b}\r\n`);
 });

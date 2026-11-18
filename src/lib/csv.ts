@@ -56,3 +56,8 @@ export function downloadCSV(filename: string, rows: unknown[][]) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+/** The header plus the CSV rows whose last cell (Record Key, the student id) is in `ids`; quoted line breaks stay inside their row. */
+export function keepRosterRows(csv: string, ids: ReadonlySet<string>): string {
+  const [header, ...rest] = csv.split(/(?<=,[0-9a-f-]{36}|^[^\r\n]*)\r\n/);
+  return [header, ...rest.filter((row) => ids.has(row.slice(row.lastIndexOf(",") + 1)))].join("\r\n") + "\r\n";
+}
