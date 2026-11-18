@@ -5,7 +5,7 @@ import { rosterSearchWhere } from "@/lib/students/roster-status";
 
 test("SKAI-1526: the shared roster search covers admission number and ID", () => {
   const fields = rosterSearchWhere("ADM-SYNTH-0042").OR.map(clause => Object.keys(clause)[0]);
-  assert.deepEqual(fields, ["id", "admissionNo", "fullName", "rollNo", "guardianName", "guardianPhone"]);
+  assert.deepEqual(fields, ["id", "admissionNo", "fullName", "rollNo", "guardianName", "guardianPhone", "guardianEmail"]); // SKAI-2247: matches the on-screen filter
   assert.deepEqual(rosterSearchWhere("x").OR[1], { admissionNo: { contains: "x", mode: "insensitive" } });
 });
 

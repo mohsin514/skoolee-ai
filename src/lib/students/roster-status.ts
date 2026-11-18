@@ -8,6 +8,7 @@ export const rosterStatusWhere = (archivedOnly: boolean) =>
   archivedOnly ? { status: { in: ARCHIVED_STUDENT_STATUSES } } : { status: { notIn: ARCHIVED_STUDENT_STATUSES } };
 
 /** SKAI-1526: the one roster search, shared by the list and its CSV export (admission number and ID included). */
+// SKAI-2247: same fields as the on-screen roster filter (students-panel.tsx), including guardian email.
 export const rosterSearchWhere = (search: string) => ({
-  OR: (["id", "admissionNo", "fullName", "rollNo", "guardianName", "guardianPhone"] as const).map(field => ({ [field]: { contains: search, mode: "insensitive" as const } })),
+  OR: (["id", "admissionNo", "fullName", "rollNo", "guardianName", "guardianPhone", "guardianEmail"] as const).map(field => ({ [field]: { contains: search, mode: "insensitive" as const } })),
 });
