@@ -96,9 +96,15 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
       } else setNotice(prev => ({ ...prev, [itemId]: ui(classified.message) }));
     } finally { mutation.current = false; setBusy(false); }
   };
+  // SKAI-2212: keep the tab badges in step with the bell when one unread item is read.
+  const countRead = (item: Item) => {
+    if (item.isRead) return;
+    setCounts(prev => prev && { ...prev, unread: Math.max(0, prev.unread - 1), mentionsUnread: item.category === "MENTION" ? Math.max(0, prev.mentionsUnread - 1) : prev.mentionsUnread });
+  };
   const seen = (item: Item) => act(async () => {
     await checkedJson(await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: [item.id] }) }));
     setItems(prev => prev?.map(row => row.id === item.id ? { ...row, isRead: true } : row) ?? prev);
+    countRead(item);
     setNotice(prev => ({ ...prev, [item.id]: item.category === "ACTION" && item.state === "open" ? ui("Marked seen. The task is still waiting for you.") : "" }));
     onChanged();
   }, item.id);
@@ -106,6 +112,7 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
     const json = await checkedJson(await fetch(`/api/notifications/${encodeURIComponent(item.id)}/open`, { method: "POST" }));
     if (!json.data || json.data.id !== item.id) throw new RequestFailure("server");
     const fresh: Item = json.data;
+    countRead(item);
     onChanged();
     setItems(prev => prev?.map(row => row.id === item.id ? fresh : row) ?? prev);
     if (fresh.state === "unavailable" || !fresh.link) { setNotice(prev => ({ ...prev, [item.id]: ui("You no longer have access to this item.") })); return; }
