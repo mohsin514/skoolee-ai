@@ -57,11 +57,15 @@ export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
   }, [params, pathname]);
 
   // SKAI-1637: a failed options load is disclosed with a retry instead of silently dropping the filters.
-  const [optionsFailed, setOptionsFailed] = useState(false), [optionsAttempt, setOptionsAttempt] = useState(0);
+  // SKAI-2205: 401/403 means "no access", not a load failure: no retry warning, and the filters are hidden.
+  const [optionsFailed, setOptionsFailed] = useState(false), [optionsAttempt, setOptionsAttempt] = useState(0), [optionsDenied, setOptionsDenied] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/search?options=1", { cache: "no-store" }).then(r => (r.ok ? r.json() : null)).then(json => {
-      if (cancelled) return;
+    void fetch("/api/search?options=1", { cache: "no-store" }).then(r => {
+      if (r.status === 401 || r.status === 403) { if (!cancelled) { setOptionsDenied(true); setOptionsFailed(false); } return undefined; }
+      return r.ok ? r.json() : null;
+    }).then(json => {
+      if (cancelled || json === undefined) return;
       if (json?.success) { setOptions(json.data); setOptionsFailed(false); } else setOptionsFailed(true);
     }).catch(() => { if (!cancelled) setOptionsFailed(true); });
     return () => { cancelled = true; };
@@ -138,7 +142,7 @@ export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
       <FormField name="search-q" label={ui("Search by name, roll number, admission number or reference")}>
         <div className="relative"><Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" /><Input type="search" value={input} autoFocus autoComplete="off" className="ps-9" onChange={event => { inputDirty.current = true; setInput(event.target.value); }} onKeyDown={event => { if (event.key === "Enter") update({ q: input.trim() || null }); }} /></div>
       </FormField>
-      <div className="grid gap-3 sm:grid-cols-4">
+      {optionsDenied ? null : <><div className="grid gap-3 sm:grid-cols-4">
         <FormField name="search-sort" label={ui("Sort by")}><Select value={state.sort} onChange={event => update({ sort: event.target.value === "default" ? null : event.target.value })}><option value="default">{ui("Default")}</option><option value="name">{ui("Name")} ↑</option><option value="name-desc">{ui("Name")} ↓</option></Select></FormField>
         <FormField name="search-type" label={ui("Record type")}><Select value={state.types.length === 1 ? state.types[0] : ""} onChange={event => update({ types: event.target.value || null })}><option value="">{ui("All types")}</option>{(options?.allowedTypes ?? data?.allowedTypes ?? []).map(type => <option key={type} value={type}>{typeLabel(ui, type)}</option>)}</Select></FormField>
         <FormField name="search-status" label={ui("Status")}><Select value={state.status} onChange={event => update({ status: event.target.value === "active" ? null : event.target.value })}><option value="active">{statusLabel(ui, "active")}</option><option value="archived">{statusLabel(ui, "archived")}</option><option value="all">{statusLabel(ui, "all")}</option></Select></FormField>
@@ -146,7 +150,7 @@ export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
         <FormField name="search-class" label={ui("Class (pupils)")}><Select value={state.cls} onChange={event => update({ class: event.target.value || null })}><option value="">{ui("Any class")}</option>{(options?.classes ?? []).map(cls => <option key={cls.id} value={cls.id}>{[cls.name, cls.section].filter(Boolean).join(" ")} · {cls.academicYear}</option>)}</Select></FormField>
         {options?.campuses.length ? <FormField name="search-campus" label={ui("Campus")}><Select value={state.campus} onChange={event => update({ campus: event.target.value || null })}><option value="">{ui("All campuses")}</option>{options.campuses.map(campus => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</Select></FormField> : null}
       </div>
-      <p className="text-2xs text-ink-muted">{ui("Every filter must match. Record types are alternatives. Exact roll numbers, admission numbers and references are listed first.")}</p>
+      <p className="text-2xs text-ink-muted">{ui("Every filter must match. Record types are alternatives. Exact roll numbers, admission numbers and references are listed first.")}</p></>}
       {chips.length ? <div className="flex flex-wrap items-center gap-2" aria-label={ui("Active filters")} data-search-chips>
         {chips.map(chip => <Button key={chip.key} size="sm" variant="secondary" onClick={chip.clear} aria-label={ui("Remove filter {0}", [chip.text])}><bdi>{chip.text}</bdi><X className="size-3" aria-hidden="true" /></Button>)}
         <Button size="sm" variant="ghost" onClick={() => update({ types: null, status: null, year: null, class: null, campus: null })} data-search-clear>{ui("Clear filters")}</Button>
