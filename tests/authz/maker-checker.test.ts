@@ -100,6 +100,8 @@ const fake: Record<string, unknown> = {
   invoice: table(() => db.invoices),
   libraryCharge: table(() => db.libraryCharges),
   taxActivation: table(() => db.activations),
+  // SKAI-2261: these invoices carry no tax document, so a credit/waiver keeps the untaxed path.
+  taxDocument: table(() => []),
   taxFixtureRun: table(() => db.runs),
   auditLog: table(() => db.audit),
   activity: table(() => db.activities),

@@ -8,6 +8,7 @@ import { getCampusSeats } from "@/lib/auth/seats";
 import { notifySelfApproval } from "@/lib/notifications/events";
 import { capturePaymentReceipt } from "./receipt";
 import { settleLibraryChargeForInvoice } from "@/lib/library/charge-settlement";
+import { reviseDocumentForCredit } from "@/lib/tax/service";
 
 // SKO-433: refunds, credit notes and waivers as controlled financial exceptions.
 //  - A credit note or waiver reduces what is owed on one invoice; it never moves cash.
@@ -162,9 +163,13 @@ export async function decideAdjustment(user: AuthUser, id: string, decision: "ap
     let status = "APPROVED";
     if (current.kind !== "REFUND") {
       // Credit notes and waivers reduce what is owed; the reduction is recorded as a discount and no cash moves.
-      const total = invoice.totalAmount - current.amount, balance = invoice.balanceDue - current.amount;
+      // SKAI-2261: on a taxed invoice the reduction comes off the taxable amount, so VAT is recomputed and the tax
+      // document revised in the same transaction; the family stops owing tax on what was credited or waived.
+      const discountAmount = invoice.discountAmount + current.amount;
+      const revised = await reviseDocumentForCredit(tx, user.schoolId, invoice.id, discountAmount, { adjustmentId: current.id, kind: current.kind, amount: current.amount, by: user.userId });
+      const total = revised ? revised.total : invoice.totalAmount - current.amount, balance = invoice.balanceDue - (invoice.totalAmount - total);
       if (balance < 0) throw new ApiError("The adjustment is larger than what is still owed.", 409);
-      await tx.invoice.update({ where: { id: invoice.id }, data: { totalAmount: total, balanceDue: balance, discountAmount: invoice.discountAmount + current.amount, status: balance === 0 ? "PAID" : invoice.totalAmountPaid > 0 ? "PARTIAL" : invoice.status === "OVERDUE" ? "OVERDUE" : "PENDING" } });
+      await tx.invoice.update({ where: { id: invoice.id }, data: { totalAmount: total, balanceDue: balance, discountAmount, ...(revised ? { taxAmount: revised.tax } : {}), status: balance === 0 ? "PAID" : invoice.totalAmountPaid > 0 ? "PARTIAL" : invoice.status === "OVERDUE" ? "OVERDUE" : "PENDING" } });
       await settleLibraryChargeForInvoice(tx, invoice.id);
       status = "APPLIED";
     }
