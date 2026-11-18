@@ -219,9 +219,11 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
           <FileSearch aria-hidden="true" className="h-4 w-4 shrink-0" />{!rail && <span className="min-w-0 text-start">{t("Search records")}</span>}
         </Link></Tooltip>}
         <nav aria-label={t("Primary navigation")} className="min-h-0 flex-1 space-y-1 overflow-y-auto">{navigation(rail)}</nav>
-        {onToggleCollapse && <Button variant="outline" type="button" data-tour="shell.sidebar.collapse" onClick={onToggleCollapse} aria-label={peek?.active ? t("Keep sidebar open") : collapsed ? t("Expand sidebar") : t("Collapse sidebar")} aria-expanded={!rail} className="mt-3 flex min-h-11 items-center justify-center gap-2">
-          {peek?.active ? <Pin aria-hidden="true" className="h-4 w-4" /> : <ChevronLeft aria-hidden="true" className={cn("h-4 w-4 rtl:rotate-180", collapsed && "rotate-180 rtl:rotate-0")} />}
-          {!collapsed && t(peek?.active ? "Keep open" : "Collapse")}
+        {/* SKAI-2251: the forced tablet rail cannot be collapsed or expanded in place, so the footer is an icon-only
+            "Expand sidebar" that opens the labelled navigation drawer, and it never writes the desktop preference. */}
+        {onToggleCollapse && <Button variant="outline" type="button" data-tour="shell.sidebar.collapse" onClick={tablet ? () => setMobileOpen(true) : onToggleCollapse} aria-label={tablet ? t("Expand sidebar") : peek?.active ? t("Keep sidebar open") : collapsed ? t("Expand sidebar") : t("Collapse sidebar")} aria-expanded={tablet ? mobileOpen : !rail} aria-haspopup={tablet ? "dialog" : undefined} className="mt-3 flex min-h-11 items-center justify-center gap-2">
+          {peek?.active && !tablet ? <Pin aria-hidden="true" className="h-4 w-4" /> : <ChevronLeft aria-hidden="true" className={cn("h-4 w-4 rtl:rotate-180", rail && "rotate-180 rtl:rotate-0")} />}
+          {!rail && t(peek?.active ? "Keep open" : "Collapse")}
         </Button>}
       </aside>
       <nav ref={mobileNavRef} aria-label={t("Mobile navigation")} className="fixed inset-x-0 bottom-0 z-50 flex items-stretch justify-around border-t border-border bg-card px-[4px] py-[4px] safe-area-pb md:hidden">
