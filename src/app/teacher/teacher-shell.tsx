@@ -5,6 +5,11 @@ import { CycleProvider, CycleGate } from "@/components/academic-year/CycleGate";
 import { useTeacherData } from "./teacher-data-context";
 import { TeacherCommandPalette } from "@/components/teacher/command-palette";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { usePathname } from "next/navigation";
+
+// Leave is HR, not academic work: a teacher must reach My leave (and the
+// "Leave approved" notification target) before the year is activated.
+const CYCLE_EXEMPT_PREFIXES = ["/teacher/leave"];
 
 // Sign-out lives in RoleHeader, which this shell renders via RoleShell — one
 // button doing a full-document navigation, so Back can never re-render this
@@ -20,6 +25,8 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
   const ui = useUiText();
   const { data } = useTeacherData();
   const teacherName = data?.teacherName || ui("Teacher");
+  const pathname = usePathname() ?? "";
+  const cycleExempt = CYCLE_EXEMPT_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   return (
     <CycleProvider>
@@ -30,9 +37,7 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
         logoUrl={data?.logoUrl}
         dashboardHref="/teacher"
       >
-        <CycleGate>
-          {children}
-        </CycleGate>
+        {cycleExempt ? children : <CycleGate>{children}</CycleGate>}
         {/* ⌘K from anywhere in the console. Mounted at the shell so it survives
             route changes and can reach the already-loaded class and student
             lists without a second fetch. */}
