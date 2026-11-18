@@ -112,6 +112,21 @@ export const NOTIFICATION_FIXED_MESSAGE_KINDS: ReadonlySet<string> = new Set([
   "CONFIDENTIAL_EMERGENCY_ACCESS", "CARE_MESSAGE_STAFF", "CARE_MESSAGE_FAMILY", "LEARNER_LEAVE_DECIDED",
   "SUBSCRIPTION_PAUSED_NOTICE", "CORRECTION_REQUESTED", "TAX_SIGNOFF_REQUESTED",
 ]);
+type Ui = (text: string, values?: (string | number)[]) => string;
+/**
+ * Chat notifications (CHAT_MESSAGE, written by src/lib/chat/service.ts) are not NOTIFICATION_EVENTS kinds: the
+ * message is one of two fixed sentences and the title is "New message from {0}" or "{0} posted in {1}". Rebuild
+ * them in the reader's language (SKAI-2211). shortcut: a sender name containing " posted in " splits at the first
+ * occurrence; store the actor and title as structured fields if that ever matters.
+ */
+export function localizeChatNotification(title: string, message: string, ui: Ui): { title: string; message: string } {
+  const direct = /^New message from (.+)$/s.exec(title);
+  const group = direct ? null : /^(.+?) posted in (.+)$/s.exec(title);
+  return {
+    title: direct ? ui("New message from {0}", [direct[1]]) : group ? ui("{0} posted in {1}", [group[1], group[2]]) : title,
+    message: ui(message),
+  };
+}
 /** Plain notices: nothing to open (the paused-plan line for operators who cannot renew, R-I2). */
 export const NOTIFICATION_NOTICE_ONLY_KINDS: ReadonlySet<string> = new Set(["SUBSCRIPTION_PAUSED_NOTICE"]);
 
