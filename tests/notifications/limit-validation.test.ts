@@ -27,3 +27,10 @@ test("notification limits must be positive integers", async () => {
   assert.equal((await get("?limit=500")).status, 200);
   assert.deepEqual(listed, [20, 50]);
 });
+test("SKAI-2213: PATCH rejects non-string or oversized ids with 400", async () => {
+  const { PATCH } = await import(src("app/api/notifications/route.ts"));
+  const patch = (body: unknown) => PATCH(new Request("http://localhost/api/notifications", { method: "PATCH", body: JSON.stringify(body), headers: { "content-type": "application/json" } }) as never);
+  for (const ids of [[123], [null], [{ not: "x" }], [""], Array.from({ length: 501 }, (_, i) => `n${i}`)]) {
+    assert.equal((await patch({ ids })).status, 400, JSON.stringify(ids).slice(0, 40));
+  }
+});
