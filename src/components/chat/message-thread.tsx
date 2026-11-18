@@ -183,7 +183,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
               className={cn(
                 "-ms-1 shrink-0",
                 "hover:-translate-x-0.5 rtl:hover:translate-x-0.5",
-                backVisibility === "mobile" && "md:hidden"
+                backVisibility === "mobile" && "xl:hidden"
               )}
             >
               <ArrowLeft className="h-4 w-4 rtl:rotate-180" />

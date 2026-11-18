@@ -46,8 +46,9 @@ export function ChatWorkspace({ layout = "split", className }: ChatWorkspaceProp
         )}
       </AnimatePresence>
 
-      {/* Below md there is only room for one pane, so an open thread takes the
-          screen and the list steps aside. The docked panel is stacked at every
+      {/* Below xl there is only room for one pane, so an open thread takes the
+          screen and the list steps aside (SKAI-2256: at md-lg the sidebar and a fixed
+          inbox squeezed the thread to ~300px). The docked panel is stacked at every
           width for the same reason. */}
       <aside aria-label={ui("Conversations")}
         className={cn(
@@ -56,7 +57,7 @@ export function ChatWorkspace({ layout = "split", className }: ChatWorkspaceProp
             ? activeId
               ? "hidden"
               : "block"
-            : cn("md:w-[320px] lg:w-[360px]", activeId ? "hidden md:block" : "block")
+            : cn("xl:w-[360px]", activeId ? "hidden xl:block" : "block")
         )}
       >
         <ConversationList onNewChat={() => setIsNewOpen(true)} />
@@ -65,7 +66,7 @@ export function ChatWorkspace({ layout = "split", className }: ChatWorkspaceProp
       <div
         className={cn(
           "min-h-0 min-w-0 flex-1",
-          stacked ? (activeId ? "block" : "hidden") : activeId ? "block" : "hidden md:block"
+          stacked ? (activeId ? "block" : "hidden") : activeId ? "block" : "hidden xl:block"
         )}
       >
         {/* In the stacked panel the list is not on screen beside the thread, so
