@@ -874,6 +874,7 @@ const entries: [string, string, string][] = [
   ["Resolve within (hours, optional)", "الحل خلال (ساعات، اختياري)", "حل کی مدت (گھنٹے، اختیاری)"],
   ["Keywords for suggestions (comma separated, optional)", "كلمات مفتاحية للاقتراحات (مفصولة بفواصل، اختياري)", "تجاویز کے لیے کلیدی الفاظ (کوما سے الگ، اختیاری)"],
   ["Save request type", "حفظ نوع الطلب", "درخواست کی قسم محفوظ کریں"],
+  ["Resolved · waiting for the requester to confirm", "تم الحل · بانتظار تأكيد مقدّم الطلب", "حل ہو گیا · درخواست دہندہ کی تصدیق کا انتظار"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));
